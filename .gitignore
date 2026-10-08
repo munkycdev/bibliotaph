@@ -9,6 +9,13 @@ obj/
 spikes/pdf-feasibility/.probe
 spikes/pdf-feasibility/corpus/generated/*.pdf
 
+# Purchased books, and anything cut from them, never belong in the repo. Tests generate their PDFs at run time.
+# For a deliberately synthetic file, use git add -f and say so in the PR.
+*.pdf
+*.epub
+*.cbz
+*.cbr
+
 # Local app data never belongs in the repo
 *.db
 *.db-wal

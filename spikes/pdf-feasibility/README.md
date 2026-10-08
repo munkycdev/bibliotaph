@@ -1,8 +1,11 @@
 # Bibliotaph PDF feasibility spike
 
 Throwaway code that answers one question: can PDFium, isolated in a worker process, render, extract and survive
-Dave's real PDFs, with a WPF viewer that stays smooth? The plan and the pass gates are in the
-[spike plan doc](https://claude.ai/code/artifact/44eb8c9a-b859-430e-98c5-f6537550bd72).
+a real collection of purchased RPG PDFs, with a WPF viewer that stays smooth? The plan and the pass gates were
+in a private planning doc; the results are summarized in `NOTES.md` and `docs/architecture.md`.
+
+The corpus itself is not in the repo: the books are purchased and the fixtures cut from them are gitignored.
+`corpus/manifest.json` lists the files relative to `<corpus>`; set its `root` to your own folder before a run.
 
 | Project | What it is |
 | --- | --- |
@@ -17,7 +20,7 @@ Dave's real PDFs, with a WPF viewer that stays smooth? The plan and the pass gat
 Needs the .NET 11 RC SDK (x64). Everything builds into `bin\Debug\`.
 
 ```powershell
-cd Z:\repos\bibliotaph\spikes\pdf-feasibility
+cd spikes\pdf-feasibility
 dotnet --list-sdks          # expect an 11.0.100-rc.* entry
 dotnet build Bibliotaph.Spike.slnx
 ```
@@ -46,7 +49,7 @@ On an older SDK, build with `dotnet build Bibliotaph.Spike.slnx -p:BibTfm=net10.
 3. Try the viewer:
 
    ```powershell
-   .\bin\Debug\ViewerPrototype.exe "C:\Users\david\OneDrive - Castillo Life\eBooks\D&D\DungeonCrawlerCarl\carl_rpg_core_rulebook_digital_hi-res_watermarked.pdf"
+   .\bin\Debug\ViewerPrototype.exe "<corpus>\DungeonCrawlerCarl\carl_rpg_core_rulebook_digital_hi-res_watermarked.pdf"
    ```
 
    Fling through the book, switch zoom to 400% on a map, jump to a printed page label, and search (Ctrl+F, F3).
