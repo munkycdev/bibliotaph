@@ -15,7 +15,7 @@ The discussion copy, with comments, is the private [architecture proposal doc](h
 | 3 | Storage | SQLite, two files: `catalog.db` (user work, migrated, backed up) and `index.db` (derived, rebuilt when its schema changes), joined with ATTACH | Makes "rebuild never touches user work" (spec §10) a physical guarantee | One database with careful table ownership |
 | 4 | Data access | EF Core for `catalog.db`; Microsoft.Data.Sqlite with parameterized SQL (Dapper for reads, reused prepared commands for bulk inserts) for `index.db` and search | FTS5's `MATCH`, `bm25()`, `snippet()` and `highlight()` have no LINQ translation, bulk page inserts need prepared commands in batched transactions, and `index.db` has no migrations. Values are always bound; the `MATCH` string is generated from the parsed query with every term quoted, and column names come from a fixed whitelist, since parameters cover neither. | Dapper everywhere, with hand-rolled migrations |
 | 5 | Search engine | SQLite FTS5 (bm25, unicode61 tokenizer, diacritics removed); vectors for Release B later in the same index | Inside the 1-second p95 target for the collection; no second storage engine | Lucene.NET 4.8 |
-| 6 | OCR | Windows.Media.Ocr behind `IOcrEngine`, running inside the index worker | Ships with Windows; no native binaries or language data to package | Tesseract; decided by a bake-off on two scanned books at the start of slice 1 |
+| 6 | OCR | Windows.Media.Ocr behind `IOcrEngine`, running inside the index worker | Ships with Windows; no native binaries or language data to package | Tesseract 5, which lost the slice 1 bake-off: on 20 pages each of two scanned books Windows OCR scored 81% known words to Tesseract's 73 to 81%, recovered 99% of a digital book's words to 93 to 96%, and took about 250 ms a page to Tesseract's 1.6 to 3.5 s |
 | 7 | Job queue | In-process, durable table in `index.db`, run by hosted services | Processing runs only while the app is open; a small scheduler is easier to reason about than a framework | A library queue if the scheduler outgrows that |
 | 8 | UI toolkit | WPF with CommunityToolkit.Mvvm and Microsoft.Extensions.Hosting for DI; custom theme from the mockup tokens; no third-party control suite | The mockup is a bespoke editorial look, not Fluent | WPF-UI or the built-in Fluent theme as a base |
 | 9 | AI adapter | Local first: an OpenAI-compatible endpoint (Ollama, LM Studio) behind `IClassifier`; endpoint and model configurable | Keeps text on the machine and costs nothing per book. The risk is the 95% precision gate, so the pilot measures it before anything is auto-applied. | Cloud adapter if local precision falls short on the pilot |
@@ -217,7 +217,7 @@ Open risks, in the order to retire them:
 1. **Isolation on Windows.** Slice 0 runs the worker self-test in CI on a Windows runner.
 2. **Memory headroom.** Viewer worker 1.5 GB, index workers 1 GB; measure release-on-close.
 3. **Slow pages.** Preview-first and prefetch must meet the 250 ms no-blank-page bar on the worst books; measured in slice 1.
-4. **OCR untested.** Bake-off first in slice 1.
+4. **OCR.** Settled by the slice 1 bake-off: Windows OCR was as accurate as Tesseract and 7 to 14 times faster. It reads multi-column pages column by column, which suits search.
 5. **OneDrive hydration.** Placeholder detection, local-first ordering and the low-disk pause are new code.
 6. **Non-ASCII paths and rotated pages.** A fixture each.
 7. **.NET 11 RC to GA** in November 2026; a rebuild, not a migration.
