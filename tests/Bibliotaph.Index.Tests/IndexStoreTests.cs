@@ -100,8 +100,24 @@ public sealed class IndexStoreTests : IndexFixture
         var progress = await _queries.GetProgressAsync(Ct);
         var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
 
-        Assert.Equal(new IndexProgress(2, 1, 0, 1, 0), progress);
+        Assert.Equal(new IndexProgress(2, 1, 0, 1, 0, 0), progress);
         Assert.Equal(("Locked book", StageStatus.Blocked, "Needs a password"), (attention.Title, attention.Status, attention.Reason));
+    }
+
+    [Fact]
+    public async Task Progress_tells_index_work_from_ocr_work()
+    {
+        await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2), Pages(1), [], Ct);
+        await _queue.EnqueueAsync(1, "hash1", Stage.Ocr, ct: Ct);
+
+        // Only OCR is waiting: the index lane has nothing to pause.
+        var progress = await _queries.GetProgressAsync(Ct);
+        Assert.Equal((1L, 0L), (progress.Processing, progress.Indexing));
+
+        await _queue.EnqueueAsync(2, "hash2", Stage.Covers, ct: Ct);
+        progress = await _queries.GetProgressAsync(Ct);
+        Assert.Equal((2L, 1L), (progress.Processing, progress.Indexing));
     }
 
     [Fact]
