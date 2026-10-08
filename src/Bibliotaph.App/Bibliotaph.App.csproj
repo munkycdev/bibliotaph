@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shell, screens, view models, theme and DI composition. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(BibTfm)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>Bibliotaph</AssemblyName>
+    <RootNamespace>Bibliotaph.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The exe's icon (Explorer, shortcuts). MainWindow sets the same .ico for its title bar and taskbar button. -->
+    <ApplicationIcon>Assets\Bibliotaph.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Pdf.Contracts\Bibliotaph.Pdf.Contracts.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Viewer\Bibliotaph.Viewer.csproj" />
+    <BundledExe Include="..\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+    <Resource Include="Assets\Bibliotaph.ico" />
+    <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="licenses\fonts" />
+    <None Include="Icons\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-lucide.txt" />
+  </ItemGroup>
+</Project>

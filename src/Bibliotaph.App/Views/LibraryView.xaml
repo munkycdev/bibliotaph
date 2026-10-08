@@ -1,0 +1,29 @@
+<UserControl x:Class="Bibliotaph.App.Views.LibraryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:LibraryViewModel}">
+  <StackPanel>
+    <DockPanel Margin="0,0,0,24">
+      <Button DockPanel.Dock="Right" Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+      <StackPanel>
+        <TextBlock Text="Library" Style="{StaticResource Text.H1}" />
+        <TextBlock Text="Good stories begin with something you already own." Style="{StaticResource Text.Subtitle}" />
+      </StackPanel>
+    </DockPanel>
+    <Border Style="{StaticResource Bt.Rule}" />
+
+    <c:EmptyState Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}"
+                  Title="No folders yet."
+                  Message="Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are."
+                  ActionText="Add a folder" ActionIcon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+    <c:EmptyState Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                  Title="Nothing scanned yet."
+                  Message="{Binding FolderSummary, StringFormat='{}{0} to be scanned. Your books will appear here once scanning arrives with the next build.'}"
+                  ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
+  </StackPanel>
+</UserControl>

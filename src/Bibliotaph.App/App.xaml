@@ -1,0 +1,31 @@
+<Application x:Class="Bibliotaph.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:views="clr-namespace:Bibliotaph.App.Views"
+             ShutdownMode="OnMainWindowClose">
+  <Application.Resources>
+    <ResourceDictionary>
+      <!--
+        ThemeService inserts Tokens.Light.xaml or Tokens.Dark.xaml at index 0 before any window opens.
+        Controls.xaml also brings in Typography.xaml and the generated Icons.xaml.
+      -->
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Controls.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <c:BoolToVisibility x:Key="Bt.VisibleWhenTrue" />
+      <c:BoolToVisibility x:Key="Bt.CollapsedWhenTrue" Invert="True" />
+
+      <!-- One view per page view model; the shell's ContentControl picks by type. -->
+      <DataTemplate DataType="{x:Type vm:HomeViewModel}"><views:HomeView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:LibraryViewModel}"><views:LibraryView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:CollectionsViewModel}"><views:CollectionsView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:SessionsViewModel}"><views:SessionsView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:NeedsReviewViewModel}"><views:NeedsReviewView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:LibraryFoldersViewModel}"><views:LibraryFoldersView /></DataTemplate>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

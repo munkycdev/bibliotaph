@@ -1,0 +1,41 @@
+<!--
+  Bibliotaph light theme: the mockup's bt-* CSS tokens (docs/bibliotaph-ui-mockups.html).
+  Tokens.Light.xaml and Tokens.Dark.xaml must define the same keys. Use the brushes through DynamicResource
+  so ThemeService can swap this dictionary at runtime.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- bt-bg: Window and page background -->
+  <Color x:Key="Bt.BgColor">#f9f8f5</Color>
+  <SolidColorBrush x:Key="Bt.Bg" Color="#f9f8f5" />
+  <!-- bt-panel: Raised surfaces: search box, cards, buttons -->
+  <Color x:Key="Bt.PanelColor">#fffefc</Color>
+  <SolidColorBrush x:Key="Bt.Panel" Color="#fffefc" />
+  <!-- bt-side: Navigation rail and the title bar -->
+  <Color x:Key="Bt.SideColor">#f0f0e9</Color>
+  <SolidColorBrush x:Key="Bt.Side" Color="#f0f0e9" />
+  <!-- bt-line: Hairlines and borders -->
+  <Color x:Key="Bt.LineColor">#e3e5dc</Color>
+  <SolidColorBrush x:Key="Bt.Line" Color="#e3e5dc" />
+  <!-- bt-text: Body text -->
+  <Color x:Key="Bt.TextColor">#232b26</Color>
+  <SolidColorBrush x:Key="Bt.Text" Color="#232b26" />
+  <!-- bt-muted: Secondary text and inactive icons -->
+  <Color x:Key="Bt.MutedColor">#70766d</Color>
+  <SolidColorBrush x:Key="Bt.Muted" Color="#70766d" />
+  <!-- bt-accent: Primary buttons, focus rings, links -->
+  <Color x:Key="Bt.AccentColor">#365847</Color>
+  <SolidColorBrush x:Key="Bt.Accent" Color="#365847" />
+  <!-- bt-accent-text: Text on the accent colour -->
+  <Color x:Key="Bt.AccentTextColor">#fcfcf7</Color>
+  <SolidColorBrush x:Key="Bt.AccentText" Color="#fcfcf7" />
+  <!-- bt-soft: Hover and selected backgrounds -->
+  <Color x:Key="Bt.SoftColor">#e4eadd</Color>
+  <SolidColorBrush x:Key="Bt.Soft" Color="#e4eadd" />
+  <!-- bt-warm: Warm highlights -->
+  <Color x:Key="Bt.WarmColor">#efe8dc</Color>
+  <SolidColorBrush x:Key="Bt.Warm" Color="#efe8dc" />
+  <!-- Status dot: processing idle. Same in both modes, as in the mockup. -->
+  <SolidColorBrush x:Key="Bt.StatusOk" Color="#76916b" />
+  <SolidColorBrush x:Key="Bt.Shadow" Color="#25000000" />
+</ResourceDictionary>

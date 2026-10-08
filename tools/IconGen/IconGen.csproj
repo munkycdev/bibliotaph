@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Converts the Lucide SVGs in lucide\ into WPF Geometry resources (src\Bibliotaph.App\Icons\Icons.xaml).
+    From the repo root, run IconGen (dotnet run with this project).
+    To add an icon, copy its SVG from lucide-static (same version) into lucide\ and run it again.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <AllowFileWrites>true</AllowFileWrites>
+  </PropertyGroup>
+</Project>

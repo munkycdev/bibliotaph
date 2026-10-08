@@ -1,0 +1,61 @@
+<!--
+  Type, from the mockup: DM Sans for the interface, Libre Caslon Display for display headings only.
+  Both are embedded static TTFs (WPF cannot select weights from a variable font). DM Sans has Regular,
+  Medium and SemiBold faces that share the "DM Sans" family, so use FontWeight to pick one.
+  Sizes are the mockup's CSS pixels, which equal WPF device-independent pixels.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <FontFamily x:Key="Font.Sans">pack://application:,,,/Fonts/#DM Sans</FontFamily>
+  <FontFamily x:Key="Font.Display">pack://application:,,,/Fonts/#Libre Caslon Display</FontFamily>
+
+  <Style x:Key="Text.H1" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontSize" Value="42" />
+    <Setter Property="LineHeight" Value="45" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style x:Key="Text.H2" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontSize" Value="30" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style x:Key="Text.Subtitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Margin" Value="0,9,0,0" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style x:Key="Text.Copy" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="LineHeight" Value="21" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <!-- Small capitals label, such as SMART VIEWS. CSS letter-spacing has no TextBlock equivalent. -->
+  <Style x:Key="Text.Eyebrow" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+  </Style>
+
+  <Style x:Key="Text.Small" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style x:Key="Text.Row" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+</ResourceDictionary>

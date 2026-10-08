@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- IClassifier, rule hints, evidence validator and AI adapters (from slice 2). -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+  </ItemGroup>
+</Project>

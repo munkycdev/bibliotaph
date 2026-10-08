@@ -1,0 +1,30 @@
+<Project>
+  <!--
+    Build rules for every project under src/, tests/ and tools/.
+    The spike under spikes/ keeps its own props and is not part of this build.
+  -->
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+
+    <!--
+      .NET 11 RC until GA ships in November 2026 (see README.md).
+      Override with -p:BibTfm=net10.0 to compile on an older SDK; that is a convenience, not a supported target.
+    -->
+    <BibTfm Condition="'$(BibTfm)' == ''">net11.0</BibTfm>
+
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Needed for IDE0005 (unused usings) in the build; XML docs are not required on every member. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Deterministic>true</Deterministic>
+
+    <Company>Bibliotaph</Company>
+    <Product>Bibliotaph</Product>
+  </PropertyGroup>
+</Project>

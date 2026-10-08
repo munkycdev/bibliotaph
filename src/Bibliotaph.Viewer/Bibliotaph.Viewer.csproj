@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Virtualized page surface, tiling, selection and highlights (from slice 1). -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+  </ItemGroup>
+</Project>

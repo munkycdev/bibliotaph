@@ -13,3 +13,6 @@ spikes/pdf-feasibility/corpus/generated/*.pdf
 *.db
 *.db-wal
 *.db-shm
+
+# Test output
+TestResults/

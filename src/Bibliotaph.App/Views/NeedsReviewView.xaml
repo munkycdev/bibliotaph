@@ -1,0 +1,22 @@
+<UserControl x:Class="Bibliotaph.App.Views.NeedsReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:NeedsReviewViewModel}">
+  <StackPanel>
+    <TextBlock Text="A little clarification." Style="{StaticResource Text.H1}" />
+    <TextBlock Text="Suggestions worth a second look. The rest is ready to use." Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
+    <Border Style="{StaticResource Bt.Rule}" />
+    <c:EmptyState Title="Everything in its place."
+                  Message="No suggestions need your attention."
+                  ActionText="Return to library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding ReturnToLibraryCommand}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+      <c:LucideIcon Data="{StaticResource Icon.ShieldCheck}" Size="13" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
+      <TextBlock Text="Your corrections are never overwritten." Style="{StaticResource Text.Small}" FontSize="10" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

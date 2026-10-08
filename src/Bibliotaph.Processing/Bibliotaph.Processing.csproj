@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Scanner, reconciliation, job queue and pipeline stages (from slice 1). -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <!-- Opens source files, read-only, through ISourceFileReader. -->
+    <AllowFileWrites>true</AllowFileWrites>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+  </ItemGroup>
+</Project>

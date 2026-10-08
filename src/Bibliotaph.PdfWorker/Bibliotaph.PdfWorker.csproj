@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The only process that runs PDFium. Grown from the spike's PdfWorker. -->
+  <PropertyGroup>
+    <!-- WinExe: no console, so no conhost.exe child that would count against the job's one-process limit. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Maps the host's shared render buffer read-write. -->
+    <AllowFileWrites>true</AllowFileWrites>
+
+    <!--
+      Fault-injection requests (crash, hang, allocate, spawn a child) exist only in test builds.
+      Debug builds are test builds; Release builds never contain them.
+    -->
+    <BibliotaphTestOps Condition="'$(BibliotaphTestOps)' == '' and '$(Configuration)' == 'Debug'">true</BibliotaphTestOps>
+    <DefineConstants Condition="'$(BibliotaphTestOps)' == 'true'">$(DefineConstants);BIBLIOTAPH_TEST_OPS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Pdf.Contracts\Bibliotaph.Pdf.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="PDFiumCore" />
+  </ItemGroup>
+</Project>
