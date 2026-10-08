@@ -51,13 +51,17 @@ jobs:
       - name: Test
         run: dotnet test --solution Bibliotaph.slnx --configuration Debug --no-build --report-xunit-trx --results-directory TestResults
 
-      # Opens the real window, visits every screen in light and dark, and fails on any exception or binding error.
+      # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
+      # exception or binding error. The fixtures are copied out of the checkout so the app's folder holds nothing else.
       - name: App smoke test
         shell: pwsh
         run: |
           $exe = Resolve-Path 'src/Bibliotaph.App/bin/Debug/net11.0-windows/Bibliotaph.exe'
           $data = Join-Path $env:RUNNER_TEMP 'bibliotaph-smoke'
-          $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"" -PassThru
+          $files = Join-Path $env:RUNNER_TEMP 'bibliotaph-smoke-files'
+          New-Item -ItemType Directory -Force $files | Out-Null
+          Copy-Item 'tests/fixtures/smoke/smoke-book.pdf', 'tests/fixtures/smoke/smoke-map.png' $files
+          $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"", '--smoke-files', "`"$files`"" -PassThru
           if (-not $app.WaitForExit(120000)) { $app.Kill(); throw 'Smoke test did not finish within 2 minutes.' }
           $log = @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content)
           $log

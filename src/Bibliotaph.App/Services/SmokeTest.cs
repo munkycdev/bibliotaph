@@ -16,14 +16,15 @@ using Serilog;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// <c>Bibliotaph.exe --smoke-test --data-root &lt;folder&gt;</c>: opens the real window, visits every route in
-/// light and dark, fills a small made-up library and browses and searches it in both themes, then exits 0, or 1 on
-/// any exception or binding error. CI runs it on Windows so a broken
-/// resource or template fails the build instead of the first launch. It is not a substitute for looking.
+/// <c>Bibliotaph.exe --smoke-test --data-root &lt;folder&gt; [--smoke-files &lt;folder&gt;]</c>: opens the real window,
+/// visits every route in light and dark, fills a small made-up library and browses and searches it in both themes,
+/// then exits 0, or 1 on any exception or binding error. With <c>--smoke-files</c> (tests/fixtures/smoke), it also
+/// opens a real PDF from a search hit and reads it, and opens an image. CI runs it on Windows so a broken resource or
+/// template fails the build instead of the first launch. It is not a substitute for looking.
 /// </summary>
 static class SmokeTest
 {
-    public static async Task<int> RunAsync(IServiceProvider services, Window window)
+    public static async Task<int> RunAsync(IServiceProvider services, Window window, string? smokeFiles)
     {
         var bindingErrors = new BindingErrorListener();
         PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
@@ -47,12 +48,28 @@ static class SmokeTest
                 while (navigation.GoBack()) await Settle(window);
             }
 
+            // The sidebar's status line opens Library folders.
+            var status = (Button)window.FindName("StatusButton");
+            ((IInvokeProvider)new ButtonAutomationPeer(status).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Settle(window);
+            if (services.GetRequiredService<ShellViewModel>().CurrentPage?.Route != Route.LibraryFolders)
+                throw new InvalidOperationException("The sidebar status didn't open Library folders.");
+            navigation.GoBack();
+            await Settle(window);
+
             await SeedLibraryAsync(services);
+            (long Pdf, long Image)? real = smokeFiles is null ? null : await SeedRealFilesAsync(services, smokeFiles);
+            var books = real is null ? 4 : 6;
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
             {
                 await theme.SetPreferenceAsync(preference);
-                await BrowseLibraryAsync(services, window);
+                await BrowseLibraryAsync(services, window, books);
                 Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
+                await ShowFolderProgressAsync(services, window);
+                if (real is not { } files) continue;
+                await ReadBookAsync(services, window, files.Pdf);
+                await ViewImageAsync(services, window, files.Image);
+                Log.Information("Smoke test: a PDF read and an image viewed in {Theme}", preference);
             }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
@@ -125,14 +142,14 @@ static class SmokeTest
     }
 
     /// <summary>The Library in covers and as a list, both search tabs, a query with a problem, and the inspector.</summary>
-    static async Task BrowseLibraryAsync(IServiceProvider services, Window window)
+    static async Task BrowseLibraryAsync(IServiceProvider services, Window window, int books)
     {
         var search = services.GetRequiredService<SearchState>();
         services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
         var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         // Queries run off the UI thread, so an idle dispatcher doesn't mean the results are in: wait for them.
-        await WaitUntilAsync(window, () => page.Items.Count == 4, () => $"The Library shows {page.Items.Count} books, not 4.");
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
 
         page.Layout = LibraryLayout.List;
         page.ShowFilters = true;
@@ -164,7 +181,168 @@ static class SmokeTest
         page.Tab = ResultsTab.Documents;
         page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
-        await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == 4, () => "Clearing the search didn't bring back all 4 books.");
+        await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books, () => $"Clearing the search didn't bring back all {books} books.");
+    }
+
+    /// <summary>
+    /// The synthetic PDF and PNG in tests/fixtures/smoke, added as a second folder and indexed by hand (indexing is
+    /// paused), so the viewer has real files to open.
+    /// </summary>
+    static async Task<(long Pdf, long Image)> SeedRealFilesAsync(IServiceProvider services, string folder)
+    {
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        var library = services.GetRequiredService<LibraryStore>();
+        var index = services.GetRequiredService<IndexStore>();
+        string[] names = ["smoke-book.pdf", "smoke-map.png"];
+        await library.ReconcileRootAsync(root.Id, [.. names.Select(name =>
+        {
+            var info = new System.IO.FileInfo(System.IO.Path.Combine(folder, name));
+            if (!info.Exists) throw new InvalidOperationException($"The smoke fixture {name} is missing from {folder}.");
+            return new ScannedFile(name, info.Length, info.LastWriteTimeUtc, false);
+        })]);
+        long pdf = 0, image = 0;
+        foreach (var file in await library.NextUnhashedAsync(10, includeOnlineOnly: true))
+        {
+            var isPdf = file.Format == SourceFormats.Pdf;
+            var hash = ContentHash.Parse(new string(isPdf ? 'e' : 'f', ContentHash.HexLength));
+            var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A smoke fixture didn't attach.");
+            await index.UpsertDocumentAsync(
+                new DocRow
+                {
+                    DocumentId = documentId,
+                    ContentHash = hash.Hex,
+                    Format = file.Format,
+                    DisplayTitle = isPdf ? "Smoke Test Book" : "Smoke Test Map",
+                    PageCount = isPdf ? 2 : null,
+                    WidthPx = isPdf ? null : 320,
+                    HeightPx = isPdf ? null : 200,
+                },
+                isPdf ? [new PageRow(0, "i", 612, 792), new PageRow(1, "1", 612, 792)] : [], []);
+            if (isPdf)
+            {
+                await index.SetPageTextAsync(documentId,
+                [
+                    new PageTextRow(0, "Smoke Test Book This page is the front matter.", "pdf", 1, false),
+                    new PageTextRow(1, "Chapter One The red dragon sleeps beneath the mill. A secret door hides behind the bar.", "pdf", 1, false),
+                ]);
+                pdf = documentId;
+            }
+            else image = documentId;
+        }
+        if (pdf == 0 || image == 0) throw new InvalidOperationException("The smoke fixtures weren't both added.");
+        return (pdf, image);
+    }
+
+    /// <summary>
+    /// Opens the PDF from a search hit: it must open at the hit's page with the word marked, draw the page, select
+    /// its text, find in the book, follow a bookmark at Fit page, draw tiles at 300%, and go Back to the results.
+    /// </summary>
+    static async Task ReadBookAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var search = services.GetRequiredService<SearchState>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        search.Search("dragon");
+        library.Tab = ResultsTab.Pages;
+        PageHitViewModel? hit = null;
+        await WaitUntilAsync(window, () => (hit = library.Hits.SelectMany(h => h.Pages).FirstOrDefault(p => p.Hit.DocumentId == documentId)) is not null,
+            () => "Searching for dragon didn't find the smoke PDF's page.");
+
+        library.OpenPageCommand.Execute(hit);
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open page didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The PDF didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The PDF didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        if (viewer.Highlights.Items.Count == 0) throw new InvalidOperationException("The search's word wasn't marked on the page.");
+
+        var pages = FindChild<Bibliotaph.Viewer.PdfPagesView>(window) ?? throw new InvalidOperationException("The viewer has no page surface.");
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && pages.PageModels[1] is { Image: not null, IsPreview: false },
+            () => $"Page 1 wasn't drawn at full quality (page in view {pages.CurrentPageIndex}).");
+        if (viewer.PageEntry != "1" || !pages.PositionText.Contains("PDF page 2 of 2", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The page box says {viewer.PageEntry} and the footer {pages.PositionText}.");
+
+        await pages.SelectAllOnCurrentPageAsync();
+        if (!pages.HasSelection) throw new InvalidOperationException("Select all found no text on the page.");
+
+        viewer.FindText = "mill";
+        await viewer.FindCommand.ExecuteAsync(null);
+        if (!viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal)) throw new InvalidOperationException($"Find said {viewer.FindStatus}.");
+
+        viewer.PageEntry = "i";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
+
+        if (viewer.Outline is not [{ Title: "Front matter", Page: "i" }, { Title: "Chapter One", Page: "1" } chapter])
+            throw new InvalidOperationException($"The contents panel shows {viewer.Outline.Count} bookmarks, not the fixture's two.");
+        viewer.Zoom = Bibliotaph.Viewer.PdfPagesView.FitPage;
+        viewer.OpenOutlineEntryCommand.Execute(chapter);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1, () => "The Chapter One bookmark didn't go to its page.");
+        viewer.PageEntry = "i";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going back to page i at Fit page didn't show the first page.");
+
+        viewer.Zoom = 3;
+        await WaitUntilAsync(window, () => pages.PageModels[pages.CurrentPageIndex].Tiles.Count > 0, () => "No tiles were drawn at 300%.");
+        viewer.Zoom = 0;
+
+        navigation.GoBack();
+        await Settle(window);
+        if (shell.CurrentPage is not LibraryViewModel) throw new InvalidOperationException("Back didn't return to the Library.");
+        search.Search("");
+        library.Tab = ResultsTab.Documents;
+        await Settle(window);
+    }
+
+    /// <summary>Opens the PNG from the inspector, then a book whose file isn't there, which must say so.</summary>
+    static async Task ViewImageAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library isn't showing.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke image isn't in the Library.");
+
+        library.OpenBookCommand.Execute(library.Items.First(i => i.DocumentId == documentId));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsImage || viewer.Mode == ViewerMode.Problem, () => $"The image didn't open (still {viewer.Mode}).");
+        if (viewer.Image is not { Width: > 0 }) throw new InvalidOperationException($"The image didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        viewer.Zoom = 2;
+        await Settle(window);
+        navigation.GoBack();
+        await Settle(window);
+
+        // The made-up books' folder doesn't exist, so opening one shows why it can't be read.
+        library.OpenBookCommand.Execute(library.Items.First(i => i.Title == "Tavern Map"));
+        viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.Mode == ViewerMode.Problem, () => $"A missing file didn't show a problem (it shows {viewer.Mode}).");
+        navigation.GoBack();
+        await Settle(window);
+    }
+
+    static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindChild<T>(child) is { } deeper) return deeper;
+        }
+        return null;
+    }
+
+    /// <summary>Library folders with a library in it: the step-by-step progress and a card per folder.</summary>
+    static async Task ShowFolderProgressAsync(IServiceProvider services, Window window)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.NavigateTo(Route.LibraryFolders);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryFoldersViewModel
+            ?? throw new InvalidOperationException("The Library folders route didn't open Library folders.");
+        await WaitUntilAsync(window, () => page.Folders.Count > 0 && page.Folders.All(f => f.Detail.Length > 0),
+            () => "Library folders didn't describe its folders.");
+        if (page.Activity.Phases.Count != 4 || page.Activity.Phases.Any(p => p.Status.Length == 0))
+            throw new InvalidOperationException("The indexing steps aren't all described.");
+        navigation.GoBack();
+        await Settle(window);
     }
 
     /// <summary>Lets the window work until <paramref name="condition"/> holds, or fails after a few seconds.</summary>

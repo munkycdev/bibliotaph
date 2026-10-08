@@ -98,13 +98,27 @@ public sealed class WorkerClient : IAsyncDisposable
     }
 
     public async Task<Response> SendAsync(Request request, TimeSpan? timeout = null, CancellationToken ct = default) =>
-        (await SendCoreAsync(request, copyPixels: false, timeout, ct)).Response;
+        (await SendCoreAsync<object>(request, null, timeout, ct)).Response;
 
     /// <summary>Renders and copies the pixels out of shared memory before another request can overwrite them.</summary>
     public async Task<(Response Response, byte[]? Pixels)> RenderAsync(Request request, TimeSpan? timeout = null, CancellationToken ct = default) =>
-        await SendCoreAsync(request with { Op = Op.Render }, copyPixels: true, timeout, ct);
+        await RenderAsync(request, static (info, pixels) =>
+        {
+            var copy = GC.AllocateUninitializedArray<byte>(info.Stride * info.Height);
+            unsafe { new ReadOnlySpan<byte>((void*)pixels, copy.Length).CopyTo(copy); }
+            return copy;
+        }, timeout, ct);
 
-    async Task<(Response Response, byte[]? Pixels)> SendCoreAsync(Request request, bool copyPixels, TimeSpan? timeout, CancellationToken ct)
+    /// <summary>
+    /// Renders and hands <paramref name="consume"/> the pixels while they are still in shared memory (BGRA, top-down,
+    /// <see cref="RenderInfo.Stride"/> bytes a row), so a caller that builds a bitmap copies them once. It runs before
+    /// any other request can overwrite the buffer and must not keep the pointer.
+    /// </summary>
+    public async Task<(Response Response, T? Result)> RenderAsync<T>(Request request, Func<RenderInfo, nint, T> consume,
+        TimeSpan? timeout = null, CancellationToken ct = default) =>
+        await SendCoreAsync(request with { Op = Op.Render }, consume, timeout, ct);
+
+    async Task<(Response Response, T? Result)> SendCoreAsync<T>(Request request, Func<RenderInfo, nint, T>? consume, TimeSpan? timeout, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
@@ -113,9 +127,11 @@ public sealed class WorkerClient : IAsyncDisposable
             if (page is not null && _poison.IsPoisoned(page)) throw new PagePoisonedException(page);
 
             if (!IsRunning) await StartAsync(ct);
+            ct.ThrowIfCancellationRequested();
             var limit = timeout ?? Options.DefaultTimeout;
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(limit);
+            // Once a request is written, its answer is read whatever the caller does: abandoning it would leave the
+            // answer in the pipe for the next request. Only the timeout cuts it short, and that kills the worker.
+            using var cts = new CancellationTokenSource(limit);
             try
             {
                 await Framing.WriteAsync(_pipe!, request with { Id = ++_nextId }, cts.Token);
@@ -123,15 +139,16 @@ public sealed class WorkerClient : IAsyncDisposable
                     ?? throw Died("pipe closed");
 
                 Track(request, response);
-                byte[]? pixels = null;
-                if (copyPixels && response is { Ok: true, Render: { } info })
+                T? result = default;
+                if (consume is not null && response is { Ok: true, Render: { } info })
                 {
-                    pixels = GC.AllocateUninitializedArray<byte>(info.Stride * info.Height);
-                    unsafe { new ReadOnlySpan<byte>(_shared, pixels.Length).CopyTo(pixels); }
+                    if ((long)info.Stride * info.Height > Options.SharedBufferBytes)
+                        throw new WorkerException($"The worker reported a {info.Width}x{info.Height} bitmap larger than the shared buffer.");
+                    unsafe { result = consume(info, (nint)_shared); }
                 }
-                return (response, pixels);
+                return (response, result);
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
                 _log.LogWarning("PDF {Worker} did not answer {Op} within {Timeout}; killing it", Options.Name, request.Op, limit);
                 Kill();

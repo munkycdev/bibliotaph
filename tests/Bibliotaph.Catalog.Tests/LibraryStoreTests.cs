@@ -62,6 +62,8 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         Assert.Equal(
             [FileLocationState.Present, FileLocationState.Present, FileLocationState.Missing, FileLocationState.OnlineOnly],
             locations.Select(l => l.State));
+        Assert.Equal(new LibraryCounts(Files: 3, OnlineOnly: 1, Missing: 1, Unhashed: 2, Documents: 1, UnhashedOnlineOnly: 1, UnhashedOnlineOnlyBytes: 1000),
+            await _library.GetCountsAsync(Ct));
     }
 
     [Fact]

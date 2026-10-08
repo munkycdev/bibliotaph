@@ -1,6 +1,6 @@
 namespace Bibliotaph.App.Services;
 
-/// <summary>The app's screens. Reading arrives with the viewer in slice 1.</summary>
+/// <summary>The app's screens.</summary>
 public enum Route
 {
     Home,
@@ -10,4 +10,5 @@ public enum Route
     NeedsReview,
     Settings,
     LibraryFolders,
+    Viewer,
 }

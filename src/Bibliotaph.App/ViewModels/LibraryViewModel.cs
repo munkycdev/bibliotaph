@@ -47,6 +47,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CoverImages _covers;
     readonly LibraryFolders _folders;
     readonly INavigationService _navigation;
+    readonly ViewerRequests _viewer;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<long, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -56,7 +57,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     bool _holdRefresh;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, INavigationService navigation, ILogger<LibraryViewModel> log)
+        CoverImages covers, LibraryFolders folders, INavigationService navigation, ViewerRequests viewer, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _roots = roots;
@@ -66,6 +67,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _covers = covers;
         _folders = folders;
         _navigation = navigation;
+        _viewer = viewer;
         _log = log;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         FormatChoice = FormatChoices[0];
@@ -191,6 +193,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _staleTimer.Start();
         await LoadFolderChoicesAsync();
         await RefreshAsync();
+        if (SavedScrollOffset is not null) RestoreScroll?.Invoke(this, EventArgs.Empty);
     }
 
     public override void Unload()
@@ -467,4 +470,25 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [RelayCommand]
     void CloseDetails() => Inspector = null;
+
+    /// <summary>Opens a book at a page that matched, with the search's words marked.</summary>
+    [RelayCommand]
+    void OpenPage(PageHitViewModel page)
+    {
+        var title = _known.TryGetValue(page.Hit.DocumentId, out var item) ? item.Title : "";
+        _viewer.Open(new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query));
+    }
+
+    /// <summary>Opens the book shown in the inspector at its first page.</summary>
+    [RelayCommand]
+    void OpenBook(LibraryItemViewModel item) => _viewer.Open(new ViewerRequest(item.DocumentId, item.Title));
+
+    /// <summary>
+    /// How far the visible list was scrolled when the reader left the Library, so Back returns to the same place.
+    /// The view saves it when it unloads and restores it once the list has refreshed.
+    /// </summary>
+    public double? SavedScrollOffset { get; set; }
+
+    /// <summary>Raised after a refresh that followed coming Back, when the view can restore its scroll position.</summary>
+    public event EventHandler? RestoreScroll;
 }

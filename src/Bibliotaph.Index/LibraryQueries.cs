@@ -208,6 +208,23 @@ public sealed class LibraryQueries(IndexDatabase database)
                 .OrderBy(s => s.Stage)]); // the enum is in pipeline order
     }
 
+    /// <summary>
+    /// The words OCR read on a page, in reading order, with their boxes in PDF points; empty when the page's text came
+    /// from the PDF itself. The viewer selects against these on scanned pages.
+    /// </summary>
+    public async Task<IReadOnlyList<OcrWordRow>> GetOcrWordsAsync(long documentId, int pdfPage, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<WordRow>(new CommandDefinition(
+            """
+            SELECT w.text AS Text, w.left_pt AS LeftPt, w.top_pt AS TopPt, w.right_pt AS RightPt, w.bottom_pt AS BottomPt
+            FROM ocr_word w JOIN page p ON p.id = w.page_id
+            WHERE p.document_id = @documentId AND p.pdf_page = @pdfPage AND p.text_source = 'ocr'
+            ORDER BY w.ord
+            """, new { documentId, pdfPage }, cancellationToken: ct));
+        return [.. rows.Select(r => new OcrWordRow(r.Text, r.LeftPt, r.TopPt, r.RightPt, r.BottomPt))];
+    }
+
     static async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, IEnumerable<long> documentIds, CancellationToken ct) =>
         Entries(await connection.QueryAsync<EntryRow>(new CommandDefinition(
             $"""
@@ -231,6 +248,15 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     // Settable properties rather than constructors: SQLite reports no type for an expression column in an empty
     // result, and Dapper's constructor matching then fails where property mapping converts.
+
+    sealed class WordRow
+    {
+        public string Text { get; init; } = "";
+        public double LeftPt { get; init; }
+        public double TopPt { get; init; }
+        public double RightPt { get; init; }
+        public double BottomPt { get; init; }
+    }
 
     sealed class EntryRow
     {

@@ -248,6 +248,50 @@
     </Setter>
   </Style>
 
+  <!-- A thin progress bar. Indeterminate (no total yet) sweeps a short block across. -->
+  <Style x:Key="Bt.ProgressBar" TargetType="ProgressBar">
+    <Setter Property="Height" Value="6" />
+    <Setter Property="Minimum" Value="0" />
+    <Setter Property="Maximum" Value="100" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+    <Setter Property="Background" Value="{DynamicResource Bt.Line}" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ProgressBar">
+          <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3" ClipToBounds="True">
+            <Grid ClipToBounds="True">
+              <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}" CornerRadius="3" HorizontalAlignment="Left" />
+              <Border x:Name="Sweep" Background="{TemplateBinding Foreground}" CornerRadius="3" Width="60" HorizontalAlignment="Left"
+                      Visibility="Collapsed">
+                <Border.RenderTransform>
+                  <TranslateTransform />
+                </Border.RenderTransform>
+              </Border>
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsIndeterminate" Value="True">
+              <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed" />
+              <Setter TargetName="Sweep" Property="Visibility" Value="Visible" />
+              <Trigger.EnterActions>
+                <BeginStoryboard x:Name="SweepAnimation">
+                  <Storyboard RepeatBehavior="Forever">
+                    <DoubleAnimation Storyboard.TargetName="Sweep" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                     From="-60" To="640" Duration="0:0:1.8" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <StopStoryboard BeginStoryboardName="SweepAnimation" />
+              </Trigger.ExitActions>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- A segmented choice (Appearance: Use system / Light / Dark), after .bt-viewtoggle. -->
   <Style x:Key="Bt.Segment" TargetType="RadioButton">
     <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
