@@ -7,17 +7,17 @@ public sealed class IndexStoreTests : IndexFixture
 {
     IndexStore _store = null!;
     IndexQueries _queries = null!;
-    JobQueue _queue = null!;
+    JobBoard _queue = null!;
 
     public override async ValueTask InitializeAsync()
     {
         await base.InitializeAsync();
         _store = new IndexStore(Writer, Clock);
         _queries = new IndexQueries(Database);
-        _queue = new JobQueue(Writer, Database, Clock);
+        _queue = new JobBoard(Writer, Database, Clock);
     }
 
-    CancellationToken Ct => TestContext.Current.CancellationToken;
+    static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     static DocRow Doc(long id = 1) => new()
     {

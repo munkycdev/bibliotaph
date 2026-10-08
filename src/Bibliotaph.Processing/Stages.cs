@@ -25,12 +25,12 @@ public abstract record StageOutcome
 /// <summary>Remembered PDF passwords, by content hash. Slice 1c stores them in Windows Credential Manager.</summary>
 public interface IPasswordStore
 {
-    string? Get(string contentHash);
+    string? Find(string contentHash);
 }
 
 public sealed class NoPasswords : IPasswordStore
 {
-    public string? Get(string contentHash) => null;
+    public string? Find(string contentHash) => null;
 }
 
 /// <summary>Everything a stage needs. One per indexing service.</summary>
@@ -114,7 +114,7 @@ static class StageHelpers
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return (null, new StageOutcome.Blocked(Unreachable));
 
-        var session = new PdfSession(s.Workers[WorkerSlot.Index], source.FullPath, s.Passwords.Get(job.ContentHash));
+        var session = new PdfSession(s.Workers[WorkerSlot.Index], source.FullPath, s.Passwords.Find(job.ContentHash));
         var error = await session.OpenAsync(ct);
         if (error is null) return (session, null);
         await session.DisposeAsync();
@@ -186,7 +186,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             [.. doc.Outline.Select(o => new OutlineRow(o.Title, o.PageIndex, o.Depth))], ct);
 
             var protection = !doc.IsEncrypted ? ProtectionType.None
-                : s.Passwords.Get(job.ContentHash) is not null ? ProtectionType.OpenPassword
+                : s.Passwords.Find(job.ContentHash) is not null ? ProtectionType.OpenPassword
                 : ProtectionType.PermissionsOnly;
             var capabilities = JsonSerializer.Serialize(new { canCopy = doc.CanCopy, canPrint = doc.CanPrint, encrypted = doc.IsEncrypted });
             await s.Library.SetProbeResultAsync(job.DocumentId, doc.PageCount, protection, capabilities, ct);

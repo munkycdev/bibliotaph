@@ -3,19 +3,19 @@ using Dapper;
 
 namespace Bibliotaph.Index.Tests;
 
-public sealed class JobQueueTests : IndexFixture
+public sealed class JobBoardTests : IndexFixture
 {
     static readonly TimeSpan Lease = TimeSpan.FromMinutes(5);
     static readonly Stage[] IndexLane = [Stage.Probe, Stage.Text, Stage.Covers];
-    JobQueue _queue = null!;
+    JobBoard _queue = null!;
 
     public override async ValueTask InitializeAsync()
     {
         await base.InitializeAsync();
-        _queue = new JobQueue(Writer, Database, Clock);
+        _queue = new JobBoard(Writer, Database, Clock);
     }
 
-    CancellationToken Ct => TestContext.Current.CancellationToken;
+    static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     string? StatusOf(long documentId, Stage stage) =>
         Connection.ExecuteScalar<string?>("SELECT status FROM stage_status WHERE document_id = @documentId AND stage = @stage",
@@ -68,7 +68,7 @@ public sealed class JobQueueTests : IndexFixture
     {
         await _queue.EnqueueAsync(1, "aa", Stage.Text, ct: Ct);
 
-        for (var attempt = 1; attempt <= JobQueue.MaxAttempts; attempt++)
+        for (var attempt = 1; attempt <= JobBoard.MaxAttempts; attempt++)
         {
             var job = await _queue.LeaseAsync(IndexLane, "test", Lease, Ct);
             Assert.NotNull(job);

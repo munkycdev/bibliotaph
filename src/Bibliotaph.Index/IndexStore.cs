@@ -76,7 +76,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.MetaSubject,
                     doc.MetaKeywords,
                     doc.FolderHint,
-                    now = JobQueue.Timestamp(_clock.GetUtcNow()),
+                    now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
             RefreshDocSearch(c, t, doc);
 

@@ -50,7 +50,7 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _queries = new IndexQueries(_index);
         _roots = new SourceRootStore(contexts);
         var library = _libraryStore = new LibraryStore(contexts);
-        var queue = new JobQueue(_writer, _index);
+        var queue = new JobBoard(_writer, _index);
         var reader = new SourceFileReader();
         var services = new StageServices(library, new IndexStore(_writer), _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
         _service = new IndexingService(_roots, library, queue,
@@ -91,7 +91,7 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         }
     }
 
-    string? StatusOf(SqliteConnection c, string title, Stage stage) => c.ExecuteScalar<string?>(
+    static string? StatusOf(SqliteConnection c, string title, Stage stage) => c.ExecuteScalar<string?>(
         "SELECT s.status FROM stage_status s JOIN doc d ON d.document_id = s.document_id WHERE d.display_title = @title AND s.stage = @stage",
         new { title, stage = stage.ToString() });
 

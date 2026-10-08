@@ -43,7 +43,7 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 public sealed class IndexingService(
     SourceRootStore roots,
     LibraryStore library,
-    JobQueue queue,
+    JobBoard queue,
     IEnumerable<IStage> stages,
     FileHasher hasher,
     IDiskSpace disk,
@@ -472,17 +472,22 @@ public sealed class IndexingService(
     public override void Dispose()
     {
         base.Dispose();
-        foreach (var control in _lanes.Values) control.Cancel.Dispose();
+        foreach (var control in _lanes.Values) control.Dispose();
+        foreach (var signal in _laneSignals.Values) signal.Dispose();
+        _scanSignal.Dispose();
+        _hashSignal.Dispose();
     }
 
-    sealed class LaneControl
+    sealed class LaneControl : IDisposable
     {
         public bool Paused;
         public CancellationTokenSource Cancel = new();
+
+        public void Dispose() => Cancel.Dispose();
     }
 
     /// <summary>An auto-reset signal: any number of Sets before a wait wake it once.</summary>
-    sealed class Signal
+    sealed class Signal : IDisposable
     {
         readonly SemaphoreSlim _semaphore = new(0, 1);
 
@@ -497,6 +502,8 @@ public sealed class IndexingService(
             }
         }
 
-        public Task WaitAsync(TimeSpan timeout, CancellationToken ct) => _semaphore.WaitAsync(timeout, ct);
+        public Task<bool> WaitAsync(TimeSpan timeout, CancellationToken ct) => _semaphore.WaitAsync(timeout, ct);
+
+        public void Dispose() => _semaphore.Dispose();
     }
 }

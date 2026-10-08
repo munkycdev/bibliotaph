@@ -13,7 +13,7 @@ public sealed record JobRecord(long Id, long DocumentId, string ContentHash, Sta
 /// Every write goes through the <see cref="IndexWriter"/>, so leasing is atomic without extra locking.
 /// Each job change also updates <c>stage_status</c>, which is what the UI reads.
 /// </summary>
-public sealed class JobQueue(IndexWriter writer, IndexDatabase database, TimeProvider? clock = null)
+public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimeProvider? clock = null)
 {
     /// <summary>Attempts before a job fails for good. A job that kills the PDF worker counts as an attempt.</summary>
     public const int MaxAttempts = 3;
