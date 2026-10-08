@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # .NET 11 is in release candidate until November 2026; switch dotnet-quality to ga then.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: preview
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Show SDK
+        run: dotnet --info
+
+      - name: Restore
+        run: dotnet restore Bibliotaph.slnx
+
+      # Debug builds contain the worker's fault-injection requests that the isolation tests use.
+      - name: Build (Debug, warnings as errors)
+        run: dotnet build Bibliotaph.slnx --configuration Debug --no-restore
+
+      - name: Test
+        run: dotnet test --solution Bibliotaph.slnx --configuration Debug --no-build --report-xunit-trx --results-directory TestResults
+
+      # Opens the real window, visits every screen in light and dark, and fails on any exception or binding error.
+      - name: App smoke test
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path 'src/Bibliotaph.App/bin/Debug/net11.0-windows/Bibliotaph.exe'
+          $data = Join-Path $env:RUNNER_TEMP 'bibliotaph-smoke'
+          $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"" -PassThru
+          if (-not $app.WaitForExit(120000)) { $app.Kill(); throw 'Smoke test did not finish within 2 minutes.' }
+          Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content
+          if ($app.ExitCode -ne 0) { throw "Smoke test failed with exit code $($app.ExitCode)." }
+
+      # Source files are read-only by construction: a write API in Core must fail the build.
+      - name: Banned file APIs fail the build
+        shell: pwsh
+        run: |
+          $probe = 'src/Bibliotaph.Core/BannedApiProbe.cs'
+          Set-Content $probe 'namespace Bibliotaph.Core; static class BannedApiProbe { static void Write() => System.IO.File.WriteAllText("x", "y"); }'
+          dotnet build src/Bibliotaph.Core/Bibliotaph.Core.csproj --configuration Debug --no-restore 2>&1 | Tee-Object -Variable output | Out-Null
+          $failed = $LASTEXITCODE -ne 0
+          Remove-Item $probe
+          if (-not $failed) { throw 'File.WriteAllText in Core built successfully; the banned-API analyzer is not working.' }
+          if (-not ($output -match 'RS0030')) { $output; throw 'Core failed to build, but not because of RS0030.' }
+          Write-Host 'Core rejected File.WriteAllText with RS0030, as it should.'
+
+      # Release builds leave out the worker's fault-injection requests; make sure they still compile cleanly.
+      - name: Build (Release)
+        run: dotnet build Bibliotaph.slnx --configuration Release --no-restore
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Integration tests: synthetic PDFs through the real worker, and the isolation self-test. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+    <BundledExe Include="..\..\src\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
+    <BundledExe Include="..\Bibliotaph.Pdf.Host.TestHost\Bibliotaph.Pdf.Host.TestHost.csproj" Folder="testhost" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="PDFsharp" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- Synthetic PDFs embed the app's own OFL font, so text extraction has a real font program to read. -->
+    <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
+  </ItemGroup>
+</Project>
