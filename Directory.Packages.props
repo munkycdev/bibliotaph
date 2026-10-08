@@ -28,6 +28,11 @@
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Tools">
+    <!-- OCR bake-off only; the app ships whichever engine wins. -->
+    <PackageVersion Include="Tesseract" Version="5.2.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Tests">
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <PackageVersion Include="PDFsharp" Version="6.2.4" />
