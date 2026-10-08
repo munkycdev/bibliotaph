@@ -10,10 +10,11 @@ namespace Bibliotaph.Core;
 /// </summary>
 public static partial class DisplayTitle
 {
-    static readonly HashSet<string> NoiseWords = new(StringComparer.OrdinalIgnoreCase)
-    {
+    static readonly HashSet<string> NoiseWords =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "digital", "hi-res", "hires", "lo-res", "lowres", "watermarked", "opt", "optimized", "web", "print", "final", "bookmarked",
-    };
+    ];
 
     [GeneratedRegex(@"[_\s]+")]
     private static partial Regex Separators();

@@ -42,7 +42,7 @@ public sealed class IndexWriter(IndexDatabase database, ILogger<IndexWriter>? lo
         if (Interlocked.CompareExchange(ref _owner, 2, 0) != 0) return;
         _queue.Writer.TryComplete();
         using var connection = database.OpenWrite();
-        Drain(connection, new List<WriteItem>(MaxBatch));
+        Drain(connection, [with(MaxBatch)]);
     }
 
     async Task RunAsync(CancellationToken stoppingToken)
