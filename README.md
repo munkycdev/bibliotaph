@@ -40,6 +40,7 @@ dotnet run --project src\Bibliotaph.App -- --data-root $env:TEMP\bibliotaph-scra
 | `src/Bibliotaph.App` | The WPF shell, theme, fonts, icons and composition root. |
 | `tests/` | xUnit v3 on Microsoft Testing Platform. PDF tests build synthetic PDFs at run time. |
 | `tools/IconGen` | Turns the Lucide SVGs it holds into `src/Bibliotaph.App/Icons/Icons.xaml`. |
+| `tools/AppIcon` | Draws the app icon (`src/Bibliotaph.App/Assets/Bibliotaph.ico` and `.svg`) from the mockup's monogram. |
 | `spikes/pdf-feasibility` | The PDF spike, kept for reference. Its own solution; not built by CI. |
 
 ## Rules the build enforces
@@ -63,6 +64,12 @@ Add an icon: copy its SVG from the same `lucide-static` version into `tools\Icon
 
 ```powershell
 dotnet run --project tools\IconGen
+```
+
+Redraw the app icon after changing the monogram (needs Python with `pip install pillow fonttools`):
+
+```powershell
+python tools\AppIcon\make_icon.py
 ```
 
 ## To do when .NET 11 ships (November 2026)

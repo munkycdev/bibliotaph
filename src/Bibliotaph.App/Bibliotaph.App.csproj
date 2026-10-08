@@ -8,6 +8,8 @@
     <AssemblyName>Bibliotaph</AssemblyName>
     <RootNamespace>Bibliotaph.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF windows use the exe's icon when Window.Icon is unset, picking the right size from the .ico. -->
+    <ApplicationIcon>Assets\Bibliotaph.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
