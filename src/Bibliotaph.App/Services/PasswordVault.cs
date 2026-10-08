@@ -14,7 +14,7 @@ namespace Bibliotaph.App.Services;
 /// </summary>
 public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
 {
-    const string TargetPrefix = "Bibliotaph/pdf/";
+    const string TargetPrefix = "Bibliotaph:pdf:";   // the architecture doc's Bibliotaph: prefix for secrets
     const uint GenericCredential = 1;
     const uint PersistLocalMachine = 2;
     const int NotFound = 1168;

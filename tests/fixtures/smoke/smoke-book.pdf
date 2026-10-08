@@ -1,7 +1,7 @@
 %PDF-1.4
 %‚„œ”
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /S /r >> 1 << /S /D >>] >> >>
+<< /Type /Catalog /Pages 2 0 R /Outlines 8 0 R /PageLabels << /Nums [0 << /S /r >> 1 << /S /D >>] >> >>
 endobj
 2 0 obj
 << /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
@@ -35,18 +35,30 @@ BT /F1 14 Tf 72 720 Td 18 TL
 ET
 endstream
 endobj
+8 0 obj
+<< /Type /Outlines /First 9 0 R /Last 10 0 R /Count 2 >>
+endobj
+9 0 obj
+<< /Title (Front matter) /Parent 8 0 R /Next 10 0 R /Dest [4 0 R /Fit] >>
+endobj
+10 0 obj
+<< /Title (Chapter One) /Parent 8 0 R /Prev 9 0 R /Dest [6 0 R /Fit] >>
+endobj
 xref
-0 8
+0 11
 0000000000 65535 f 
 0000000015 00000 n 
-0000000118 00000 n 
-0000000181 00000 n 
-0000000278 00000 n 
-0000000404 00000 n 
-0000000548 00000 n 
-0000000674 00000 n 
+0000000134 00000 n 
+0000000197 00000 n 
+0000000294 00000 n 
+0000000420 00000 n 
+0000000564 00000 n 
+0000000690 00000 n 
+0000000926 00000 n 
+0000000998 00000 n 
+0000001087 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R /Info << /Title (Smoke Test Book) /Producer (Bibliotaph smoke fixture) >> >>
+<< /Size 11 /Root 1 0 R /Info << /Title (Smoke Test Book) /Producer (Bibliotaph smoke fixture) >> >>
 startxref
-910
+1175
 %%EOF

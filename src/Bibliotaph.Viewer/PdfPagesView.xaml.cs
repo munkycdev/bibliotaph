@@ -28,6 +28,9 @@ public partial class PdfPagesView
     const int PrefetchPages = 2;
     const double HitTopMargin = 120;                 // a hit is shown this far below the top of the view
 
+    public const double FitWidth = 0;
+    public const double FitPage = -1;
+
     static readonly double[] ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
     public static readonly DependencyProperty ZoomProperty = DependencyProperty.Register(nameof(Zoom), typeof(double), typeof(PdfPagesView),
@@ -79,7 +82,10 @@ public partial class PdfPagesView
             (_, e) => e.CanExecute = _pages.Count > 0));
     }
 
-    /// <summary>Pixels per point over 96/72: 1 is 100%. 0 fits the most common page width to the view.</summary>
+    /// <summary>
+    /// Pixels per point over 96/72: 1 is 100%. <see cref="FitWidth"/> fits the most common page width to the view;
+    /// <see cref="FitPage"/> fits a whole page.
+    /// </summary>
     public double Zoom { get => (double)GetValue(ZoomProperty); set => SetValue(ZoomProperty, value); }
 
     /// <summary>The page under the top third of the view.</summary>
@@ -160,7 +166,8 @@ public partial class PdfPagesView
     {
         if (_pages.Count == 0) return;
         // A document loaded while the view was hidden is laid out when it first gets a size.
-        if (!_laidOut || (Zoom == 0 && e.WidthChanged)) ApplyZoom(keepPosition: _pendingGoTo is null);
+        var fits = Zoom == FitWidth ? e.WidthChanged : Zoom == FitPage && (e.WidthChanged || e.HeightChanged);
+        if (!_laidOut || fits) ApplyZoom(keepPosition: _pendingGoTo is null);
         else QueueRender();
     }
 
@@ -169,7 +176,7 @@ public partial class PdfPagesView
         if (_pages.Count == 0 || Pages.ActualWidth <= 0) return;
         if (keepPosition && _laidOut && _pendingGoTo is null) _pendingGoTo = CurrentPosition();
         _laidOut = true;
-        _dipPerPoint = Zoom > 0 ? Zoom * 96.0 / 72.0 : FitWidthDipPerPoint();
+        _dipPerPoint = Zoom > 0 ? Zoom * 96.0 / 72.0 : Zoom == FitPage ? FitPageDipPerPoint() : FitWidthDipPerPoint();
         foreach (var page in _pages)
         {
             page.Generation++;
@@ -184,11 +191,19 @@ public partial class PdfPagesView
 
     double FitWidthDipPerPoint()
     {
-        // Fit the most common page width, so one wide fold-out doesn't shrink the whole book.
-        var common = _pages.GroupBy(p => Math.Round(p.WidthPts)).OrderByDescending(g => g.Count()).First().Key;
+        // Fit the most common page size, so one wide fold-out doesn't shrink the whole book.
         var available = Math.Max(200, Pages.ActualWidth - SystemParameters.VerticalScrollBarWidth - 48);
-        return Math.Min(available / common, 4 * 96.0 / 72.0);
+        return Math.Min(available / CommonPage().WidthPts, 4 * 96.0 / 72.0);
     }
+
+    double FitPageDipPerPoint()
+    {
+        var available = Math.Max(150, Pages.ActualHeight - 2 * PageMargin - 8);
+        return Math.Min(FitWidthDipPerPoint(), available / CommonPage().HeightPts);
+    }
+
+    ViewerPage CommonPage() =>
+        _pages.GroupBy(p => (Math.Round(p.WidthPts), Math.Round(p.HeightPts))).OrderByDescending(g => g.Count()).First().First();
 
     void Pages_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {

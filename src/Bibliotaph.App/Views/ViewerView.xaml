@@ -95,6 +95,11 @@
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
           <StackPanel Orientation="Horizontal" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <StackPanel Orientation="Horizontal" Visibility="{Binding HasOutline, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.List}" ToolTip="Show or hide the contents"
+                      AutomationProperties.Name="Contents" Command="{Binding ToggleOutlineCommand}" />
+              <Border Style="{StaticResource Divider}" />
+            </StackPanel>
             <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
                     AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
             <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
@@ -119,20 +124,47 @@
     <!-- .bt-reader-stage -->
     <Border Grid.Row="2" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,1,1"
             Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-      <Grid>
-        <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
-                             Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <viewer:ImageView Source="{Binding Image}" Zoom="{Binding Zoom}"
-                          Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <!-- A short message over the pages, such as why Copy did nothing. -->
-        <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="12,8" CornerRadius="5"
-                Background="{DynamicResource Bt.Text}" IsHitTestVisible="False"
-                Visibility="{Binding Notice, Converter={StaticResource Bt.VisibleWhenSet}}">
-          <TextBlock Text="{Binding Notice}" FontSize="11" Foreground="{DynamicResource Bt.Bg}" TextWrapping="Wrap" MaxWidth="460" />
+      <DockPanel>
+        <!-- Contents: the PDF's bookmarks. -->
+        <Border DockPanel.Dock="Left" Width="250" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0"
+                Visibility="{Binding OutlineVisible, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="CONTENTS" Style="{StaticResource Text.Eyebrow}" Margin="14,14,14,8" />
+            <ListBox Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Outline}" AutomationProperties.Name="Contents"
+                     c:ItemActivation.Command="{Binding OpenOutlineEntryCommand}" Padding="6,0,6,10"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:OutlineEntry}">
+                  <DockPanel x:Name="Row" Margin="{Binding Indent}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding Page}" Style="{StaticResource Text.Small}" Margin="8,5,6,5" VerticalAlignment="Top" />
+                    <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
+                               Margin="6,5,0,5" />
+                  </DockPanel>
+                  <DataTemplate.Triggers>
+                    <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                    </Trigger>
+                  </DataTemplate.Triggers>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
         </Border>
-      </Grid>
+        <Grid>
+          <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
+                               Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <viewer:ImageView Source="{Binding Image}" Zoom="{Binding Zoom}"
+                            Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <!-- A short message over the pages, such as why Copy did nothing. -->
+          <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="12,8" CornerRadius="5"
+                  Background="{DynamicResource Bt.Text}" IsHitTestVisible="False"
+                  Visibility="{Binding Notice, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <TextBlock Text="{Binding Notice}" FontSize="11" Foreground="{DynamicResource Bt.Bg}" TextWrapping="Wrap" MaxWidth="460" />
+          </Border>
+        </Grid>
+      </DockPanel>
     </Border>
 
     <!-- .bt-reader-foot -->

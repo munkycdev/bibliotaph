@@ -37,6 +37,12 @@ public sealed record HighlightSet(IReadOnlyList<PageHighlight> Items, int Curren
 /// <summary>A place to scroll to: a page, and with <see cref="PdfTop"/> a spot on it (PDF points from the bottom).</summary>
 public sealed record PageTarget(int PageIndex, double? PdfTop);
 
+/// <summary>A bookmark in the book's outline, with the page it goes to as the reader would name it.</summary>
+public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string Page)
+{
+    public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
+}
+
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
 /// and the first one in view; an image opens decoded at a capped size. Asks for a PDF's password and can remember
@@ -103,7 +109,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     public event EventHandler<PageTarget>? GoToRequested;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices))]
+    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -139,6 +145,20 @@ public sealed partial class ViewerViewModel : PageViewModel
     [ObservableProperty]
     public partial HighlightSet Highlights { get; private set; } = HighlightSet.None;
 
+    /// <summary>The PDF's bookmarks, for the Contents panel. Empty when the book has none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOutline), nameof(OutlineVisible))]
+    public partial IReadOnlyList<OutlineEntry> Outline { get; private set; } = [];
+
+    public bool HasOutline => Outline.Count > 0;
+
+    /// <summary>Whether the reader wants the Contents panel; it stays hidden for a book without bookmarks.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OutlineVisible))]
+    public partial bool ShowOutline { get; set; } = true;
+
+    public bool OutlineVisible => ShowOutline && HasOutline && IsPdf;
+
     /// <summary>False when the PDF forbids copying its text; selection still works, Copy explains.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CopyNote))]
@@ -146,13 +166,18 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     public string CopyNote => CanCopy ? "" : "This PDF doesn't allow copying its text.";
 
-    /// <summary>0 fits the page width (or the whole image); otherwise 1 is 100%.</summary>
+    /// <summary>
+    /// <see cref="PdfPagesView.FitWidth"/> or <see cref="PdfPagesView.FitPage"/> (an image fits the window for
+    /// either); otherwise 1 is 100%.
+    /// </summary>
     [ObservableProperty]
     public partial double Zoom { get; set; }
 
     public IReadOnlyList<Choice<double>> ZoomChoices =>
     [
-        new(0, IsImage ? "Fit to window" : "Fit width"),
+        .. IsImage
+            ? new Choice<double>[] { new(PdfPagesView.FitWidth, "Fit to window") }
+            : [new(PdfPagesView.FitWidth, "Fit width"), new(PdfPagesView.FitPage, "Fit page")],
         .. new[] { 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4 }.Select(z => new Choice<double>(z, z.ToString("P0", CultureInfo.CurrentCulture))),
     ];
 
@@ -280,6 +305,9 @@ public sealed partial class ViewerViewModel : PageViewModel
 
             _renderer = renderer;
             _labels = doc.PageLabels;
+            Outline = [.. doc.Outline
+                .Where(o => o.PageIndex >= 0 && o.PageIndex < doc.PageCount && !string.IsNullOrWhiteSpace(o.Title))
+                .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels)))];
             PageCount = doc.PageCount;
             CanCopy = doc.CanCopy;
             Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
@@ -385,6 +413,13 @@ public sealed partial class ViewerViewModel : PageViewModel
         var words = await Task.Run(() => _queries.GetOcrWordsAsync(source.DocumentId, pageIndex));
         return words.Count == 0 ? layer : PageTextLayer.FromWords(words.Select(w => (w.Text, new PageRect(w.Left, w.Top, w.Right, w.Bottom))));
     }
+
+    /// <summary>Goes to a bookmark's page (click or Enter in the Contents panel).</summary>
+    [RelayCommand]
+    void OpenOutlineEntry(OutlineEntry entry) => GoTo(entry.PageIndex, null);
+
+    [RelayCommand]
+    void ToggleOutline() => ShowOutline = !ShowOutline;
 
     [RelayCommand(CanExecute = nameof(CanGoPrevious))]
     void PreviousPage() => GoTo(CurrentPageIndex - 1, null);

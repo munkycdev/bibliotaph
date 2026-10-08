@@ -216,7 +216,7 @@ static class SmokeTest
 
     /// <summary>
     /// Opens the PDF from a search hit: it must open at the hit's page with the word marked, draw the page, select
-    /// its text, find in the book, draw tiles at 300%, and go Back to the results.
+    /// its text, find in the book, follow a bookmark at Fit page, draw tiles at 300%, and go Back to the results.
     /// </summary>
     static async Task ReadBookAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -253,6 +253,15 @@ static class SmokeTest
         viewer.PageEntry = "i";
         viewer.GoToPageCommand.Execute(null);
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
+
+        if (viewer.Outline is not [{ Title: "Front matter", Page: "i" }, { Title: "Chapter One", Page: "1" } chapter])
+            throw new InvalidOperationException($"The contents panel shows {viewer.Outline.Count} bookmarks, not the fixture's two.");
+        viewer.Zoom = Bibliotaph.Viewer.PdfPagesView.FitPage;
+        viewer.OpenOutlineEntryCommand.Execute(chapter);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1, () => "The Chapter One bookmark didn't go to its page.");
+        viewer.PageEntry = "i";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going back to page i at Fit page didn't show the first page.");
 
         viewer.Zoom = 3;
         await WaitUntilAsync(window, () => pages.PageModels[pages.CurrentPageIndex].Tiles.Count > 0, () => "No tiles were drawn at 300%.");
