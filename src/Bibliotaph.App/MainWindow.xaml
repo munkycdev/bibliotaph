@@ -67,24 +67,42 @@
 
         <!-- .bt-sidebottom: processing status, then Settings. -->
         <StackPanel DockPanel.Dock="Bottom">
-          <StackPanel Orientation="Horizontal" Margin="10" AutomationProperties.Name="{Binding Activity.Summary}"
-                      ToolTip="Details are under Settings, Library folders">
-            <Ellipse Width="6" Height="6" VerticalAlignment="Center">
-              <Ellipse.Style>
-                <Style TargetType="Ellipse">
-                  <Setter Property="Fill" Value="{DynamicResource Bt.StatusOk}" />
-                  <Style.Triggers>
-                    <!-- Something the user can act on: a password, a damaged file. -->
-                    <DataTrigger Binding="{Binding Activity.NeedsAttention}" Value="True">
-                      <Setter Property="Fill" Value="{DynamicResource Bt.Warm}" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </Ellipse.Style>
-            </Ellipse>
-            <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="8,0,0,0"
-                       TextTrimming="CharacterEllipsis" />
-          </StackPanel>
+          <!-- Opens Library folders, where the details and pause buttons are. -->
+          <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.LibraryFolders}"
+                  AutomationProperties.Name="{Binding Activity.Summary, StringFormat='{}{0}. Open Library folders'}"
+                  ToolTip="Open Library folders">
+            <Button.Template>
+              <ControlTemplate TargetType="Button">
+                <Border x:Name="Chrome" Background="Transparent" CornerRadius="5" Padding="6">
+                  <ContentPresenter />
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Button.Template>
+            <StackPanel Orientation="Horizontal">
+              <Ellipse Width="6" Height="6" VerticalAlignment="Center">
+                <Ellipse.Style>
+                  <Style TargetType="Ellipse">
+                    <Setter Property="Fill" Value="{DynamicResource Bt.StatusOk}" />
+                    <Style.Triggers>
+                      <!-- Something the user can act on: a password, a damaged file. -->
+                      <DataTrigger Binding="{Binding Activity.NeedsAttention}" Value="True">
+                        <Setter Property="Fill" Value="{DynamicResource Bt.Warm}" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Ellipse.Style>
+              </Ellipse>
+              <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="8,0,0,0"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Button>
           <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
                   c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}"
                   Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"

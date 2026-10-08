@@ -48,6 +48,15 @@ static class SmokeTest
                 while (navigation.GoBack()) await Settle(window);
             }
 
+            // The sidebar's status line opens Library folders.
+            var status = (Button)window.FindName("StatusButton");
+            ((IInvokeProvider)new ButtonAutomationPeer(status).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Settle(window);
+            if (services.GetRequiredService<ShellViewModel>().CurrentPage?.Route != Route.LibraryFolders)
+                throw new InvalidOperationException("The sidebar status didn't open Library folders.");
+            navigation.GoBack();
+            await Settle(window);
+
             await SeedLibraryAsync(services);
             (long Pdf, long Image)? real = smokeFiles is null ? null : await SeedRealFilesAsync(services, smokeFiles);
             var books = real is null ? 4 : 6;
