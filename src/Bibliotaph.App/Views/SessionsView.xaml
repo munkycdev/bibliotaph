@@ -1,0 +1,18 @@
+<UserControl x:Class="Bibliotaph.App.Views.SessionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SessionsViewModel}">
+  <StackPanel>
+    <TextBlock Text="Sessions" Style="{StaticResource Text.H1}" />
+    <TextBlock Text="Your next session, gathered in one place." Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
+    <Border Style="{StaticResource Bt.Rule}" />
+    <c:EmptyState Title="An empty notebook."
+                  Message="Add a book or page from your library to get started."
+                  ActionText="Browse library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding BrowseLibraryCommand}" />
+  </StackPanel>
+</UserControl>

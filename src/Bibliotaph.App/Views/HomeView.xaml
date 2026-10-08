@@ -1,0 +1,35 @@
+<UserControl x:Class="Bibliotaph.App.Views.HomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:HomeViewModel}">
+  <StackPanel>
+    <!-- First run: no folders yet. Explain what Bibliotaph does and that files stay put (spec §4.1). -->
+    <StackPanel Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}" MaxWidth="620" HorizontalAlignment="Left">
+      <TextBlock Text="WELCOME TO BIBLIOTAPH" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
+      <TextBlock Text="Good stories begin with something you already own." Style="{StaticResource Text.H1}" />
+      <TextBlock Style="{StaticResource Text.Copy}" Margin="0,18,0,0"
+                 Text="Bibliotaph builds a catalog of the RPG books, maps and handouts already on this PC, then helps you find the right book and the right page. Your files stay exactly where they are: nothing is moved, renamed or changed." />
+      <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,26,0,0" Content="Add a folder"
+              c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+      <StackPanel Orientation="Horizontal" Margin="0,25,0,0">
+        <c:LucideIcon Data="{StaticResource Icon.ShieldCheck}" Size="13" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
+        <TextBlock Text="Your catalog, notes and collections stay on this device." Style="{StaticResource Text.Small}" FontSize="10" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Folders added, nothing scanned yet. -->
+    <StackPanel Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <TextBlock Text="YOUR NEXT GOOD STORY" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
+      <TextBlock Text="Welcome back." Style="{StaticResource Text.H1}" />
+      <TextBlock Text="A familiar shelf. A few places you haven’t been." Style="{StaticResource Text.Subtitle}" />
+      <c:EmptyState Title="Nothing scanned yet."
+                    Message="{Binding FolderSummary, StringFormat='{}{0} to be scanned. Scanning arrives with the next build of Bibliotaph.'}"
+                    ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

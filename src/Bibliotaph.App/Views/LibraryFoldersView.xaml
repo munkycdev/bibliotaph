@@ -1,0 +1,44 @@
+<UserControl x:Class="Bibliotaph.App.Views.LibraryFoldersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:LibraryFoldersViewModel}">
+  <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+    <TextBlock Text="Library folders" Style="{StaticResource Text.H1}" />
+    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
+               Text="Bibliotaph reads your folders. Your books stay exactly where you put them." />
+
+    <ItemsControl ItemsSource="{Binding Folders}" Focusable="False">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:LibraryFolderItem}">
+          <!-- .bt-source -->
+          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
+                      ToolTip="Remove from library" AutomationProperties.Name="{Binding Path, StringFormat='Remove {0} from the library'}"
+                      Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                      CommandParameter="{Binding}" />
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Folder}" Margin="0,0,10,0" VerticalAlignment="Top" />
+              <StackPanel>
+                <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" />
+                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}"
+               Style="{StaticResource Text.Small}" Margin="0,12,0,0" Text="No folders yet." />
+
+    <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,25,0,0" Content="Add a folder"
+            c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+    <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0"
+               Text="Removing a folder keeps your notes, collections and corrections. Files are never deleted." />
+  </StackPanel>
+</UserControl>
