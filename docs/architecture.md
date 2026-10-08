@@ -193,6 +193,7 @@ JPG and PNG open in an image surface with zoom and pan, decoded at a capped pixe
 - **Logs.** Rolling files in `%LOCALAPPDATA%\Bibliotaph\logs`; page text and passwords are never logged.
 - **Backup and restore.** A zip of a `VACUUM INTO` copy of `catalog.db` (optionally `index.db`) with a manifest of source roots for remapping on restore (A15).
 - **Installer.** Velopack, self-contained win-x64 (win-arm64 later), per-user, updates from GitHub Releases. Code signing is needed before distributing beyond Dave.
+- **Licences.** The app is GPL-3.0-or-later; every dependency is permissive (`THIRD-PARTY-NOTICES.md`). A new package must be permissive or GPL-3.0-compatible: no AGPL (MuPDF, iText, Ghostscript), no revenue-gated licences (ImageSharp, QuestPDF). The build copies `LICENSE`, `THIRD-PARTY-NOTICES.md` and the full third-party texts (each package's licence and any `NOTICE`, the pdfium-binaries `LICENSE` for the pinned version, the OFL files) into the payload's `licenses\` folder. Settings > About shows the version, the Bibliotaph copyright, the GPL's no-warranty line and links that open those files, so the GPL's "Appropriate Legal Notices" are in the UI and forks keep them.
 - **PDFium.** Pin the PDFiumCore version, check for new builds each release, keep worker isolation as the second line of defence.
 
 ## Spike results and open risks
@@ -229,4 +230,4 @@ Open risks, in the order to retire them:
 | 1. Find and open | OCR bake-off; add folder, scan, hash, probe, text, OCR, covers; job queue; Library grid and list; search with both tabs; viewer with selection opens at the hit | The D&D folder indexed; A01, A02, A03, A05, A11, A14, A18 pass; search p95 under 1 s measured |
 | 2. Catalog automation | Assertions, rule hints, local AI adapter with model settings, evidence check, inspector with evidence, Needs Review, vocabulary | Pilot of ~100 files meets the §12 precision and coverage gates; A04, A12, A16 pass |
 | 3. Preparation | Favourites, collections, Smart Views, session packs with page ranges, run mode, Home | A13 passes; one real session prepared and run from the app |
-| 4. Hardening | Moves, offline roots, revisions, passwords and DRM, backup and restore, export, installer, accessibility pass | A06 to A10, A15, A17 pass; installed through Velopack on a second account |
+| 4. Hardening | Moves, offline roots, revisions, passwords and DRM, backup and restore, export, installer with the `licenses\` folder and Settings > About, accessibility pass | A06 to A10, A15, A17 pass; installed through Velopack on a second account |
