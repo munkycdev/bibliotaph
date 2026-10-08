@@ -41,8 +41,8 @@ their notices. FreeType is used under the FreeType License, which asks for this 
 
 **Before the first release:** the installer must carry the full licence texts for everything in this section:
 the pdfium-binaries `LICENSE` for the exact PDFium version, the Apache-2.0 and MIT texts with each package's
-copyright line, any `NOTICE` file an Apache-2.0 package ships, and the two OFL files. An About > Licences page
-that shows this file plus those texts covers it.
+copyright line, any `NOTICE` file an Apache-2.0 package ships, and the two OFL files, in a `licenses\` folder,
+with Settings > About linking to them. Planned for slice 4 (see "Licences" in `docs/architecture.md`).
 
 ## Build, test and tooling only (not shipped)
 
