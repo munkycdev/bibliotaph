@@ -94,11 +94,13 @@ static class SmokeTest
             ("Handouts/Tavern Map.png", "Tavern Map", []),
         ];
         var modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        await library.ReconcileRootAsync(root.Id, [.. books.Select(b => new ScannedFile(b.Path, 1000, modified, false))]);
+        // The scanner reports paths with the platform's separator.
+        static string Relative(string path) => path.Replace('/', System.IO.Path.DirectorySeparatorChar);
+        await library.ReconcileRootAsync(root.Id, [.. books.Select(b => new ScannedFile(Relative(b.Path), 1000, modified, false))]);
         var files = await library.NextUnhashedAsync(books.Length, includeOnlineOnly: true);
         foreach (var file in files)
         {
-            var book = books.Single(b => file.FullPath.EndsWith(b.Path.Replace('/', System.IO.Path.DirectorySeparatorChar), StringComparison.Ordinal));
+            var book = books.Single(b => file.FullPath.EndsWith(Relative(b.Path), StringComparison.Ordinal));
             var hash = ContentHash.Parse(new string((char)('a' + Array.IndexOf(books, book)), ContentHash.HexLength));
             var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A made-up file didn't attach.");
             var isImage = file.Format != SourceFormats.Pdf;
@@ -112,7 +114,7 @@ static class SmokeTest
                     PageCount = isImage ? null : book.Pages.Length,
                     WidthPx = isImage ? 1600 : null,
                     HeightPx = isImage ? 1200 : null,
-                    FolderHint = System.IO.Path.GetDirectoryName(book.Path),
+                    FolderHint = System.IO.Path.GetDirectoryName(Relative(book.Path)),
                 },
                 [.. book.Pages.Select((_, i) => new PageRow(i, (i + 1).ToString(CultureInfo.InvariantCulture), 612, 792))], []);
             if (!isImage) await index.SetPageTextAsync(documentId, [.. book.Pages.Select((text, i) => new PageTextRow(i, text, "pdf", 1, false))]);
