@@ -2,6 +2,8 @@
 
 A Windows desktop library for a game master's existing RPG files: it indexes PDFs, maps and handouts where they already are, proposes metadata, and finds the right book and the right page. It never moves or edits the original files.
 
+Bibliotaph is in early development and not yet usable as a library. Nothing is released.
+
 - [docs/product-spec.md](docs/product-spec.md) is the product spec (v0.3).
 - [docs/architecture.md](docs/architecture.md) is the agreed design. Change it by pull request.
 - [docs/bibliotaph-ui-mockups.html](docs/bibliotaph-ui-mockups.html) is the visual target.
@@ -75,3 +77,24 @@ python tools\AppIcon\make_icon.py
 ## To do when .NET 11 ships (November 2026)
 
 - Raise `global.json` to the GA SDK, set `DotNetPackagesVersion` in `Directory.Packages.props` to the GA packages, and change `dotnet-quality` in `.github/workflows/ci.yml` to `ga`.
+
+## Contributing
+
+Issues and ideas are welcome. Pull requests are not being taken yet while the architecture settles; open an issue
+first. Never attach or commit a file cut from a purchased book: tests build their own PDFs, and the repo ignores
+`*.pdf` for that reason.
+
+Security problems go through private vulnerability reporting; see [SECURITY.md](SECURITY.md).
+
+## Licence
+
+Copyright (C) 2026 munkycdev.
+
+Bibliotaph is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for
+details. SPDX: `GPL-3.0-or-later`.
+
+Fonts, icons and packages keep their own licences; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Any contribution is made under the same licence.
