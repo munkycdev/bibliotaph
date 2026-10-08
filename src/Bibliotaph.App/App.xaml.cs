@@ -7,7 +7,6 @@ using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

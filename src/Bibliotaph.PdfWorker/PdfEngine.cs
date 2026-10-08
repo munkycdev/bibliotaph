@@ -143,7 +143,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         List<PdfRect>? boxes = null;
         if (r.IncludeCharBoxes)
         {
-            boxes = new List<PdfRect>(count);
+            boxes = [with(count)];
             for (var i = 0; i < count; i++)
             {
                 double left = 0, right = 0, bottom = 0, top = 0;
