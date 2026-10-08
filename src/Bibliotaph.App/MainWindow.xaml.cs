@@ -29,13 +29,22 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    // View-only behaviour: Esc leaves the search box. Searching itself arrives in slice 1.
+    // Enter searches at once; Esc clears the search and leaves the box.
     void Search_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape) return;
-        Search.Clear();
-        Keyboard.ClearFocus();
-        FocusManager.SetFocusedElement(this, this);
-        e.Handled = true;
+        if (DataContext is not ShellViewModel shell) return;
+        if (e.Key == Key.Enter)
+        {
+            shell.SubmitSearchCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            Search.Clear();
+            shell.SubmitSearchCommand.Execute(null);
+            Keyboard.ClearFocus();
+            FocusManager.SetFocusedElement(this, this);
+            e.Handled = true;
+        }
     }
 }

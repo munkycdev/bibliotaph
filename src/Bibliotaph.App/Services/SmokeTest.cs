@@ -1,7 +1,12 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Threading;
+using Bibliotaph.App.ViewModels;
+using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Index;
+using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -9,7 +14,8 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// <c>Bibliotaph.exe --smoke-test --data-root &lt;folder&gt;</c>: opens the real window, visits every route in
-/// light and dark, then exits 0, or 1 on any exception or binding error. CI runs it on Windows so a broken
+/// light and dark, fills a small made-up library and browses and searches it in both themes, then exits 0, or 1 on
+/// any exception or binding error. CI runs it on Windows so a broken
 /// resource or template fails the build instead of the first launch. It is not a substitute for looking.
 /// </summary>
 static class SmokeTest
@@ -37,6 +43,14 @@ static class SmokeTest
                 }
                 while (navigation.GoBack()) await Settle(window);
             }
+
+            await SeedLibraryAsync(services);
+            foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
+            {
+                await theme.SetPreferenceAsync(preference);
+                await BrowseLibraryAsync(services, window);
+                Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
+            }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
         }
@@ -57,6 +71,99 @@ static class SmokeTest
         }
         Log.Information("Smoke test passed");
         return 0;
+    }
+
+    /// <summary>
+    /// A made-up library written straight to the catalog and index, so the Library has covers, a list, results and
+    /// an inspector to draw. Its folder doesn't exist and indexing is paused, so nothing tries to read the files.
+    /// </summary>
+    static async Task SeedLibraryAsync(IServiceProvider services)
+    {
+        var indexing = services.GetRequiredService<IndexingService>();
+        indexing.Pause(Lane.Index);
+        indexing.Pause(Lane.Ocr);
+        var root = await services.GetRequiredService<SourceRootStore>()
+            .AddAsync(System.IO.Path.Combine(services.GetRequiredService<AppPaths>().Root, "smoke-library"));
+        var library = services.GetRequiredService<LibraryStore>();
+        var index = services.GetRequiredService<IndexStore>();
+        (string Path, string Title, string[] Pages)[] books =
+        [
+            ("Setting/Gazetteer of the Marches.pdf", "Gazetteer of the Marches", ["Contents", "The red dragon sleeps beneath the mill.", "Goblins raid the tavern."]),
+            ("Monsters/Dragon Lairs.pdf", "Dragon Lairs", ["A lich keeps a tavern ledger.", "Red dragon lair maps."]),
+            ("Adventures/Haunted Inn.pdf", "Haunted Inn", ["The inn is haunted; a secret door hides behind the bar."]),
+            ("Handouts/Tavern Map.png", "Tavern Map", []),
+        ];
+        var modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await library.ReconcileRootAsync(root.Id, [.. books.Select(b => new ScannedFile(b.Path, 1000, modified, false))]);
+        var files = await library.NextUnhashedAsync(books.Length, includeOnlineOnly: true);
+        foreach (var file in files)
+        {
+            var book = books.Single(b => file.FullPath.EndsWith(b.Path.Replace('/', System.IO.Path.DirectorySeparatorChar), StringComparison.Ordinal));
+            var hash = ContentHash.Parse(new string((char)('a' + Array.IndexOf(books, book)), ContentHash.HexLength));
+            var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A made-up file didn't attach.");
+            var isImage = file.Format != SourceFormats.Pdf;
+            await index.UpsertDocumentAsync(
+                new DocRow
+                {
+                    DocumentId = documentId,
+                    ContentHash = hash.Hex,
+                    Format = file.Format,
+                    DisplayTitle = book.Title,
+                    PageCount = isImage ? null : book.Pages.Length,
+                    WidthPx = isImage ? 1600 : null,
+                    HeightPx = isImage ? 1200 : null,
+                    FolderHint = System.IO.Path.GetDirectoryName(book.Path),
+                },
+                [.. book.Pages.Select((_, i) => new PageRow(i, (i + 1).ToString(CultureInfo.InvariantCulture), 612, 792))], []);
+            if (!isImage) await index.SetPageTextAsync(documentId, [.. book.Pages.Select((text, i) => new PageTextRow(i, text, "pdf", 1, false))]);
+        }
+    }
+
+    /// <summary>The Library in covers and as a list, both search tabs, a query with a problem, and the inspector.</summary>
+    static async Task BrowseLibraryAsync(IServiceProvider services, Window window)
+    {
+        var search = services.GetRequiredService<SearchState>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await page.RefreshAsync();
+        await Settle(window);
+        if (page.Items.Count != 4) throw new InvalidOperationException($"The Library shows {page.Items.Count} books, not 4.");
+
+        page.Layout = LibraryLayout.List;
+        page.ShowFilters = true;
+        await Settle(window);
+
+        search.Search("dragon");
+        await page.RefreshAsync();
+        await Settle(window);
+        if (page.Items.Count == 0) throw new InvalidOperationException("Searching for dragon found no documents.");
+        page.Tab = ResultsTab.Pages;
+        await page.RefreshAsync();
+        await Settle(window);
+        if (page.Hits.Count == 0) throw new InvalidOperationException("Searching for dragon found no pages.");
+
+        await page.OpenDetailsCommand.ExecuteAsync(page.Hits[0].Item);
+        await Settle(window);
+        if (page.Inspector is null) throw new InvalidOperationException("The inspector didn't open.");
+        page.CloseDetailsCommand.Execute(null);
+
+        search.Search("type:adventure tavern");
+        await page.RefreshAsync();
+        await Settle(window);
+        if (page.IssueText is null) throw new InvalidOperationException("A metadata field didn't say it arrives later.");
+
+        search.Search("nothing-matches-this");
+        await page.RefreshAsync();
+        await Settle(window);
+        if (!page.IsEmpty) throw new InvalidOperationException("A search with no results didn't show the empty state.");
+
+        search.Search("");
+        page.Tab = ResultsTab.Documents;
+        page.Layout = LibraryLayout.Grid;
+        page.ShowFilters = false;
+        await page.RefreshAsync();
+        await Settle(window);
     }
 
     /// <summary>WIC is only on Windows, so the cover codec is checked here rather than in the unit tests.</summary>

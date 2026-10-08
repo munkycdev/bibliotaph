@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Pdf.Host.Tests;
@@ -124,6 +125,16 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.Equal(SyntheticPdfs.KnownPhrasePage, page);
         Assert.Contains(title, new[] { "Known Text", "Known Text Copy" });
         Assert.Equal(2, c.ExecuteScalar<long>("SELECT count(*) FROM outline JOIN doc USING (document_id) WHERE display_title = @title", new { title }));
+
+        // The Library's own search finds it too, over the documents catalog.db says are visible.
+        var search = new LibraryQueries(_index);
+        var filter = new LibraryFilter(await _libraryStore.GetVisibleDocumentIdsAsync(ct: Ct));
+        var hits = await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse("owlbear")), filter, ct: Ct);
+        var hit = Assert.Single(Assert.Single(hits.Documents).Pages);
+        Assert.Equal(SyntheticPdfs.KnownPhrasePage, hit.PdfPage);
+        Assert.Contains($"{LibraryQueries.HitStart}owlbear{LibraryQueries.HitEnd}", hit.Snippet, StringComparison.Ordinal);
+        Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("format:png")), filter, ct: Ct),
+            e => e.Title == "Handout Map");
 
         // The image-only page of the known text is flagged for OCR along with the scan.
         Assert.Equal("Complete", StatusOf(c, title, Stage.Text));
