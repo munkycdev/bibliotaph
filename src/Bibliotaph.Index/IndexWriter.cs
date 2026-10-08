@@ -9,7 +9,6 @@ namespace Bibliotaph.Index;
 /// <summary>
 /// The single writer for index.db. Callers queue writes; the writer runs them in batched transactions
 /// on one connection, which keeps SQLite fast under a busy indexer and never contends for the write lock.
-/// A stub in slice 0: the pipeline stages that use it arrive in slice 1.
 /// </summary>
 public sealed class IndexWriter(IndexDatabase database, ILogger<IndexWriter>? log = null) : BackgroundService
 {
@@ -29,10 +28,41 @@ public sealed class IndexWriter(IndexDatabase database, ILogger<IndexWriter>? lo
         return item.Done.Task.WaitAsync(ct);
     }
 
+    // 0 = not started, 1 = the write loop owns the queue, 2 = StopAsync drained it because the loop never ran.
+    int _owner;
+
     // On the thread pool, never the caller's synchronization context: in the app that would be the UI thread.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Run(() => RunAsync(stoppingToken), CancellationToken.None);
 
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await base.StopAsync(cancellationToken);
+        // BackgroundService starts ExecuteAsync on the thread pool and cancels it if stopped before it has run, so on
+        // a busy pool a quick start-stop never runs the loop. Queued writes must still finish.
+        if (Interlocked.CompareExchange(ref _owner, 2, 0) != 0) return;
+        _queue.Writer.TryComplete();
+        using var connection = database.OpenWrite();
+        Drain(connection, new List<WriteItem>(MaxBatch));
+    }
+
     async Task RunAsync(CancellationToken stoppingToken)
+    {
+        if (Interlocked.CompareExchange(ref _owner, 1, 0) != 0) return;
+        try
+        {
+            await WriteLoopAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            // Without a writer nothing queued would ever complete: fail it all, loudly, rather than hang every caller.
+            _log.LogCritical(ex, "The index writer stopped");
+            _queue.Writer.TryComplete(ex);
+            while (_queue.Reader.TryRead(out var item)) item.Done.TrySetException(ex);
+            throw;
+        }
+    }
+
+    async Task WriteLoopAsync(CancellationToken stoppingToken)
     {
         using var connection = database.OpenWrite();
         var batch = new List<WriteItem>(MaxBatch);
@@ -87,6 +117,15 @@ public sealed class IndexWriter(IndexDatabase database, ILogger<IndexWriter>? lo
         foreach (var item in batch) item.Write(connection, transaction);
         transaction.Commit();
         CommittedBatches++;
+    }
+
+    /// <summary>Queues a write that returns a value, such as a job lease, and completes with it once committed.</summary>
+    public async Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> write, CancellationToken ct = default)
+    {
+        T result = default!;
+        // A statement lambda, so this binds to the Action overload rather than back to this one.
+        await WriteAsync((c, t) => { result = write(c, t); }, ct);
+        return result;
     }
 
     sealed record WriteItem(Action<SqliteConnection, SqliteTransaction> Write, TaskCompletionSource Done);
