@@ -40,8 +40,7 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.Escape)
         {
-            Search.Clear();
-            shell.SubmitSearchCommand.Execute(null);
+            shell.ClearSearchCommand.Execute(null);
             Keyboard.ClearFocus();
             FocusManager.SetFocusedElement(this, this);
             e.Handled = true;

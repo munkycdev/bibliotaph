@@ -181,7 +181,8 @@
     </Setter>
   </Style>
 
-  <!-- .bt-search: the top bar's search box, with placeholder and the Ctrl K hint. -->
+  <!-- .bt-search: the top bar's search box, with placeholder and the Ctrl K hint, which gives way to a clear
+       (×) button running c:Ui.ClearCommand once there is text. The × leaves focus in the box for the next search. -->
   <Style x:Key="Bt.SearchBox" TargetType="TextBox">
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
@@ -204,10 +205,27 @@
               <TextBlock x:Name="Placeholder" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
                          Text="{TemplateBinding Tag}" Foreground="{DynamicResource Bt.Muted}" IsHitTestVisible="False" Visibility="Collapsed" />
               <ScrollViewer x:Name="PART_ContentHost" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" />
-              <Border Grid.Column="2" Margin="8,0,0,0" Padding="4,0" CornerRadius="3" BorderThickness="1"
-                      BorderBrush="{DynamicResource Bt.Line}" VerticalAlignment="Center">
+              <Border x:Name="Shortcut" Grid.Column="2" Margin="8,0,0,0" Padding="4,0" CornerRadius="3" BorderThickness="1"
+                      BorderBrush="{DynamicResource Bt.Line}" VerticalAlignment="Center" Visibility="Collapsed">
                 <TextBlock Text="Ctrl K" FontSize="9" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
+              <Button x:Name="Clear" Grid.Column="2" Margin="8,-3,-4,-3" VerticalAlignment="Center" Focusable="False" Cursor="Hand"
+                      Command="{Binding (c:Ui.ClearCommand), RelativeSource={RelativeSource TemplatedParent}}"
+                      ToolTip="Clear search (Esc)" AutomationProperties.Name="Clear search">
+                <Button.Template>
+                  <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="3">
+                      <c:LucideIcon x:Name="Glyph" Size="13" Data="{StaticResource Icon.X}" Foreground="{DynamicResource Bt.Muted}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                        <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource Bt.Text}" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Button.Template>
+              </Button>
             </Grid>
           </Border>
           <ControlTemplate.Triggers>
@@ -216,9 +234,13 @@
             </Trigger>
             <Trigger Property="Text" Value="">
               <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+              <Setter TargetName="Shortcut" Property="Visibility" Value="Visible" />
+              <Setter TargetName="Clear" Property="Visibility" Value="Collapsed" />
             </Trigger>
             <Trigger Property="Text" Value="{x:Null}">
               <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+              <Setter TargetName="Shortcut" Property="Visibility" Value="Visible" />
+              <Setter TargetName="Clear" Property="Visibility" Value="Collapsed" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

@@ -72,6 +72,14 @@ public sealed partial class ShellViewModel : ObservableObject
         if (_search.IsSearching && CurrentPage?.Route != Route.Library) _navigation.NavigateTo(Route.Library);
     }
 
+    /// <summary>Empties the box and ends the search at once (the box's ×, or Esc).</summary>
+    [RelayCommand]
+    void ClearSearch()
+    {
+        SearchText = "";
+        SubmitSearch();
+    }
+
     /// <summary>Keeps the box in step when a page clears the search ("Clear search").</summary>
     void OnSearchChanged(object? sender, PropertyChangedEventArgs e)
     {

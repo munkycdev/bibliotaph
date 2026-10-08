@@ -115,7 +115,7 @@
                   ToolTip="{Binding AppearanceToggleLabel}" AutomationProperties.Name="{Binding AppearanceToggleLabel}" />
           <TextBox x:Name="Search" Style="{StaticResource Bt.SearchBox}" MaxWidth="360" HorizontalAlignment="Right"
                    Margin="15,0,0,0" Width="360" Tag="Search books, topics, passages…"
-                   Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                   Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" c:Ui.ClearCommand="{Binding ClearSearchCommand}"
                    AutomationProperties.Name="Search your library" PreviewKeyDown="Search_PreviewKeyDown" />
         </DockPanel>
       </Border>

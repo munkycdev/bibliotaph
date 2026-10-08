@@ -195,6 +195,31 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.Equal(before, await JobsAsync());
     }
 
+    [Fact]
+    public async Task Stages_blocked_while_a_file_could_not_be_read_run_once_it_can_be()
+    {
+        Copy(pdfs.KnownText, "Known Text.pdf");
+        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        // As if Covers had run while the folder was briefly unreadable; then the map goes for good.
+        await _writer.WriteAsync((c, t) =>
+        {
+            c.Execute("UPDATE job SET status = 'blocked', last_error = @reason WHERE stage = 'Covers'", new { reason = StageOutcome.Blocked.Unreachable }, t);
+            c.Execute("UPDATE stage_status SET status = 'Blocked' WHERE stage = 'Covers'", transaction: t);
+        }, Ct);
+        File.Delete(Path.Combine(_library, "Handout Map.png"));
+        _service.RequestScan();
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        timeout.CancelAfter(Patience);
+        await using var read = _index.OpenRead();
+        while (StatusOf(read, "Known Text", Stage.Covers) != "Complete") await Task.Delay(200, timeout.Token);
+        Assert.Equal("Blocked", StatusOf(read, "Handout Map", Stage.Covers));
+    }
+
     /// <summary>How many jobs there are and how many times they have run.</summary>
     async Task<(long Jobs, long Attempts)> JobsAsync()
     {
