@@ -65,6 +65,7 @@ static class SmokeTest
                 await theme.SetPreferenceAsync(preference);
                 await BrowseLibraryAsync(services, window, books);
                 Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
+                await ShowFolderProgressAsync(services, window);
                 if (real is not { } files) continue;
                 await ReadBookAsync(services, window, files.Pdf);
                 await ViewImageAsync(services, window, files.Image);
@@ -327,6 +328,21 @@ static class SmokeTest
             if (FindChild<T>(child) is { } deeper) return deeper;
         }
         return null;
+    }
+
+    /// <summary>Library folders with a library in it: the step-by-step progress and a card per folder.</summary>
+    static async Task ShowFolderProgressAsync(IServiceProvider services, Window window)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.NavigateTo(Route.LibraryFolders);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryFoldersViewModel
+            ?? throw new InvalidOperationException("The Library folders route didn't open Library folders.");
+        await WaitUntilAsync(window, () => page.Folders.Count > 0 && page.Folders.All(f => f.Detail.Length > 0),
+            () => "Library folders didn't describe its folders.");
+        if (page.Activity.Phases.Count != 4 || page.Activity.Phases.Any(p => p.Status.Length == 0))
+            throw new InvalidOperationException("The indexing steps aren't all described.");
+        navigation.GoBack();
+        await Settle(window);
     }
 
     /// <summary>Lets the window work until <paramref name="condition"/> holds, or fails after a few seconds.</summary>

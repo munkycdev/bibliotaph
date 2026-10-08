@@ -84,6 +84,7 @@ public sealed class IndexStoreTests : IndexFixture
         Assert.Equal([1L], PageSearch("goblin"));
         Assert.Equal(2, Connection.ExecuteScalar<long>("SELECT count(*) FROM ocr_word"));
         Assert.Equal("ocr", Connection.ExecuteScalar<string>("SELECT text_source FROM page WHERE document_id = 1 AND pdf_page = 1"));
+        Assert.Equal(1, (await _queries.GetProgressAsync(Ct)).OcrPagesDone);
     }
 
     [Fact]
@@ -100,7 +101,12 @@ public sealed class IndexStoreTests : IndexFixture
         var progress = await _queries.GetProgressAsync(Ct);
         var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
 
-        Assert.Equal(new IndexProgress(2, 1, 0, 1, 0, 0), progress);
+        Assert.Equal(new IndexProgress(2, 1, 0, 1, 0, 0, Queued: 2), progress);
+        Assert.Equal(2, progress.Indexed);
+        Assert.Equal(1, await _queries.CountSearchableAsync([1, 2, 3], Ct));
+        Assert.Equal(0, await _queries.CountSearchableAsync([2], Ct));
+        Assert.Equal("Locked book", await _queries.GetTitleAsync(2, Ct));
+        Assert.Null(await _queries.GetTitleAsync(9, Ct));
         Assert.Equal(("Locked book", StageStatus.Blocked, "Needs a password"), (attention.Title, attention.Status, attention.Reason));
     }
 

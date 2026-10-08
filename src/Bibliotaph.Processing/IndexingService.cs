@@ -87,6 +87,15 @@ public sealed class IndexingService(
         get { lock (_lock) return [.. _unreadable.Values]; }
     }
 
+    /// <summary>The file being read for hashing, if any.</summary>
+    public string? Hashing { get; private set; }
+
+    /// <summary>The job a lane is running, if any.</summary>
+    public JobRecord? Running(Lane lane)
+    {
+        lock (_lock) return _lanes[lane].Running;
+    }
+
     public bool IsPaused(Lane lane)
     {
         lock (_lock) return _lanes[lane].Paused;
@@ -362,6 +371,8 @@ public sealed class IndexingService(
     async Task HashFileAsync(UnhashedFile file, CancellationToken ct)
     {
         ContentHash hash;
+        Hashing = file.FullPath;
+        RaiseChanged();
         try
         {
             hash = await hasher.HashAsync(file.FullPath, ct);
@@ -371,6 +382,10 @@ public sealed class IndexingService(
             _log.LogWarning("Could not read {LocationId} for hashing: {Reason}", file.LocationId, ex.Message);
             lock (_lock) _unreadable[file.LocationId] = new UnreadableFile(file.LocationId, file.FullPath, ex.Message);
             return;
+        }
+        finally
+        {
+            Hashing = null;
         }
 
         var attached = await library.AttachHashAsync(file, hash, ct);
@@ -423,7 +438,16 @@ public sealed class IndexingService(
             }
 
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(laneToken, stoppingToken);
-            await RunJobAsync(job, linked.Token);
+            lock (_lock) _lanes[lane].Running = job;
+            RaiseChanged();
+            try
+            {
+                await RunJobAsync(job, linked.Token);
+            }
+            finally
+            {
+                lock (_lock) _lanes[lane].Running = null;
+            }
             RaiseChanged();
         }
     }
@@ -501,6 +525,7 @@ public sealed class IndexingService(
     {
         public bool Paused;
         public CancellationTokenSource Cancel = new();
+        public JobRecord? Running;
 
         public void Dispose() => Cancel.Dispose();
     }

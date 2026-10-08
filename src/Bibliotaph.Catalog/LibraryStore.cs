@@ -18,7 +18,8 @@ public sealed record UnhashedFile(long LocationId, string FullPath, long SizeByt
 /// </summary>
 public sealed record DocumentSource(long DocumentId, string ContentHash, string Format, string FullPath, string FolderHint, IReadOnlyList<string> AllPaths);
 
-public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents);
+/// <summary>File and document counts. The unhashed online-only files are those still to download.</summary>
+public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents, int UnhashedOnlineOnly = 0, long UnhashedOnlineOnlyBytes = 0);
 
 /// <summary>One place a document's file is, for the inspector.</summary>
 public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability);
@@ -220,11 +221,14 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var active = db.FileLocations.Where(f => f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
+        var toDownload = active.Where(f => f.State == FileLocationState.OnlineOnly && f.ContentHash == null);
         return new LibraryCounts(
             await active.CountAsync(f => f.State != FileLocationState.Missing, ct),
             await active.CountAsync(f => f.State == FileLocationState.OnlineOnly, ct),
             await active.CountAsync(f => f.State == FileLocationState.Missing, ct),
             await active.CountAsync(f => f.State != FileLocationState.Missing && f.ContentHash == null, ct),
-            await db.Documents.CountAsync(ct));
+            await db.Documents.CountAsync(ct),
+            await toDownload.CountAsync(ct),
+            await toDownload.SumAsync(f => (long?)f.SizeBytes, ct) ?? 0);
     }
 }

@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:services="clr-namespace:Bibliotaph.App.Services"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibraryFoldersViewModel}">
   <UserControl.Resources>
@@ -24,12 +25,90 @@
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
                Text="Bibliotaph reads your folders. Your books stay exactly where you put them." />
 
-    <!-- Indexing progress, with pause and resume for each lane while it has work (spec: processing summary). -->
+    <!-- Indexing progress (spec 4.1: separate progress for each step), with pause and resume for each lane while it has work. -->
     <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0"
             Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <StackPanel>
         <TextBlock Text="{Binding Activity.Summary}" Style="{StaticResource Text.Row}" />
-        <TextBlock Text="{Binding ProgressDetail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Activity.TimeLeftText}" Margin="0,4,0,0" TextWrapping="Wrap">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Activity.TimeLeftText}" Value="">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+
+        <ItemsControl ItemsSource="{Binding Activity.Phases}" Focusable="False" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type services:PhaseProgress}">
+              <Grid Margin="0,6,0,0" AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Status}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="150" />
+                  <ColumnDefinition Width="*" MinWidth="80" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                  <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ProgressBar Grid.Column="1" VerticalAlignment="Center" Margin="10,0">
+                  <ProgressBar.Style>
+                    <Style TargetType="ProgressBar" BasedOn="{StaticResource Bt.ProgressBar}">
+                      <Setter Property="Value" Value="{Binding Percent, Mode=OneWay}" />
+                      <Setter Property="IsIndeterminate" Value="{Binding IsIndeterminate, Mode=OneWay}" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static services:PhaseState.Done}">
+                          <Setter Property="Foreground" Value="{DynamicResource Bt.StatusOk}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static services:PhaseState.Paused}">
+                          <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </ProgressBar.Style>
+                </ProgressBar>
+                <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center"
+                           MinWidth="190" TextAlignment="Right" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- What each part is on right now, so the page shows movement even while a bar creeps. -->
+        <StackPanel Margin="0,12,0,0">
+          <StackPanel.Style>
+            <Style TargetType="StackPanel">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Activity.Now.Count}" Value="0">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </StackPanel.Style>
+          <TextBlock Text="Now" Style="{StaticResource Text.Eyebrow}" />
+          <ItemsControl ItemsSource="{Binding Activity.Now}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+        <TextBlock Text="{Binding Activity.Notes}" Margin="0,10,0,0" TextWrapping="Wrap">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Activity.Notes}" Value="">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
         <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
                    Visibility="{Binding Activity.WaitingForDiskSpace, Converter={StaticResource Bt.VisibleWhenTrue}}"
                    Text="Online-only files are waiting: downloading more would leave less than 2 GB free on that drive." />
@@ -86,6 +165,8 @@
               <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Folder}" Margin="0,0,10,0" VerticalAlignment="Top" />
               <StackPanel>
                 <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                <ProgressBar Style="{StaticResource Bt.ProgressBar}" Value="{Binding Percent, Mode=OneWay}" Height="4" Margin="0,8,0,2"
+                             Visibility="{Binding ShowProgress, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </DockPanel>

@@ -3,13 +3,31 @@ using System.Globalization;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
-public sealed record LibraryFolderItem(long Id, string Path, string Detail);
+/// <summary>A library folder, with what it holds and how much of it is searchable. Updated in place as indexing runs.</summary>
+public sealed partial class LibraryFolderItem(long id, string path) : ObservableObject
+{
+    public long Id { get; } = id;
+
+    public string Path { get; } = path;
+
+    [ObservableProperty]
+    public partial string Detail { get; set; } = "";
+
+    /// <summary>Percent of the folder's documents that are searchable.</summary>
+    [ObservableProperty]
+    public partial double Percent { get; set; }
+
+    /// <summary>The bar shows while some of the folder isn't searchable yet.</summary>
+    [ObservableProperty]
+    public partial bool ShowProgress { get; set; }
+}
 
 /// <summary>A folder the user picked, shown with what it holds before it joins the library.</summary>
 public sealed partial class PendingFolder(string path) : ObservableObject
@@ -28,7 +46,8 @@ public sealed partial class PendingFolder(string path) : ObservableObject
 /// Removing a folder keeps its catalog rows and the user's work.
 /// </summary>
 public sealed partial class LibraryFoldersViewModel(
-    SourceRootStore roots, IndexingService indexing, LibraryActivity activity, LibraryFolders folders, StartOver startOver) : PageViewModel
+    SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
+    LibraryFolders folders, StartOver startOver) : PageViewModel
 {
     public override Route Route => Route.LibraryFolders;
     public override string Section => "Settings";
@@ -43,15 +62,15 @@ public sealed partial class LibraryFoldersViewModel(
     [ObservableProperty]
     public partial bool HasFolders { get; set; }
 
-    [ObservableProperty]
-    public partial string ProgressDetail { get; set; } = "";
+    static readonly TimeSpan FolderRefresh = TimeSpan.FromSeconds(3);
+    DateTime _foldersRefreshed;
+    bool _refreshingFolders;
 
     public override async Task LoadAsync()
     {
         Activity.Refreshed -= OnActivityRefreshed;
         Activity.Refreshed += OnActivityRefreshed;
         await RefreshFoldersAsync();
-        UpdateProgress();
         if (folders.TakePickRequest()) await AddFolder();
     }
 
@@ -59,26 +78,47 @@ public sealed partial class LibraryFoldersViewModel(
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
-        UpdateProgress();
-        await RefreshFoldersAsync();
+        // Activity refreshes often while indexing runs; per-folder counts needn't keep up with it.
+        if (DateTime.UtcNow - _foldersRefreshed >= FolderRefresh) await RefreshFoldersAsync();
     }
 
+    /// <summary>Brings the folder cards up to date in place, so a refresh doesn't take focus or scroll away.</summary>
     async Task RefreshFoldersAsync()
     {
-        var scans = indexing.Scans.ToDictionary(s => s.RootId);
-        var current = await roots.ListAsync();
-        Folders.Clear();
-        foreach (var root in current)
-            Folders.Add(new LibraryFolderItem(root.Id, root.Path, Describe(root.AddedUtc, scans.GetValueOrDefault(root.Id))));
-        HasFolders = Folders.Count > 0;
+        if (_refreshingFolders) return;
+        _refreshingFolders = true;
+        try
+        {
+            _foldersRefreshed = DateTime.UtcNow;
+            var scans = indexing.Scans.ToDictionary(s => s.RootId);
+            var current = await roots.ListAsync();
+            foreach (var gone in Folders.Where(f => current.All(r => r.Id != f.Id)).ToList()) Folders.Remove(gone);
+            for (var i = 0; i < current.Count; i++)
+            {
+                var root = current[i];
+                var item = Folders.FirstOrDefault(f => f.Id == root.Id);
+                if (item is null) Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, root.Path));
+                var ids = await library.GetVisibleDocumentIdsAsync(root.Id);
+                var searchable = await queries.CountSearchableAsync(ids);
+                item.Detail = Describe(root.AddedUtc, scans.GetValueOrDefault(root.Id), searchable, ids.Count);
+                item.Percent = ids.Count == 0 ? 0 : 100.0 * searchable / ids.Count;
+                item.ShowProgress = searchable < ids.Count;
+            }
+            HasFolders = Folders.Count > 0;
+        }
+        finally
+        {
+            _refreshingFolders = false;
+        }
     }
 
-    static string Describe(DateTime addedUtc, RootScan? scan)
+    static string Describe(DateTime addedUtc, RootScan? scan, long searchable, int documents)
     {
         var added = addedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture);
         if (scan is null) return $"Added {added} · Waiting to be looked at";
         if (!scan.Reachable) return $"Added {added} · Can't be reached right now. Its books stay in your library.";
-        return $"Added {added} · {DescribeContents(scan.Summary!)}";
+        var state = documents == 0 ? "" : searchable >= documents ? "Up to date · " : $"{searchable:N0} of {documents:N0} searchable · ";
+        return $"Added {added} · {state}{DescribeContents(scan.Summary!)}";
     }
 
     /// <summary>"488 PDFs, 120 images · 30 online-only (12.4 GB to download) · 15 other files ignored".</summary>
@@ -91,7 +131,7 @@ public sealed partial class LibraryFoldersViewModel(
             summary.Indexable == 0 ? "No PDFs or images"
                 : string.Join(", ", new[] { Count(pdfs, "PDF", "PDFs"), Count(images, "image", "images") }.Where(p => p.Length > 0)),
         };
-        if (summary.OnlineOnly > 0) parts.Add($"{summary.OnlineOnly:N0} online-only ({Size(summary.OnlineOnlyBytes)} to download)");
+        if (summary.OnlineOnly > 0) parts.Add($"{summary.OnlineOnly:N0} online-only ({LibraryActivity.Size(summary.OnlineOnlyBytes)} to download)");
         if (summary.Unsupported > 0) parts.Add($"{Count(summary.Unsupported, "other file", "other files")} ignored");
         if (summary.Inaccessible.Count > 0) parts.Add($"{Count(summary.Inaccessible.Count, "folder", "folders")} couldn't be opened");
         return string.Join(" · ", parts);
@@ -99,24 +139,6 @@ public sealed partial class LibraryFoldersViewModel(
 
     static string Count(long count, string one, string many) =>
         count == 0 ? "" : $"{count.ToString("N0", CultureInfo.CurrentCulture)} {LibraryActivity.Plural(count, one, many)}";
-
-    static string Size(long bytes) => bytes switch
-    {
-        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.#} GB",
-        >= 1L << 20 => $"{bytes / (double)(1L << 20):0} MB",
-        _ => $"{Math.Max(1, bytes / 1024):N0} KB",
-    };
-
-    void UpdateProgress()
-    {
-        var p = Activity.Progress;
-        var parts = new List<string>();
-        if (p.Documents > 0) parts.Add($"{p.Searchable:N0} of {p.Documents:N0} searchable");
-        if (p.PagesAwaitingOcr > 0) parts.Add($"{Count(p.PagesAwaitingOcr, "scanned page", "scanned pages")} waiting to be read");
-        if (p.NeedAttention > 0) parts.Add($"{Count(p.NeedAttention, "file needs", "files need")} attention");
-        if (Activity.Counts.OnlineOnly > 0) parts.Add($"{Activity.Counts.OnlineOnly:N0} online-only");
-        ProgressDetail = string.Join(" · ", parts);
-    }
 
     [RelayCommand]
     async Task AddFolder()

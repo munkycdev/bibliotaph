@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Bibliotaph.Core;
 using Dapper;
 
@@ -14,9 +15,17 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// image, which is found by its title),
 /// still processing (any stage waiting or running), needing attention (a stage failed or is blocked), scanned
 /// pages still waiting for OCR (not counting books whose OCR is blocked or failed), and documents with index-lane
-/// work (any stage but OCR) waiting or running.
+/// work (any stage but OCR) waiting or running. For progress bars: documents queued for any stage (known before
+/// Probe adds them to the index), and scanned pages already read by OCR.
 /// </summary>
-public sealed record IndexProgress(long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing);
+public sealed record IndexProgress(
+    long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0)
+{
+    /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
+    public long Indexed => Math.Max(0, Queued - Indexing);
+
+    public long OcrPages => OcrPagesDone + PagesAwaitingOcr;
+}
 
 /// <summary>A document with a failed or blocked stage, and why.</summary>
 public sealed record AttentionItem(long DocumentId, string Title, Stage Stage, StageStatus Status, string? Reason, DateTime UpdatedUtc);
@@ -51,7 +60,9 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
                     (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Ocr') AS Indexing
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Ocr') AS Indexing,
+                (SELECT count(DISTINCT document_id) FROM stage_status) AS Queued,
+                (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone
             """, cancellationToken: ct));
     }
 
@@ -85,5 +96,26 @@ public sealed class IndexQueries(IndexDatabase database)
         await using var connection = database.OpenRead();
         return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
             "SELECT cover FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>A document's title, or null before Probe has given it one.</summary>
+    public async Task<string?> GetTitleAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT display_title FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>How many of <paramref name="documentIds"/> are searchable, as <see cref="IndexProgress.Searchable"/> counts them.</summary>
+    public async Task<long> CountSearchableAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return 0;
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            """
+            SELECT count(*) FROM stage_status
+            WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped') AND document_id IN (SELECT value FROM json_each(@ids))
+            """,
+            new { ids = JsonSerializer.Serialize(documentIds) }, cancellationToken: ct));
     }
 }
