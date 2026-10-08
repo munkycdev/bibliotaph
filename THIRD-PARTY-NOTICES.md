@@ -1,7 +1,12 @@
 # Third-party notices
 
-Bibliotaph is MIT licensed (see `LICENSE`). It includes or depends on the components below, under their own
-licences. Nothing here is under a copyleft licence, so all of it is compatible with MIT.
+Bibliotaph is licensed under the GNU General Public License v3.0 or later (see `LICENSE`). It includes or depends
+on the components below, which keep their own licences. All of them are permissive (MIT, Apache-2.0, BSD, ISC,
+FreeType, public domain), and all of them can be combined with GPL-3.0 code. Apache-2.0 is compatible with GPL
+version 3, not version 2, which is one reason the project is GPL-3.0 rather than GPL-2.0.
+
+The fonts stay under the SIL Open Font License. The OFL allows bundling them with software under any licence; they
+are not relicensed under the GPL.
 
 ## Included in this repository
 

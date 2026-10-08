@@ -88,5 +88,13 @@ Security problems go through private vulnerability reporting; see [SECURITY.md](
 
 ## Licence
 
-MIT; see [LICENSE](LICENSE). Fonts, icons and packages keep their own licences; see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Copyright (C) 2026 munkycdev.
+
+Bibliotaph is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for
+details. SPDX: `GPL-3.0-or-later`.
+
+Fonts, icons and packages keep their own licences; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Any contribution is made under the same licence.
