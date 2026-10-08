@@ -42,6 +42,42 @@ public sealed class PdfWorkerTests(SyntheticPdfs pdfs) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Reports_document_info_and_the_outline()
+    {
+        var doc = await OpenAsync(pdfs.KnownText);
+
+        Assert.Equal(SyntheticPdfs.Title, doc.Metadata.Title);
+        Assert.Equal(SyntheticPdfs.Author, doc.Metadata.Author);
+        Assert.Null(doc.Metadata.Keywords);
+        Assert.Equal(
+            [new OutlineItem("Chapter one", SyntheticPdfs.KnownPhrasePage, 0), new OutlineItem("A picture", SyntheticPdfs.ImageOnlyPage, 1)],
+            doc.Outline);
+    }
+
+    [Fact]
+    public async Task Opens_a_file_whose_name_is_outside_the_ansi_code_page()
+    {
+        var doc = await OpenAsync(pdfs.NonAsciiName);
+
+        Assert.Equal(SyntheticPdfs.PageCount, doc.PageCount);
+    }
+
+    [Fact]
+    public async Task Extracts_a_run_of_pages_in_one_request()
+    {
+        var doc = await OpenAsync(pdfs.KnownText);
+
+        var response = await _worker.SendAsync(new Request { Op = Op.ExtractPages, DocId = doc.DocId, PageIndex = 1, PageCount = 10 }, Timeout);
+
+        Assert.True(response.Ok, response.Message);
+        var pages = response.Pages!;
+        Assert.Equal([1, 2], pages.Select(p => p.PageIndex));
+        Assert.Contains(SyntheticPdfs.KnownPhrase, pages[0].Text, StringComparison.Ordinal);
+        Assert.Equal(0, pages[1].CharCount);
+        Assert.All(pages, p => Assert.Null(p.Error));
+    }
+
+    [Fact]
     public async Task Whole_book_find_hits_the_right_page_with_highlight_boxes()
     {
         var doc = await OpenAsync(pdfs.KnownText);
