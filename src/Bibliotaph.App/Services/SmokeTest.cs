@@ -21,6 +21,7 @@ static class SmokeTest
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
         try
         {
+            if (window.Icon is null) throw new InvalidOperationException("The main window has no icon.");
             var navigation = services.GetRequiredService<INavigationService>();
             var theme = services.GetRequiredService<ThemeService>();
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })

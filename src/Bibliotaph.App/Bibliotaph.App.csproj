@@ -8,7 +8,7 @@
     <AssemblyName>Bibliotaph</AssemblyName>
     <RootNamespace>Bibliotaph.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- WPF windows use the exe's icon when Window.Icon is unset, picking the right size from the .ico. -->
+    <!-- The exe's icon (Explorer, shortcuts). MainWindow sets the same .ico for its title bar and taskbar button. -->
     <ApplicationIcon>Assets\Bibliotaph.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -31,6 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
+    <Resource Include="Assets\Bibliotaph.ico" />
     <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="licenses\fonts" />
     <None Include="Icons\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-lucide.txt" />
   </ItemGroup>
