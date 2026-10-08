@@ -30,9 +30,9 @@ public sealed class PageSearchTests : IAsyncLifetime
     List<(long Doc, long Page)> Search(string match)
     {
         using var c = _db.OpenRead();
-        return c.Query<(long, long)>(
+        return [.. c.Query<(long, long)>(
             "SELECT p.document_id, p.pdf_page FROM page_fts JOIN page p ON p.id = page_fts.rowid WHERE page_fts MATCH @match ORDER BY bm25(page_fts)",
-            new { match }).ToList();
+            new { match })];
     }
 
     [Fact]

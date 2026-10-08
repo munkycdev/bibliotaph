@@ -59,7 +59,7 @@ public static class Framing
     static int ReadLength(byte[] header)
     {
         var length = BinaryPrimitives.ReadInt32LittleEndian(header);
-        if (length < 0 || length > MaxMessageBytes) throw new InvalidDataException($"Bad message length {length}.");
+        if (length is < 0 or > MaxMessageBytes) throw new InvalidDataException($"Bad message length {length}.");
         return length;
     }
 

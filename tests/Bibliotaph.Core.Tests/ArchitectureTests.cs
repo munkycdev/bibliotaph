@@ -1,5 +1,3 @@
-using Bibliotaph.Core;
-
 namespace Bibliotaph.Core.Tests;
 
 public class ArchitectureTests

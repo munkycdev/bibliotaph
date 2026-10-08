@@ -91,7 +91,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
 
     Response Render(Request r, FpdfDocumentT doc)
     {
-        if (r.Scale <= 0 || r.Scale > 50) return Response.Fail(r.Id, ErrorKind.BadRequest, "Scale out of range.");
+        if (r.Scale is <= 0 or > 50) return Response.Fail(r.Id, ErrorKind.BadRequest, "Scale out of range.");
 
         var page = fpdfview.FPDF_LoadPage(doc, r.PageIndex);
         if (IsNull(page)) return LastError(r.Id, $"Page {r.PageIndex} failed to load", ErrorKind.Page);

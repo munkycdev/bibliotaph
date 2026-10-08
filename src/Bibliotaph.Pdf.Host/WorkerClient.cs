@@ -34,7 +34,6 @@ public sealed record WorkerOptions
 /// </summary>
 public sealed class WorkerClient : IAsyncDisposable
 {
-    readonly WorkerOptions _options;
     readonly PoisonTracker _poison;
     readonly ILogger _log;
     readonly SemaphoreSlim _gate = new(1, 1);
@@ -55,7 +54,7 @@ public sealed class WorkerClient : IAsyncDisposable
 
     public WorkerClient(WorkerOptions? options = null, PoisonTracker? poison = null, ILogger<WorkerClient>? log = null)
     {
-        _options = options ?? new WorkerOptions();
+        Options = options ?? new WorkerOptions();
         _poison = poison ?? new PoisonTracker();
         _log = log ?? NullLogger<WorkerClient>.Instance;
         _sharedPath = Path.Combine(Path.GetTempPath(), $"bibliotaph-pdf-{Guid.NewGuid():N}.bin");
@@ -63,9 +62,9 @@ public sealed class WorkerClient : IAsyncDisposable
         // Open it ourselves so the worker can map it read-write too.
         _sharedFile = new FileStream(_sharedPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete,
             1, FileOptions.DeleteOnClose);
-        _mmf = MemoryMappedFile.CreateFromFile(_sharedFile, null, _options.SharedBufferBytes, MemoryMappedFileAccess.ReadWrite,
+        _mmf = MemoryMappedFile.CreateFromFile(_sharedFile, null, Options.SharedBufferBytes, MemoryMappedFileAccess.ReadWrite,
             HandleInheritability.None, leaveOpen: false);
-        _view = _mmf.CreateViewAccessor(0, _options.SharedBufferBytes, MemoryMappedFileAccess.Read);
+        _view = _mmf.CreateViewAccessor(0, Options.SharedBufferBytes, MemoryMappedFileAccess.Read);
         unsafe
         {
             byte* pointer = null;
@@ -74,7 +73,7 @@ public sealed class WorkerClient : IAsyncDisposable
         }
     }
 
-    public WorkerOptions Options => _options;
+    public WorkerOptions Options { get; }
 
     /// <summary>Incremented each time a running worker is killed or found dead.</summary>
     public int Restarts { get; private set; }
@@ -114,7 +113,7 @@ public sealed class WorkerClient : IAsyncDisposable
             if (page is not null && _poison.IsPoisoned(page)) throw new PagePoisonedException(page);
 
             if (!IsRunning) await StartAsync(ct);
-            var limit = timeout ?? _options.DefaultTimeout;
+            var limit = timeout ?? Options.DefaultTimeout;
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(limit);
             try
@@ -134,7 +133,7 @@ public sealed class WorkerClient : IAsyncDisposable
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                _log.LogWarning("PDF {Worker} did not answer {Op} within {Timeout}; killing it", _options.Name, request.Op, limit);
+                _log.LogWarning("PDF {Worker} did not answer {Op} within {Timeout}; killing it", Options.Name, request.Op, limit);
                 Kill();
                 RecordKill(page);
                 throw new WorkerTimeoutException(limit);
@@ -196,7 +195,7 @@ public sealed class WorkerClient : IAsyncDisposable
         catch (InvalidOperationException) { }
         Kill();
         var stderr = string.Join(" | ", _stderr);
-        _log.LogWarning("PDF {Worker} exited unexpectedly: {Detail}. Worker said: {Stderr}", _options.Name, detail, stderr);
+        _log.LogWarning("PDF {Worker} exited unexpectedly: {Detail}. Worker said: {Stderr}", Options.Name, detail, stderr);
         return new WorkerCrashedException(stderr.Length == 0 ? detail : $"{detail} Worker said: {stderr}");
     }
 
@@ -206,14 +205,14 @@ public sealed class WorkerClient : IAsyncDisposable
         var pipeName = $"bibliotaph-pdf-{Guid.NewGuid():N}";
         _pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
-        var workerPath = _options.WorkerPath ?? WorkerOptions.DefaultWorkerPath;
+        var workerPath = Options.WorkerPath ?? WorkerOptions.DefaultWorkerPath;
         var psi = new ProcessStartInfo(workerPath) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
         psi.ArgumentList.Add("--pipe");
         psi.ArgumentList.Add(pipeName);
         psi.ArgumentList.Add("--shared");
         psi.ArgumentList.Add(_sharedPath);
         psi.ArgumentList.Add("--shared-size");
-        psi.ArgumentList.Add(_options.SharedBufferBytes.ToString(CultureInfo.InvariantCulture));
+        psi.ArgumentList.Add(Options.SharedBufferBytes.ToString(CultureInfo.InvariantCulture));
 
         _stderr.Clear();
         _openDocs.Clear();
@@ -230,7 +229,7 @@ public sealed class WorkerClient : IAsyncDisposable
         {
             // One job per worker, so the peak-memory reading covers this worker only. The worker is
             // assigned before it connects, and it reads no PDF until it has connected and been asked to.
-            _job = new JobObject(_options.MemoryLimitBytes);
+            _job = new JobObject(Options.MemoryLimitBytes);
             _job.Assign(_process);
         }
 
@@ -247,7 +246,7 @@ public sealed class WorkerClient : IAsyncDisposable
         }
         Generation++;
         _log.LogInformation("PDF {Worker} started (pid {Pid}, generation {Generation}, cap {CapMb} MB)",
-            _options.Name, _process.Id, Generation, _options.MemoryLimitBytes / (1024 * 1024));
+            Options.Name, _process.Id, Generation, Options.MemoryLimitBytes / (1024 * 1024));
     }
 
     void Kill()
