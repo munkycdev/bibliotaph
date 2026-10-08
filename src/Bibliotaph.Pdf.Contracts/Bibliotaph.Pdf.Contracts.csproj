@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Worker messages and framing, shared by Pdf.Host and PdfWorker. References nothing. -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+</Project>
