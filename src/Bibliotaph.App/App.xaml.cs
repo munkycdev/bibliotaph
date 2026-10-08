@@ -28,6 +28,7 @@ public partial class App : Application
         base.OnStartup(e);
         _smokeTest = e.Args.Contains("--smoke-test");
         var measureSearch = e.Args.Contains("--measure-search");
+        var measureViewer = e.Args.Contains("--measure-viewer");
         var paths = DataRootArgument(e.Args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
         foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
 
@@ -57,6 +58,11 @@ public partial class App : Application
                 Shutdown(await SearchMeasurement.RunAsync(services));
                 return;
             }
+            if (measureViewer)
+            {
+                Shutdown(await ViewerMeasurement.RunAsync(services));
+                return;
+            }
 
             var theme = services.GetRequiredService<ThemeService>();
             await theme.InitializeAsync();
@@ -67,7 +73,7 @@ public partial class App : Application
             window.Show();
             await services.GetRequiredService<ShellViewModel>().StartAsync();
 
-            if (_smokeTest) Shutdown(await SmokeTest.RunAsync(services, window));
+            if (_smokeTest) Shutdown(await SmokeTest.RunAsync(services, window, Argument(e.Args, "--smoke-files")));
         }
         catch (Exception ex)
         {
@@ -85,9 +91,12 @@ public partial class App : Application
     }
 
     /// <summary><c>--data-root &lt;folder&gt;</c> keeps Bibliotaph's databases and logs somewhere other than %LOCALAPPDATA%.</summary>
-    static string? DataRootArgument(string[] args)
+    static string? DataRootArgument(string[] args) => Argument(args, "--data-root");
+
+    /// <summary>The full path given after <paramref name="name"/>, if any.</summary>
+    static string? Argument(string[] args, string name)
     {
-        var at = Array.IndexOf(args, "--data-root");
+        var at = Array.IndexOf(args, name);
         return at >= 0 && at + 1 < args.Length ? System.IO.Path.GetFullPath(args[at + 1]) : null;
     }
 
@@ -128,8 +137,10 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
-        builder.Services.AddSingleton<IImageCodec, WpfImageCodec>();
-        builder.Services.AddSingleton<IPasswordStore, NoPasswords>();
+        builder.Services.AddSingleton<WpfImageCodec>();
+        builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
+        builder.Services.AddSingleton<PasswordVault>();
+        builder.Services.AddSingleton<IPasswordStore>(sp => sp.GetRequiredService<PasswordVault>());
         builder.Services.AddSingleton<FileHasher>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<StageServices>();
@@ -147,6 +158,8 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
+        builder.Services.AddSingleton<ViewerRequests>();
+        builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();
@@ -156,6 +169,7 @@ public partial class App : Application
         builder.Services.AddTransient<NeedsReviewViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibraryFoldersViewModel>();
+        builder.Services.AddTransient<ViewerViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();
     }
@@ -169,6 +183,7 @@ public partial class App : Application
         Route.NeedsReview => services.GetRequiredService<NeedsReviewViewModel>(),
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.LibraryFolders => services.GetRequiredService<LibraryFoldersViewModel>(),
+        Route.Viewer => services.GetRequiredService<ViewerViewModel>(),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };
 

@@ -55,6 +55,34 @@ public sealed class WpfImageCodec : IImageCodec
         }
     }
 
+    /// <summary>
+    /// Decodes an image for the viewer, shrunk to at most <paramref name="maxPixels"/> so a huge battle map can't
+    /// fill memory. Frozen, so it can be made off the UI thread. Null when the file isn't a readable image.
+    /// </summary>
+    public BitmapSource? DecodeForViewing(Stream image, long maxPixels)
+    {
+        try
+        {
+            var size = ReadSize(image);
+            if (size is not { } s || s.Width <= 0 || s.Height <= 0) return null;
+            image.Position = 0;
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.StreamSource = image;
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            var pixels = (long)s.Width * s.Height;
+            if (pixels > maxPixels) bitmap.DecodePixelWidth = (int)(s.Width * Math.Sqrt((double)maxPixels / pixels));
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch (Exception ex) when (IsBadImage(ex))
+        {
+            return null;
+        }
+    }
+
     static byte[] Encode(BitmapSource bitmap)
     {
         var encoder = new JpegBitmapEncoder { QualityLevel = Quality };

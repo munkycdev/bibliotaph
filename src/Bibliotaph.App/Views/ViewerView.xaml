@@ -1,0 +1,149 @@
+<UserControl x:Class="Bibliotaph.App.Views.ViewerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:viewer="clr-namespace:Bibliotaph.Viewer;assembly=Bibliotaph.Viewer"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ViewerViewModel}">
+  <UserControl.InputBindings>
+    <KeyBinding Key="F3" Command="{Binding FindNextCommand}" />
+    <KeyBinding Key="F3" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
+  </UserControl.InputBindings>
+
+  <UserControl.Resources>
+    <!-- A small text box in the toolbar: the page box and the find box. -->
+    <Style x:Key="ToolBox" TargetType="TextBox">
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource Bt.Accent}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border x:Name="Chrome" Background="{DynamicResource Bt.Bg}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+                    CornerRadius="4" Padding="7,4" SnapsToDevicePixels="True">
+              <Grid>
+                <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}" Foreground="{DynamicResource Bt.Muted}" IsHitTestVisible="False"
+                           VerticalAlignment="Center" Margin="2,0,0,0" Visibility="Collapsed" />
+                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+              </Trigger>
+              <Trigger Property="Text" Value="">
+                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="Divider" TargetType="Border">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Margin" Value="6,0" />
+      <Setter Property="Background" Value="{DynamicResource Bt.Line}" />
+    </Style>
+  </UserControl.Resources>
+
+  <Grid Margin="0,0,42,24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- .bt-reader-head; Back is the shell's. -->
+    <DockPanel Margin="0,0,0,16">
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
+                   Visibility="{Binding Subtitle, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- .bt-reader-toolbar -->
+    <Border Grid.Row="1" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6,6,0,0"
+            Padding="9" Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+      <DockPanel>
+        <!-- Find in book -->
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <TextBlock Text="{Binding FindStatus}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <TextBox x:Name="FindBox" Style="{StaticResource ToolBox}" Width="180" Tag="Find in this book (Ctrl+F)"
+                   Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find in this book">
+            <TextBox.InputBindings>
+              <KeyBinding Key="Enter" Command="{Binding FindCommand}" />
+              <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
+              <KeyBinding Key="Escape" Command="{Binding ClearFindCommand}" />
+            </TextBox.InputBindings>
+          </TextBox>
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" Margin="4,0,0,0"
+                  ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding FindPreviousCommand}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
+                  ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding FindNextCommand}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+          <StackPanel Orientation="Horizontal" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
+                    AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
+            <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
+            <TextBox x:Name="PageBox" Style="{StaticResource ToolBox}" Width="54" HorizontalContentAlignment="Center"
+                     Text="{Binding PageEntry, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Page"
+                     ToolTip="A printed page number, or a PDF page number" GotKeyboardFocus="PageBox_GotKeyboardFocus">
+              <TextBox.InputBindings>
+                <KeyBinding Key="Enter" Command="{Binding GoToPageCommand}" />
+              </TextBox.InputBindings>
+            </TextBox>
+            <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
+                    AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
+            <Border Style="{StaticResource Divider}" />
+          </StackPanel>
+          <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ZoomChoices}" SelectedValuePath="Value" SelectedValue="{Binding Zoom}"
+                    AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel)" MinWidth="110" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- .bt-reader-stage -->
+    <Border Grid.Row="2" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,1,1"
+            Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+      <Grid>
+        <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
+                             Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <viewer:ImageView Source="{Binding Image}" Zoom="{Binding Zoom}"
+                          Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <!-- A short message over the pages, such as why Copy did nothing. -->
+        <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="12,8" CornerRadius="5"
+                Background="{DynamicResource Bt.Text}" IsHitTestVisible="False"
+                Visibility="{Binding Notice, Converter={StaticResource Bt.VisibleWhenSet}}">
+          <TextBlock Text="{Binding Notice}" FontSize="11" Foreground="{DynamicResource Bt.Bg}" TextWrapping="Wrap" MaxWidth="460" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- .bt-reader-foot -->
+    <DockPanel Grid.Row="3" Margin="0,12,0,0" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <TextBlock DockPanel.Dock="Right" Text="{Binding CopyNote}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+      <TextBlock Text="{Binding PositionText, ElementName=PagesView}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+    </DockPanel>
+
+    <ScrollViewer Grid.Row="1" Grid.RowSpan="3" VerticalScrollBarVisibility="Auto" Focusable="False"
+                  Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}" />
+    </ScrollViewer>
+  </Grid>
+</UserControl>

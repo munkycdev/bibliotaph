@@ -119,4 +119,12 @@ public class SearchQueryTests
     [Fact]
     public void Equal_queries_have_equal_trees() =>
         Assert.Equal(SearchQuery.Parse("a (b c)").Root, SearchQuery.Parse("a b c").Root);
+
+    [Theory]
+    [InlineData("red dragon", new[] { "red", "dragon" })]
+    [InlineData("\"secret door\" -trap", new[] { "secret door" })]
+    [InlineData("gob* (tavern OR inn) title:lairs", new[] { "gob", "tavern", "inn" })]
+    [InlineData("-dragon", new string[0])]
+    public void Highlight_terms_are_the_words_searched_for(string text, string[] expected) =>
+        Assert.Equal(expected, SearchQuery.Parse(text).HighlightTerms());
 }

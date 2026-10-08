@@ -76,6 +76,36 @@ public sealed record SearchQuery(string Text, QueryNode? Root, IReadOnlyList<Que
 
     /// <summary>Parses what the user typed. Never throws; problems come back as <see cref="Issues"/>.</summary>
     public static SearchQuery Parse(string? text) => new QueryParser(text ?? "").Parse();
+
+    /// <summary>
+    /// The words and phrases to mark on a page that matched: everything searched for in page text, leaving out
+    /// exclusions and field filters. Prefix terms give their stem.
+    /// </summary>
+    public IReadOnlyList<string> HighlightTerms()
+    {
+        var terms = new List<string>();
+        Collect(Root);
+        return [.. terms.Distinct(StringComparer.OrdinalIgnoreCase)];
+
+        void Collect(QueryNode? node)
+        {
+            switch (node)
+            {
+                case TermNode term:
+                    terms.Add(term.Text);
+                    break;
+                case PhraseNode phrase:
+                    terms.Add(phrase.Text);
+                    break;
+                case AndNode and:
+                    foreach (var item in and.Items) Collect(item);
+                    break;
+                case OrNode or:
+                    foreach (var item in or.Items) Collect(item);
+                    break;
+            }
+        }
+    }
 }
 
 /// <summary>A hand-written recursive-descent parser. Grammar, loosest binding first:

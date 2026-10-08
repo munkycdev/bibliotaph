@@ -278,7 +278,13 @@
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="{x:Type vm:PageHitViewModel}">
                         <StackPanel Margin="0,12,0,0">
-                          <TextBlock Text="{Binding Where}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Bt.Text}" />
+                          <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Open page" c:Ui.Icon="{StaticResource Icon.BookOpen}" VerticalAlignment="Top"
+                                    AutomationProperties.Name="{Binding Where, StringFormat='Open {0}'}"
+                                    Command="{Binding DataContext.OpenPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
+                            <TextBlock Text="{Binding Where}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+                          </DockPanel>
                           <TextBlock c:Highlight.Snippet="{Binding Snippet}" FontSize="12" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap"
                                      LineHeight="20" Margin="0,6,0,4" />
                           <Border Style="{StaticResource Bt.Chip}" HorizontalAlignment="Left">
@@ -342,6 +348,10 @@
                     <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
                   </Border>
                 </WrapPanel>
+                <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
+                        HorizontalAlignment="Left" Margin="0,16,0,0" AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}"
+                        Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding Item}" />
               </StackPanel>
             </Grid>
 

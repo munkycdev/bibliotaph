@@ -198,4 +198,17 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal([new StageState(Stage.Text, StageStatus.Complete, null)], (await _library.GetDetailsAsync(Gazetteer, Ct))!.Stages);
         Assert.Null(await _library.GetDetailsAsync(42, Ct));
     }
+
+    [Fact]
+    public async Task Ocr_words_come_back_in_reading_order_for_scanned_pages_only()
+    {
+        await new IndexStore(Writer, Clock).SetOcrPageAsync(HauntedInn, 1, "Secret passages",
+            0.9, [new OcrWordRow("Secret", 72, 700, 120, 688), new OcrWordRow("passages", 124, 700, 190, 688)], Ct);
+
+        var words = await _library.GetOcrWordsAsync(HauntedInn, 1, Ct);
+
+        Assert.Equal(["Secret", "passages"], words.Select(w => w.Text));
+        Assert.Equal(new OcrWordRow("Secret", 72, 700, 120, 688), words[0]);
+        Assert.Empty(await _library.GetOcrWordsAsync(HauntedInn, 0, Ct));
+    }
 }
