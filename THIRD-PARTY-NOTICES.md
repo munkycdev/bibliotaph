@@ -52,6 +52,7 @@ that shows this file plus those texts covers it.
 | PDFsharp (generates synthetic test PDFs) | MIT |
 | Microsoft.CodeAnalysis.BannedApiAnalyzers | MIT |
 | Pillow and fontTools (`tools/AppIcon`) | MIT-CMU (HPND) and MIT |
+| Tesseract .NET wrapper, with Tesseract 5 and Leptonica native binaries (`tools/OcrBakeoff`); its English models are downloaded at run time | Apache-2.0; Leptonica BSD-2-Clause; tessdata Apache-2.0 |
 | GitHub Actions: checkout, setup-dotnet, cache, upload-artifact | MIT |
 
 Trademarks and product names mentioned in the docs and spike results (game systems, publishers and book titles)
