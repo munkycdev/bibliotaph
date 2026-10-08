@@ -155,6 +155,37 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             foreach (var stage in stages) SetStatus(c, t, documentId, Enum.Parse<Stage>(stage), StageStatus.Pending, null, now);
         }, ct);
 
+    /// <summary>Documents with a job blocked for exactly <paramref name="reason"/>.</summary>
+    public async Task<IReadOnlyList<long>> BlockedForAsync(string reason, CancellationToken ct = default)
+    {
+        await using var c = database.OpenRead();
+        return [.. await c.QueryAsync<long>(new CommandDefinition(
+            "SELECT DISTINCT document_id FROM job WHERE status = 'blocked' AND last_error = @reason", new { reason }, cancellationToken: ct))];
+    }
+
+    /// <summary>
+    /// Releases the jobs of <paramref name="documentIds"/> blocked for <paramref name="reason"/>, once whatever blocked
+    /// them has cleared by itself, such as an offline folder coming back. Unlike <see cref="RetryAsync"/>, attempts stand.
+    /// </summary>
+    public Task<int> UnblockAsync(IReadOnlyCollection<long> documentIds, string reason, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var now = Now();
+            var released = 0;
+            foreach (var documentId in documentIds)
+            {
+                var stages = c.Query<string>(
+                    "SELECT stage FROM job WHERE document_id = @documentId AND status = 'blocked' AND last_error = @reason",
+                    new { documentId, reason }, t).ToList();
+                c.Execute(
+                    "UPDATE job SET status = 'pending', last_error = NULL WHERE document_id = @documentId AND status = 'blocked' AND last_error = @reason",
+                    new { documentId, reason }, t);
+                foreach (var stage in stages) SetStatus(c, t, documentId, Enum.Parse<Stage>(stage), StageStatus.Pending, null, now);
+                released += stages.Count;
+            }
+            return released;
+        }, ct);
+
     /// <summary>The earliest time a waiting job becomes ready, so an idle lane knows when to look again.</summary>
     public async Task<DateTimeOffset?> NextReadyAsync(IReadOnlyCollection<Stage> stages, CancellationToken ct = default)
     {

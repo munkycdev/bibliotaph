@@ -111,6 +111,30 @@ public sealed class JobBoardTests : IndexFixture
     }
 
     [Fact]
+    public async Task Unblocking_releases_only_the_named_documents_jobs_blocked_for_that_reason()
+    {
+        const string Unreachable = "Its folder is offline";
+        await _queue.EnqueueAsync(1, "aa", Stage.Text, ct: Ct);
+        await _queue.EnqueueAsync(1, "aa", Stage.Covers, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Text, ct: Ct);
+        await _queue.EnqueueAsync(3, "cc", Stage.Probe, ct: Ct);
+        for (var i = 0; i < 4; i++)
+        {
+            var job = (await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!;
+            await _queue.BlockAsync(job, job.DocumentId == 3 ? "Needs a password" : Unreachable, Ct);
+        }
+
+        Assert.Equal([1L, 2L], (await _queue.BlockedForAsync(Unreachable, Ct)).Order());
+        Assert.Equal(2, await _queue.UnblockAsync([1, 3], Unreachable, Ct));
+
+        Assert.Equal("Pending", StatusOf(1, Stage.Text));
+        Assert.Equal("Pending", StatusOf(1, Stage.Covers));
+        Assert.Equal("Blocked", StatusOf(2, Stage.Text));
+        Assert.Equal("Blocked", StatusOf(3, Stage.Probe));
+        Assert.Equal([2L], await _queue.BlockedForAsync(Unreachable, Ct));
+    }
+
+    [Fact]
     public async Task Leases_left_by_a_closed_app_go_back_to_pending_at_startup()
     {
         await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);

@@ -49,11 +49,11 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task Reconciling_adds_new_files_keeps_unchanged_ones_and_marks_the_rest_missing()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf"), File("c.pdf")], Ct);
+        await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf"), File("c.pdf")], ct: Ct);
         var hashed = (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single(f => f.FullPath.EndsWith("a.pdf", StringComparison.Ordinal));
         await _library.AttachHashAsync(hashed, Hash('a'), Ct);
 
-        var result = await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf", size: 2000), File("d.pdf", onlineOnly: true)], Ct);
+        var result = await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf", size: 2000), File("d.pdf", onlineOnly: true)], ct: Ct);
 
         Assert.Equal(new ReconcileResult(Added: 1, Changed: 1, Unchanged: 1, Missing: 1), result);
         var locations = await LocationsAsync();
@@ -68,7 +68,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task Hashing_reads_local_files_first_and_small_files_before_large_ones()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File("big.pdf", 9000), File("cloud.pdf", 10, onlineOnly: true), File("small.png", 10)], Ct);
+        await _library.ReconcileRootAsync(root, [File("big.pdf", 9000), File("cloud.pdf", 10, onlineOnly: true), File("small.png", 10)], ct: Ct);
 
         var all = await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct);
         var localOnly = await _library.NextUnhashedAsync(10, includeOnlineOnly: false, Ct);
@@ -82,7 +82,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task Two_copies_of_the_same_content_are_one_document()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File("Core/book.pdf"), File("Backup/book copy.pdf")], Ct);
+        await _library.ReconcileRootAsync(root, [File("Core/book.pdf"), File("Backup/book copy.pdf")], ct: Ct);
         var files = await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct);
 
         var first = await _library.AttachHashAsync(files[0], Hash('b'), Ct);
@@ -99,9 +99,9 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task A_file_that_changed_while_it_was_hashed_is_not_attached()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File("map.png")], Ct);
+        await _library.ReconcileRootAsync(root, [File("map.png")], ct: Ct);
         var file = (await _library.NextUnhashedAsync(1, includeOnlineOnly: true, Ct)).Single();
-        await _library.ReconcileRootAsync(root, [File("map.png", modified: Monday.AddHours(1))], Ct);
+        await _library.ReconcileRootAsync(root, [File("map.png", modified: Monday.AddHours(1))], ct: Ct);
 
         Assert.Null(await _library.AttachHashAsync(file, Hash('c'), Ct));
     }
@@ -110,7 +110,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task A_document_is_read_from_a_local_copy_before_an_online_only_one()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File(Path.Combine("Cloud", "book.pdf"), onlineOnly: true), File(Path.Combine("Setting", "Maps", "book.pdf"), size: 1000)], Ct);
+        await _library.ReconcileRootAsync(root, [File(Path.Combine("Cloud", "book.pdf"), onlineOnly: true), File(Path.Combine("Setting", "Maps", "book.pdf"), size: 1000)], ct: Ct);
         long documentId = 0;
         foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct))
             documentId = (await _library.AttachHashAsync(file, Hash('d'), Ct))!.Value.DocumentId;
@@ -127,7 +127,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task An_offline_root_keeps_its_files_but_offers_none_to_read_or_hash()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf")], Ct);
+        await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf")], ct: Ct);
         var file = (await _library.NextUnhashedAsync(1, includeOnlineOnly: true, Ct)).Single();
         var documentId = (await _library.AttachHashAsync(file, Hash('e'), Ct))!.Value.DocumentId;
 
@@ -138,8 +138,41 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         Assert.Equal(0, (await _library.GetCountsAsync(Ct)).Missing);
 
         // A completed scan means the root is reachable again.
-        await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf")], Ct);
+        await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf")], ct: Ct);
         Assert.NotNull(await _library.GetSourceAsync(documentId, Ct));
+    }
+
+    [Fact]
+    public async Task Files_in_a_folder_the_scan_could_not_open_are_not_marked_missing()
+    {
+        var root = await RootAsync();
+        var locked = Path.Combine("Locked", "Sub");
+        await _library.ReconcileRootAsync(root, [File("a.pdf"), File(Path.Combine(locked, "b.pdf")), File(Path.Combine("Locked Out", "c.pdf"))], ct: Ct);
+
+        var result = await _library.ReconcileRootAsync(root, [File("a.pdf")], [locked], Ct);
+
+        Assert.Equal(1, result.Missing); // only the folder next to it, whose name merely starts the same
+        var missing = Assert.Single(await LocationsAsync(), l => l.State == FileLocationState.Missing);
+        Assert.Equal(Path.Combine("Locked Out", "c.pdf"), missing.RelativePath);
+        Assert.Equal(0, (await _library.ReconcileRootAsync(root, [], ["."], Ct)).Missing);
+    }
+
+    [Fact]
+    public async Task Readable_documents_are_those_with_a_file_that_can_be_read_now()
+    {
+        var here = await RootAsync("Here");
+        var away = await RootAsync("Away");
+        await _library.ReconcileRootAsync(here, [File("present.pdf"), File("gone.pdf")], ct: Ct);
+        await _library.ReconcileRootAsync(away, [File("offline.pdf")], ct: Ct);
+        var ids = new Dictionary<string, long>();
+        var hash = 'a';
+        foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct))
+            ids[Path.GetFileName(file.FullPath)] = (await _library.AttachHashAsync(file, Hash(hash++), Ct))!.Value.DocumentId;
+        await _library.ReconcileRootAsync(here, [File("present.pdf")], ct: Ct);
+        await _library.SetRootAvailabilityAsync(away, SourceRootAvailability.Offline, Ct);
+
+        Assert.Equal([ids["present.pdf"]], await _library.GetReadableAsync([.. ids.Values, 999], Ct));
+        Assert.Empty(await _library.GetReadableAsync([], Ct));
     }
 
     [Fact]
@@ -147,8 +180,8 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     {
         var kept = await RootAsync("Kept");
         var removed = await RootAsync("Removed");
-        await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("gone.pdf"), File("unhashed.pdf")], Ct);
-        await _library.ReconcileRootAsync(removed, [File("shared copy.pdf"), File("only here.pdf")], Ct);
+        await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("gone.pdf"), File("unhashed.pdf")], ct: Ct);
+        await _library.ReconcileRootAsync(removed, [File("shared copy.pdf"), File("only here.pdf")], ct: Ct);
         var ids = new Dictionary<string, long>();
         foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct))
         {
@@ -157,7 +190,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
             var hash = Hash(name switch { "shared.pdf" or "shared copy.pdf" => 'a', "gone.pdf" => 'b', _ => 'c' });
             ids[name] = (await _library.AttachHashAsync(file, hash, Ct))!.Value.DocumentId;
         }
-        await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("unhashed.pdf")], Ct); // gone.pdf goes missing
+        await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("unhashed.pdf")], ct: Ct); // gone.pdf goes missing
         await _roots.RemoveAsync(removed, Ct);
 
         Assert.Equal([ids["shared.pdf"]], await _library.GetVisibleDocumentIdsAsync(ct: Ct));

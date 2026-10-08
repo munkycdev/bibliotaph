@@ -14,7 +14,11 @@ public abstract record StageOutcome
     public sealed record Done(StageStatus Status, IReadOnlyList<Stage> Next, string? Reason = null) : StageOutcome;
 
     /// <summary>Waiting on the user: a password, a folder that is offline.</summary>
-    public sealed record Blocked(string Reason) : StageOutcome;
+    public sealed record Blocked(string Reason) : StageOutcome
+    {
+        /// <summary>No readable copy. Released by itself once one can be read again.</summary>
+        public const string Unreachable = "No copy of this file can be read right now: its folder is offline or the file has gone.";
+    }
 
     /// <summary>Failed. With <see cref="Retry"/>, the queue tries again later, up to its attempt limit.</summary>
     public sealed record Failed(string Reason, bool Retry) : StageOutcome;
@@ -106,13 +110,11 @@ sealed class PdfSession(WorkerClient worker, string path, string? password) : IA
 
 static class StageHelpers
 {
-    public const string Unreachable = "No copy of this file can be read right now: its folder is offline or the file has gone.";
-
     /// <summary>Opens the job's document in the index worker, or says why the stage can't run.</summary>
     public static async Task<(PdfSession? Session, StageOutcome? Outcome)> OpenPdfAsync(StageServices s, JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
-        if (source is null) return (null, new StageOutcome.Blocked(Unreachable));
+        if (source is null) return (null, new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable));
 
         var session = new PdfSession(s.Workers[WorkerSlot.Index], source.FullPath, s.Passwords.Find(job.ContentHash));
         var error = await session.OpenAsync(ct);
@@ -139,7 +141,7 @@ public sealed class ProbeStage(StageServices s) : IStage
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
-        if (source is null) return new StageOutcome.Blocked(StageHelpers.Unreachable);
+        if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         var title = DisplayTitle.FromFileName(source.FullPath);
 
         if (SourceFormats.IsImage(source.Format))
@@ -208,7 +210,7 @@ public sealed class TextStage(StageServices s) : IStage
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
-        if (source is null) return new StageOutcome.Blocked(StageHelpers.Unreachable);
+        if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         if (SourceFormats.IsImage(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Images have no text layer.");
 
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
@@ -283,7 +285,7 @@ public sealed class CoversStage(StageServices s) : IStage
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
-        if (source is null) return new StageOutcome.Blocked(StageHelpers.Unreachable);
+        if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
 
         byte[]? jpeg;
         if (SourceFormats.IsImage(source.Format))

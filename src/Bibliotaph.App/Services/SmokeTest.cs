@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
@@ -158,7 +161,13 @@ static class SmokeTest
         search.Search("nothing-matches-this");
         await WaitUntilAsync(window, () => page.IsEmpty, () => "A search with no results didn't show the empty state.");
 
-        search.Search("");
+        // The search box's × ends the search; the box gets the text through SearchState like any search.
+        var box = (TextBox)window.FindName("Search");
+        var clear = box.Template.FindName("Clear", box) as Button ?? throw new InvalidOperationException("The search box has no clear button.");
+        if (clear.Visibility != Visibility.Visible) throw new InvalidOperationException("The search box's × is hidden while it has text.");
+        ((IInvokeProvider)new ButtonAutomationPeer(clear).GetPattern(PatternInterface.Invoke)).Invoke();
+        await WaitUntilAsync(window, () => box.Text.Length == 0 && !search.IsSearching && clear.Visibility == Visibility.Collapsed,
+            () => "The search box's × didn't clear the search.");
         page.Tab = ResultsTab.Documents;
         page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
