@@ -30,6 +30,7 @@ public sealed class SyntheticPdfs : IDisposable
         Truncated = Write("truncated.pdf", known[..(known.Length / 2)]);
         BrokenXref = Write("broken-xref.pdf", BreakXref(known));
         NonAsciiName = Write(NonAsciiFileName, known);
+        Scanned = Write("scanned.pdf", BuildScanned());
     }
 
     /// <summary>Characters outside Windows' ANSI code page, as bundle file names often have.</summary>
@@ -51,6 +52,12 @@ public sealed class SyntheticPdfs : IDisposable
 
     /// <summary><see cref="KnownText"/>, saved under <see cref="NonAsciiFileName"/>.</summary>
     public string NonAsciiName { get; }
+
+    /// <summary>
+    /// One page showing <see cref="ScannedPhrase"/> as filled glyph outlines: it reads like text on screen but has no
+    /// text layer, which is how a scan looks to the indexer.
+    /// </summary>
+    public string Scanned { get; }
 
     /// <summary><see cref="KnownText"/> with its startxref pointing at the wrong place, which PDFium repairs.</summary>
     public string BrokenXref { get; }
@@ -99,6 +106,23 @@ public sealed class SyntheticPdfs : IDisposable
             document.SecurityHandler.SetEncryptionToV5();
         }
 
+        using var output = new MemoryStream();
+        document.Save(output);
+        return output.ToArray();
+    }
+
+    public const string ScannedPhrase = "Goblin market";
+
+    static byte[] BuildScanned()
+    {
+        using var document = new PdfDocument();
+        var page = document.AddPage();
+        using (var gfx = XGraphics.FromPdfPage(page))
+        {
+            var path = new XGraphicsPath();
+            path.AddString(ScannedPhrase, new XFontFamily(EmbeddedFontResolver.Family), XFontStyleEx.Regular, 40, new XPoint(72, 160), XStringFormats.Default);
+            gfx.DrawPath(XBrushes.Black, path);
+        }
         using var output = new MemoryStream();
         document.Save(output);
         return output.ToArray();

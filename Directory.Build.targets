@@ -23,7 +23,9 @@
       <BundledExe Include="..\..\src\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
   -->
   <ItemGroup Condition="'@(BundledExe)' != ''">
-    <ProjectReference Include="@(BundledExe)" ReferenceOutputAssembly="false" Private="false" />
+    <!-- Build order only: the exe may target a different (for example Windows-versioned) framework. -->
+    <ProjectReference Include="@(BundledExe)" ReferenceOutputAssembly="false" Private="false"
+                      SkipGetTargetFrameworkProperties="true" GlobalPropertiesToRemove="TargetFramework" />
   </ItemGroup>
 
   <!-- Target batching: runs once per BundledExe, so %(BundledExe.Folder) is that item's folder. -->

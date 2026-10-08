@@ -78,6 +78,26 @@ public sealed class PdfWorkerTests(SyntheticPdfs pdfs) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Reads_a_page_with_no_text_layer_by_ocr()
+    {
+        var doc = await OpenAsync(pdfs.Scanned);
+        var layer = await _worker.SendAsync(new Request { Op = Op.ExtractText, DocId = doc.DocId, PageIndex = 0 }, Timeout);
+        Assert.Equal(0, layer.Text!.CharCount);
+
+        var response = await _worker.SendAsync(new Request { Op = Op.Ocr, DocId = doc.DocId, PageIndex = 0, Scale = 300 / 72.0 }, Timeout);
+
+        // Linux has no Windows OCR, and a Windows image may have no OCR language installed.
+        Assert.SkipWhen(response.Error == ErrorKind.OcrUnavailable, $"OCR unavailable: {response.Message}");
+        Assert.True(response.Ok, response.Message);
+        var ocr = response.Ocr!;
+        Assert.Contains("goblin", ocr.Text, StringComparison.OrdinalIgnoreCase);
+        // Boxes are in PDF points, inside the page, around the phrase drawn at y = 160 from the top.
+        var size = doc.PageSizes[0];
+        Assert.All(ocr.Words, w => Assert.InRange(w.Box.Left, 0, size.Width));
+        Assert.All(ocr.Words, w => Assert.InRange(size.Height - w.Box.Top, 100, 170));
+    }
+
+    [Fact]
     public async Task Whole_book_find_hits_the_right_page_with_highlight_boxes()
     {
         var doc = await OpenAsync(pdfs.KnownText);

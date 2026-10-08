@@ -12,6 +12,9 @@ public enum Op
     ExtractPages,
     Find,
 
+    /// <summary>Renders a page at <see cref="Request.Scale"/> and reads it with the worker's OCR engine.</summary>
+    Ocr,
+
     // Fault injection for the isolation tests. Only Debug (test) builds of the worker handle these;
     // a Release worker answers BadRequest.
     Crash,
@@ -32,6 +35,9 @@ public enum ErrorKind
     TooLarge,
     BadRequest,
     Internal,
+
+    /// <summary>The worker has no OCR engine it can use, such as Windows OCR with no language installed.</summary>
+    OcrUnavailable,
 }
 
 /// <summary>One request to the worker. Fields not used by an <see cref="Op"/> are ignored.</summary>
@@ -81,6 +87,7 @@ public sealed record Response
     public RenderInfo? Render { get; init; }
     public TextInfo? Text { get; init; }
     public List<PageText>? Pages { get; init; }
+    public OcrInfo? Ocr { get; init; }
     public List<SearchHit>? Hits { get; init; }
 
     /// <summary>Time spent inside the worker handling the request.</summary>
@@ -152,5 +159,10 @@ public sealed record OutlineItem(string Title, int PageIndex, int Depth);
 /// a sign of a broken text layer that OCR should replace. <see cref="Error"/> is set when the page would not load.
 /// </summary>
 public sealed record PageText(int PageIndex, string Text, int CharCount, int UnmappedChars, string? Error = null);
+
+/// <summary>An OCR result: the text in reading order, one line per line, and each word's box in PDF points.</summary>
+public sealed record OcrInfo(string Engine, string Text, List<OcrWord> Words);
+
+public sealed record OcrWord(string Text, PdfRect Box);
 
 public sealed record SearchHit(int PageIndex, int CharIndex, int CharCount, List<PdfRect> Rects);

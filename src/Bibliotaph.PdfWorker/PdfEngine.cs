@@ -13,6 +13,8 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
 
     readonly Dictionary<int, SourceDocument> _docs = [];
     int _nextDocId;
+    IOcrEngine? _ocr;
+    string? _ocrUnavailable;
 
     public Response Handle(Request r) => r.Op switch
     {
@@ -23,6 +25,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         Op.ExtractText => WithDoc(r, doc => ExtractText(r, doc)),
         Op.ExtractPages => WithDoc(r, doc => ExtractPages(r, doc)),
         Op.Find => WithDoc(r, doc => Find(r, doc)),
+        Op.Ocr => WithDoc(r, doc => Ocr(r, doc)),
 #if BIBLIOTAPH_TEST_OPS
         Op.Crash => Crash(),
         Op.Hang => Hang(),
@@ -133,6 +136,49 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
                 fpdfview.FPDFBitmapDestroy(bitmap);
             }
             return Response.Success(r.Id) with { Render = new RenderInfo(tile.Width, tile.Height, stride) };
+        }
+        finally
+        {
+            fpdfview.FPDF_ClosePage(page);
+        }
+    }
+
+    /// <summary>
+    /// Renders the page into a PDFium-owned bitmap (the shared buffer is left alone) and reads it. Word boxes come
+    /// back in PDF points with the origin at the bottom left, like PDFium's character boxes.
+    /// </summary>
+    Response Ocr(Request r, FpdfDocumentT doc)
+    {
+        if (_ocr is null && _ocrUnavailable is null) _ocr = OcrEngines.Create(out _ocrUnavailable);
+        if (_ocr is null) return Response.Fail(r.Id, ErrorKind.OcrUnavailable, _ocrUnavailable!);
+
+        var page = fpdfview.FPDF_LoadPage(doc, r.PageIndex);
+        if (IsNull(page)) return LastError(r.Id, $"Page {r.PageIndex} failed to load", ErrorKind.Page);
+        try
+        {
+            var widthPt = fpdfview.FPDF_GetPageWidthF(page);
+            var heightPt = fpdfview.FPDF_GetPageHeightF(page);
+            // Fit inside the engine's limit; a poster-sized map at 300 dpi would exceed it.
+            var scale = Math.Min(r.Scale, (_ocr.MaxImageDimension - 1) / Math.Max(widthPt, heightPt));
+            var width = (int)Math.Round(widthPt * scale);
+            var height = (int)Math.Round(heightPt * scale);
+            if (width <= 0 || height <= 0) return Response.Fail(r.Id, ErrorKind.Page, "The page has no area.");
+
+            var bitmap = fpdfview.FPDFBitmapCreate(width, height, 1);
+            if (IsNull(bitmap)) return Response.Fail(r.Id, ErrorKind.TooLarge, $"A {width}x{height} bitmap could not be allocated.");
+            try
+            {
+                fpdfview.FPDFBitmapFillRect(bitmap, 0, 0, width, height, White);
+                fpdfview.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, RenderAnnotations);
+                var (text, words) = _ocr.Recognize(fpdfview.FPDFBitmapGetBuffer(bitmap), width, height, fpdfview.FPDFBitmapGetStride(bitmap));
+                var boxes = words.Select(w => new OcrWord(w.Word,
+                    new PdfRect(w.X / scale, heightPt - w.Y / scale, (w.X + w.Width) / scale, heightPt - (w.Y + w.Height) / scale))).ToList();
+                return Response.Success(r.Id) with { Ocr = new OcrInfo(_ocr.Name, text, boxes) };
+            }
+            finally
+            {
+                fpdfview.FPDFBitmapDestroy(bitmap);
+            }
         }
         finally
         {
