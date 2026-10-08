@@ -115,13 +115,36 @@
                   ToolTip="{Binding AppearanceToggleLabel}" AutomationProperties.Name="{Binding AppearanceToggleLabel}" />
           <TextBox x:Name="Search" Style="{StaticResource Bt.SearchBox}" MaxWidth="360" HorizontalAlignment="Right"
                    Margin="15,0,0,0" Width="360" Tag="Search books, topics, passages…"
-                   Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                   Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" c:Ui.ClearCommand="{Binding ClearSearchCommand}"
                    AutomationProperties.Name="Search your library" PreviewKeyDown="Search_PreviewKeyDown" />
         </DockPanel>
       </Border>
 
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <ContentControl Content="{Binding CurrentPage}" Margin="42,36,42,35" Focusable="False" />
+      <!-- A page with its own virtualized list (the Library) scrolls itself; wrapping it here would realize every item. -->
+      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <ScrollViewer.Style>
+          <Style TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding CurrentPage.ScrollsItself}" Value="True">
+                <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </ScrollViewer.Style>
+        <ContentControl Content="{Binding CurrentPage}" Focusable="False">
+          <ContentControl.Style>
+            <Style TargetType="ContentControl">
+              <Setter Property="Margin" Value="42,36,42,35" />
+              <Style.Triggers>
+                <!-- The list runs to the bottom edge; its own padding keeps the last row clear. -->
+                <DataTrigger Binding="{Binding CurrentPage.ScrollsItself}" Value="True">
+                  <Setter Property="Margin" Value="42,36,0,0" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </ContentControl.Style>
+        </ContentControl>
       </ScrollViewer>
     </Grid>
   </Grid>

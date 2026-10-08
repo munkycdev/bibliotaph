@@ -232,6 +232,7 @@ public sealed class IndexingService(
                 IsScanning = false;
                 RaiseChanged();
             }
+            await ReleaseReachableAsync(ct);
             _hashSignal.Set();
         }
     }
@@ -249,7 +250,7 @@ public sealed class IndexingService(
             return;
         }
 
-        var changes = await library.ReconcileRootAsync(root.Id, result.Files, ct);
+        var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, ct);
         _log.LogInformation("Scanned library folder {RootId}: {Files} files, {Changes}", root.Id, result.Files.Count, changes);
         lock (_lock)
         {
@@ -341,6 +342,8 @@ public sealed class IndexingService(
                     }
                     await HashFileAsync(file, ct);
                 }
+                // A changed file hashed back to its old content is that document's file again.
+                await ReleaseReachableAsync(ct);
                 _laneSignals[Lane.Index].Set();
                 RaiseChanged();
             }
@@ -373,6 +376,22 @@ public sealed class IndexingService(
         var attached = await library.AttachHashAsync(file, hash, ct);
         // Idempotent: a copy of a known document finds its Probe job already there.
         if (attached is { } document) await queue.EnqueueAsync(document.DocumentId, hash.Hex, Pipeline.First, ct: ct);
+    }
+
+    /// <summary>
+    /// Gives stages blocked because no copy of their file could be read another go, for each document whose file
+    /// can be read again: its folder is back online, a scan found the file again, or it was hashed back to the document.
+    /// </summary>
+    async Task ReleaseReachableAsync(CancellationToken ct)
+    {
+        var blocked = await queue.BlockedForAsync(StageOutcome.Blocked.Unreachable, ct);
+        if (blocked.Count == 0) return;
+        var readable = await library.GetReadableAsync(blocked, ct);
+        if (readable.Count == 0) return;
+        var released = await queue.UnblockAsync(readable, StageOutcome.Blocked.Unreachable, ct);
+        _log.LogInformation("Released {Count} stages whose files can be read again", released);
+        foreach (var signal in _laneSignals.Values) signal.Set();
+        RaiseChanged();
     }
 
     // ---- Lanes ----------------------------------------------------------------------------------------------------

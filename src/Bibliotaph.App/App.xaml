@@ -17,6 +17,7 @@
 
       <c:BoolToVisibility x:Key="Bt.VisibleWhenTrue" />
       <c:BoolToVisibility x:Key="Bt.CollapsedWhenTrue" Invert="True" />
+      <c:PresenceToVisibility x:Key="Bt.VisibleWhenSet" />
 
       <!-- One view per page view model; the shell's ContentControl picks by type. -->
       <DataTemplate DataType="{x:Type vm:HomeViewModel}"><views:HomeView /></DataTemplate>

@@ -27,6 +27,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         _smokeTest = e.Args.Contains("--smoke-test");
+        var measureSearch = e.Args.Contains("--measure-search");
         var paths = DataRootArgument(e.Args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
         foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
 
@@ -51,6 +52,12 @@ public partial class App : Application
             await _host.StartAsync();
 
             var services = _host.Services;
+            if (measureSearch)
+            {
+                Shutdown(await SearchMeasurement.RunAsync(services));
+                return;
+            }
+
             var theme = services.GetRequiredService<ThemeService>();
             await theme.InitializeAsync();
 
@@ -109,6 +116,7 @@ public partial class App : Application
         builder.Services.AddSingleton<IndexWriter>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexWriter>());
         builder.Services.AddSingleton<IndexQueries>();
+        builder.Services.AddSingleton<LibraryQueries>();
 
         // PDFium runs only in worker processes; none starts until something asks for a page.
         builder.Services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
@@ -137,6 +145,8 @@ public partial class App : Application
         builder.Services.AddSingleton<ThemeService>();
         builder.Services.AddSingleton<LibraryFolders>();
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
+        builder.Services.AddSingleton<SearchState>();
+        builder.Services.AddSingleton<CoverImages>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,14 +14,21 @@ public sealed partial class ShellViewModel : ObservableObject
 {
     readonly INavigationService _navigation;
     readonly ThemeService _theme;
+    readonly SearchState _search;
     readonly ILogger<ShellViewModel> _log;
+    readonly DispatcherTimer _searchDelay;
 
-    public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, ILogger<ShellViewModel> log)
+    public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, ILogger<ShellViewModel> log)
     {
         _navigation = navigation;
         _theme = theme;
         Activity = activity;
+        _search = search;
         _log = log;
+        // Search as you type, once typing pauses.
+        _searchDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Input, (_, _) => SubmitSearch(), Dispatcher.CurrentDispatcher);
+        _searchDelay.Stop();
+        _search.PropertyChanged += OnSearchChanged;
 
         NavItems =
         [
@@ -47,6 +56,37 @@ public sealed partial class ShellViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = "";
+
+    partial void OnSearchTextChanged(string value)
+    {
+        _searchDelay.Stop();
+        _searchDelay.Start();
+    }
+
+    /// <summary>Searches now (Enter, or a pause in typing) and shows the results in the Library.</summary>
+    [RelayCommand]
+    void SubmitSearch()
+    {
+        _searchDelay.Stop();
+        _search.Search(SearchText);
+        if (_search.IsSearching && CurrentPage?.Route != Route.Library) _navigation.NavigateTo(Route.Library);
+    }
+
+    /// <summary>Empties the box and ends the search at once (the box's ×, or Esc).</summary>
+    [RelayCommand]
+    void ClearSearch()
+    {
+        SearchText = "";
+        SubmitSearch();
+    }
+
+    /// <summary>Keeps the box in step when a page clears the search ("Clear search").</summary>
+    void OnSearchChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SearchState.Text) || SearchText.Trim() == _search.Text) return;
+        SearchText = _search.Text;
+        _searchDelay.Stop();
+    }
 
     /// <summary>Indexing progress for the sidebar status line.</summary>
     public LibraryActivity Activity { get; }

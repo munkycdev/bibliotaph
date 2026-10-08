@@ -5,25 +5,400 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibraryViewModel}">
-  <StackPanel>
-    <DockPanel Margin="0,0,0,24">
-      <Button DockPanel.Dock="Right" Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding CloseDetailsCommand}" />
+  </UserControl.InputBindings>
+
+  <UserControl.Resources>
+    <!-- .bt-cover: the book's own cover, or a plain one with its initial while there is none. -->
+    <DataTemplate x:Key="Cover" DataType="{x:Type vm:LibraryItemViewModel}">
+      <Border CornerRadius="2,5,5,2" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+              SnapsToDevicePixels="True">
+        <Grid ClipToBounds="True">
+          <Grid x:Name="Placeholder">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*" />
+              <RowDefinition Height="2*" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Viewbox Grid.Row="1" Stretch="Uniform">
+              <TextBlock Text="{Binding Initial}" FontFamily="{StaticResource Font.Display}" Foreground="{DynamicResource Bt.Muted}" />
+            </Viewbox>
+          </Grid>
+          <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+        </Grid>
+      </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding HasCover}" Value="True">
+          <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
+        </DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- .bt-tab: results tabs, the active one on the soft background. -->
+    <Style x:Key="Tab" TargetType="RadioButton">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="Chrome" Background="Transparent" CornerRadius="5" Padding="10,6">
+              <ContentPresenter VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- A book title that opens its details, in search results. -->
+    <Style x:Key="TitleLink" TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <TextBlock x:Name="Text" Text="{TemplateBinding Content}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Background="Transparent" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Text" Property="TextDecorations" Value="Underline" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- .bt-field: a small label over a select. -->
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <Style x:Key="SectionHead" TargetType="TextBlock" BasedOn="{StaticResource Text.Eyebrow}">
+      <Setter Property="Margin" Value="0,28,0,10" />
+    </Style>
+  </UserControl.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <DockPanel Margin="0,0,42,24">
+      <Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}"
+              Command="{Binding AddFolderCommand}" />
       <StackPanel>
-        <TextBlock Text="Library" Style="{StaticResource Text.H1}" />
-        <TextBlock Text="Good stories begin with something you already own." Style="{StaticResource Text.Subtitle}" />
+        <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H1}" />
+        <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Subtitle}" />
       </StackPanel>
     </DockPanel>
-    <Border Style="{StaticResource Bt.Rule}" />
 
-    <c:EmptyState Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}"
-                  Title="No folders yet."
-                  Message="Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are."
-                  ActionText="Add a folder" ActionIcon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
-    <c:EmptyState Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                  Title="Indexing your library."
-                  Message="{Binding Activity.Summary, StringFormat='{}{0}. Browsing and search arrive with the next part of this build.'}"
-                  ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
-  </StackPanel>
+    <!-- .bt-toolbar: results tabs while searching; filters, sort and layout always. -->
+    <Border Grid.Row="1" Margin="0,0,42,0" Padding="0,0,0,15" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1"
+            Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,0" />
+          <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
+                    AutomationProperties.Name="Sort" Margin="0,0,8,0" />
+          <Border Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center"
+                  Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <StackPanel Orientation="Horizontal">
+              <RadioButton Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsGridLayout}" ToolTip="Covers" AutomationProperties.Name="Show covers">
+                <c:LucideIcon Data="{StaticResource Icon.LayoutGrid}" Size="15" />
+              </RadioButton>
+              <RadioButton Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsListLayout}" ToolTip="List" AutomationProperties.Name="Show a list">
+                <c:LucideIcon Data="{StaticResource Icon.List}" Size="15" />
+              </RadioButton>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" AutomationProperties.Name="Results"
+                    Visibility="{Binding IsSearching, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <RadioButton Style="{StaticResource Tab}" Content="{Binding DocumentsTabLabel}" IsChecked="{Binding IsDocumentsTab}" />
+          <RadioButton Style="{StaticResource Tab}" Content="{Binding PagesTabLabel}" IsChecked="{Binding IsPagesTab}" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <WrapPanel Grid.Row="2" Margin="0,15,42,0" Visibility="{Binding ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel Margin="0,0,12,0">
+        <TextBlock Text="Format" Style="{StaticResource FieldLabel}" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FormatChoices}" SelectedItem="{Binding FormatChoice}"
+                  AutomationProperties.Name="Format" MinWidth="150" />
+      </StackPanel>
+      <StackPanel Margin="0,0,12,0">
+        <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FolderChoices}" SelectedItem="{Binding FolderChoice}"
+                  AutomationProperties.Name="Source folder" MinWidth="200" />
+      </StackPanel>
+      <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" />
+    </WrapPanel>
+
+    <!-- .bt-sectionline -->
+    <StackPanel Grid.Row="3" Margin="0,23,42,17">
+      <DockPanel Visibility="{Binding IsEmpty, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Coverage}" Style="{StaticResource Text.Small}" Margin="15,0,0,0"
+                   Visibility="{Binding Coverage, Converter={StaticResource Bt.VisibleWhenSet}}" />
+        <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap">
+          <Run Text="{Binding CountText, Mode=OneWay}" FontWeight="Medium" Foreground="{DynamicResource Bt.Text}" /> <Run Text="{Binding CountLabel, Mode=OneWay}" />
+        </TextBlock>
+      </DockPanel>
+      <Border HorizontalAlignment="Left" Margin="0,10,0,0" Padding="8,5" CornerRadius="4" Background="{DynamicResource Bt.Warm}"
+              Visibility="{Binding IssueText, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <TextBlock Text="{Binding IssueText}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+      </Border>
+    </StackPanel>
+
+    <Grid Grid.Row="4">
+      <!-- .bt-books: the cover grid. Only the covers in view are created. -->
+      <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
+               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding OpenDetailsCommand}"
+               Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <vwp:VirtualizingWrapPanel ItemSize="172,318" SpacingMode="BetweenItemsOnly" StretchItems="False" />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
+            <StackPanel Width="150" HorizontalAlignment="Left" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}"
+                        AutomationProperties.Name="{Binding Title}">
+              <ContentControl x:Name="CoverBox" Height="208" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False">
+                <ContentControl.Effect>
+                  <DropShadowEffect BlurRadius="7" ShadowDepth="3" Direction="270" Opacity="0.15" />
+                </ContentControl.Effect>
+              </ContentControl>
+              <TextBlock Text="{Binding Title}" Margin="0,12,0,0" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                         TextTrimming="CharacterEllipsis" MaxHeight="34" LineHeight="17" LineStackingStrategy="BlockLineHeight" />
+              <TextBlock Text="{Binding Meta}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+              <Trigger SourceName="CoverBox" Property="IsMouseOver" Value="True">
+                <Setter TargetName="CoverBox" Property="RenderTransform">
+                  <Setter.Value>
+                    <TranslateTransform Y="-4" />
+                  </Setter.Value>
+                </Setter>
+              </Trigger>
+            </DataTemplate.Triggers>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- .bt-listrow: the detail list. -->
+      <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
+               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding OpenDetailsCommand}"
+               Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
+            <Border x:Name="Row" Padding="0,14" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Background="Transparent"
+                    Cursor="Hand" AutomationProperties.Name="{Binding Title}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="46" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="85" />
+                  <ColumnDefinition Width="72" />
+                  <ColumnDefinition Width="27" />
+                </Grid.ColumnDefinitions>
+                <ContentControl Height="64" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Margin="15,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Folder}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding FormatLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="{Binding PagesLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <c:LucideIcon Grid.Column="4" Data="{StaticResource Icon.ChevronRight}" Size="15" Foreground="{DynamicResource Bt.Muted}"
+                              VerticalAlignment="Center" HorizontalAlignment="Right" />
+              </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+              <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Bt.Side}" />
+              </Trigger>
+            </DataTemplate.Triggers>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- .bt-hit: matching pages, grouped by book. -->
+      <ListBox x:Name="PageHits" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Hits}" Padding="0,0,30,0"
+               AutomationProperties.Name="Matching pages" KeyboardNavigation.TabNavigation="Continue"
+               Visibility="{Binding ShowHits, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <ContentPresenter />
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:DocumentHitsViewModel}">
+            <Border Padding="0,21" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="60" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ContentControl Height="83" VerticalAlignment="Top" Content="{Binding Item}" ContentTemplate="{StaticResource Cover}" Focusable="False" />
+                <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                  <Button Style="{StaticResource TitleLink}" Content="{Binding Item.Title}" AutomationProperties.Name="{Binding Item.Title, StringFormat='Details for {0}'}"
+                          Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding Item}" />
+                  <TextBlock Text="{Binding Item.Meta}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                  <ItemsControl ItemsSource="{Binding Pages}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:PageHitViewModel}">
+                        <StackPanel Margin="0,12,0,0">
+                          <TextBlock Text="{Binding Where}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Bt.Text}" />
+                          <TextBlock c:Highlight.Snippet="{Binding Snippet}" FontSize="12" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap"
+                                     LineHeight="20" Margin="0,6,0,4" />
+                          <Border Style="{StaticResource Bt.Chip}" HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding Source}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+                          </Border>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Text="{Binding More}" Style="{StaticResource Text.Small}" Margin="0,10,0,0"
+                             Visibility="{Binding HasMore, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" Visibility="{Binding IsEmpty, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <c:EmptyState Margin="0,0,42,0" Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}"
+                      Command="{Binding EmptyCommand}" />
+      </ScrollViewer>
+    </Grid>
+
+    <!-- .bt-drawer: the inspector, over the page. Esc, the close button or a click outside closes it. -->
+    <Grid Grid.RowSpan="5" Visibility="{Binding Inspector, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}">
+        <Border.InputBindings>
+          <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDetailsCommand}" />
+        </Border.InputBindings>
+      </Border>
+      <Border x:Name="Drawer" HorizontalAlignment="Right" Width="440" Margin="0,-36,0,0" DataContext="{Binding Inspector}"
+              Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,0,0"
+              IsVisibleChanged="Drawer_IsVisibleChanged" d:DataContext="{d:DesignInstance vm:InspectorViewModel}">
+        <Border.Effect>
+          <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.1" />
+        </Border.Effect>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+          <StackPanel Margin="28">
+            <DockPanel Margin="0,0,0,24">
+              <Button x:Name="CloseDrawer" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
+                      ToolTip="Close (Esc)" AutomationProperties.Name="Close details"
+                      Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+              <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="110" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <ContentControl Height="153" VerticalAlignment="Top" Content="{Binding Item}" ContentTemplate="{StaticResource Cover}" Focusable="False" />
+              <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Font.Display}" FontSize="27" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Bt.Text}" />
+                <WrapPanel Margin="0,12,0,0">
+                  <Border Style="{StaticResource Bt.Chip}">
+                    <TextBlock Text="{Binding Item.FormatLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+                  </Border>
+                  <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.PagesLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
+                    <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+                  </Border>
+                </WrapPanel>
+              </StackPanel>
+            </Grid>
+
+            <TextBlock Text="ABOUT THE FILE" Style="{StaticResource SectionHead}" />
+            <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Grid.IsSharedSizeScope="True">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:InspectorFact}">
+                  <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Small}" Margin="0,0,15,0" TextWrapping="NoWrap" />
+                    <TextBlock Grid.Column="1" Text="{Binding Value}" Style="{StaticResource Text.Row}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="WHERE IT IS" Style="{StaticResource SectionHead}" />
+            <ItemsControl ItemsSource="{Binding Locations}" Focusable="False">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:InspectorLocation}">
+                  <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" />
+                      <TextBlock Text="{Binding State}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
+                                 Visibility="{Binding HasState, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,10,0,0"
+                              Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Visibility="{Binding HasStages, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="INDEXING" Style="{StaticResource SectionHead}" />
+              <ItemsControl ItemsSource="{Binding Stages}" Focusable="False" Grid.IsSharedSizeScope="True">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:InspectorStage}">
+                    <Grid Margin="0,0,0,8">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Stage" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Small}" Margin="0,0,15,0" TextWrapping="NoWrap" />
+                      <TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource Text.Row}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
 </UserControl>

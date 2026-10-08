@@ -12,10 +12,11 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// <summary>
 /// Where indexing stands, in counts a person can read: documents known to the index, searchable (text done, or an
 /// image, which is found by its title),
-/// still processing (any stage waiting or running), needing attention (a stage failed or is blocked), and scanned
-/// pages still waiting for OCR (not counting books whose OCR is blocked or failed).
+/// still processing (any stage waiting or running), needing attention (a stage failed or is blocked), scanned
+/// pages still waiting for OCR (not counting books whose OCR is blocked or failed), and documents with index-lane
+/// work (any stage but OCR) waiting or running.
 /// </summary>
-public sealed record IndexProgress(long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr);
+public sealed record IndexProgress(long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing);
 
 /// <summary>A document with a failed or blocked stage, and why.</summary>
 public sealed record AttentionItem(long DocumentId, string Title, Stage Stage, StageStatus Status, string? Reason, DateTime UpdatedUtc);
@@ -49,7 +50,8 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased')) AS Processing,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
-                    (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr
+                    (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Ocr') AS Indexing
             """, cancellationToken: ct));
     }
 

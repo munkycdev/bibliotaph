@@ -37,7 +37,7 @@ public sealed partial class LibraryActivity : ObservableObject
     /// <summary>Raised on the UI thread after each refresh, for pages that show more detail.</summary>
     public event EventHandler? Refreshed;
 
-    public IndexProgress Progress { get; private set; } = new(0, 0, 0, 0, 0);
+    public IndexProgress Progress { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
     public LibraryCounts Counts { get; private set; } = new(0, 0, 0, 0, 0);
 
@@ -49,13 +49,30 @@ public sealed partial class LibraryActivity : ObservableObject
     public partial bool NeedsAttention { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowIndexPause))]
     public partial bool IndexPaused { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOcrPause))]
     public partial bool OcrPaused { get; private set; }
 
     [ObservableProperty]
     public partial bool WaitingForDiskSpace { get; private set; }
+
+    /// <summary>Files to read or index-lane stages waiting or running, so Pause indexing would pause something.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowIndexPause))]
+    public partial bool HasIndexWork { get; private set; }
+
+    /// <summary>Scanned pages waiting for OCR, so Pause reading scans would pause something.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOcrPause))]
+    public partial bool HasOcrWork { get; private set; }
+
+    /// <summary>The Pause indexing button shows only while there is indexing to pause, or to resume.</summary>
+    public bool ShowIndexPause => HasIndexWork || IndexPaused;
+
+    public bool ShowOcrPause => HasOcrWork || OcrPaused;
 
     public void Start() => _timer.Start();
 
@@ -81,6 +98,8 @@ public sealed partial class LibraryActivity : ObservableObject
             OcrPaused = _indexing.IsPaused(Lane.Ocr);
             WaitingForDiskSpace = _indexing.WaitingForDiskSpace;
             NeedsAttention = Progress.NeedAttention > 0 || _indexing.Unreadable.Count > 0;
+            HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
+            HasOcrWork = Progress.PagesAwaitingOcr > 0;
             Summary = Describe();
             Refreshed?.Invoke(this, EventArgs.Empty);
         }
@@ -97,13 +116,13 @@ public sealed partial class LibraryActivity : ObservableObject
     string Describe()
     {
         var unhashed = Counts.Unhashed - _indexing.Unreadable.Count;
-        var indexWork = unhashed > 0 || Progress.Processing > 0;
+        var indexWork = unhashed > 0 || Progress.Indexing > 0;
         if (_indexing.IsScanning) return "Looking through your folders";
         if (indexWork && IndexPaused) return "Indexing paused";
         if (unhashed > 0) return WaitingForDiskSpace && unhashed <= Counts.OnlineOnly
             ? "Waiting for disk space"
             : $"Reading {unhashed:N0} new {Plural(unhashed, "file", "files")}";
-        if (Progress.Processing > 0) return $"Indexing · {Progress.Searchable:N0} of {Progress.Documents:N0} searchable";
+        if (Progress.Indexing > 0) return $"Indexing · {Progress.Searchable:N0} of {Progress.Documents:N0} searchable";
         if (Progress.PagesAwaitingOcr > 0)
             return OcrPaused ? "Reading scanned pages paused" : $"Reading scanned pages · {Progress.PagesAwaitingOcr:N0} left";
         return Progress.Documents == 0 ? "Nothing to process" : $"Up to date · {Progress.Documents:N0} {Plural(Progress.Documents, "item", "items")}";

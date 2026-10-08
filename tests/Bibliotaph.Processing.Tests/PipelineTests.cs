@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Pdf.Host.Tests;
@@ -125,6 +126,16 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.Contains(title, new[] { "Known Text", "Known Text Copy" });
         Assert.Equal(2, c.ExecuteScalar<long>("SELECT count(*) FROM outline JOIN doc USING (document_id) WHERE display_title = @title", new { title }));
 
+        // The Library's own search finds it too, over the documents catalog.db says are visible.
+        var search = new LibraryQueries(_index);
+        var filter = new LibraryFilter(await _libraryStore.GetVisibleDocumentIdsAsync(ct: Ct));
+        var hits = await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse("owlbear")), filter, ct: Ct);
+        var hit = Assert.Single(Assert.Single(hits.Documents).Pages);
+        Assert.Equal(SyntheticPdfs.KnownPhrasePage, hit.PdfPage);
+        Assert.Contains($"{LibraryQueries.HitStart}owlbear{LibraryQueries.HitEnd}", hit.Snippet, StringComparison.Ordinal);
+        Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("format:png")), filter, ct: Ct),
+            e => e.Title == "Handout Map");
+
         // The image-only page of the known text is flagged for OCR along with the scan.
         Assert.Equal("Complete", StatusOf(c, title, Stage.Text));
         Assert.Equal("Complete", StatusOf(c, title, Stage.Covers));
@@ -182,6 +193,31 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await SettleAsync();
 
         Assert.Equal(before, await JobsAsync());
+    }
+
+    [Fact]
+    public async Task Stages_blocked_while_a_file_could_not_be_read_run_once_it_can_be()
+    {
+        Copy(pdfs.KnownText, "Known Text.pdf");
+        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        // As if Covers had run while the folder was briefly unreadable; then the map goes for good.
+        await _writer.WriteAsync((c, t) =>
+        {
+            c.Execute("UPDATE job SET status = 'blocked', last_error = @reason WHERE stage = 'Covers'", new { reason = StageOutcome.Blocked.Unreachable }, t);
+            c.Execute("UPDATE stage_status SET status = 'Blocked' WHERE stage = 'Covers'", transaction: t);
+        }, Ct);
+        File.Delete(Path.Combine(_library, "Handout Map.png"));
+        _service.RequestScan();
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        timeout.CancelAfter(Patience);
+        await using var read = _index.OpenRead();
+        while (StatusOf(read, "Known Text", Stage.Covers) != "Complete") await Task.Delay(200, timeout.Token);
+        Assert.Equal("Blocked", StatusOf(read, "Handout Map", Stage.Covers));
     }
 
     /// <summary>How many jobs there are and how many times they have run.</summary>

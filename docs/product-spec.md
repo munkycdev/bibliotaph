@@ -357,7 +357,7 @@ Select a representative pilot of approximately 100 files: ordinary digital books
 
 ## 13. Technical direction and implementation sequence
 
-This is a product specification, not a final engineering design. The engineering design is [architecture.md](architecture.md), agreed on 8 October 2026: WPF on .NET 11 with PDFium in isolated worker processes, SQLite with FTS5 (a migrated catalog database for user work and a rebuildable index database), Windows OCR pending a bake-off against Tesseract, and a local-first, configurable AI adapter (OpenAI-compatible endpoint). The PDF feasibility spike is in `spikes/pdf-feasibility/`.
+This is a product specification, not a final engineering design. The engineering design is [architecture.md](architecture.md), agreed on 8 October 2026: WPF on .NET 11 with PDFium in isolated worker processes, SQLite with FTS5 (a migrated catalog database for user work and a rebuildable index database), Windows OCR (chosen over Tesseract by a bake-off in slice 1), and a local-first, configurable AI adapter (OpenAI-compatible endpoint). The PDF feasibility spike is in `spikes/pdf-feasibility/`.
 
 A .NET-oriented implementation is a reasonable candidate given the intended builder’s experience. Validate the actual PDF rendering/extraction, encrypted-document behavior, OCR packaging, local search, and installer experience before selecting the UI framework. Avoid tying product requirements to an untested dependency or assuming optional local inference is effortless on a particular GPU.
 

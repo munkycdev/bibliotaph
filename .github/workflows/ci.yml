@@ -59,8 +59,18 @@ jobs:
           $data = Join-Path $env:RUNNER_TEMP 'bibliotaph-smoke'
           $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"" -PassThru
           if (-not $app.WaitForExit(120000)) { $app.Kill(); throw 'Smoke test did not finish within 2 minutes.' }
-          Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content
-          if ($app.ExitCode -ne 0) { throw "Smoke test failed with exit code $($app.ExitCode)." }
+          $log = @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content)
+          $log
+          if ($app.ExitCode -ne 0) {
+            # Errors also become annotations, readable on the PR's checks without opening the log.
+            for ($i = 0; $i -lt $log.Count; $i++) {
+              if ($log[$i] -match '\[(ERR|FTL)\]') {
+                $detail = ($log[$i..([Math]::Min($i + 12, $log.Count - 1))] -join '%0A')
+                Write-Host "::error title=Smoke test::$detail"
+              }
+            }
+            throw "Smoke test failed with exit code $($app.ExitCode)."
+          }
 
       # Source files are read-only by construction: a write API in Core must fail the build.
       - name: Banned file APIs fail the build

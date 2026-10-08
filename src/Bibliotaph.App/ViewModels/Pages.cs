@@ -10,8 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
-// Each screen shows its empty state from the mockup. Folders are scanned and indexed (slice 1a); the library grid
-// and search arrive in 1b, so until then a library with folders shows indexing progress.
+// Each screen shows its empty state from the mockup. The library and search are in LibraryViewModel.
 
 /// <summary>Shared by pages whose empty state depends on whether any folders have been added.</summary>
 public abstract partial class LibraryAwarePageViewModel(SourceRootStore roots, LibraryActivity activity) : PageViewModel
@@ -32,19 +31,6 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 {
     public override Route Route => Route.Home;
     public override string Title => "Home";
-
-    [RelayCommand]
-    void AddFolder() => folders.RequestPick();
-
-    [RelayCommand]
-    void ManageFolders() => navigation.NavigateTo(Route.LibraryFolders);
-}
-
-public sealed partial class LibraryViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, INavigationService navigation)
-    : LibraryAwarePageViewModel(roots, activity)
-{
-    public override Route Route => Route.Library;
-    public override string Title => "Library";
 
     [RelayCommand]
     void AddFolder() => folders.RequestPick();

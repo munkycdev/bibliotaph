@@ -20,6 +20,9 @@ public sealed record DocumentSource(long DocumentId, string ContentHash, string 
 
 public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents);
 
+/// <summary>One place a document's file is, for the inspector.</summary>
+public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability);
+
 /// <summary>
 /// File locations and documents in catalog.db: the scanner's reconciliation and the hasher's results.
 /// A document is its content hash; locations come and go. Nothing here reads or writes a source file.
@@ -31,9 +34,11 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// <summary>
     /// Brings a root's locations in line with a completed scan of it. Unchanged files keep their hash; a file whose
     /// size or modified time changed loses it and is hashed again; files not seen are marked missing. Only call this
-    /// with a full listing of a reachable root: an offline root must never mark its files missing (A07).
+    /// with a full listing of a reachable root: an offline root must never mark its files missing (A07). Files under
+    /// <paramref name="unreadFolders"/>, folders the scan couldn't list ("." for the root), keep their state for the same reason.
     /// </summary>
-    public async Task<ReconcileResult> ReconcileRootAsync(long rootId, IReadOnlyCollection<ScannedFile> files, CancellationToken ct = default)
+    public async Task<ReconcileResult> ReconcileRootAsync(
+        long rootId, IReadOnlyCollection<ScannedFile> files, IReadOnlyCollection<string>? unreadFolders = null, CancellationToken ct = default)
     {
         var now = _clock.GetUtcNow().UtcDateTime;
         await using var db = await contexts.CreateDbContextAsync(ct);
@@ -77,7 +82,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         }
 
         var missing = 0;
-        foreach (var gone in byPath.Values.Where(f => f.State != FileLocationState.Missing))
+        foreach (var gone in byPath.Values.Where(f => f.State != FileLocationState.Missing && !IsUnder(f.RelativePath, unreadFolders)))
         {
             gone.State = FileLocationState.Missing;
             missing++;
@@ -88,6 +93,10 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         await db.SaveChangesAsync(ct);
         return new ReconcileResult(added, changed, unchanged, missing);
     }
+
+    static bool IsUnder(string relativePath, IReadOnlyCollection<string>? folders) =>
+        folders is not null && folders.Any(folder => folder == "." || relativePath.StartsWith(
+            Path.TrimEndingDirectorySeparator(folder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Marks a root offline (unreachable) or online again. Its files' states are left as they were.</summary>
     public async Task SetRootAvailabilityAsync(long rootId, SourceRootAvailability availability, CancellationToken ct = default)
@@ -169,6 +178,42 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         var folders = (Path.GetDirectoryName(locations[0].RelativePath) ?? "")
             .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
         return new DocumentSource(document.Id, document.ContentHash, document.Format, paths[0], string.Join(" / ", folders), paths);
+    }
+
+    /// <summary>Those of <paramref name="documentIds"/> that <see cref="GetSourceAsync"/> would find a file for now.</summary>
+    public async Task<IReadOnlyList<long>> GetReadableAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations
+            .Where(f => f.DocumentId != null && documentIds.Contains(f.DocumentId.Value)
+                && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online)
+            .Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// The documents the library shows: those with a file that isn't missing, in a folder the user hasn't removed
+    /// (an offline folder's books stay). With <paramref name="rootId"/>, only that folder's.
+    /// </summary>
+    public async Task<IReadOnlyList<long>> GetVisibleDocumentIdsAsync(long? rootId = null, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var locations = db.FileLocations.Where(f =>
+            f.DocumentId != null && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
+        if (rootId is { } id) locations = locations.Where(f => f.SourceRootId == id);
+        return await locations.Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
+    }
+
+    /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>
+    public async Task<IReadOnlyList<DocumentLocation>> GetLocationsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId == documentId && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .OrderBy(f => f.State).ThenBy(f => f.Id)
+            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, f.State, f.SourceRoot.Availability })
+            .ToListAsync(ct);
+        return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability))];
     }
 
     public async Task<LibraryCounts> GetCountsAsync(CancellationToken ct = default)

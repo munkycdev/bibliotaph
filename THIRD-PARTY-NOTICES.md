@@ -29,6 +29,7 @@ made with the font.
 | PDFiumCore | Apache-2.0 | https://github.com/Dtronix/PDFiumCore |
 | CommunityToolkit.Mvvm | MIT | https://github.com/CommunityToolkit/dotnet |
 | Dapper | Apache-2.0 | https://github.com/DapperLib/Dapper |
+| VirtualizingWrapPanel | MIT | https://github.com/sbaeumlisberger/VirtualizingWrapPanel |
 | Serilog, Serilog.Extensions.Hosting, Serilog.Sinks.File | Apache-2.0 | https://github.com/serilog |
 | Microsoft.Extensions.*, Microsoft.EntityFrameworkCore.*, Microsoft.Data.Sqlite | MIT | https://github.com/dotnet |
 | SQLitePCLRaw (via Microsoft.Data.Sqlite) | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
