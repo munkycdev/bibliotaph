@@ -28,8 +28,10 @@
   <Geometry x:Key="Icon.NotebookPen">M 13.4 2 H 6 a 2 2 0 0 0 -2 2 v 16 a 2 2 0 0 0 2 2 h 12 a 2 2 0 0 0 2 -2 v -7.4 M 2 6 h 4 M 2 10 h 4 M 2 14 h 4 M 2 18 h 4 M 21.378 5.626 a 1 1 0 1 0 -3.004 -3.004 l -5.01 5.012 a 2 2 0 0 0 -0.506 0.854 l -0.837 2.87 a 0.5 0.5 0 0 0 0.62 0.62 l 2.87 -0.837 a 2 2 0 0 0 0.854 -0.506 Z</Geometry>
   <Geometry x:Key="Icon.NotebookTabs">M 2 6 h 4 M 2 10 h 4 M 2 14 h 4 M 2 18 h 4 M 6 2 H 18 A 2 2 0 0 1 20 4 V 20 A 2 2 0 0 1 18 22 H 6 A 2 2 0 0 1 4 20 V 4 A 2 2 0 0 1 6 2 Z M 15 2 v 20 M 15 7 h 5 M 15 12 h 5 M 15 17 h 5</Geometry>
   <Geometry x:Key="Icon.PanelRight">M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z M 15 3 v 18</Geometry>
+  <Geometry x:Key="Icon.Pause">M 15 3 H 18 A 1 1 0 0 1 19 4 V 20 A 1 1 0 0 1 18 21 H 15 A 1 1 0 0 1 14 20 V 4 A 1 1 0 0 1 15 3 Z M 6 3 H 9 A 1 1 0 0 1 10 4 V 20 A 1 1 0 0 1 9 21 H 6 A 1 1 0 0 1 5 20 V 4 A 1 1 0 0 1 6 3 Z</Geometry>
   <Geometry x:Key="Icon.Play">M 5 5 a 2 2 0 0 1 3.008 -1.728 l 11.997 6.998 a 2 2 0 0 1 0.003 3.458 l -12 7 A 2 2 0 0 1 5 19 Z</Geometry>
   <Geometry x:Key="Icon.Plus">M 5 12 h 14 M 12 5 v 14</Geometry>
+  <Geometry x:Key="Icon.RotateCcw">M 3 12 a 9 9 0 1 0 9 -9 a 9.75 9.75 0 0 0 -6.74 2.74 L 3 8 M 3 3 v 5 h 5</Geometry>
   <Geometry x:Key="Icon.Search">M 21 21 l -4.34 -4.34 M 3 11 A 8 8 0 1 0 19 11 A 8 8 0 1 0 3 11 Z</Geometry>
   <Geometry x:Key="Icon.Settings2">M 14 17 H 5 M 19 7 h -9 M 14 17 A 3 3 0 1 0 20 17 A 3 3 0 1 0 14 17 Z M 4 7 A 3 3 0 1 0 10 7 A 3 3 0 1 0 4 7 Z</Geometry>
   <Geometry x:Key="Icon.ShieldCheck">M 20 13 c 0 5 -3.5 7.5 -7.66 8.95 a 1 1 0 0 1 -0.67 -0.01 C 7.5 20.5 4 18 4 13 V 6 a 1 1 0 0 1 1 -1 c 2 0 4.5 -1.2 6.24 -2.72 a 1.17 1.17 0 0 1 1.52 0 C 14.51 3.81 17 5 19 5 a 1 1 0 0 1 1 1 Z M 9 12 l 2 2 l 4 -4</Geometry>
@@ -38,5 +40,6 @@
   <Geometry x:Key="Icon.Sparkles">M 11.017 2.814 a 1 1 0 0 1 1.966 0 l 1.051 5.558 a 2 2 0 0 0 1.594 1.594 l 5.558 1.051 a 1 1 0 0 1 0 1.966 l -5.558 1.051 a 2 2 0 0 0 -1.594 1.594 l -1.051 5.558 a 1 1 0 0 1 -1.966 0 l -1.051 -5.558 a 2 2 0 0 0 -1.594 -1.594 l -5.558 -1.051 a 1 1 0 0 1 0 -1.966 l 5.558 -1.051 a 2 2 0 0 0 1.594 -1.594 Z M 20 2 v 4 M 22 4 h -4 M 2 20 A 2 2 0 1 0 6 20 A 2 2 0 1 0 2 20 Z</Geometry>
   <Geometry x:Key="Icon.SunMoon">M 12 2 v 2 M 14.837 16.385 a 6 6 0 1 1 -7.223 -7.222 c 0.624 -0.147 0.97 0.66 0.715 1.248 a 4 4 0 0 0 5.26 5.259 c 0.589 -0.255 1.396 0.09 1.248 0.715 M 16 12 a 4 4 0 0 0 -4 -4 M 19 5 l -1.256 1.256 M 20 12 h 2</Geometry>
   <Geometry x:Key="Icon.TextSearch">M 21 5 H 3 M 10 12 H 3 M 10 19 H 3 M 14 15 A 3 3 0 1 0 20 15 A 3 3 0 1 0 14 15 Z M 21 19 l -1.9 -1.9</Geometry>
+  <Geometry x:Key="Icon.TriangleAlert">M 21.73 18 l -8 -14 a 2 2 0 0 0 -3.48 0 l -8 14 A 2 2 0 0 0 4 21 h 16 a 2 2 0 0 0 1.73 -3 M 12 9 v 4 M 12 17 h 0.01</Geometry>
   <Geometry x:Key="Icon.X">M 18 6 L 6 18 M 6 6 l 12 12</Geometry>
 </ResourceDictionary>

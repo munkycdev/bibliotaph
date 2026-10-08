@@ -22,6 +22,8 @@ static class SmokeTest
         try
         {
             if (window.Icon is null) throw new InvalidOperationException("The main window has no icon.");
+            // Covers are encoded on indexing threads, so check the codec off the UI thread.
+            await Task.Run(CheckImageCodec);
             var navigation = services.GetRequiredService<INavigationService>();
             var theme = services.GetRequiredService<ThemeService>();
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
@@ -55,6 +57,21 @@ static class SmokeTest
         }
         Log.Information("Smoke test passed");
         return 0;
+    }
+
+    /// <summary>WIC is only on Windows, so the cover codec is checked here rather than in the unit tests.</summary>
+    static void CheckImageCodec()
+    {
+        var codec = new WpfImageCodec();
+        var pixels = new byte[16 * 8 * 4];
+        Array.Fill(pixels, (byte)200);
+        using var jpeg = new System.IO.MemoryStream(codec.EncodeJpeg(pixels, 16, 8, 16 * 4));
+        if (codec.ReadSize(jpeg) != (16, 8)) throw new InvalidOperationException("A JPEG cover did not read back at 16x8.");
+        jpeg.Position = 0;
+        using var thumbnail = new System.IO.MemoryStream(codec.Thumbnail(jpeg, 4) ?? throw new InvalidOperationException("No thumbnail was made."));
+        if (codec.ReadSize(thumbnail)?.Width != 4) throw new InvalidOperationException("The thumbnail is not 4 px wide.");
+        if (codec.ReadSize(new System.IO.MemoryStream([1, 2, 3])) is not null) throw new InvalidOperationException("Garbage read as an image.");
+        Log.Information("Smoke test: image codec works off the UI thread");
     }
 
     static async Task Settle(Window window)

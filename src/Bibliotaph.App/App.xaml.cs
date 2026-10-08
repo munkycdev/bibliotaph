@@ -112,6 +112,25 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
         builder.Services.AddSingleton<ISourceFileReader, SourceFileReader>();
 
+        // Processing: scan, hash, and the job queue's stages. Registered after the index writer, so it stops first
+        // (hosted services stop in reverse order) and can still record the job it was on.
+        builder.Services.AddSingleton<LibraryStore>();
+        builder.Services.AddSingleton(sp => new JobQueue(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton<CoverCache>();
+        builder.Services.AddSingleton<IImageCodec, WpfImageCodec>();
+        builder.Services.AddSingleton<IPasswordStore, NoPasswords>();
+        builder.Services.AddSingleton<FileHasher>();
+        builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
+        builder.Services.AddSingleton<StageServices>();
+        builder.Services.AddSingleton<IStage, ProbeStage>();
+        builder.Services.AddSingleton<IStage, TextStage>();
+        builder.Services.AddSingleton<IStage, CoversStage>();
+        builder.Services.AddSingleton<IStage, OcrStage>();
+        builder.Services.AddSingleton(new IndexingOptions());
+        builder.Services.AddSingleton<IndexingService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+
         // Shell
         builder.Services.AddSingleton<ThemeService>();
         builder.Services.AddSingleton<LibraryFolders>();

@@ -22,13 +22,13 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- Folders added, nothing scanned yet. -->
+    <!-- Folders added: indexing progress until the library and search arrive (slice 1b). -->
     <StackPanel Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <TextBlock Text="YOUR NEXT GOOD STORY" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
       <TextBlock Text="Welcome back." Style="{StaticResource Text.H1}" />
       <TextBlock Text="A familiar shelf. A few places you haven’t been." Style="{StaticResource Text.Subtitle}" />
-      <c:EmptyState Title="Nothing scanned yet."
-                    Message="{Binding FolderSummary, StringFormat='{}{0} to be scanned. Scanning arrives with the next build of Bibliotaph.'}"
+      <c:EmptyState Title="Indexing your library."
+                    Message="{Binding Activity.Summary, StringFormat='{}{0}. Browsing and search arrive with the next part of this build.'}"
                     ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
     </StackPanel>
   </StackPanel>

@@ -7,10 +7,69 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibraryFoldersViewModel}">
+  <UserControl.Resources>
+    <!-- A pause button that becomes Resume while its lane is paused. Tag carries the paused flag. -->
+    <Style x:Key="PauseToggle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Pause}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+          <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Play}" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+
   <StackPanel MaxWidth="640" HorizontalAlignment="Left">
     <TextBlock Text="Library folders" Style="{StaticResource Text.H1}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
                Text="Bibliotaph reads your folders. Your books stay exactly where you put them." />
+
+    <!-- Indexing progress, with pause and resume for each lane (spec: processing summary). -->
+    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0"
+            Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel>
+        <TextBlock Text="{Binding Activity.Summary}" Style="{StaticResource Text.Row}" />
+        <TextBlock Text="{Binding ProgressDetail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding Activity.WaitingForDiskSpace, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                   Text="Online-only files are waiting: downloading more would leave less than 2 GB free on that drive." />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Style="{StaticResource PauseToggle}" Tag="{Binding Activity.IndexPaused}" Command="{Binding ToggleIndexingCommand}" Margin="0,0,8,0">
+            <Button.Content>
+              <TextBlock>
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Text" Value="Pause indexing" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Activity.IndexPaused}" Value="True">
+                        <Setter Property="Text" Value="Resume indexing" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Button.Content>
+          </Button>
+          <Button Style="{StaticResource PauseToggle}" Tag="{Binding Activity.OcrPaused}" Command="{Binding ToggleOcrCommand}" Margin="0,0,8,0">
+            <Button.Content>
+              <TextBlock>
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Text" Value="Pause reading scans" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Activity.OcrPaused}" Value="True">
+                        <Setter Property="Text" Value="Resume reading scans" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Button.Content>
+          </Button>
+          <Button Content="Look for changes" c:Ui.Icon="{StaticResource Icon.RotateCcw}" Command="{Binding RescanCommand}" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
 
     <ItemsControl ItemsSource="{Binding Folders}" Focusable="False">
       <ItemsControl.ItemTemplate>
@@ -24,8 +83,8 @@
                       CommandParameter="{Binding}" />
               <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Folder}" Margin="0,0,10,0" VerticalAlignment="Top" />
               <StackPanel>
-                <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" />
-                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" />
+                <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </DockPanel>
           </Border>
@@ -35,6 +94,34 @@
 
     <TextBlock Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}"
                Style="{StaticResource Text.Small}" Margin="0,12,0,0" Text="No folders yet." />
+
+    <!-- Picked folders: what each holds, before it is added. -->
+    <ItemsControl ItemsSource="{Binding Pending}" Focusable="False">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:PendingFolder}">
+          <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,12,0,0">
+            <StackPanel>
+              <DockPanel>
+                <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.FolderPlus}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                <StackPanel>
+                  <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+              </DockPanel>
+              <WrapPanel Margin="0,12,0,0">
+                <Button Style="{StaticResource Bt.Button.Primary}" Content="Add to library" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,0"
+                        IsEnabled="{Binding CanAdd}"
+                        Command="{Binding DataContext.ConfirmAddCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}" />
+                <Button Content="Cancel"
+                        Command="{Binding DataContext.CancelAddCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
 
     <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,25,0,0" Content="Add a folder"
             c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />

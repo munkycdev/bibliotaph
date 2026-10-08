@@ -14,4 +14,9 @@ public abstract class PageViewModel : ObservableObject
 
     /// <summary>Called each time the page is shown, including when Back returns to it.</summary>
     public virtual Task LoadAsync() => Task.CompletedTask;
+
+    /// <summary>Called when another page replaces this one, to stop listening for updates it no longer shows.</summary>
+    public virtual void Unload()
+    {
+    }
 }

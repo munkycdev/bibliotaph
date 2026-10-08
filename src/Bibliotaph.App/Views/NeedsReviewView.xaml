@@ -11,7 +11,32 @@
     <TextBlock Text="A little clarification." Style="{StaticResource Text.H1}" />
     <TextBlock Text="Suggestions worth a second look. The rest is ready to use." Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
     <Border Style="{StaticResource Bt.Rule}" />
-    <c:EmptyState Title="Everything in its place."
+
+    <StackPanel Visibility="{Binding HasFiles, Converter={StaticResource Bt.VisibleWhenTrue}}" MaxWidth="640" HorizontalAlignment="Left" Margin="0,24,0,0">
+      <TextBlock Text="Files needing attention" Style="{StaticResource Text.H2}" />
+      <ItemsControl ItemsSource="{Binding Files}" Focusable="False">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:AttentionRow}">
+            <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Try again" c:Ui.Icon="{StaticResource Icon.RotateCcw}" VerticalAlignment="Top"
+                        Visibility="{Binding CanRetry, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                        AutomationProperties.Name="{Binding Title, StringFormat='Try {0} again'}"
+                        Command="{Binding DataContext.RetryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}" />
+                <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TriangleAlert}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                <StackPanel Margin="0,0,12,0">
+                  <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+
+    <c:EmptyState Visibility="{Binding HasFiles, Converter={StaticResource Bt.CollapsedWhenTrue}}" Title="Everything in its place."
                   Message="No suggestions need your attention."
                   ActionText="Return to library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding ReturnToLibraryCommand}" />
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
