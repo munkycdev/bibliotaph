@@ -126,22 +126,17 @@ static class SmokeTest
         services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
         var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
-        await page.RefreshAsync();
-        await Settle(window);
-        if (page.Items.Count != 4) throw new InvalidOperationException($"The Library shows {page.Items.Count} books, not 4.");
+        // Queries run off the UI thread, so an idle dispatcher doesn't mean the results are in: wait for them.
+        await WaitUntilAsync(window, () => page.Items.Count == 4, () => $"The Library shows {page.Items.Count} books, not 4.");
 
         page.Layout = LibraryLayout.List;
         page.ShowFilters = true;
         await Settle(window);
 
         search.Search("dragon");
-        await page.RefreshAsync();
-        await Settle(window);
-        if (page.Items.Count == 0) throw new InvalidOperationException("Searching for dragon found no documents.");
+        await WaitUntilAsync(window, () => page.IsSearching && page.Items.Count > 0 && !page.IsEmpty, () => "Searching for dragon found no documents.");
         page.Tab = ResultsTab.Pages;
-        await page.RefreshAsync();
-        await Settle(window);
-        if (page.Hits.Count == 0) throw new InvalidOperationException("Searching for dragon found no pages.");
+        await WaitUntilAsync(window, () => page.Hits.Count > 0, () => "Searching for dragon found no pages.");
 
         await page.OpenDetailsCommand.ExecuteAsync(page.Hits[0].Item);
         await Settle(window);
@@ -149,21 +144,29 @@ static class SmokeTest
         page.CloseDetailsCommand.Execute(null);
 
         search.Search("type:adventure tavern");
-        await page.RefreshAsync();
-        await Settle(window);
-        if (page.IssueText is null) throw new InvalidOperationException("A metadata field didn't say it arrives later.");
+        await WaitUntilAsync(window, () => page.IssueText is not null, () => "A metadata field didn't say it arrives later.");
 
         search.Search("nothing-matches-this");
-        await page.RefreshAsync();
-        await Settle(window);
-        if (!page.IsEmpty) throw new InvalidOperationException("A search with no results didn't show the empty state.");
+        await WaitUntilAsync(window, () => page.IsEmpty, () => "A search with no results didn't show the empty state.");
 
         search.Search("");
         page.Tab = ResultsTab.Documents;
         page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
-        await page.RefreshAsync();
-        await Settle(window);
+        await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == 4, () => "Clearing the search didn't bring back all 4 books.");
+    }
+
+    /// <summary>Lets the window work until <paramref name="condition"/> holds, or fails after a few seconds.</summary>
+    static async Task WaitUntilAsync(Window window, Func<bool> condition, Func<string> failure)
+    {
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 10;
+        while (true)
+        {
+            await Settle(window);
+            if (condition()) return;
+            if (Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException(failure());
+            await Task.Delay(50);
+        }
     }
 
     /// <summary>WIC is only on Windows, so the cover codec is checked here rather than in the unit tests.</summary>
