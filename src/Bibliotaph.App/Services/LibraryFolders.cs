@@ -1,22 +1,39 @@
 using System.Windows;
-using Bibliotaph.Catalog;
 using Microsoft.Win32;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Adding folders to the library: the native folder picker, then the catalog. Nothing is scanned yet.</summary>
-public sealed class LibraryFolders(SourceRootStore roots)
+/// <summary>
+/// Choosing folders to add. Adding happens on the Library folders page, after a preview of what each folder holds,
+/// so other pages ask for the picker there with <see cref="RequestPick"/>.
+/// </summary>
+public sealed class LibraryFolders(INavigationService navigation)
 {
-    /// <returns>True when at least one folder was added.</returns>
-    public async Task<bool> PickAndAddAsync()
+    bool _pickRequested;
+
+    /// <summary>The native folder picker; empty when cancelled.</summary>
+    public static IReadOnlyList<string> Pick()
     {
         var dialog = new OpenFolderDialog
         {
             Title = "Add folders to your library",
             Multiselect = true,
         };
-        if (dialog.ShowDialog(Application.Current.MainWindow) != true) return false;
-        foreach (var folder in dialog.FolderNames) await roots.AddAsync(folder);
-        return dialog.FolderNames.Length > 0;
+        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FolderNames : [];
+    }
+
+    /// <summary>Opens Library folders and shows the picker there.</summary>
+    public void RequestPick()
+    {
+        _pickRequested = true;
+        navigation.NavigateTo(Route.LibraryFolders);
+    }
+
+    /// <summary>True once after <see cref="RequestPick"/>.</summary>
+    public bool TakePickRequest()
+    {
+        var requested = _pickRequested;
+        _pickRequested = false;
+        return requested;
     }
 }

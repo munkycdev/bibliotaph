@@ -29,11 +29,19 @@ public sealed class SyntheticPdfs : IDisposable
         PasswordProtected = Write("password-aes256.pdf", Build(encrypt: true));
         Truncated = Write("truncated.pdf", known[..(known.Length / 2)]);
         BrokenXref = Write("broken-xref.pdf", BreakXref(known));
+        NonAsciiName = Write(NonAsciiFileName, known);
+        Scanned = Write("scanned.pdf", BuildScanned());
     }
+
+    /// <summary>Characters outside Windows' ANSI code page, as bundle file names often have.</summary>
+    public const string NonAsciiFileName = "Ryoko\u2019s Guide \u2014 \u00e9t\u00e9 \u5996\u602a.pdf";
+
+    public const string Title = "Bibliotaph synthetic fixture";
+    public const string Author = "Test Author";
 
     public string Directory { get; }
 
-    /// <summary>Three pages: a contents page, <see cref="KnownPhrase"/> on page 1, and an image-only page 2.</summary>
+    /// <summary>Three pages, an outline and document info: a contents page, <see cref="KnownPhrase"/> on page 1, and an image-only page 2.</summary>
     public string KnownText { get; }
 
     /// <summary>The same document, AES-256 encrypted with <see cref="Password"/> as the open password.</summary>
@@ -41,6 +49,15 @@ public sealed class SyntheticPdfs : IDisposable
 
     /// <summary>The first half of <see cref="KnownText"/>'s bytes.</summary>
     public string Truncated { get; }
+
+    /// <summary><see cref="KnownText"/>, saved under <see cref="NonAsciiFileName"/>.</summary>
+    public string NonAsciiName { get; }
+
+    /// <summary>
+    /// One page showing <see cref="ScannedPhrase"/> as filled glyph outlines: it reads like text on screen but has no
+    /// text layer, which is how a scan looks to the indexer.
+    /// </summary>
+    public string Scanned { get; }
 
     /// <summary><see cref="KnownText"/> with its startxref pointing at the wrong place, which PDFium repairs.</summary>
     public string BrokenXref { get; }
@@ -57,7 +74,8 @@ public sealed class SyntheticPdfs : IDisposable
     static byte[] Build(bool encrypt)
     {
         using var document = new PdfDocument();
-        document.Info.Title = "Bibliotaph synthetic fixture";
+        document.Info.Title = Title;
+        document.Info.Author = Author;
         var font = new XFont(EmbeddedFontResolver.Family, 14);
 
         var contents = document.AddPage();
@@ -77,6 +95,10 @@ public sealed class SyntheticPdfs : IDisposable
         using (var picture = XImage.FromStream(stream))
             gfx.DrawImage(picture, 72, 72, 400, 240);
 
+        // Outline: one chapter with one child, pointing at pages 1 and 2.
+        var chapter = document.Outlines.Add("Chapter one", text);
+        chapter.Outlines.Add("A picture", image);
+
         if (encrypt)
         {
             document.SecuritySettings.UserPassword = Password;
@@ -84,6 +106,23 @@ public sealed class SyntheticPdfs : IDisposable
             document.SecurityHandler.SetEncryptionToV5();
         }
 
+        using var output = new MemoryStream();
+        document.Save(output);
+        return output.ToArray();
+    }
+
+    public const string ScannedPhrase = "Goblin market";
+
+    static byte[] BuildScanned()
+    {
+        using var document = new PdfDocument();
+        var page = document.AddPage();
+        using (var gfx = XGraphics.FromPdfPage(page))
+        {
+            var path = new XGraphicsPath { FillMode = XFillMode.Winding };
+            new GlyphOutlines(EmbeddedFontResolver.FontBytes()).AddString(path, ScannedPhrase, 40, new XPoint(72, 160));
+            gfx.DrawPath(XBrushes.Black, path);
+        }
         using var output = new MemoryStream();
         document.Save(output);
         return output.ToArray();
@@ -145,7 +184,9 @@ public sealed class SyntheticPdfs : IDisposable
 
         public FontResolverInfo ResolveTypeface(string familyName, bool bold, bool italic) => new(FaceName);
 
-        public byte[] GetFont(string faceName)
+        public byte[] GetFont(string faceName) => FontBytes();
+
+        public static byte[] FontBytes()
         {
             using var stream = typeof(SyntheticPdfs).Assembly.GetManifestResourceStream("DMSans-Regular.ttf")
                 ?? throw new InvalidOperationException("DMSans-Regular.ttf is not embedded in the test assembly.");

@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 using Bibliotaph.App.Services;
-using Bibliotaph.Index;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -13,14 +12,13 @@ public sealed partial class ShellViewModel : ObservableObject
 {
     readonly INavigationService _navigation;
     readonly ThemeService _theme;
-    readonly IndexQueries _index;
     readonly ILogger<ShellViewModel> _log;
 
-    public ShellViewModel(INavigationService navigation, ThemeService theme, IndexQueries index, ILogger<ShellViewModel> log)
+    public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, ILogger<ShellViewModel> log)
     {
         _navigation = navigation;
         _theme = theme;
-        _index = index;
+        Activity = activity;
         _log = log;
 
         NavItems =
@@ -50,16 +48,17 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial string SearchText { get; set; } = "";
 
-    [ObservableProperty]
-    public partial string ProcessingStatus { get; set; } = "Nothing to process";
+    /// <summary>Indexing progress for the sidebar status line.</summary>
+    public LibraryActivity Activity { get; }
 
     public string AppearanceToggleLabel => _theme.IsDark ? "Switch to light appearance" : "Switch to dark appearance";
 
-    public async Task StartAsync()
+    public Task StartAsync()
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
         _navigation.NavigateTo(Route.Home);
-        await RefreshProcessingStatusAsync();
+        Activity.Start();
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -71,14 +70,15 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     Task ToggleAppearance() => _theme.ToggleAsync();
 
-    async Task RefreshProcessingStatusAsync()
-    {
-        var queue = await _index.GetQueueSummaryAsync();
-        ProcessingStatus = queue.IsIdle ? "Nothing to process" : $"{queue.Pending:N0} waiting";
-    }
+    PageViewModel? _shown;
 
     async void OnNavigated()
     {
+        if (!ReferenceEquals(_shown, CurrentPage))
+        {
+            _shown?.Unload();
+            _shown = CurrentPage;
+        }
         foreach (var item in NavItems.Append(Settings))
             item.IsActive = item.Route == CurrentPage?.Route
                 || (item.Route == Route.Settings && CurrentPage?.Route == Route.LibraryFolders);

@@ -11,8 +11,10 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
     const int RenderAnnotations = 0x01; // FPDF_ANNOT
     const uint White = 0xFFFFFFFF;
 
-    readonly Dictionary<int, FpdfDocumentT> _docs = [];
+    readonly Dictionary<int, SourceDocument> _docs = [];
     int _nextDocId;
+    IOcrEngine? _ocr;
+    string? _ocrUnavailable;
 
     public Response Handle(Request r) => r.Op switch
     {
@@ -21,7 +23,9 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         Op.Close => Close(r),
         Op.Render => WithDoc(r, doc => Render(r, doc)),
         Op.ExtractText => WithDoc(r, doc => ExtractText(r, doc)),
+        Op.ExtractPages => WithDoc(r, doc => ExtractPages(r, doc)),
         Op.Find => WithDoc(r, doc => Find(r, doc)),
+        Op.Ocr => WithDoc(r, doc => Ocr(r, doc)),
 #if BIBLIOTAPH_TEST_OPS
         Op.Crash => Crash(),
         Op.Hang => Hang(),
@@ -33,7 +37,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
 
     public void CloseAll()
     {
-        foreach (var doc in _docs.Values) fpdfview.FPDF_CloseDocument(doc);
+        foreach (var doc in _docs.Values) doc.Dispose();
         _docs.Clear();
     }
 
@@ -41,9 +45,9 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
     {
         if (string.IsNullOrEmpty(r.Path)) return Response.Fail(r.Id, ErrorKind.BadRequest, "Path is required.");
 
-        // FPDF_LoadDocument reads the file on demand and never writes to it.
-        var doc = fpdfview.FPDF_LoadDocument(r.Path, r.Password);
-        if (IsNull(doc)) return LastError(r.Id, "Open failed");
+        var source = SourceDocument.Open(r.Path, r.Password, out var error);
+        if (source is null) return Error(r.Id, error, "Open failed");
+        var doc = source.Handle;
 
         var pageCount = fpdfview.FPDF_GetPageCount(doc);
         var sizes = new List<PageSize>(pageCount);
@@ -62,7 +66,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         fpdfview.FPDF_GetFileVersion(doc, ref version);
 
         var id = ++_nextDocId;
-        _docs[id] = doc;
+        _docs[id] = source;
         return Response.Success(r.Id) with
         {
             Doc = new DocInfo
@@ -74,19 +78,29 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
                 FileVersion = version,
                 PageLabels = labels,
                 PageSizes = sizes,
+                Metadata = new DocMetadata
+                {
+                    Title = MetaText(doc, "Title"),
+                    Author = MetaText(doc, "Author"),
+                    Subject = MetaText(doc, "Subject"),
+                    Keywords = MetaText(doc, "Keywords"),
+                    Creator = MetaText(doc, "Creator"),
+                    Producer = MetaText(doc, "Producer"),
+                },
+                Outline = Outline(doc),
             },
         };
     }
 
     Response Close(Request r)
     {
-        if (_docs.Remove(r.DocId, out var doc)) fpdfview.FPDF_CloseDocument(doc);
+        if (_docs.Remove(r.DocId, out var doc)) doc.Dispose();
         return Response.Success(r.Id);
     }
 
     Response WithDoc(Request r, Func<FpdfDocumentT, Response> action) =>
         _docs.TryGetValue(r.DocId, out var doc)
-            ? action(doc)
+            ? action(doc.Handle)
             : Response.Fail(r.Id, ErrorKind.BadRequest, $"Document {r.DocId} is not open.");
 
     Response Render(Request r, FpdfDocumentT doc)
@@ -129,16 +143,53 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         }
     }
 
+    /// <summary>
+    /// Renders the page into a PDFium-owned bitmap (the shared buffer is left alone) and reads it. Word boxes come
+    /// back in PDF points with the origin at the bottom left, like PDFium's character boxes.
+    /// </summary>
+    Response Ocr(Request r, FpdfDocumentT doc)
+    {
+        if (_ocr is null && _ocrUnavailable is null) _ocr = OcrEngines.Create(out _ocrUnavailable);
+        if (_ocr is null) return Response.Fail(r.Id, ErrorKind.OcrUnavailable, _ocrUnavailable!);
+
+        var page = fpdfview.FPDF_LoadPage(doc, r.PageIndex);
+        if (IsNull(page)) return LastError(r.Id, $"Page {r.PageIndex} failed to load", ErrorKind.Page);
+        try
+        {
+            var widthPt = fpdfview.FPDF_GetPageWidthF(page);
+            var heightPt = fpdfview.FPDF_GetPageHeightF(page);
+            // Fit inside the engine's limit; a poster-sized map at 300 dpi would exceed it.
+            var scale = Math.Min(r.Scale, (_ocr.MaxImageDimension - 1) / Math.Max(widthPt, heightPt));
+            var width = (int)Math.Round(widthPt * scale);
+            var height = (int)Math.Round(heightPt * scale);
+            if (width <= 0 || height <= 0) return Response.Fail(r.Id, ErrorKind.Page, "The page has no area.");
+
+            var bitmap = fpdfview.FPDFBitmapCreate(width, height, 1);
+            if (IsNull(bitmap)) return Response.Fail(r.Id, ErrorKind.TooLarge, $"A {width}x{height} bitmap could not be allocated.");
+            try
+            {
+                fpdfview.FPDFBitmapFillRect(bitmap, 0, 0, width, height, White);
+                fpdfview.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, RenderAnnotations);
+                var (text, words) = _ocr.Recognize(fpdfview.FPDFBitmapGetBuffer(bitmap), width, height, fpdfview.FPDFBitmapGetStride(bitmap));
+                var boxes = words.Select(w => new OcrWord(w.Word,
+                    new PdfRect(w.X / scale, heightPt - w.Y / scale, (w.X + w.Width) / scale, heightPt - (w.Y + w.Height) / scale))).ToList();
+                return Response.Success(r.Id) with { Ocr = new OcrInfo(_ocr.Name, text, boxes) };
+            }
+            finally
+            {
+                fpdfview.FPDFBitmapDestroy(bitmap);
+            }
+        }
+        finally
+        {
+            fpdfview.FPDF_ClosePage(page);
+        }
+    }
+
     static Response ExtractText(Request r, FpdfDocumentT doc) => WithTextPage(r, doc, r.PageIndex, textPage =>
     {
         var count = fpdf_text.FPDFTextCountChars(textPage);
-        var text = "";
-        if (count > 0)
-        {
-            var buffer = new ushort[count + 1];
-            var written = fpdf_text.FPDFTextGetText(textPage, 0, count, ref buffer[0]);
-            text = Utf16(buffer, Math.Max(0, written - 1));
-        }
+        var text = PageString(textPage, count);
 
         List<PdfRect>? boxes = null;
         if (r.IncludeCharBoxes)
@@ -153,6 +204,32 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         }
         return Response.Success(r.Id) with { Text = new TextInfo { CharCount = count, Text = text, CharBoxes = boxes } };
     });
+
+    static Response ExtractPages(Request r, FpdfDocumentT doc)
+    {
+        var pageCount = fpdfview.FPDF_GetPageCount(doc);
+        if (r.PageIndex < 0 || r.PageIndex >= pageCount || r.PageCount < 1)
+            return Response.Fail(r.Id, ErrorKind.BadRequest, $"Pages {r.PageIndex}+{r.PageCount} are outside 0..{pageCount - 1}.");
+
+        var last = Math.Min(pageCount, r.PageIndex + r.PageCount);
+        var pages = new List<PageText>(last - r.PageIndex);
+        for (var p = r.PageIndex; p < last; p++)
+        {
+            PageText? page = null;
+            var result = WithTextPage(r, doc, p, textPage =>
+            {
+                var count = fpdf_text.FPDFTextCountChars(textPage);
+                var unmapped = 0;
+                for (var i = 0; i < count; i++)
+                    if (fpdf_text.FPDFTextHasUnicodeMapError(textPage, i) == 1) unmapped++;
+                page = new PageText(p, PageString(textPage, count), count, unmapped);
+                return Response.Success(r.Id);
+            });
+            // One unreadable page must not lose the rest of the run; the indexer records it and moves on.
+            pages.Add(page ?? new PageText(p, "", 0, 0, result.Message ?? "Page failed to load."));
+        }
+        return Response.Success(r.Id) with { Pages = pages };
+    }
 
     static Response Find(Request r, FpdfDocumentT doc)
     {
@@ -222,6 +299,89 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         }
     }
 
+    static string PageString(FpdfTextpageT textPage, int count)
+    {
+        if (count <= 0) return "";
+        var buffer = new ushort[count + 1];
+        var written = fpdf_text.FPDFTextGetText(textPage, 0, count, ref buffer[0]);
+        return Utf16(buffer, Math.Max(0, written - 1));
+    }
+
+    /// <summary>A document information entry, or null when it is missing or blank.</summary>
+    static string? MetaText(FpdfDocumentT doc, string tag)
+    {
+        // Returns the size in bytes (UTF-16LE, including the terminator); 2 means empty.
+        var bytes = fpdf_doc.FPDF_GetMetaText(doc, tag, IntPtr.Zero, 0);
+        if (bytes is <= 2 or > 1 << 20) return null;
+        var buffer = Marshal.AllocHGlobal((int)bytes);
+        try
+        {
+            fpdf_doc.FPDF_GetMetaText(doc, tag, buffer, bytes);
+            var value = Marshal.PtrToStringUni(buffer, (int)(bytes / 2) - 1).Trim();
+            return value.Length == 0 ? null : value;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>
+    /// The bookmark tree, depth first. Bounded by <see cref="DocInfo.MaxOutlineItems"/> and a visited set,
+    /// because a malformed file can make the tree loop.
+    /// </summary>
+    static List<OutlineItem> Outline(FpdfDocumentT doc)
+    {
+        var items = new List<OutlineItem>();
+        var visited = new HashSet<IntPtr>();
+        var stack = new Stack<(FpdfBookmarkT Bookmark, int Depth)>();
+        Push(fpdf_doc.FPDFBookmarkGetFirstChild(doc, null), 0);
+        while (stack.Count > 0 && items.Count < DocInfo.MaxOutlineItems)
+        {
+            var (bookmark, depth) = stack.Pop();
+            items.Add(new OutlineItem(BookmarkTitle(bookmark), BookmarkPage(doc, bookmark), depth));
+            // Siblings go under children on the stack, so children come out first: reading order.
+            Push(fpdf_doc.FPDFBookmarkGetNextSibling(doc, bookmark), depth);
+            if (depth < 32) Push(fpdf_doc.FPDFBookmarkGetFirstChild(doc, bookmark), depth + 1);
+        }
+        return items;
+
+        void Push(FpdfBookmarkT? bookmark, int depth)
+        {
+            if (bookmark is null || bookmark.__Instance == IntPtr.Zero || !visited.Add(bookmark.__Instance)) return;
+            stack.Push((bookmark, depth));
+        }
+    }
+
+    static string BookmarkTitle(FpdfBookmarkT bookmark)
+    {
+        var bytes = fpdf_doc.FPDFBookmarkGetTitle(bookmark, IntPtr.Zero, 0);
+        if (bytes is <= 2 or > 1 << 16) return "";
+        var buffer = Marshal.AllocHGlobal((int)bytes);
+        try
+        {
+            fpdf_doc.FPDFBookmarkGetTitle(bookmark, buffer, bytes);
+            return Marshal.PtrToStringUni(buffer, (int)(bytes / 2) - 1).Trim();
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    static int BookmarkPage(FpdfDocumentT doc, FpdfBookmarkT bookmark)
+    {
+        var dest = fpdf_doc.FPDFBookmarkGetDest(doc, bookmark);
+        if (IsNull(dest))
+        {
+            var action = fpdf_doc.FPDFBookmarkGetAction(bookmark);
+            if (IsNull(action)) return -1;
+            dest = fpdf_doc.FPDFActionGetDest(doc, action);
+            if (IsNull(dest)) return -1;
+        }
+        return fpdf_doc.FPDFDestGetDestPageIndex(doc, dest);
+    }
+
     static string? PageLabel(FpdfDocumentT doc, int index)
     {
         // First call returns the size in bytes (UTF-16LE, including the terminator).
@@ -254,12 +414,16 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         FpdfBitmapT b => b.__Instance == IntPtr.Zero,
         FpdfTextpageT t => t.__Instance == IntPtr.Zero,
         FpdfSchhandleT s => s.__Instance == IntPtr.Zero,
+        FpdfDestT d => d.__Instance == IntPtr.Zero,
+        FpdfActionT a => a.__Instance == IntPtr.Zero,
         _ => false,
     };
 
-    static Response LastError(int id, string context, ErrorKind fallback = ErrorKind.Unknown)
+    static Response LastError(int id, string context, ErrorKind fallback = ErrorKind.Unknown) =>
+        Error(id, (uint)fpdfview.FPDF_GetLastError(), context, fallback);
+
+    static Response Error(int id, uint code, string context, ErrorKind fallback = ErrorKind.Unknown)
     {
-        var code = fpdfview.FPDF_GetLastError();
         var kind = code switch
         {
             2 => ErrorKind.File,

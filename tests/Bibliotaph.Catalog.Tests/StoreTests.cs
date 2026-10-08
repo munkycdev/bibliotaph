@@ -1,6 +1,5 @@
 using Bibliotaph.Core;
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
@@ -61,10 +60,5 @@ public sealed class StoreTests : IAsyncLifetime
         var again = await roots.AddAsync(Path.Combine(_dir, "Adventures"), TestContext.Current.CancellationToken);
         Assert.Equal(added.Id, again.Id);
         Assert.Equal(SourceRootAvailability.Online, again.Availability);
-    }
-
-    sealed class Factory(CatalogDatabase database) : IDbContextFactory<CatalogDbContext>
-    {
-        public CatalogDbContext CreateDbContext() => database.CreateContext();
     }
 }

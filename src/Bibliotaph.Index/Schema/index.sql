@@ -4,6 +4,37 @@
 --
 -- document_id values refer to document.id in catalog.db (attached at query time, so no foreign keys).
 
+-- What the Probe stage learned about each document, and its title until slice 2's metadata takes over.
+-- document_id = document.id in catalog.db.
+CREATE TABLE doc (
+    document_id     INTEGER PRIMARY KEY,
+    content_hash    TEXT    NOT NULL,
+    format          TEXT    NOT NULL,              -- pdf, jpg, png
+    display_title   TEXT    NOT NULL,              -- from the file name, cleaned up
+    page_count      INTEGER,
+    width_px        INTEGER,                       -- images only
+    height_px       INTEGER,
+    encrypted       INTEGER NOT NULL DEFAULT 0,
+    can_copy        INTEGER NOT NULL DEFAULT 1,
+    meta_title      TEXT,                          -- the PDF's own document information, as provisional text
+    meta_author     TEXT,
+    meta_subject    TEXT,
+    meta_keywords   TEXT,
+    folder_hint     TEXT,                          -- folder names above the file, for search
+    cover           TEXT,                          -- cover file name in the cache folder, once made
+    added_utc       TEXT    NOT NULL
+);
+
+-- Bookmarks, flattened in reading order. pdf_page is -1 for a bookmark that points outside the file.
+CREATE TABLE outline (
+    document_id  INTEGER NOT NULL,
+    ord          INTEGER NOT NULL,
+    title        TEXT    NOT NULL,
+    pdf_page     INTEGER NOT NULL,
+    depth        INTEGER NOT NULL,
+    PRIMARY KEY (document_id, ord)
+) WITHOUT ROWID;
+
 -- One row per PDF page, with its extracted or OCR'd text.
 CREATE TABLE page (
     id            INTEGER PRIMARY KEY,
@@ -15,9 +46,25 @@ CREATE TABLE page (
     text          TEXT    NOT NULL DEFAULT '',
     text_source   TEXT    NOT NULL DEFAULT 'pdf' CHECK (text_source IN ('pdf', 'ocr', 'none')),
     text_quality  REAL,                          -- 0..1; low values flag the page for OCR
+    needs_ocr     INTEGER NOT NULL DEFAULT 0,
+    error         TEXT,                          -- why the page has no text, when extraction or OCR failed
     fingerprint   TEXT,                          -- page-text fingerprint, for matching pages across revisions
     UNIQUE (document_id, pdf_page)
 );
+
+CREATE INDEX page_needs_ocr ON page (document_id) WHERE needs_ocr = 1;
+
+-- Word boxes for OCR'd pages, in PDF points (origin bottom-left), so selection works on scanned pages.
+CREATE TABLE ocr_word (
+    page_id  INTEGER NOT NULL,
+    ord      INTEGER NOT NULL,
+    text     TEXT    NOT NULL,
+    left_pt  REAL    NOT NULL,
+    top_pt   REAL    NOT NULL,
+    right_pt REAL    NOT NULL,
+    bottom_pt REAL   NOT NULL,
+    PRIMARY KEY (page_id, ord)
+) WITHOUT ROWID;
 
 -- Inside-documents search. External content, so snippet() always quotes page.text.
 CREATE VIRTUAL TABLE page_fts USING fts5(
@@ -40,6 +87,7 @@ END;
 
 -- Documents search over titles and effective metadata. rowid = document_id.
 -- Confirmed and provisional values sit in separate columns so ranking can prefer confirmed ones.
+-- Until slice 2, title is the display title and provisional holds the PDF's own information and folder names.
 CREATE VIRTUAL TABLE doc_fts USING fts5(
     title,
     subtitle,
@@ -71,7 +119,7 @@ CREATE TABLE job (
     content_hash       TEXT    NOT NULL,
     stage              TEXT    NOT NULL,
     stage_version      INTEGER NOT NULL,
-    status             TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'leased', 'done', 'failed')),
+    status             TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'leased', 'done', 'failed', 'blocked')),
     priority           INTEGER NOT NULL DEFAULT 0,  -- higher runs first; opening a document bumps its jobs
     attempts           INTEGER NOT NULL DEFAULT 0,
     not_before_utc     TEXT,
@@ -83,5 +131,6 @@ CREATE TABLE job (
 );
 
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
+CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;

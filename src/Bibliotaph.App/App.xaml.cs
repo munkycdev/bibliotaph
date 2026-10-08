@@ -91,6 +91,8 @@ public partial class App : Application
             ContentRootPath = AppContext.BaseDirectory,
             DisableDefaults = true,
         });
+        // A missing registration fails at startup, where the smoke test sees it, not when a page first opens.
+        builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateOnBuild = true }));
         builder.Services.AddSerilog();
         builder.Services.AddSingleton(paths);
         builder.Services.AddSingleton(TimeProvider.System);
@@ -112,9 +114,29 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
         builder.Services.AddSingleton<ISourceFileReader, SourceFileReader>();
 
+        // Processing: scan, hash, and the job queue's stages. Registered after the index writer, so it stops first
+        // (hosted services stop in reverse order) and can still record the job it was on.
+        builder.Services.AddSingleton<LibraryStore>();
+        builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton<CoverCache>();
+        builder.Services.AddSingleton<IImageCodec, WpfImageCodec>();
+        builder.Services.AddSingleton<IPasswordStore, NoPasswords>();
+        builder.Services.AddSingleton<FileHasher>();
+        builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
+        builder.Services.AddSingleton<StageServices>();
+        builder.Services.AddSingleton<IStage, ProbeStage>();
+        builder.Services.AddSingleton<IStage, TextStage>();
+        builder.Services.AddSingleton<IStage, CoversStage>();
+        builder.Services.AddSingleton<IStage, OcrStage>();
+        builder.Services.AddSingleton(new IndexingOptions());
+        builder.Services.AddSingleton<IndexingService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+
         // Shell
         builder.Services.AddSingleton<ThemeService>();
         builder.Services.AddSingleton<LibraryFolders>();
+        builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();

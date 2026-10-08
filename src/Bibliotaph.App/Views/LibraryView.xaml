@@ -22,8 +22,8 @@
                   Message="Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are."
                   ActionText="Add a folder" ActionIcon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
     <c:EmptyState Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                  Title="Nothing scanned yet."
-                  Message="{Binding FolderSummary, StringFormat='{}{0} to be scanned. Your books will appear here once scanning arrives with the next build.'}"
+                  Title="Indexing your library."
+                  Message="{Binding Activity.Summary, StringFormat='{}{0}. Browsing and search arrive with the next part of this build.'}"
                   ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
   </StackPanel>
 </UserControl>
