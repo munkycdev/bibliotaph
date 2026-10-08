@@ -141,4 +141,30 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         await _library.ReconcileRootAsync(root, [File("a.pdf"), File("b.pdf")], Ct);
         Assert.NotNull(await _library.GetSourceAsync(documentId, Ct));
     }
+
+    [Fact]
+    public async Task The_library_shows_documents_in_folders_still_in_use()
+    {
+        var kept = await RootAsync("Kept");
+        var removed = await RootAsync("Removed");
+        await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("gone.pdf"), File("unhashed.pdf")], Ct);
+        await _library.ReconcileRootAsync(removed, [File("shared copy.pdf"), File("only here.pdf")], Ct);
+        var ids = new Dictionary<string, long>();
+        foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct))
+        {
+            var name = Path.GetFileName(file.FullPath);
+            if (name == "unhashed.pdf") continue;
+            var hash = Hash(name switch { "shared.pdf" or "shared copy.pdf" => 'a', "gone.pdf" => 'b', _ => 'c' });
+            ids[name] = (await _library.AttachHashAsync(file, hash, Ct))!.Value.DocumentId;
+        }
+        await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("unhashed.pdf")], Ct); // gone.pdf goes missing
+        await _roots.RemoveAsync(removed, Ct);
+
+        Assert.Equal([ids["shared.pdf"]], await _library.GetVisibleDocumentIdsAsync(ct: Ct));
+        Assert.Equal([ids["shared.pdf"]], await _library.GetVisibleDocumentIdsAsync(kept, Ct));
+        Assert.Empty(await _library.GetVisibleDocumentIdsAsync(removed, Ct));
+
+        var locations = await _library.GetLocationsAsync(ids["shared.pdf"], Ct);
+        Assert.Equal([Path.Combine(_dir, "Kept", "shared.pdf")], locations.Select(l => l.FullPath));
+    }
 }

@@ -20,6 +20,9 @@ public sealed record DocumentSource(long DocumentId, string ContentHash, string 
 
 public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents);
 
+/// <summary>One place a document's file is, for the inspector.</summary>
+public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability);
+
 /// <summary>
 /// File locations and documents in catalog.db: the scanner's reconciliation and the hasher's results.
 /// A document is its content hash; locations come and go. Nothing here reads or writes a source file.
@@ -169,6 +172,31 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         var folders = (Path.GetDirectoryName(locations[0].RelativePath) ?? "")
             .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
         return new DocumentSource(document.Id, document.ContentHash, document.Format, paths[0], string.Join(" / ", folders), paths);
+    }
+
+    /// <summary>
+    /// The documents the library shows: those with a file that isn't missing, in a folder the user hasn't removed
+    /// (an offline folder's books stay). With <paramref name="rootId"/>, only that folder's.
+    /// </summary>
+    public async Task<IReadOnlyList<long>> GetVisibleDocumentIdsAsync(long? rootId = null, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var locations = db.FileLocations.Where(f =>
+            f.DocumentId != null && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
+        if (rootId is { } id) locations = locations.Where(f => f.SourceRootId == id);
+        return await locations.Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
+    }
+
+    /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>
+    public async Task<IReadOnlyList<DocumentLocation>> GetLocationsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId == documentId && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .OrderBy(f => f.State).ThenBy(f => f.Id)
+            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, f.State, f.SourceRoot.Availability })
+            .ToListAsync(ct);
+        return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability))];
     }
 
     public async Task<LibraryCounts> GetCountsAsync(CancellationToken ct = default)
