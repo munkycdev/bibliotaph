@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Spike leftovers
+spikes/pdf-feasibility/.probe
+spikes/pdf-feasibility/corpus/generated/*.pdf
+
+# Local app data never belongs in the repo
+*.db
+*.db-wal
+*.db-shm

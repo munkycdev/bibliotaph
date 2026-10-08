@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(BibTfm)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Bibliotaph.Spike.Viewer</RootNamespace>
+    <AssemblyName>ViewerPrototype</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Lets the project compile on non-Windows build agents; it only runs on Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Spike.Contracts\Spike.Contracts.csproj" />
+    <ProjectReference Include="..\Spike.WorkerHost\Spike.WorkerHost.csproj" />
+    <ProjectReference Include="..\PdfWorker\PdfWorker.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

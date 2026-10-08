@@ -1,0 +1,29 @@
+{
+  "root": "C:\\Users\\david\\OneDrive - Castillo Life\\eBooks\\D&D",
+  "files": [
+    { "path": "Game Masters Books/Games Masters Book of Traps Puzzles and Dungeons.pdf", "category": "largest file (782 MB)" },
+    { "path": "DungeonCrawlerCarl/carl_rpg_core_rulebook_digital_hi-res_watermarked.pdf", "category": "most pages (650), page labels" },
+    { "path": "Game Masters Books/Games Masters Book of Astonishing Random Tables.pdf", "category": "scanned, page labels" },
+    { "path": "Game Masters Books/Games Masters Book of Legendary Dragons.pdf", "category": "scanned" },
+    { "path": "Coriolis/coriolis_rulebook_ENG_digital_201022_opt.pdf", "category": "multi-column" },
+    { "path": "Castles & Crusades/Tome_of_the_Unclean.pdf", "category": "multi-column, older layout" },
+    { "path": "Cosmere/SL002_Stormlight_World_Guide_digital.pdf", "category": "art-heavy" },
+    { "path": "FateForge/bestiary_creatures_vol1.pdf", "category": "long, image-heavy" },
+    { "path": "Twilight 2000/T2k_Players_Manual_220804.pdf", "category": "encrypted, restricted" },
+    { "path": "Coriolis/COR_emissary_lost_digital.pdf", "category": "encrypted, restricted" },
+    { "path": "Coriolis/battlemaps_download.pdf", "category": "battle maps" },
+    { "path": "FateForge/Cartography_Lands_Encyclopedia_1_EN_09-02-22/FATEFORGE_Accessories_Cartography_Lands-Kaan_EN_28-04-21.pdf", "category": "A3 map" },
+    { "path": "FateForge/gamemasterscreen_greatwyrm.pdf", "category": "extreme aspect ratio" },
+    { "path": "Ryokos Guide to the Yokai Realms/RyokoItemCards_-_Ryoko_s_Treasures_v1.00__Digital_.pdf", "category": "many tiny pages" },
+    { "path": "HumbleBundle/OutOfTheBox.pdf", "category": "different producer" },
+    { "path": "Oneshots/Quartershots/QSRR-Prep-DCC-v1_0-interactive.pdf", "category": "interactive" },
+    { "path": "Truly, Madly, Deeply/912541-TMD_Consolidated.pdf", "category": "duplicate pair A" },
+    { "path": "Truly, Madly, Deeply/TrulyMadlyDeeply.pdf", "category": "duplicate pair B" },
+
+    { "path": "generated/password-open.pdf", "relativeTo": "manifest", "category": "fixture: open password", "password": "fixture:bibliotaph-fixture" },
+    { "path": "generated/password-open.pdf", "relativeTo": "manifest", "category": "fixture: password not supplied" },
+    { "path": "generated/broken-xref.pdf", "relativeTo": "manifest", "category": "fixture: damaged cross-reference (repairable)" },
+    { "path": "generated/truncated.pdf", "relativeTo": "manifest", "category": "fixture: truncated download" },
+    { "path": "generated/mixed-scan-digital.pdf", "relativeTo": "manifest", "category": "fixture: scanned and digital pages mixed" }
+  ]
+}

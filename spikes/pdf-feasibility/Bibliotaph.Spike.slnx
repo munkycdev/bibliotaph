@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Harness/Harness.csproj" />
+    <Project Path="src/PdfWorker/PdfWorker.csproj" />
+    <Project Path="src/Spike.Contracts/Spike.Contracts.csproj" />
+    <Project Path="src/Spike.WorkerHost/Spike.WorkerHost.csproj" />
+    <Project Path="src/ViewerPrototype/ViewerPrototype.csproj" />
+  </Folder>
+</Solution>

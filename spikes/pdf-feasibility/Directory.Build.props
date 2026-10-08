@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <!-- Dave's call: target the .NET 11 RC; see NOTES.md for the move to GA. Override with -p:BibTfm=net10.0 to build on an older SDK. -->
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <BibTfm Condition="'$(BibTfm)' == ''">net11.0</BibTfm>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Every project builds into one folder so the harness and viewer find PdfWorker next to themselves. -->
+    <OutputPath>$(MSBuildThisFileDirectory)bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+</Project>

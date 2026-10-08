@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <RootNamespace>Bibliotaph.Spike.Contracts</RootNamespace>
+  </PropertyGroup>
+</Project>

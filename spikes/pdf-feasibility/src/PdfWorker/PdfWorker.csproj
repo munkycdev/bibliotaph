@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <RootNamespace>Bibliotaph.Spike.PdfWorker</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- PDFium is native x64; keep the worker 64-bit so large books fit in its address space. -->
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="PDFiumCore" Version="156.0.8076" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Spike.Contracts\Spike.Contracts.csproj" />
+  </ItemGroup>
+</Project>
