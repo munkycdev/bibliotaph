@@ -48,6 +48,8 @@ public partial class App : Application
 
         try
         {
+            StartOver.FinishIfRequested(paths, e.Args);
+            foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
             _host = BuildHost(paths);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
@@ -141,6 +143,7 @@ public partial class App : Application
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
         builder.Services.AddSingleton<PasswordVault>();
         builder.Services.AddSingleton<IPasswordStore>(sp => sp.GetRequiredService<PasswordVault>());
+        builder.Services.AddSingleton<StartOver>();
         builder.Services.AddSingleton<FileHasher>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<StageServices>();

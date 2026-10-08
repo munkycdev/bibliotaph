@@ -80,6 +80,31 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
             log.LogWarning("Forgetting a PDF password failed: {Error}", new Win32Exception(error).Message);
     }
 
+    /// <summary>Forgets every password Bibliotaph remembered, for Start over. Returns how many there were.</summary>
+    public int ForgetAll()
+    {
+        if (!CredEnumerate(TargetPrefix + "*", 0, out var count, out var list))
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error != NotFound) log.LogWarning("Listing remembered passwords failed: {Error}", new Win32Exception(error).Message);
+            return 0;
+        }
+        var targets = new List<string>((int)count);
+        try
+        {
+            for (var i = 0; i < count; i++)
+                targets.Add(Marshal.PtrToStructure<Credential>(Marshal.ReadIntPtr(list, i * nint.Size)).TargetName);
+        }
+        finally
+        {
+            CredFree(list);
+        }
+        foreach (var target in targets)
+            if (!CredDelete(target, GenericCredential, 0))
+                log.LogWarning("Forgetting a PDF password failed: {Error}", new Win32Exception(Marshal.GetLastWin32Error()).Message);
+        return targets.Count;
+    }
+
     static string Target(string contentHash) => TargetPrefix + contentHash;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -111,6 +136,10 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
     [DllImport("advapi32", EntryPoint = "CredDeleteW", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool CredDelete(string target, uint type, uint flags);
+
+    [DllImport("advapi32", EntryPoint = "CredEnumerateW", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool CredEnumerate(string filter, uint flags, out uint count, out nint credentials);
 
     [DllImport("advapi32")]
     static extern void CredFree(nint buffer);

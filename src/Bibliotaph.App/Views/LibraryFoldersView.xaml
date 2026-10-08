@@ -129,5 +129,16 @@
             c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
     <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0"
                Text="Removing a folder keeps your notes, collections and corrections. Files are never deleted." />
+
+    <!-- Start over: a development aid, to be removed before 1.0. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Start over" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
+                   Text="Forgets every folder, the index, covers, settings and remembered passwords, then restarts. Your files are not touched. Here while Bibliotaph is in development." />
+        <Button Content="Start over…" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Left"
+                Command="{Binding StartOverCommand}" />
+      </StackPanel>
+    </Border>
   </StackPanel>
 </UserControl>

@@ -28,7 +28,7 @@ public sealed partial class PendingFolder(string path) : ObservableObject
 /// Removing a folder keeps its catalog rows and the user's work.
 /// </summary>
 public sealed partial class LibraryFoldersViewModel(
-    SourceRootStore roots, IndexingService indexing, LibraryActivity activity, LibraryFolders folders) : PageViewModel
+    SourceRootStore roots, IndexingService indexing, LibraryActivity activity, LibraryFolders folders, StartOver startOver) : PageViewModel
 {
     public override Route Route => Route.LibraryFolders;
     public override string Section => "Settings";
@@ -165,4 +165,11 @@ public sealed partial class LibraryFoldersViewModel(
 
     [RelayCommand]
     void Rescan() => indexing.RequestScan();
+
+    /// <summary>Deletes everything Bibliotaph stores and restarts, after asking. A development aid until 1.0.</summary>
+    [RelayCommand]
+    void StartOver()
+    {
+        if (Services.StartOver.Confirm()) startOver.Run();
+    }
 }
