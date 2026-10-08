@@ -1,0 +1,75 @@
+# Write-capable file APIs. Source files are read-only by construction; see Directory.Build.targets
+# for the projects allowed to use these. Read-only APIs (File.OpenRead, File.ReadAll*) stay allowed.
+T:System.IO.FileStream;Use ISourceFileReader for source files. Only Processing and Pdf.Host may open file streams.
+T:System.IO.StreamWriter;Bibliotaph never writes files outside Processing and Pdf.Host.
+T:System.IO.BinaryWriter;Bibliotaph never writes files outside Processing and Pdf.Host.
+T:System.IO.RandomAccess;Use ISourceFileReader for source files.
+M:System.IO.File.Open(System.String,System.IO.FileMode);File writes are not allowed here.
+M:System.IO.File.Open(System.String,System.IO.FileMode,System.IO.FileAccess);File writes are not allowed here.
+M:System.IO.File.Open(System.String,System.IO.FileMode,System.IO.FileAccess,System.IO.FileShare);File writes are not allowed here.
+M:System.IO.File.Open(System.String,System.IO.FileStreamOptions);File writes are not allowed here.
+M:System.IO.File.OpenHandle(System.String,System.IO.FileMode,System.IO.FileAccess,System.IO.FileShare,System.IO.FileOptions,System.Int64);File writes are not allowed here.
+M:System.IO.File.OpenWrite(System.String);File writes are not allowed here.
+M:System.IO.File.Create(System.String);File writes are not allowed here.
+M:System.IO.File.Create(System.String,System.Int32);File writes are not allowed here.
+M:System.IO.File.Create(System.String,System.Int32,System.IO.FileOptions);File writes are not allowed here.
+M:System.IO.File.CreateText(System.String);File writes are not allowed here.
+M:System.IO.File.AppendText(System.String);File writes are not allowed here.
+M:System.IO.File.WriteAllText(System.String,System.String);File writes are not allowed here.
+M:System.IO.File.WriteAllText(System.String,System.String,System.Text.Encoding);File writes are not allowed here.
+M:System.IO.File.WriteAllText(System.String,System.ReadOnlySpan{System.Char});File writes are not allowed here.
+M:System.IO.File.WriteAllText(System.String,System.ReadOnlySpan{System.Char},System.Text.Encoding);File writes are not allowed here.
+M:System.IO.File.WriteAllTextAsync(System.String,System.String,System.Threading.CancellationToken);File writes are not allowed here.
+M:System.IO.File.WriteAllTextAsync(System.String,System.String,System.Text.Encoding,System.Threading.CancellationToken);File writes are not allowed here.
+M:System.IO.File.WriteAllBytes(System.String,System.Byte[]);File writes are not allowed here.
+M:System.IO.File.WriteAllBytes(System.String,System.ReadOnlySpan{System.Byte});File writes are not allowed here.
+M:System.IO.File.WriteAllBytesAsync(System.String,System.Byte[],System.Threading.CancellationToken);File writes are not allowed here.
+M:System.IO.File.WriteAllLines(System.String,System.String[]);File writes are not allowed here.
+M:System.IO.File.WriteAllLines(System.String,System.Collections.Generic.IEnumerable{System.String});File writes are not allowed here.
+M:System.IO.File.WriteAllLines(System.String,System.String[],System.Text.Encoding);File writes are not allowed here.
+M:System.IO.File.WriteAllLines(System.String,System.Collections.Generic.IEnumerable{System.String},System.Text.Encoding);File writes are not allowed here.
+M:System.IO.File.WriteAllLinesAsync(System.String,System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken);File writes are not allowed here.
+M:System.IO.File.AppendAllText(System.String,System.String);File writes are not allowed here.
+M:System.IO.File.AppendAllText(System.String,System.String,System.Text.Encoding);File writes are not allowed here.
+M:System.IO.File.AppendAllTextAsync(System.String,System.String,System.Threading.CancellationToken);File writes are not allowed here.
+M:System.IO.File.AppendAllLines(System.String,System.Collections.Generic.IEnumerable{System.String});File writes are not allowed here.
+M:System.IO.File.AppendAllBytes(System.String,System.Byte[]);File writes are not allowed here.
+M:System.IO.File.Delete(System.String);File deletes are not allowed here.
+M:System.IO.File.Move(System.String,System.String);File moves are not allowed here.
+M:System.IO.File.Move(System.String,System.String,System.Boolean);File moves are not allowed here.
+M:System.IO.File.Copy(System.String,System.String);File copies are not allowed here.
+M:System.IO.File.Copy(System.String,System.String,System.Boolean);File copies are not allowed here.
+M:System.IO.File.Replace(System.String,System.String,System.String);File writes are not allowed here.
+M:System.IO.File.Replace(System.String,System.String,System.String,System.Boolean);File writes are not allowed here.
+M:System.IO.File.SetAttributes(System.String,System.IO.FileAttributes);File attribute changes are not allowed here.
+M:System.IO.File.SetCreationTime(System.String,System.DateTime);File attribute changes are not allowed here.
+M:System.IO.File.SetCreationTimeUtc(System.String,System.DateTime);File attribute changes are not allowed here.
+M:System.IO.File.SetLastWriteTime(System.String,System.DateTime);File attribute changes are not allowed here.
+M:System.IO.File.SetLastWriteTimeUtc(System.String,System.DateTime);File attribute changes are not allowed here.
+M:System.IO.File.SetLastAccessTime(System.String,System.DateTime);File attribute changes are not allowed here.
+M:System.IO.File.SetLastAccessTimeUtc(System.String,System.DateTime);File attribute changes are not allowed here.
+M:System.IO.File.SetUnixFileMode(System.String,System.IO.UnixFileMode);File attribute changes are not allowed here.
+M:System.IO.File.Encrypt(System.String);File writes are not allowed here.
+M:System.IO.File.Decrypt(System.String);File writes are not allowed here.
+M:System.IO.FileInfo.Open(System.IO.FileMode);File writes are not allowed here.
+M:System.IO.FileInfo.Open(System.IO.FileMode,System.IO.FileAccess);File writes are not allowed here.
+M:System.IO.FileInfo.Open(System.IO.FileMode,System.IO.FileAccess,System.IO.FileShare);File writes are not allowed here.
+M:System.IO.FileInfo.Open(System.IO.FileStreamOptions);File writes are not allowed here.
+M:System.IO.FileInfo.OpenWrite;File writes are not allowed here.
+M:System.IO.FileInfo.Create;File writes are not allowed here.
+M:System.IO.FileInfo.CreateText;File writes are not allowed here.
+M:System.IO.FileInfo.AppendText;File writes are not allowed here.
+M:System.IO.FileInfo.Delete;File deletes are not allowed here.
+M:System.IO.FileInfo.MoveTo(System.String);File moves are not allowed here.
+M:System.IO.FileInfo.MoveTo(System.String,System.Boolean);File moves are not allowed here.
+M:System.IO.FileInfo.CopyTo(System.String);File copies are not allowed here.
+M:System.IO.FileInfo.CopyTo(System.String,System.Boolean);File copies are not allowed here.
+M:System.IO.FileInfo.Replace(System.String,System.String);File writes are not allowed here.
+M:System.IO.FileInfo.Replace(System.String,System.String,System.Boolean);File writes are not allowed here.
+M:System.IO.FileSystemInfo.Delete;File deletes are not allowed here.
+M:System.IO.Directory.Delete(System.String);Directory deletes are not allowed here.
+M:System.IO.Directory.Delete(System.String,System.Boolean);Directory deletes are not allowed here.
+M:System.IO.Directory.Move(System.String,System.String);Directory moves are not allowed here.
+M:System.IO.DirectoryInfo.Delete;Directory deletes are not allowed here.
+M:System.IO.DirectoryInfo.Delete(System.Boolean);Directory deletes are not allowed here.
+M:System.IO.DirectoryInfo.MoveTo(System.String);Directory moves are not allowed here.

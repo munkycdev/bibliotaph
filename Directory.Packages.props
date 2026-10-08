@@ -1,0 +1,34 @@
+<Project>
+  <!-- Central package management: every package version lives here and nowhere else. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+
+    <!-- The .NET 11 band (runtime, EF Core, Extensions). Move to the GA version in November 2026. -->
+    <DotNetPackagesVersion Condition="'$(DotNetPackagesVersion)' == ''">11.0.0-rc.1.26425.128</DotNetPackagesVersion>
+  </PropertyGroup>
+
+  <ItemGroup Label="Microsoft">
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="App">
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="Dapper" Version="2.1.89" />
+    <PackageVersion Include="PDFiumCore" Version="156.0.8076" />
+    <PackageVersion Include="Serilog" Version="4.4.0" />
+    <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    <PackageVersion Include="PDFsharp" Version="6.2.4" />
+  </ItemGroup>
+</Project>

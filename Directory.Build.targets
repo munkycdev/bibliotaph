@@ -1,0 +1,49 @@
+<Project>
+
+  <!--
+    Source files are read-only by construction (architecture: "Safety, secrets").
+    BannedSymbols.txt rejects write-capable file APIs in every project except those that set
+    AllowFileWrites: Processing and Pdf.Host (the only code that touches source files, read-only,
+    through one reader), the PdfWorker (it maps the host's shared buffer), tests and tools.
+  -->
+  <PropertyGroup>
+    <AllowFileWrites Condition="'$(AllowFileWrites)' == '' and '$(IsTestProject)' == 'true'">true</AllowFileWrites>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(AllowFileWrites)' != 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(RepoRoot)BannedSymbols.txt" Link="BannedSymbols.txt" Visible="false" />
+  </ItemGroup>
+
+  <!--
+    BundledExe copies another executable project's whole output folder (exe, deps.json,
+    runtimeconfig.json, native runtimes) into a subfolder of this project's output.
+    The app uses it to ship PdfWorker in pdfworker\; the PDF tests use it for the worker and a test host.
+
+      <BundledExe Include="..\..\src\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
+  -->
+  <ItemGroup Condition="'@(BundledExe)' != ''">
+    <ProjectReference Include="@(BundledExe)" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <!-- Target batching: runs once per BundledExe, so %(BundledExe.Folder) is that item's folder. -->
+  <Target Name="CopyBundledExes" AfterTargets="Build" Condition="'@(BundledExe)' != ''" Outputs="%(BundledExe.Identity)">
+    <PropertyGroup>
+      <_BundledExeFolder>%(BundledExe.Folder)</_BundledExeFolder>
+    </PropertyGroup>
+    <MSBuild Projects="@(BundledExe)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledExeTarget" />
+    </MSBuild>
+    <ItemGroup>
+      <_BundledExeFile Include="%(_BundledExeTarget.RootDir)%(_BundledExeTarget.Directory)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_BundledExeFile)"
+          DestinationFiles="@(_BundledExeFile->'$(OutDir)$(_BundledExeFolder)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <_BundledExeTarget Remove="@(_BundledExeTarget)" />
+      <_BundledExeFile Remove="@(_BundledExeFile)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

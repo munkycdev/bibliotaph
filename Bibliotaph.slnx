@@ -1,0 +1,33 @@
+<Solution>
+  <Folder Name="/build/">
+    <File Path=".editorconfig" />
+    <File Path="BannedSymbols.txt" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Bibliotaph.App/Bibliotaph.App.csproj" />
+    <Project Path="src/Bibliotaph.Catalog/Bibliotaph.Catalog.csproj" />
+    <Project Path="src/Bibliotaph.Classification/Bibliotaph.Classification.csproj" />
+    <Project Path="src/Bibliotaph.Core/Bibliotaph.Core.csproj" />
+    <Project Path="src/Bibliotaph.Index/Bibliotaph.Index.csproj" />
+    <Project Path="src/Bibliotaph.Pdf.Contracts/Bibliotaph.Pdf.Contracts.csproj" />
+    <Project Path="src/Bibliotaph.Pdf.Host/Bibliotaph.Pdf.Host.csproj" />
+    <Project Path="src/Bibliotaph.PdfWorker/Bibliotaph.PdfWorker.csproj" />
+    <Project Path="src/Bibliotaph.Processing/Bibliotaph.Processing.csproj" />
+    <Project Path="src/Bibliotaph.Viewer/Bibliotaph.Viewer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bibliotaph.Catalog.Tests/Bibliotaph.Catalog.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Core.Tests/Bibliotaph.Core.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Index.Tests/Bibliotaph.Index.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Pdf.Host.TestHost/Bibliotaph.Pdf.Host.TestHost.csproj" />
+    <Project Path="tests/Bibliotaph.Pdf.Host.Tests/Bibliotaph.Pdf.Host.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/IconGen/IconGen.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,3 @@
+<Project>
+  <!-- Stops the root Directory.Build.targets from applying to spikes; each spike is self-contained. -->
+</Project>

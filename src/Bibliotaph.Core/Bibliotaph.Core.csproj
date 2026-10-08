@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Domain types and policies. References nothing and does no I/O. -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+</Project>
