@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The scanner on real folders, and the whole pipeline on synthetic PDFs through the real worker. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+    <BundledExe Include="..\..\src\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="PDFsharp" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Compile Include="..\Bibliotaph.Pdf.Host.Tests\SyntheticPdfs.cs" Link="SyntheticPdfs.cs" />
+    <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
+  </ItemGroup>
+</Project>
