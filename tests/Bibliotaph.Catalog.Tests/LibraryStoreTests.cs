@@ -110,7 +110,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     public async Task A_document_is_read_from_a_local_copy_before_an_online_only_one()
     {
         var root = await RootAsync();
-        await _library.ReconcileRootAsync(root, [File("Cloud/book.pdf", onlineOnly: true), File("Setting/Maps/book.pdf", size: 1000)], Ct);
+        await _library.ReconcileRootAsync(root, [File(Path.Combine("Cloud", "book.pdf"), onlineOnly: true), File(Path.Combine("Setting", "Maps", "book.pdf"), size: 1000)], Ct);
         long documentId = 0;
         foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct))
             documentId = (await _library.AttachHashAsync(file, Hash('d'), Ct))!.Value.DocumentId;

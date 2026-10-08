@@ -87,7 +87,10 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             var summary = await _queries.GetQueueSummaryAsync(timeout.Token);
             var progress = await _queries.GetProgressAsync(timeout.Token);
             var counts = await _libraryStore.GetCountsAsync(timeout.Token);
-            if (!_service.IsScanning && counts.Files > 0 && counts.Unhashed == 0 && summary.IsIdle && progress.Processing == 0) return progress;
+            // Hashing attaches a document in catalog.db before it queues the document's jobs in index.db, so idle
+            // also means every catalog document has reached index.db.
+            if (!_service.IsScanning && counts.Files > 0 && counts.Unhashed == 0 && progress.Documents == counts.Documents
+                && summary.IsIdle && progress.Processing == 0) return progress;
         }
     }
 

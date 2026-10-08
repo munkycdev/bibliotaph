@@ -119,8 +119,8 @@ public sealed class SyntheticPdfs : IDisposable
         var page = document.AddPage();
         using (var gfx = XGraphics.FromPdfPage(page))
         {
-            var path = new XGraphicsPath();
-            path.AddString(ScannedPhrase, new XFontFamily(EmbeddedFontResolver.Family), XFontStyleEx.Regular, 40, new XPoint(72, 160), XStringFormats.Default);
+            var path = new XGraphicsPath { FillMode = XFillMode.Winding };
+            new GlyphOutlines(EmbeddedFontResolver.FontBytes()).AddString(path, ScannedPhrase, 40, new XPoint(72, 160));
             gfx.DrawPath(XBrushes.Black, path);
         }
         using var output = new MemoryStream();
@@ -184,7 +184,9 @@ public sealed class SyntheticPdfs : IDisposable
 
         public FontResolverInfo ResolveTypeface(string familyName, bool bold, bool italic) => new(FaceName);
 
-        public byte[] GetFont(string faceName)
+        public byte[] GetFont(string faceName) => FontBytes();
+
+        public static byte[] FontBytes()
         {
             using var stream = typeof(SyntheticPdfs).Assembly.GetManifestResourceStream("DMSans-Regular.ttf")
                 ?? throw new InvalidOperationException("DMSans-Regular.ttf is not embedded in the test assembly.");

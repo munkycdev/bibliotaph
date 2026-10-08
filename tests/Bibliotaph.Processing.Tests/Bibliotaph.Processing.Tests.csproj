@@ -16,6 +16,7 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Compile Include="..\Bibliotaph.Pdf.Host.Tests\SyntheticPdfs.cs" Link="SyntheticPdfs.cs" />
+    <Compile Include="..\Bibliotaph.Pdf.Host.Tests\GlyphOutlines.cs" Link="GlyphOutlines.cs" />
     <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
   </ItemGroup>
 </Project>
