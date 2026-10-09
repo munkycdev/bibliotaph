@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Bibliotaph.Catalog.Tests;
 
@@ -115,6 +116,32 @@ public sealed class CatalogDatabaseTests : IDisposable
         await database.MigrateAsync(TestContext.Current.CancellationToken);
 
         foreach (var table in new[] { "source_root", "file_location", "document", "assertion", "page_ref", "setting" })
+            Assert.Equal(1, Scalar(database.ConnectionString, $"SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = '{table}'"));
+    }
+
+    [Fact]
+    public async Task A_slice_1_catalog_migrates_to_slice_2_keeping_its_documents_and_with_a_backup_first()
+    {
+        var database = Database();
+        await using (var context = database.CreateContext())
+        {
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20261008172504_InitialCreate", TestContext.Current.CancellationToken);
+        }
+        using (var c = new SqliteConnection(database.ConnectionString))
+        {
+            c.Open();
+            using var command = c.CreateCommand();
+            command.CommandText = $"INSERT INTO document (content_hash, format, protection, created_utc) VALUES ('{new string('b', 64)}', 'pdf', 'None', '2026-10-08 12:00:00')";
+            command.ExecuteNonQuery();
+        }
+
+        var result = await database.MigrateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_Slice2Metadata", StringComparison.Ordinal));
+        Assert.NotNull(result.BackupPath);
+        Assert.Equal(1, Scalar(database.ConnectionString, "SELECT count(*) FROM document"));
+        foreach (var table in new[] { "rejection", "vocabulary_term", "vocabulary_alias", "classification_run", "ignored_folder_label" })
             Assert.Equal(1, Scalar(database.ConnectionString, $"SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = '{table}'"));
     }
 

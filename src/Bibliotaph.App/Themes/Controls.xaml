@@ -249,6 +249,67 @@
   </Style>
 
   <!-- A thin progress bar. Indeterminate (no total yet) sweeps a short block across. -->
+  <!-- .bt-field input: a plain single-line text box. -->
+  <Style x:Key="Bt.TextBox" TargetType="TextBox">
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource Bt.Text}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Bt.Accent}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <Border x:Name="Chrome" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                  BorderThickness="1" CornerRadius="6" Padding="9,6" SnapsToDevicePixels="True">
+            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- .bt-link: a small accent-coloured text button, with an optional icon through c:Ui.Icon. -->
+  <Style x:Key="Bt.Link" TargetType="Button">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Padding" Value="0,4" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <StackPanel Orientation="Horizontal" Background="Transparent" Margin="{TemplateBinding Padding}">
+            <c:LucideIcon x:Name="Icon" Size="13" Margin="0,0,5,0" VerticalAlignment="Center"
+                          Data="{Binding (c:Ui.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
+            <TextBlock x:Name="Text" Text="{TemplateBinding Content}" VerticalAlignment="Center" />
+          </StackPanel>
+          <ControlTemplate.Triggers>
+            <Trigger Property="c:Ui.Icon" Value="{x:Null}">
+              <Setter TargetName="Icon" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Text" Property="TextDecorations" Value="Underline" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style x:Key="Bt.ProgressBar" TargetType="ProgressBar">
     <Setter Property="Height" Value="6" />
     <Setter Property="Minimum" Value="0" />

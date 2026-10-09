@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
     <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
     <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
   </ItemGroup>

@@ -3,7 +3,7 @@ namespace Bibliotaph.Core;
 /// <summary>Which worker lane runs a stage. Lanes pause and run independently.</summary>
 public enum Lane
 {
-    /// <summary>Probe, Text and Covers: fast, and needed before a book is searchable.</summary>
+    /// <summary>Probe, Text, Covers and rule hints: fast, and needed before a book is searchable.</summary>
     Index,
 
     /// <summary>OCR of flagged pages: slow, so it never holds up the next book's text.</summary>
@@ -22,12 +22,13 @@ public static class Pipeline
         Stage.Probe => 1,
         Stage.Text => 1,
         Stage.Covers => 1,
+        Stage.RuleHints => 1,
         Stage.Ocr => 1,
         _ => 1,
     };
 
     public static Lane LaneOf(Stage stage) => stage == Stage.Ocr ? Lane.Ocr : Lane.Index;
 
-    /// <summary>The stages queued when a new document is found. Text and Covers follow from Probe; OCR from Text.</summary>
+    /// <summary>The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR from Text.</summary>
     public static Stage First => Stage.Probe;
 }

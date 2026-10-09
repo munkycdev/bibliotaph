@@ -4,9 +4,22 @@ using Bibliotaph.Core.Search;
 namespace Bibliotaph.Index;
 
 /// <summary>
+/// A vocabulary field condition: <c>type:adventure</c>, <c>-system:dnd</c>, <c>theme:unknown</c>. The value is matched
+/// against the terms' names (term_alias) and labels; <see cref="Fields"/> is more than one field for <c>system:</c>,
+/// which also looks at editions.
+/// </summary>
+public sealed record FacetCondition(IReadOnlyList<string> Fields, string Value, bool Prefix = false, bool Negated = false)
+{
+    public bool IsUnknown => !Prefix && Value == SearchQuery.Unknown;
+}
+
+/// <summary><c>level:</c> a stored level value ("3", "1-5", "n/a") or unknown.</summary>
+public sealed record LevelCondition(string Value, bool Negated = false);
+
+/// <summary>
 /// A parsed query turned into the pieces the SQL needs. FTS5 text is assembled only from quoted strings, the
-/// operators AND, OR, NOT and *, and the one column name <c>title</c>, so nothing the user types can become FTS5 or
-/// SQL syntax; every value reaches SQLite as a bound parameter.
+/// operators AND, OR, NOT and *, and the fixed doc_fts column names in <see cref="Column"/>, so nothing the user types
+/// can become FTS5 or SQL syntax; every value reaches SQLite as a bound parameter.
 /// </summary>
 public sealed record SearchPlan
 {
@@ -23,28 +36,57 @@ public sealed record SearchPlan
     /// <summary>When the query has exclusions but nothing to find (<c>-maps</c>): what to leave out.</summary>
     public string? TextExclude { get; init; }
 
-    /// <summary><c>title:</c> values, as a doc_fts expression limited to the title column.</summary>
-    public string? TitleMatch { get; init; }
+    /// <summary>
+    /// <c>title:</c>, <c>publisher:</c>, <c>author:</c>, <c>series:</c> and <c>tag:</c> values, as a doc_fts expression
+    /// with each value limited to its column.
+    /// </summary>
+    public string? FieldMatch { get; init; }
 
-    /// <summary><c>-title:</c> values: documents whose title matches are left out.</summary>
-    public string? TitleExclude { get; init; }
+    /// <summary>The same fields negated (<c>-publisher:</c>): documents that match are left out.</summary>
+    public string? FieldExclude { get; init; }
 
     public IReadOnlyList<string> Formats { get; init; } = [];
     public IReadOnlyList<string> ExcludedFormats { get; init; } = [];
     public IReadOnlyList<string> Folders { get; init; } = [];
     public IReadOnlyList<string> ExcludedFolders { get; init; } = [];
+    public IReadOnlyList<FacetCondition> Facets { get; init; } = [];
+    public IReadOnlyList<LevelCondition> Levels { get; init; } = [];
 
     /// <summary>True when the query asks for nothing at all, so the library shows everything.</summary>
-    public bool IsEmpty => TextMatch is null && TextExclude is null && TitleMatch is null && TitleExclude is null
-        && Formats.Count == 0 && ExcludedFormats.Count == 0 && Folders.Count == 0 && ExcludedFolders.Count == 0;
+    public bool IsEmpty => TextMatch is null && TextExclude is null && FieldMatch is null && FieldExclude is null
+        && Formats.Count == 0 && ExcludedFormats.Count == 0 && Folders.Count == 0 && ExcludedFolders.Count == 0
+        && Facets.Count == 0 && Levels.Count == 0;
 
-    /// <summary>Documents found by title and metadata: the text and title parts together.</summary>
-    public string? DocumentMatch => (TextMatch, TitleMatch) switch
+    /// <summary>Documents found by title and metadata: the text and text-field parts together.</summary>
+    public string? DocumentMatch => (TextMatch, FieldMatch) switch
     {
         (null, null) => null,
         ({ } text, null) => text,
-        (null, { } title) => title,
-        ({ } text, { } title) => $"({text}) AND ({title})",
+        (null, { } fields) => fields,
+        ({ } text, { } fields) => $"({text}) AND ({fields})",
+    };
+
+    /// <summary>The doc_fts column a text field searches, or null for a field that isn't one.</summary>
+    public static string? Column(SearchField field) => field switch
+    {
+        SearchField.Title => "title",
+        SearchField.Publisher => "publisher",
+        SearchField.Author => "authors",
+        SearchField.Series => "series",
+        SearchField.Tag => "tags",
+        _ => null,
+    };
+
+    /// <summary>The doc_facet fields a vocabulary field searches, or null for a field that isn't one.</summary>
+    public static IReadOnlyList<string>? FacetFields(SearchField field) => field switch
+    {
+        SearchField.System => ["system", "edition"],
+        SearchField.Edition => ["edition"],
+        SearchField.Type => ["type"],
+        SearchField.Setting => ["setting"],
+        SearchField.Theme => ["theme"],
+        SearchField.Environment => ["environment"],
+        _ => null,
     };
 
     public static SearchPlan From(SearchQuery query)
@@ -54,8 +96,10 @@ public sealed record SearchPlan
 
         var text = new List<QueryNode>();
         var excluded = new List<QueryNode>();
-        var titles = new List<string>();
-        var excludedTitles = new List<string>();
+        var fields = new List<string>();
+        var excludedFields = new List<string>();
+        var facets = new List<FacetCondition>();
+        var levels = new List<LevelCondition>();
         var formats = new List<string>();
         var excludedFormats = new List<string>();
         var folders = new List<string>();
@@ -67,10 +111,20 @@ public sealed record SearchPlan
             if (node is FieldNode field)
             {
                 var value = ValueText(field.Value);
+                if (Column(field.Field) is { } column)
+                {
+                    (negated ? excludedFields : fields).Add($"{column} : " + Fts(field.Value));
+                    continue;
+                }
+                if (FacetFields(field.Field) is { } facetFields)
+                {
+                    facets.Add(new FacetCondition(facetFields, value, field.Value is TermNode { Prefix: true }, negated));
+                    continue;
+                }
                 switch (field.Field)
                 {
-                    case SearchField.Title:
-                        (negated ? excludedTitles : titles).Add("title : " + Fts(field.Value));
+                    case SearchField.Level:
+                        levels.Add(new LevelCondition(value, negated));
                         break;
                     case SearchField.Format:
                         (negated ? excludedFormats : formats).AddRange(value == "image" ? [SourceFormats.Jpeg, SourceFormats.Png] : [value]);
@@ -92,12 +146,14 @@ public sealed record SearchPlan
         {
             TextMatch = textMatch,
             TextExclude = textExclude,
-            TitleMatch = titles.Count == 0 ? null : string.Join(" AND ", titles),
-            TitleExclude = excludedTitles.Count == 0 ? null : string.Join(" OR ", excludedTitles),
+            FieldMatch = fields.Count == 0 ? null : string.Join(" AND ", fields),
+            FieldExclude = excludedFields.Count == 0 ? null : string.Join(" OR ", excludedFields),
             Formats = [.. formats.Distinct()],
             ExcludedFormats = [.. excludedFormats.Distinct()],
             Folders = folders,
             ExcludedFolders = excludedFolders,
+            Facets = facets,
+            Levels = levels,
         };
     }
 

@@ -6,4 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bibliotaph.Classification.Tests" />
+  </ItemGroup>
 </Project>

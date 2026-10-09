@@ -1,10 +1,12 @@
--- index.db: everything here is derived from source files and can be thrown away.
--- There are no migrations. Change this script, bump IndexSchema.Version (and user_version below),
--- and every install deletes and rebuilds index.db on next start; documents re-queue from their hashes.
+-- index.db: everything here is derived from source files and catalog.db, and can be thrown away.
+-- To change the schema, change this script and bump IndexSchema.Version (and user_version below). Then either add
+-- Schema/upgrade-N.sql, which brings a version N-1 file up to N without losing anything (for additive changes, so an
+-- upgrade doesn't re-OCR the library), or don't, and every install deletes and rebuilds index.db on next start;
+-- documents re-queue from their hashes.
 --
 -- document_id values refer to document.id in catalog.db (attached at query time, so no foreign keys).
 
--- What the Probe stage learned about each document, and its title until slice 2's metadata takes over.
+-- What the Probe stage learned about each document, and its title from the file name.
 -- document_id = document.id in catalog.db.
 CREATE TABLE doc (
     document_id     INTEGER PRIMARY KEY,
@@ -85,14 +87,59 @@ CREATE TRIGGER page_au AFTER UPDATE OF text ON page BEGIN
     INSERT INTO page_fts (rowid, text) VALUES (new.id, new.text);
 END;
 
+-- Effective metadata (Bibliotaph.Core.Metadata.EffectiveMetadata), projected from catalog.db's assertions whenever they
+-- change. A document without a row has no metadata beyond its file name. Labels are as cards show them.
+CREATE TABLE doc_meta (
+    document_id   INTEGER PRIMARY KEY,
+    title         TEXT,                          -- effective title; null shows doc.display_title
+    publisher     TEXT,
+    series        TEXT,
+    authors       TEXT,                          -- joined with "; "
+    year          INTEGER,
+    system_label  TEXT,                          -- "D&D 5e"
+    kind_label    TEXT,                          -- document types, "Adventure"
+    level_min     INTEGER,
+    level_max     INTEGER,
+    level_state   TEXT    NOT NULL DEFAULT 'unknown' CHECK (level_state IN ('unknown', 'known', 'na')),
+    needs_review  INTEGER NOT NULL DEFAULT 0,
+    suggested     INTEGER NOT NULL DEFAULT 0,    -- shows a value nobody has confirmed
+    tags          TEXT,                          -- the user's tags, joined with "; "
+    confirmed_text   TEXT,                       -- for doc_fts: labels and short labels of confirmed vocabulary values
+    provisional_text TEXT                        -- and of suggested ones
+);
+
+-- One row per value of a vocabulary field (system, edition, type, setting, theme, environment), for filters, facet
+-- counts and field search. value is the term key.
+CREATE TABLE doc_facet (
+    document_id  INTEGER NOT NULL,
+    field        TEXT    NOT NULL,
+    value        TEXT    NOT NULL,
+    label        TEXT    NOT NULL,
+    confirmed    INTEGER NOT NULL,
+    PRIMARY KEY (document_id, field, value)
+) WITHOUT ROWID;
+
+CREATE INDEX doc_facet_value ON doc_facet (field, value);
+
+-- Every name a term goes by, in comparison form, so system:5e finds the 5th edition. Copied from catalog.db's
+-- vocabulary whenever it changes.
+CREATE TABLE term_alias (
+    vocabulary  TEXT NOT NULL,
+    alias       TEXT NOT NULL,
+    value       TEXT NOT NULL,
+    PRIMARY KEY (vocabulary, alias, value)
+) WITHOUT ROWID;
+
 -- Documents search over titles and effective metadata. rowid = document_id.
--- Confirmed and provisional values sit in separate columns so ranking can prefer confirmed ones.
--- Until slice 2, title is the display title and provisional holds the PDF's own information and folder names.
+-- Confirmed and provisional values sit in separate columns so ranking can prefer confirmed ones: confirmed holds the
+-- labels of confirmed vocabulary values, provisional the suggested ones plus the PDF's own information, the file
+-- name's title and the folder names.
 CREATE VIRTUAL TABLE doc_fts USING fts5(
     title,
     subtitle,
     publisher,
     series,
+    authors,
     tags,
     notes,
     confirmed,
@@ -133,4 +180,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;

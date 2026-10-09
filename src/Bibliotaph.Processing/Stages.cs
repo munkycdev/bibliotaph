@@ -160,7 +160,7 @@ public sealed class ProbeStage(StageServices s) : IStage
                 FolderHint = source.FolderHint,
             }, [], [], ct);
             await s.Library.SetProbeResultAsync(job.DocumentId, null, ProtectionType.None, "{}", ct);
-            return StageOutcome.Complete(Stage.Text, Stage.Covers);
+            return StageOutcome.Complete(Stage.Text, Stage.Covers, Stage.RuleHints);
         }
 
         // The document is in the library from here, by its file name, even if it turns out not to open.
@@ -193,7 +193,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             var capabilities = JsonSerializer.Serialize(new { canCopy = doc.CanCopy, canPrint = doc.CanPrint, encrypted = doc.IsEncrypted });
             await s.Library.SetProbeResultAsync(job.DocumentId, doc.PageCount, protection, capabilities, ct);
         }
-        return StageOutcome.Complete(Stage.Text, Stage.Covers);
+        return StageOutcome.Complete(Stage.Text, Stage.Covers, Stage.RuleHints);
     }
 }
 

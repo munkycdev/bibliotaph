@@ -101,7 +101,7 @@ public sealed partial class LibraryActivity : ObservableObject
     int _dirty = 1;
     bool _refreshing;
 
-    public LibraryActivity(IndexingService indexing, IndexQueries queries, LibraryStore library, ILogger<LibraryActivity> log)
+    public LibraryActivity(IndexingService indexing, IndexQueries queries, LibraryStore library, MetadataProjector metadata, ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
         _queries = queries;
@@ -109,6 +109,8 @@ public sealed partial class LibraryActivity : ObservableObject
         _log = log;
         _timer = new DispatcherTimer(Tick, DispatcherPriority.Background, async (_, _) => await OnTickAsync(), Dispatcher.CurrentDispatcher);
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
+        // Metadata edits and projections change what the library shows without any indexing.
+        metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         Phases = [_finding, _reading, _making, _scans];
     }
 

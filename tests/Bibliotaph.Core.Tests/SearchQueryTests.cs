@@ -73,20 +73,38 @@ public class SearchQueryTests
     }
 
     [Theory]
-    [InlineData("type:adventure", 0, 14)]
-    [InlineData("goblins level:3", 8, 7)]
-    [InlineData("system:\"D&D 5e\"", 0, 15)]
-    public void Metadata_fields_say_they_arrive_later_and_are_left_out(string text, int start, int length)
+    [InlineData("type:adventure", "type:adventure")]
+    [InlineData("goblins level:3", "AND(goblins, level:3)")]
+    [InlineData("level:1-5", "level:1-5")]
+    [InlineData("levels:\"1 to 5\"", "level:1-5")]
+    [InlineData("level:none", "level:n/a")]
+    [InlineData("level:unknown", "level:unknown")]
+    [InlineData("system:\"D&D 5e\"", "system:\"D&D 5e\"")]
+    [InlineData("-system:unknown", "-system:unknown")]
+    [InlineData("publisher:kobold author:\"Jane Doe\"", "AND(publisher:kobold, author:\"Jane Doe\")")]
+    [InlineData("authors:doe tags:prep series:saltmarsh", "AND(author:doe, tag:prep, series:saltmarsh)")]
+    [InlineData("edition:5e setting:eberron theme:horror env:urban", "AND(edition:5e, setting:eberron, theme:horror, environment:urban)")]
+    [InlineData("type:adv*", "type:adv*")]
+    public void Parses_metadata_fields(string text, string expected) => Assert.Equal(expected, Tree(text));
+
+    [Theory]
+    [InlineData("goblins length:short", 8, 12)]
+    public void Fields_not_built_yet_say_so_and_are_left_out(string text, int start, int length)
     {
         var issue = OnlyIssue(text);
 
-        Assert.Contains("arrives once books have metadata", issue.Message, StringComparison.Ordinal);
+        Assert.Contains("isn't available yet", issue.Message, StringComparison.Ordinal);
         Assert.Equal((start, length), (issue.Start, issue.Length));
+        Assert.Equal("goblins", Tree(text));
     }
 
-    [Fact]
-    public void The_rest_of_the_query_runs_without_a_metadata_field() =>
-        Assert.Equal("goblins", Tree("goblins level:3"));
+    [Theory]
+    [InlineData("level:high")]
+    [InlineData("level:3*")]
+    [InlineData("level:5-1")]
+    [InlineData("level:40")]
+    public void A_level_that_isnt_one_is_reported(string text) =>
+        Assert.Contains("level: can be", OnlyIssue(text).Message, StringComparison.Ordinal);
 
     [Theory]
     [InlineData("title:", "needs a value")]

@@ -7,6 +7,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,7 @@ public partial class App : Application
             await _host.StartAsync();
 
             var services = _host.Services;
+            ProjectMetadataInBackground(services);
             if (measureSearch)
             {
                 Shutdown(await SearchMeasurement.RunAsync(services));
@@ -121,6 +123,8 @@ public partial class App : Application
         builder.Services.AddDbContextFactory<CatalogDbContext>((sp, options) => sp.GetRequiredService<CatalogDatabase>().Configure(options));
         builder.Services.AddSingleton<SettingsStore>();
         builder.Services.AddSingleton<SourceRootStore>();
+        builder.Services.AddSingleton(sp => new VocabularyStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new MetadataStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
 
         // index.db: derived, rebuildable. One writer; reads on their own connections.
         builder.Services.AddSingleton(sp => IndexDatabase.ForFile(paths.IndexDatabase, sp.GetRequiredService<ILogger<IndexDatabase>>()));
@@ -150,7 +154,11 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();
         builder.Services.AddSingleton<IStage, CoversStage>();
+        builder.Services.AddSingleton<IStage, RuleHintsStage>();
         builder.Services.AddSingleton<IStage, OcrStage>();
+        builder.Services.AddSingleton<MetadataProjector>();
+        builder.Services.AddSingleton<MetadataHints>();
+        builder.Services.AddSingleton<MetadataService>();
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
@@ -195,9 +203,30 @@ public partial class App : Application
         var catalog = await services.GetRequiredService<CatalogDatabase>().MigrateAsync();
         if (catalog.BackupPath is not null) Log.Information("catalog.db was backed up to {Backup}", catalog.BackupPath);
 
+        var added = await services.GetRequiredService<VocabularyStore>().SeedAsync();
+        if (added > 0) Log.Information("Added {Count} starter vocabulary terms", added);
+
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
     }
+
+    /// <summary>
+    /// Copies catalog.db's metadata into index.db once the index writer is running: after an upgrade or a rebuild of
+    /// index.db, and to pick up any change a previous run didn't finish projecting. In the background; the library
+    /// refreshes when it is done.
+    /// </summary>
+    static void ProjectMetadataInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await services.GetRequiredService<MetadataProjector>().ProjectAllAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Projecting metadata into index.db failed");
+            }
+        });
 
     void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {

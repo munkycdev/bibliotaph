@@ -32,6 +32,45 @@ public sealed record PageTextRow(int PdfPage, string Text, string Source, double
 /// <summary>An OCR'd word with its box in PDF points, origin bottom-left.</summary>
 public sealed record OcrWordRow(string Text, double Left, double Top, double Right, double Bottom);
 
+/// <summary>One value of a vocabulary field: a term key and its label.</summary>
+public sealed record DocFacetRow(string Field, string Value, string Label, bool Confirmed);
+
+/// <summary>Whether a document's levels are known, known not to apply, or unknown.</summary>
+public enum LevelState
+{
+    Unknown,
+    Known,
+    NotApplicable,
+}
+
+/// <summary>
+/// A document's effective metadata as index.db holds it for listing, filtering and search. The metadata projector
+/// builds these from catalog.db; nothing else writes them.
+/// </summary>
+public sealed record DocMetaRow
+{
+    public required long DocumentId { get; init; }
+    public string? Title { get; init; }
+    public string? Publisher { get; init; }
+    public string? Series { get; init; }
+    public string? Authors { get; init; }
+    public int? Year { get; init; }
+    public string? SystemLabel { get; init; }
+    public string? KindLabel { get; init; }
+    public int? LevelMin { get; init; }
+    public int? LevelMax { get; init; }
+    public LevelState Levels { get; init; }
+    public bool NeedsReview { get; init; }
+    public bool Suggested { get; init; }
+    public string? Tags { get; init; }
+    public string? ConfirmedText { get; init; }
+    public string? ProvisionalText { get; init; }
+    public IReadOnlyList<DocFacetRow> Facets { get; init; } = [];
+}
+
+/// <summary>A name a vocabulary term goes by, in comparison form, for field search.</summary>
+public sealed record TermAliasRow(string Vocabulary, string Alias, string Value);
+
 /// <summary>
 /// Pipeline writes to index.db: documents, pages, page text, OCR words and covers. Everything goes through the
 /// <see cref="IndexWriter"/>; page inserts and updates reuse one prepared command per batch.
@@ -78,7 +117,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.FolderHint,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
-            RefreshDocSearch(c, t, doc);
+            RefreshDocSearch(c, t, doc.DocumentId);
 
             using (var insert = c.CreateCommand())
             {
@@ -166,17 +205,99 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     public Task SetCoverAsync(long documentId, string? cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
-    /// <summary>Keeps doc_fts in step with a doc row. Until slice 2, title is the display title and the PDF's own information is provisional.</summary>
-    static void RefreshDocSearch(SqliteConnection c, SqliteTransaction t, DocRow doc)
+    /// <summary>
+    /// Replaces the projected metadata of these documents: their doc_meta row (deleted when the document has no
+    /// metadata), their facets, and their doc_fts row.
+    /// </summary>
+    public Task SetMetadataAsync(IReadOnlyList<DocMetaRow> rows, CancellationToken ct = default) =>
+        rows.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            foreach (var row in rows)
+            {
+                c.Execute("DELETE FROM doc_facet WHERE document_id = @DocumentId", new { row.DocumentId }, t);
+                c.Execute(
+                    """
+                    INSERT INTO doc_meta (document_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
+                                          level_state, needs_review, suggested, tags, confirmed_text, provisional_text)
+                    VALUES (@DocumentId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
+                            @levelState, @NeedsReview, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
+                    ON CONFLICT (document_id) DO UPDATE SET
+                        title = excluded.title, publisher = excluded.publisher, series = excluded.series, authors = excluded.authors,
+                        year = excluded.year, system_label = excluded.system_label, kind_label = excluded.kind_label,
+                        level_min = excluded.level_min, level_max = excluded.level_max, level_state = excluded.level_state,
+                        needs_review = excluded.needs_review, suggested = excluded.suggested, tags = excluded.tags,
+                        confirmed_text = excluded.confirmed_text, provisional_text = excluded.provisional_text
+                    """,
+                    new
+                    {
+                        row.DocumentId,
+                        row.Title,
+                        row.Publisher,
+                        row.Series,
+                        row.Authors,
+                        row.Year,
+                        row.SystemLabel,
+                        row.KindLabel,
+                        row.LevelMin,
+                        row.LevelMax,
+                        levelState = LevelStateText(row.Levels),
+                        row.NeedsReview,
+                        row.Suggested,
+                        row.Tags,
+                        row.ConfirmedText,
+                        row.ProvisionalText,
+                    }, t);
+                c.Execute("INSERT INTO doc_facet (document_id, field, value, label, confirmed) VALUES (@DocumentId, @Field, @Value, @Label, @Confirmed)",
+                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { row.DocumentId, f.Field, f.Value, f.Label, f.Confirmed }), t);
+                RefreshDocSearch(c, t, row.DocumentId);
+            }
+        }, ct);
+
+    /// <summary>Drops the projected metadata of documents that no longer have any.</summary>
+    public Task ClearMetadataAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default) =>
+        documentIds.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            foreach (var id in documentIds)
+            {
+                c.Execute("DELETE FROM doc_meta WHERE document_id = @id", new { id }, t);
+                c.Execute("DELETE FROM doc_facet WHERE document_id = @id", new { id }, t);
+                RefreshDocSearch(c, t, id);
+            }
+        }, ct);
+
+    /// <summary>Replaces the term aliases that field search resolves names through.</summary>
+    public Task SetTermAliasesAsync(IReadOnlyList<TermAliasRow> aliases, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            c.Execute("DELETE FROM term_alias", transaction: t);
+            c.Execute("INSERT OR IGNORE INTO term_alias (vocabulary, alias, value) VALUES (@Vocabulary, @Alias, @Value)", aliases, t);
+        }, ct);
+
+    internal static string LevelStateText(LevelState state) => state switch
     {
-        c.Execute("DELETE FROM doc_fts WHERE rowid = @DocumentId", new { doc.DocumentId }, t);
-        var provisional = string.Join(" · ",
-            new[] { doc.MetaTitle, doc.MetaAuthor, doc.MetaKeywords, doc.FolderHint }.Where(v => !string.IsNullOrWhiteSpace(v)));
+        LevelState.Known => "known",
+        LevelState.NotApplicable => "na",
+        _ => "unknown",
+    };
+
+    /// <summary>
+    /// Rebuilds a document's doc_fts row from its doc row and projected metadata. The effective title is the title;
+    /// the file name's title, the PDF's own information and the folder names are provisional text.
+    /// </summary>
+    static void RefreshDocSearch(SqliteConnection c, SqliteTransaction t, long documentId)
+    {
+        c.Execute("DELETE FROM doc_fts WHERE rowid = @documentId", new { documentId }, t);
         c.Execute(
             """
-            INSERT INTO doc_fts (rowid, title, subtitle, publisher, series, tags, notes, confirmed, provisional)
-            VALUES (@DocumentId, @DisplayTitle, @MetaSubject, '', '', '', '', '', @provisional)
+            INSERT INTO doc_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
+            SELECT d.document_id, coalesce(m.title, d.display_title), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
+                   coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), '', coalesce(m.confirmed_text, ''),
+                   coalesce(m.provisional_text, '') || ' · ' || coalesce(d.meta_title, '') || ' · ' || coalesce(d.meta_author, '') || ' · '
+                       || coalesce(d.meta_keywords, '') || ' · ' || coalesce(d.folder_hint, '')
+                       || CASE WHEN m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
+            FROM doc d LEFT JOIN doc_meta m ON m.document_id = d.document_id
+            WHERE d.document_id = @documentId
             """,
-            new { doc.DocumentId, doc.DisplayTitle, MetaSubject = doc.MetaSubject ?? "", provisional }, t);
+            new { documentId }, t);
     }
 }

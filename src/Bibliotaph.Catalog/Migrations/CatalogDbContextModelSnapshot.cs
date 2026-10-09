@@ -28,6 +28,10 @@ namespace Bibliotaph.Catalog.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("created_utc");
 
+                    b.Property<DateTime?>("DecidedUtc")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("decided_utc");
+
                     b.Property<long>("DocumentId")
                         .HasColumnType("INTEGER")
                         .HasColumnName("document_id");
@@ -36,10 +40,23 @@ namespace Bibliotaph.Catalog.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("evidence_pages_json");
 
+                    b.Property<string>("EvidenceQuote")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("evidence_quote");
+
                     b.Property<string>("Field")
                         .IsRequired()
                         .HasColumnType("TEXT")
                         .HasColumnName("field");
+
+                    b.Property<bool>("FromSampling")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("from_sampling");
+
+                    b.Property<string>("NormalizedValue")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("normalized_value");
 
                     b.Property<string>("Origin")
                         .IsRequired()
@@ -65,6 +82,64 @@ namespace Bibliotaph.Catalog.Migrations
                     b.HasIndex("DocumentId", "Field", "State");
 
                     b.ToTable("assertion");
+                });
+
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.ClassificationRun", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("content_hash");
+
+                    b.Property<long>("DocumentId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("document_id");
+
+                    b.Property<DateTime?>("FinishedUtc")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("finished_utc");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Outcome")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("outcome");
+
+                    b.Property<string>("PagesJson")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("pages_json");
+
+                    b.Property<int>("PromptVersion")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("provider");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("schema_version");
+
+                    b.Property<DateTime>("StartedUtc")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("started_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("ContentHash", "Model", "PromptVersion");
+
+                    b.ToTable("classification_run");
                 });
 
             modelBuilder.Entity("Bibliotaph.Catalog.Entities.Document", b =>
@@ -172,6 +247,40 @@ namespace Bibliotaph.Catalog.Migrations
                     b.ToTable("file_location");
                 });
 
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.IgnoredFolderLabel", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_utc");
+
+                    b.Property<string>("Folder")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("folder");
+
+                    b.Property<string>("TermKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("term_key");
+
+                    b.Property<string>("Vocabulary")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("vocabulary");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Folder", "Vocabulary", "TermKey")
+                        .IsUnique();
+
+                    b.ToTable("ignored_folder_label");
+                });
+
             modelBuilder.Entity("Bibliotaph.Catalog.Entities.PageRef", b =>
                 {
                     b.Property<long>("Id")
@@ -212,6 +321,39 @@ namespace Bibliotaph.Catalog.Migrations
                     b.HasIndex("DocumentId");
 
                     b.ToTable("page_ref");
+                });
+
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.Rejection", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_utc");
+
+                    b.Property<long>("DocumentId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("field");
+
+                    b.Property<string>("NormalizedValue")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("normalized_value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "Field", "NormalizedValue")
+                        .IsUnique();
+
+                    b.ToTable("rejection");
                 });
 
             modelBuilder.Entity("Bibliotaph.Catalog.Entities.Setting", b =>
@@ -263,10 +405,102 @@ namespace Bibliotaph.Catalog.Migrations
                     b.ToTable("source_root");
                 });
 
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyAlias", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Normalized")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("normalized");
+
+                    b.Property<long>("TermId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("term_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TermId", "Normalized")
+                        .IsUnique();
+
+                    b.ToTable("vocabulary_alias");
+                });
+
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyTerm", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_utc");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("label");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("origin");
+
+                    b.Property<string>("ParentKey")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("parent_key");
+
+                    b.Property<string>("ShortLabel")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("short_label");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Vocabulary")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("vocabulary");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Vocabulary", "Key")
+                        .IsUnique();
+
+                    b.ToTable("vocabulary_term");
+                });
+
             modelBuilder.Entity("Bibliotaph.Catalog.Entities.Assertion", b =>
                 {
                     b.HasOne("Bibliotaph.Catalog.Entities.Document", "Document")
                         .WithMany("Assertions")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.ClassificationRun", b =>
+                {
+                    b.HasOne("Bibliotaph.Catalog.Entities.Document", "Document")
+                        .WithMany()
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -313,6 +547,28 @@ namespace Bibliotaph.Catalog.Migrations
                     b.Navigation("Document");
                 });
 
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.Rejection", b =>
+                {
+                    b.HasOne("Bibliotaph.Catalog.Entities.Document", "Document")
+                        .WithMany("Rejections")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyAlias", b =>
+                {
+                    b.HasOne("Bibliotaph.Catalog.Entities.VocabularyTerm", "Term")
+                        .WithMany("Aliases")
+                        .HasForeignKey("TermId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Term");
+                });
+
             modelBuilder.Entity("Bibliotaph.Catalog.Entities.Document", b =>
                 {
                     b.Navigation("Assertions");
@@ -320,11 +576,18 @@ namespace Bibliotaph.Catalog.Migrations
                     b.Navigation("Locations");
 
                     b.Navigation("PageRefs");
+
+                    b.Navigation("Rejections");
                 });
 
             modelBuilder.Entity("Bibliotaph.Catalog.Entities.SourceRoot", b =>
                 {
                     b.Navigation("Files");
+                });
+
+            modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyTerm", b =>
+                {
+                    b.Navigation("Aliases");
                 });
 #pragma warning restore 612, 618
         }

@@ -12,7 +12,7 @@ The discussion copy, with comments, is the private [architecture proposal doc](h
 | --- | --- | --- | --- | --- |
 | 1 | Target framework | .NET 11 (GA November 2026), self-contained; move to .NET 12 LTS in early 2028 | Standard-term releases get 24 months, so .NET 11 and .NET 10 LTS both reach end of support in November 2028 ([Microsoft](https://devblogs.microsoft.com/dotnet/dotnet-sts-releases-supported-for-24-months/)). The spike already runs on 11. | .NET 10 LTS |
 | 2 | Process model | One UI process plus a pool of PDFium workers: one dedicated to the viewer, one or two for indexing, each in its own job object | A slow or hostile file being indexed can never stall the page being read | One shared worker |
-| 3 | Storage | SQLite, two files: `catalog.db` (user work, migrated, backed up) and `index.db` (derived, rebuilt when its schema changes), joined with ATTACH | Makes "rebuild never touches user work" (spec §10) a physical guarantee | One database with careful table ownership |
+| 3 | Storage | SQLite, two files: `catalog.db` (user work, migrated, backed up) and `index.db` (derived; upgraded in place when a schema change only adds, otherwise rebuilt), joined with ATTACH | Makes "rebuild never touches user work" (spec §10) a physical guarantee | One database with careful table ownership |
 | 4 | Data access | EF Core for `catalog.db`; Microsoft.Data.Sqlite with parameterized SQL (Dapper for reads, reused prepared commands for bulk inserts) for `index.db` and search | FTS5's `MATCH`, `bm25()`, `snippet()` and `highlight()` have no LINQ translation, bulk page inserts need prepared commands in batched transactions, and `index.db` has no migrations. Values are always bound; the `MATCH` string is generated from the parsed query with every term quoted, and column names come from a fixed whitelist, since parameters cover neither. | Dapper everywhere, with hand-rolled migrations |
 | 5 | Search engine | SQLite FTS5 (bm25, unicode61 tokenizer, diacritics removed); vectors for Release B later in the same index | Inside the 1-second p95 target for the collection; no second storage engine | Lucene.NET 4.8 |
 | 6 | OCR | Windows.Media.Ocr behind `IOcrEngine`, running inside the index worker | Ships with Windows; no native binaries or language data to package | Tesseract 5, which lost the slice 1 bake-off: on 20 pages each of two scanned books Windows OCR scored 81% known words to Tesseract's 73 to 81%, recovered 99% of a digital book's words to 93 to 96%, and took about 250 ms a page to Tesseract's 1.6 to 3.5 s |
@@ -88,8 +88,8 @@ Everything lives in `%LOCALAPPDATA%\Bibliotaph\`, never in a synced folder. Both
 
 | File | Holds | On schema change | Backed up |
 | --- | --- | --- | --- |
-| `catalog.db` | Source roots, file locations, documents, metadata assertions, vocabulary, collections, smart views, session packs, notes, rejections, settings | EF Core migration, preceded by an automatic `VACUUM INTO` copy | Always |
-| `index.db` | Pages (text, printed label, size, text quality, fingerprint), OCR word boxes for OCR'd pages, FTS5 tables, per-stage status, job queue, classification runs | Dropped and rebuilt; documents re-queue from their content hash | Optional (spec §10) |
+| `catalog.db` | Source roots, file locations, documents, metadata assertions, vocabulary, ignored folder labels, classification runs, collections, smart views, session packs, notes, rejections, settings | EF Core migration, preceded by an automatic `VACUUM INTO` copy | Always |
+| `index.db` | Pages (text, printed label, size, text quality, fingerprint), OCR word boxes for OCR'd pages, FTS5 tables, per-stage status, job queue, and a projection of effective metadata (`doc_meta`, `doc_facet`, `term_alias`) | An additive change runs its embedded `upgrade-N.sql` in a transaction; anything else, or a failed upgrade, drops and rebuilds, and documents re-queue from their content hash. Metadata is projected again from `catalog.db` at startup either way | Optional (spec §10) |
 | `cache\` | Covers, thumbnails and page previews as WebP files named by content hash and size | Deleted freely | Never |
 
 Core tables (full schema in slice 0):
@@ -101,6 +101,15 @@ Core tables (full schema in slice 0):
 - `page_ref`: document, first and last PDF page, printed labels at the time, page-text fingerprint, label, stale flag. Session pack items and page notes point here.
 
 The UI reads through separate read connections; all writes to `index.db` go through one writer task that batches pages into transactions.
+
+Classification runs live in `catalog.db` beside the assertions they produce, so a rebuilt index never loses a model's evidence or the record of what has already been classified. `index.db` holds only what search needs from metadata (version 3 of its schema):
+
+- `doc_meta`: one row per document with the effective title, system and type labels, publisher, series, authors, tags, level range and state (known, n/a, unknown), and whether anything is suggested or needs review.
+- `doc_facet`: (document, field, value, label, confirmed) for the closed fields, behind the filter panel and field search.
+- `term_alias`: every name of every vocabulary term, so `type:module` finds adventures.
+- `doc_fts` gains an `authors` column; its `confirmed` and `provisional` columns carry the effective values as text.
+
+`MetadataProjector` writes these after rule hints, after every user edit and once at startup in the background.
 
 ## Files, identity and the processing pipeline
 
@@ -116,7 +125,7 @@ A document is a content hash; a path is where that content was last seen. That g
 2. Probe: page count, protection, permissions, page labels, outline, embedded metadata, capabilities.
 3. Text: per-page text and text quality; pages with no or garbage text are flagged for OCR. The document is searchable from here (principle 6).
 4. Cover and thumbnails.
-5. Rule hints: folder, filename and embedded metadata become provisional assertions.
+5. Rule hints: folder names, the file name and the PDF's own information become provisional assertions in `catalog.db`. A folder name counts only when it matches a vocabulary term or alias, and each such folder label can be switched off in Settings > Library folders; an edition implies its system; the deepest folder wins for single-value fields; junk embedded titles and authors ("Microsoft Word - final2.doc") are skipped; levels are read from the file name, title and subject only. Re-running replaces the document's earlier hints and never touches a value the user decided.
 6. OCR: flagged pages only, page numbering preserved (A05).
 7. Classify: if AI is enabled and allowed for the source.
 
@@ -127,7 +136,8 @@ A document is a content hash; a path is where that content was last seen. That g
 ## Search
 
 - **Parser.** A hand-written parser in Core turns `chase "through a city" type:adventure level:3` into an AST. Errors carry a position so the UI can underline the bad token and keep the query. Smart Views store the AST.
-- **Documents tab.** `doc_fts` over title, subtitle, publisher, series, tags, notes and effective metadata, with bm25 column weights; confirmed and provisional values in separate columns so ranking can prefer confirmed.
+- **Documents tab.** `doc_fts` over title, subtitle, publisher, series, authors, tags, notes and effective metadata, with bm25 column weights; confirmed and provisional values in separate columns so ranking can prefer confirmed.
+- **Fields.** `publisher:`, `author:`, `series:` and `tag:` match their `doc_fts` columns. `system:` (system or edition), `edition:`, `type:`, `setting:`, `theme:` and `environment:` match a term by key, label or any alias through `doc_facet` and `term_alias`, with `*` prefixes. `level:3` and `level:2-4` match overlapping ranges, `level:none` books with no levels, and `level:unknown` books nobody has levelled. Any field takes `unknown` and `-`. `length:` and `duration:` say they aren't searchable yet.
 - **Inside documents tab.** `page_fts` is an external-content table over `page.text`, so `snippet()` quotes the indexed page. Hits are grouped and limited per document in SQL.
 - **Highlights.** Not stored; when a hit opens, the viewer worker runs find-on-page for the query terms on that page.
 - **Facets.** A `doc_facet` table (document, field, normalised value, confirmed or provisional) refreshed when assertions change; counts are `GROUP BY` over the current result set excluding the facet's own dimension. Levels are system-scoped min and max; unknown is a real value (A12).
@@ -151,7 +161,8 @@ JPG and PNG open in an image surface with zoom and pan, decoded at a capped pixe
 
 ## Metadata and classification
 
-- **Effective value.** A user-confirmed value wins and is never replaced (A04). Otherwise the highest-priority provisional value applies (rule hints and embedded metadata below AI, AI below user). Conflicting provisional values send the field to review.
+- **Effective value.** Computed per field by `EffectiveMetadata` in Core, never stored. Origins rank user 100, AI 50, rule 30, embedded 20, folder 15, file name 10. For a single-value field the latest confirmed value wins and is never replaced (A04); otherwise the best-ranked suggestion applies and the rest are alternatives. For a multi-value field (types, themes, authors, tags) the value is every confirmed value, plus the top-ranked origin's suggestions that arrived after the user's last decision there; everything else is an alternative, so a field the user settled stays settled until something new is suggested. A closed field (a vocabulary term or levels) needs review when an alternative arrived after the last decision; free text never does by itself.
+- **Hints and decisions.** Rule hints are replaced on each run by diffing, so an unchanged suggestion keeps its age. "Keep this" confirms the suggested values, "Use this" makes an alternative the value, typing a value stores a user assertion (a term field resolves the text through the vocabulary or adds the user's own term), and "Reset" returns the field to its suggestions.
 - **Rejections.** Stored as (document, field, normalised value); they suppress that value from any origin and any later model.
 - **Input.** A bounded excerpt: title page, contents, introduction, headings and sampled pages, each tagged with its PDF page number, plus field definitions and vocabulary. Each run records provider, model, prompt version, schema version, content hash and pages analysed.
 - **Output.** JSON schema; every field is a value or `unknown`, with evidence pages and a short quote.

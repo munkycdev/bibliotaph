@@ -87,6 +87,41 @@ public sealed class IndexDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task A_slice_1_file_is_upgraded_in_place_keeping_pages_ocr_and_jobs()
+    {
+        using (var c = new SqliteConnection(IndexDatabase.ForFile(DbPath).ConnectionString))
+        {
+            c.Execute(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "index-v2.sql")));
+            c.Execute("""
+                INSERT INTO doc (document_id, content_hash, format, display_title, meta_title, folder_hint, added_utc)
+                VALUES (7, 'h7', 'pdf', 'Tomb Final', 'Tomb of Horrors', 'Classics', '2026-10-08T12:00:00Z');
+                INSERT INTO page (document_id, pdf_page, width_pt, height_pt, text, text_source) VALUES (7, 0, 612, 792, 'a lich in a crypt', 'ocr');
+                INSERT INTO job (document_id, content_hash, stage, stage_version, status, created_utc) VALUES (7, 'h7', 'Ocr', 1, 'done', '2026-10-08T12:00:00Z');
+                INSERT INTO doc_fts (rowid, title, subtitle, publisher, series, tags, notes, confirmed, provisional) VALUES (7, 'Tomb Final', '', '', '', '', '', '', '');
+                """);
+        }
+        var db = IndexDatabase.ForFile(DbPath);
+
+        Assert.Equal(IndexOpenResult.Upgraded, await db.InitializeAsync(TestContext.Current.CancellationToken));
+
+        using var read = db.OpenRead();
+        Assert.Equal(IndexSchema.Version, UserVersion(read));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM page_fts WHERE page_fts MATCH 'lich'"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM job"));
+        Assert.Equal(7, read.ExecuteScalar<long>("SELECT rowid FROM doc_fts WHERE doc_fts MATCH 'provisional : horrors'"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_meta"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_fts WHERE doc_fts MATCH 'authors : x'"));
+    }
+
+    [Fact]
+    public void Every_step_from_slice_1_has_an_upgrade_and_older_versions_rebuild()
+    {
+        Assert.NotNull(IndexSchema.UpgradePath(2));
+        Assert.Null(IndexSchema.UpgradePath(1));
+        Assert.Null(IndexSchema.UpgradePath(IndexSchema.Version));
+    }
+
+    [Fact]
     public void The_embedded_schema_declares_the_version_the_code_expects() =>
         Assert.Contains($"PRAGMA user_version = {IndexSchema.Version};", IndexSchema.Script, StringComparison.Ordinal);
 }

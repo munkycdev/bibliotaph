@@ -3,10 +3,12 @@ using System.Globalization;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -41,13 +43,31 @@ public sealed partial class PendingFolder(string path) : ObservableObject
     public partial bool CanAdd { get; set; }
 }
 
+/// <summary>A folder name read as a label, such as “Adventures” for the type Adventure, which the user can switch off.</summary>
+public sealed partial class FolderLabelItem(FolderLabelUse use, Func<FolderLabelItem, bool, Task> setEnabled) : ObservableObject
+{
+    public FolderLabelUse Use { get; } = use;
+
+    public string Folder => Use.Folder;
+
+    /// <summary>"Type: Adventure".</summary>
+    public string Meaning { get; } = $"{MetadataFields.All.FirstOrDefault(f => f.Vocabulary == use.Term.Vocabulary)?.Label ?? use.Term.Vocabulary}: {use.Term.Label}";
+
+    public string Detail { get; } = $"{use.Documents.ToString("N0", CultureInfo.CurrentCulture)} {LibraryActivity.Plural(use.Documents, "document", "documents")} under a folder with this name";
+
+    [ObservableProperty]
+    public partial bool IsEnabled { get; set; } = use.Enabled;
+
+    partial void OnIsEnabledChanged(bool value) => _ = setEnabled(this, value);
+}
+
 /// <summary>
 /// The folders Bibliotaph reads from, what each holds, and indexing progress with pause and resume.
 /// Removing a folder keeps its catalog rows and the user's work.
 /// </summary>
 public sealed partial class LibraryFoldersViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, StartOver startOver) : PageViewModel
+    LibraryFolders folders, MetadataHints hints, StartOver startOver, ILogger<LibraryFoldersViewModel> log) : PageViewModel
 {
     public override Route Route => Route.LibraryFolders;
     public override string Section => "Settings";
@@ -63,6 +83,13 @@ public sealed partial class LibraryFoldersViewModel(
     [ObservableProperty]
     public partial bool HasFolders { get; set; }
 
+    /// <summary>Folder names in the library that Bibliotaph reads as a game system, type or other label.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFolderLabels))]
+    public partial IReadOnlyList<FolderLabelItem> FolderLabels { get; set; } = [];
+
+    public bool HasFolderLabels => FolderLabels.Count > 0;
+
     static readonly TimeSpan FolderRefresh = TimeSpan.FromSeconds(3);
     DateTime _foldersRefreshed;
     bool _refreshingFolders;
@@ -72,7 +99,34 @@ public sealed partial class LibraryFoldersViewModel(
         Activity.Refreshed -= OnActivityRefreshed;
         Activity.Refreshed += OnActivityRefreshed;
         await RefreshFoldersAsync();
+        await LoadFolderLabelsAsync();
         if (folders.TakePickRequest()) await AddFolder();
+    }
+
+    async Task LoadFolderLabelsAsync()
+    {
+        try
+        {
+            var uses = await Task.Run(() => hints.GetFolderLabelsAsync());
+            FolderLabels = [.. uses.Select(u => new FolderLabelItem(u, SetFolderLabelEnabledAsync))];
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Listing folder labels failed");
+        }
+    }
+
+    /// <summary>Switching a label re-reads the hints of every book under a folder of that name.</summary>
+    async Task SetFolderLabelEnabledAsync(FolderLabelItem label, bool enabled)
+    {
+        try
+        {
+            await Task.Run(() => hints.SetFolderLabelEnabledAsync(label.Use.Folder, label.Use.Term, enabled));
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Switching a folder label failed");
+        }
     }
 
     public override void Unload() => Activity.Refreshed -= OnActivityRefreshed;
@@ -171,6 +225,9 @@ public sealed partial class LibraryFoldersViewModel(
     }
 
     [RelayCommand]
+    Task RefreshFolderLabels() => LoadFolderLabelsAsync();
+
+    [RelayCommand]
     void CancelAdd(PendingFolder pending) => Pending.Remove(pending);
 
     [RelayCommand]
@@ -178,6 +235,7 @@ public sealed partial class LibraryFoldersViewModel(
     {
         await roots.RemoveAsync(folder.Id);
         await RefreshFoldersAsync();
+        await LoadFolderLabelsAsync();
     }
 
     [RelayCommand]

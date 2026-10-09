@@ -37,7 +37,7 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 
 /// <summary>
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
-/// documents, and works the job queue in two lanes, Index (Probe, Text, Covers) and OCR, each pausable on its own.
+/// documents, and works the job queue in two lanes, Index (Probe, Text, Covers, RuleHints) and OCR, each pausable on its own.
 /// Leases left by a previous run go back to pending before anything else starts (A11).
 /// </summary>
 public sealed class IndexingService(
@@ -160,6 +160,12 @@ public sealed class IndexingService(
         _stopping = stoppingToken;
         var recovered = await queue.RecoverLeasesAsync(stoppingToken);
         if (recovered > 0) _log.LogInformation("Returned {Count} interrupted jobs to the queue", recovered);
+        // A library indexed before rule hints existed gets them without re-probing anything.
+        if (_stages.ContainsKey(Stage.RuleHints))
+        {
+            var backfilled = await queue.EnqueueMissingAsync(Stage.RuleHints, after: Stage.Probe, stoppingToken);
+            if (backfilled > 0) _log.LogInformation("Queued hints from names for {Count} documents", backfilled);
+        }
 
         _scanSignal.Set();
         // Each loop on the thread pool: none of this may run on the UI thread that started the host.

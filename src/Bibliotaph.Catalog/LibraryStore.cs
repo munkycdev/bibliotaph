@@ -181,6 +181,32 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         return new DocumentSource(document.Id, document.ContentHash, document.Format, paths[0], string.Join(" / ", folders), paths);
     }
 
+    /// <summary>
+    /// Where a document's file sits under its source folder ("D&amp;D 5e/Adventures/Tomb.pdf"), for hints from names:
+    /// a present file first, then any other it still has, whether or not its folder is reachable right now. Null when
+    /// every location is gone.
+    /// </summary>
+    public async Task<string?> GetRelativePathAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId == documentId && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .OrderBy(f => f.State == FileLocationState.OnlineOnly).ThenBy(f => f.Id)
+            .Select(f => f.RelativePath)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>The relative path of every file the library shows, with its document, for the folder label list.</summary>
+    public async Task<IReadOnlyList<(long DocumentId, string RelativePath)>> GetRelativePathsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId != null && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .Select(f => new { DocumentId = f.DocumentId!.Value, f.RelativePath })
+            .ToListAsync(ct);
+        return [.. rows.Select(r => (r.DocumentId, r.RelativePath))];
+    }
+
     /// <summary>Those of <paramref name="documentIds"/> that <see cref="GetSourceAsync"/> would find a file for now.</summary>
     public async Task<IReadOnlyList<long>> GetReadableAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
     {

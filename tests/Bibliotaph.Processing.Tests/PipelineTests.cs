@@ -30,6 +30,8 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     SourceRootStore _roots = null!;
     LibraryStore _libraryStore = null!;
     IndexingService _service = null!;
+    MetadataService _metadata = null!;
+    MetadataStore _metadataStore = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -53,9 +55,17 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var library = _libraryStore = new LibraryStore(contexts);
         var queue = new JobBoard(_writer, _index);
         var reader = new SourceFileReader();
-        var services = new StageServices(library, new IndexStore(_writer), _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
+        var index = new IndexStore(_writer);
+        var services = new StageServices(library, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
+        var vocabulary = new VocabularyStore(contexts);
+        await vocabulary.SeedAsync(Ct);
+        _metadataStore = new MetadataStore(contexts);
+        var projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries);
+        _metadata = new MetadataService(_metadataStore, vocabulary, projector);
+        await projector.ProjectAllAsync(Ct); // as the app does at startup
+        var hints = new MetadataHints(library, _queries, _metadataStore, vocabulary, projector);
         _service = new IndexingService(_roots, library, queue,
-            [new ProbeStage(services), new TextStage(services), new CoversStage(services), new OcrStage(services)],
+            [new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services)],
             new FileHasher(reader), new DiskSpace(), new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1) });
     }
 
@@ -218,6 +228,37 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await using var read = _index.OpenRead();
         while (StatusOf(read, "Known Text", Stage.Covers) != "Complete") await Task.Delay(200, timeout.Token);
         Assert.Equal("Blocked", StatusOf(read, "Handout Map", Stage.Covers));
+    }
+
+    [Fact]
+    public async Task Hints_from_names_reach_the_library_and_the_users_correction_survives_the_index_being_rebuilt()
+    {
+        Copy(pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        var search = new LibraryQueries(_index);
+        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal(("D&D 5e", "Adventure", "Levels 1–3"), (entry.System, entry.Kind, entry.Levels));
+        Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("system:5e type:adventure level:2")), new LibraryFilter(), ct: Ct),
+            e => e.DocumentId == entry.DocumentId);
+        var metadata = (await _metadataStore.GetAsync(entry.DocumentId, Ct)).Compute();
+        Assert.Equal(AssertionOrigin.Folder, metadata[Core.Metadata.MetadataFields.Edition].First!.Origin);
+
+        // The user says it is a bestiary, not an adventure.
+        Assert.Null(await _metadata.SetAsync(entry.DocumentId, Core.Metadata.MetadataFields.Types, "Bestiary", Ct));
+        Assert.Equal("Bestiary", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
+
+        // index.db loses its metadata and hint jobs, as a rebuild would; the hints run again on the next start.
+        await _service.StopAsync(Ct);
+        await _writer.WriteAsync((c, t) => c.Execute(
+            "DELETE FROM doc_meta; DELETE FROM doc_facet; DELETE FROM job WHERE stage = 'RuleHints'; DELETE FROM stage_status WHERE stage = 'RuleHints';", transaction: t), Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal(("D&D 5e", "Bestiary"), (entry.System, entry.Kind));
     }
 
     /// <summary>How many jobs there are and how many times they have run.</summary>
