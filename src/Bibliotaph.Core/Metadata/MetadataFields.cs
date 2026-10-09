@@ -59,6 +59,10 @@ public static class MetadataFields
 
     public static MetadataField Get(string key) => ByKey.TryGetValue(key, out var field) ? field : throw new ArgumentException($"No metadata field {key}.", nameof(key));
 
+    /// <summary>The field a vocabulary's terms fill: Types for "type". Publishers are free text, so "publisher" gives null.</summary>
+    public static MetadataField? ForVocabulary(string vocabulary) =>
+        All.FirstOrDefault(f => f.Kind == FieldKind.Term && f.Vocabulary == vocabulary);
+
     /// <summary>The vocabularies with terms, which Term fields draw from.</summary>
     public static IReadOnlyList<string> TermVocabularies { get; } = [.. All.Where(f => f.Kind == FieldKind.Term).Select(f => f.Vocabulary!)];
 }

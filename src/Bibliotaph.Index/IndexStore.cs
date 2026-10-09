@@ -60,7 +60,8 @@ public sealed record DocMetaRow
     public int? LevelMin { get; init; }
     public int? LevelMax { get; init; }
     public LevelState Levels { get; init; }
-    public bool NeedsReview { get; init; }
+    /// <summary>How many Needs review cards the document has (<see cref="Core.Metadata.MetadataReview"/>).</summary>
+    public int Reviews { get; init; }
     public bool Suggested { get; init; }
     public string? Tags { get; init; }
     public string? ConfirmedText { get; init; }
@@ -232,7 +233,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     INSERT INTO doc_meta (document_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
                                           level_state, needs_review, suggested, tags, confirmed_text, provisional_text)
                     VALUES (@DocumentId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
-                            @levelState, @NeedsReview, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
+                            @levelState, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
                     ON CONFLICT (document_id) DO UPDATE SET
                         title = excluded.title, publisher = excluded.publisher, series = excluded.series, authors = excluded.authors,
                         year = excluded.year, system_label = excluded.system_label, kind_label = excluded.kind_label,
@@ -253,7 +254,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.LevelMin,
                         row.LevelMax,
                         levelState = LevelStateText(row.Levels),
-                        row.NeedsReview,
+                        row.Reviews,
                         row.Suggested,
                         row.Tags,
                         row.ConfirmedText,

@@ -38,6 +38,35 @@
     </Border>
 
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Manage" Command="{Binding ManageVocabularyCommand}"
+                AutomationProperties.Name="Manage the vocabulary" />
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="Vocabulary" Style="{StaticResource Text.Row}" />
+          <TextBlock Text="Game systems, types and the other names they go by." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+      <DockPanel>
+        <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
+            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="When unsure" IsChecked="{Binding ReviewWhenUnsure}" />
+            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="All suggestions" IsChecked="{Binding ReviewEverything}" />
+          </StackPanel>
+        </Border>
+        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+          <TextBlock Text="Needs review" Style="{StaticResource Text.Row}" />
+          <TextBlock Text="Suggestions are used either way; this is what waits for a second look." Style="{StaticResource Text.Small}"
+                     Margin="0,4,0,0" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ReviewNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
+                     Visibility="{Binding ReviewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <StackPanel>
         <TextBlock Text="Processing" Style="{StaticResource Text.Row}" />
         <TextBlock Text="Only while Bibliotaph is open. Closing the app stops it; reopening resumes it." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />

@@ -61,12 +61,14 @@ static class SmokeTest
 
             await SeedLibraryAsync(services);
             (long Pdf, long Image)? real = smokeFiles is null ? null : await SeedRealFilesAsync(services, smokeFiles);
-            var books = real is null ? 4 : 6;
+            var books = real is null ? 5 : 7;
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
             {
                 await theme.SetPreferenceAsync(preference);
                 await BrowseLibraryAsync(services, window, books);
                 Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
+                await ReviewAsync(services, window, decide: preference == ThemePreference.Light);
+                Log.Information("Smoke test: Needs review and the vocabulary worked through in {Theme}", preference);
                 await ShowFolderProgressAsync(services, window);
                 await ShowAboutAsync(services, window);
                 if (real is not { } files) continue;
@@ -120,6 +122,7 @@ static class SmokeTest
             ("Monsters/Dragon Lairs.pdf", "Dragon Lairs", ["A lich keeps a tavern ledger.", "Red dragon lair maps."]),
             ("D&D 5e/Adventures/Haunted Inn.pdf", "Haunted Inn", ["The inn is haunted; a secret door hides behind the bar."]),
             ("Handouts/Tavern Map.png", "Tavern Map", []),
+            ("Scans/IMG_0042.pdf", "IMG_0042", ["A handout scanned from a box set."]),
         ];
         var modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         // The scanner reports paths with the platform's separator.
@@ -130,7 +133,8 @@ static class SmokeTest
         foreach (var file in files)
         {
             var book = books.Single(b => file.FullPath.EndsWith(Relative(b.Path), StringComparison.Ordinal));
-            var hash = ContentHash.Parse(new string((char)('a' + Array.IndexOf(books, book)), ContentHash.HexLength));
+            // Digits, so the made-up books never share a hash with the real fixtures (e and f).
+            var hash = ContentHash.Parse(new string((char)('1' + Array.IndexOf(books, book)), ContentHash.HexLength));
             var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A made-up file didn't attach.");
             documents.Add(documentId);
             var isImage = file.Format != SourceFormats.Pdf;
@@ -152,6 +156,87 @@ static class SmokeTest
         // Indexing is paused, so the hints from folder and file names are read here.
         var hints = services.GetRequiredService<MetadataHints>();
         foreach (var documentId in documents) await hints.ApplyAsync(documentId);
+
+        // Something for Needs review besides the scan's missing title: a classifier that disagrees with a folder name,
+        // and a type the vocabulary doesn't know yet.
+        var metadata = services.GetRequiredService<MetadataStore>();
+        var titles = await Task.WhenAll(documents.Select(async id => (Id: id, Title: await services.GetRequiredService<IndexQueries>().GetTitleAsync(id))));
+        var lairs = titles.Single(t => t.Title == "Dragon Lairs").Id;
+        var gazetteer = titles.Single(t => t.Title == "Gazetteer of the Marches").Id;
+        await metadata.AddSuggestionsAsync(lairs, [new MetadataProposal(MetadataFields.Types, "rulebook", AssertionOrigin.Ai, "the rules for lairs", [1])]);
+        var (heist, _) = await services.GetRequiredService<VocabularyStore>().ProposeTermAsync("type", "Heist kit");
+        await metadata.AddSuggestionsAsync(gazetteer, [new MetadataProposal(MetadataFields.Types, heist.Key, AssertionOrigin.Ai, "everything a heist needs")]);
+        await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairs, gazetteer]);
+    }
+
+    /// <summary>
+    /// Needs review's cards, the sidebar count, and Settings > Vocabulary. With <paramref name="decide"/>, it also
+    /// accepts and undoes a conflict, rejects, undoes and adds a new term, types a title, and splits One-shot out of
+    /// Adventure; otherwise it only draws them (the decisions are made by then).
+    /// </summary>
+    static async Task ReviewAsync(IServiceProvider services, Window window, bool decide)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var activity = services.GetRequiredService<LibraryActivity>();
+        activity.Invalidate();
+        navigation.NavigateTo(Route.NeedsReview);
+        var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        await WaitUntilAsync(window, () => !page.IsLoading && page.Cards.Count > 0, () => "Needs review shows no cards.");
+        if (decide)
+        {
+            var nav = shell.NavItems.Single(n => n.Route == Route.NeedsReview);
+            await WaitUntilAsync(window, () => activity.SuggestionCount == page.Remaining && nav.Count == activity.ReviewCount.ToString("N0", CultureInfo.CurrentCulture),
+                () => $"The sidebar says {nav.Count} need review ({activity.SuggestionCount} suggestions); the page says {page.Remaining}.");
+
+            var conflict = page.Cards.OfType<ReviewCardViewModel>().FirstOrDefault(c => c is { Kind: ReviewKind.Conflict, Title: "Dragon Lairs" })
+                ?? throw new InvalidOperationException("The classifier's disagreement with the Monsters folder isn't a card.");
+            if (conflict is not { CurrentText: "Rulebook", ProposedText: "Bestiary", HasEvidence: true } || !conflict.CurrentSource.Contains("page 2", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The conflict card shows {conflict.CurrentText} ({conflict.CurrentSource}) against {conflict.ProposedText} ({conflict.Evidence}).");
+            await conflict.AcceptCommand.ExecuteAsync(null);
+            if (!conflict.IsDone) throw new InvalidOperationException("Accept didn't decide the card.");
+            await conflict.UndoCommand.ExecuteAsync(null);
+            if (conflict.IsDone) throw new InvalidOperationException("Undo didn't bring the card back.");
+            await Settle(window);
+
+            var term = page.Cards.OfType<TermCardViewModel>().FirstOrDefault(c => c.Label == "Heist kit")
+                ?? throw new InvalidOperationException("The new type isn't a card.");
+            await term.RejectCommand.ExecuteAsync(null);
+            await term.UndoCommand.ExecuteAsync(null);
+            await term.AddCommand.ExecuteAsync(null);
+            if (!term.IsDone) throw new InvalidOperationException("Adding the new type didn't decide its card.");
+
+            var title = page.Cards.OfType<ReviewCardViewModel>().FirstOrDefault(c => c.Kind == ReviewKind.MissingTitle)
+                ?? throw new InvalidOperationException("The scan's file name isn't a missing-title card.");
+            title.EditCommand.Execute(null);
+            await Settle(window);
+            title.EditText = "Box Set Handout";
+            await title.SaveCommand.ExecuteAsync(null);
+            if (!title.IsDone) throw new InvalidOperationException($"Typing a title didn't decide its card: {title.Problem}");
+        }
+        page.IsFilesTab = true;
+        await Settle(window);
+        page.IsSuggestionsTab = true;
+        await Settle(window);
+
+        navigation.NavigateTo(Route.Vocabulary);
+        var vocabulary = shell.CurrentPage as VocabularyViewModel ?? throw new InvalidOperationException("The Vocabulary route didn't open the vocabulary.");
+        await WaitUntilAsync(window, () => vocabulary.Terms.Any(t => t.Label == "Adventure"), () => "The vocabulary doesn't list Adventure.");
+        if (decide)
+        {
+            vocabulary.NewTerm = "One-shot";
+            await vocabulary.AddTermCommand.ExecuteAsync(null);
+            if (vocabulary.AddNote?.Contains("Adventure", StringComparison.Ordinal) != true)
+                throw new InvalidOperationException($"Adding One-shot said {vocabulary.AddProblem ?? vocabulary.AddNote}, not that it took a name from Adventure.");
+            var oneShot = vocabulary.Terms.Single(t => t.Label == "One-shot");
+            oneShot.NewAlias = "one shots";
+            await oneShot.AddAliasCommand.ExecuteAsync(null);
+            await WaitUntilAsync(window, () => vocabulary.Terms.Any(t => t is { Label: "One-shot", IsEditing: true, HasAliases: true }),
+                () => "One-shot didn't get its other name.");
+        }
+        vocabulary.Terms.First().EditCommand.Execute(null);
+        await Settle(window);
+        while (shell.CurrentPage is not LibraryViewModel && navigation.GoBack()) await Settle(window);
     }
 
     /// <summary>The Library in covers and as a list, both search tabs, a query with a problem, and the inspector.</summary>

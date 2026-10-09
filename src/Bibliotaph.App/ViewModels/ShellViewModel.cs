@@ -39,6 +39,12 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
         ];
         Settings = new NavItemViewModel(Route.Settings, "Settings", Icon("Icon.Settings2"));
+        var review = NavItems.Single(n => n.Route == Route.NeedsReview);
+        Activity.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(LibraryActivity.ReviewCount))
+                review.Count = Activity.ReviewCount > 0 ? Activity.ReviewCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) : "";
+        };
         _navigation.Navigated += (_, _) => OnNavigated();
     }
 
@@ -130,7 +136,7 @@ public sealed partial class ShellViewModel : ObservableObject
         }
         foreach (var item in NavItems.Append(Settings))
             item.IsActive = item.Route == CurrentPage?.Route
-                || (item.Route == Route.Settings && CurrentPage?.Route == Route.LibraryFolders);
+                || (item.Route == Route.Settings && CurrentPage?.Route is Route.LibraryFolders or Route.Vocabulary);
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(Section));
         OnPropertyChanged(nameof(Title));

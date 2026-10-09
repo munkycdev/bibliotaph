@@ -32,6 +32,9 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     IndexingService _service = null!;
     MetadataService _metadata = null!;
     MetadataStore _metadataStore = null!;
+    MetadataProjector _projector = null!;
+    VocabularyStore _vocabulary = null!;
+    SettingsStore _settings = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -57,10 +60,11 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var reader = new SourceFileReader();
         var index = new IndexStore(_writer);
         var services = new StageServices(library, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
-        var vocabulary = new VocabularyStore(contexts);
+        var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
-        var projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries);
+        _settings = new SettingsStore(contexts);
+        var projector = _projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries, _settings);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var hints = new MetadataHints(library, _queries, _metadataStore, vocabulary, projector);
@@ -313,6 +317,55 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
         Assert.Equal("D&D 5e", entry.System);
         Assert.NotEqual("Adventure", entry.Kind);
+    }
+
+    [Fact]
+    public async Task A_type_split_out_in_the_vocabulary_reaches_books_through_their_folder_names()
+    {
+        Copy(pdfs.KnownText, "One Shots/Known Text.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var search = new LibraryQueries(_index);
+        Assert.Equal("Adventure", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
+
+        // Settings > Vocabulary: One-shot becomes a type of its own, taking "one shot" and "one shots" from Adventure.
+        var vocabulary = new VocabularyService(_vocabulary, _projector, _service);
+        var added = await vocabulary.AddTermAsync("type", "One-shot", Ct);
+        Assert.Null((await vocabulary.AddAliasAsync(added.TermId!.Value, "one shots", Ct)).Problem);
+        await vocabulary.RefreshAsync(Ct);
+        await SettleAsync();
+
+        Assert.Equal("One-shot", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
+    }
+
+    [Fact]
+    public async Task Needs_review_counts_cards_and_a_decision_can_be_undone()
+    {
+        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
+            new VocabularyService(_vocabulary, _projector, _service));
+        Assert.Equal(0, await review.CountAsync(Ct));
+
+        // Reviewing everything: the title and the type nobody has confirmed are cards now.
+        await review.SetReviewAllAsync(true, Ct);
+        var cards = (await review.GetQueueAsync(Ct)).Items;
+        Assert.Equal(cards.Count, await review.CountAsync(Ct));
+        var type = Assert.Single(cards, c => c.Issue.Field == Core.Metadata.MetadataFields.Types);
+        Assert.Equal(Core.Metadata.ReviewKind.Suggestion, type.Issue.Kind);
+
+        var undo = await review.AcceptAsync(type, Ct);
+        Assert.Equal(cards.Count - 1, await review.CountAsync(Ct));
+        Assert.DoesNotContain((await review.GetQueueAsync(Ct)).Items, c => c.Issue.Field == Core.Metadata.MetadataFields.Types);
+
+        await review.UndoAsync([undo], Ct);
+        Assert.Equal(cards.Count, await review.CountAsync(Ct));
+
+        await review.SetReviewAllAsync(false, Ct);
+        Assert.Equal(0, await review.CountAsync(Ct));
     }
 
     /// <summary>How many jobs there are and how many times they have run.</summary>

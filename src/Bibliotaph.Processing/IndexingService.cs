@@ -140,6 +140,15 @@ public sealed class IndexingService(
         _scanSignal.Set();
     }
 
+    /// <summary>Runs a stage again for every document that has been through it, as after a vocabulary edit.</summary>
+    public async Task<int> RerunAsync(Stage stage, CancellationToken ct = default)
+    {
+        var queued = await queue.RerunAsync(stage, ct);
+        _laneSignals[Pipeline.LaneOf(stage)].Set();
+        RaiseChanged();
+        return queued;
+    }
+
     /// <summary>Gives a document's failed and blocked stages another go, as from Files needing attention.</summary>
     public async Task RetryAsync(long documentId, CancellationToken ct = default)
     {
