@@ -126,7 +126,8 @@ static class SmokeTest
         foreach (var file in files)
         {
             var book = books.Single(b => file.FullPath.EndsWith(Relative(b.Path), StringComparison.Ordinal));
-            var hash = ContentHash.Parse(new string((char)('a' + Array.IndexOf(books, book)), ContentHash.HexLength));
+            // Digits, so the made-up books never share a hash with the real fixtures (e and f).
+            var hash = ContentHash.Parse(new string((char)('1' + Array.IndexOf(books, book)), ContentHash.HexLength));
             var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A made-up file didn't attach.");
             documents.Add(documentId);
             var isImage = file.Format != SourceFormats.Pdf;
