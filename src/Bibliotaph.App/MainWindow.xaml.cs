@@ -1,17 +1,22 @@
 using System.Windows;
 using System.Windows.Input;
 using Bibliotaph.App.Controls;
+using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
 
 namespace Bibliotaph.App;
 
 public partial class MainWindow : Window
 {
-    public MainWindow(ShellViewModel shell)
+    readonly ThemeService _theme;
+
+    public MainWindow(ShellViewModel shell, ThemeService theme)
     {
         InitializeComponent();
         DataContext = shell;
+        _theme = theme;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
+        CommandBindings.Add(new CommandBinding(ShellCommands.ShowAbout, (_, _) => ShowAbout()));
     }
 
     void FocusSearch()
