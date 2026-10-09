@@ -10,6 +10,13 @@ namespace Bibliotaph.Index;
 /// </summary>
 public sealed record SearchPlan
 {
+    /// <summary>
+    /// A word this long or longer also finds words that start with it (drag finds dragon), as if typed drag*.
+    /// Shorter words match only themselves, so "of" or "5e" doesn't sweep in every word that begins that way.
+    /// Phrases stay exact.
+    /// </summary>
+    public const int MinWordStart = 3;
+
     /// <summary>The words to find, as an FTS5 expression for both page_fts and doc_fts. Null when there are none.</summary>
     public string? TextMatch { get; init; }
 
@@ -107,7 +114,7 @@ public sealed record SearchPlan
         switch (node)
         {
             case TermNode term:
-                return Quote(term.Text) + (term.Prefix ? " *" : "");
+                return Quote(term.Text) + (term.Prefix || term.Text.Length >= MinWordStart ? " *" : "");
             case PhraseNode phrase:
                 return Quote(phrase.Text);
             case OrNode or:

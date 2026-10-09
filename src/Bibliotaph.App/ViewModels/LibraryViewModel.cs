@@ -369,8 +369,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     (string, string, string, IRelayCommand) NoResults(bool filtered) => filtered
-        ? ("Nothing here. Yet.", "Try fewer words or a shorter prefix like drag*, or clear the filters.", "Clear search and filters", ClearAllCommand)
-        : ("Nothing here. Yet.", "Try fewer words or a shorter prefix like drag*. Books still being read are searched as soon as they're done.",
+        ? ("Nothing here. Yet.", "Try fewer or shorter words, or clear the filters.", "Clear search and filters", ClearAllCommand)
+        : ("Nothing here. Yet.", "Try fewer or shorter words. Books still being read are searched as soon as they're done.",
             "Clear search", ClearAllCommand);
 
     void SetEmpty((string Title, string Message, string Action, IRelayCommand Command)? empty)
