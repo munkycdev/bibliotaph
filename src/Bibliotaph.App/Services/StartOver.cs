@@ -9,22 +9,23 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// Settings > Start over, while Bibliotaph is in development (to be removed before 1.0). Forgets
-/// remembered PDF passwords at once, then restarts; the new process waits for this one to exit and deletes the
+/// remembered PDF passwords and saved endpoint keys at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
 /// </summary>
-public sealed class StartOver(AppPaths paths, PasswordVault vault, ILogger<StartOver> log)
+public sealed class StartOver(AppPaths paths, PasswordVault vault, ApiKeyVault keys, ILogger<StartOver> log)
 {
     /// <summary><c>--wait-for &lt;process id&gt;</c>: the app that asked to start over, which must exit first.</summary>
     public const string WaitForArgument = "--wait-for";
 
     public static bool Confirm() => MessageBox.Show(Application.Current.MainWindow,
-        "Bibliotaph will forget your library folders, its index, covers, settings and remembered PDF passwords, " +
+        "Bibliotaph will forget your library folders, its index, covers, settings, remembered PDF passwords and AI keys, " +
         "then restart as if newly installed.\n\nYour books and other files are not touched.",
         "Start over?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK;
 
     public void Run()
     {
         var forgotten = vault.ForgetAll();
+        keys.ForgetAll();
         DataPurge.Request(paths);
         log.LogInformation("Starting over: forgot {Count} remembered passwords; restarting to delete the library data", forgotten);
 

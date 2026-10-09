@@ -98,6 +98,7 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly PhaseProgress _reading = new("Reading files", "Checking each file; online-only files download");
     readonly PhaseProgress _making = new("Making searchable", "Text and covers");
     readonly PhaseProgress _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
+    readonly PhaseProgress _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
     readonly Dictionary<long, string> _titles = [];
     int _dirty = 1;
     bool _refreshing;
@@ -114,7 +115,7 @@ public sealed partial class LibraryActivity : ObservableObject
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         // Metadata edits and projections change what the library shows without any indexing.
         metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);
-        Phases = [_finding, _reading, _making, _scans];
+        Phases = [_finding, _reading, _making, _scans, _classifying];
     }
 
     /// <summary>Raised on the UI thread after each refresh, for pages that show more detail.</summary>
@@ -127,7 +128,7 @@ public sealed partial class LibraryActivity : ObservableObject
     [ObservableProperty]
     public partial string Summary { get; private set; } = "Nothing to process";
 
-    /// <summary>Indexing step by step: finding files, reading them, making them searchable, reading scans.</summary>
+    /// <summary>Indexing step by step: finding files, reading them, making them searchable, reading scans, asking the AI.</summary>
     public IReadOnlyList<PhaseProgress> Phases { get; }
 
     /// <summary>"About 25 minutes left", while there is work; otherwise empty.</summary>
@@ -168,6 +169,21 @@ public sealed partial class LibraryActivity : ObservableObject
     public partial bool OcrPaused { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAiPause))]
+    public partial bool AiPaused { get; private set; }
+
+    /// <summary>AI is switched on and has an endpoint and model, so the Classify lane may run.</summary>
+    [ObservableProperty]
+    public partial bool AiOn { get; private set; }
+
+    /// <summary>Why AI cataloguing is waiting though it has work, such as an endpoint that isn't answering; empty otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAiWaiting))]
+    public partial string AiWaiting { get; private set; } = "";
+
+    public bool IsAiWaiting => AiWaiting.Length > 0;
+
+    [ObservableProperty]
     public partial bool WaitingForDiskSpace { get; private set; }
 
     /// <summary>Files to read or index-lane stages waiting or running, so Pause indexing would pause something.</summary>
@@ -184,6 +200,13 @@ public sealed partial class LibraryActivity : ObservableObject
     public bool ShowIndexPause => HasIndexWork || IndexPaused;
 
     public bool ShowOcrPause => HasOcrWork || OcrPaused;
+
+    /// <summary>Documents waiting for the AI while it is on, so Pause AI would pause something.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAiPause))]
+    public partial bool HasAiWork { get; private set; }
+
+    public bool ShowAiPause => HasAiWork || AiPaused;
 
     public void Start() => _timer.Start();
 
@@ -203,7 +226,7 @@ public sealed partial class LibraryActivity : ObservableObject
         if (Interlocked.Exchange(ref _dirty, 0) == 0)
         {
             // No news, but while there is work the clock still moves, so a stall shows in the time left.
-            if (HasIndexWork || HasOcrWork) UpdatePhases(DateTimeOffset.UtcNow);
+            if (HasIndexWork || HasOcrWork || HasAiWork) UpdatePhases(DateTimeOffset.UtcNow);
             return;
         }
         _refreshing = true;
@@ -213,12 +236,16 @@ public sealed partial class LibraryActivity : ObservableObject
             Counts = await _library.GetCountsAsync();
             IndexPaused = _indexing.IsPaused(Lane.Index);
             OcrPaused = _indexing.IsPaused(Lane.Ocr);
+            AiPaused = _indexing.IsPaused(Lane.Classify);
+            AiOn = _indexing.IsOpen(Lane.Classify);
+            AiWaiting = AiOn ? _indexing.Unavailable(Lane.Classify) ?? "" : "";
             WaitingForDiskSpace = _indexing.WaitingForDiskSpace;
             NeedsAttention = Progress.NeedAttention > 0 || _indexing.Unreadable.Count > 0;
             AttentionCount = Progress.NeedAttention + _indexing.Unreadable.Count;
             SuggestionCount = await _review.CountAsync();
             HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
             HasOcrWork = Progress.PagesAwaitingOcr > 0;
+            HasAiWork = AiOn && Progress.ToClassify > 0;
             Summary = Describe();
             UpdatePhases(DateTimeOffset.UtcNow);
             var lines = await DescribeNowAsync();
@@ -247,6 +274,10 @@ public sealed partial class LibraryActivity : ObservableObject
         if (Progress.Indexing > 0) return $"Indexing · {Progress.Searchable:N0} of {Progress.Documents:N0} searchable";
         if (Progress.PagesAwaitingOcr > 0)
             return OcrPaused ? "Reading scanned pages paused" : $"Reading scanned pages · {Progress.PagesAwaitingOcr:N0} left";
+        if (HasAiWork)
+            return AiPaused ? "Cataloguing with AI paused"
+                : IsAiWaiting ? "Cataloguing with AI is waiting"
+                : $"Cataloguing with AI · {Progress.ToClassify:N0} left";
         return Progress.Documents == 0 ? "Nothing to process" : $"Up to date · {Progress.Documents:N0} {Plural(Progress.Documents, "item", "items")}";
     }
 
@@ -262,6 +293,9 @@ public sealed partial class LibraryActivity : ObservableObject
         _reading.Count(now, Counts.Files - toHash, Counts.Files, IndexPaused, waitingForSpace ? "Waiting for disk space" : null);
         _making.Count(now, Progress.Indexed, Progress.Queued, IndexPaused);
         _scans.Count(now, Progress.OcrPagesDone, Progress.OcrPages, OcrPaused);
+        // AI cataloguing is optional and off until set up, so "Off" rather than a count that never moves.
+        if (!AiOn) _classifying.Show(PhaseState.Waiting, Progress.ToClassify > 0 ? $"Off · {Progress.ToClassify:N0} waiting" : "Off");
+        else _classifying.Count(now, Progress.Classified, Progress.Classified + Progress.ToClassify, AiPaused, IsAiWaiting ? AiWaiting : null);
 
         var running = Phases.Where(p => p.State == PhaseState.Running).ToList();
         if (scanning) TimeLeftText = "Working out what there is to do";
@@ -294,6 +328,7 @@ public sealed partial class LibraryActivity : ObservableObject
             });
         }
         if (_indexing.Running(Lane.Ocr) is { } ocr) lines.Add($"Reading scanned pages of {await TitleAsync(ocr.DocumentId)}");
+        if (_indexing.Running(Lane.Classify) is { } ai) lines.Add($"Asking the AI about {await TitleAsync(ai.DocumentId)}");
         return lines;
     }
 

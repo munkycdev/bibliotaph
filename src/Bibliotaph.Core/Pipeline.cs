@@ -8,6 +8,9 @@ public enum Lane
 
     /// <summary>OCR of flagged pages: slow, so it never holds up the next book's text.</summary>
     Ocr,
+
+    /// <summary>Classification by the AI: one book at a time, and only while AI is set up and switched on.</summary>
+    Classify,
 }
 
 /// <summary>The stage versions and order of the processing pipeline.</summary>
@@ -24,12 +27,22 @@ public static class Pipeline
         Stage.Covers => 1,
         Stage.RuleHints => 1,
         Stage.Ocr => 1,
+        // Never bumped for a new prompt or model: those are recorded per run, and reclassifying is the user's call.
+        Stage.Classify => 1,
         _ => 1,
     };
 
-    public static Lane LaneOf(Stage stage) => stage == Stage.Ocr ? Lane.Ocr : Lane.Index;
+    public static Lane LaneOf(Stage stage) => stage switch
+    {
+        Stage.Ocr => Lane.Ocr,
+        Stage.Classify => Lane.Classify,
+        _ => Lane.Index,
+    };
 
-    /// <summary>The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR from Text.</summary>
+    /// <summary>
+    /// The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR and Classify
+    /// from Text, and Classify waits for the book's OCR to finish.
+    /// </summary>
     public static Stage First => Stage.Probe;
 
     /// <summary>

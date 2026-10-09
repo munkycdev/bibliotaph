@@ -56,6 +56,9 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     void ToggleOcr() => Activity.SetPaused(Lane.Ocr, !Activity.OcrPaused);
 
     [RelayCommand]
+    void ToggleAi() => Activity.SetPaused(Lane.Classify, !Activity.AiPaused);
+
+    [RelayCommand]
     void OpenLibrary() => links.Open(SettingsSection.Library);
 }
 

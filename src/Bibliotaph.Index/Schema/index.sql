@@ -121,6 +121,13 @@ CREATE TABLE doc_facet (
 
 CREATE INDEX doc_facet_value ON doc_facet (field, value);
 
+-- Documents a model has finished reading, with the model of the latest run, projected from catalog.db's
+-- classification runs. A document is one version of a file's content, so a changed file isn't here until it is read.
+CREATE TABLE doc_ai (
+    document_id  INTEGER PRIMARY KEY,
+    model        TEXT    NOT NULL
+);
+
 -- Every name a term goes by, in comparison form, so system:5e finds the 5th edition. Copied from catalog.db's
 -- vocabulary whenever it changes.
 CREATE TABLE term_alias (
@@ -180,4 +187,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;

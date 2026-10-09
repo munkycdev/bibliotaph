@@ -250,6 +250,57 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     /// <summary>A clock that moves on a minute each time it is read, so every write is later than the last.</summary>
+    static MetadataProposal Ai(MetadataField field, string value, string quote = "a quote from the page", int page = 3) =>
+        new(field, value, AssertionOrigin.Ai, quote, [page]);
+
+    [Fact]
+    public async Task A_run_replaces_its_origins_undecided_suggestions_and_leaves_decisions_alone()
+    {
+        await _metadata.ApplyRunAsync(_document, "run1", AssertionOrigin.Ai,
+            [Ai(MetadataFields.Title, "The Sunken Lantern"), Ai(MetadataFields.Year, "2019"), Ai(MetadataFields.Types, "adventure"), Ai(MetadataFields.Authors, "Ana Ruiz")], Ct);
+        var first = await RowsAsync();
+        await _metadata.ConfirmAsync(_document, MetadataFields.Authors, Ct);
+        await _metadata.RejectAsync(_document, MetadataFields.Year, "2019", Ct);
+
+        // A later run: the title again with new evidence, the year again, a new type, and no author.
+        await _metadata.ApplyRunAsync(_document, "run2", AssertionOrigin.Ai,
+            [Ai(MetadataFields.Title, "The Sunken Lantern", "THE SUNKEN LANTERN", 0), Ai(MetadataFields.Year, "2019"), Ai(MetadataFields.Types, "bestiary")], Ct);
+
+        var rows = await RowsAsync();
+        var title = Assert.Single(rows, r => r.Field == "title");
+        Assert.Equal(("run2", "THE SUNKEN LANTERN", "[0]"), (title.RunId, title.EvidenceQuote, title.EvidencePagesJson));
+        Assert.Equal(first.Single(r => r.Field == "title").CreatedUtc, title.CreatedUtc); // same suggestion, same age
+        Assert.Equal(AssertionState.Confirmed, Assert.Single(rows, r => r.Field == "authors").State); // decided, so kept
+        Assert.Equal(["bestiary"], rows.Where(r => r.Field == "type").Select(r => r.NormalizedValue));
+        Assert.False((await EffectiveAsync())[MetadataFields.Year].IsKnown); // rejected stays rejected
+    }
+
+    [Fact]
+    public async Task A_run_never_writes_hints_or_user_values()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _metadata.ApplyRunAsync(_document, "run", AssertionOrigin.Ai, [Hint(MetadataFields.Title, "Tomb", AssertionOrigin.User)], Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _metadata.ApplyRunAsync(_document, "run", AssertionOrigin.Folder, [Hint(MetadataFields.Title, "Tomb")], Ct));
+    }
+
+    [Fact]
+    public async Task Classification_runs_say_what_has_been_read_and_by_which_model()
+    {
+        var runs = new ClassificationStore(_contexts, _clock);
+        var hash = new string('a', 64);
+        await runs.RecordAsync(new RunRecord(_document, hash, "ollama", "model-a", 1, 1, [0, 1, 2], _clock.GetUtcNow().UtcDateTime, "The answer wasn't JSON."), Ct);
+        Assert.False(await runs.HasRunAsync(hash, "model-a", 1, Ct)); // a failed run doesn't count
+
+        await runs.RecordAsync(new RunRecord(_document, hash, "ollama", "model-a", 1, 1, [0, 1, 2], _clock.GetUtcNow().UtcDateTime, ClassificationStore.Complete), Ct);
+
+        Assert.True(await runs.HasRunAsync(hash, "model-a", 1, Ct));
+        Assert.False(await runs.HasRunAsync(hash, "model-a", 2, Ct));
+        Assert.False(await runs.HasRunAsync(hash, "model-b", 1, Ct));
+        Assert.Equal(new ClassificationSummary(1, 0), await runs.SummarizeAsync("model-a", 1, Ct));
+        Assert.Equal(new ClassificationSummary(0, 1), await runs.SummarizeAsync("model-b", 1, Ct));
+    }
+
     internal sealed class SteppingClock(DateTimeOffset start) : TimeProvider
     {
         DateTimeOffset _now = start;

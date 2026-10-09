@@ -10,6 +10,7 @@ public enum SettingsSection
     Appearance,
     Review,
     Vocabulary,
+    Ai,
     StartOver,
 }
 

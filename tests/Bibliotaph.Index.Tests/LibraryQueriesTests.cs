@@ -70,6 +70,30 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task The_library_marks_and_filters_books_a_model_has_read()
+    {
+        var store = new IndexStore(Writer, Clock);
+        await store.SetAiReadAsync(null, new Dictionary<long, string> { [Gazetteer] = "model-a", [Lairs] = "model-b" }, Ct);
+        // Reprojecting two documents: the Lairs mark goes, a new one for the inn comes, the Gazetteer's is untouched.
+        await store.SetAiReadAsync([Lairs, HauntedInn], new Dictionary<long, string> { [HauntedInn] = "model-b", [TavernMap] = "ignored" }, Ct);
+
+        var entries = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.DocumentId, e => e.AiModel);
+        Assert.Equal("model-a", entries[Gazetteer]);
+        Assert.Equal("model-b", entries[HauntedInn]);
+        Assert.Null(entries[Lairs]);
+        Assert.Null(entries[TavernMap]);
+        Assert.Equal(2, await _library.CountAiReadAsync(Ct));
+        Assert.Equal([HauntedInn, Gazetteer],
+            (await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyAdded, Ai: AiFilter.Read), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([TavernMap, Lairs],
+            (await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyAdded, Ai: AiFilter.NotRead), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Empty(await DocumentsAsync("dragon", new LibraryFilter(Ai: AiFilter.Read)));
+        var notRead = await DocumentsAsync("dragon", new LibraryFilter(Ai: AiFilter.NotRead));
+        Assert.Equal([Lairs], notRead);
+        Assert.All(await PagesAsync("dragon", new LibraryFilter(Ai: AiFilter.Read)), hit => Assert.Equal(Gazetteer, hit.Doc));
+    }
+
+    [Fact]
     public async Task Entries_say_whether_their_text_is_searchable_yet()
     {
         var entries = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.DocumentId);

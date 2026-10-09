@@ -27,6 +27,19 @@
       <TextBlock Text="YOUR NEXT GOOD STORY" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
       <TextBlock Text="Welcome back." Style="{StaticResource Text.H1}" />
       <TextBlock Text="A familiar shelf. A few places you haven’t been." Style="{StaticResource Text.Subtitle}" />
+      <!-- First run, once folders are in: AI now or later (choice 10). Everything works without it. -->
+      <Border Visibility="{Binding ShowAiStep, Converter={StaticResource Bt.VisibleWhenTrue}}" Background="{DynamicResource Bt.Side}"
+              CornerRadius="6" Padding="18" Margin="0,22,0,0" MaxWidth="620" HorizontalAlignment="Left">
+        <StackPanel>
+          <TextBlock Text="Fill in the catalog with AI?" Style="{StaticResource Text.Row}" />
+          <TextBlock Style="{StaticResource Text.Copy}" Margin="0,8,0,0" TextWrapping="Wrap"
+                     Text="A model running on this PC, such as Ollama, can suggest each book's system, type, levels and more, quoting the page it found them on. You review the suggestions. It is off until you set it up, and you can do that later in Settings." />
+          <WrapPanel Margin="0,14,0,0">
+            <Button Style="{StaticResource Bt.Button.Primary}" Content="Set up AI" Command="{Binding SetUpAiCommand}" Margin="0,0,8,0" />
+            <Button Content="Not now" Command="{Binding AiLaterCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
       <c:EmptyState Title="Indexing your library."
                     Message="{Binding Activity.Summary, StringFormat='{}{0}. Browsing and search arrive with the next part of this build.'}"
                     ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />

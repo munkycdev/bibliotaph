@@ -15,7 +15,7 @@ namespace Bibliotaph.Processing.Tests;
 /// A library folder of synthetic files through the real pipeline: scan, hash, Probe, Text, Covers and OCR, with
 /// the real PDF worker, catalog.db and index.db on disk. Only image encoding is faked.
 /// </summary>
-public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
+public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
 {
     static readonly TimeSpan Patience = TimeSpan.FromSeconds(90);
 
@@ -35,6 +35,9 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     MetadataProjector _projector = null!;
     VocabularyStore _vocabulary = null!;
     SettingsStore _settings = null!;
+    readonly FakeModel _model = new();
+    AiSettings _ai = null!;
+    ClassificationStore _runs = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -64,13 +67,20 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
-        var projector = _projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries, _settings);
+        _runs = new ClassificationStore(contexts);
+        var projector = _projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries, _settings, runs: _runs);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var hints = new MetadataHints(library, _queries, _metadataStore, vocabulary, projector);
+        // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
+        _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
+        await _ai.LoadAsync(Ct);
+        var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
+            new ClassificationResults(_runs, _metadataStore, vocabulary, projector));
         _service = new IndexingService(_roots, library, queue,
-            [new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services)],
-            new FileHasher(reader), new DiskSpace(), new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1) });
+            [new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify],
+            new FileHasher(reader), new DiskSpace(),
+            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
     }
 
     public async ValueTask DisposeAsync()
