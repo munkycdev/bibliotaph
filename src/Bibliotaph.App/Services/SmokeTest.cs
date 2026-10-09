@@ -392,7 +392,9 @@ static class SmokeTest
         var navigation = services.GetRequiredService<INavigationService>();
         navigation.NavigateTo(Route.Settings);
         await Settle(window);
-        var link = Descendants<Button>(window).FirstOrDefault(b => b.Command == Controls.ShellCommands.ShowAbout)
+        var settings = services.GetRequiredService<ShellViewModel>().CurrentPage as SettingsViewModel
+            ?? throw new InvalidOperationException("Settings didn't open.");
+        var link = Descendants<Button>(window).FirstOrDefault(b => b.Command == settings.ShowAboutCommand)
             ?? throw new InvalidOperationException("Settings has no About Bibliotaph link.");
         // ShowDialog returns only when the popup closes, so click from the queue and go on inside the popup's loop.
         _ = window.Dispatcher.BeginInvoke(() => ((IInvokeProvider)new ButtonAutomationPeer(link).GetPattern(PatternInterface.Invoke)).Invoke());

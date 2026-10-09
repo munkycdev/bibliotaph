@@ -8,15 +8,14 @@ namespace Bibliotaph.App;
 
 public partial class MainWindow : Window
 {
-    readonly ThemeService _theme;
+    readonly AboutBox _about;
 
-    public MainWindow(ShellViewModel shell, ThemeService theme)
+    public MainWindow(ShellViewModel shell, AboutBox about)
     {
         InitializeComponent();
         DataContext = shell;
-        _theme = theme;
+        _about = about;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
-        CommandBindings.Add(new CommandBinding(ShellCommands.ShowAbout, (_, _) => ShowAbout()));
     }
 
     void FocusSearch()

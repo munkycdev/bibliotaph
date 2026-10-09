@@ -1,7 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
-using Bibliotaph.App.Services;
-using Bibliotaph.App.Views;
 
 namespace Bibliotaph.App;
 
@@ -32,16 +30,8 @@ public partial class MainWindow
         if (message != WmSysCommand || (wParam.ToInt64() & 0xFFF0) != AboutCommandId) return IntPtr.Zero;
         handled = true;
         // Leave the menu's own message loop before opening a modal window.
-        Dispatcher.BeginInvoke(ShowAbout);
+        Dispatcher.BeginInvoke(_about.Show);
         return IntPtr.Zero;
-    }
-
-    /// <summary>Opens the About popup over this window, from the system menu or Settings.</summary>
-    void ShowAbout()
-    {
-        var dialog = new AboutDialog(AboutInfo.ForThisApp()) { Owner = this };
-        _theme.Track(dialog);
-        dialog.ShowDialog();
     }
 
     [DllImport("user32.dll")]
