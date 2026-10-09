@@ -12,6 +12,7 @@ namespace Bibliotaph.App.Views;
 public partial class LibraryView
 {
     IInputElement? _focusBeforeDrawer;
+    IInputElement? _focusBeforeDialog;
     LibraryViewModel? _model;
 
     public LibraryView()
@@ -95,6 +96,21 @@ public partial class LibraryView
         {
             previous.Focus();
             _focusBeforeDrawer = null;
+        }
+    }
+
+    /// <summary>The same for the bulk editor: focus goes into it as it opens, and back to Edit metadata (or wherever it was) after.</summary>
+    void BulkDialog_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (BulkDialog.IsVisible)
+        {
+            _focusBeforeDialog = Keyboard.FocusedElement;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => BulkDialog.FocusFirst());
+        }
+        else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
+        {
+            previous.Focus();
+            _focusBeforeDialog = null;
         }
     }
 }

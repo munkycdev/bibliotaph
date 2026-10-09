@@ -51,6 +51,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public bool HasCover => Cover is not null;
 
+    /// <summary>Ticked in the Library's Select mode. <see cref="BookSelection"/> sets it.</summary>
+    public bool IsSelected
+    {
+        get;
+        internal set => SetProperty(ref field, value);
+    }
+
     public ImageSource? Cover
     {
         get

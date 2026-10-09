@@ -89,6 +89,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _staleTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RefreshIfStaleAsync(),
             Dispatcher.CurrentDispatcher);
         _staleTimer.Stop();
+        Selection.Changed += (_, _) => OnSelectionChanged();
     }
 
     public override Route Route => Route.Library;
@@ -238,6 +239,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Activity.Refreshed -= OnActivityRefreshed;
         Search.PropertyChanged -= OnSearchChanged;
         _staleTimer.Stop();
+        // A bulk edit can be undone until the Library is left (plan choice 7).
+        BulkUndo = null;
+        BulkMessage = null;
+        if (BulkEdit is { IsApplyingStep: false }) BulkEdit = null;
     }
 
     async void OnSearchChanged(object? sender, PropertyChangedEventArgs e)
@@ -440,6 +445,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (pages is null || plan is null)
         {
             ShowItems(documents);
+            Selection.SetShown(Items);
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = documents.Count == 1 ? "document" : "documents";
@@ -463,6 +469,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (Tab == ResultsTab.Documents)
         {
             ShowItems(documents);
+            Selection.SetShown(Items);
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}";
@@ -624,4 +631,126 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>Raised after a refresh that followed coming Back, when the view can restore its scroll position.</summary>
     public event EventHandler? RestoreScroll;
+
+    // Select mode and bulk metadata editing (slice 4e).
+
+    /// <summary>The books ticked in Select mode, kept while the search and filters change.</summary>
+    public BookSelection Selection { get; } = new();
+
+    /// <summary>The bulk editor, while it is open over the Library.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(EditSelectedCommand), nameof(SelectAllCommand))]
+    public partial BulkEditViewModel? BulkEdit { get; private set; }
+
+    /// <summary>"Edited 12 books.", after a bulk edit, beside its Undo.</summary>
+    [ObservableProperty]
+    public partial string? BulkMessage { get; private set; }
+
+    /// <summary>What undoes the last bulk edit: until the next one, or until the Library is left.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBulkUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoBulkEditCommand))]
+    public partial IReadOnlyList<FieldSnapshot>? BulkUndo { get; private set; }
+
+    public bool HasBulkUndo => BulkUndo is not null;
+
+    void OnSelectionChanged()
+    {
+        EditSelectedCommand.NotifyCanExecuteChanged();
+        SelectAllCommand.NotifyCanExecuteChanged();
+        ClearSelectionCommand.NotifyCanExecuteChanged();
+        SelectRangeCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Select: a checkbox on every book, and a click ticks a book instead of opening its details.</summary>
+    [RelayCommand]
+    void StartSelecting() => Selection.Start();
+
+    /// <summary>Done, or Esc: leaves Select mode, and the ticks with it.</summary>
+    [RelayCommand]
+    void StopSelecting() => Selection.Stop();
+
+    /// <summary>A click or Enter on a book: in Select mode it ticks the book, otherwise it opens its details.</summary>
+    [RelayCommand]
+    async Task Activate(LibraryItemViewModel item)
+    {
+        if (Selection.IsActive) Selection.Toggle(item);
+        else await OpenDetails(item);
+    }
+
+    /// <summary>Shift+click in Select mode: ticks every book from the last one clicked to this one.</summary>
+    [RelayCommand(CanExecute = nameof(IsSelecting))]
+    void SelectRange(LibraryItemViewModel item) => Selection.SelectRange(Items, item);
+
+    bool IsSelecting() => Selection.IsActive;
+
+    bool CanSelectAll => Selection.IsActive && !ShowingHits && BulkEdit is null;
+
+    /// <summary>Ctrl+A in Select mode: ticks every book in the current results.</summary>
+    [RelayCommand(CanExecute = nameof(CanSelectAll))]
+    void SelectAll() => Selection.SelectAll(Items);
+
+    [RelayCommand(CanExecute = nameof(CanClearSelection))]
+    void ClearSelection() => Selection.Clear();
+
+    bool CanClearSelection => Selection.HasAny;
+
+    bool CanEditSelected => Selection.HasAny && BulkEdit is null;
+
+    /// <summary>Opens the bulk editor for the ticked books, shown or not.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditSelected))]
+    async Task EditSelected()
+    {
+        try
+        {
+            var bulk = await BulkEditViewModel.LoadAsync(Selection.DocumentIds, _metadata);
+            bulk.Closed += async (_, result) => await BulkEditClosedAsync(result);
+            Inspector = null;
+            BulkEdit = bulk;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Loading metadata for {Count} selected documents failed", Selection.Count);
+        }
+    }
+
+    async Task BulkEditClosedAsync(BulkEditResult? result)
+    {
+        BulkEdit = null;
+        if (result is null) return;
+        // Leaving the Library while it applied ends the Undo, as leaving afterwards would.
+        BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
+        BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
+            : $"Edited {BulkEditViewModel.Books(result.Books)}.";
+        await RefreshAsync();
+    }
+
+    /// <summary>Puts back exactly what the fields held before the last bulk edit.</summary>
+    [RelayCommand(CanExecute = nameof(HasBulkUndo))]
+    async Task UndoBulkEdit()
+    {
+        if (BulkUndo is not { } undo) return;
+        BulkUndo = null;
+        BulkMessage = "Undoing…";
+        try
+        {
+            await Task.Run(() => _metadata.UndoManyAsync(undo));
+            BulkMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing a bulk edit of {Count} fields failed", undo.Count);
+            BulkMessage = "The edit couldn't be undone.";
+        }
+        await RefreshAsync();
+    }
+
+    /// <summary>Esc closes the topmost thing: the bulk editor (or its summary), the details, then Select mode.</summary>
+    [RelayCommand]
+    void Escape()
+    {
+        if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
+        else if (Inspector is not null) Inspector = null;
+        else Selection.Stop();
+    }
 }
