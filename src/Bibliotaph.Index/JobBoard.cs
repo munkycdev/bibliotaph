@@ -178,6 +178,27 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             foreach (var stage in stages) SetStatus(c, t, documentId, Enum.Parse<Stage>(stage), StageStatus.Pending, null, now);
         }, ct);
 
+    /// <summary>
+    /// Runs <paramref name="stage"/> again for every document that has finished it at the current version, as when the
+    /// vocabulary changes and the hints from names need reading again. Running and waiting jobs are left alone; the
+    /// stages after it are not queued again. Returns the number queued.
+    /// </summary>
+    public Task<int> RerunAsync(Stage stage, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var now = Now();
+            var args = new { stage = stage.ToString(), version = Pipeline.Version(stage) };
+            var documents = c.Query<long>(
+                "SELECT document_id FROM job WHERE stage = @stage AND stage_version = @version AND status IN ('done', 'failed')", args, t).ToList();
+            c.Execute(
+                """
+                UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL
+                WHERE stage = @stage AND stage_version = @version AND status IN ('done', 'failed')
+                """, args, t);
+            foreach (var documentId in documents) SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
+            return documents.Count;
+        }, ct);
+
     /// <summary>Documents with a job blocked for exactly <paramref name="reason"/>.</summary>
     public async Task<IReadOnlyList<long>> BlockedForAsync(string reason, CancellationToken ct = default)
     {

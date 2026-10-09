@@ -43,7 +43,7 @@ public sealed class MetadataSearchTests : IndexFixture
                 },
                 new DocMetaRow
                 {
-                    DocumentId = Bestiary, Publisher = "Kobold Press", SystemLabel = "PF2e", KindLabel = "Bestiary", Levels = LevelState.NotApplicable, NeedsReview = true,
+                    DocumentId = Bestiary, Publisher = "Kobold Press", SystemLabel = "PF2e", KindLabel = "Bestiary", Levels = LevelState.NotApplicable, Reviews = 1,
                     Facets = [new("system", "pathfinder", "Pathfinder", false), new("edition", "pathfinder-2e", "Pathfinder 2nd edition", false), new("type", "bestiary", "Bestiary", false)],
                 },
                 new DocMetaRow { DocumentId = Map, Facets = [new("type", "map-pack", "Map pack", true)] },

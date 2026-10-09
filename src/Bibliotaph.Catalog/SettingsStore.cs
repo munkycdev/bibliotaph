@@ -7,6 +7,9 @@ public static class SettingKeys
 {
     /// <summary>A <see cref="Core.ThemePreference"/> name.</summary>
     public const string Appearance = "appearance";
+
+    /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
+    public const string ReviewAll = "review.all";
 }
 
 /// <summary>Key-value settings in catalog.db, so they travel with backups.</summary>

@@ -12,4 +12,8 @@ public sealed partial class NavItemViewModel(Route route, string label, Geometry
 
     [ObservableProperty]
     public partial bool IsActive { get; set; }
+
+    /// <summary>A count after the label, as Needs review shows how much waits there; empty for none.</summary>
+    [ObservableProperty]
+    public partial string Count { get; set; } = "";
 }

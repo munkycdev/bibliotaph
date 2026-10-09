@@ -236,7 +236,6 @@ public sealed class MetadataStoreTests : IAsyncLifetime
         Assert.Empty(await _vocabulary.GetIgnoredFolderLabelsAsync(Ct));
     }
 
-    /// <summary>A clock that moves on a minute each time it is read, so every write is later than the last.</summary>
     [Fact]
     public async Task Typing_a_different_type_replaces_the_suggested_one()
     {
@@ -250,7 +249,8 @@ public sealed class MetadataStoreTests : IAsyncLifetime
         Assert.True(types.Values[0].Confirmed);
     }
 
-    sealed class SteppingClock(DateTimeOffset start) : TimeProvider
+    /// <summary>A clock that moves on a minute each time it is read, so every write is later than the last.</summary>
+    internal sealed class SteppingClock(DateTimeOffset start) : TimeProvider
     {
         DateTimeOffset _now = start;
 

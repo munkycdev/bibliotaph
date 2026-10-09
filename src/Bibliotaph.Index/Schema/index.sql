@@ -101,7 +101,7 @@ CREATE TABLE doc_meta (
     level_min     INTEGER,
     level_max     INTEGER,
     level_state   TEXT    NOT NULL DEFAULT 'unknown' CHECK (level_state IN ('unknown', 'known', 'na')),
-    needs_review  INTEGER NOT NULL DEFAULT 0,
+    needs_review  INTEGER NOT NULL DEFAULT 0,    -- how many Needs review cards it has
     suggested     INTEGER NOT NULL DEFAULT 0,    -- shows a value nobody has confirmed
     tags          TEXT,                          -- the user's tags, joined with "; "
     confirmed_text   TEXT,                       -- for doc_fts: labels and short labels of confirmed vocabulary values

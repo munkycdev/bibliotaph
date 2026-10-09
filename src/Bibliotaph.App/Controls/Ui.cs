@@ -17,6 +17,10 @@ public static class Ui
     public static readonly DependencyProperty IsActiveProperty = DependencyProperty.RegisterAttached(
         "IsActive", typeof(bool), typeof(Ui), new FrameworkPropertyMetadata(false));
 
+    /// <summary>A count a navigation item shows after its label.</summary>
+    public static readonly DependencyProperty CountProperty = DependencyProperty.RegisterAttached(
+        "Count", typeof(string), typeof(Ui), new FrameworkPropertyMetadata(""));
+
     /// <summary>What a box's clear (×) button runs.</summary>
     public static readonly DependencyProperty ClearCommandProperty = DependencyProperty.RegisterAttached(
         "ClearCommand", typeof(ICommand), typeof(Ui), new FrameworkPropertyMetadata(null));
@@ -30,6 +34,9 @@ public static class Ui
 
     public static bool GetIsActive(DependencyObject element) => (bool)element.GetValue(IsActiveProperty);
     public static void SetIsActive(DependencyObject element, bool value) => element.SetValue(IsActiveProperty, value);
+
+    public static string GetCount(DependencyObject element) => (string)element.GetValue(CountProperty);
+    public static void SetCount(DependencyObject element, string value) => element.SetValue(CountProperty, value);
 
     public static ICommand? GetClearCommand(DependencyObject element) => (ICommand?)element.GetValue(ClearCommandProperty);
     public static void SetClearCommand(DependencyObject element, ICommand? value) => element.SetValue(ClearCommandProperty, value);
