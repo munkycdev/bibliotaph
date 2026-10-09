@@ -122,6 +122,27 @@ public sealed class IndexQueries(IndexDatabase database)
             new { ids = JsonSerializer.Serialize(documentIds) }, cancellationToken: ct));
     }
 
+    /// <summary>The documents with Needs review cards, by title, and how many cards each has.</summary>
+    public async Task<IReadOnlyList<(long DocumentId, string Title, int Reviews)>> GetReviewDocumentsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, string? Title, long Reviews)>(new CommandDefinition(
+            """
+            SELECT m.document_id, coalesce(m.title, d.display_title), m.needs_review
+            FROM doc_meta m LEFT JOIN doc d ON d.document_id = m.document_id
+            WHERE m.needs_review > 0
+            ORDER BY coalesce(m.title, d.display_title) COLLATE NOCASE, m.document_id
+            """, cancellationToken: ct));
+        return [.. rows.Select(r => (r.DocumentId, r.Title ?? $"Document {r.DocumentId}", (int)r.Reviews))];
+    }
+
+    /// <summary>How many Needs review cards documents have, in all.</summary>
+    public async Task<long> CountReviewsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT coalesce(sum(needs_review), 0) FROM doc_meta", cancellationToken: ct));
+    }
+
     /// <summary>A document's embedded information, or null before Probe has added it.</summary>
     public async Task<EmbeddedInfo?> GetEmbeddedInfoAsync(long documentId, CancellationToken ct = default)
     {

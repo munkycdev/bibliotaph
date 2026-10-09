@@ -59,7 +59,8 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
               <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
-                      c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
+                      c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" AutomationProperties.Name="{Binding Label}"
+                      AutomationProperties.ItemStatus="{Binding Count}"
                       Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                       CommandParameter="{Binding Route}" />
             </DataTemplate>

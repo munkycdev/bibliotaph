@@ -14,7 +14,7 @@ namespace Bibliotaph.Processing;
 /// loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
-    ILogger<MetadataProjector>? log = null)
+    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null)
 {
     const int Batch = 200;
 
@@ -27,8 +27,9 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
     {
         if (documentIds.Count == 0) return;
         var vocabulary = await vocabularies.GetAsync(ct);
+        var reviewAll = await ReviewAllAsync(ct);
         var all = await metadata.GetManyAsync(documentIds, ct);
-        await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary))], ct);
+        await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. documentIds.Where(id => !all.ContainsKey(id))], ct);
         Projected?.Invoke(this, documentIds);
     }
@@ -45,17 +46,22 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
     {
         await ProjectVocabularyAsync(ct);
         var vocabulary = await vocabularies.GetAsync(ct);
+        var reviewAll = await ReviewAllAsync(ct);
         var (_, withMetadata) = await queries.GetDocumentIdsAsync(ct);
         var all = await metadata.GetManyAsync(null, ct);
         foreach (var chunk in all.Values.Chunk(Batch))
-            await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary))], ct);
+            await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. withMetadata.Where(id => !all.ContainsKey(id))], ct);
         _log.LogInformation("Projected metadata for {Count} documents", all.Count);
         Projected?.Invoke(this, [.. all.Keys]);
     }
 
+    /// <summary>Whether every suggestion goes to Needs review, not only those a person has to look at (choice 4).</summary>
+    async Task<bool> ReviewAllAsync(CancellationToken ct) =>
+        settings is not null && await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
+
     /// <summary>A document's index.db metadata row: its effective values, labelled through the vocabulary.</summary>
-    public static DocMetaRow Build(DocumentMetadata document, Vocabulary vocabulary)
+    public static DocMetaRow Build(DocumentMetadata document, Vocabulary vocabulary, bool reviewAll = false)
     {
         var effective = document.Compute();
         string? One(MetadataField field) => effective[field].First?.Value;
@@ -88,7 +94,7 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
             LevelMin = levels is { NotApplicable: false } known ? known.Min : null,
             LevelMax = levels is { NotApplicable: false } known2 ? known2.Max : null,
             Levels = levels is null ? LevelState.Unknown : levels.Value.NotApplicable ? LevelState.NotApplicable : LevelState.Known,
-            NeedsReview = effective.NeedsReview,
+            Reviews = MetadataReview.Find(effective, reviewAll).Count,
             Suggested = effective.Fields.Any(f => f.Field.IsClosed && f.Values.Any(v => !v.Confirmed)),
             Tags = Joined(MetadataFields.Tags),
             ConfirmedText = SearchText(facets.Where(f => f.Confirmed), vocabulary),

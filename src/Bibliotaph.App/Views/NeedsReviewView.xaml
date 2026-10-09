@@ -7,14 +7,225 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:NeedsReviewViewModel}">
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+
+    <!-- .bt-reviewitem -->
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="Margin" Value="0,15,0,0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Bt.Line}" />
+      <Setter Property="Background" Value="{DynamicResource Bt.Panel}" />
+    </Style>
+
+    <!-- A book's title that opens it, at the evidence's page. -->
+    <Style x:Key="TitleLink" TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <TextBlock x:Name="Text" Text="{TemplateBinding Content}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Background="Transparent" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Text" Property="TextDecorations" Value="Underline" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- A decided card: what happened, and Undo. -->
+    <DataTemplate x:Key="Decided" DataType="{x:Type vm:DecidedCardViewModel}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" Command="{Binding UndoCommand}"
+                VerticalAlignment="Center" Padding="12,0,0,0" />
+        <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Check}" Size="14" Foreground="{DynamicResource Bt.Muted}"
+                      VerticalAlignment="Center" Margin="0,0,10,0" />
+        <TextBlock Text="{Binding DoneText}" FontSize="12" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ReviewCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <DockPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,6" />
+            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}" />
+          </DockPanel>
+
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <!-- .bt-reviewtitle -->
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding FieldLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenCommand}" ToolTip="Open the book"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+
+            <!-- .bt-reviewcompare -->
+            <Grid Margin="0,16,0,12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="32" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Background="{DynamicResource Bt.Side}" CornerRadius="5" Padding="12">
+                <StackPanel>
+                  <TextBlock Text="Current" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="{Binding CurrentText}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding CurrentSource}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,5,0,0"
+                             Visibility="{Binding CurrentSource, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                </StackPanel>
+              </Border>
+              <c:LucideIcon Grid.Column="1" Data="{StaticResource Icon.ArrowRight}" Size="15" Foreground="{DynamicResource Bt.Muted}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding HasSuggestion, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <Border Grid.Column="2" Background="{DynamicResource Bt.Soft}" CornerRadius="5" Padding="12"
+                      Visibility="{Binding HasSuggestion, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <TextBlock Text="Suggested" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="{Binding SuggestedText}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <DockPanel Margin="0,0,0,16" Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="13" Foreground="{DynamicResource Bt.Muted}"
+                            VerticalAlignment="Top" Margin="0,1,8,0" />
+              <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" LineHeight="18">
+                <Run Text="{Binding Evidence, Mode=OneWay}" />
+                <Run Text="{Binding PageText, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+              </TextBlock>
+            </DockPanel>
+
+            <!-- Edit: what the inspector's editor does, in the card. -->
+            <StackPanel Margin="0,0,0,4" Visibility="{Binding IsEditing, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Your value" Style="{StaticResource FieldLabel}" />
+              <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
+                       AutomationProperties.Name="{Binding FieldLabel, StringFormat='{}{0}, your value'}" c:Ui.FocusWhenVisible="True">
+                <TextBox.InputBindings>
+                  <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+                  <KeyBinding Key="Escape" Command="{Binding CancelEditCommand}" />
+                </TextBox.InputBindings>
+              </TextBox>
+              <TextBlock Text="{Binding EditHint}" Style="{StaticResource Text.Small}" Margin="0,5,0,0"
+                         Visibility="{Binding EditHint, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock Text="{Binding Resolution}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,5,0,0"
+                         Visibility="{Binding Resolution, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Choices}" SelectedItem="{Binding PickedChoice}" Margin="0,10,0,0"
+                        AutomationProperties.Name="Pick from the list" HorizontalAlignment="Left" MinWidth="240" MaxDropDownHeight="320"
+                        Visibility="{Binding UsesChoices, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,8,0,0"
+                         Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <Button Style="{StaticResource Bt.Button.Primary}" Content="Save" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding SaveCommand}"
+                        Margin="0,0,8,0" />
+                <Button Content="Cancel" Command="{Binding CancelEditCommand}" />
+              </StackPanel>
+            </StackPanel>
+
+            <!-- .bt-inline -->
+            <WrapPanel Visibility="{Binding IsEditing, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="Accept" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding AcceptCommand}"
+                      Margin="0,0,8,0" Visibility="{Binding CanAccept, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                      AutomationProperties.Name="{Binding SuggestedText, StringFormat='Accept {0}'}" />
+              <Button Content="{Binding AcceptAllLabel}" Command="{Binding AcceptAllCommand}" Margin="0,0,8,0" ToolTip="{Binding AcceptAllHint}"
+                      Visibility="{Binding CanAcceptAll, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <Button Content="{Binding EditLabel}" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}" Margin="0,0,8,0" />
+              <Button Content="{Binding RejectLabel}" Command="{Binding RejectCommand}" ToolTip="{Binding RejectHint}"
+                      Visibility="{Binding CanReject, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:TermCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+            <DockPanel Margin="0,14,0,0" Visibility="{Binding HasExample, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="13" Foreground="{DynamicResource Bt.Muted}"
+                            VerticalAlignment="Top" Margin="0,1,8,0" />
+              <TextBlock Text="{Binding Example}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" />
+            </DockPanel>
+            <WrapPanel Margin="0,16,0,0">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="{Binding AddLabel}" c:Ui.Icon="{StaticResource Icon.Plus}"
+                      Command="{Binding AddCommand}" Margin="0,0,8,8" />
+              <Button Content="Reject" Command="{Binding RejectCommand}" Margin="0,0,16,8" ToolTip="Not a useful name; it won't be suggested again" />
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}" DisplayMemberPath="Label"
+                          MinWidth="180" MaxDropDownHeight="320" AutomationProperties.Name="{Binding Label, StringFormat='File {0} under'}"
+                          ToolTip="Another name for an existing term" Margin="0,0,8,0" />
+                <Button Content="File under it" Command="{Binding MapCommand}" />
+              </StackPanel>
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+
   <StackPanel>
     <TextBlock Text="A little clarification." Style="{StaticResource Text.H1}" />
-    <TextBlock Text="Suggestions worth a second look. The rest is ready to use." Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
+    <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
+
+    <!-- .bt-toolbar .bt-tabs -->
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" AutomationProperties.Name="Needs review">
+      <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding SuggestionsTabLabel}" IsChecked="{Binding IsSuggestionsTab}" />
+      <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding FilesTabLabel}" IsChecked="{Binding IsFilesTab}" />
+    </StackPanel>
     <Border Style="{StaticResource Bt.Rule}" />
 
-    <StackPanel Visibility="{Binding HasFiles, Converter={StaticResource Bt.VisibleWhenTrue}}" MaxWidth="640" HorizontalAlignment="Left" Margin="0,24,0,0">
-      <TextBlock Text="Files needing attention" Style="{StaticResource Text.H2}" />
-      <ItemsControl ItemsSource="{Binding Files}" Focusable="False">
+    <StackPanel MaxWidth="720" HorizontalAlignment="Left" Visibility="{Binding IsSuggestionsTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,18,0,0"
+              Visibility="{Binding HasUpdates, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Show the new list" Command="{Binding ReloadCommand}" Padding="12,0,0,0" />
+          <TextBlock Text="The suggestions have changed since this list was made." FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" />
+        </DockPanel>
+      </Border>
+      <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,18,0,0"
+              Visibility="{Binding BulkMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo all" Command="{Binding UndoBulkCommand}" Padding="12,0,0,0" />
+          <TextBlock Text="{Binding BulkMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+        </DockPanel>
+      </Border>
+
+      <ItemsControl ItemsSource="{Binding Cards}" Focusable="False" AutomationProperties.Name="Metadata suggestions" />
+
+      <Button Content="{Binding MoreLabel}" Command="{Binding ShowMoreCommand}" HorizontalAlignment="Left" Margin="0,18,0,0"
+              Visibility="{Binding HasHidden, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+
+      <c:EmptyState Visibility="{Binding ShowEmpty, Converter={StaticResource Bt.VisibleWhenTrue}}" Title="Everything in its place."
+                    Message="No suggestions need your attention."
+                    ActionText="Return to library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding ReturnToLibraryCommand}" />
+    </StackPanel>
+
+    <StackPanel MaxWidth="720" HorizontalAlignment="Left" Visibility="{Binding IsFilesTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <ItemsControl ItemsSource="{Binding Files}" Focusable="False" Margin="0,6,0,0" AutomationProperties.Name="Files needing attention">
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="{x:Type vm:AttentionRow}">
             <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
@@ -34,14 +245,14 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      <c:EmptyState Visibility="{Binding HasFiles, Converter={StaticResource Bt.CollapsedWhenTrue}}" Title="Everything in its place."
+                    Message="Every file could be read."
+                    ActionText="Return to library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding ReturnToLibraryCommand}" />
     </StackPanel>
 
-    <c:EmptyState Visibility="{Binding HasFiles, Converter={StaticResource Bt.CollapsedWhenTrue}}" Title="Everything in its place."
-                  Message="No suggestions need your attention."
-                  ActionText="Return to library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding ReturnToLibraryCommand}" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
       <c:LucideIcon Data="{StaticResource Icon.ShieldCheck}" Size="13" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
-      <TextBlock Text="Your corrections are never overwritten." Style="{StaticResource Text.Small}" FontSize="10" />
+      <TextBlock Text="Your corrections are preserved when books are reindexed." Style="{StaticResource Text.Small}" FontSize="10" />
     </StackPanel>
   </StackPanel>
 </UserControl>

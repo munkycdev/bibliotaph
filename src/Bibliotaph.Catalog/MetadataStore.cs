@@ -97,6 +97,41 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         return changed;
     }
 
+    /// <summary>
+    /// Adds suggestions from a source that doesn't replace its earlier ones (a classifier run). A value already
+    /// suggested by the same origin, in any state, is skipped, so a rejected one isn't proposed again. A term value
+    /// whose term is still pending is held (<see cref="AssertionState.AwaitingTerm"/>) until the user decides the
+    /// term; one whose term was rejected is dropped. Returns the number added.
+    /// </summary>
+    public async Task<int> AddSuggestionsAsync(long documentId, IReadOnlyList<MetadataProposal> proposals, CancellationToken ct = default)
+    {
+        if (proposals.Any(p => HintOrigins.Contains(p.Origin) || p.Origin == AssertionOrigin.User))
+            throw new ArgumentException("Rule hints and the user's own values have their own methods.", nameof(proposals));
+
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.Assertions.Where(a => a.DocumentId == documentId).ToListAsync(ct);
+        var vocabularies = proposals.Where(p => p.Field.Kind == FieldKind.Term).Select(p => p.Field.Vocabulary!).Distinct().ToList();
+        var states = (await db.VocabularyTerms.Where(t => vocabularies.Contains(t.Vocabulary)).Select(t => new { t.Vocabulary, t.Key, t.State }).ToListAsync(ct))
+            .ToDictionary(t => (t.Vocabulary, t.Key), t => t.State);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var added = 0;
+        foreach (var proposal in proposals.DistinctBy(p => (p.Field.Key, p.Normalized, p.Origin)))
+        {
+            if (proposal.Normalized.Length == 0) continue;
+            if (rows.Any(r => r.Field == proposal.Field.Key && r.NormalizedValue == proposal.Normalized && r.Origin == proposal.Origin)) continue;
+            var state = AssertionState.Provisional;
+            if (proposal.Field.Kind == FieldKind.Term && states.TryGetValue((proposal.Field.Vocabulary!, proposal.Value), out var term))
+            {
+                if (term == TermState.Rejected) continue;
+                if (term == TermState.Pending) state = AssertionState.AwaitingTerm;
+            }
+            db.Assertions.Add(NewAssertion(documentId, proposal, state, now));
+            added++;
+        }
+        if (added > 0) await db.SaveChangesAsync(ct);
+        return added;
+    }
+
     static Assertion NewAssertion(long documentId, MetadataProposal proposal, AssertionState state, DateTime now) => new()
     {
         DocumentId = documentId,
@@ -209,6 +244,58 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// A review card's Reject: rejects <paramref name="rejected"/> (normalised values) and confirms
+    /// <paramref name="kept"/> (stored values), so the field is settled on what it showed. With nothing to keep, only
+    /// the rejections happen, and the next suggestion, if any, shows.
+    /// </summary>
+    public async Task RejectAndKeepAsync(long documentId, MetadataField field, IReadOnlyList<string> rejected, IReadOnlyList<string> kept, CancellationToken ct = default)
+    {
+        await using (var db = await contexts.CreateDbContextAsync(ct))
+        {
+            var (rows, rejections) = await LoadFieldAsync(db, documentId, field, ct);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            foreach (var normalized in rejected) Reject(db, documentId, field, normalized, rows, rejections, now);
+            await db.SaveChangesAsync(ct);
+        }
+        if (kept.Count > 0) await SetValuesAsync(documentId, field, kept, ct);
+    }
+
+    /// <summary>A field's assertions and rejections as they are now, so a decision about it can be undone exactly.</summary>
+    public async Task<FieldSnapshot> SnapshotAsync(long documentId, MetadataField field, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var (rows, rejections) = await LoadFieldAsync(db, documentId, field, ct);
+        return new FieldSnapshot(documentId, field,
+            [.. rows.Select(r => new FieldSnapshot.Row(r.Id, r.State, r.DecidedUtc))],
+            [.. rejections.Select(r => new FieldSnapshot.Rejected(r.NormalizedValue, r.CreatedUtc))]);
+    }
+
+    /// <summary>
+    /// Undo: puts a field back as <paramref name="snapshot"/> found it. Assertions added since are removed, the
+    /// others get their state back, and so do the rejections. Terms added meanwhile stay in the vocabulary.
+    /// </summary>
+    public async Task RestoreAsync(FieldSnapshot snapshot, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var (rows, rejections) = await LoadFieldAsync(db, snapshot.DocumentId, snapshot.Field, ct);
+        var before = snapshot.Rows.ToDictionary(r => r.Id);
+        foreach (var row in rows)
+        {
+            if (!before.TryGetValue(row.Id, out var was))
+            {
+                db.Assertions.Remove(row);
+                continue;
+            }
+            row.State = was.State;
+            row.DecidedUtc = was.DecidedUtc;
+        }
+        db.Rejections.RemoveRange(rejections.Where(r => snapshot.Rejections.All(s => s.Normalized != r.NormalizedValue)));
+        foreach (var gone in snapshot.Rejections.Where(s => rejections.All(r => r.NormalizedValue != s.Normalized)))
+            db.Rejections.Add(new Rejection { DocumentId = snapshot.DocumentId, Field = snapshot.Field.Key, NormalizedValue = gone.Normalized, CreatedUtc = gone.CreatedUtc });
+        await db.SaveChangesAsync(ct);
+    }
+
     static async Task<(List<Assertion> Rows, List<Rejection> Rejections)> LoadFieldAsync(CatalogDbContext db, long documentId, MetadataField field, CancellationToken ct) =>
         (await db.Assertions.Where(a => a.DocumentId == documentId && a.Field == field.Key).ToListAsync(ct),
          await db.Rejections.Where(r => r.DocumentId == documentId && r.Field == field.Key).ToListAsync(ct));
@@ -230,4 +317,12 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
             row.DecidedUtc = now;
         }
     }
+}
+
+/// <summary>A field's assertion states and rejections at one moment, which <see cref="MetadataStore.RestoreAsync"/> puts back.</summary>
+public sealed record FieldSnapshot(long DocumentId, MetadataField Field, IReadOnlyList<FieldSnapshot.Row> Rows, IReadOnlyList<FieldSnapshot.Rejected> Rejections)
+{
+    public sealed record Row(long Id, AssertionState State, DateTime? DecidedUtc);
+
+    public sealed record Rejected(string Normalized, DateTime CreatedUtc);
 }
