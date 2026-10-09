@@ -337,6 +337,16 @@ static class SmokeTest
         await WaitUntilAsync(window, () => pages.PageModels[pages.CurrentPageIndex].Tiles.Count > 0, () => "No tiles were drawn at 300%.");
         viewer.Zoom = 0;
 
+        // Zoom in and out step from the fitted size, as the + and - buttons and Ctrl+plus and Ctrl+minus do; Ctrl+0 fits again.
+        await Settle(window);
+        System.Windows.Input.NavigationCommands.IncreaseZoom.Execute(null, pages);
+        var zoomedIn = viewer.Zoom;
+        if (zoomedIn <= 0) throw new InvalidOperationException($"Zoom in from Fit width left the zoom at {zoomedIn}.");
+        System.Windows.Input.NavigationCommands.DecreaseZoom.Execute(null, pages);
+        if (viewer.Zoom <= 0 || viewer.Zoom >= zoomedIn) throw new InvalidOperationException($"Zoom out from {zoomedIn:P0} gave {viewer.Zoom}.");
+        viewer.ResetZoomCommand.Execute(null);
+        if (viewer.Zoom != Bibliotaph.Viewer.PdfPagesView.FitWidth) throw new InvalidOperationException($"Ctrl+0 left the zoom at {viewer.Zoom}.");
+
         navigation.GoBack();
         await Settle(window);
         if (shell.CurrentPage is not LibraryViewModel) throw new InvalidOperationException("Back didn't return to the Library.");
