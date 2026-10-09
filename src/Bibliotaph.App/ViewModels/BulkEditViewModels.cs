@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -32,9 +33,9 @@ public enum BulkEditStep
 public sealed partial class BulkEditViewModel : ObservableObject
 {
     readonly MetadataService _metadata;
-    readonly IReadOnlyList<long> _documents;
+    readonly IReadOnlyList<EntryId> _documents;
 
-    BulkEditViewModel(IReadOnlyList<long> documents, IReadOnlyDictionary<long, EffectiveMetadata> metadata, Vocabulary vocabulary, MetadataService service)
+    BulkEditViewModel(IReadOnlyList<EntryId> documents, IReadOnlyDictionary<EntryId, EffectiveMetadata> metadata, Vocabulary vocabulary, MetadataService service)
     {
         _documents = documents;
         _metadata = service;
@@ -50,7 +51,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
     /// <summary>Raised when the dialog closes: with what was changed, or null when it was cancelled.</summary>
     public event EventHandler<BulkEditResult?>? Closed;
 
-    public static async Task<BulkEditViewModel> LoadAsync(IReadOnlyList<long> documents, MetadataService metadata)
+    public static async Task<BulkEditViewModel> LoadAsync(IReadOnlyList<EntryId> documents, MetadataService metadata)
     {
         var (all, vocabulary) = await Task.Run(() => metadata.GetManyAsync(documents));
         return new BulkEditViewModel(documents, all, vocabulary, metadata);
@@ -125,7 +126,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
                 Step = BulkEditStep.Editing;
                 return;
             }
-            Closed?.Invoke(this, new BulkEditResult(undo!, undo!.Select(s => s.DocumentId).Distinct().Count()));
+            Closed?.Invoke(this, new BulkEditResult(undo!, undo!.Select(s => s.EntryId).Distinct().Count()));
         }
         catch (Exception ex)
         {

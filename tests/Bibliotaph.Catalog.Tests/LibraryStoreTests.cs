@@ -93,6 +93,13 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         Assert.True(first?.IsNew);
         Assert.False(second?.IsNew);
         Assert.Equal(first?.DocumentId, second?.DocumentId);
+        // A new document is shown by one whole-document entry; the copy adds no other.
+        var entries = new EntryStore(_contexts);
+        var entry = await entries.GetEntryAsync(first!.Value.DocumentId, Ct);
+        Assert.NotNull(entry);
+        Assert.Equal(new string('b', 64), entry.ContentHash);
+        Assert.Equal([new EntryDocument(entry.EntryId, first.Value.DocumentId, EntryKind.Whole)], await entries.GetCurrentAsync(ct: Ct));
+        Assert.Equal(first.Value.DocumentId, await entries.GetCurrentDocumentAsync(entry.EntryId, Ct));
         Assert.Empty(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
         Assert.Equal(new LibraryCounts(Files: 2, OnlineOnly: 0, Missing: 0, Unhashed: 0, Documents: 1), await _library.GetCountsAsync(Ct));
     }
@@ -178,7 +185,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_library_shows_documents_in_folders_still_in_use()
+    public async Task The_library_shows_entries_with_documents_in_folders_still_in_use()
     {
         var kept = await RootAsync("Kept");
         var removed = await RootAsync("Removed");
@@ -195,9 +202,10 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("unhashed.pdf")], ct: Ct); // gone.pdf goes missing
         await _roots.RemoveAsync(removed, Ct);
 
-        Assert.Equal([ids["shared.pdf"]], await _library.GetVisibleDocumentIdsAsync(ct: Ct));
-        Assert.Equal([ids["shared.pdf"]], await _library.GetVisibleDocumentIdsAsync(kept, Ct));
-        Assert.Empty(await _library.GetVisibleDocumentIdsAsync(removed, Ct));
+        var shared = (await new EntryStore(_contexts).GetEntryAsync(ids["shared.pdf"], Ct))!.EntryId;
+        Assert.Equal([shared], await _library.GetVisibleEntryIdsAsync(ct: Ct));
+        Assert.Equal([shared], await _library.GetVisibleEntryIdsAsync(kept, Ct));
+        Assert.Empty(await _library.GetVisibleEntryIdsAsync(removed, Ct));
 
         var locations = await _library.GetLocationsAsync(ids["shared.pdf"], Ct);
         Assert.Equal([Path.Combine(_dir, "Kept", "shared.pdf")], locations.Select(l => l.FullPath));

@@ -7,8 +7,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>A Needs review card for one field of one document, and how many cards propose the same.</summary>
-public sealed record ReviewItem(long DocumentId, string Title, ReviewIssue Issue, int GroupSize);
+/// <summary>
+/// A Needs review card for one field of one entry, and how many cards propose the same. <see cref="DocumentId"/> is
+/// the document the entry's card shows, which opens at the evidence.
+/// </summary>
+public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, ReviewIssue Issue, int GroupSize);
 
 /// <summary>Everything in Needs review's Metadata suggestions tab, and the vocabulary to label it with.</summary>
 public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary)
@@ -19,7 +22,7 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
 /// <summary>
 /// Needs review's metadata suggestions (spec 5.5): which cards there are, and the user's decisions about them. Every
 /// decision about a field can be undone exactly, from a snapshot taken before it; a decision about a new term, from
-/// what it changed. The documents are projected again after each, so the library and the count keep up.
+/// what it changed. The entries are projected again after each, so the library and the count keep up.
 /// </summary>
 public sealed class ReviewService(
     MetadataStore metadata,
@@ -33,7 +36,7 @@ public sealed class ReviewService(
     public async Task<bool> GetReviewAllAsync(CancellationToken ct = default) =>
         await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
 
-    /// <summary>Chooses whether every suggestion goes to Needs review, and recounts every document's cards.</summary>
+    /// <summary>Chooses whether every suggestion goes to Needs review, and recounts every entry's cards.</summary>
     public async Task SetReviewAllAsync(bool reviewAll, CancellationToken ct = default)
     {
         if (await GetReviewAllAsync(ct) == reviewAll) return;
@@ -52,16 +55,16 @@ public sealed class ReviewService(
     public async Task<ReviewList> GetQueueAsync(CancellationToken ct = default)
     {
         var reviewAll = await GetReviewAllAsync(ct);
-        var documents = await queries.GetReviewDocumentsAsync(ct);
-        var all = await metadata.GetManyAsync([.. documents.Select(d => d.DocumentId)], ct);
-        var found = documents
-            .Where(d => all.ContainsKey(d.DocumentId))
-            .SelectMany(d => MetadataReview.Find(all[d.DocumentId].Compute(), reviewAll).Select(issue => (d.DocumentId, d.Title, Issue: issue)))
+        var entries = await queries.GetReviewEntriesAsync(ct);
+        var all = await metadata.GetManyAsync([.. entries.Select(e => e.EntryId)], ct);
+        var found = entries
+            .Where(e => all.ContainsKey(e.EntryId) && e.DocumentId is not null)
+            .SelectMany(e => MetadataReview.Find(all[e.EntryId].Compute(), reviewAll).Select(issue => (e.EntryId, DocumentId: e.DocumentId!.Value, e.Title, Issue: issue)))
             .ToList();
         var groups = found.Where(f => f.Issue.CanAccept).GroupBy(f => f.Issue.GroupKey).ToDictionary(g => g.Key, g => g.Count());
         var items = found
             .OrderBy(f => f.Issue.Kind)
-            .Select(f => new ReviewItem(f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
+            .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
         return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct));
     }
@@ -69,9 +72,9 @@ public sealed class ReviewService(
     /// <summary>Makes the card's suggestion the field's value, confirmed. Returns what undoes it.</summary>
     public async Task<FieldSnapshot> AcceptAsync(ReviewItem item, CancellationToken ct = default)
     {
-        var before = await metadata.SnapshotAsync(item.DocumentId, item.Issue.Field, ct);
-        await metadata.SetValuesAsync(item.DocumentId, item.Issue.Field, [.. item.Issue.Suggested.Select(v => v.Value)], ct);
-        await projector.ProjectAsync([item.DocumentId], ct);
+        var before = await metadata.SnapshotAsync(item.EntryId, item.Issue.Field, ct);
+        await metadata.SetValuesAsync(item.EntryId, item.Issue.Field, [.. item.Issue.Suggested.Select(v => v.Value)], ct);
+        await projector.ProjectAsync([item.EntryId], ct);
         return before;
     }
 
@@ -81,35 +84,35 @@ public sealed class ReviewService(
         var undo = new List<FieldSnapshot>();
         foreach (var item in items)
         {
-            undo.Add(await metadata.SnapshotAsync(item.DocumentId, item.Issue.Field, ct));
-            await metadata.SetValuesAsync(item.DocumentId, item.Issue.Field, [.. item.Issue.Suggested.Select(v => v.Value)], ct);
+            undo.Add(await metadata.SnapshotAsync(item.EntryId, item.Issue.Field, ct));
+            await metadata.SetValuesAsync(item.EntryId, item.Issue.Field, [.. item.Issue.Suggested.Select(v => v.Value)], ct);
         }
-        await projector.ProjectAsync([.. items.Select(i => i.DocumentId).Distinct()], ct);
+        await projector.ProjectAsync([.. items.Select(i => i.EntryId).Distinct()], ct);
         return undo;
     }
 
     /// <summary>Rejects what the card proposes, from every source now and later, and keeps what the field shows.</summary>
     public async Task<FieldSnapshot> RejectAsync(ReviewItem item, CancellationToken ct = default)
     {
-        var before = await metadata.SnapshotAsync(item.DocumentId, item.Issue.Field, ct);
-        await metadata.RejectAndKeepAsync(item.DocumentId, item.Issue.Field,
+        var before = await metadata.SnapshotAsync(item.EntryId, item.Issue.Field, ct);
+        await metadata.RejectAndKeepAsync(item.EntryId, item.Issue.Field,
             [.. item.Issue.Proposed.Select(v => v.Normalized)], [.. item.Issue.Current.Select(v => v.Value)], ct);
-        await projector.ProjectAsync([item.DocumentId], ct);
+        await projector.ProjectAsync([item.EntryId], ct);
         return before;
     }
 
     /// <summary>Saves what the user typed instead, as the inspector does. Returns the problem, or what undoes it.</summary>
     public async Task<(MetadataProblem? Problem, FieldSnapshot? Undo)> EditAsync(ReviewItem item, string typed, CancellationToken ct = default)
     {
-        var before = await metadata.SnapshotAsync(item.DocumentId, item.Issue.Field, ct);
-        var problem = await edits.SetAsync(item.DocumentId, item.Issue.Field, typed, ct);
+        var before = await metadata.SnapshotAsync(item.EntryId, item.Issue.Field, ct);
+        var problem = await edits.SetAsync(item.EntryId, item.Issue.Field, typed, ct);
         return problem is null ? (null, before) : (problem, null);
     }
 
     public async Task UndoAsync(IReadOnlyList<FieldSnapshot> snapshots, CancellationToken ct = default)
     {
         foreach (var snapshot in snapshots) await metadata.RestoreAsync(snapshot, ct);
-        await projector.ProjectAsync([.. snapshots.Select(s => s.DocumentId).Distinct()], ct);
+        await projector.ProjectAsync([.. snapshots.Select(s => s.EntryId).Distinct()], ct);
     }
 
     public Task<TermDecision> AddTermAsync(PendingTerm term, CancellationToken ct = default) =>
@@ -124,14 +127,14 @@ public sealed class ReviewService(
     public async Task UndoTermAsync(TermDecision decision, CancellationToken ct = default)
     {
         await vocabularies.UndoAsync(decision, ct);
-        await projector.ProjectAsync(decision.DocumentIds, ct);
+        await projector.ProjectAsync(decision.EntryIds, ct);
         vocabulary.ScheduleRefresh();
     }
 
     async Task<TermDecision> DecideAsync(Func<Task<TermDecision>> decide, bool vocabularyChanged, CancellationToken ct)
     {
         var decision = await decide();
-        await projector.ProjectAsync(decision.DocumentIds, ct);
+        await projector.ProjectAsync(decision.EntryIds, ct);
         // A new term or name can match folder names too, so the hints from names are read again.
         if (vocabularyChanged) vocabulary.ScheduleRefresh();
         return decision;

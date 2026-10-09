@@ -28,7 +28,7 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(IndexSchema.Version, UserVersion(c));
         Assert.Equal("wal", c.ExecuteScalar<string>("PRAGMA journal_mode"));
         var tables = c.Query<string>("SELECT name FROM sqlite_schema WHERE type = 'table'").ToHashSet();
-        Assert.Superset(new HashSet<string> { "page", "page_fts", "doc_fts", "stage_status", "job" }, tables);
+        Assert.Superset(new HashSet<string> { "page", "page_fts", "entry_doc", "entry_fts", "stage_status", "job" }, tables);
     }
 
     [Fact]
@@ -108,10 +108,13 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(IndexSchema.Version, UserVersion(read));
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM page_fts WHERE page_fts MATCH 'lich'"));
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM job"));
-        Assert.Equal(7, read.ExecuteScalar<long>("SELECT rowid FROM doc_fts WHERE doc_fts MATCH 'provisional : horrors'"));
-        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_meta"));
-        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_ai"));
-        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_fts WHERE doc_fts MATCH 'authors : x'"));
+        // The catalog gives each existing document an entry with the same id, so the library shows before projection runs.
+        Assert.Equal((7L, 7L, "Whole"), read.QuerySingle<(long, long, string)>("SELECT entry_id, document_id, kind FROM entry_doc"));
+        Assert.Equal(7, read.ExecuteScalar<long>("SELECT rowid FROM entry_fts WHERE entry_fts MATCH 'title : tomb'"));
+        Assert.Equal(7, read.ExecuteScalar<long>("SELECT rowid FROM entry_fts WHERE entry_fts MATCH 'provisional : horrors'"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_meta"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_ai"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE name IN ('doc_meta', 'doc_facet', 'doc_ai', 'doc_fts')"));
     }
 
     [Fact]

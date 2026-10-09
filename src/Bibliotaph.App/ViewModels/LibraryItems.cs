@@ -14,6 +14,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public LibraryEntry Entry { get; private set; } = entry;
 
+    public EntryId EntryId => Entry.EntryId;
+
+    /// <summary>The document the card shows, which opens.</summary>
     public long DocumentId => Entry.DocumentId;
 
     public string Title => Entry.Title;

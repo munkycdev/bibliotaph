@@ -1,17 +1,18 @@
 using System.Globalization;
+using Bibliotaph.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// The books ticked in the Library's Select mode (slice 4e), by document. Ticks stay while the search and filters
+/// The books ticked in the Library's Select mode (slice 4e), by entry. Ticks stay while the search and filters
 /// change, so books can be gathered from several searches; <see cref="SetShown"/> says which are in view, for
 /// "12 selected, 3 not shown". Slice 3's Add to collection is to read the same selection.
 /// </summary>
 public sealed class BookSelection : ObservableObject
 {
-    readonly Dictionary<long, LibraryItemViewModel> _ticked = [];
-    HashSet<long> _shown = [];
+    readonly Dictionary<EntryId, LibraryItemViewModel> _ticked = [];
+    HashSet<EntryId> _shown = [];
     LibraryItemViewModel? _anchor;
 
     /// <summary>Raised when the ticks change, or Select mode starts or ends.</summary>
@@ -34,8 +35,8 @@ public sealed class BookSelection : ObservableObject
             ? $"{Count.ToString("N0", CultureInfo.CurrentCulture)} selected"
             : $"{Count.ToString("N0", CultureInfo.CurrentCulture)} selected, {NotShown.ToString("N0", CultureInfo.CurrentCulture)} not shown";
 
-    /// <summary>The ticked documents, in the order they were ticked.</summary>
-    public IReadOnlyList<long> DocumentIds => [.. _ticked.Keys];
+    /// <summary>The ticked books' entries, in the order they were ticked.</summary>
+    public IReadOnlyList<EntryId> EntryIds => [.. _ticked.Keys];
 
     public void Start()
     {
@@ -55,8 +56,8 @@ public sealed class BookSelection : ObservableObject
 
     public void Toggle(LibraryItemViewModel item)
     {
-        var wasTicked = _ticked.Remove(item.DocumentId);
-        if (!wasTicked) _ticked[item.DocumentId] = item;
+        var wasTicked = _ticked.Remove(item.EntryId);
+        if (!wasTicked) _ticked[item.EntryId] = item;
         item.IsSelected = !wasTicked;
         _anchor = item;
         Notify();
@@ -94,13 +95,13 @@ public sealed class BookSelection : ObservableObject
     /// <summary>The books the results show now, so ticked books outside them are counted as not shown.</summary>
     public void SetShown(IEnumerable<LibraryItemViewModel> shown)
     {
-        _shown = [.. shown.Select(i => i.DocumentId)];
+        _shown = [.. shown.Select(i => i.EntryId)];
         if (Count > 0) Notify();
     }
 
     void Tick(LibraryItemViewModel item)
     {
-        _ticked[item.DocumentId] = item;
+        _ticked[item.EntryId] = item;
         item.IsSelected = true;
     }
 
@@ -113,7 +114,7 @@ public sealed class BookSelection : ObservableObject
     static int IndexOf(IReadOnlyList<LibraryItemViewModel> shown, LibraryItemViewModel item)
     {
         for (var i = 0; i < shown.Count; i++)
-            if (shown[i].DocumentId == item.DocumentId) return i;
+            if (shown[i].EntryId == item.EntryId) return i;
         return -1;
     }
 

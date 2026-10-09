@@ -210,7 +210,7 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
         {
             var values = await Task.Run(async () =>
             {
-                var filter = new LibraryFilter(await library.GetVisibleDocumentIdsAsync());
+                var filter = new LibraryFilter(await library.GetVisibleEntryIdsAsync());
                 if (field.Kind == SearchFieldKind.Format)
                     return SearchGuide.FormatValues((await queries.GetFormatCountsAsync(filter)).Select(Value));
                 var counts = await queries.GetFacetCountsAsync(field.Metadata?.Vocabulary ?? field.Name, filter);

@@ -73,7 +73,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     async Task ReloadMetadataAsync(bool changed)
     {
-        var (metadata, vocabulary) = await _metadata.GetAsync(Item.DocumentId);
+        var (metadata, vocabulary) = await _metadata.GetAsync(Item.EntryId);
         var open = Fields.Where(f => f.ShowEvidence).Select(f => f.Field).ToHashSet();
         Fields = [.. metadata.Fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this, PrimaryFields.Contains(f.Field))
         {
@@ -84,7 +84,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     async Task<string?> IMetadataEditor.SaveAsync(MetadataField field, string typed)
     {
-        var problem = await Task.Run(() => _metadata.SetAsync(Item.DocumentId, field, typed));
+        var problem = await Task.Run(() => _metadata.SetAsync(Item.EntryId, field, typed));
         if (problem is not null) return problem.Message;
         await ReloadMetadataAsync(changed: true);
         return null;
@@ -92,25 +92,25 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     async Task IMetadataEditor.KeepAsync(MetadataField field)
     {
-        await Task.Run(() => _metadata.ConfirmAsync(Item.DocumentId, field));
+        await Task.Run(() => _metadata.ConfirmAsync(Item.EntryId, field));
         await ReloadMetadataAsync(changed: true);
     }
 
     async Task IMetadataEditor.RejectAsync(MetadataField field, string normalized)
     {
-        await Task.Run(() => _metadata.RejectAsync(Item.DocumentId, field, normalized));
+        await Task.Run(() => _metadata.RejectAsync(Item.EntryId, field, normalized));
         await ReloadMetadataAsync(changed: true);
     }
 
     async Task IMetadataEditor.UseAsync(MetadataField field, string value)
     {
-        await Task.Run(() => _metadata.UseAsync(Item.DocumentId, field, value));
+        await Task.Run(() => _metadata.UseAsync(Item.EntryId, field, value));
         await ReloadMetadataAsync(changed: true);
     }
 
     async Task IMetadataEditor.ResetAsync(MetadataField field)
     {
-        await Task.Run(() => _metadata.ResetAsync(Item.DocumentId, field));
+        await Task.Run(() => _metadata.ResetAsync(Item.EntryId, field));
         await ReloadMetadataAsync(changed: true);
     }
 
@@ -154,7 +154,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IndexingService indexing)
     {
-        var details = await Task.Run(() => queries.GetDetailsAsync(item.DocumentId));
+        var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         var locations = await library.GetLocationsAsync(item.DocumentId);
         var inspector = new InspectorViewModel(item, details, locations, metadata, queries, indexing);
         await inspector.ReloadMetadataAsync(changed: false);
@@ -200,7 +200,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             {
                 _refreshAgain = false;
                 var wasProcessing = IsReprocessing;
-                var details = await Task.Run(() => _queries.GetDetailsAsync(Item.DocumentId));
+                var details = await Task.Run(() => _queries.GetDetailsAsync(Item.EntryId));
                 ShowProcessing(details?.Entry ?? Item.Entry, details);
                 // Hints from names may have changed; a field being edited is left alone.
                 if (wasProcessing && !IsReprocessing && !Fields.Any(f => f.IsEditing)) await ReloadMetadataAsync(changed: false);

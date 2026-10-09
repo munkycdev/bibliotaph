@@ -73,10 +73,10 @@ public sealed partial class PipelineTests
         }
     }
 
-    async Task<long> OnlyDocumentAsync()
+    async Task<EntryId> OnlyEntryAsync()
     {
         await using var c = _index.OpenRead();
-        return await c.QuerySingleAsync<long>("SELECT document_id FROM doc");
+        return new EntryId(await c.QuerySingleAsync<long>("SELECT entry_id FROM entry_doc"));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed partial class PipelineTests
         await _service.StartAsync(Ct);
 
         var progress = await SettleClassifyAsync();
-        var documentId = await OnlyDocumentAsync();
+        var entryId = await OnlyEntryAsync();
 
         // The book reached the model inside the excerpt, unable to end it early or fake a page.
         Assert.Equal(1, progress.Classified);
@@ -118,7 +118,7 @@ public sealed partial class PipelineTests
         Assert.Equal(bool.TrueString, await _settings.GetAsync(SettingKeys.AiEnabled, Ct));
         Assert.Equal(Endpoint, await _settings.GetAsync(SettingKeys.AiEndpoint, Ct));
 
-        var stored = await _metadataStore.GetAsync(documentId, Ct);
+        var stored = await _metadataStore.GetAsync(entryId, Ct);
         var metadata = stored.Compute();
         Assert.Equal(("The Sunken Lantern", AssertionOrigin.Ai), (metadata[MetadataFields.Title].First!.Value, metadata[MetadataFields.Title].First!.Origin));
         Assert.Contains(metadata[MetadataFields.Authors].Values, v => v.Value == "Ana Ruiz" && v.Origin == AssertionOrigin.Ai);
@@ -153,12 +153,12 @@ public sealed partial class PipelineTests
         await SwitchAiOnAsync();
         await _service.StartAsync(Ct);
         await SettleClassifyAsync();
-        var documentId = await OnlyDocumentAsync();
-        Assert.Equal("adventure", (await _metadataStore.GetAsync(documentId, Ct)).Compute()[MetadataFields.Types].First?.Value);
+        var entryId = await OnlyEntryAsync();
+        Assert.Equal("adventure", (await _metadataStore.GetAsync(entryId, Ct)).Compute()[MetadataFields.Types].First?.Value);
 
         // The user says it is a bestiary, and that 2019 is wrong.
-        Assert.Null(await _metadata.SetAsync(documentId, MetadataFields.Types, "Bestiary", Ct));
-        await _metadata.RejectAsync(documentId, MetadataFields.Year, "2019", Ct);
+        Assert.Null(await _metadata.SetAsync(entryId, MetadataFields.Types, "Bestiary", Ct));
+        await _metadata.RejectAsync(entryId, MetadataFields.Year, "2019", Ct);
 
         // The same model and prompt don't read a book twice.
         await _service.RerunAsync(Stage.Classify, Ct);
@@ -172,7 +172,7 @@ public sealed partial class PipelineTests
         await SettleClassifyAsync();
         Assert.Equal(["fake-8b", "fake-14b"], _model.Requests.Select(r => r.Model));
 
-        var metadata = (await _metadataStore.GetAsync(documentId, Ct)).Compute();
+        var metadata = (await _metadataStore.GetAsync(entryId, Ct)).Compute();
         Assert.Equal(["bestiary"], metadata[MetadataFields.Types].Values.Select(v => v.Value));
         Assert.Equal(AssertionOrigin.User, metadata[MetadataFields.Types].First!.Origin);
         Assert.False(metadata[MetadataFields.Year].IsKnown);
@@ -181,7 +181,7 @@ public sealed partial class PipelineTests
 
         // index.db loses its metadata; what the user said, and which model read the book, come back from catalog.db.
         await _service.StopAsync(Ct);
-        await _writer.WriteAsync((c, t) => c.Execute("DELETE FROM doc_meta; DELETE FROM doc_facet; DELETE FROM doc_ai;", transaction: t), Ct);
+        await _writer.WriteAsync((c, t) => c.Execute("DELETE FROM entry_meta; DELETE FROM entry_facet; DELETE FROM entry_ai;", transaction: t), Ct);
         await _projector.ProjectAllAsync(Ct);
         var entry = Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct));
         Assert.Equal(("The Sunken Lantern", "Bestiary", "fake-14b"), (entry.Title, entry.Kind, entry.AiModel));
@@ -206,10 +206,10 @@ public sealed partial class PipelineTests
         // Searching, reading the library and editing all work while the lane waits; nothing failed.
         Assert.Contains("Nothing is answering", _service.Unavailable(Lane.Classify), StringComparison.Ordinal);
         Assert.Equal((1, 1, 0), (progress.Searchable, progress.ToClassify, progress.ClassifyFailed));
-        var documentId = await OnlyDocumentAsync();
+        var entryId = await OnlyEntryAsync();
         await using (var c = _index.OpenRead())
             Assert.Equal(1, await c.ExecuteScalarAsync<long>("SELECT count(*) FROM page_fts WHERE page_fts MATCH @q", new { q = "\"owlbear waits\"" }));
-        Assert.Null(await _metadata.SetAsync(documentId, MetadataFields.Title, "The Owlbear Book", Ct));
+        Assert.Null(await _metadata.SetAsync(entryId, MetadataFields.Title, "The Owlbear Book", Ct));
         Assert.Equal("The Owlbear Book", Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).Title);
         Assert.DoesNotContain(await _queries.GetAttentionAsync(Ct), a => a.Stage == Stage.Classify);
 
@@ -240,7 +240,7 @@ public sealed partial class PipelineTests
         Assert.Equal([null, test.Title, test.Title], steps.Select(s => s.Title));
         Assert.Contains(test.Result!.Accepted, c => c.Value == "The Sunken Lantern");
         Assert.Empty(await _runs.GetReadByAsync(ct: Ct));
-        Assert.DoesNotContain((await _metadataStore.GetAsync(await OnlyDocumentAsync(), Ct)).Claims, c => c.Origin == AssertionOrigin.Ai);
+        Assert.DoesNotContain((await _metadataStore.GetAsync(await OnlyEntryAsync(), Ct)).Claims, c => c.Origin == AssertionOrigin.Ai);
     }
 
     /// <summary>Reports on the thread that reports, unlike <see cref="Progress{T}"/>, so a test sees every step in order.</summary>

@@ -17,7 +17,7 @@ public sealed partial class PipelineTests
         await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = text || ' ' || @filler", new { filler = string.Join(' ', Enumerable.Repeat("More of the adventure.", 12)) }, t), Ct);
         // Set up but switched off, so only the pilot sends anything.
         await _ai.SaveAsync(new AiSetup(Endpoint, "fake-8b", "ollama", Enabled: false, RemoteAllowed: false, new HashSet<long>()), Ct);
-        return new PilotService(new PilotStore(_paths.Pilot), _ai, _service, _queries, _libraryStore, new ClassifierInputs(_libraryStore, _queries, _vocabulary),
+        return new PilotService(new PilotStore(_paths.Pilot), _ai, _service, _queries, _libraryStore, _entries, new ClassifierInputs(_libraryStore, _queries, _vocabulary),
             _metadata, _vocabulary);
     }
 
@@ -34,6 +34,7 @@ public sealed partial class PipelineTests
 
         var book = Assert.Single(await pilot.PickBooksAsync(ct: Ct));
         Assert.Contains($"{book.DocumentId}\t{book.Path}", await File.ReadAllTextAsync(pilot.Store.BookListPath, Ct));
+        var entryId = (await _entries.GetEntryAsync(book.DocumentId, Ct))!.EntryId;
         var progress = new List<PilotProgress>();
         var end = await pilot.RunAsync(["fake-8b", "fake-14b"], new Collect<PilotProgress>(progress.Add), Ct);
 
@@ -42,7 +43,7 @@ public sealed partial class PipelineTests
         Assert.False(_service.IsPaused(Lane.Classify));
         Assert.Equal([("fake-8b", 0), ("fake-8b", 1), ("fake-14b", 0), ("fake-14b", 1)], progress.Select(p => (p.Model, p.Done)));
         // Nothing reached the catalog: the proposals are in pilot.db only.
-        Assert.DoesNotContain((await _metadataStore.GetAsync(book.DocumentId, Ct)).Claims, c => c.Origin == AssertionOrigin.Ai);
+        Assert.DoesNotContain((await _metadataStore.GetAsync(entryId, Ct)).Claims, c => c.Origin == AssertionOrigin.Ai);
         Assert.Empty(await _runs.GetReadByAsync(ct: Ct));
         var proposals = await pilot.Store.GetProposalsAsync(book.DocumentId, Ct);
         Assert.Contains(proposals, p => p is { Model: "fake-14b", Field: "title", Value: "The Sunken Lantern", Kept: true, PdfPage: 0 });
@@ -67,7 +68,7 @@ public sealed partial class PipelineTests
         }, alsoCatalog: true, Ct);
 
         Assert.Null(problem);
-        var (effective, _) = await _metadata.GetAsync(book.DocumentId, Ct);
+        var (effective, _) = await _metadata.GetAsync(entryId, Ct);
         Assert.Equal(("The Sunken Lantern", true), (effective[MetadataFields.Title].First!.Value, effective[MetadataFields.Title].First!.Confirmed));
         Assert.Equal("3", effective[MetadataFields.Levels].First!.Value);
         Assert.True((await pilot.GetReviewAsync(book, Ct)).Fields.Single(f => f.Field == MetadataFields.Publisher).NotInBook);

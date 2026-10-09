@@ -149,7 +149,7 @@ public sealed partial class LibrarySectionViewModel(
                 var root = current[i];
                 var item = Folders.FirstOrDefault(f => f.Id == root.Id);
                 if (item is null) Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, root.Path));
-                var ids = await library.GetVisibleDocumentIdsAsync(root.Id);
+                var ids = await library.GetVisibleEntryIdsAsync(root.Id);
                 var searchable = await queries.CountSearchableAsync(ids);
                 item.Detail = Describe(root.AddedUtc, scans.GetValueOrDefault(root.Id), searchable, ids.Count);
                 item.Percent = ids.Count == 0 ? 0 : 100.0 * searchable / ids.Count;

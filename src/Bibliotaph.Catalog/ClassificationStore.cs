@@ -1,13 +1,14 @@
 using System.Globalization;
 using System.Text.Json;
 using Bibliotaph.Catalog.Entities;
+using Bibliotaph.Core;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog;
 
 /// <summary>A classifier run as the Classify stage records it, finished or failed.</summary>
 public sealed record RunRecord(
-    long DocumentId, string ContentHash, string Provider, string Model, int PromptVersion, int SchemaVersion,
+    EntryId EntryId, string ContentHash, string Provider, string Model, int PromptVersion, int SchemaVersion,
     IReadOnlyList<int> Pages, DateTime StartedUtc, string Outcome);
 
 /// <summary>How much of the library the current model and prompt have classified, and how much an earlier one did.</summary>
@@ -40,7 +41,7 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
         db.ClassificationRuns.Add(new ClassificationRun
         {
             Id = id,
-            DocumentId = run.DocumentId,
+            EntryId = run.EntryId.Value,
             ContentHash = run.ContentHash,
             Provider = run.Provider,
             Model = run.Model,
@@ -56,28 +57,33 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     }
 
     /// <summary>
-    /// The model of each document's latest finished run, for the documents a model has read: all of them, or those of
-    /// <paramref name="documentIds"/>. A document is one version of a file's content, so an edited file needs a new run.
+    /// The model of each entry's latest finished run, for the entries a model has read: all of them, or those of
+    /// <paramref name="entryIds"/>.
     /// </summary>
-    public async Task<Dictionary<long, string>> GetReadByAsync(IReadOnlyCollection<long>? documentIds = null, CancellationToken ct = default)
+    public async Task<Dictionary<EntryId, string>> GetReadByAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var complete = db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete);
-        if (documentIds is not null) complete = complete.Where(r => documentIds.Contains(r.DocumentId));
-        var runs = await complete.Select(r => new { r.DocumentId, r.Model, r.FinishedUtc }).ToListAsync(ct);
-        return runs.GroupBy(r => r.DocumentId).ToDictionary(g => g.Key, g => g.MaxBy(r => r.FinishedUtc)!.Model);
+        if (entryIds is not null)
+        {
+            var ids = entryIds.Select(e => e.Value).ToList();
+            complete = complete.Where(r => ids.Contains(r.EntryId));
+        }
+        var runs = await complete.Select(r => new { r.EntryId, r.Model, r.FinishedUtc }).ToListAsync(ct);
+        return runs.GroupBy(r => r.EntryId).ToDictionary(g => new EntryId(g.Key), g => g.MaxBy(r => r.FinishedUtc)!.Model);
     }
 
     /// <summary>
-    /// Documents classified by <paramref name="model"/> with this prompt version, and documents classified only by
-    /// another model or an earlier prompt: the count "Reclassify N documents" offers.
+    /// Content classified by <paramref name="model"/> with this prompt version, and content classified only by
+    /// another model or an earlier prompt: the count "Reclassify N documents" offers. Runs are counted by the copy
+    /// they read, since Reclassify queues documents.
     /// </summary>
     public async Task<ClassificationSummary> SummarizeAsync(string model, int promptVersion, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var runs = await db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete)
-            .Select(r => new { r.DocumentId, Current = r.Model == model && r.PromptVersion == promptVersion }).ToListAsync(ct);
-        var byDocument = runs.GroupBy(r => r.DocumentId).Select(g => g.Any(r => r.Current)).ToList();
+            .Select(r => new { r.ContentHash, Current = r.Model == model && r.PromptVersion == promptVersion }).ToListAsync(ct);
+        var byDocument = runs.GroupBy(r => r.ContentHash).Select(g => g.Any(r => r.Current)).ToList();
         return new ClassificationSummary(byDocument.Count(c => c), byDocument.Count(c => !c));
     }
 }

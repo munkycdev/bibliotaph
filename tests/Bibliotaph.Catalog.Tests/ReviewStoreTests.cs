@@ -1,4 +1,3 @@
-using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Microsoft.Data.Sqlite;
@@ -13,8 +12,11 @@ public sealed class ReviewStoreTests : IAsyncLifetime
     CatalogDatabase _database = null!;
     MetadataStore _metadata = null!;
     VocabularyStore _vocabulary = null!;
-    long _document;
-    long _other;
+    EntryId _document;
+    EntryId _other;
+
+    /// <summary>The content hash suggestions are read from; one copy per entry here.</summary>
+    static readonly string Hash = new('a', 64);
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -26,11 +28,7 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         _metadata = new MetadataStore(contexts, _clock);
         _vocabulary = new VocabularyStore(contexts, _clock);
         await _vocabulary.SeedAsync(Ct);
-        await using var db = _database.CreateContext();
-        var document = db.Documents.Add(new Document { ContentHash = new string('a', 64), Format = "pdf", CreatedUtc = DateTime.UtcNow }).Entity;
-        var other = db.Documents.Add(new Document { ContentHash = new string('b', 64), Format = "pdf", CreatedUtc = DateTime.UtcNow }).Entity;
-        await db.SaveChangesAsync();
-        (_document, _other) = (document.Id, other.Id);
+        (_document, _other) = (await TestEntries.AddAsync(_database, 'a'), await TestEntries.AddAsync(_database, 'b'));
     }
 
     public ValueTask DisposeAsync()
@@ -42,17 +40,17 @@ public sealed class ReviewStoreTests : IAsyncLifetime
 
     static MetadataProposal Hint(MetadataField field, string value, AssertionOrigin origin = AssertionOrigin.Folder) => new(field, value, origin);
 
-    async Task<EffectiveMetadata> EffectiveAsync(long? document = null) => (await _metadata.GetAsync(document ?? _document, Ct)).Compute();
+    async Task<EffectiveMetadata> EffectiveAsync(EntryId? document = null) => (await _metadata.GetAsync(document ?? _document, Ct)).Compute();
 
     [Fact]
     public async Task Rejecting_a_conflict_keeps_what_the_field_showed_and_settles_it()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Edition, "dnd-35", AssertionOrigin.Embedded)], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Edition, "dnd-35", AssertionOrigin.Embedded)], Ct);
         var issue = Assert.Single(MetadataReview.Find(await EffectiveAsync(), reviewAll: false), i => i.Kind == ReviewKind.Conflict);
 
         await _metadata.RejectAndKeepAsync(_document, issue.Field, [.. issue.Proposed.Select(p => p.Normalized)], [.. issue.Current.Select(c => c.Value)], Ct);
         _clock.Step();
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Edition, "dnd-35", AssertionOrigin.Embedded)], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Edition, "dnd-35", AssertionOrigin.Embedded)], Ct);
 
         var edition = (await EffectiveAsync())[MetadataFields.Edition];
         Assert.Equal("dnd-35", edition.First!.Value);
@@ -64,7 +62,7 @@ public sealed class ReviewStoreTests : IAsyncLifetime
     [Fact]
     public async Task Undo_puts_a_field_back_exactly_as_it_was()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Themes, "mystery")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Themes, "mystery")], Ct);
         await _metadata.RejectAsync(_document, MetadataFields.Themes, "mystery", Ct);
         var before = await _metadata.SnapshotAsync(_document, MetadataFields.Themes, Ct);
 
@@ -93,8 +91,8 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         Assert.Equal(TermState.Pending, state);
         Assert.Equal((term.Key, TermState.Pending), ((await _vocabulary.ProposeTermAsync("type", "heist kit", Ct)).Term.Key, TermState.Pending));
 
-        Assert.Equal(1, await _metadata.AddSuggestionsAsync(_document, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai, "a heist kit")], Ct));
-        await _metadata.AddSuggestionsAsync(_other, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct);
+        Assert.Equal(1, await _metadata.AddSuggestionsAsync(_document, Hash, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai, "a heist kit")], Ct));
+        await _metadata.AddSuggestionsAsync(_other, Hash, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct);
 
         Assert.False((await EffectiveAsync())[MetadataFields.Types].IsKnown);
         var pending = Assert.Single(await _vocabulary.GetPendingAsync(Ct));
@@ -112,7 +110,7 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         Assert.Equal("heist-kit", (await EffectiveAsync())[MetadataFields.Types].First?.Value);
         Assert.Equal("Heist Kit", (await _vocabulary.GetAsync(Ct)).Resolve("type", "heist kit")?.Label);
         Assert.Empty(await _vocabulary.GetPendingAsync(Ct));
-        Assert.Equal([_document], decision.DocumentIds);
+        Assert.Equal([_document], decision.EntryIds);
 
         await _vocabulary.UndoAsync(decision, Ct);
 
@@ -149,14 +147,14 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         Assert.Empty(await _vocabulary.GetPendingAsync(Ct));
         var (term, state) = await _vocabulary.ProposeTermAsync("type", "nonsense", Ct);
         Assert.Equal(TermState.Rejected, state);
-        Assert.Equal(0, await _metadata.AddSuggestionsAsync(_other, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct));
+        Assert.Equal(0, await _metadata.AddSuggestionsAsync(_other, Hash, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct));
         Assert.False((await EffectiveAsync())[MetadataFields.Types].IsKnown);
     }
 
     async Task<PendingTerm> PendingAsync(string label)
     {
         var (term, _) = await _vocabulary.ProposeTermAsync("type", label, Ct);
-        await _metadata.AddSuggestionsAsync(_document, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct);
+        await _metadata.AddSuggestionsAsync(_document, Hash, [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct);
         return Assert.Single(await _vocabulary.GetPendingAsync(Ct));
     }
 
@@ -221,9 +219,9 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         public static readonly SnapshotComparer Instance = new();
 
         public bool Equals(FieldSnapshot? x, FieldSnapshot? y) =>
-            x is not null && y is not null && x.DocumentId == y.DocumentId && x.Field == y.Field
+            x is not null && y is not null && x.EntryId == y.EntryId && x.Field == y.Field
             && x.Rows.SequenceEqual(y.Rows) && x.Rejections.Select(r => r.Normalized).SequenceEqual(y.Rejections.Select(r => r.Normalized));
 
-        public int GetHashCode(FieldSnapshot obj) => obj.DocumentId.GetHashCode();
+        public int GetHashCode(FieldSnapshot obj) => obj.EntryId.GetHashCode();
     }
 }

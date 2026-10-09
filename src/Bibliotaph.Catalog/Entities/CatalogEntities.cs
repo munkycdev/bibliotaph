@@ -3,7 +3,8 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Catalog.Entities;
 
 // Persistence shapes for catalog.db. Slice 0 created the core tables; slice 2 adds vocabulary, rejections and
-// classification runs; collections, smart views, session packs and notes arrive by migration in slice 3.
+// classification runs; the foundation slice adds entries, which user work keys on; collections, smart views, session
+// packs and notes arrive by migration in slice 3.
 // Domain behaviour lives in Core (Bibliotaph.Core.Metadata for metadata).
 
 /// <summary>A folder the user added. Its files are never marked missing while it is offline.</summary>
@@ -52,9 +53,43 @@ public sealed class Document
     public Document? PreviousVersion { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<FileLocation> Locations { get; set; } = [];
+    public List<EntrySource> Sources { get; set; } = [];
+    public List<PageRef> PageRefs { get; set; } = [];
+}
+
+/// <summary>
+/// A library card (catalog entry design, choice 1). What the user decides about a book (metadata, rejections, review,
+/// collections) is about its entry, not about whichever copy of the file they found it in. The documents behind it
+/// are its <see cref="Sources"/>; an entry owned elsewhere has none.
+/// </summary>
+public sealed class Entry
+{
+    public long Id { get; set; }
+    public EntryKind Kind { get; set; }
+    /// <summary>For a part, the compilation's entry.</summary>
+    public long? ParentEntryId { get; set; }
+    public Entry? ParentEntry { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public List<EntrySource> Sources { get; set; } = [];
     public List<Assertion> Assertions { get; set; } = [];
     public List<Rejection> Rejections { get; set; } = [];
-    public List<PageRef> PageRefs { get; set; } = [];
+}
+
+/// <summary>
+/// A document behind an entry: one copy or version of a book, or, for a part, a page range of one copy of its
+/// compilation. One source per entry is current: it opens, and supplies the cover, page count and page hits.
+/// </summary>
+public sealed class EntrySource
+{
+    public long Id { get; set; }
+    public long EntryId { get; set; }
+    public Entry Entry { get; set; } = null!;
+    public long DocumentId { get; set; }
+    public Document Document { get; set; } = null!;
+    /// <summary>A part's first PDF page in this document; null for the whole document.</summary>
+    public int? FirstPdfPage { get; set; }
+    public int? LastPdfPage { get; set; }
+    public bool IsCurrent { get; set; }
 }
 
 /// <summary>
@@ -64,8 +99,8 @@ public sealed class Document
 public sealed class Assertion
 {
     public long Id { get; set; }
-    public long DocumentId { get; set; }
-    public Document Document { get; set; } = null!;
+    public long EntryId { get; set; }
+    public Entry Entry { get; set; } = null!;
     /// <summary>A <see cref="Core.Metadata.MetadataField"/> key.</summary>
     public required string Field { get; set; }
     /// <summary>The value as a JSON string: text as written, a term's key, a level range ("1-5"), a year.</summary>
@@ -73,6 +108,11 @@ public sealed class Assertion
     /// <summary>The value's comparison form, which rejections and duplicate checks match on.</summary>
     public required string NormalizedValue { get; set; }
     public AssertionOrigin Origin { get; set; }
+    /// <summary>
+    /// The content hash of the copy the value was read from, whose pages <see cref="EvidencePagesJson"/> counts in, so
+    /// evidence still checks against the right pages when an entry has several copies. Null for the user's own values.
+    /// </summary>
+    public string? ContentHash { get; set; }
     /// <summary>PDF page indexes, as a JSON array.</summary>
     public string? EvidencePagesJson { get; set; }
     /// <summary>What the value was read from: a quote from a cited page, a folder name, the PDF's own title.</summary>
@@ -88,14 +128,14 @@ public sealed class Assertion
 }
 
 /// <summary>
-/// A value the user said is wrong for a document. It suppresses that value from every source, including any later
+/// A value the user said is wrong for an entry. It suppresses that value from every source, including any later
 /// model, so a rejected suggestion never comes back (A04).
 /// </summary>
 public sealed class Rejection
 {
     public long Id { get; set; }
-    public long DocumentId { get; set; }
-    public Document Document { get; set; } = null!;
+    public long EntryId { get; set; }
+    public Entry Entry { get; set; } = null!;
     public required string Field { get; set; }
     public required string NormalizedValue { get; set; }
     public DateTime CreatedUtc { get; set; }
@@ -133,15 +173,16 @@ public sealed class VocabularyAlias
 }
 
 /// <summary>
-/// One classifier run over one document: which model, which prompt and schema, and which pages it read. Kept in
-/// catalog.db with the assertions it produced, so an index.db rebuild neither loses their provenance nor re-runs
-/// the model (slice 2 plan, choice 5).
+/// One classifier run over one copy of an entry: which model, which prompt and schema, and which pages of that copy
+/// it read. Kept in catalog.db with the assertions it produced, so an index.db rebuild neither loses their provenance
+/// nor re-runs the model (slice 2 plan, choice 5).
 /// </summary>
 public sealed class ClassificationRun
 {
     public required string Id { get; set; }
-    public long DocumentId { get; set; }
-    public Document Document { get; set; } = null!;
+    public long EntryId { get; set; }
+    public Entry Entry { get; set; } = null!;
+    /// <summary>The copy the model read.</summary>
     public required string ContentHash { get; set; }
     public required string Provider { get; set; }
     public required string Model { get; set; }
