@@ -487,6 +487,9 @@ static class SmokeTest
             else image = documentId;
         }
         if (pdf == 0 || image == 0) throw new InvalidOperationException("The smoke fixtures weren't both added.");
+        // Indexing is paused, so their cards are listed here, as Probe would list them.
+        var entries = await services.GetRequiredService<EntryStore>().GetEntriesAsync([pdf, image]);
+        await services.GetRequiredService<MetadataProjector>().ProjectAsync([.. entries.Values.Select(e => e.EntryId)]);
         return (pdf, image);
     }
 
