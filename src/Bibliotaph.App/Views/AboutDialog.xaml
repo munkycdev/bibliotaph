@@ -1,0 +1,59 @@
+<Window x:Class="Bibliotaph.App.Views.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+        Title="About Bibliotaph"
+        Width="460" SizeToContent="Height" ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bt.Panel}" Foreground="{DynamicResource Bt.Text}"
+        FontFamily="{StaticResource Font.Sans}" FontSize="12" UseLayoutRounding="True">
+  <DockPanel Margin="24">
+    <!-- One Close for both views, so Esc and Enter always close. -->
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,24,0,0" LastChildFill="False">
+      <Button x:Name="CopyButton" DockPanel.Dock="Left" Content="Copy details" Click="Copy_Click"
+              ToolTip="Copies the version and the Windows, .NET and PDFium builds, for a bug report" />
+      <Button DockPanel.Dock="Right" Content="Close" IsDefault="True" IsCancel="True" Style="{StaticResource Bt.Button.Primary}" />
+    </DockPanel>
+
+    <Grid>
+      <!-- The summary: name, version, the GPL's notices and the links. -->
+      <StackPanel x:Name="Summary">
+        <DockPanel>
+          <Image x:Name="AppIcon" DockPanel.Dock="Left" Width="48" Height="48" RenderOptions.BitmapScalingMode="HighQuality"
+                 VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.Name="Bibliotaph icon" />
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="Bibliotaph" Style="{StaticResource Text.H2}" />
+            <TextBlock x:Name="VersionLine" Style="{StaticResource Text.Small}" Margin="0,2,0,0" />
+          </StackPanel>
+        </DockPanel>
+
+        <TextBlock x:Name="CopyrightLine" Style="{StaticResource Text.Row}" Margin="0,20,0,0" />
+        <TextBlock Style="{StaticResource Text.Copy}" Margin="0,6,0,0"
+                   Text="Bibliotaph is free software: you can share and change it under the GNU General Public License, version 3 or any later version. It comes with no warranty." />
+
+        <WrapPanel Margin="0,14,0,0">
+          <Button Style="{StaticResource Bt.Link}" Content="Licence" Margin="0,0,16,0" Click="Licence_Click" />
+          <Button Style="{StaticResource Bt.Link}" Content="Third-party notices" Margin="0,0,16,0" Click="Notices_Click" />
+          <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Content="Source code" Margin="0,0,16,0"
+                  ToolTip="Opens the project on GitHub" Click="Source_Click" />
+          <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Content="Report a problem"
+                  ToolTip="Opens the project's issues on GitHub" Click="Issues_Click" />
+        </WrapPanel>
+      </StackPanel>
+
+      <!-- The licence texts shipped in the licenses folder next to the app, readable with no network. -->
+      <DockPanel x:Name="Licences" Visibility="Collapsed" Height="440">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+          <Button DockPanel.Dock="Left" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowLeft}"
+                  ToolTip="Back" AutomationProperties.Name="Back" Click="Back_Click" Margin="0,0,8,0" />
+          <ComboBox x:Name="LicenceFiles" Style="{StaticResource Bt.Select}" AutomationProperties.Name="Licence file"
+                    SelectionChanged="LicenceFiles_SelectionChanged" />
+        </DockPanel>
+        <TextBox x:Name="LicenceText" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                 FontFamily="Consolas" FontSize="11" Padding="10,8" AutomationProperties.Name="Licence text"
+                 Background="{DynamicResource Bt.Bg}" Foreground="{DynamicResource Bt.Text}" BorderBrush="{DynamicResource Bt.Line}"
+                 SelectionBrush="{DynamicResource Bt.Accent}" CaretBrush="{DynamicResource Bt.Text}" />
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>
