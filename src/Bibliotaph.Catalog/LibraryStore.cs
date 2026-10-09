@@ -379,7 +379,11 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         if (rootId is { } id) locations = locations.Where(f => f.SourceRootId == id);
         var documents = locations.Select(f => f.DocumentId!.Value);
         var entries = await db.EntrySources.Where(s => documents.Contains(s.DocumentId)).Select(s => s.EntryId).Distinct().ToListAsync(ct);
-        return [.. entries.Select(e => new EntryId(e))];
+        // A pack has no file of its own: it shows while any of its images does.
+        var packs = await db.Entries
+            .Where(e => entries.Contains(e.Id) && e.ParentEntryId != null && e.ParentEntry!.Kind == EntryKind.Pack)
+            .Select(e => e.ParentEntryId!.Value).Distinct().ToListAsync(ct);
+        return [.. entries.Concat(packs).Select(e => new EntryId(e))];
     }
 
     /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>

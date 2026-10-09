@@ -75,6 +75,8 @@ public sealed class PackStoreTests : IAsyncLifetime
         Assert.Equal(22, changed.Count);
         Assert.Contains(pack.EntryId, changed);
         Assert.Equal([pack], await _entries.GetShownByAsync(pack.Members[5].DocumentId, Ct), new PackComparer());
+        // The library's folder scope finds the pack through its images.
+        Assert.Contains(pack.EntryId, await _library.GetVisibleEntryIdsAsync(_root, Ct));
 
         // A new image joins; nothing else changes.
         var added = await AddAsync("Tokens/Undead/Zombie 21.png");
