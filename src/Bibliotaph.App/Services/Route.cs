@@ -9,7 +9,5 @@ public enum Route
     Sessions,
     NeedsReview,
     Settings,
-    LibraryFolders,
-    Vocabulary,
     Viewer,
 }

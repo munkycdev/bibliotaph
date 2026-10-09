@@ -62,19 +62,15 @@ public sealed partial class FolderLabelItem(FolderLabelUse use, Func<FolderLabel
 }
 
 /// <summary>
-/// The folders Bibliotaph reads from, what each holds, and indexing progress with pause and resume.
-/// Removing a folder keeps its catalog rows and the user's work.
+/// Settings > Library: the folders Bibliotaph reads from and what each holds, adding them after a preview, looking for
+/// changes, and the folder names read as labels. Removing a folder keeps its catalog rows and the user's work.
 /// </summary>
-public sealed partial class LibraryFoldersViewModel(
+public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, MetadataHints hints, StartOver startOver, ILogger<LibraryFoldersViewModel> log) : PageViewModel
+    LibraryFolders folders, MetadataHints hints, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
-    public override Route Route => Route.LibraryFolders;
-    public override string Section => "Settings";
-    public override Route? SectionRoute => Route.Settings;
-    public override string Title => "Library folders";
-
-    public LibraryActivity Activity { get; } = activity;
+    public override SettingsSection Section => SettingsSection.Library;
+    public override string Label => "Library";
 
     public ObservableCollection<LibraryFolderItem> Folders { get; } = [];
 
@@ -96,8 +92,8 @@ public sealed partial class LibraryFoldersViewModel(
 
     public override async Task LoadAsync()
     {
-        Activity.Refreshed -= OnActivityRefreshed;
-        Activity.Refreshed += OnActivityRefreshed;
+        activity.Refreshed -= OnActivityRefreshed;
+        activity.Refreshed += OnActivityRefreshed;
         await RefreshFoldersAsync();
         await LoadFolderLabelsAsync();
         if (folders.TakePickRequest()) await AddFolder();
@@ -129,7 +125,7 @@ public sealed partial class LibraryFoldersViewModel(
         }
     }
 
-    public override void Unload() => Activity.Refreshed -= OnActivityRefreshed;
+    public override void Unload() => activity.Refreshed -= OnActivityRefreshed;
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
@@ -239,18 +235,5 @@ public sealed partial class LibraryFoldersViewModel(
     }
 
     [RelayCommand]
-    void ToggleIndexing() => Activity.SetPaused(Lane.Index, !Activity.IndexPaused);
-
-    [RelayCommand]
-    void ToggleOcr() => Activity.SetPaused(Lane.Ocr, !Activity.OcrPaused);
-
-    [RelayCommand]
     void Rescan() => indexing.RequestScan();
-
-    /// <summary>Deletes everything Bibliotaph stores and restarts, after asking. A development aid until 1.0.</summary>
-    [RelayCommand]
-    void StartOver()
-    {
-        if (Services.StartOver.Confirm()) startOver.Run();
-    }
 }

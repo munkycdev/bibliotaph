@@ -26,8 +26,6 @@
       <DataTemplate DataType="{x:Type vm:SessionsViewModel}"><views:SessionsView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:NeedsReviewViewModel}"><views:NeedsReviewView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
-      <DataTemplate DataType="{x:Type vm:LibraryFoldersViewModel}"><views:LibraryFoldersView /></DataTemplate>
-      <DataTemplate DataType="{x:Type vm:VocabularyViewModel}"><views:VocabularyView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:ViewerViewModel}"><views:ViewerView /></DataTemplate>
     </ResourceDictionary>
   </Application.Resources>

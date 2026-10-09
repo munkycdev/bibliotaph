@@ -5,78 +5,160 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:views="clr-namespace:Bibliotaph.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SettingsViewModel}">
-  <StackPanel MaxWidth="640" HorizontalAlignment="Left">
-    <TextBlock Text="Make yourself at home." Style="{StaticResource Text.H1}" Margin="0,0,0,24" />
+  <UserControl.Resources>
+    <!-- An entry in the section list; the chosen one sits on the soft background, as the sidebar marks the current page. -->
+    <Style x:Key="SectionEntry" TargetType="RadioButton">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,1" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="Chrome" Background="Transparent" CornerRadius="6" Padding="10,9">
+              <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
 
-    <!-- .bt-settingrow -->
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
-      <DockPanel>
-        <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
-          <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
-            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Use system" IsChecked="{Binding UseSystem}" />
-            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Light" IsChecked="{Binding UseLight}" />
-            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Dark" IsChecked="{Binding UseDark}" />
-          </StackPanel>
-        </Border>
-        <StackPanel VerticalAlignment="Center">
-          <TextBlock Text="Appearance" Style="{StaticResource Text.Row}" />
-          <TextBlock Text="A quiet place to read." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
+    <!-- About, at the foot of the list: it looks like an entry but opens the About popup. -->
+    <Style x:Key="SectionAction" TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" Background="Transparent" CornerRadius="6" Padding="10,9">
+              <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
 
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
-      <DockPanel>
-        <Button DockPanel.Dock="Right" Content="Manage" Command="{Binding ManageFoldersCommand}" />
-        <StackPanel VerticalAlignment="Center">
-          <TextBlock Text="Library folders" Style="{StaticResource Text.Row}" />
-          <TextBlock Text="{Binding FolderSummary}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
+    <!-- One view per section; the larger ones are their own views. -->
+    <DataTemplate DataType="{x:Type vm:LibrarySectionViewModel}"><views:LibrarySectionView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ProcessingSectionViewModel}"><views:ProcessingSectionView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:VocabularyViewModel}"><views:VocabularyView /></DataTemplate>
 
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
-      <DockPanel>
-        <Button DockPanel.Dock="Right" Content="Manage" Command="{Binding ManageVocabularyCommand}"
-                AutomationProperties.Name="Manage the vocabulary" />
-        <StackPanel VerticalAlignment="Center">
-          <TextBlock Text="Vocabulary" Style="{StaticResource Text.Row}" />
-          <TextBlock Text="Game systems, types and the other names they go by." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
-      <DockPanel>
-        <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
-          <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
-            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="When unsure" IsChecked="{Binding ReviewWhenUnsure}" />
-            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="All suggestions" IsChecked="{Binding ReviewEverything}" />
-          </StackPanel>
-        </Border>
-        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-          <TextBlock Text="Needs review" Style="{StaticResource Text.Row}" />
-          <TextBlock Text="Suggestions are used either way; this is what waits for a second look." Style="{StaticResource Text.Small}"
-                     Margin="0,4,0,0" TextWrapping="Wrap" />
-          <TextBlock Text="{Binding ReviewNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
-                     Visibility="{Binding ReviewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+    <DataTemplate DataType="{x:Type vm:AppearanceSectionViewModel}">
       <StackPanel>
-        <TextBlock Text="Processing" Style="{StaticResource Text.Row}" />
-        <TextBlock Text="Only while Bibliotaph is open. Closing the app stops it; reopening resumes it." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+        <TextBlock Text="Appearance" Style="{StaticResource Text.H2}" />
+        <TextBlock Text="A quiet place to read." Style="{StaticResource Text.Copy}" Margin="0,12,0,8" />
+        <!-- .bt-settingrow -->
+        <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+          <DockPanel>
+            <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
+                <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Use system" IsChecked="{Binding UseSystem}" />
+                <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Light" IsChecked="{Binding UseLight}" />
+                <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Dark" IsChecked="{Binding UseDark}" />
+              </StackPanel>
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Light or dark" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="Use system follows Windows." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+            </StackPanel>
+          </DockPanel>
+        </Border>
       </StackPanel>
-    </Border>
+    </DataTemplate>
 
-    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,24,0,0" Text="Your files, notes and collections stay on this device. Automatic classification is off." />
+    <DataTemplate DataType="{x:Type vm:ReviewSectionViewModel}">
+      <StackPanel>
+        <TextBlock Text="Needs review" Style="{StaticResource Text.H2}" />
+        <TextBlock Text="Suggestions are used either way; this is what waits for a second look." Style="{StaticResource Text.Copy}"
+                   Margin="0,12,0,8" />
+        <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+          <DockPanel>
+            <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
+                <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="When unsure" IsChecked="{Binding ReviewWhenUnsure}" />
+                <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="All suggestions" IsChecked="{Binding ReviewEverything}" />
+              </StackPanel>
+            </Border>
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock Text="What waits for review" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="When unsure: only what sources disagree about, and missing titles." Style="{StaticResource Text.Small}"
+                         Margin="0,4,0,0" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding ReviewNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
+                         Visibility="{Binding ReviewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+          </DockPanel>
+        </Border>
+      </StackPanel>
+    </DataTemplate>
 
-    <!-- Also in the window's system menu (Alt+Space). Moves to the foot of the section list when Settings gets one. -->
-    <Button Style="{StaticResource Bt.Link}" Content="About Bibliotaph" Command="{Binding ShowAboutCommand}"
-            Margin="0,16,0,0" />
-  </StackPanel>
+    <DataTemplate DataType="{x:Type vm:StartOverSectionViewModel}">
+      <StackPanel>
+        <TextBlock Text="DEVELOPMENT AID" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
+        <TextBlock Text="Start over" Style="{StaticResource Text.H2}" />
+        <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,16"
+                   Text="Forgets every folder, the index, covers, settings and remembered passwords, then restarts. Your files are not touched. Here while Bibliotaph is in development; it goes before 1.0." />
+        <Button Content="Start over…" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Left"
+                Command="{Binding StartOverCommand}" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <!-- The page scrolls itself: the section list stays put while the chosen section scrolls beside it. -->
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="170" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <TextBlock Grid.ColumnSpan="2" Text="Make yourself at home." Style="{StaticResource Text.H1}" Margin="0,0,42,24" />
+
+    <StackPanel Grid.Row="1">
+      <ItemsControl ItemsSource="{Binding Sections}" Focusable="False" AutomationProperties.Name="Settings sections">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
+            <RadioButton Style="{StaticResource SectionEntry}" GroupName="SettingsSection" Content="{Binding Label}"
+                         IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding Label}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Border Style="{StaticResource Bt.Rule}" Margin="10,12" />
+      <!-- Also in the window's system menu (Alt+Space). -->
+      <Button Style="{StaticResource SectionAction}" Content="About Bibliotaph" Command="{Binding ShowAboutCommand}"
+              AutomationProperties.Name="About Bibliotaph" />
+    </StackPanel>
+
+    <ScrollViewer x:Name="SectionScroller" Grid.Row="1" Grid.Column="1" HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto" Focusable="False">
+      <ContentControl Content="{Binding Selected, NotifyOnTargetUpdated=True}" TargetUpdated="Section_TargetUpdated" Focusable="False"
+                      MaxWidth="640" HorizontalAlignment="Left" Margin="32,0,42,35" />
+    </ScrollViewer>
+  </Grid>
 </UserControl>

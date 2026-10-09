@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Settings > Library folders > Start over, while Bibliotaph is in development (to be removed before 1.0). Forgets
+/// Settings > Start over, while Bibliotaph is in development (to be removed before 1.0). Forgets
 /// remembered PDF passwords at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
 /// </summary>

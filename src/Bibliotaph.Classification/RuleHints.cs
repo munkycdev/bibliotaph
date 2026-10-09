@@ -15,7 +15,7 @@ public sealed record HintSource(
     string? EmbeddedSubject = null,
     string? EmbeddedKeywords = null);
 
-/// <summary>A vocabulary term a folder name stands for, as Settings > Library folders lists it.</summary>
+/// <summary>A vocabulary term a folder name stands for, as Settings > Library lists it.</summary>
 public sealed record FolderLabel(string Folder, Term Term);
 
 /// <summary>

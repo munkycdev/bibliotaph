@@ -21,7 +21,7 @@ public abstract partial class LibraryAwarePageViewModel(SourceRootStore roots, L
     public override async Task LoadAsync() => FolderCount = (await roots.ListAsync()).Count;
 }
 
-public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, INavigationService navigation)
+public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders)
     : LibraryAwarePageViewModel(roots, activity)
 {
     public override Route Route => Route.Home;
@@ -31,7 +31,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     void AddFolder() => folders.RequestPick();
 
     [RelayCommand]
-    void ManageFolders() => navigation.NavigateTo(Route.LibraryFolders);
+    void ManageFolders() => folders.Manage();
 }
 
 public sealed partial class CollectionsViewModel(INavigationService navigation) : PageViewModel

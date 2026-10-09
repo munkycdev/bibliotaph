@@ -149,7 +149,7 @@ public sealed class MetadataHints(LibraryStore library, IndexQueries queries, Me
 
     /// <summary>
     /// The vocabulary terms folder names in the library stand for, with how many documents sit under each and whether
-    /// the user has switched it off, for Settings > Library folders.
+    /// the user has switched it off, for Settings > Library.
     /// </summary>
     public async Task<IReadOnlyList<FolderLabelUse>> GetFolderLabelsAsync(CancellationToken ct = default)
     {
