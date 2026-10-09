@@ -172,6 +172,8 @@ static class SmokeTest
         if (page.Inspector is null) throw new InvalidOperationException("The inspector didn't open.");
         page.CloseDetailsCommand.Execute(null);
 
+        // Fields find documents, which the Documents tab lists.
+        page.Tab = ResultsTab.Documents;
         search.Search("system:5e type:adventure");
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => "Searching by system and type didn't find the Haunted Inn.");
 
