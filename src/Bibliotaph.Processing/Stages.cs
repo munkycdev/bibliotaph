@@ -56,7 +56,8 @@ public sealed record StageServices(
     ISourceFileReader Reader,
     IImageCodec Images,
     CoverCache Covers,
-    IPasswordStore Passwords);
+    IPasswordStore Passwords,
+    SourceFiles Sources);
 
 public interface IStage
 {
@@ -75,10 +76,12 @@ public interface IGatedStage : IStage
 
 /// <summary>
 /// A document open in the index worker for the length of one job. If the worker restarts (a crash elsewhere),
-/// the document is opened again before the next request.
+/// the document is opened again before the next request. The file it reads is held until the session ends, so a file
+/// extracted from a ZIP isn't evicted under it.
 /// </summary>
-sealed class PdfSession(WorkerClient worker, string path, string? password) : IAsyncDisposable
+sealed class PdfSession(WorkerClient worker, LocalFile file, string? password) : IAsyncDisposable
 {
+
     int _generation = -1;
 
     public DocInfo Doc { get; private set; } = null!;
@@ -86,7 +89,7 @@ sealed class PdfSession(WorkerClient worker, string path, string? password) : IA
     /// <summary>Opens the document, returning the worker's error response when it won't open.</summary>
     public async Task<Response?> OpenAsync(CancellationToken ct)
     {
-        var response = await worker.SendAsync(new Request { Op = Op.Open, Path = path, Password = password }, ct: ct);
+        var response = await worker.SendAsync(new Request { Op = Op.Open, Path = file.Path, Password = password }, ct: ct);
         if (!response.Ok) return response;
         Doc = response.Doc!;
         _generation = worker.Generation;
@@ -115,14 +118,18 @@ sealed class PdfSession(WorkerClient worker, string path, string? password) : IA
 
     public async ValueTask DisposeAsync()
     {
-        if (Doc is null || worker.Generation != _generation) return;
         try
         {
+            if (Doc is null || worker.Generation != _generation) return;
             await worker.SendAsync(new Request { Op = Op.Close, DocId = Doc.DocId });
         }
         catch (WorkerException)
         {
             // The worker died; the document went with it.
+        }
+        finally
+        {
+            await file.DisposeAsync();
         }
     }
 }
@@ -140,13 +147,35 @@ static class StageHelpers
         await s.Index.SetEntriesAsync([.. (await s.Entries.GetShownByAsync(doc.DocumentId, ct)).Select(MetadataProjector.ToRow)], ct);
     }
 
+    /// <summary>
+    /// The file to read for a source: itself, or extracted from its ZIP. A ZIP that changed since it was read blocks
+    /// the stage until the hasher has read it again.
+    /// </summary>
+    public static async Task<(LocalFile? File, StageOutcome? Outcome)> OpenFileAsync(StageServices s, DocumentSource source, CancellationToken ct)
+    {
+        try
+        {
+            return (await s.Sources.OpenAsync(source, ct), null);
+        }
+        catch (SourceChangedException)
+        {
+            return (null, new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return (null, new StageOutcome.Failed($"The file could not be read from its ZIP: {ex.Message}", Retry: ex is not InvalidDataException));
+        }
+    }
+
     /// <summary>Opens the job's document in the index worker, or says why the stage can't run.</summary>
     public static async Task<(PdfSession? Session, StageOutcome? Outcome)> OpenPdfAsync(StageServices s, JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return (null, new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable));
+        var (file, failed) = await OpenFileAsync(s, source, ct);
+        if (file is null) return (null, failed);
 
-        var session = new PdfSession(s.Workers.Index, source.FullPath, s.Passwords.Find(job.ContentHash));
+        var session = new PdfSession(s.Workers.Index, file, s.Passwords.Find(job.ContentHash));
         var error = await session.OpenAsync(ct);
         if (error is null) return (session, null);
         await session.DisposeAsync();
@@ -177,7 +206,10 @@ public sealed class ProbeStage(StageServices s) : IStage
         if (SourceFormats.IsImage(source.Format))
         {
             (int Width, int Height)? size;
-            await using (var stream = s.Reader.OpenRead(source.FullPath)) size = s.Images.ReadSize(stream);
+            var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
+            if (file is null) return unreadable!;
+            await using (file)
+            await using (var stream = s.Reader.OpenRead(file.Path)) size = s.Images.ReadSize(stream);
             if (size is null) return new StageOutcome.Failed("This image could not be read; it may be damaged.", Retry: false);
             await StageHelpers.UpsertDocumentAsync(s, new DocRow
             {
@@ -326,8 +358,10 @@ public sealed class CoversStage(StageServices s) : IStage
         byte[]? jpeg;
         if (SourceFormats.IsImage(source.Format))
         {
-            await using var stream = s.Reader.OpenRead(source.FullPath);
-            jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
+            var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
+            if (file is null) return unreadable!;
+            await using (file)
+            await using (var stream = s.Reader.OpenRead(file.Path)) jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
         }
         else
         {

@@ -90,12 +90,12 @@ Everything lives in `%LOCALAPPDATA%\Bibliotaph\`, never in a synced folder. Both
 | --- | --- | --- | --- |
 | `catalog.db` | Source roots, file locations, documents, metadata assertions, vocabulary, ignored folder labels, classification runs, collections, smart views, session packs, notes, rejections, settings | EF Core migration, preceded by an automatic `VACUUM INTO` copy | Always |
 | `index.db` | Pages (text, printed label, size, text quality, fingerprint), OCR word boxes for OCR'd pages, FTS5 tables, per-stage status, job queue, the entries the library lists (`entry_doc`), and a projection of effective metadata (`entry_meta`, `entry_facet`, `term_alias`) and of which entries a model has read (`entry_ai`) | An additive change runs its embedded `upgrade-N.sql` in a transaction; anything else, or a failed upgrade, drops and rebuilds, and documents re-queue from their content hash. Metadata is projected again from `catalog.db` at startup either way | Optional (spec §10) |
-| `cache\` | Covers, thumbnails and page previews as WebP files named by content hash and size | Deleted freely | Never |
+| `cache\` | Covers, thumbnails and page previews as WebP files named by content hash and size; `cache\extract\` holds files from inside ZIPs, named by content hash, while they are processed or viewed (least recently used go past 5 GB) | Deleted freely | Never |
 
 Core tables (full schema in slice 0):
 
 - `source_root`: path, volume serial, availability (online, offline, removed by user).
-- `file_location`: root, relative path, size, modified time, NTFS file ID, content hash, last seen, state (present, missing, online-only), and while new content at the path waits to be hashed, the document it held before (`previous_document_id`).
+- `file_location`: root, relative path, size, modified time, NTFS file ID, content hash, last seen, state (present, missing, online-only), and while new content at the path waits to be hashed, the document it held before (`previous_document_id`). A ZIP is a location with a hash and no document; each PDF or image inside it is a location of its own with the ZIP as `container_id`, its name inside the ZIP (`entry_path`) and CRC (`entry_crc32`), and a relative path that reads as File Explorer shows it (`Bundle.zip\Maps\Harbor.jpg`). Its state follows the ZIP's. `problem` says why a file inside a ZIP isn't read (a ZIP inside it, a password, too big, damaged), for Files needing attention.
 - `document`: one row per content version: content hash, format, page count, capabilities with reasons, protection type.
 - `entry`: one row per thing the library lists, which is what the user catalogs: kind (whole, part, pack, elsewhere), parent entry, created time. Every document is shown by one whole-document entry; later steps add parts, packs and books owned elsewhere (see the "Catalog entry design" tab). An entry joined into another as a copy keeps its row, pointing at the entry it joined (`merged_into_entry_id`), so Undo can bring it back.
 - `entry_source`: which document an entry shows, optionally a PDF page range (for parts), and whether it is the entry's current source. An entry has one current source, and a document has at most one whole-document entry. An entry with several whole-document sources has copies (identical text) or versions (new content at the same path); the current one is what opens, and when its files are all gone the newest copy with a file opens instead, without changing the choice.
@@ -124,11 +124,13 @@ A document is a content hash; a path is where that content was last seen. That g
 
 **Discovery.** A full scan at startup and on demand; a `FileSystemWatcher` per root feeds the same reconciler while the app is open, debounced until size and modified time stop changing. A path whose size, modified time and NTFS file ID are unchanged is not rehashed. An unreachable root, or one whose volume serial changed, is marked offline as a whole; its files are never marked missing because of it (A07).
 
+**ZIPs.** A ZIP in a library folder is read through the read-only reader with System.IO.Compression and never unpacked beside itself. The hasher reads it once for its own hash, lists its PDFs and images, and hashes each new or changed one as it decompresses; a ZIP saved again keeps the hashes of members with the same name, size and CRC. A file inside a ZIP joins documents by its hash like any file, so a book loose and zipped is one document, and the loose file is read in preference. Stages and the viewer get a path from `SourceFiles`: the file itself, or the member extracted to `cache\extract\` and checked against its hash; a member that no longer matches blocks the stage until the ZIP is read again.
+
 **OneDrive.** Online-only files (recall-on-data-access attribute) are always indexed, which downloads each as the queue reaches it. Local files are queued first, first run shows how many files and how much data will download, and the online-only lane pauses if free disk space falls below a threshold (2 GB proposed). Bibliotaph never frees space back to the cloud.
 
 **Stages**, each with its own status (pending, running, complete, partial, blocked, failed, skipped):
 
-1. Fingerprint: SHA-256; a known hash attaches the new path to the existing document and stops.
+1. Fingerprint: SHA-256; a known hash attaches the new path to the existing document and stops. A ZIP is read for its members here.
 2. Probe: page count, protection, permissions, page labels, outline, embedded metadata, capabilities.
 3. Text: per-page text and text quality; pages with no or garbage text are flagged for OCR. The document is searchable from here (principle 6).
 4. Cover and thumbnails.

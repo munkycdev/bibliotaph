@@ -13,6 +13,9 @@ public sealed record AppPaths(string Root)
     public string Logs => Path.Combine(Root, "logs");
     public string Cache => Path.Combine(Root, "cache");
 
+    /// <summary>Files from inside ZIPs, extracted while they are processed or viewed (F3). Kept to a size limit.</summary>
+    public string Extract => Path.Combine(Cache, "extract");
+
     /// <summary>The model pilot's book list, proposals, answers and report (slice 2d). Never part of a backup or the repo.</summary>
     public string Pilot => Path.Combine(Root, "pilot");
 

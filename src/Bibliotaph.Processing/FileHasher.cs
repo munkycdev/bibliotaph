@@ -9,8 +9,12 @@ public sealed class FileHasher(ISourceFileReader reader)
     public async Task<ContentHash> HashAsync(string path, CancellationToken ct = default)
     {
         await using var stream = reader.OpenRead(path);
-        return ContentHash.FromBytes(await SHA256.HashDataAsync(stream, ct));
+        return await HashAsync(stream, ct);
     }
+
+    /// <summary>The hash of a stream's bytes, such as a file inside a ZIP as it decompresses.</summary>
+    public static async Task<ContentHash> HashAsync(Stream stream, CancellationToken ct = default) =>
+        ContentHash.FromBytes(await SHA256.HashDataAsync(stream, ct));
 }
 
 /// <summary>Free space on the drive that holds a path, so online-only files stop downloading before the disk fills.</summary>

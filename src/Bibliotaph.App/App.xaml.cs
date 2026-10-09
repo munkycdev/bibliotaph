@@ -159,6 +159,8 @@ public partial class App : Application
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
         builder.Services.AddSingleton<FileHasher>();
+        builder.Services.AddSingleton<ArchiveReader>();
+        builder.Services.AddSingleton<SourceFiles>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<StageServices>();
         builder.Services.AddSingleton<IStage, ProbeStage>();

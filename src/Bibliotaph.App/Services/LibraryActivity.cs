@@ -240,8 +240,8 @@ public sealed partial class LibraryActivity : ObservableObject
             AiOn = _indexing.IsOpen(Lane.Classify);
             AiWaiting = AiOn ? _indexing.Unavailable(Lane.Classify) ?? "" : "";
             WaitingForDiskSpace = _indexing.WaitingForDiskSpace;
-            NeedsAttention = Progress.NeedAttention > 0 || _indexing.Unreadable.Count > 0;
-            AttentionCount = Progress.NeedAttention + _indexing.Unreadable.Count;
+            NeedsAttention = Progress.NeedAttention > 0 || _indexing.Unreadable.Count > 0 || Counts.Problems > 0;
+            AttentionCount = Progress.NeedAttention + _indexing.Unreadable.Count + Counts.Problems;
             SuggestionCount = await _review.CountAsync();
             HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
             HasOcrWork = Progress.PagesAwaitingOcr > 0;

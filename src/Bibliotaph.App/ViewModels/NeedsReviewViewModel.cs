@@ -26,6 +26,7 @@ public sealed record AttentionRow(long? DocumentId, string Title, string Detail)
 public sealed partial class NeedsReviewViewModel(
     ReviewService review,
     IndexQueries queries,
+    LibraryStore library,
     IndexingService indexing,
     LibraryActivity activity,
     INavigationService navigation,
@@ -46,7 +47,7 @@ public sealed partial class NeedsReviewViewModel(
     /// <summary>New-term cards first, since each covers many books; then "new version?" cards; then a page of field cards.</summary>
     public ObservableCollection<DecidedCardViewModel> Cards { get; } = [];
 
-    /// <summary>Files needing attention: a password to enter, a damaged download, a folder that can't be read.</summary>
+    /// <summary>Files needing attention: a password to enter, a damaged download, a folder that can't be read, a file inside a ZIP that isn't read.</summary>
     public ObservableCollection<AttentionRow> Files { get; } = [];
 
     [ObservableProperty]
@@ -177,6 +178,7 @@ public sealed partial class NeedsReviewViewModel(
             var rows = (await queries.GetAttentionAsync())
                 .Select(a => new AttentionRow(a.DocumentId, a.Title, $"{StageName(a.Stage)}: {a.Reason ?? "something went wrong"}"))
                 .Concat(indexing.Unreadable.Select(u => new AttentionRow(null, Path.GetFileName(u.Path), $"Couldn't be read: {u.Reason}")))
+                .Concat((await library.GetProblemsAsync()).Select(p => new AttentionRow(null, Path.GetFileName(p.FullPath), $"Not read: {p.Problem} ({p.FullPath})")))
                 .ToList();
             if (rows.SequenceEqual(Files)) return;
             Files.Clear();

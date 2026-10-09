@@ -40,6 +40,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     AiSettings _ai = null!;
     ClassificationStore _runs = null!;
     CopiesService _copies = null!;
+    SourceFiles _sources = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -65,7 +66,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var queue = new JobBoard(_writer, _index);
         var reader = new SourceFileReader();
         var index = new IndexStore(_writer);
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
+        var archives = new ArchiveReader(reader);
+        _sources = new SourceFiles(_paths, archives, new DiskSpace());
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources);
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
@@ -87,7 +90,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
                 new MatchStage(entries, versions, index, _queries, projector),
             ],
-            new FileHasher(reader), new DiskSpace(),
+            new FileHasher(reader), new DiskSpace(), archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
     }
 

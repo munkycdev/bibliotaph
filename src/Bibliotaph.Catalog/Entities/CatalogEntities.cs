@@ -40,6 +40,22 @@ public sealed class FileLocation
     public long? PreviousDocumentId { get; set; }
     public DateTime LastSeenUtc { get; set; }
     public FileLocationState State { get; set; }
+
+    /// <summary>
+    /// For a file inside a ZIP, the ZIP's own location (F3). Its <see cref="RelativePath"/> is then the ZIP's path and
+    /// the entry's, as File Explorer shows it, and its state follows the ZIP's. A ZIP's own location has a hash but no document.
+    /// </summary>
+    public long? ContainerId { get; set; }
+    public FileLocation? Container { get; set; }
+
+    /// <summary>The member's name inside its ZIP, exactly as stored there ("Maps/Harbor.jpg").</summary>
+    public string? EntryPath { get; set; }
+
+    /// <summary>The member's CRC-32 from the ZIP, so a ZIP saved again keeps the hashes of members that didn't change.</summary>
+    public long? EntryCrc32 { get; set; }
+
+    /// <summary>Why a member isn't read (a ZIP inside the ZIP, a password, too big, damaged), for Files needing attention.</summary>
+    public string? Problem { get; set; }
 }
 
 /// <summary>One row per content version.</summary>
