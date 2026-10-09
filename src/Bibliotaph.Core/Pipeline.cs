@@ -44,4 +44,10 @@ public static class Pipeline
     /// from Text, and Classify waits for the book's OCR to finish.
     /// </summary>
     public static Stage First => Stage.Probe;
+
+    /// <summary>
+    /// The stages that read a document's file and only produce derived data, in order: what Reprocess runs again.
+    /// Hashing happens before a document has jobs, and classification asks a model, so neither is one of them.
+    /// </summary>
+    public static IReadOnlyList<Stage> FileStages { get; } = [Stage.Probe, Stage.Text, Stage.Covers, Stage.RuleHints, Stage.Ocr];
 }

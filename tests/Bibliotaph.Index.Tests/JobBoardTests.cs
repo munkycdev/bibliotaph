@@ -220,4 +220,86 @@ public sealed class JobBoardTests : IndexFixture
         Assert.Equal(Clock.GetUtcNow() + TimeSpan.FromSeconds(30), next);
         Assert.Null(await _queue.NextReadyAsync([Stage.Ocr], Ct));
     }
+
+    static readonly Stage[] AllLanes = [Stage.Probe, Stage.Text, Stage.Covers, Stage.RuleHints, Stage.Ocr];
+
+    /// <summary>Runs every ready job as the lanes would, queueing what each stage queues; Covers fails for good.</summary>
+    async Task RunAllAsync()
+    {
+        while (await _queue.LeaseAsync(AllLanes, "test", Lease, Ct) is { } job)
+        {
+            if (job.Stage == Stage.Covers)
+            {
+                await _queue.FailAsync(job, "no cover", retry: false, Ct);
+                continue;
+            }
+            Stage[] next = job.Stage switch
+            {
+                Stage.Probe => [Stage.Text, Stage.Covers, Stage.RuleHints],
+                Stage.Text => [Stage.Ocr],
+                _ => [],
+            };
+            await _queue.CompleteAsync(job, next: next, ct: Ct);
+        }
+    }
+
+    (string Stage, string Status)[] Jobs(long documentId) =>
+        [.. Connection.Query<(string, string)>("SELECT stage, status FROM job WHERE document_id = @documentId ORDER BY stage", new { documentId })];
+
+    [Fact]
+    public async Task Reprocessing_runs_every_stage_of_one_book_again_and_leaves_other_books_alone()
+    {
+        await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Probe, ct: Ct);
+        await RunAllAsync();
+        var otherBook = Jobs(2);
+        await _queue.EnqueueAsync(3, "cc", Stage.Probe, ct: Ct);
+
+        Assert.True(await _queue.ReprocessAsync(1, ct: Ct));
+
+        // The book starts again at Probe, at the front of the queue with a full set of attempts.
+        Assert.Equal([("Probe", "pending")], Jobs(1));
+        Assert.Equal("Pending", StatusOf(1, Stage.Probe));
+        Assert.Null(StatusOf(1, Stage.Ocr));
+        var probe = (await _queue.LeaseAsync(AllLanes, "test", Lease, Ct))!;
+        Assert.Equal((1L, Stage.Probe, 1), (probe.DocumentId, probe.Stage, probe.Attempts));
+
+        // Each later stage comes back waiting once the one before it is done, the failed cover included.
+        await _queue.CompleteAsync(probe, next: [Stage.Text, Stage.Covers, Stage.RuleHints], ct: Ct);
+        foreach (var stage in new[] { Stage.Text, Stage.Covers, Stage.RuleHints }) Assert.Equal("Pending", StatusOf(1, stage));
+        Assert.Equal(1, (await _queue.LeaseAsync(AllLanes, "test", Lease, Ct))?.DocumentId);
+
+        // Other books' jobs and statuses are as they were.
+        Assert.Equal(otherBook, Jobs(2));
+        Assert.Equal("Failed", StatusOf(2, Stage.Covers));
+        Assert.Equal("Complete", StatusOf(2, Stage.Ocr));
+        Assert.Equal([("Probe", "pending")], Jobs(3));
+    }
+
+    [Fact]
+    public async Task Reprocessing_waits_while_a_stage_runs_and_can_ask_for_ocr_on_every_page()
+    {
+        await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Probe, ct: Ct);
+        await RunAllAsync();
+        await Writer.WriteAsync((c, t) => c.Execute(
+            "INSERT INTO page (document_id, pdf_page, width_pt, height_pt, needs_ocr) VALUES (1, 0, 612, 792, 0), (1, 1, 612, 792, 1), (2, 0, 612, 792, 1)",
+            transaction: t), Ct);
+        long Flagged(long documentId) =>
+            Connection.ExecuteScalar<long>("SELECT count(*) FROM page WHERE document_id = @documentId AND needs_ocr = 1", new { documentId });
+
+        Assert.False(await _queue.ReprocessAsync(9, ct: Ct));
+        Assert.True(await _queue.ReprocessAsync(1, ocrEveryPage: true, Ct));
+        Assert.Equal((2L, 1L), (Flagged(1), Flagged(2)));
+
+        // While its Probe runs, asking again changes nothing.
+        var running = (await _queue.LeaseAsync(AllLanes, "test", Lease, Ct))!;
+        Assert.False(await _queue.ReprocessAsync(1, ct: Ct));
+        Assert.Equal(2L, Flagged(1));
+
+        // Plain reprocessing clears the flags, for Text to set again.
+        await _queue.CompleteAsync(running, ct: Ct);
+        Assert.True(await _queue.ReprocessAsync(1, ct: Ct));
+        Assert.Equal((0L, 1L), (Flagged(1), Flagged(2)));
+    }
 }

@@ -8,6 +8,7 @@ public interface INavigationService
     bool CanGoBack { get; }
     event EventHandler? Navigated;
     void NavigateTo(Route route);
+    void Show(PageViewModel page);
     void NavigateUp(Route route);
     bool GoBack();
 }
@@ -30,12 +31,22 @@ public sealed class NavigationService(Func<Route, PageViewModel> createPage) : I
     public void NavigateTo(Route route)
     {
         if (Current?.Route == route) return;
+        Show(createPage(route));
+    }
+
+    /// <summary>
+    /// Shows a page made by the caller, such as a reader made with the book it opens, even on the same route as the
+    /// page it replaces, which goes on the back stack.
+    /// </summary>
+    public void Show(PageViewModel page)
+    {
+        if (ReferenceEquals(Current, page)) return;
         if (Current is not null)
         {
             _back.AddLast(Current);
             if (_back.Count > MaxDepth) _back.RemoveFirst();
         }
-        Current = createPage(route);
+        Current = page;
         Navigated?.Invoke(this, EventArgs.Empty);
     }
 

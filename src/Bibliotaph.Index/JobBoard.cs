@@ -270,6 +270,48 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         return next is null ? null : DateTimeOffset.Parse(next, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
     }
 
+    /// <summary>
+    /// Reprocess: runs a document's <see cref="Pipeline.FileStages"/> again from the start, at the front of the queue.
+    /// Its Probe job goes back to waiting with a fresh set of attempts, whatever state it was in, so this also retries
+    /// failed and blocked stages. The later stages' jobs are removed rather than reset, because re-adding a job that
+    /// exists does nothing (a job is unique by content, stage and version): each is queued again when the stage before it
+    /// finishes, in order, as on the first reading, and Text queues OCR only if pages need it. Their finished statuses
+    /// stay until then; OCR's goes, since Text decides afresh whether it runs. Pages, text and covers are left alone,
+    /// so the document stays searchable while each stage replaces its rows. Plain reprocessing clears the pages' OCR
+    /// flags for Text to set again; with <paramref name="ocrEveryPage"/> every page is flagged, and keeps its flag
+    /// through Text, so OCR reads them all. Classification is not touched. Returns false, changing nothing, while one of
+    /// the document's stages is running or when it has never been queued.
+    /// </summary>
+    public Task<bool> ReprocessAsync(long documentId, bool ocrEveryPage = false, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var args = new { documentId };
+            var contentHash = c.ExecuteScalar<string?>("SELECT content_hash FROM doc WHERE document_id = @documentId", args, t)
+                ?? c.ExecuteScalar<string?>("SELECT content_hash FROM job WHERE document_id = @documentId ORDER BY id LIMIT 1", args, t);
+            if (contentHash is null) return false;
+            if (c.ExecuteScalar<long>("SELECT count(*) FROM job WHERE document_id = @documentId AND status = 'leased'", args, t) > 0) return false;
+
+            var now = Now();
+            var later = Pipeline.FileStages.Where(s => s != Pipeline.First).Select(s => s.ToString()).ToArray();
+            c.Execute("DELETE FROM job WHERE document_id = @documentId AND stage IN @later", new { documentId, later }, t);
+            // A waiting status with its job gone would wait for ever if Probe stopped short of queueing the stage again.
+            c.Execute("DELETE FROM stage_status WHERE document_id = @documentId AND stage IN @later AND (stage = 'Ocr' OR status IN ('Pending', 'Running'))",
+                new { documentId, later }, t);
+            c.Execute("UPDATE page SET needs_ocr = @flag WHERE document_id = @documentId", new { documentId, flag = ocrEveryPage ? 1 : 0 }, t);
+
+            // Priority 100 is what opening a book gives its jobs (PrioritizeAsync); the later stages inherit it.
+            c.Execute(
+                """
+                INSERT INTO job (document_id, content_hash, stage, stage_version, priority, created_utc)
+                VALUES (@documentId, @contentHash, @stage, @version, 100, @now)
+                ON CONFLICT (content_hash, stage, stage_version) DO UPDATE SET
+                    status = 'pending', priority = 100, attempts = 0, not_before_utc = NULL, lease_owner = NULL, lease_expires_utc = NULL, last_error = NULL
+                """,
+                new { documentId, contentHash, stage = Pipeline.First.ToString(), version = Pipeline.Version(Pipeline.First), now }, t);
+            SetStatus(c, t, documentId, Pipeline.First, StageStatus.Pending, null, now);
+            return true;
+        }, ct);
+
     static int PriorityOf(SqliteConnection c, SqliteTransaction t, long jobId) =>
         c.ExecuteScalar<int>("SELECT priority FROM job WHERE id = @jobId", new { jobId }, t);
 

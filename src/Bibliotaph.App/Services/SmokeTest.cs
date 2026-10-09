@@ -4,11 +4,14 @@ using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,6 +69,8 @@ static class SmokeTest
                 await theme.SetPreferenceAsync(preference);
                 await BrowseLibraryAsync(services, window, books);
                 Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
+                await UseSearchGuideAsync(services, window, books);
+                Log.Information("Smoke test: a search built from the search guide in {Theme}", preference);
                 await ReviewAsync(services, window, decide: preference == ThemePreference.Light);
                 Log.Information("Smoke test: Needs review and the vocabulary worked through in {Theme}", preference);
                 await ShowFolderProgressAsync(services, window);
@@ -73,11 +78,19 @@ static class SmokeTest
                 await ShowAiSettingsAsync(services, window);
                 if (real is not { } files) continue;
                 await ReadBookAsync(services, window, files.Pdf);
+                await PopOutAsync(services, window, files.Pdf);
                 await ViewImageAsync(services, window, files.Image);
                 Log.Information("Smoke test: a PDF read and an image viewed in {Theme}", preference);
             }
+            if (real is { } reprocessed)
+            {
+                await ReprocessBookAsync(services, window, reprocessed.Pdf);
+                Log.Information("Smoke test: a PDF reprocessed from its file and found throughout");
+            }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
+            if (Application.Current.Windows.Count != 1 || services.GetRequiredService<ReaderWindows>().Windows.Count > 0)
+                throw new InvalidOperationException($"The smoke test left {Application.Current.Windows.Count - 1} other windows open.");
         }
         catch (Exception ex)
         {
@@ -87,6 +100,8 @@ static class SmokeTest
         finally
         {
             PresentationTraceSources.DataBindingSource.Listeners.Remove(bindingErrors);
+            // A failed run leaves no pop-out behind either.
+            services.GetRequiredService<ReaderWindows>().CloseAll();
         }
 
         if (bindingErrors.Errors.Count > 0)
@@ -426,10 +441,10 @@ static class SmokeTest
 
         // Zoom in and out step from the fitted size, as the + and - buttons and Ctrl+plus and Ctrl+minus do; Ctrl+0 fits again.
         await Settle(window);
-        System.Windows.Input.NavigationCommands.IncreaseZoom.Execute(null, pages);
+        NavigationCommands.IncreaseZoom.Execute(null, pages);
         var zoomedIn = viewer.Zoom;
         if (zoomedIn <= 0) throw new InvalidOperationException($"Zoom in from Fit width left the zoom at {zoomedIn}.");
-        System.Windows.Input.NavigationCommands.DecreaseZoom.Execute(null, pages);
+        NavigationCommands.DecreaseZoom.Execute(null, pages);
         if (viewer.Zoom <= 0 || viewer.Zoom >= zoomedIn) throw new InvalidOperationException($"Zoom out from {zoomedIn:P0} gave {viewer.Zoom}.");
         viewer.ResetZoomCommand.Execute(null);
         if (viewer.Zoom != Bibliotaph.Viewer.PdfPagesView.FitWidth) throw new InvalidOperationException($"Ctrl+0 left the zoom at {viewer.Zoom}.");
@@ -466,6 +481,135 @@ static class SmokeTest
         viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
         await WaitUntilAsync(window, () => viewer.Mode == ViewerMode.Problem, () => $"A missing file didn't show a problem (it shows {viewer.Mode}).");
         navigation.GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// Pops the PDF out of the main reader: the main window goes Back, and the pop-out, a top-level window with no
+    /// owner, draws page 1 at full quality at the same zoom on a viewer worker of its own. Return to main window
+    /// brings the book back at the same page and gives the worker back. Then the same book opens straight into two
+    /// new windows from the Library: Ctrl+W's command closes one, and what closing the main window runs closes the rest.
+    /// </summary>
+    static async Task PopOutAsync(IServiceProvider services, Window window, long documentId)
+    {
+        const double Zoom = 1.25;
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var readers = services.GetRequiredService<ReaderWindows>();
+        var workers = services.GetRequiredService<Bibliotaph.Pdf.Host.PdfWorkerPool>();
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        var book = library.Items.First(i => i.DocumentId == documentId);
+
+        library.OpenBookCommand.Execute(book);
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The PDF didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The PDF didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        viewer.Zoom = Zoom;
+        viewer.PageEntry = "1";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => viewer.CurrentPageIndex == 1, () => "Going to page 1 didn't show it before popping out.");
+
+        await viewer.PopOutCommand.ExecuteAsync(null);
+        if (shell.CurrentPage is not LibraryViewModel) throw new InvalidOperationException("Popping out didn't take the main window Back to the Library.");
+        if (readers.Windows is not [var popOut]) throw new InvalidOperationException($"Pop out opened {readers.Windows.Count} windows, not one.");
+        var reader = popOut.Model;
+        if (popOut.Owner is not null || !popOut.ShowInTaskbar || popOut.Title != book.Title || !reader.IsPoppedOut || reader.Zoom != Zoom)
+            throw new InvalidOperationException($"The pop-out is “{popOut.Title}” at {reader.Zoom}, owned: {popOut.Owner is not null}.");
+        await WaitUntilAsync(popOut, () => reader.IsPdf || reader.Mode == ViewerMode.Problem, () => $"The pop-out's PDF didn't open (still {reader.Mode}).");
+        if (!reader.IsPdf) throw new InvalidOperationException($"The pop-out's PDF didn't open: {reader.EmptyTitle} {reader.EmptyMessage}");
+        var popPages = FindChild<Bibliotaph.Viewer.PdfPagesView>(popOut) ?? throw new InvalidOperationException("The pop-out has no page surface.");
+        await WaitUntilAsync(popOut, () => popPages.CurrentPageIndex == 1 && popPages.PageModels[1] is { Image: not null, IsPreview: false },
+            () => $"The pop-out didn't draw page 1 at full quality (page in view {popPages.CurrentPageIndex}).");
+        // The main window's readers keep theirs; the pop-out has its own, so neither waits on the other.
+        if (workers.ViewerWorkerCount != 2) throw new InvalidOperationException($"{workers.ViewerWorkerCount} viewer workers run with one pop-out, not 2.");
+
+        reader.ReturnToMainWindowCommand.Execute(null);
+        await WaitUntilAsync(window, () => readers.Windows.Count == 0 && shell.CurrentPage is ViewerViewModel { IsPdf: true },
+            () => "Return to main window didn't close the pop-out and open the book in the main window.");
+        var returned = (ViewerViewModel)shell.CurrentPage!;
+        if (returned.IsPoppedOut || returned.Zoom != Zoom) throw new InvalidOperationException($"The returned book is at zoom {returned.Zoom}.");
+        await WaitUntilAsync(window, () => FindChild<Bibliotaph.Viewer.PdfPagesView>(window) is { CurrentPageIndex: 1 } pages
+                && pages.PageModels[1] is { Image: not null, IsPreview: false },
+            () => "The returned book didn't draw page 1 in the main window.");
+        await WaitUntilAsync(window, () => workers.ViewerWorkerCount == 1, () => "Closing the pop-out didn't stop its viewer worker.");
+        navigation.GoBack();
+        await Settle(window);
+        if (!ReferenceEquals(shell.CurrentPage, library)) throw new InvalidOperationException("Back didn't return to the Library.");
+
+        // The same book twice, straight from the Library, as from its card's menu.
+        await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
+        await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
+        if (readers.Windows is not [var first, var second]) throw new InvalidOperationException($"{readers.Windows.Count} windows opened, not two.");
+        await WaitUntilAsync(second, () => first.Model.IsPdf && second.Model.IsPdf, () => "The book didn't open in both new windows.");
+        if (workers.ViewerWorkerCount != 3) throw new InvalidOperationException($"{workers.ViewerWorkerCount} viewer workers run with two pop-outs, not 3.");
+        System.Windows.Input.ApplicationCommands.Close.Execute(null, first);
+        await WaitUntilAsync(window, () => readers.Windows is [var left] && ReferenceEquals(left, second), () => "Ctrl+W's command didn't close the pop-out.");
+        readers.CloseAll();
+        await WaitUntilAsync(window, () => readers.Windows.Count == 0 && Application.Current.Windows.Count == 1 && workers.ViewerWorkerCount == 1,
+            () => $"Closing every pop-out left {Application.Current.Windows.Count - 1} windows and {workers.ViewerWorkerCount} viewer workers.");
+        Log.Information("Smoke test: a PDF popped out, returned, and opened in two new windows");
+    }
+
+    /// <summary>
+    /// Reprocess from the inspector, on the smoke PDF whose index rows were written by hand: indexing resumes and runs
+    /// it through every stage from the real file. It must stay findable by "dragon" all along, and afterwards also by
+    /// "midnight", which only the file's text has.
+    /// </summary>
+    static async Task ReprocessBookAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var libraryStore = services.GetRequiredService<LibraryStore>();
+        async Task<bool> FoundAsync(string words)
+        {
+            var filter = new LibraryFilter(await libraryStore.GetVisibleDocumentIdsAsync());
+            var hits = await Task.Run(() => queries.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter));
+            return hits.Documents.Any(d => d.Document.DocumentId == documentId);
+        }
+        if (await FoundAsync("midnight")) throw new InvalidOperationException("The smoke PDF was found by a word only its file has before it was reprocessed.");
+
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+        await Settle(window);
+        var inspector = library.Inspector ?? throw new InvalidOperationException("The inspector didn't open.");
+        if (!inspector.ReprocessCommand.CanExecute(null) || !inspector.CanOcrEveryPage || inspector.ReprocessLabel != "Reprocess")
+            throw new InvalidOperationException($"Reprocess isn't offered (it says {inspector.ReprocessLabel}).");
+
+        var indexing = services.GetRequiredService<IndexingService>();
+        indexing.Resume(Lane.Index);
+        indexing.Resume(Lane.Ocr);
+        await inspector.ReprocessCommand.ExecuteAsync(null);
+
+        // Polled, not waited for: the PDF worker starts and every stage runs, which can take a while on a slow machine.
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        while (inspector.IsReprocessing || inspector.Stages.Count < 4)
+        {
+            if (!await FoundAsync("dragon")) throw new InvalidOperationException("The smoke PDF dropped out of search while it was reprocessed.");
+            if (Stopwatch.GetTimestamp() > deadline)
+                throw new InvalidOperationException($"Reprocessing didn't finish: {string.Join("; ", inspector.Stages.Select(s => $"{s.Name} {s.Status}"))}.");
+            await Settle(window);
+            await Task.Delay(100);
+        }
+        if (inspector.Stages.FirstOrDefault(s => s.Name is "Opening" or "Reading text" && s.Status != "Done") is { } stuck)
+            throw new InvalidOperationException($"Reprocessing ended with {stuck.Name}: {stuck.Status}.");
+        if (!inspector.ReprocessCommand.CanExecute(null)) throw new InvalidOperationException("Reprocess stayed disabled after every stage finished.");
+        if (!await FoundAsync("dragon") || !await FoundAsync("midnight"))
+            throw new InvalidOperationException("After reprocessing, the smoke PDF isn't found by the words on its page.");
+
+        // And through the search box, as a person would look.
+        library.CloseDetailsCommand.Execute(null);
+        search.Search("midnight");
+        library.Tab = ResultsTab.Pages;
+        await WaitUntilAsync(window, () => library.Hits.Any(h => h.Item.DocumentId == documentId),
+            () => "Searching for midnight didn't find the reprocessed PDF's page.");
+        search.Search("");
+        library.Tab = ResultsTab.Documents;
         await Settle(window);
     }
 
@@ -618,5 +762,104 @@ static class SmokeTest
         {
             if (message is not null) Errors.Add(message);
         }
+    }
+
+    /// <summary>
+    /// The search box's field guide, by keyboard alone: Ctrl+K's command focuses the empty box and the guide lists
+    /// every field in the theme's text colour; Down and Enter pick system:, which lists the library's systems, and a
+    /// value; Down reopens it, and Tab and Enter add type:adventure. The search finds the Haunted Inn. Then Esc closes
+    /// the guide and a second Esc clears the search.
+    /// </summary>
+    static async Task UseSearchGuideAsync(IServiceProvider services, Window window, int books)
+    {
+        var guide = services.GetRequiredService<SearchGuideViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The search guide check expects to start in the Library.");
+        var box = (TextBox)window.FindName("Search");
+        var popup = (System.Windows.Controls.Primitives.Popup)window.FindName("SearchGuide");
+        if (box.Text.Length > 0 || guide.IsOpen) throw new InvalidOperationException($"The search box isn't empty and closed before the guide check: \"{box.Text}\".");
+
+        // Focus must arrive, not already be there, for the box to open the guide.
+        if (box.IsKeyboardFocused) Keyboard.ClearFocus();
+        window.Activate();
+        ShellCommands.FocusSearch.Execute(null, window);
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 5;
+        while (!box.IsKeyboardFocused && Stopwatch.GetTimestamp() < deadline)
+        {
+            await Settle(window);
+            await Task.Delay(50);
+        }
+        var focused = box.IsKeyboardFocused;
+        if (!focused)
+        {
+            // A window that isn't in the foreground may not get keyboard focus; drive the same handler focus would.
+            Log.Warning("Smoke test: the search box didn't get keyboard focus, so the guide is opened as focus would open it");
+            guide.Focused(box.Text, box.CaretIndex);
+        }
+        var rows = (DependencyObject)window.FindName("SearchGuideRows");
+        TextBlock? row = null;
+        await WaitUntilAsync(window, () => popup.IsOpen && guide.Suggestions.Count == SearchFields.All.Count && popup.Child is { IsVisible: true }
+            && (row = FindChild<TextBlock>(rows)) is not null,
+            () => $"Focusing the empty search box didn't show the guide's rows for every field ({guide.Suggestions.Count} rows, open {popup.IsOpen}).");
+
+        // A popup doesn't take the window's text colour, so the guide sets the theme's own.
+        var text = ((System.Windows.Media.SolidColorBrush)window.FindResource("Bt.Text")).Color;
+        if (popup.Child is not Border panel || System.Windows.Documents.TextElement.GetForeground(panel) is not System.Windows.Media.SolidColorBrush { } brush
+            || brush.Color != text || row?.Foreground is not System.Windows.Media.SolidColorBrush { } rowBrush || rowBrush.Color != text)
+            throw new InvalidOperationException("The search guide's text isn't in the theme's text colour.");
+
+        await HighlightAsync(window, box, guide, s => s is FieldSuggestionViewModel { Field.Field: SearchField.System }, "system:");
+        Press(box, Key.Enter);
+        await WaitUntilAsync(window, () => box.Text == "system:" && box.CaretIndex == 7 && guide.Suggestions.Any(s => s is ValueSuggestionViewModel { Value.Value: "dnd" }),
+            () => $"Picking system: left \"{box.Text}\" with {guide.Suggestions.Count} rows, not the library's systems.");
+        if (focused && !box.IsKeyboardFocused) throw new InvalidOperationException("Picking a field took focus out of the search box.");
+
+        await HighlightAsync(window, box, guide, s => s is ValueSuggestionViewModel { Value.Value: "dnd" }, "system:dnd");
+        Press(box, Key.Enter);
+        await WaitUntilAsync(window, () => box.Text == "system:dnd " && !guide.IsOpen, () => $"Picking D&D left \"{box.Text}\" (guide open {guide.IsOpen}).");
+
+        // Down opens the guide again after a finished value; Tab picks like Enter.
+        Press(box, Key.Down);
+        await WaitUntilAsync(window, () => guide.IsOpen && guide.Suggestions.Count == SearchFields.All.Count, () => "Down didn't reopen the search guide.");
+        await HighlightAsync(window, box, guide, s => s is FieldSuggestionViewModel { Field.Field: SearchField.Type }, "type:");
+        Press(box, Key.Tab);
+        await WaitUntilAsync(window, () => box.Text == "system:dnd type:" && guide.Suggestions.Any(s => s is ValueSuggestionViewModel { Value.Value: "adventure" }),
+            () => $"Picking type: left \"{box.Text}\" with {guide.Suggestions.Count} rows, not the library's types.");
+        await HighlightAsync(window, box, guide, s => s is ValueSuggestionViewModel { Value.Value: "adventure" }, "type:adventure");
+        Press(box, Key.Enter);
+        await WaitUntilAsync(window, () => box.Text == "system:dnd type:adventure " && search.Text == "system:dnd type:adventure" && page.Items is [{ Title: "Haunted Inn" }],
+            () => $"The search built from the guide, \"{box.Text}\", didn't find just the Haunted Inn ({page.Items.Count} found).");
+
+        // Esc closes the guide and keeps the search; a second Esc clears it, as before the guide.
+        Press(box, Key.Down);
+        await WaitUntilAsync(window, () => guide.IsOpen, () => "Down didn't open the search guide.");
+        Press(box, Key.Escape);
+        await WaitUntilAsync(window, () => !guide.IsOpen && !popup.IsOpen && box.Text.Length > 0, () => "Esc didn't just close the search guide.");
+        Press(box, Key.Escape);
+        await WaitUntilAsync(window, () => box.Text.Length == 0 && !search.IsSearching && !guide.IsOpen && page.Items.Count == books,
+            () => "A second Esc didn't clear the search.");
+    }
+
+    /// <summary>Presses Down until the guide highlights the row <paramref name="wanted"/> picks, and the box names it for screen readers.</summary>
+    static async Task HighlightAsync(Window window, TextBox box, SearchGuideViewModel guide, Func<GuideSuggestionViewModel, bool> wanted, string name)
+    {
+        for (var presses = 0; guide.Highlighted is not { } row || !wanted(row); presses++)
+        {
+            if (presses > guide.Suggestions.Count) throw new InvalidOperationException($"Down never reached {name} in the search guide.");
+            Press(box, Key.Down);
+            await Settle(window);
+        }
+        if (System.Windows.Automation.AutomationProperties.GetHelpText(box) != guide.Highlighted.Spoken || !guide.Highlighted.Spoken.Contains(name, StringComparison.Ordinal))
+            throw new InvalidOperationException($"The search box doesn't tell screen readers that {name} is highlighted.");
+    }
+
+    /// <summary>A key press as the search box sees it first. Each key the guide uses must be handled there.</summary>
+    static void Press(TextBox box, Key key)
+    {
+        var source = PresentationSource.FromVisual(box) ?? throw new InvalidOperationException("The search box isn't on screen.");
+        var args = new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        box.RaiseEvent(args);
+        if (!args.Handled) throw new InvalidOperationException($"The search box didn't handle {key}.");
     }
 }

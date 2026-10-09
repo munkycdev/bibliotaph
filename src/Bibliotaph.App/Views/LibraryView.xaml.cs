@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 
 namespace Bibliotaph.App.Views;
@@ -23,7 +25,19 @@ public partial class LibraryView
             Attach(null);
         };
         Loaded += (_, _) => Attach(DataContext as LibraryViewModel);
+        AddBookCommand(BookCommands.Open, m => m.OpenBookCommand);
+        AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
+        AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
     }
+
+    /// <summary>A card menu's command, run with the card's book on the Library's own command.</summary>
+    void AddBookCommand(RoutedUICommand command, Func<LibraryViewModel, ICommand> target) =>
+        CommandBindings.Add(new CommandBinding(command,
+            (_, e) =>
+            {
+                if (DataContext is LibraryViewModel model && e.Parameter is LibraryItemViewModel item) target(model).Execute(item);
+            },
+            (_, e) => e.CanExecute = DataContext is LibraryViewModel model && e.Parameter is LibraryItemViewModel item && target(model).CanExecute(item)));
 
     void Attach(LibraryViewModel? model)
     {
@@ -58,6 +72,15 @@ public partial class LibraryView
             if (FindScrollViewer(child) is { } deeper) return deeper;
         }
         return null;
+    }
+
+    /// <summary>The arrow beside Reprocess opens its menu below it, by click or by keyboard, as a split button's does.</summary>
+    void ReprocessMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu } button) return;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     /// <summary>Keyboard focus goes into the inspector when it opens and back to where it was when it closes.</summary>

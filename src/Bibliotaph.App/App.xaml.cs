@@ -179,7 +179,6 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
-        builder.Services.AddSingleton<ViewerRequests>();
         builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
         builder.Services.AddSingleton<AboutBox>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
@@ -193,8 +192,12 @@ public partial class App : Application
         builder.Services.AddTransient<LibraryFoldersViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
-        builder.Services.AddTransient<ViewerViewModel>();
+        builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<MainWindow>();
+        // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
+        builder.Services.AddSingleton<UnlockedPasswords>();
+        builder.Services.AddSingleton<ViewerServices>();
+        builder.Services.AddSingleton<ReaderWindows>();
         return builder.Build();
     }
 
@@ -209,7 +212,7 @@ public partial class App : Application
         Route.LibraryFolders => services.GetRequiredService<LibraryFoldersViewModel>(),
         Route.Vocabulary => services.GetRequiredService<VocabularyViewModel>(),
         Route.Ai => services.GetRequiredService<AiSettingsViewModel>(),
-        Route.Viewer => services.GetRequiredService<ViewerViewModel>(),
+        Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };
 
