@@ -11,6 +11,14 @@
   <UserControl.InputBindings>
     <KeyBinding Key="F3" Command="{Binding FindNextCommand}" />
     <KeyBinding Key="F3" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
+    <!-- Ctrl and the + or - key on the main keyboard (with or without Shift) or the number pad, as in browsers. -->
+    <KeyBinding Key="OemPlus" Modifiers="Control" Command="NavigationCommands.IncreaseZoom" />
+    <KeyBinding Key="OemPlus" Modifiers="Control+Shift" Command="NavigationCommands.IncreaseZoom" />
+    <KeyBinding Key="Add" Modifiers="Control" Command="NavigationCommands.IncreaseZoom" />
+    <KeyBinding Key="OemMinus" Modifiers="Control" Command="NavigationCommands.DecreaseZoom" />
+    <KeyBinding Key="Subtract" Modifiers="Control" Command="NavigationCommands.DecreaseZoom" />
+    <KeyBinding Key="D0" Modifiers="Control" Command="{Binding ResetZoomCommand}" />
+    <KeyBinding Key="NumPad0" Modifiers="Control" Command="{Binding ResetZoomCommand}" />
   </UserControl.InputBindings>
 
   <UserControl.Resources>
@@ -115,8 +123,12 @@
                     AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Minus}" ToolTip="Zoom out (Ctrl+minus)"
+                  AutomationProperties.Name="Zoom out" Command="NavigationCommands.DecreaseZoom" Margin="0,0,4,0" />
           <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ZoomChoices}" SelectedValuePath="Value" SelectedValue="{Binding Zoom}"
-                    AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel)" MinWidth="110" />
+                    AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" MinWidth="110" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}" ToolTip="Zoom in (Ctrl+plus)"
+                  AutomationProperties.Name="Zoom in" Command="NavigationCommands.IncreaseZoom" Margin="4,0,0,0" />
         </StackPanel>
       </DockPanel>
     </Border>
@@ -153,7 +165,7 @@
         <Grid>
           <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
                                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <viewer:ImageView Source="{Binding Image}" Zoom="{Binding Zoom}"
+          <viewer:ImageView x:Name="ImageSurface" Source="{Binding Image}" Zoom="{Binding Zoom}"
                             Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
                      Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />

@@ -180,7 +180,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         .. IsImage
             ? new Choice<double>[] { new(PdfPagesView.FitWidth, "Fit to window") }
             : [new(PdfPagesView.FitWidth, "Fit width"), new(PdfPagesView.FitPage, "Fit page")],
-        .. new[] { 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4 }.Select(z => new Choice<double>(z, z.ToString("P0", CultureInfo.CurrentCulture))),
+        .. ZoomSteps.All.Select(z => new Choice<double>(z, z.ToString("P0", CultureInfo.CurrentCulture))),
     ];
 
     /// <summary>Set by the view as the reader scrolls.</summary>
@@ -422,6 +422,10 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     [RelayCommand]
     void ToggleOutline() => ShowOutline = !ShowOutline;
+
+    /// <summary>Back to the starting zoom, fitted to the width (Ctrl+0).</summary>
+    [RelayCommand]
+    void ResetZoom() => Zoom = PdfPagesView.FitWidth;
 
     [RelayCommand(CanExecute = nameof(CanGoPrevious))]
     void PreviousPage() => GoTo(CurrentPageIndex - 1, null);

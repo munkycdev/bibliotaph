@@ -26,6 +26,7 @@
   <Geometry x:Key="Icon.List">M 3 5 h 0.01 M 3 12 h 0.01 M 3 19 h 0.01 M 8 5 h 13 M 8 12 h 13 M 8 19 h 13</Geometry>
   <Geometry x:Key="Icon.Lock">M 5 11 H 19 A 2 2 0 0 1 21 13 V 20 A 2 2 0 0 1 19 22 H 5 A 2 2 0 0 1 3 20 V 13 A 2 2 0 0 1 5 11 Z M 7 11 V 7 a 5 5 0 0 1 10 0 v 4</Geometry>
   <Geometry x:Key="Icon.Map">M 14.106 5.553 a 2 2 0 0 0 1.788 0 l 3.659 -1.83 A 1 1 0 0 1 21 4.619 v 12.764 a 1 1 0 0 1 -0.553 0.894 l -4.553 2.277 a 2 2 0 0 1 -1.788 0 l -4.212 -2.106 a 2 2 0 0 0 -1.788 0 l -3.659 1.83 A 1 1 0 0 1 3 19.381 V 6.618 a 1 1 0 0 1 0.553 -0.894 l 4.553 -2.277 a 2 2 0 0 1 1.788 0 Z M 15 5.764 v 15 M 9 3.236 v 15</Geometry>
+  <Geometry x:Key="Icon.Minus">M 5 12 h 14</Geometry>
   <Geometry x:Key="Icon.NotebookPen">M 13.4 2 H 6 a 2 2 0 0 0 -2 2 v 16 a 2 2 0 0 0 2 2 h 12 a 2 2 0 0 0 2 -2 v -7.4 M 2 6 h 4 M 2 10 h 4 M 2 14 h 4 M 2 18 h 4 M 21.378 5.626 a 1 1 0 1 0 -3.004 -3.004 l -5.01 5.012 a 2 2 0 0 0 -0.506 0.854 l -0.837 2.87 a 0.5 0.5 0 0 0 0.62 0.62 l 2.87 -0.837 a 2 2 0 0 0 0.854 -0.506 Z</Geometry>
   <Geometry x:Key="Icon.NotebookTabs">M 2 6 h 4 M 2 10 h 4 M 2 14 h 4 M 2 18 h 4 M 6 2 H 18 A 2 2 0 0 1 20 4 V 20 A 2 2 0 0 1 18 22 H 6 A 2 2 0 0 1 4 20 V 4 A 2 2 0 0 1 6 2 Z M 15 2 v 20 M 15 7 h 5 M 15 12 h 5 M 15 17 h 5</Geometry>
   <Geometry x:Key="Icon.PanelRight">M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z M 15 3 v 18</Geometry>
