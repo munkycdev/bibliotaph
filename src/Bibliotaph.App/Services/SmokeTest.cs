@@ -782,7 +782,8 @@ static class SmokeTest
             if (Descendants<TextBlock>(window).Any(t => t.Text.Contains(Model, StringComparison.Ordinal)))
                 throw new InvalidOperationException("The review page names the model, so it isn't blind.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == offered.UseCommand), "Use the model's title");
-            if (title.Answer != "The Haunted Inn") throw new InvalidOperationException($"Use put “{title.Answer}” in the answer.");
+            // An automation click runs from the dispatcher's queue, so the answer changes once the window has worked.
+            await WaitUntilAsync(window, () => title.Answer == "The Haunted Inn", () => $"Use put “{title.Answer}” in the answer.");
             review.Fields.Single(f => f.Field == MetadataFields.Levels).NotInBook = true;
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == review.SaveCommand), "Save and next");
             await WaitUntilAsync(window, () => review.PositionText.Contains("answered 1", StringComparison.Ordinal),
