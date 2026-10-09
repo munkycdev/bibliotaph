@@ -12,12 +12,12 @@ namespace Bibliotaph.Index;
 /// A library card as the grid and search results show it: an entry, through the document it shows
 /// (<see cref="DocumentId"/>, which opens). <see cref="Title"/> is its effective title, or the one from its file name. <see cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/>
 /// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/>
-/// is the model that last read it, if one has.
+/// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
     string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
-    string? AiModel = null);
+    string? AiModel = null, int Copies = 1);
 
 public enum LibrarySort
 {
@@ -50,7 +50,7 @@ public enum AiFilter
 /// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is
 /// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
 /// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12). <see cref="Ai"/> keeps books a model
-/// has or hasn't read.
+/// has or hasn't read, and <see cref="OnlyWithCopies"/> those with more than one file.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -60,7 +60,8 @@ public sealed record LibraryFilter(
     IReadOnlyCollection<string>? Types = null,
     int? Level = null,
     bool IncludeUnknownLevel = false,
-    AiFilter Ai = AiFilter.All);
+    AiFilter Ai = AiFilter.All,
+    bool OnlyWithCopies = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -107,7 +108,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
         coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
-        ai.model AS AiModel
+        ai.model AS AiModel, e.copies AS Copies
         """;
 
     /// <summary>Library cards: each entry with the document it shows.</summary>
@@ -206,6 +207,13 @@ public sealed class LibraryQueries(IndexDatabase database)
     {
         await using var connection = database.OpenRead();
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_ai", cancellationToken: ct));
+    }
+
+    /// <summary>How many books are in more than one file, for the filter panel's Copies choice.</summary>
+    public async Task<long> CountWithCopiesAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE copies > 1", cancellationToken: ct));
     }
 
     /// <summary>
@@ -357,7 +365,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
-            r.NeedsReview != 0, r.Suggested != 0, r.AiModel))];
+            r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies))];
 
     static string? DescribeLevels(string state, long? min, long? max) => state switch
     {
@@ -398,6 +406,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public long NeedsReview { get; init; }
         public long Suggested { get; init; }
         public string? AiModel { get; init; }
+        public long Copies { get; init; } = 1;
     }
 
     sealed class HitRow
@@ -441,6 +450,8 @@ public sealed class LibraryQueries(IndexDatabase database)
                     Parameters.Add("formatPng", SourceFormats.Png);
                     break;
             }
+
+            if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
 
             if (filter.Ai != AiFilter.All)
                 _sql.Append($" AND e.entry_id {(filter.Ai == AiFilter.Read ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_ai)");

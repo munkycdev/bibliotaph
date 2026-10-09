@@ -54,11 +54,12 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             {
                 if (location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc)
                 {
-                    // New content at a known path. The old document keeps its other locations and the user's work;
-                    // linking the new version to it as a revision is slice 4.
+                    // New content at a known path. The old document keeps its other locations; the new content joins
+                    // its card as a new version once it is hashed (A08).
                     location.SizeBytes = file.SizeBytes;
                     location.ModifiedUtc = file.ModifiedUtc;
                     location.ContentHash = null;
+                    location.PreviousDocumentId = location.DocumentId ?? location.PreviousDocumentId;
                     location.DocumentId = null;
                     changed++;
                 }
@@ -131,8 +132,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Records a location's hash and links it to the document with that content, creating the document when the
-    /// content is new, with a whole-document entry for its library card. Returns null when the file changed while it
-    /// was being hashed (the next scan picks it up).
+    /// content is new. A new document gets a whole-document entry for its library card or, when its path held another
+    /// book's file before, becomes that book's current version. Returns null when the file changed while it was being
+    /// hashed (the next scan picks it up).
     /// </summary>
     public async Task<(long DocumentId, bool IsNew)?> AttachHashAsync(UnhashedFile file, ContentHash hash, CancellationToken ct = default)
     {
@@ -140,17 +142,22 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         var location = await db.FileLocations.FindAsync([file.LocationId], ct);
         if (location is null || location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc) return null;
 
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var document = await db.Documents.FirstOrDefaultAsync(d => d.ContentHash == hash.Hex, ct);
         var isNew = document is null;
         if (document is null)
         {
             var now = _clock.GetUtcNow().UtcDateTime;
             document = db.Documents.Add(new Document { ContentHash = hash.Hex, Format = file.Format, CreatedUtc = now }).Entity;
-            db.EntrySources.Add(new EntrySource { Entry = new Entry { Kind = EntryKind.Whole, CreatedUtc = now }, Document = document, IsCurrent = true });
+            // New content where another book's file was is a new version of that book (A08); anything else is a new card.
+            if (location.PreviousDocumentId is not { } previous || await EntryStore.AddVersionAsync(db, document, previous, ct) is null)
+                db.EntrySources.Add(new EntrySource { Entry = new Entry { Kind = EntryKind.Whole, CreatedUtc = now }, Document = document, IsCurrent = true });
         }
         location.ContentHash = hash.Hex;
         location.Document = document;
+        location.PreviousDocumentId = null;
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return (document.Id, isNew);
     }
 

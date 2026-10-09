@@ -219,6 +219,12 @@ public sealed class IndexingService(
             var backfilled = await queue.EnqueueMissingAsync(Stage.Classify, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued classification for {Count} documents", backfilled);
         }
+        // And looking for other copies, for books read before F2: from the text already stored, so no file is read again.
+        if (_stages.ContainsKey(Stage.Match))
+        {
+            var backfilled = await queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
+            if (backfilled > 0) _log.LogInformation("Queued the search for other copies for {Count} documents", backfilled);
+        }
         WatchGates();
 
         _scanSignal.Set();

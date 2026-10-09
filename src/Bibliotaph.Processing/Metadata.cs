@@ -29,15 +29,19 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         if (entryIds.Count == 0) return;
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
-        await index.SetEntriesAsync([.. (await entries.GetCurrentAsync(entryIds, ct)).Select(ToRow)], ct);
-        var all = await metadata.GetManyAsync(entryIds, ct);
+        var current = await entries.GetCurrentAsync(entryIds, ct);
+        await index.SetEntriesAsync([.. current.Select(ToRow)], ct);
+        // An entry with no file to show, such as one whose copy joined another card, leaves the library.
+        var shown = current.Select(e => e.EntryId).ToHashSet();
+        await index.RemoveEntriesAsync([.. entryIds.Where(id => !shown.Contains(id))], ct);
+        var all = await metadata.GetManyAsync(shown, ct);
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
-        await index.ClearMetadataAsync([.. entryIds.Where(id => !all.ContainsKey(id))], ct);
-        if (runs is not null) await index.SetAiReadAsync(entryIds, await runs.GetReadByAsync(entryIds, ct), ct);
+        await index.ClearMetadataAsync([.. shown.Where(id => !all.ContainsKey(id))], ct);
+        if (runs is not null) await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
         Projected?.Invoke(this, entryIds);
     }
 
-    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind);
+    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies);
 
     /// <summary>Copies every name of every term into index.db, for field search. Run when a term is added.</summary>
     public async Task ProjectVocabularyAsync(CancellationToken ct = default)
@@ -52,14 +56,17 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await ProjectVocabularyAsync(ct);
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
-        foreach (var chunk in (await entries.GetCurrentAsync(ct: ct)).Chunk(Batch))
+        var current = await entries.GetCurrentAsync(ct: ct);
+        foreach (var chunk in current.Chunk(Batch))
             await index.SetEntriesAsync([.. chunk.Select(ToRow)], ct);
-        var (_, withMetadata) = await queries.GetEntryIdsAsync(ct);
-        var all = await metadata.GetManyAsync(null, ct);
+        var shown = current.Select(e => e.EntryId).ToHashSet();
+        var (indexed, withMetadata) = await queries.GetEntryIdsAsync(ct);
+        await index.RemoveEntriesAsync([.. indexed.Concat(withMetadata).Distinct().Where(id => !shown.Contains(id))], ct);
+        var all = (await metadata.GetManyAsync(null, ct)).Where(m => shown.Contains(m.Key)).ToDictionary();
         foreach (var chunk in all.Values.Chunk(Batch))
             await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
-        await index.ClearMetadataAsync([.. withMetadata.Where(id => !all.ContainsKey(id))], ct);
-        if (runs is not null) await index.SetAiReadAsync(null, await runs.GetReadByAsync(ct: ct), ct);
+        await index.ClearMetadataAsync([.. withMetadata.Where(id => shown.Contains(id) && !all.ContainsKey(id))], ct);
+        if (runs is not null) await index.SetAiReadAsync(null, (await runs.GetReadByAsync(ct: ct)).Where(r => shown.Contains(r.Key)).ToDictionary(), ct);
         _log.LogInformation("Projected metadata for {Count} entries", all.Count);
         Projected?.Invoke(this, [.. all.Keys]);
     }

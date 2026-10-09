@@ -24,6 +24,17 @@ public sealed record InspectorLocation(string Path, string State, bool ShowsRepr
 public sealed record InspectorStage(string Name, string Status);
 
 /// <summary>
+/// One file of the book in the inspector's Copies list: "Current copy" or "Copy", or an earlier version whose file
+/// has gone, with its pages and where it is.
+/// </summary>
+public sealed record InspectorCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent)
+{
+    public bool HasPath => Path is not null;
+
+    public bool CanMakeCurrent => !IsCurrent;
+}
+
+/// <summary>
 /// The inspector: a document's metadata, with where each value came from and the user's corrections (Details), then
 /// what Bibliotaph knows from its file (pages, capabilities, where it is, how far indexing got). Reprocess reads the
 /// file again; the processing list follows its stages as they run.
@@ -37,22 +48,73 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly MetadataService _metadata;
     readonly LibraryQueries _queries;
     readonly IndexingService _indexing;
+    readonly CopiesService _copies;
     bool _refreshing;
     bool _refreshAgain;
 
-    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations, MetadataService metadata,
-        LibraryQueries queries, IndexingService indexing)
+    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations, IReadOnlyList<CopyDetails> copies,
+        MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService)
     {
         Item = item;
         _metadata = metadata;
         _queries = queries;
         _indexing = indexing;
+        _copies = copiesService;
         Locations = [.. locations.Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0))];
+        Copies = copies.Count < 2 ? [] : [.. copies.Select(ToCopy)];
         ShowProcessing(details?.Entry ?? item.Entry, details);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
     public event EventHandler? MetadataChanged;
+
+    /// <summary>
+    /// Raised after Make current or Not the same book, with the card to show next: this one, or the copy's own card
+    /// once it has been split off.
+    /// </summary>
+    public event EventHandler<EntryId>? CopiesChanged;
+
+    /// <summary>The book's files when it has more than one (F2): which opens, the others, and earlier versions.</summary>
+    public IReadOnlyList<InspectorCopy> Copies { get; }
+
+    public bool HasCopies => Copies.Count > 0;
+
+    public string CopiesHeading => $"COPIES ({Copies.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    /// <summary>Opens this copy instead: its cover, page count and page hits become the card's. Nothing on disk changes.</summary>
+    [RelayCommand]
+    async Task MakeCurrent(InspectorCopy copy)
+    {
+        await Task.Run(() => _copies.MakeCurrentAsync(Item.EntryId, copy.DocumentId));
+        CopiesChanged?.Invoke(this, Item.EntryId);
+    }
+
+    /// <summary>"Not the same book": the copy gets its own card again, and Bibliotaph won't join the two again.</summary>
+    [RelayCommand]
+    async Task NotSameBook(InspectorCopy copy)
+    {
+        var card = await Task.Run(() => _copies.NotSameBookAsync(Item.EntryId, copy.DocumentId));
+        CopiesChanged?.Invoke(this, card ?? Item.EntryId);
+    }
+
+    [RelayCommand]
+    static void ShowCopyInExplorer(InspectorCopy copy)
+    {
+        if (copy.Path is { } path) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+    }
+
+    static InspectorCopy ToCopy(CopyDetails details)
+    {
+        var copy = details.Copy;
+        var path = details.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing)?.FullPath;
+        var heading = copy.IsCurrent ? "Current copy" : path is null ? "Earlier version, no file" : "Copy";
+        var parts = new List<string>();
+        if (copy.PageCount is { } pages) parts.Add($"{pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}");
+        parts.Add($"added {copy.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture)}");
+        if (copy.Joined) parts.Add("same text, joined automatically");
+        if (copy.IsCurrent && !copy.IsShown) parts.Add("its file is missing, so another copy opens");
+        return new InspectorCopy(copy.DocumentId, heading, string.Join(" · ", parts), path, copy.IsCurrent);
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields))]
@@ -152,11 +214,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool CanOcrEveryPage => PageCount > 0;
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing)
+        IndexingService indexing, CopiesService copies)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         var locations = await library.GetLocationsAsync(item.DocumentId);
-        var inspector = new InspectorViewModel(item, details, locations, metadata, queries, indexing);
+        var copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
+        var inspector = new InspectorViewModel(item, details, locations, copyList, metadata, queries, indexing, copies);
         await inspector.ReloadMetadataAsync(changed: false);
         return inspector;
     }
@@ -280,6 +343,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         Stage.RuleHints => "Hints from names",
         Stage.Ocr => "Reading scanned pages",
         Stage.Classify => "Cataloguing with AI",
+        Stage.Match => "Looking for other copies",
         _ => stage.ToString(),
     };
 

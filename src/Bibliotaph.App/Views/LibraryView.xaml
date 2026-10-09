@@ -213,6 +213,11 @@
         <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
                   AutomationProperties.Name="Read by AI" MinWidth="150" ToolTip="Books a model has read and catalogued" />
       </StackPanel>
+      <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCopiesChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
+                  AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
+      </StackPanel>
       <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
     </WrapPanel>
 
@@ -331,7 +336,11 @@
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="Type" />
                 <TextBlock Grid.Column="4" Text="{Binding LevelsLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,10,0"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="Character levels" />
-                <TextBlock Grid.Column="5" Text="{Binding SizeLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="5" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding SizeLabel}" Style="{StaticResource Text.Small}" />
+                  <TextBlock Text="{Binding CopiesLabel}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" ToolTip="Files of this book in your library"
+                             Visibility="{Binding CopiesLabel, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                </StackPanel>
                 <c:LucideIcon Grid.Column="6" Data="{StaticResource Icon.ChevronRight}" Size="15" Foreground="{DynamicResource Bt.Muted}"
                               VerticalAlignment="Center" HorizontalAlignment="Right" />
               </Grid>
@@ -677,6 +686,41 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- The book's files when it has more than one (F2): which one opens, Make current, and Not the same book. -->
+            <StackPanel Visibility="{Binding HasCopies, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="{Binding CopiesHeading}" Style="{StaticResource SectionHead}" />
+              <ItemsControl ItemsSource="{Binding Copies}" Focusable="False" AutomationProperties.Name="Copies">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:InspectorCopy}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8"
+                            AutomationProperties.Name="{Binding Heading}">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0"
+                                   Visibility="{Binding HasPath, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                        <WrapPanel Margin="0,10,0,0">
+                          <Button Content="Make current" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,8"
+                                  ToolTip="Open this copy: its cover, pages and page hits become the book's. No file changes."
+                                  Visibility="{Binding CanMakeCurrent, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  Command="{Binding DataContext.MakeCurrentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
+                                  Visibility="{Binding HasPath, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  Command="{Binding DataContext.ShowCopyInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="Not the same book" Margin="0,0,8,8"
+                                  ToolTip="Give this file a card of its own again. Bibliotaph won't join them again."
+                                  Command="{Binding DataContext.NotSameBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                  CommandParameter="{Binding}" />
+                        </WrapPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
 
             <StackPanel Visibility="{Binding HasStages, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="INDEXING" Style="{StaticResource SectionHead}" />

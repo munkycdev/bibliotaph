@@ -56,6 +56,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly INavigationService _navigation;
     readonly ReaderWindows _readers;
     readonly IndexingService _indexing;
+    readonly CopiesService _copies;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -66,10 +67,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
-        IndexingService indexing, ILogger<LibraryViewModel> log)
+        IndexingService indexing, CopiesService copies, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _indexing = indexing;
+        _copies = copies;
         _roots = roots;
         _library = library;
         _queries = queries;
@@ -83,6 +85,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         FormatChoice = FormatChoices[0];
         AiChoice = AiChoices[0];
+        CopiesChoice = CopiesChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -126,6 +129,18 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowAiChoice { get; private set; }
+
+    /// <summary>
+    /// Books in more than one file (F2), so the copies Bibliotaph joined can be checked: shown once there are some, or
+    /// while it is chosen.
+    /// </summary>
+    public IReadOnlyList<Choice<bool>> CopiesChoices { get; } = [new(false, "All books"), new(true, "Books with copies")];
+
+    [ObservableProperty]
+    public partial Choice<bool> CopiesChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowCopiesChoice { get; private set; }
 
     public IReadOnlyList<Choice<LibrarySort>> SortChoices => IsSearching ? SearchSorts : BrowseSorts;
 
@@ -335,6 +350,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Refresh();
     }
 
+    partial void OnCopiesChoiceChanged(Choice<bool> value)
+    {
+        if (value is null) CopiesChoice = CopiesChoices[0];
+        else Refresh();
+    }
+
     partial void OnFolderChoiceChanged(Choice<long?> value)
     {
         if (value is null) FolderChoice = AllFolders;
@@ -390,9 +411,14 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
             var filter = new LibraryFilter(scope, FormatChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels, AiChoice.Value);
+                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
-            if (version == _version) ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
+            var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
+            if (version == _version)
+            {
+                ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
+                ShowCopiesChoice = withCopies > 0 || CopiesChoice.Value;
+            }
             if (!IsSearching)
             {
                 var entries = await Task.Run(() => _queries.ListAsync(filter));
@@ -459,7 +485,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
         var filtered = FormatChoice.Value != FormatFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
-            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All;
+            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -582,6 +608,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _holdRefresh = true;
         FormatChoice = FormatChoices[0];
         AiChoice = AiChoices[0];
+        CopiesChoice = CopiesChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -606,8 +633,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
+            inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
             Inspector = inspector;
         }
         catch (Exception ex)
@@ -618,6 +646,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [RelayCommand]
     void CloseDetails() => Inspector = null;
+
+    /// <summary>
+    /// After Make current or Not the same book: the library again, and the inspector on the card the user was on, or
+    /// on the copy's own card when it was split off.
+    /// </summary>
+    async Task ShowCopiesChangedAsync(EntryId entryId)
+    {
+        await RefreshAsync();
+        if (_known.TryGetValue(entryId, out var item)) await OpenDetails(item);
+        else Inspector = null;
+    }
 
     /// <summary>
     /// Opens a book at a page that matched, with the search's words marked. Always in the main window's reader, even

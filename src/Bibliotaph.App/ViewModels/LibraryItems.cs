@@ -52,6 +52,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string? AiTip => Entry.AiModel is { } model ? $"Catalogued with AI ({model})" : null;
 
+    /// <summary>"2 copies" when the book is in more than one file (F2), for the detail list; empty otherwise.</summary>
+    public string CopiesLabel => Entry.Copies > 1 ? $"{Entry.Copies.ToString("N0", CultureInfo.CurrentCulture)} copies" : "";
+
     public string PagesLabel => Entry.PageCount is { } pages ? $"{pages.ToString("N0", CultureInfo.CurrentCulture)} pp." : "";
 
     /// <summary>The first letter of the title, for the placeholder cover.</summary>
@@ -92,7 +95,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         if (image is not null) Cover = image;
     }
 
-    /// <summary>Takes newer facts about the same document, such as a cover that has just been made.</summary>
+    /// <summary>Takes newer facts about the same entry, such as a cover that has just been made or another copy made current.</summary>
     public void Update(LibraryEntry entry)
     {
         if (entry == Entry) return;
@@ -113,6 +116,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(PublisherLabel));
         OnPropertyChanged(nameof(Byline));
         OnPropertyChanged(nameof(SizeLabel));
+        OnPropertyChanged(nameof(CopiesLabel));
         OnPropertyChanged(nameof(Initial));
         OnPropertyChanged(nameof(IsAiRead));
         OnPropertyChanged(nameof(AiTip));

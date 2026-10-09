@@ -11,6 +11,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Entry> Entries => Set<Entry>();
     public DbSet<EntrySource> EntrySources => Set<EntrySource>();
+    public DbSet<EntryJoin> EntryJoins => Set<EntryJoin>();
+    public DbSet<CopyDecision> CopyDecisions => Set<CopyDecision>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Setting> Settings => Set<Setting>();
@@ -39,19 +41,29 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(f => new { f.SourceRootId, f.RelativePath }).IsUnique();
             e.HasIndex(f => f.ContentHash);
             e.HasOne(f => f.Document).WithMany(d => d.Locations).HasForeignKey(f => f.DocumentId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Document>().WithMany().HasForeignKey(f => f.PreviousDocumentId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        modelBuilder.Entity<Document>(e =>
-        {
-            e.HasIndex(d => d.ContentHash).IsUnique();
-            e.HasOne(d => d.PreviousVersion).WithMany().HasForeignKey(d => d.PreviousVersionId).OnDelete(DeleteBehavior.SetNull);
-        });
+        modelBuilder.Entity<Document>(e => e.HasIndex(d => d.ContentHash).IsUnique());
 
         modelBuilder.Entity<Entry>(e =>
         {
             e.HasIndex(x => x.ParentEntryId);
             e.HasOne(x => x.ParentEntry).WithMany().HasForeignKey(x => x.ParentEntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(x => x.MergedIntoEntryId).OnDelete(DeleteBehavior.SetNull);
         });
+
+        modelBuilder.Entity<EntryJoin>(e =>
+        {
+            e.HasIndex(j => j.DocumentId);
+            e.HasIndex(j => j.EntryId);
+            e.HasOne<Entry>().WithMany().HasForeignKey(j => j.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(j => j.JoinedEntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Document>().WithMany().HasForeignKey(j => j.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Document>().WithMany().HasForeignKey(j => j.MatchedDocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CopyDecision>(e => e.HasIndex(d => new { d.FirstHash, d.SecondHash }).IsUnique());
 
         modelBuilder.Entity<EntrySource>(e =>
         {

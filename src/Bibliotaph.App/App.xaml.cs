@@ -143,6 +143,7 @@ public partial class App : Application
         // (hosted services stop in reverse order) and can still record the job it was on.
         builder.Services.AddSingleton<LibraryStore>();
         builder.Services.AddSingleton<EntryStore>();
+        builder.Services.AddSingleton<CopiesService>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
@@ -165,6 +166,7 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, RuleHintsStage>();
         builder.Services.AddSingleton<IStage, OcrStage>();
         builder.Services.AddSingleton<IStage, ClassifyStage>();
+        builder.Services.AddSingleton<IStage, MatchStage>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<MetadataService>();

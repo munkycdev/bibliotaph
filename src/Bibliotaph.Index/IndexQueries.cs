@@ -106,6 +106,41 @@ public sealed class IndexQueries(IndexDatabase database)
         return [.. rows.Select(r => new OcrPage((int)r.PdfPage, r.WidthPt, r.HeightPt))];
     }
 
+    /// <summary>Every page's text, in page order (empty for a page with none), for fingerprinting.</summary>
+    public async Task<IReadOnlyList<string>> GetAllPageTextsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string>(new CommandDefinition(
+            "SELECT text FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
+    }
+
+    /// <summary>Each page's fingerprint, in page order (null for a page without one).</summary>
+    public async Task<IReadOnlyList<string?>> GetFingerprintsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string?>(new CommandDefinition(
+            "SELECT fingerprint FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
+    }
+
+    /// <summary>
+    /// The other documents with a page whose fingerprint one of <paramref name="documentId"/>'s pages has, with how many
+    /// of its distinct fingerprints each shares, most first.
+    /// </summary>
+    public async Task<IReadOnlyList<(long DocumentId, int Shared)>> GetSharingPagesAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, long Shared)>(new CommandDefinition(
+            """
+            SELECT other.document_id, count(DISTINCT other.fingerprint) AS shared
+            FROM page mine JOIN page other ON other.fingerprint = mine.fingerprint AND other.document_id <> mine.document_id
+            WHERE mine.document_id = @documentId AND mine.fingerprint IS NOT NULL
+            GROUP BY other.document_id
+            ORDER BY shared DESC, other.document_id
+            """,
+            new { documentId }, cancellationToken: ct));
+        return [.. rows.Select(r => (r.DocumentId, (int)r.Shared))];
+    }
+
     /// <summary>A document's cover file name in the cover cache, or null when it has none.</summary>
     public async Task<string?> GetCoverAsync(long documentId, CancellationToken ct = default)
     {

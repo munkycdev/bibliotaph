@@ -33,6 +33,11 @@ public sealed class FileLocation
     public string? ContentHash { get; set; }
     public long? DocumentId { get; set; }
     public Document? Document { get; set; }
+    /// <summary>
+    /// The document this path held before its content changed, until the new content is hashed. New content at the
+    /// same path is a new version of the same book (A08), so it joins that document's entry.
+    /// </summary>
+    public long? PreviousDocumentId { get; set; }
     public DateTime LastSeenUtc { get; set; }
     public FileLocationState State { get; set; }
 }
@@ -48,9 +53,6 @@ public sealed class Document
     /// <summary>Capabilities with reasons, as JSON (searchable, copyable, needs OCR, ...).</summary>
     public string? CapabilitiesJson { get; set; }
     public ProtectionType Protection { get; set; }
-    /// <summary>The earlier version when a path's content was replaced.</summary>
-    public long? PreviousVersionId { get; set; }
-    public Document? PreviousVersion { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<FileLocation> Locations { get; set; } = [];
     public List<EntrySource> Sources { get; set; } = [];
@@ -69,6 +71,11 @@ public sealed class Entry
     /// <summary>For a part, the compilation's entry.</summary>
     public long? ParentEntryId { get; set; }
     public Entry? ParentEntry { get; set; }
+    /// <summary>
+    /// Set when this entry's copy joined another entry: the entry it joined. It has no sources then and shows nowhere,
+    /// but keeps its id and anything that stayed behind, so "Not the same book" can bring it back.
+    /// </summary>
+    public long? MergedIntoEntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<EntrySource> Sources { get; set; } = [];
     public List<Assertion> Assertions { get; set; } = [];
@@ -90,6 +97,41 @@ public sealed class EntrySource
     public int? FirstPdfPage { get; set; }
     public int? LastPdfPage { get; set; }
     public bool IsCurrent { get; set; }
+}
+
+/// <summary>
+/// A copy that joined an entry because its text matched another copy page for page (catalog entry design, choice 5),
+/// with what moved across, so "Not the same book" can put everything back.
+/// </summary>
+public sealed class EntryJoin
+{
+    public long Id { get; set; }
+    /// <summary>The entry the copy joined.</summary>
+    public long EntryId { get; set; }
+    /// <summary>The copy's own entry before the join, kept with <see cref="Entry.MergedIntoEntryId"/> set.</summary>
+    public long JoinedEntryId { get; set; }
+    /// <summary>The copy that joined.</summary>
+    public long DocumentId { get; set; }
+    /// <summary>The copy it matched.</summary>
+    public long MatchedDocumentId { get; set; }
+    /// <summary>The ids of the assertions, rejections and runs that moved, and of the values set aside, as JSON.</summary>
+    public required string MovedJson { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// The user's answer about a pair of files, by content hash, so Match never asks or joins again: "Not the same book"
+/// keeps them on separate cards.
+/// </summary>
+public sealed class CopyDecision
+{
+    public long Id { get; set; }
+    /// <summary>The lower of the two content hashes.</summary>
+    public required string FirstHash { get; set; }
+    /// <summary>The higher of the two content hashes.</summary>
+    public required string SecondHash { get; set; }
+    public CopyAnswer Answer { get; set; }
+    public DateTime CreatedUtc { get; set; }
 }
 
 /// <summary>
