@@ -33,6 +33,9 @@ public sealed record AttentionItem(long DocumentId, string Title, Stage Stage, S
 /// <summary>A page the OCR stage still has to read.</summary>
 public sealed record OcrPage(int PdfPage, double WidthPt, double HeightPt);
 
+/// <summary>The PDF's own document information, as Probe read it.</summary>
+public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords);
+
 /// <summary>Read-side queries over index.db. Every value is a bound parameter.</summary>
 public sealed class IndexQueries(IndexDatabase database)
 {
@@ -117,5 +120,23 @@ public sealed class IndexQueries(IndexDatabase database)
             WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped') AND document_id IN (SELECT value FROM json_each(@ids))
             """,
             new { ids = JsonSerializer.Serialize(documentIds) }, cancellationToken: ct));
+    }
+
+    /// <summary>A document's embedded information, or null before Probe has added it.</summary>
+    public async Task<EmbeddedInfo?> GetEmbeddedInfoAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.QuerySingleOrDefaultAsync<EmbeddedInfo>(new CommandDefinition(
+            "SELECT meta_title AS Title, meta_author AS Author, meta_subject AS Subject, meta_keywords AS Keywords FROM doc WHERE document_id = @documentId",
+            new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>Every document Probe has added, and those with projected metadata.</summary>
+    public async Task<(IReadOnlyList<long> Documents, IReadOnlyList<long> WithMetadata)> GetDocumentIdsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var documents = await connection.QueryAsync<long>(new CommandDefinition("SELECT document_id FROM doc", cancellationToken: ct));
+        var withMetadata = await connection.QueryAsync<long>(new CommandDefinition("SELECT document_id FROM doc_meta", cancellationToken: ct));
+        return ([.. documents], [.. withMetadata]);
     }
 }

@@ -1,9 +1,11 @@
+using Bibliotaph.Core.Metadata;
+
 namespace Bibliotaph.Core.Search;
 
-/// <summary>A field the search box understands. Only fields with data behind them exist; slice 2 adds metadata fields.</summary>
+/// <summary>A field the search box understands. Only fields with data behind them exist.</summary>
 public enum SearchField
 {
-    /// <summary><c>title:</c>, the display title (and, from slice 2, confirmed and suggested titles).</summary>
+    /// <summary><c>title:</c>, the document's title (its effective title, or the one from its file name).</summary>
     Title,
 
     /// <summary><c>format:</c> pdf, jpg, png, or image for either image format.</summary>
@@ -11,6 +13,39 @@ public enum SearchField
 
     /// <summary><c>folder:</c>, part of a folder name between the source folder and the file.</summary>
     Folder,
+
+    /// <summary><c>publisher:</c>, words in the publisher's name.</summary>
+    Publisher,
+
+    /// <summary><c>author:</c>, words in an author's name.</summary>
+    Author,
+
+    /// <summary><c>series:</c>, words in the series name.</summary>
+    Series,
+
+    /// <summary><c>tag:</c>, one of the user's tags.</summary>
+    Tag,
+
+    /// <summary><c>system:</c>, a game system or edition by any of its names: dnd, "D&amp;D 5e", pf2e. Also <c>system:unknown</c>.</summary>
+    System,
+
+    /// <summary><c>edition:</c>, an edition by any of its names.</summary>
+    Edition,
+
+    /// <summary><c>type:</c>, a document type: adventure, bestiary, map.</summary>
+    Type,
+
+    /// <summary><c>setting:</c>, a campaign setting.</summary>
+    Setting,
+
+    /// <summary><c>theme:</c>, a theme such as horror or heist.</summary>
+    Theme,
+
+    /// <summary><c>environment:</c>, where it happens: urban, underground.</summary>
+    Environment,
+
+    /// <summary><c>level:</c> 3, 1-5, none (levels don't apply) or unknown. A range matches books whose levels overlap it.</summary>
+    Level,
 }
 
 /// <summary>
@@ -72,6 +107,9 @@ public sealed record QueryIssue(string Message, int Start, int Length);
 /// <summary>The result of parsing: the query tree (null when nothing searchable is left) and anything that was ignored.</summary>
 public sealed record SearchQuery(string Text, QueryNode? Root, IReadOnlyList<QueryIssue> Issues)
 {
+    /// <summary>The field value that finds documents with nothing known for that field: <c>system:unknown</c>, <c>level:unknown</c>.</summary>
+    public const string Unknown = "unknown";
+
     public bool IsEmpty => Root is null;
 
     /// <summary>Parses what the user typed. Never throws; problems come back as <see cref="Issues"/>.</summary>
@@ -122,18 +160,29 @@ sealed class QueryParser(string text)
     /// <summary>Deeper nesting than this is almost certainly a paste accident; it also bounds recursion.</summary>
     const int MaxDepth = 16;
 
-    /// <summary>Fields that arrive with metadata in slice 2. Typing one says so rather than searching for the word.</summary>
-    static readonly HashSet<string> FutureFields =
-    [
-        with(StringComparer.OrdinalIgnoreCase),
-        "type", "level", "levels", "system", "publisher", "author", "series", "tag", "tags", "theme", "setting", "length",
-    ];
+    /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
+    static readonly HashSet<string> FutureFields = [with(StringComparer.OrdinalIgnoreCase), "length", "duration"];
 
     static readonly Dictionary<string, SearchField> Fields = new(StringComparer.OrdinalIgnoreCase)
     {
         ["title"] = SearchField.Title,
         ["format"] = SearchField.Format,
         ["folder"] = SearchField.Folder,
+        ["publisher"] = SearchField.Publisher,
+        ["author"] = SearchField.Author,
+        ["authors"] = SearchField.Author,
+        ["series"] = SearchField.Series,
+        ["tag"] = SearchField.Tag,
+        ["tags"] = SearchField.Tag,
+        ["system"] = SearchField.System,
+        ["edition"] = SearchField.Edition,
+        ["type"] = SearchField.Type,
+        ["setting"] = SearchField.Setting,
+        ["theme"] = SearchField.Theme,
+        ["environment"] = SearchField.Environment,
+        ["env"] = SearchField.Environment,
+        ["level"] = SearchField.Level,
+        ["levels"] = SearchField.Level,
     };
 
     readonly List<Token> _tokens = [];
@@ -294,7 +343,7 @@ sealed class QueryParser(string text)
 
         if (FutureFields.Contains(name))
         {
-            Issue($"Searching by {name.ToLowerInvariant()} arrives once books have metadata.", Span(token, valueToken));
+            Issue($"Searching by {name.ToLowerInvariant()} isn't available yet.", Span(token, valueToken));
             return null;
         }
         var field = Fields[name];
@@ -315,14 +364,40 @@ sealed class QueryParser(string text)
             }
             value = new TermNode(format);
         }
+        if (field == SearchField.Level)
+        {
+            if (value is TermNode { Prefix: true } || NormalizeLevel(ValueText(value)) is not { } level)
+            {
+                Issue($"level: can be a level like 3, a range like 1-5, none, or unknown.", Span(token, valueToken));
+                return null;
+            }
+            value = new TermNode(level);
+        }
         return new FieldNode(field, value);
     }
+
+    static string ValueText(QueryNode value) => value switch
+    {
+        TermNode t => t.Text,
+        PhraseNode p => p.Text,
+        _ => "",
+    };
+
+    /// <summary>The stored form of a level value: "3", "1-5", "n/a" for none, or "unknown".</summary>
+    static string? NormalizeLevel(string value) =>
+        MetadataText.Normalize(value) is "unknown" or "unknown levels" ? SearchQuery.Unknown
+        : LevelRange.TryParse(value, out var range) ? range.ToString()
+        : null;
 
     static string Example(SearchField field) => field switch
     {
         SearchField.Title => "title:dragon",
         SearchField.Format => "format:pdf",
-        _ => "folder:maps",
+        SearchField.Folder => "folder:maps",
+        SearchField.Level => "level:3",
+        SearchField.System => "system:5e",
+        SearchField.Type => "type:adventure",
+        _ => $"{field.ToString().ToLowerInvariant()}:word",
     };
 
     /// <summary>pdf, jpg or png, or image for both image formats.</summary>

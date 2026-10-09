@@ -22,6 +22,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Bibliotaph.Catalog.Tests/Bibliotaph.Catalog.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Classification.Tests/Bibliotaph.Classification.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Core.Tests/Bibliotaph.Core.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Index.Tests/Bibliotaph.Index.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Pdf.Host.TestHost/Bibliotaph.Pdf.Host.TestHost.csproj" />

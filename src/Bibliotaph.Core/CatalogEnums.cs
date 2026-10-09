@@ -43,6 +43,22 @@ public enum AssertionState
     Superseded,
 }
 
+/// <summary>Where a vocabulary term came from. Starter terms ship with the app; the rest were added later.</summary>
+public enum TermOrigin
+{
+    Starter,
+    User,
+    /// <summary>Proposed by a classifier; waits in Needs review until the user adds, maps or rejects it.</summary>
+    Model,
+}
+
+public enum TermState
+{
+    Active,
+    Pending,
+    Rejected,
+}
+
 /// <summary>Processing stages a document moves through, in pipeline order.</summary>
 public enum Stage
 {

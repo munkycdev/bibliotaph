@@ -7,16 +7,32 @@ namespace Bibliotaph.Index;
 public static class IndexSchema
 {
     /// <summary>Must match the <c>PRAGMA user_version</c> at the end of Schema/index.sql.</summary>
-    public const int Version = 2;
+    public const int Version = 3;
 
-    public static string Script { get; } = LoadScript();
+    public static string Script { get; } = LoadScript("index") ?? throw new InvalidOperationException("index.sql is not embedded.");
 
-    static string LoadScript()
+    /// <summary>The script that brings a version <paramref name="version"/> - 1 file up to <paramref name="version"/>, if there is one.</summary>
+    public static string? Upgrade(int version) => LoadScript($"upgrade-{version}");
+
+    static string? LoadScript(string name)
     {
-        using var stream = typeof(IndexSchema).Assembly.GetManifestResourceStream("Bibliotaph.Index.Schema.index.sql")
-            ?? throw new InvalidOperationException("index.sql is not embedded.");
+        using var stream = typeof(IndexSchema).Assembly.GetManifestResourceStream($"Bibliotaph.Index.Schema.{name}.sql");
+        if (stream is null) return null;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    /// <summary>The upgrade scripts from <paramref name="from"/> to the current version, or null when any step has none.</summary>
+    public static IReadOnlyList<string>? UpgradePath(int from)
+    {
+        if (from is < 1 or >= Version) return null;
+        var scripts = new List<string>();
+        for (var v = from + 1; v <= Version; v++)
+        {
+            if (Upgrade(v) is not { } script) return null;
+            scripts.Add(script);
+        }
+        return scripts;
     }
 }
 
@@ -26,12 +42,16 @@ public enum IndexOpenResult
     Opened,
     /// <summary>The file had another schema version, or could not be read, and was deleted and recreated.</summary>
     Rebuilt,
+
+    /// <summary>The file had an older schema version with an upgrade path, and was brought up to date in place.</summary>
+    Upgraded,
 }
 
 /// <summary>
-/// index.db: pages, FTS5 tables, stage status and the job queue. Derived data only, so instead of
-/// migrations a schema mismatch deletes the file and starts again. Reads use read-only connections;
-/// all writes go through <see cref="IndexWriter"/>.
+/// index.db: pages, FTS5 tables, metadata projections, stage status and the job queue. Derived data only, so instead
+/// of migrations a schema mismatch deletes the file and starts again, unless every step from the file's version has an
+/// additive upgrade script (Schema/upgrade-N.sql). Reads use read-only connections; all writes go through
+/// <see cref="IndexWriter"/>.
 /// </summary>
 public sealed class IndexDatabase
 {
@@ -76,7 +96,20 @@ public sealed class IndexDatabase
             return IndexOpenResult.Created;
         }
 
-        _log.LogInformation("index.db schema version is {Found}, expected {Expected}; rebuilding it", version, IndexSchema.Version);
+        if (IndexSchema.UpgradePath(version.Value) is { } upgrades)
+        {
+            try
+            {
+                await RunScriptsAsync(upgrades, ct);
+                _log.LogInformation("Upgraded index.db from schema version {Found} to {Expected}", version, IndexSchema.Version);
+                return IndexOpenResult.Upgraded;
+            }
+            catch (SqliteException ex)
+            {
+                _log.LogWarning(ex, "index.db could not be upgraded from schema version {Found}; rebuilding it", version);
+            }
+        }
+        else _log.LogInformation("index.db schema version is {Found}, expected {Expected}; rebuilding it", version, IndexSchema.Version);
         DeleteFiles();
         await CreateAsync(ct);
         return IndexOpenResult.Rebuilt;
@@ -106,11 +139,27 @@ public sealed class IndexDatabase
             wal.CommandText = "PRAGMA journal_mode = WAL";
             await wal.ExecuteNonQueryAsync(ct);
         }
+        await ExecuteInTransactionAsync(connection, [IndexSchema.Script], ct);
+    }
+
+    async Task RunScriptsAsync(IReadOnlyList<string> scripts, CancellationToken ct)
+    {
+        await using var connection = new SqliteConnection(ConnectionString);
+        await connection.OpenAsync(ct);
+        await ExecuteInTransactionAsync(connection, scripts, ct);
+    }
+
+    /// <summary>All or nothing: a failed upgrade leaves the file at its old version, to be rebuilt instead.</summary>
+    static async Task ExecuteInTransactionAsync(SqliteConnection connection, IReadOnlyList<string> scripts, CancellationToken ct)
+    {
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = IndexSchema.Script;
-        await command.ExecuteNonQueryAsync(ct);
+        foreach (var script in scripts)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = script;
+            await command.ExecuteNonQueryAsync(ct);
+        }
         await transaction.CommitAsync(ct);
     }
 

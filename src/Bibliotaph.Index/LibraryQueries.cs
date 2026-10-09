@@ -2,13 +2,20 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Dapper;
 
 namespace Bibliotaph.Index;
 
-/// <summary>A document as the library grid and search results show it.</summary>
+/// <summary>
+/// A document as the library grid and search results show it. <see cref="Title"/> is its effective title, or the one
+/// from its file name. <see cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/>
+/// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed.
+/// </summary>
 public sealed record LibraryEntry(
-    long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable);
+    long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
+    string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false);
 
 public enum LibrarySort
 {
@@ -16,6 +23,8 @@ public enum LibrarySort
     Relevance,
     RecentlyAdded,
     Title,
+    /// <summary>By publisher, documents without one last, then by title.</summary>
+    Publisher,
 }
 
 /// <summary>Format choices in the filter panel. The format: field gives finer control.</summary>
@@ -28,9 +37,21 @@ public enum FormatFilter
 
 /// <summary>
 /// What the library shows: the documents in scope (from catalog.db: present in a folder the user hasn't removed,
-/// optionally one folder), a format, and an order.
+/// optionally one folder), a format, game systems and document types (any of those chosen; unknown is
+/// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
+/// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12).
 /// </summary>
-public sealed record LibraryFilter(IReadOnlyCollection<long>? Scope = null, FormatFilter Format = FormatFilter.All, LibrarySort Sort = LibrarySort.Relevance);
+public sealed record LibraryFilter(
+    IReadOnlyCollection<long>? Scope = null,
+    FormatFilter Format = FormatFilter.All,
+    LibrarySort Sort = LibrarySort.Relevance,
+    IReadOnlyCollection<string>? Systems = null,
+    IReadOnlyCollection<string>? Types = null,
+    int? Level = null,
+    bool IncludeUnknownLevel = false);
+
+/// <summary>How many documents have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
+public sealed record FacetCount(string Value, string Label, long Count);
 
 /// <summary>A page that matched, with its indexed text quoted around the hits. Hits sit between <see cref="LibraryQueries.HitStart"/> and <see cref="LibraryQueries.HitEnd"/>.</summary>
 public sealed record PageHit(long DocumentId, int PdfPage, string? Label, string Snippet, bool FromOcr);
@@ -69,12 +90,17 @@ public sealed class LibraryQueries(IndexDatabase database)
     const string DocRank = "bm25(doc_fts, 10.0, 5.0, 2.0, 3.0, 3.0, 1.0, 4.0, 1.0)";
 
     const string EntryColumns = """
-        d.document_id AS DocumentId, d.display_title AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,
+        d.document_id AS DocumentId, coalesce(m.title, d.display_title) AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,
         d.folder_hint AS FolderHint, d.added_utc AS AddedUtc,
-        coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable
+        coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable,
+        m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
+        coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested
         """;
 
-    const string EntryJoin = "LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'";
+    const string EntryJoin = """
+        LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'
+        LEFT JOIN doc_meta m ON m.document_id = d.document_id
+        """;
 
     /// <summary>The whole library (or the part in scope) with the plan's fields and exclusions applied, in the filter's order.</summary>
     public async Task<IReadOnlyList<LibraryEntry>> ListAsync(LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
@@ -107,6 +133,35 @@ public sealed class LibraryQueries(IndexDatabase database)
             """;
         await using var connection = database.OpenRead();
         return Entries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
+    }
+
+    /// <summary>
+    /// How many documents have each value of a vocabulary field (<c>system</c>, <c>type</c>), among those the library
+    /// shows for <paramref name="filter"/> and <paramref name="plan"/>, plus those with none (<see cref="SearchQuery.Unknown"/>).
+    /// To count the choices within a dimension, pass a filter without that dimension's own choices.
+    /// </summary>
+    public async Task<IReadOnlyList<FacetCount>> GetFacetCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
+    {
+        plan ??= new SearchPlan();
+        var where = new Where(filter, plan, titleAsFilter: true);
+        if (plan.TextMatch is { } match) where.Also("d.document_id IN (SELECT rowid FROM doc_fts WHERE doc_fts MATCH @countMatch)", "countMatch", match);
+        where.Parameters.Add("countField", field);
+        await using var connection = database.OpenRead();
+        var counts = (await connection.QueryAsync<(string Value, string Label, long Count)>(new CommandDefinition(
+            $"""
+            SELECT f.value, min(f.label), count(*)
+            FROM doc d JOIN doc_facet f ON f.document_id = d.document_id AND f.field = @countField
+            WHERE {where.Sql}
+            GROUP BY f.value
+            ORDER BY count(*) DESC, min(f.label) COLLATE NOCASE
+            """, where.Parameters, cancellationToken: ct))).Select(c => new FacetCount(c.Value, c.Label, c.Count)).ToList();
+        var unknown = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            $"""
+            SELECT count(*) FROM doc d
+            WHERE {where.Sql} AND d.document_id NOT IN (SELECT document_id FROM doc_facet WHERE field = @countField)
+            """, where.Parameters, cancellationToken: ct));
+        if (unknown > 0) counts.Add(new FacetCount(SearchQuery.Unknown, "Unknown", unknown));
+        return counts;
     }
 
     /// <summary>
@@ -236,7 +291,8 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     static string Order(LibrarySort sort, string? relevance) => sort switch
     {
-        LibrarySort.Title => "d.display_title COLLATE NOCASE, d.document_id",
+        LibrarySort.Title => "coalesce(m.title, d.display_title) COLLATE NOCASE, d.document_id",
+        LibrarySort.Publisher => "m.publisher IS NULL, m.publisher COLLATE NOCASE, coalesce(m.title, d.display_title) COLLATE NOCASE, d.document_id",
         LibrarySort.Relevance when relevance is not null => $"{relevance}, d.document_id",
         _ => "d.added_utc DESC, d.document_id DESC",
     };
@@ -244,7 +300,15 @@ public sealed class LibraryQueries(IndexDatabase database)
     static List<LibraryEntry> Entries(IEnumerable<EntryRow> rows) =>
         [.. rows.Select(r => new LibraryEntry(r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
-            r.Searchable != 0))];
+            r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
+            r.NeedsReview != 0, r.Suggested != 0))];
+
+    static string? DescribeLevels(string state, long? min, long? max) => state switch
+    {
+        "na" => LevelRange.None.Describe(),
+        "known" when min is { } low && max is { } high => new LevelRange((int)low, (int)high).Describe(),
+        _ => null,
+    };
 
     // Settable properties rather than constructors: SQLite reports no type for an expression column in an empty
     // result, and Dapper's constructor matching then fails where property mapping converts.
@@ -268,6 +332,14 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? FolderHint { get; init; }
         public string AddedUtc { get; init; } = "";
         public long Searchable { get; init; }
+        public string? SystemLabel { get; init; }
+        public string? KindLabel { get; init; }
+        public string? Publisher { get; init; }
+        public long? LevelMin { get; init; }
+        public long? LevelMax { get; init; }
+        public string LevelState { get; init; } = "unknown";
+        public long NeedsReview { get; init; }
+        public long Suggested { get; init; }
     }
 
     sealed class HitRow
@@ -324,11 +396,83 @@ public sealed class LibraryQueries(IndexDatabase database)
             // Only set when there are no words to find, so it never applies to page search (which then finds nothing).
             if (plan.TextExclude is { } textExclude)
                 Add("d.document_id NOT IN (SELECT rowid FROM doc_fts WHERE doc_fts MATCH @textExclude)", "textExclude", textExclude);
-            if (titleAsFilter && plan.TitleMatch is { } title)
-                Add("d.document_id IN (SELECT rowid FROM doc_fts WHERE doc_fts MATCH @titleMatch)", "titleMatch", title);
-            if (plan.TitleExclude is { } titleExclude)
-                Add("d.document_id NOT IN (SELECT rowid FROM doc_fts WHERE doc_fts MATCH @titleExclude)", "titleExclude", titleExclude);
+            if (titleAsFilter && plan.FieldMatch is { } fields)
+                Add("d.document_id IN (SELECT rowid FROM doc_fts WHERE doc_fts MATCH @fieldMatch)", "fieldMatch", fields);
+            if (plan.FieldExclude is { } fieldExclude)
+                Add("d.document_id NOT IN (SELECT rowid FROM doc_fts WHERE doc_fts MATCH @fieldExclude)", "fieldExclude", fieldExclude);
+
+            for (var i = 0; i < plan.Facets.Count; i++) AddFacet(plan.Facets[i], i);
+            for (var i = 0; i < plan.Levels.Count; i++) AddLevel(plan.Levels[i], i);
+
+            if (filter.Systems is { Count: > 0 } systems) AddChoice("system", systems, "systems");
+            if (filter.Types is { Count: > 0 } types) AddChoice("type", types, "types");
+            if (filter.Level is { } level)
+            {
+                var known = "EXISTS (SELECT 1 FROM doc_meta lm WHERE lm.document_id = d.document_id AND lm.level_state = 'known' AND lm.level_min <= @level AND lm.level_max >= @level)";
+                Add(filter.IncludeUnknownLevel
+                    ? $"({known} OR NOT EXISTS (SELECT 1 FROM doc_meta lm WHERE lm.document_id = d.document_id AND lm.level_state <> 'unknown'))"
+                    : known, "level", level);
+            }
         }
+
+        /// <summary>Documents with any of <paramref name="values"/> for <paramref name="field"/>; unknown picks those with none.</summary>
+        void AddChoice(string field, IReadOnlyCollection<string> values, string name)
+        {
+            var known = values.Where(v => v != SearchQuery.Unknown).ToList();
+            var clauses = new List<string>();
+            if (known.Count > 0)
+                clauses.Add($"d.document_id IN (SELECT document_id FROM doc_facet WHERE field = @{name}Field AND value IN (SELECT value FROM json_each(@{name})))");
+            if (known.Count < values.Count)
+                clauses.Add($"d.document_id NOT IN (SELECT document_id FROM doc_facet WHERE field = @{name}Field)");
+            Add("(" + string.Join(" OR ", clauses) + ")", name + "Field", field);
+            Parameters.Add(name, JsonSerializer.Serialize(known));
+        }
+
+        /// <summary>
+        /// <c>type:adventure</c>: a value matches a term through any of its names (term_alias), its label, or its key;
+        /// a prefix (<c>type:adv*</c>) through the start of its label or names.
+        /// </summary>
+        void AddFacet(FacetCondition facet, int i)
+        {
+            var fields = $"(SELECT value FROM json_each(@facetFields{i}))";
+            Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(facet.Fields));
+            if (facet.IsUnknown)
+            {
+                _sql.Append(" AND d.document_id ").Append(facet.Negated ? "IN" : "NOT IN")
+                    .Append($" (SELECT document_id FROM doc_facet WHERE field IN {fields})");
+                return;
+            }
+            var normalized = MetadataText.Normalize(facet.Value);
+            var matches = facet.Prefix
+                ? $"f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = f.field AND a.alias LIKE @facetLike{i} ESCAPE '\\')"
+                : $"f.value = @facetKey{i} OR f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = f.field AND a.alias = @facetAlias{i})";
+            Add($"d.document_id {(facet.Negated ? "NOT IN" : "IN")} (SELECT f.document_id FROM doc_facet f WHERE f.field IN {fields} AND ({matches}))",
+                $"facetLike{i}", facet.Prefix ? Escape(normalized) + "%" : Contains(facet.Value));
+            Parameters.Add($"facetKey{i}", facet.Value.ToLowerInvariant());
+            Parameters.Add($"facetAlias{i}", normalized);
+        }
+
+        /// <summary><c>level:3</c> and <c>level:2-4</c> match books whose range overlaps; none and unknown match those states.</summary>
+        void AddLevel(LevelCondition level, int i)
+        {
+            string condition;
+            if (level.Value == SearchQuery.Unknown) condition = "lm.level_state <> 'unknown'";
+            else if (!LevelRange.TryParse(level.Value, out var range)) return;
+            else if (range.NotApplicable) condition = "lm.level_state = 'na'";
+            else
+            {
+                condition = $"lm.level_state = 'known' AND lm.level_min <= @levelMax{i} AND lm.level_max >= @levelMin{i}";
+                Parameters.Add($"levelMin{i}", range.Min);
+                Parameters.Add($"levelMax{i}", range.Max);
+            }
+            // Unknown is the absence of a known state, so level:unknown is "no known or n/a levels".
+            var exists = level.Value == SearchQuery.Unknown ? !level.Negated : level.Negated;
+            _sql.Append(" AND ").Append(exists ? "NOT EXISTS" : "EXISTS")
+                .Append($" (SELECT 1 FROM doc_meta lm WHERE lm.document_id = d.document_id AND {condition})");
+        }
+
+        /// <summary>One more clause, for a caller that needs to narrow the set further.</summary>
+        public void Also(string clause, string name, object value) => Add(clause, name, value);
 
         void Add(string clause, string name, object value)
         {
@@ -337,7 +481,9 @@ public sealed class LibraryQueries(IndexDatabase database)
         }
 
         /// <summary>A LIKE pattern for "contains", with LIKE's own wildcards escaped.</summary>
-        static string Contains(string value) =>
-            "%" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal) + "%";
+        static string Contains(string value) => "%" + Escape(value) + "%";
+
+        static string Escape(string value) =>
+            value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
     }
 }

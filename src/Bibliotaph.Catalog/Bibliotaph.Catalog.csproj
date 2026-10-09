@@ -7,6 +7,10 @@
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Seeded into catalog.db by VocabularyStore; see the comment at the top of the file. -->
+    <EmbeddedResource Include="Vocabulary\starter-vocabulary.json" LogicalName="Bibliotaph.Catalog.starter-vocabulary.json" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))" />
     <!-- Design-time only, for dotnet ef migrations. -->

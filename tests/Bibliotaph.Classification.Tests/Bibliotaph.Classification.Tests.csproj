@@ -5,16 +5,12 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+    <ProjectReference Include="..\..\src\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- The slice 1 schema, to test the additive upgrade from it. -->
-    <None Include="Fixtures\index-v2.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

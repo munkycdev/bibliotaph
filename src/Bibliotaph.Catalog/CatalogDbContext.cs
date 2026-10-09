@@ -12,6 +12,11 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Setting> Settings => Set<Setting>();
+    public DbSet<Rejection> Rejections => Set<Rejection>();
+    public DbSet<VocabularyTerm> VocabularyTerms => Set<VocabularyTerm>();
+    public DbSet<VocabularyAlias> VocabularyAliases => Set<VocabularyAlias>();
+    public DbSet<ClassificationRun> ClassificationRuns => Set<ClassificationRun>();
+    public DbSet<IgnoredFolderLabel> IgnoredFolderLabels => Set<IgnoredFolderLabel>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -45,6 +50,28 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(a => new { a.DocumentId, a.Field, a.State });
             e.HasOne(a => a.Document).WithMany(d => d.Assertions).HasForeignKey(a => a.DocumentId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<Rejection>(e =>
+        {
+            e.HasIndex(r => new { r.DocumentId, r.Field, r.NormalizedValue }).IsUnique();
+            e.HasOne(r => r.Document).WithMany(d => d.Rejections).HasForeignKey(r => r.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VocabularyTerm>(e =>
+        {
+            e.HasIndex(t => new { t.Vocabulary, t.Key }).IsUnique();
+            e.HasMany(t => t.Aliases).WithOne(a => a.Term).HasForeignKey(a => a.TermId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VocabularyAlias>(e => e.HasIndex(a => new { a.TermId, a.Normalized }).IsUnique());
+
+        modelBuilder.Entity<ClassificationRun>(e =>
+        {
+            e.HasIndex(r => new { r.ContentHash, r.Model, r.PromptVersion });
+            e.HasOne(r => r.Document).WithMany().HasForeignKey(r => r.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IgnoredFolderLabel>(e => e.HasIndex(l => new { l.Folder, l.Vocabulary, l.TermKey }).IsUnique());
 
         modelBuilder.Entity<PageRef>(e =>
         {

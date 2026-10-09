@@ -44,6 +44,29 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         if (inserted > 0) SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
     }
 
+    /// <summary>
+    /// Queues <paramref name="stage"/> for every document whose <paramref name="after"/> stage has finished and that has
+    /// no job for it at the current version: how a stage added in an update reaches a library indexed before it.
+    /// Returns the number queued.
+    /// </summary>
+    public Task<int> EnqueueMissingAsync(Stage stage, Stage after, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var now = Now();
+            var missing = c.Query<(long DocumentId, string ContentHash)>(
+                """
+                SELECT s.document_id, j.content_hash
+                FROM stage_status s
+                JOIN job j ON j.document_id = s.document_id AND j.stage = @after
+                WHERE s.stage = @after AND s.status IN ('Complete', 'Partial')
+                  AND NOT EXISTS (SELECT 1 FROM job k WHERE k.content_hash = j.content_hash AND k.stage = @stage AND k.stage_version = @version)
+                GROUP BY s.document_id
+                """,
+                new { stage = stage.ToString(), after = after.ToString(), version = Pipeline.Version(stage) }, t).ToList();
+            foreach (var (documentId, contentHash) in missing) Enqueue(c, t, documentId, contentHash, stage, 0, now);
+            return missing.Count;
+        }, ct);
+
     /// <summary>Leases the most urgent ready job for one of <paramref name="stages"/>, or returns null when there is none.</summary>
     public Task<JobRecord?> LeaseAsync(IReadOnlyCollection<Stage> stages, string owner, TimeSpan leaseFor, CancellationToken ct = default)
     {
