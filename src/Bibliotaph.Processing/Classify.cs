@@ -159,7 +159,10 @@ public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
     TimeProvider? clock = null, ILogger<ClassifyStage>? log = null) : IGatedStage
 {
-    /// <summary>How long a book whose scanned pages are still being read waits before Classify looks again.</summary>
+    /// <summary>
+    /// How long a book whose scanned pages are still being read waits before Classify looks again. It looks sooner when
+    /// OCR ends, since the job board wakes a book's deferred jobs when another of its stages finishes.
+    /// </summary>
     public static readonly TimeSpan OcrWait = TimeSpan.FromMinutes(5);
 
     readonly TimeProvider _clock = clock ?? TimeProvider.System;

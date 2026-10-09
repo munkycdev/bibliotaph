@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Classification;
@@ -17,11 +18,12 @@ public sealed record EvidenceResult(IReadOnlyList<CheckedClaim> Accepted, IReadO
 
 /// <summary>
 /// The evidence check (architecture, "Evidence check"; choice 9). A claim stands only if its quote appears in the indexed
-/// text of the page it cites, ignoring case, spacing, hyphenation, ligatures, accents, punctuation and quote style, and
-/// its value is the right type, in range and, for a closed field, in the vocabulary or a new term worth proposing.
+/// text of the page it cites, ignoring case, spacing, hyphenation, ligatures, accents, punctuation and quote style; the
+/// quote shows the value wherever a value is printed rather than judged (a title, a name, a year, a game system); and
+/// the value is the right type, in range and, for a closed field, in the vocabulary or a new term worth proposing.
 /// Anything a model makes up, or that a book's text talked it into, has no quote on the page and is dropped (A16).
 /// </summary>
-public static class EvidenceCheck
+public static partial class EvidenceCheck
 {
     /// <summary>A quote needs at least this many letters and digits, so "the" or "5e" can't match anywhere.</summary>
     public const int MinQuoteCharacters = 8;
@@ -87,6 +89,11 @@ public static class EvidenceCheck
             if (!Appears(quote, page, out var why))
             {
                 dropped.Add(new(claim, why!));
+                continue;
+            }
+            if (!Shows(field.Field, value, isNew, quote, vocabulary))
+            {
+                dropped.Add(new(claim, "The quote doesn't show that value."));
                 continue;
             }
             var sampled = excerpt.Find(pdfPage)?.Part == ExcerptPart.Sampled;
@@ -182,6 +189,41 @@ public static class EvidenceCheck
         }
         return null;
     }
+
+    /// <summary>
+    /// Whether the quote names the value, for the fields whose values are printed in the book. A true quote next to a
+    /// made-up value ("Evil Corp", quoting the copyright line) fails here. Types, themes and environments are judged
+    /// from what a passage describes, so for them the quote only has to be on its page.
+    /// </summary>
+    internal static bool Shows(MetadataField field, string value, bool isNewTerm, string quote, Vocabulary vocabulary)
+    {
+        if (field == MetadataFields.Types || field == MetadataFields.Themes || field == MetadataFields.Environments) return true;
+        if (field == MetadataFields.Levels)
+        {
+            if (!value.Any(char.IsDigit)) return true; // "n/a": the book says levels don't apply, in its own words
+            var numbers = Number().Matches(quote).Select(m => m.Value.TrimStart('0')).ToHashSet(StringComparer.Ordinal);
+            return Number().Matches(value).All(m => numbers.Contains(m.Value.TrimStart('0')));
+        }
+        if (field == MetadataFields.Title) return Mentions(quote, value.Split(':')[0]);
+        if (field.Kind != FieldKind.Term || isNewTerm)
+            return Mentions(quote, value) || (field.Vocabulary is { } names && vocabulary.Resolve(names, value) is { } known && Names(quote, known, vocabulary));
+        return vocabulary.Find(field.Vocabulary!, value) is { } term && (Names(quote, term, vocabulary) || Mentions(quote, term.Label));
+    }
+
+    /// <summary>The quote names the term, by any of its names, or a game system through one of its editions.</summary>
+    static bool Names(string quote, Term term, Vocabulary vocabulary) =>
+        vocabulary.Match(quote.Normalize(NormalizationForm.FormKC)).Any(m =>
+            (m.Term.Vocabulary == term.Vocabulary && m.Term.Key == term.Key)
+            || (term.Vocabulary == "system" && m.Term.Vocabulary == "edition" && m.Term.ParentKey == term.Key));
+
+    static bool Mentions(string quote, string text)
+    {
+        var part = Comparable(text);
+        return part.Length > 0 && Comparable(quote).Contains(part, StringComparison.Ordinal);
+    }
+
+    [GeneratedRegex(@"\d+")]
+    private static partial Regex Number();
 
     /// <summary>
     /// Whether a quote is on a page, as text a person would call the same. A quote with an ellipsis matches when each
