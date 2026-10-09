@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -71,6 +72,15 @@ public partial class LibraryView
             if (FindScrollViewer(child) is { } deeper) return deeper;
         }
         return null;
+    }
+
+    /// <summary>The arrow beside Reprocess opens its menu below it, by click or by keyboard, as a split button's does.</summary>
+    void ReprocessMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu } button) return;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     /// <summary>Keyboard focus goes into the inspector when it opens and back to where it was when it closes.</summary>

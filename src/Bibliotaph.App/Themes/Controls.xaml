@@ -625,7 +625,7 @@
   </Style>
 
   <!--
-    A right-click menu, as on a book card. A context menu is a popup, so it takes nothing from the window: its colours
+    A right-click menu, as on a book card, or a menu under a button, such as the arrow beside Reprocess. A context menu is a popup, so it takes nothing from the window: its colours
     and font are set here. Square corners, since the popup may not be transparent. The highlighted item shows focus.
   -->
   <Style x:Key="Bt.Menu" TargetType="ContextMenu">

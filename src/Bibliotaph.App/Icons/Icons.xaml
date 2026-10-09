@@ -11,6 +11,7 @@
   <Geometry x:Key="Icon.ArrowUp">M 5 12 l 7 -7 l 7 7 M 12 19 V 5</Geometry>
   <Geometry x:Key="Icon.BookOpen">M 12 7 v 14 M 3 18 a 1 1 0 0 1 -1 -1 V 4 a 1 1 0 0 1 1 -1 h 5 a 4 4 0 0 1 4 4 a 4 4 0 0 1 4 -4 h 5 a 1 1 0 0 1 1 1 v 13 a 1 1 0 0 1 -1 1 h -6 a 3 3 0 0 0 -3 3 a 3 3 0 0 0 -3 -3 Z</Geometry>
   <Geometry x:Key="Icon.Check">M 20 6 L 9 17 l -5 -5</Geometry>
+  <Geometry x:Key="Icon.ChevronDown">M 6 9 l 6 6 l 6 -6</Geometry>
   <Geometry x:Key="Icon.ChevronLeft">M 15 18 l -6 -6 l 6 -6</Geometry>
   <Geometry x:Key="Icon.ChevronRight">M 9 18 l 6 -6 l -6 -6</Geometry>
   <Geometry x:Key="Icon.FlaskConical">M 14 2 v 6 a 2 2 0 0 0 0.245 0.96 l 5.51 10.08 A 2 2 0 0 1 18 22 H 6 a 2 2 0 0 1 -1.755 -2.96 l 5.51 -10.08 A 2 2 0 0 0 10 8 V 2 M 6.453 15 h 11.094 M 8.5 2 h 7</Geometry>
