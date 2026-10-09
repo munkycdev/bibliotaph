@@ -155,6 +155,21 @@ public sealed class IndexingService(
         return await Task.Run(() => SourceScanner.Scan(folder, others, ct), ct);
     }
 
+    /// <summary>
+    /// Reprocess, from the inspector: reads a document's file again from the start, ahead of other work, keeping
+    /// everything the user added (<see cref="JobBoard.ReprocessAsync"/>). Its folders are scanned too, so a file that
+    /// changed since it was indexed becomes a new version, as on any rescan. False while one of its stages is running.
+    /// </summary>
+    public async Task<bool> ReprocessAsync(long documentId, bool ocrEveryPage = false, CancellationToken ct = default)
+    {
+        if (!await queue.ReprocessAsync(documentId, ocrEveryPage, ct)) return false;
+        _log.LogInformation("Reprocessing document {DocumentId} (OCR on every page: {EveryPage})", documentId, ocrEveryPage);
+        foreach (var rootId in await library.GetRootIdsAsync(documentId, ct)) RequestScan(rootId);
+        foreach (var signal in _laneSignals.Values) signal.Set();
+        RaiseChanged();
+        return true;
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stopping = stoppingToken;

@@ -261,6 +261,60 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.Equal(("D&D 5e", "Bestiary"), (entry.System, entry.Kind));
     }
 
+    [Fact]
+    public async Task Reprocessing_reads_the_file_again_keeps_the_book_searchable_and_keeps_what_the_user_said()
+    {
+        Copy(pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var search = new LibraryQueries(_index);
+        var id = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).DocumentId;
+
+        // The user keeps the folder's edition, says it isn't an adventure, and adds a tag of their own. (Notes, which
+        // arrive in slice 3, are user data in catalog.db like these.)
+        await _metadata.ConfirmAsync(id, Core.Metadata.MetadataFields.Edition, Ct);
+        await _metadata.RejectAsync(id, Core.Metadata.MetadataFields.Types, "adventure", Ct);
+        Assert.Null(await _metadata.SetAsync(id, Core.Metadata.MetadataFields.Tags, "Friday game", Ct));
+        // The phrase's page comes out garbled, as a bad text layer or an old pipeline bug would leave it.
+        await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = 'xq zv garbled' WHERE pdf_page = @page", new { page = SyntheticPdfs.KnownPhrasePage }, t), Ct);
+        var filter = new LibraryFilter(await _libraryStore.GetVisibleDocumentIdsAsync(ct: Ct));
+        async Task<bool> FoundAsync(string words) =>
+            (await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter, ct: Ct)).Documents.Any(d => d.Document.DocumentId == id);
+        Assert.False(await FoundAsync("owlbear"));
+
+        Assert.True(await _service.ReprocessAsync(id, ct: Ct));
+
+        // Found by its contents page the whole time it is being read again.
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            timeout.CancelAfter(Patience);
+            while (!(await _queries.GetQueueSummaryAsync(timeout.Token)).IsIdle)
+            {
+                Assert.True(await FoundAsync("credits"), "The book dropped out of search while it was reprocessed.");
+                await Task.Delay(20, timeout.Token);
+            }
+        }
+        await SettleAsync();
+
+        Assert.True(await FoundAsync("owlbear"));
+        Assert.True(await FoundAsync("credits"));
+        await using (var c = _index.OpenRead())
+        {
+            foreach (var stage in new[] { Stage.Probe, Stage.Text, Stage.Covers, Stage.RuleHints })
+                Assert.Equal("Complete", c.ExecuteScalar<string>("SELECT status FROM stage_status WHERE document_id = @id AND stage = @stage", new { id, stage = stage.ToString() }));
+        }
+
+        var metadata = (await _metadataStore.GetAsync(id, Ct)).Compute();
+        Assert.True(metadata[Core.Metadata.MetadataFields.Edition].First?.Confirmed);
+        Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Values, v => v.Normalized == "adventure");
+        Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Alternatives, v => v.Normalized == "adventure");
+        Assert.Equal(["Friday game"], metadata[Core.Metadata.MetadataFields.Tags].Values.Select(v => v.Value));
+        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal("D&D 5e", entry.System);
+        Assert.NotEqual("Adventure", entry.Kind);
+    }
+
     /// <summary>How many jobs there are and how many times they have run.</summary>
     async Task<(long Jobs, long Attempts)> JobsAsync()
     {

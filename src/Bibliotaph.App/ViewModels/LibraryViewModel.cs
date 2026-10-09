@@ -54,6 +54,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly MetadataService _metadata;
     readonly INavigationService _navigation;
     readonly ViewerRequests _viewer;
+    readonly IndexingService _indexing;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<long, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -64,9 +65,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ViewerRequests viewer,
-        ILogger<LibraryViewModel> log)
+        IndexingService indexing, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _indexing = indexing;
         _roots = roots;
         _library = library;
         _queries = queries;
@@ -264,6 +266,18 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
+        // The open inspector follows its book's stages, as while it is reprocessed.
+        if (Inspector is { } inspector)
+        {
+            try
+            {
+                await inspector.RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Refreshing details for document {DocumentId} failed", inspector.Item.DocumentId);
+            }
+        }
         // Browsing is cheap to refresh; a search waits for the stale timer.
         if (IsSearching) _stale = true;
         else
@@ -564,7 +578,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             Inspector = inspector;
         }
