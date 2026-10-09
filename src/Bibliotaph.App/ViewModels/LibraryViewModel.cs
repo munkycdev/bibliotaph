@@ -52,7 +52,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CoverImages _covers;
     readonly LibraryFolders _folders;
     readonly MetadataService _metadata;
-    readonly INavigationService _navigation;
     readonly ViewerRequests _viewer;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<long, LibraryItemViewModel> _known = [];
@@ -63,7 +62,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     bool _holdRefresh;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ViewerRequests viewer,
+        CoverImages covers, LibraryFolders folders, MetadataService metadata, ViewerRequests viewer,
         ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
@@ -74,7 +73,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _covers = covers;
         _folders = folders;
         _metadata = metadata;
-        _navigation = navigation;
         _viewer = viewer;
         _log = log;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
