@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -61,10 +62,12 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
 public sealed partial class MetadataFieldViewModel : ObservableObject
 {
     readonly IMetadataEditor _editor;
+    readonly Vocabulary _vocabulary;
 
     public MetadataFieldViewModel(EffectiveField field, Vocabulary vocabulary, IMetadataEditor editor, bool primary)
     {
         _editor = editor;
+        _vocabulary = vocabulary;
         Field = field.Field;
         IsPrimary = primary;
         Values = [.. field.Values.Select(v => new MetadataValueViewModel(field.Field, v, vocabulary))];
@@ -132,6 +135,31 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? Problem { get; set; }
+
+    /// <summary>
+    /// For a term field, how what is typed will be filed: "“Campaign” is another name for Adventure", or "“Heists” will
+    /// be added as a new type". Empty when every value is typed as its own label.
+    /// </summary>
+    [ObservableProperty]
+    public partial string Resolution { get; private set; } = "";
+
+    partial void OnEditTextChanged(string value)
+    {
+        if (Field.Kind != FieldKind.Term)
+        {
+            Resolution = "";
+            return;
+        }
+        var notes = new List<string>();
+        foreach (var part in MetadataValues.Split(Field, value ?? ""))
+        {
+            if (MetadataText.Normalize(part).Length == 0) continue;
+            var term = _vocabulary.Resolve(Field.Vocabulary!, part);
+            if (term is null) notes.Add($"“{part}” will be added as a new {Field.Label.ToLower(CultureInfo.CurrentCulture)}.");
+            else if (MetadataText.Normalize(term.Label) != MetadataText.Normalize(part)) notes.Add($"“{part}” is another name for {term.Label}.");
+        }
+        Resolution = string.Join(" ", notes);
+    }
 
     [ObservableProperty]
     public partial bool IsBusy { get; set; }

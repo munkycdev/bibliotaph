@@ -429,6 +429,8 @@
                         </TextBox>
                         <TextBlock Text="{Binding EditHint}" Style="{StaticResource Text.Small}" Margin="0,5,0,0"
                                    Visibility="{Binding EditHint, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                        <TextBlock Text="{Binding Resolution}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,5,0,0"
+                                   Visibility="{Binding Resolution, Converter={StaticResource Bt.VisibleWhenSet}}" />
                         <StackPanel Margin="0,10,0,0" Visibility="{Binding UsesChoices, Converter={StaticResource Bt.VisibleWhenTrue}}">
                           <TextBlock Text="{Binding ChoicesLabel}" Style="{StaticResource FieldLabel}" />
                           <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Choices}" SelectedItem="{Binding PickedChoice}"

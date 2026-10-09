@@ -237,6 +237,19 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     /// <summary>A clock that moves on a minute each time it is read, so every write is later than the last.</summary>
+    [Fact]
+    public async Task Typing_a_different_type_replaces_the_suggested_one()
+    {
+        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Types, "adventure")], Ct);
+        _clock.Step();
+
+        await _metadata.SetValuesAsync(_document, MetadataFields.Types, ["bestiary"], Ct);
+
+        var types = (await EffectiveAsync())[MetadataFields.Types];
+        Assert.Equal("bestiary", Assert.Single(types.Values).Value);
+        Assert.True(types.Values[0].Confirmed);
+    }
+
     sealed class SteppingClock(DateTimeOffset start) : TimeProvider
     {
         DateTimeOffset _now = start;
