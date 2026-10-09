@@ -29,6 +29,7 @@ public static class Pipeline
         Stage.Ocr => 1,
         // Never bumped for a new prompt or model: those are recorded per run, and reclassifying is the user's call.
         Stage.Classify => 1,
+        Stage.Match => 1,
         _ => 1,
     };
 
@@ -40,8 +41,8 @@ public static class Pipeline
     };
 
     /// <summary>
-    /// The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR and Classify
-    /// from Text, and Classify waits for the book's OCR to finish.
+    /// The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR, Classify and
+    /// Match from Text, and Classify and Match wait for the book's OCR to finish.
     /// </summary>
     public static Stage First => Stage.Probe;
 

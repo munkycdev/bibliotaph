@@ -35,7 +35,7 @@ public sealed record PageTextRow(int PdfPage, string Text, string Source, double
 public sealed record OcrWordRow(string Text, double Left, double Top, double Right, double Bottom);
 
 /// <summary>A library card: an entry and the document it shows.</summary>
-public sealed record EntryDocRow(EntryId EntryId, long DocumentId, EntryKind Kind);
+public sealed record EntryDocRow(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1);
 
 /// <summary>One value of a vocabulary field: a term key and its label.</summary>
 public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed);
@@ -235,10 +235,10 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             {
                 c.Execute(
                     """
-                    INSERT INTO entry_doc (entry_id, document_id, kind) VALUES (@entryId, @documentId, @kind)
-                    ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind
+                    INSERT INTO entry_doc (entry_id, document_id, kind, copies) VALUES (@entryId, @documentId, @kind, @copies)
+                    ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies
                     """,
-                    new { entryId = entry.EntryId.Value, documentId = entry.DocumentId, kind = entry.Kind.ToString() }, t);
+                    new { entryId = entry.EntryId.Value, documentId = entry.DocumentId, kind = entry.Kind.ToString(), copies = entry.Copies }, t);
                 RefreshEntrySearch(c, t, entry.EntryId.Value);
             }
         }, ct);
@@ -304,6 +304,33 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute("INSERT INTO entry_ai (entry_id, model) VALUES (@entryId, @model)",
                 readBy.Where(r => entryIds is null || entryIds.Contains(r.Key)).Select(r => new { entryId = r.Key.Value, model = r.Value }), t);
         }, ct);
+
+    /// <summary>
+    /// Takes entries off the library: those with no file left to show, such as a card whose copy joined another. Their
+    /// metadata, AI mark and search row go with them.
+    /// </summary>
+    public Task RemoveEntriesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default) =>
+        entryIds.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            foreach (var id in entryIds.Select(e => e.Value))
+            {
+                c.Execute(
+                    """
+                    DELETE FROM entry_doc WHERE entry_id = @id;
+                    DELETE FROM entry_meta WHERE entry_id = @id;
+                    DELETE FROM entry_facet WHERE entry_id = @id;
+                    DELETE FROM entry_ai WHERE entry_id = @id;
+                    DELETE FROM entry_fts WHERE rowid = @id;
+                    """,
+                    new { id }, t);
+            }
+        }, ct);
+
+    /// <summary>Stores a document's page fingerprints (<see cref="PageFingerprints"/>), in page order.</summary>
+    public Task SetFingerprintsAsync(long documentId, IReadOnlyList<string?> fingerprints, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) => c.Execute(
+            "UPDATE page SET fingerprint = @fingerprint WHERE document_id = @documentId AND pdf_page = @pdfPage",
+            fingerprints.Select((fingerprint, pdfPage) => new { documentId, pdfPage, fingerprint }), t), ct);
 
     /// <summary>Drops the projected metadata of entries that no longer have any.</summary>
     public Task ClearMetadataAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default) =>

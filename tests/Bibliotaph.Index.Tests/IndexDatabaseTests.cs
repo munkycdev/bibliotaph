@@ -115,6 +115,9 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_meta"));
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_ai"));
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE name IN ('doc_meta', 'doc_facet', 'doc_ai', 'doc_fts')"));
+        // Version 6: cards count their copies, and Match looks pages up by fingerprint.
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT copies FROM entry_doc"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = 'page_fingerprint'"));
     }
 
     [Fact]

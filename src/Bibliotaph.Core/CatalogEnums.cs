@@ -87,6 +87,16 @@ public enum Stage
     RuleHints,
     Ocr,
     Classify,
+
+    /// <summary>Fingerprints a document's pages from its stored text and joins it to a copy of the same book (F2).</summary>
+    Match,
+}
+
+/// <summary>What the user said about a pair of files that Match compared.</summary>
+public enum CopyAnswer
+{
+    /// <summary>"Not the same book": the two stay on separate cards.</summary>
+    NotSameBook,
 }
 
 public enum StageStatus

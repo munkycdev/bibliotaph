@@ -250,9 +250,9 @@ Treat document text as untrusted content: instructions inside a PDF cannot chang
 
 Use file events while running and reconciliation scans on startup/manual request; neither event streams nor timestamps alone are authoritative. Wait for files being copied to stabilize before processing. Avoid symbolic-link cycles and overlapping-root duplicate discovery.
 
-Use inexpensive file facts to detect candidates for hashing, then content hashes to identify exact duplicates. Exact duplicates share derived content and expose all locations. Similar titles, watermarked editions, or revised PDFs are not automatically merged.
+Use inexpensive file facts to detect candidates for hashing, then content hashes to identify exact duplicates. Exact duplicates share derived content and expose all locations. Files with identical text on every page, such as copies watermarked for different buyers, are joined as copies of one book, with Undo. Revised or similar files are proposed for review and never joined without asking.
 
-When a file moves, reconcile by identity/hash and preserve annotations and memberships. If a path’s content changes, record a new content version and rebuild affected derived data. Metadata overrides persist but may be flagged for review; page anchors are marked stale where their validity is uncertain.
+When a file moves, reconcile by identity/hash and preserve annotations and memberships. If a path’s content changes, record a new content version of the same book, make it the one that opens, and rebuild affected derived data. Metadata overrides persist but may be flagged for review; page anchors are marked stale where their validity is uncertain.
 
 Distinguish an unavailable drive/root from a missing file. Never mass-mark files deleted because a removable drive is unplugged. Network shares are best-effort sources in Release A. Cloud placeholder (online-only) files are always indexed, which downloads them as the queue reaches them: local files are processed first, first run shows how much will download, and downloading pauses when free disk space runs low. Decided by Dave on 8 October 2026.
 

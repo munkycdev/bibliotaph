@@ -95,6 +95,19 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task Cards_count_their_copies_and_the_copies_filter_keeps_books_with_more_than_one()
+    {
+        await new IndexStore(Writer, Clock).SetEntriesAsync([new EntryDocRow(EntryOf(Lairs), Lairs, EntryKind.Whole, Copies: 2)], Ct);
+
+        var entries = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.DocumentId, e => e.Copies);
+        Assert.Equal((2, 1), (entries[Lairs], entries[Gazetteer]));
+        Assert.Equal([Lairs], (await _library.ListAsync(new LibraryFilter(OnlyWithCopies: true), ct: Ct)).Select(e => e.DocumentId));
+        var dragons = await DocumentsAsync("dragon", new LibraryFilter(OnlyWithCopies: true));
+        Assert.Equal([Lairs], dragons);
+        Assert.Equal(1, await _library.CountWithCopiesAsync(Ct));
+    }
+
+    [Fact]
     public async Task Entries_say_whether_their_text_is_searchable_yet()
     {
         var entries = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.DocumentId);

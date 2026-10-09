@@ -32,6 +32,8 @@ public sealed class SyntheticPdfs : IDisposable
         NonAsciiName = Write(NonAsciiFileName, known);
         Scanned = Write("scanned.pdf", BuildScanned());
         Injected = Write("injected-instructions.pdf", BuildPages(InjectedPages));
+        WatermarkedForAna = Write("watermarked-ana.pdf", BuildPages(Watermark(BookPages, "Ana Example", 1234)));
+        WatermarkedForDale = Write("watermarked-dale.pdf", BuildPages(Watermark(BookPages, "Dale Example", 98765)));
     }
 
     /// <summary>Characters outside Windows' ANSI code page, as bundle file names often have.</summary>
@@ -80,6 +82,29 @@ public sealed class SyntheticPdfs : IDisposable
         ],
         ["Credits", "Written by Ana Ruiz", "Copyright 2019 Lantern Works"],
     ];
+
+    /// <summary>
+    /// <see cref="BookPages"/> as a store sells it to one buyer: every page carries "Prepared exclusively for" the buyer
+    /// with an order number, and a page number. <see cref="WatermarkedForDale"/> is the same book sold to another buyer,
+    /// so the two files differ in every page's bytes but are copies of one book.
+    /// </summary>
+    public string WatermarkedForAna { get; }
+
+    /// <summary><see cref="WatermarkedForAna"/>'s book, watermarked for another buyer.</summary>
+    public string WatermarkedForDale { get; }
+
+    /// <summary>A short book, a line at a time, page by page.</summary>
+    public static readonly string[][] BookPages =
+    [
+        ["THE DROWNED ABBEY", "A dungeon for four to six adventurers of 5th level"],
+        ["Background", "The abbey sank into the marsh a century ago, and its bells still ring at low tide."],
+        ["Area 1: The Bell Tower", "A rope ladder leads down to a flooded nave where eels circle the pews."],
+        ["Area 2: The Crypt", "The abbot's tomb is empty; his ghost waits in the scriptorium above."],
+        ["Appendix: New Monsters", "Bell wraith, marsh eel swarm and the drowned abbot, with their statistics."],
+    ];
+
+    static string[][] Watermark(string[][] pages, string buyer, int order) =>
+        [.. pages.Select((lines, i) => (string[])[.. lines, $"Prepared exclusively for {buyer} (Order #{order})", $"{i + 1}"])];
 
     /// <summary><see cref="KnownText"/> with its startxref pointing at the wrong place, which PDFium repairs.</summary>
     public string BrokenXref { get; }

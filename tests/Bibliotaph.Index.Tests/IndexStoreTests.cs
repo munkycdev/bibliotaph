@@ -187,6 +187,33 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task Fingerprints_find_the_documents_that_share_pages()
+    {
+        foreach (var id in new long[] { 1, 2, 3 }) await _store.UpsertDocumentAsync(Doc(id), Pages(3), [], Ct);
+        await _store.SetFingerprintsAsync(1, ["aa", "bb", null], Ct);
+        await _store.SetFingerprintsAsync(2, ["aa", "bb", "cc"], Ct);
+        await _store.SetFingerprintsAsync(3, ["bb", "bb", "dd"], Ct);
+
+        Assert.Equal(["aa", "bb", null], await _queries.GetFingerprintsAsync(1, Ct));
+        Assert.Equal([(2L, 2), (3L, 1)], await _queries.GetSharingPagesAsync(1, Ct));
+        Assert.Empty(await _queries.GetSharingPagesAsync(99, Ct));
+    }
+
+    [Fact]
+    public async Task Removing_an_entry_takes_it_out_of_the_library_and_search()
+    {
+        await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2) with { DisplayTitle = "Bestiary" }, Pages(1), [], Ct);
+        await AddEntriesAsync(_store, 1, 2);
+
+        await _store.RemoveEntriesAsync([EntryOf(1)], Ct);
+
+        Assert.Empty(DocSearch("title:gazetteer"));
+        Assert.Equal([EntryOf(2).Value], DocSearch("title:bestiary"));
+        Assert.Equal([2L], Connection.Query<long>("SELECT document_id FROM entry_doc"));
+    }
+
+    [Fact]
     public async Task A_cover_is_recorded_against_its_document()
     {
         await _store.UpsertDocumentAsync(Doc(), Pages(1), [], Ct);

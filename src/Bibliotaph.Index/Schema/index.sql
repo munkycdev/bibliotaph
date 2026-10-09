@@ -58,6 +58,9 @@ CREATE TABLE page (
 
 CREATE INDEX page_needs_ocr ON page (document_id) WHERE needs_ocr = 1;
 
+-- Match looks up the documents that share a page with a new one.
+CREATE INDEX page_fingerprint ON page (fingerprint) WHERE fingerprint IS NOT NULL;
+
 -- Word boxes for OCR'd pages, in PDF points (origin bottom-left), so selection works on scanned pages.
 CREATE TABLE ocr_word (
     page_id  INTEGER NOT NULL,
@@ -93,7 +96,8 @@ END;
 CREATE TABLE entry_doc (
     entry_id     INTEGER PRIMARY KEY,
     document_id  INTEGER NOT NULL,
-    kind         TEXT    NOT NULL                -- Bibliotaph.Core.EntryKind
+    kind         TEXT    NOT NULL,               -- Bibliotaph.Core.EntryKind
+    copies       INTEGER NOT NULL DEFAULT 1      -- how many files of the book the entry has: "2 copies"
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
@@ -198,4 +202,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 5;
+PRAGMA user_version = 6;

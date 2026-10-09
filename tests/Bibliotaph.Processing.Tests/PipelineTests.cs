@@ -80,7 +80,10 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector));
         _service = new IndexingService(_roots, library, queue,
-            [new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify],
+            [
+                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
+                new MatchStage(entries, index, _queries, projector),
+            ],
             new FileHasher(reader), new DiskSpace(),
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
     }
