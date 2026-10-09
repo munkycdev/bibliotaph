@@ -8,6 +8,7 @@ public interface INavigationService
     bool CanGoBack { get; }
     event EventHandler? Navigated;
     void NavigateTo(Route route);
+    void NavigateUp(Route route);
     bool GoBack();
 }
 
@@ -36,6 +37,25 @@ public sealed class NavigationService(Func<Route, PageViewModel> createPage) : I
         }
         Current = createPage(route);
         Navigated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Goes to a parent page, as from the breadcrumb: back to the latest <paramref name="route"/> page in the history,
+    /// as it was left, dropping the pages after it; or to a new one if the history has none.
+    /// </summary>
+    public void NavigateUp(Route route)
+    {
+        if (Current?.Route == route) return;
+        for (var node = _back.Last; node is not null; node = node.Previous)
+        {
+            if (node.Value.Route != route) continue;
+            while (_back.Last != node) _back.RemoveLast();
+            _back.RemoveLast();
+            Current = node.Value;
+            Navigated?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        NavigateTo(route);
     }
 
     public bool GoBack()

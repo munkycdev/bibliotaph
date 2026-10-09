@@ -51,6 +51,7 @@ public sealed partial class LibraryFoldersViewModel(
 {
     public override Route Route => Route.LibraryFolders;
     public override string Section => "Settings";
+    public override Route? SectionRoute => Route.Settings;
     public override string Title => "Library folders";
 
     public LibraryActivity Activity { get; } = activity;

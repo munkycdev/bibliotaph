@@ -12,6 +12,9 @@ public abstract class PageViewModel : ObservableObject
 
     public virtual string Section => "Workspace";
 
+    /// <summary>The page <see cref="Section"/> names, which the breadcrumb links to; null when it names no page.</summary>
+    public virtual Route? SectionRoute => null;
+
     /// <summary>True for a page with its own scrolling list (a virtualized grid), which the shell must not wrap in a scroll viewer.</summary>
     public virtual bool ScrollsItself => false;
 
