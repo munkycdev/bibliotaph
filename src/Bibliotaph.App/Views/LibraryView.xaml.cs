@@ -12,11 +12,15 @@ namespace Bibliotaph.App.Views;
 public partial class LibraryView
 {
     IInputElement? _focusBeforeDrawer;
+    IInputElement? _focusBeforeDialog;
     LibraryViewModel? _model;
 
     public LibraryView()
     {
         InitializeComponent();
+        // Hooked here, not in XAML: the bulk editor is a control from this assembly, and XAML events on those are wired
+        // in a second compile pass the code-style analyzers don't see, so they report the handler as unused.
+        BulkDialog.IsVisibleChanged += BulkDialog_IsVisibleChanged;
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
         Unloaded += (_, _) =>
         {
@@ -95,6 +99,21 @@ public partial class LibraryView
         {
             previous.Focus();
             _focusBeforeDrawer = null;
+        }
+    }
+
+    /// <summary>The same for the bulk editor: focus goes into it as it opens, and back to Edit metadata (or wherever it was) after.</summary>
+    void BulkDialog_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (BulkDialog.IsVisible)
+        {
+            _focusBeforeDialog = Keyboard.FocusedElement;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => BulkDialog.FocusFirst());
+        }
+        else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
+        {
+            previous.Focus();
+            _focusBeforeDialog = null;
         }
     }
 }
