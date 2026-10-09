@@ -153,6 +153,16 @@ public sealed class MetadataSearchTests : IndexFixture
     }
 
     [Fact]
+    public async Task Format_counts_are_most_common_first_within_the_scope()
+    {
+        var formats = await _library.GetFormatCountsAsync(new LibraryFilter(), Ct);
+        Assert.Equal([("pdf", "PDF", 4L), ("png", "PNG", 1L)], formats.Select(c => (c.Value, c.Label, c.Count)));
+
+        var scoped = await _library.GetFormatCountsAsync(new LibraryFilter(Scope: [Map, Tomb]), Ct);
+        Assert.Equal([("pdf", 1L), ("png", 1L)], scoped.Select(c => (c.Value, c.Count)));
+    }
+
+    [Fact]
     public async Task Sorting_by_publisher_puts_documents_without_one_last()
     {
         var entries = await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.Publisher), ct: Ct);

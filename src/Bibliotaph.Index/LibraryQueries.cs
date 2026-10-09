@@ -165,6 +165,26 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
+    /// How many documents have each format (pdf, jpg, png), most first, among those in <paramref name="filter"/>'s
+    /// scope: the values the search box's field guide offers after <c>format:</c>. <see cref="FacetCount.Label"/> is the
+    /// format in capitals.
+    /// </summary>
+    public async Task<IReadOnlyList<FacetCount>> GetFormatCountsAsync(LibraryFilter filter, CancellationToken ct = default)
+    {
+        var where = new Where(filter, new SearchPlan(), titleAsFilter: true);
+        await using var connection = database.OpenRead();
+        var counts = await connection.QueryAsync<(string Format, long Count)>(new CommandDefinition(
+            $"""
+            SELECT d.format, count(*)
+            FROM doc d
+            WHERE {where.Sql}
+            GROUP BY d.format
+            ORDER BY count(*) DESC, d.format
+            """, where.Parameters, cancellationToken: ct));
+        return [.. counts.Select(c => new FacetCount(c.Format, c.Format.ToUpperInvariant(), c.Count))];
+    }
+
+    /// <summary>
     /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most
     /// <paramref name="pagesPerDocument"/> pages each. Snippets are made only for the pages returned.
     /// Exclusions alone find no pages, so a query like <c>-maps</c> returns nothing here.
