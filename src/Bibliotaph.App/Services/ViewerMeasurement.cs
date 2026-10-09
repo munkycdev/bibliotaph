@@ -48,7 +48,8 @@ static class ViewerMeasurement
             foreach (var entry in pdfs)
             {
                 if (measured == MaxDocuments) break;
-                if (await library.GetSourceAsync(entry.DocumentId) is not { } source) continue;
+                // A book inside a ZIP would time its extraction too.
+                if (await library.GetSourceAsync(entry.DocumentId) is not { InArchive: false } source) continue;
                 DocInfo doc;
                 try
                 {

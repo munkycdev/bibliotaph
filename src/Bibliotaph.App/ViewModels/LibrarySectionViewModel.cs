@@ -172,15 +172,15 @@ public sealed partial class LibrarySectionViewModel(
         return $"Added {added} · {state}{DescribeContents(scan.Summary!)}";
     }
 
-    /// <summary>"488 PDFs, 120 images · 30 online-only (12.4 GB to download) · 15 other files ignored".</summary>
+    /// <summary>"488 PDFs, 120 images, 3 ZIPs · 30 online-only (12.4 GB to download) · 15 other files ignored".</summary>
     static string DescribeContents(ScanSummary summary)
     {
         var pdfs = summary.ByFormat.GetValueOrDefault(SourceFormats.Pdf);
         var images = summary.Indexable - pdfs;
         var parts = new List<string>
         {
-            summary.Indexable == 0 ? "No PDFs or images"
-                : string.Join(", ", new[] { Count(pdfs, "PDF", "PDFs"), Count(images, "image", "images") }.Where(p => p.Length > 0)),
+            summary.Indexable + summary.Archives == 0 ? "No PDFs or images"
+                : string.Join(", ", new[] { Count(pdfs, "PDF", "PDFs"), Count(images, "image", "images"), Count(summary.Archives, "ZIP", "ZIPs") }.Where(p => p.Length > 0)),
         };
         if (summary.OnlineOnly > 0) parts.Add($"{summary.OnlineOnly:N0} online-only ({LibraryActivity.Size(summary.OnlineOnlyBytes)} to download)");
         if (summary.Unsupported > 0) parts.Add($"{Count(summary.Unsupported, "other file", "other files")} ignored");

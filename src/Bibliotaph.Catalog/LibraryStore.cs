@@ -9,20 +9,44 @@ public sealed record ScannedFile(string RelativePath, long SizeBytes, DateTime M
 
 public sealed record ReconcileResult(int Added, int Changed, int Unchanged, int Missing);
 
-/// <summary>A location the hasher still has to read.</summary>
-public sealed record UnhashedFile(long LocationId, string FullPath, long SizeBytes, DateTime ModifiedUtc, bool OnlineOnly, string Format);
+/// <summary>
+/// A location the hasher still has to read. A ZIP (<see cref="IsArchive"/>) is read for its members; a member of one has
+/// its ZIP's path as <see cref="FullPath"/>'s start and its name inside it as <see cref="EntryPath"/>.
+/// </summary>
+public sealed record UnhashedFile(long LocationId, string FullPath, long SizeBytes, DateTime ModifiedUtc, bool OnlineOnly, string Format,
+    bool IsArchive = false, string? EntryPath = null);
+
+/// <summary>A file inside a ZIP, as the ZIP lists it. <see cref="Problem"/> says why it can't be read, if it can't.</summary>
+public sealed record ArchiveMember(string EntryPath, long SizeBytes, DateTime ModifiedUtc, uint Crc32, string? Problem = null);
+
+/// <summary>A file inside a ZIP that isn't read, and why, for Files needing attention.</summary>
+public sealed record ArchiveProblem(long LocationId, string FullPath, string Problem);
 
 /// <summary>
 /// Where an indexed document can be read from right now. <see cref="FolderHint"/> is the folders above the
-/// first file under its source root ("Coriolis / Adventures"), which search treats as provisional text.
+/// first file under its source root ("Coriolis / Adventures"), which search treats as provisional text. For a file
+/// inside a ZIP, <see cref="FullPath"/> is the path File Explorer would show, and the file is read from
+/// <see cref="ArchivePath"/> by <see cref="EntryPath"/>.
 /// </summary>
-public sealed record DocumentSource(long DocumentId, string ContentHash, string Format, string FullPath, string FolderHint, IReadOnlyList<string> AllPaths);
+public sealed record DocumentSource(long DocumentId, string ContentHash, string Format, string FullPath, string FolderHint, IReadOnlyList<string> AllPaths,
+    string? ArchivePath = null, string? EntryPath = null)
+{
+    public bool InArchive => ArchivePath is not null;
+}
 
-/// <summary>File and document counts. The unhashed online-only files are those still to download.</summary>
-public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents, int UnhashedOnlineOnly = 0, long UnhashedOnlineOnlyBytes = 0);
+/// <summary>
+/// File and document counts. The unhashed online-only files are those still to download; <see cref="Problems"/> are
+/// files inside ZIPs that can't be read.
+/// </summary>
+public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents, int UnhashedOnlineOnly = 0, long UnhashedOnlineOnlyBytes = 0,
+    int Problems = 0);
 
-/// <summary>One place a document's file is, for the inspector.</summary>
-public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability);
+/// <summary>One place a document's file is, for the inspector. A file inside a ZIP has the ZIP's path as <see cref="ArchivePath"/>.</summary>
+public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability, string? ArchivePath = null)
+{
+    /// <summary>What File Explorer can select: the file, or the ZIP it is in.</summary>
+    public string ExplorerPath => ArchivePath ?? FullPath;
+}
 
 /// <summary>
 /// File locations and documents in catalog.db: the scanner's reconciliation and the hasher's results.
@@ -37,13 +61,15 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// size or modified time changed loses it and is hashed again; files not seen are marked missing. Only call this
     /// with a full listing of a reachable root: an offline root must never mark its files missing (A07). Files under
     /// <paramref name="unreadFolders"/>, folders the scan couldn't list ("." for the root), keep their state for the same reason.
+    /// Files inside a ZIP follow it: missing with it, and listed again when it changes or comes back.
     /// </summary>
     public async Task<ReconcileResult> ReconcileRootAsync(
         long rootId, IReadOnlyCollection<ScannedFile> files, IReadOnlyCollection<string>? unreadFolders = null, CancellationToken ct = default)
     {
         var now = _clock.GetUtcNow().UtcDateTime;
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var existing = await db.FileLocations.Where(f => f.SourceRootId == rootId).ToListAsync(ct);
+        var existing = await db.FileLocations.Where(f => f.SourceRootId == rootId && f.ContainerId == null).ToListAsync(ct);
+        var wasMissing = existing.Where(f => f.State == FileLocationState.Missing).Select(f => f.Id).ToHashSet();
         var byPath = existing.ToDictionary(f => f.RelativePath, StringComparer.OrdinalIgnoreCase);
         int added = 0, changed = 0, unchanged = 0;
 
@@ -90,10 +116,32 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             missing++;
         }
 
+        await FollowArchivesAsync(db, existing, wasMissing, ct);
+
         var root = await db.SourceRoots.FindAsync([rootId], ct);
         if (root is not null && root.Availability == SourceRootAvailability.Offline) root.Availability = SourceRootAvailability.Online;
         await db.SaveChangesAsync(ct);
         return new ReconcileResult(added, changed, unchanged, missing);
+    }
+
+    /// <summary>
+    /// Files inside a ZIP take its state: missing when it is, online-only or present as it is. A ZIP that comes back
+    /// is listed again rather than trusted, since it may hold other files now; until then its members stay missing.
+    /// </summary>
+    static async Task FollowArchivesAsync(CatalogDbContext db, List<FileLocation> archives, HashSet<long> wasMissing, CancellationToken ct)
+    {
+        var byId = archives.Where(a => SourceFormats.IsArchive(a.RelativePath)).ToDictionary(a => a.Id);
+        if (byId.Count == 0) return;
+        var ids = byId.Keys.ToList();
+        var members = await db.FileLocations.Where(f => f.ContainerId != null && ids.Contains(f.ContainerId.Value)).ToListAsync(ct);
+        foreach (var archive in byId.Values.Where(a => wasMissing.Contains(a.Id) && a.State != FileLocationState.Missing && a.ContentHash is not null))
+            archive.ContentHash = null;
+        foreach (var member in members)
+        {
+            var archive = byId[member.ContainerId!.Value];
+            if (archive.State == FileLocationState.Missing) member.State = FileLocationState.Missing;
+            else if (member.State != FileLocationState.Missing) member.State = archive.State;
+        }
     }
 
     static bool IsUnder(string relativePath, IReadOnlyCollection<string>? folders) =>
@@ -117,8 +165,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     public async Task<IReadOnlyList<UnhashedFile>> NextUnhashedAsync(int count, bool includeOnlineOnly, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
+        // Files inside a ZIP are hashed as their ZIP is read, not on their own.
         var query = db.FileLocations.AsNoTracking()
-            .Where(f => f.ContentHash == null && f.State != FileLocationState.Missing
+            .Where(f => f.ContentHash == null && f.ContainerId == null && f.State != FileLocationState.Missing
                 && f.SourceRoot.Availability == SourceRootAvailability.Online);
         if (!includeOnlineOnly) query = query.Where(f => f.State != FileLocationState.OnlineOnly);
         var rows = await query
@@ -127,7 +176,91 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .Select(f => new { f.Id, Root = f.SourceRoot.Path, f.RelativePath, f.SizeBytes, f.ModifiedUtc, f.State })
             .ToListAsync(ct);
         return [.. rows.Select(r => new UnhashedFile(r.Id, Path.Combine(r.Root, r.RelativePath), r.SizeBytes, r.ModifiedUtc,
-            r.State == FileLocationState.OnlineOnly, SourceFormats.FromFileName(r.RelativePath) ?? "unknown"))];
+            r.State == FileLocationState.OnlineOnly, SourceFormats.FromFileName(r.RelativePath) ?? "unknown", SourceFormats.IsArchive(r.RelativePath)))];
+    }
+
+    /// <summary>
+    /// Brings a ZIP's members in line with what it holds now (F3 plan, choices 3 and 4). A member with the same name,
+    /// size and CRC keeps its hash; a changed one is hashed again and, as a file replaced at its path, becomes a new
+    /// version of its book (A08); one no longer in the ZIP is missing. Returns the members to hash, or null when the
+    /// ZIP changed while it was read (the next scan picks it up).
+    /// </summary>
+    public async Task<IReadOnlyList<UnhashedFile>?> ReconcileArchiveAsync(UnhashedFile archive, IReadOnlyList<ArchiveMember> members, CancellationToken ct = default)
+    {
+        var now = _clock.GetUtcNow().UtcDateTime;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var zip = await db.FileLocations.Include(f => f.SourceRoot).FirstOrDefaultAsync(f => f.Id == archive.LocationId, ct);
+        if (zip is null || zip.SizeBytes != archive.SizeBytes || zip.ModifiedUtc != archive.ModifiedUtc) return null;
+
+        var existing = await db.FileLocations.Where(f => f.ContainerId == zip.Id).ToListAsync(ct);
+        var byEntry = existing.ToDictionary(f => f.EntryPath!, StringComparer.Ordinal);
+        foreach (var member in members)
+        {
+            if (byEntry.Remove(member.EntryPath, out var location))
+            {
+                var changed = location.SizeBytes != member.SizeBytes || location.EntryCrc32 != member.Crc32 || member.Problem is not null;
+                if (changed && location.ContentHash is not null)
+                {
+                    location.ContentHash = null;
+                    location.PreviousDocumentId = location.DocumentId ?? location.PreviousDocumentId;
+                    location.DocumentId = null;
+                }
+            }
+            else
+            {
+                location = db.FileLocations.Add(new FileLocation
+                {
+                    SourceRootId = zip.SourceRootId,
+                    RelativePath = ArchivePaths.MemberPath(zip.RelativePath, member.EntryPath),
+                    ContainerId = zip.Id,
+                    EntryPath = member.EntryPath,
+                }).Entity;
+            }
+            location.SizeBytes = member.SizeBytes;
+            location.ModifiedUtc = member.ModifiedUtc;
+            location.EntryCrc32 = member.Crc32;
+            location.Problem = member.Problem;
+            location.State = zip.State;
+            location.LastSeenUtc = now;
+        }
+        foreach (var gone in byEntry.Values) gone.State = FileLocationState.Missing;
+        await db.SaveChangesAsync(ct);
+
+        return [.. db.ChangeTracker.Entries<FileLocation>().Select(e => e.Entity)
+            .Where(f => f.ContainerId == zip.Id && f.ContentHash == null && f.Problem == null && f.State != FileLocationState.Missing)
+            .OrderBy(f => f.Id)
+            .Select(f => new UnhashedFile(f.Id, Path.Combine(zip.SourceRoot.Path, f.RelativePath), f.SizeBytes, f.ModifiedUtc,
+                f.State == FileLocationState.OnlineOnly, SourceFormats.FromFileName(f.EntryPath!) ?? "unknown", EntryPath: f.EntryPath))];
+    }
+
+    /// <summary>Records that a ZIP has been read for its members, unless it changed meanwhile. A ZIP has no document of its own.</summary>
+    public async Task<bool> AttachArchiveHashAsync(UnhashedFile archive, ContentHash hash, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var location = await db.FileLocations.FindAsync([archive.LocationId], ct);
+        if (location is null || location.SizeBytes != archive.SizeBytes || location.ModifiedUtc != archive.ModifiedUtc) return false;
+        location.ContentHash = hash.Hex;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    /// <summary>Marks a file inside a ZIP as one that can't be read, such as one damaged inside it.</summary>
+    public async Task SetProblemAsync(long locationId, string problem, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.FileLocations.Where(f => f.Id == locationId).ExecuteUpdateAsync(u => u.SetProperty(f => f.Problem, problem), ct);
+    }
+
+    /// <summary>The files inside ZIPs that aren't read, and why, for Files needing attention.</summary>
+    public async Task<IReadOnlyList<ArchiveProblem>> GetProblemsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.Problem != null && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .OrderBy(f => f.RelativePath)
+            .Select(f => new { f.Id, Root = f.SourceRoot.Path, f.RelativePath, f.Problem })
+            .ToListAsync(ct);
+        return [.. rows.Select(r => new ArchiveProblem(r.Id, Path.Combine(r.Root, r.RelativePath), r.Problem!))];
     }
 
     /// <summary>
@@ -174,8 +307,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// A readable location for a document: a present file first, then an online-only one. Null when every
-    /// location is missing or its root is offline.
+    /// A readable location for a document: a present file first, then an online-only one, then a file inside a ZIP,
+    /// which has to be extracted to be read. Null when every location is missing or its root is offline.
     /// </summary>
     public async Task<DocumentSource?> GetSourceAsync(long documentId, CancellationToken ct = default)
     {
@@ -184,14 +317,17 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         if (document is null) return null;
         var locations = await db.FileLocations.AsNoTracking()
             .Where(f => f.DocumentId == documentId && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online)
-            .OrderBy(f => f.State == FileLocationState.OnlineOnly).ThenBy(f => f.Id)
-            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath })
+            .OrderBy(f => f.ContainerId != null).ThenBy(f => f.State == FileLocationState.OnlineOnly).ThenBy(f => f.Id)
+            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, Archive = f.Container != null ? f.Container.RelativePath : null, f.EntryPath })
             .ToListAsync(ct);
         if (locations.Count == 0) return null;
         var paths = locations.Select(l => Path.Combine(l.Root, l.RelativePath)).ToList();
-        var folders = (Path.GetDirectoryName(locations[0].RelativePath) ?? "")
-            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-        return new DocumentSource(document.Id, document.ContentHash, document.Format, paths[0], string.Join(" / ", folders), paths);
+        var first = locations[0];
+        var folders = (Path.GetDirectoryName(first.RelativePath) ?? "")
+            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            .Select(ArchivePaths.FolderName);
+        return new DocumentSource(document.Id, document.ContentHash, document.Format, paths[0], string.Join(" / ", folders), paths,
+            first.Archive is null ? null : Path.Combine(first.Root, first.Archive), first.EntryPath);
     }
 
     /// <summary>
@@ -252,10 +388,11 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         await using var db = await contexts.CreateDbContextAsync(ct);
         var rows = await db.FileLocations.AsNoTracking()
             .Where(f => f.DocumentId == documentId && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
-            .OrderBy(f => f.State).ThenBy(f => f.Id)
-            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, f.State, f.SourceRoot.Availability })
+            .OrderBy(f => f.State).ThenBy(f => f.ContainerId != null).ThenBy(f => f.Id)
+            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, f.State, f.SourceRoot.Availability, Archive = f.Container != null ? f.Container.RelativePath : null })
             .ToListAsync(ct);
-        return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability))];
+        return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability,
+            r.Archive is null ? null : Path.Combine(r.Root, r.Archive)))];
     }
 
     /// <summary>
@@ -284,14 +421,16 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var active = db.FileLocations.Where(f => f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
-        var toDownload = active.Where(f => f.State == FileLocationState.OnlineOnly && f.ContentHash == null);
+        // A file inside an online-only ZIP downloads with the ZIP, so only the ZIP counts as one to download.
+        var toDownload = active.Where(f => f.State == FileLocationState.OnlineOnly && f.ContentHash == null && f.ContainerId == null);
         return new LibraryCounts(
             await active.CountAsync(f => f.State != FileLocationState.Missing, ct),
-            await active.CountAsync(f => f.State == FileLocationState.OnlineOnly, ct),
+            await active.CountAsync(f => f.State == FileLocationState.OnlineOnly && f.ContainerId == null, ct),
             await active.CountAsync(f => f.State == FileLocationState.Missing, ct),
-            await active.CountAsync(f => f.State != FileLocationState.Missing && f.ContentHash == null, ct),
+            await active.CountAsync(f => f.State != FileLocationState.Missing && f.ContentHash == null && f.Problem == null, ct),
             await db.Documents.CountAsync(ct),
             await toDownload.CountAsync(ct),
-            await toDownload.SumAsync(f => (long?)f.SizeBytes, ct) ?? 0);
+            await toDownload.SumAsync(f => (long?)f.SizeBytes, ct) ?? 0,
+            await active.CountAsync(f => f.State != FileLocationState.Missing && f.Problem != null, ct));
     }
 }

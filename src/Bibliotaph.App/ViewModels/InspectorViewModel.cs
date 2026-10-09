@@ -14,9 +14,10 @@ public sealed record InspectorFact(string Label, string Value);
 
 /// <summary>
 /// Where a document's file is, and whether it can be read now. The first place carries the book's Reprocess button
-/// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all.
+/// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all. For a file inside a ZIP,
+/// File Explorer selects the ZIP (<see cref="ExplorerPath"/>).
 /// </summary>
-public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false)
+public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null)
 {
     public bool HasState => State.Length > 0;
 }
@@ -27,7 +28,7 @@ public sealed record InspectorStage(string Name, string Status);
 /// One file of the book in the inspector's Copies list: "Current copy" or "Copy", or an earlier version whose file
 /// has gone, with its pages and where it is.
 /// </summary>
-public sealed record InspectorCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent)
+public sealed record InspectorCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent, string? ExplorerPath = null)
 {
     public bool HasPath => Path is not null;
 
@@ -60,7 +61,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _queries = queries;
         _indexing = indexing;
         _copies = copiesService;
-        Locations = [.. locations.Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0))];
+        Locations = [.. locations.Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath))];
         Copies = copies.Count < 2 ? [] : [.. copies.Select(ToCopy)];
         ShowProcessing(details?.Entry ?? item.Entry, details);
     }
@@ -100,20 +101,21 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [RelayCommand]
     static void ShowCopyInExplorer(InspectorCopy copy)
     {
-        if (copy.Path is { } path) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+        if ((copy.ExplorerPath ?? copy.Path) is { } path) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
     }
 
     static InspectorCopy ToCopy(CopyDetails details)
     {
         var copy = details.Copy;
-        var path = details.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing)?.FullPath;
+        var location = details.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing);
+        var path = location?.FullPath;
         var heading = copy.IsCurrent ? "Current copy" : path is null ? "Earlier version, no file" : "Copy";
         var parts = new List<string>();
         if (copy.PageCount is { } pages) parts.Add($"{pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}");
         parts.Add($"added {copy.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture)}");
         if (copy.Joined) parts.Add("same text, joined automatically");
         if (copy.IsCurrent && !copy.IsShown) parts.Add("its file is missing, so another copy opens");
-        return new InspectorCopy(copy.DocumentId, heading, string.Join(" · ", parts), path, copy.IsCurrent);
+        return new InspectorCopy(copy.DocumentId, heading, string.Join(" · ", parts), path, copy.IsCurrent, location?.ExplorerPath);
     }
 
     [ObservableProperty]
@@ -288,10 +290,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         PageCount = entry.Format == SourceFormats.Pdf ? entry.PageCount ?? 0 : 0;
     }
 
-    /// <summary>Opens File Explorer with the file selected. Explorer only shows it; nothing is changed.</summary>
+    /// <summary>Opens File Explorer with the file, or the ZIP it is in, selected. Explorer only shows it; nothing is changed.</summary>
     [RelayCommand]
     static void ShowInExplorer(InspectorLocation location) =>
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{location.Path}\"") { UseShellExecute = false });
+        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{location.ExplorerPath ?? location.Path}\"") { UseShellExecute = false });
 
     static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details)
     {
@@ -331,7 +333,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         (_, SourceRootAvailability.Offline) => "Folder can't be reached right now",
         (FileLocationState.Missing, _) => "No longer here",
+        (FileLocationState.OnlineOnly, _) when location.ArchivePath is not null => "Inside an online-only ZIP",
         (FileLocationState.OnlineOnly, _) => "Online-only",
+        _ when location.ArchivePath is not null => "Inside a ZIP",
         _ => "",
     };
 

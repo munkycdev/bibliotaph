@@ -9,6 +9,10 @@ public sealed record ScanSummary
     /// <summary>Indexable files by format (pdf, jpg, png).</summary>
     public required IReadOnlyDictionary<string, int> ByFormat { get; init; }
     public int Unsupported { get; init; }
+
+    /// <summary>ZIPs, whose PDFs and images are read from inside them (F3). What they hold isn't known until then.</summary>
+    public int Archives { get; init; }
+
     public int OnlineOnly { get; init; }
 
     /// <summary>Bytes that will download as online-only files are indexed.</summary>
@@ -55,7 +59,7 @@ public static class SourceScanner
         var files = new List<ScannedFile>();
         var byFormat = new Dictionary<string, int>();
         var inaccessible = new List<string>();
-        int unsupported = 0, onlineOnly = 0;
+        int unsupported = 0, archives = 0, onlineOnly = 0;
         long onlineOnlyBytes = 0;
 
         var pending = new Stack<DirectoryInfo>();
@@ -87,14 +91,16 @@ public static class SourceScanner
                 if (entry is not FileInfo file || entry.LinkTarget is not null) continue;
 
                 var format = SourceFormats.FromFileName(file.Name);
-                if (format is null)
+                var isArchive = SourceFormats.IsArchive(file.Name);
+                if (format is null && !isArchive)
                 {
                     unsupported++;
                     continue;
                 }
                 var isOnlineOnly = (file.Attributes & (RecallOnDataAccess | RecallOnOpen | FileAttributes.Offline)) != 0;
                 files.Add(new ScannedFile(Path.GetRelativePath(rootInfo.FullName, file.FullName), file.Length, file.LastWriteTimeUtc, isOnlineOnly));
-                byFormat[format] = byFormat.GetValueOrDefault(format) + 1;
+                if (format is null) archives++;
+                else byFormat[format] = byFormat.GetValueOrDefault(format) + 1;
                 if (isOnlineOnly)
                 {
                     onlineOnly++;
@@ -107,6 +113,7 @@ public static class SourceScanner
         {
             ByFormat = byFormat,
             Unsupported = unsupported,
+            Archives = archives,
             OnlineOnly = onlineOnly,
             OnlineOnlyBytes = onlineOnlyBytes,
             Inaccessible = inaccessible,

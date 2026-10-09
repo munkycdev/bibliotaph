@@ -210,4 +210,83 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         var locations = await _library.GetLocationsAsync(ids["shared.pdf"], Ct);
         Assert.Equal([Path.Combine(_dir, "Kept", "shared.pdf")], locations.Select(l => l.FullPath));
     }
+
+    static ArchiveMember Member(string entry, uint crc, long size = 500, string? problem = null) => new(entry, size, Monday, crc, problem);
+
+    [Fact]
+    public async Task A_ZIPs_files_are_locations_that_keep_their_hash_until_they_change()
+    {
+        var root = await RootAsync();
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip"), File("loose.pdf")], ct: Ct);
+        var zip = (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single(f => f.IsArchive);
+        Assert.Equal(Path.Combine(_dir, "Library", "Bundle.zip"), zip.FullPath);
+
+        var pending = (await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1), Member("Maps/Harbor.png", 2), Member("Extras.zip", 3, problem: "nested")], Ct))!;
+        Assert.Equal([("Book.pdf", "pdf"), ("Maps/Harbor.png", "png")], pending.Select(f => (f.EntryPath!, f.Format)));
+        Assert.Equal(Path.Combine(_dir, "Library", "Bundle.zip", "Maps", "Harbor.png"), pending[1].FullPath);
+        var book = (await _library.AttachHashAsync(pending[0], Hash('a'), Ct))!.Value.DocumentId;
+        var map = (await _library.AttachHashAsync(pending[1], Hash('b'), Ct))!.Value.DocumentId;
+        Assert.True(await _library.AttachArchiveHashAsync(zip, Hash('f'), Ct));
+
+        // Read: nothing left to hash but the loose file, and the ZIP inside it waits in Files needing attention.
+        Assert.Equal(["loose.pdf"], (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Select(f => Path.GetFileName(f.FullPath)));
+        var counts = await _library.GetCountsAsync(Ct);
+        Assert.Equal((1, 1), (counts.Unhashed, counts.Problems));
+        Assert.Equal(["nested"], (await _library.GetProblemsAsync(Ct)).Select(p => p.Problem));
+        var source = (await _library.GetSourceAsync(map, Ct))!;
+        Assert.Equal((Path.Combine(_dir, "Library", "Bundle.zip"), "Maps/Harbor.png", "Bundle / Maps"),
+            (source.ArchivePath, source.EntryPath, source.FolderHint));
+        Assert.Equal(Path.Combine(_dir, "Library", "Bundle.zip"), Assert.Single(await _library.GetLocationsAsync(map, Ct)).ExplorerPath);
+
+        // Saved again: the book unchanged, the map replaced, a handout added.
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip", size: 2000), File("loose.pdf")], ct: Ct);
+        zip = (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single(f => f.IsArchive);
+        pending = (await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1), Member("Maps/Harbor.png", 9), Member("Handout.jpg", 4)], Ct))!;
+        Assert.Equal(["Maps/Harbor.png", "Handout.jpg"], pending.Select(f => f.EntryPath!));
+        var locations = await LocationsAsync();
+        Assert.Equal(book, locations.Single(l => l.EntryPath == "Book.pdf").DocumentId);
+        var harbor = locations.Single(l => l.EntryPath == "Maps/Harbor.png");
+        Assert.Equal((null, map), (harbor.DocumentId, harbor.PreviousDocumentId));
+        Assert.Equal(FileLocationState.Missing, locations.Single(l => l.EntryPath == "Extras.zip").State);
+    }
+
+    [Fact]
+    public async Task A_ZIPs_files_go_missing_with_it_and_it_is_read_again_when_it_comes_back()
+    {
+        var root = await RootAsync();
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip")], ct: Ct);
+        var zip = (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single();
+        var member = Assert.Single((await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1)], Ct))!);
+        var book = (await _library.AttachHashAsync(member, Hash('a'), Ct))!.Value.DocumentId;
+        await _library.AttachArchiveHashAsync(zip, Hash('f'), Ct);
+
+        await _library.ReconcileRootAsync(root, [], ct: Ct);
+        Assert.All(await LocationsAsync(), l => Assert.Equal(FileLocationState.Missing, l.State));
+        Assert.Null(await _library.GetSourceAsync(book, Ct));
+
+        // Back as it was: listed again before its files count as there.
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip")], ct: Ct);
+        zip = (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single();
+        Assert.True(zip.IsArchive);
+        Assert.Null(await _library.GetSourceAsync(book, Ct));
+        Assert.Empty((await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1)], Ct))!);
+        Assert.Equal("Book.pdf", (await _library.GetSourceAsync(book, Ct))!.EntryPath);
+
+        // Online-only: its files are too.
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip", onlineOnly: true)], ct: Ct);
+        Assert.All(await LocationsAsync(), l => Assert.Equal(FileLocationState.OnlineOnly, l.State));
+    }
+
+    [Fact]
+    public async Task A_ZIP_that_changed_while_it_was_read_is_left_for_the_next_scan()
+    {
+        var root = await RootAsync();
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip")], ct: Ct);
+        var zip = (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single();
+        await _library.ReconcileRootAsync(root, [File("Bundle.zip", size: 5)], ct: Ct);
+
+        Assert.Null(await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1)], Ct));
+        Assert.False(await _library.AttachArchiveHashAsync(zip, Hash('f'), Ct));
+        Assert.Single(await LocationsAsync());
+    }
 }

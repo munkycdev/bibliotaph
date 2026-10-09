@@ -51,6 +51,7 @@ public sealed class IndexingService(
     IEnumerable<IStage> stages,
     FileHasher hasher,
     IDiskSpace disk,
+    ArchiveReader archives,
     IndexingOptions? options = null,
     ILogger<IndexingService>? log = null,
     TimeProvider? clock = null) : BackgroundService
@@ -451,6 +452,11 @@ public sealed class IndexingService(
 
     async Task HashFileAsync(UnhashedFile file, CancellationToken ct)
     {
+        if (file.IsArchive)
+        {
+            await HashArchiveAsync(file, ct);
+            return;
+        }
         ContentHash hash;
         Hashing = file.FullPath;
         RaiseChanged();
@@ -469,9 +475,65 @@ public sealed class IndexingService(
             Hashing = null;
         }
 
+        await AttachAsync(file, hash, ct);
+    }
+
+    async Task AttachAsync(UnhashedFile file, ContentHash hash, CancellationToken ct)
+    {
         var attached = await library.AttachHashAsync(file, hash, ct);
         // Idempotent: a copy of a known document finds its Probe job already there.
         if (attached is { } document) await queue.EnqueueAsync(document.DocumentId, hash.Hex, Pipeline.First, ct: ct);
+    }
+
+    /// <summary>
+    /// Reads a ZIP (F3 plan, choice 3): its own hash, then the list of what it holds, then each new or changed PDF and
+    /// image hashed as it decompresses. The ZIP counts as read only once every member is, so a pause part way picks up
+    /// with the members still to do.
+    /// </summary>
+    async Task HashArchiveAsync(UnhashedFile archive, CancellationToken ct)
+    {
+        Hashing = archive.FullPath;
+        RaiseChanged();
+        try
+        {
+            var hash = await hasher.HashAsync(archive.FullPath, ct);
+            var members = await Task.Run(() => archives.List(archive.FullPath), ct);
+            if (await library.ReconcileArchiveAsync(archive, members, ct) is not { } pending) return;
+            if (pending.Count > 0)
+            {
+                using var zip = archives.Open(archive.FullPath);
+                foreach (var member in pending)
+                {
+                    if (IsPaused(Lane.Index)) return;
+                    Hashing = member.FullPath;
+                    RaiseChanged();
+                    ContentHash memberHash;
+                    try
+                    {
+                        await using var stream = ArchiveReader.OpenMember(zip, member.EntryPath!);
+                        memberHash = await FileHasher.HashAsync(stream, ct);
+                    }
+                    catch (InvalidDataException ex)
+                    {
+                        _log.LogWarning("A file inside ZIP {LocationId} is damaged: {Reason}", archive.LocationId, ex.Message);
+                        await library.SetProblemAsync(member.LocationId, ArchiveReader.Damaged, ct);
+                        continue;
+                    }
+                    await AttachAsync(member, memberHash, ct);
+                }
+            }
+            await library.AttachArchiveHashAsync(archive, hash, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            var reason = ex is InvalidDataException ? "it is damaged, or isn't a ZIP Bibliotaph can read" : ex.Message;
+            _log.LogWarning("Could not read ZIP {LocationId}: {Reason}", archive.LocationId, ex.Message);
+            lock (_lock) _unreadable[archive.LocationId] = new UnreadableFile(archive.LocationId, archive.FullPath, reason);
+        }
+        finally
+        {
+            Hashing = null;
+        }
     }
 
     /// <summary>

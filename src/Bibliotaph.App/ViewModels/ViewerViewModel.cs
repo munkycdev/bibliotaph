@@ -46,7 +46,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, PasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
-    ILogger<ViewerViewModel> Log);
+    SourceFiles Sources, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -70,6 +70,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly IndexingService _indexing;
     readonly JobBoard _jobs;
     readonly ISourceFileReader _files;
+    readonly SourceFiles _sources;
     readonly WpfImageCodec _codec;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
@@ -81,6 +82,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     Task _closing = Task.CompletedTask;
     bool _windowClosed;
     PdfRenderer? _renderer;
+    /// <summary>The open PDF's file, held so a file extracted from a ZIP stays while the book is open.</summary>
+    LocalFile? _file;
     IReadOnlyList<string?> _labels = [];
     PageTarget? _resume;
     int _version;
@@ -101,6 +104,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _indexing = services.Indexing;
         _jobs = services.Jobs;
         _files = services.Files;
+        _sources = services.Sources;
         _codec = services.Codec;
         _log = services.Log;
         _windows = windows;
@@ -284,7 +288,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_renderer is { } renderer)
         {
             _renderer = null;
-            _closing = CloseAsync(renderer);
+            _closing = CloseAsync(renderer, _file);
+            _file = null;
         }
     }
 
@@ -327,9 +332,10 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     async Task OpenImageAsync(DocumentSource source, int version)
     {
+        await using var file = await _sources.OpenAsync(source);
         var image = await Task.Run(() =>
         {
-            using var stream = _files.OpenRead(source.FullPath);
+            using var stream = _files.OpenRead(file.Path);
             return _codec.DecodeForViewing(stream, ImageMaxPixels);
         });
         if (version != _version) return;
@@ -345,13 +351,15 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     async Task OpenPdfAsync(DocumentSource source, ViewerRequest request, int version)
     {
+        var file = await _sources.OpenAsync(source);
         var renderer = new PdfRenderer(Worker(), _dispatcher);
         try
         {
-            var (doc, password, remember) = await OpenWithPasswordAsync(renderer, source, version);
+            var (doc, password, remember) = await OpenWithPasswordAsync(renderer, source, file.Path, version);
             if (doc is null || version != _version)
             {
                 await renderer.DisposeAsync();
+                await file.DisposeAsync();
                 return;
             }
             // Kept in memory for this sitting, so the book moving to another window isn't asked for again.
@@ -364,6 +372,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             }
 
             _renderer = renderer;
+            _file = file;
             _labels = doc.PageLabels;
             Outline = [.. doc.Outline
                 .Where(o => o.PageIndex >= 0 && o.PageIndex < doc.PageCount && !string.IsNullOrWhiteSpace(o.Title))
@@ -385,7 +394,11 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
         catch
         {
-            if (!ReferenceEquals(_renderer, renderer)) await renderer.DisposeAsync();
+            if (!ReferenceEquals(_renderer, renderer))
+            {
+                await renderer.DisposeAsync();
+                await file.DisposeAsync();
+            }
             throw;
         }
     }
@@ -394,7 +407,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// Opens the PDF, trying the password that opened it earlier in this sitting or a remembered one first, and then
     /// asking. A null document means it didn't open.
     /// </summary>
-    async Task<(DocInfo? Doc, string? Password, bool Remember)> OpenWithPasswordAsync(PdfRenderer renderer, DocumentSource source, int version)
+    async Task<(DocInfo? Doc, string? Password, bool Remember)> OpenWithPasswordAsync(PdfRenderer renderer, DocumentSource source, string path, int version)
     {
         var unlocked = _unlocked.Find(source.ContentHash);
         var password = unlocked ?? _vault.Find(source.ContentHash);
@@ -405,7 +418,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         {
             try
             {
-                return (await renderer.OpenAsync(source.FullPath, password), password, remember);
+                return (await renderer.OpenAsync(path, password), password, remember);
             }
             catch (PdfOpenException ex) when (ex.Kind == ErrorKind.Password)
             {
@@ -641,7 +654,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
     }
 
-    async Task CloseAsync(PdfRenderer renderer)
+    async Task CloseAsync(PdfRenderer renderer, LocalFile? file)
     {
         try
         {
@@ -650,6 +663,10 @@ public sealed partial class ViewerViewModel : PageViewModel
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.LogWarning(ex, "Closing a document in the viewer failed");
+        }
+        finally
+        {
+            file?.Dispose();
         }
     }
 }

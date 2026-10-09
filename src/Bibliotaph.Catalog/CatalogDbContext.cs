@@ -43,6 +43,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(f => f.ContentHash);
             e.HasOne(f => f.Document).WithMany(d => d.Locations).HasForeignKey(f => f.DocumentId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Document>().WithMany().HasForeignKey(f => f.PreviousDocumentId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(f => f.Container).WithMany().HasForeignKey(f => f.ContainerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Document>(e => e.HasIndex(d => d.ContentHash).IsUnique());

@@ -100,7 +100,10 @@ static class SmokeTest
             }
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             if (real is { } reprocessed)
+            {
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
+                await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
+            }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
             if (Application.Current.Windows.Count != 1 || services.GetRequiredService<ReaderWindows>().Windows.Count > 0)
@@ -815,6 +818,62 @@ static class SmokeTest
         search.Search("");
         library.Tab = ResultsTab.Documents;
         await Settle(window);
+    }
+
+    /// <summary>
+    /// A library folder holding a ZIP with the smoke PDF inside (its bytes changed, so it is a book of its own): with
+    /// indexing running since Reprocess, the real pipeline reads it from the ZIP, the reader opens it from the extract
+    /// cache, and the inspector says it is inside a ZIP. Nothing is written beside the ZIP.
+    /// </summary>
+    static async Task ReadZippedBookAsync(IServiceProvider services, Window window, string smokeFiles)
+    {
+        const string Title = "Smoke Zipped Book";
+        // Left for the system's temp cleaning: the app may not delete folders.
+        var folder = System.IO.Directory.CreateTempSubdirectory("bibliotaph-smoke-zip-").FullName;
+        var zipPath = System.IO.Path.Combine(folder, "Smoke Bundle.zip");
+        using (var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
+        await using (var member = zip.CreateEntry($"Smoke Bundle/{Title}.pdf").Open())
+        {
+            await member.WriteAsync(await System.IO.File.ReadAllBytesAsync(System.IO.Path.Combine(smokeFiles, "smoke-book.pdf")));
+            await member.WriteAsync("\n% a zipped copy\n"u8.ToArray());
+        }
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        LibraryEntry? book = null;
+        while ((book = (await Task.Run(() => queries.ListAsync(new LibraryFilter()))).FirstOrDefault(e => e.Title == Title)) is not { Searchable: true })
+        {
+            if (Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException($"The PDF inside the ZIP wasn't indexed ({(book is null ? "no card" : "not searchable")}).");
+            await Settle(window);
+            await Task.Delay(200);
+        }
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<ReaderWindows>().OpenInMainWindow(new ViewerRequest(book.DocumentId, Title, 0));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The zipped PDF didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The zipped PDF didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The zipped PDF didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        var pages = FindChild<Bibliotaph.Viewer.PdfPagesView>(window) ?? throw new InvalidOperationException("The viewer has no page surface.");
+        await WaitUntilAsync(window, () => pages.PageModels.Count == 2 && pages.PageModels[0] is { Image: not null },
+            () => "The zipped PDF's first page wasn't drawn.");
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.GoBack();
+        await Settle(window);
+
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == book.DocumentId), () => "The zipped PDF isn't in the Library.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == book.DocumentId));
+        await WaitUntilAsync(window, () => library.Inspector is { Locations.Count: > 0 }, () => "The inspector didn't list where the zipped PDF is.");
+        if (library.Inspector!.Locations[0] is not { State: "Inside a ZIP" } location || location.ExplorerPath != zipPath)
+            throw new InvalidOperationException($"The inspector shows {library.Inspector.Locations[0]} for the zipped PDF.");
+        library.CloseDetailsCommand.Execute(null);
+        await Settle(window);
+
+        var files = System.IO.Directory.GetFiles(folder, "*", System.IO.SearchOption.AllDirectories);
+        if (files is not [var only] || only != zipPath) throw new InvalidOperationException($"The ZIP's folder holds {files.Length} files, not just the ZIP.");
     }
 
     /// <summary>
