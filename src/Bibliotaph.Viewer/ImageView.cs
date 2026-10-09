@@ -7,13 +7,11 @@ using System.Windows.Media;
 namespace Bibliotaph.Viewer;
 
 /// <summary>
-/// A map or handout image with zoom and pan: fitted to the view at first, Ctrl+wheel or <see cref="Zoom"/> to zoom,
+/// A map or handout image with zoom and pan: fitted to the view at first, Ctrl+wheel, <see cref="StepZoom"/> or <see cref="Zoom"/> to zoom,
 /// drag to pan. The image arrives decoded at a capped size, so a huge scan can't fill memory.
 /// </summary>
 public sealed class ImageView : ContentControl
 {
-    static readonly double[] ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
-
     public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(nameof(Source), typeof(ImageSource), typeof(ImageView),
         new PropertyMetadata(null, (d, _) => ((ImageView)d).Relayout()));
 
@@ -69,10 +67,13 @@ public sealed class ImageView : ContentControl
     {
         if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control) || Source is null) return;
         e.Handled = true;
-        var current = CurrentScale;
-        Zoom = e.Delta > 0
-            ? ZoomSteps.FirstOrDefault(z => z > current + 0.01, ZoomSteps[^1])
-            : ZoomSteps.LastOrDefault(z => z < current - 0.01, ZoomSteps[0]);
+        StepZoom(up: e.Delta > 0);
+    }
+
+    /// <summary>Zooms one step in or out from the size on screen, also when the image is fitted.</summary>
+    public void StepZoom(bool up)
+    {
+        if (Source is not null) Zoom = ZoomSteps.Next(CurrentScale, up);
     }
 
     void OnDown(object sender, MouseButtonEventArgs e)

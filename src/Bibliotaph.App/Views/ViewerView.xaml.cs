@@ -23,6 +23,8 @@ public partial class ViewerView
         Loaded += (_, _) => Attach(DataContext as ViewerViewModel);
         Unloaded += (_, _) => Attach(null);
         PreviewKeyDown += OnPreviewKeyDown;
+        CommandBindings.Add(new CommandBinding(NavigationCommands.IncreaseZoom, (_, _) => StepZoom(up: true), CanZoom));
+        CommandBindings.Add(new CommandBinding(NavigationCommands.DecreaseZoom, (_, _) => StepZoom(up: false), CanZoom));
     }
 
     void Attach(ViewerViewModel? model)
@@ -58,6 +60,11 @@ public partial class ViewerView
             case nameof(ViewerViewModel.IsPdf) when _model?.IsPdf == true:
                 // The pages take keyboard focus once they're shown, so Ctrl+A and the arrow keys work straight away.
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PagesView.Focus());
+                CommandManager.InvalidateRequerySuggested();
+                break;
+            case nameof(ViewerViewModel.IsPdf) or nameof(ViewerViewModel.IsImage):
+                // The zoom buttons and keys follow what's open.
+                CommandManager.InvalidateRequerySuggested();
                 break;
         }
     }
@@ -86,6 +93,15 @@ public partial class ViewerView
             e.Handled = true;
         }
     }
+
+    // The step starts from the size on screen, which only the surface knows when the pages are fitted.
+    void StepZoom(bool up)
+    {
+        if (_model?.IsPdf == true) PagesView.StepZoom(up);
+        else if (_model?.IsImage == true) ImageSurface.StepZoom(up);
+    }
+
+    void CanZoom(object sender, CanExecuteRoutedEventArgs e) => e.CanExecute = _model is { IsPdf: true } or { IsImage: true };
 
     void PageBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => PageBox.SelectAll();
 }

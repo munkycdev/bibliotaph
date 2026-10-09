@@ -13,14 +13,16 @@ public sealed partial class SettingsViewModel : PageViewModel
     readonly SourceRootStore _roots;
     readonly INavigationService _navigation;
     readonly ReviewService _review;
+    readonly AboutBox _about;
     bool _reviewAll;
 
-    public SettingsViewModel(ThemeService theme, SourceRootStore roots, INavigationService navigation, ReviewService review)
+    public SettingsViewModel(ThemeService theme, SourceRootStore roots, INavigationService navigation, ReviewService review, AboutBox about)
     {
         _theme = theme;
         _roots = roots;
         _navigation = navigation;
         _review = review;
+        _about = about;
         _theme.Changed += (_, _) => OnAppearanceChanged();
     }
 
@@ -103,4 +105,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         OnPropertyChanged(nameof(UseLight));
         OnPropertyChanged(nameof(UseDark));
     }
+
+    [RelayCommand]
+    void ShowAbout() => _about.Show();
 }

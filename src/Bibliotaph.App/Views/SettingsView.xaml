@@ -74,5 +74,9 @@
     </Border>
 
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,24,0,0" Text="Your files, notes and collections stay on this device. Automatic classification is off." />
+
+    <!-- Also in the window's system menu (Alt+Space). Moves to the foot of the section list when Settings gets one. -->
+    <Button Style="{StaticResource Bt.Link}" Content="About Bibliotaph" Command="{Binding ShowAboutCommand}"
+            Margin="0,16,0,0" />
   </StackPanel>
 </UserControl>

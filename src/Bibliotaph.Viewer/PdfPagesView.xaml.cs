@@ -31,8 +31,6 @@ public partial class PdfPagesView
     public const double FitWidth = 0;
     public const double FitPage = -1;
 
-    static readonly double[] ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
-
     public static readonly DependencyProperty ZoomProperty = DependencyProperty.Register(nameof(Zoom), typeof(double), typeof(PdfPagesView),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, _) => ((PdfPagesView)d).ApplyZoom(keepPosition: true)));
 
@@ -209,10 +207,13 @@ public partial class PdfPagesView
     {
         if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control) || _pages.Count == 0) return;
         e.Handled = true;
-        var current = _dipPerPoint * 72.0 / 96.0;
-        Zoom = e.Delta > 0
-            ? ZoomSteps.FirstOrDefault(z => z > current + 0.01, ZoomSteps[^1])
-            : ZoomSteps.LastOrDefault(z => z < current - 0.01, ZoomSteps[0]);
+        StepZoom(up: e.Delta > 0);
+    }
+
+    /// <summary>Zooms one step in or out from the size on screen, also when the pages are fitted.</summary>
+    public void StepZoom(bool up)
+    {
+        if (_pages.Count > 0) Zoom = ZoomSteps.Next(_dipPerPoint * 72.0 / 96.0, up);
     }
 
     // ---------- Rendering what is on screen ----------
