@@ -26,5 +26,10 @@
 
     <Company>Bibliotaph</Company>
     <Product>Bibliotaph</Product>
+    <!--
+      0.N.0 while slice N is being built, until 1.0. The SDK appends the commit to the informational version
+      (0.4.0+<sha>), which the About popup shows, so every build says exactly where it came from.
+    -->
+    <Version>0.4.0</Version>
   </PropertyGroup>
 </Project>
