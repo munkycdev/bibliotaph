@@ -34,7 +34,7 @@ flowchart LR
     Classifier["Classifier adapters"]
   end
   subgraph Workers["PdfWorker.exe processes (job objects)"]
-    Viewer["Viewer worker, 1.5 GB cap"]
+    Viewer["Viewer workers, up to 3, 1.5 GB cap each"]
     Indexer["Index worker x1-2, 1 GB cap each"]
   end
   Shell -->|pipe + shared memory| Viewer
@@ -54,7 +54,7 @@ Everything except PDFium runs in the app process. The scanner in the app reads s
 | Runs in | What | Why there |
 | --- | --- | --- |
 | `Bibliotaph.exe` | WPF shell, view models, catalog and index access, search, job scheduler, classifier adapters, backup | One place owns the databases; no IPC for ordinary work |
-| `PdfWorker.exe`, viewer slot | Open, render, tile, find-on-page, character boxes for the document being read | Never shares a queue with indexing |
+| `PdfWorker.exe`, viewer workers | Open, render, tile, find-on-page, character boxes for the documents being read | One per window showing a PDF, up to three (a fourth window shares the least busy, see 4a); never shares a queue with indexing |
 | `PdfWorker.exe`, index slots (1 by default, 2 on "use more resources") | Probe, per-page text, covers, OCR of flagged pages | OCR needs a rendered bitmap; keeping it next to PDFium keeps large bitmaps out of the UI process |
 
 Each worker keeps the spike's contract: length-prefixed messages over a named pipe, pixels through a shared memory section, a job object that caps committed memory (1.5 GB for the viewer worker, 1 GB for index workers) and kills the worker if the app dies, and a per-request timeout after which the worker is killed and restarted. Additions for the real app:
