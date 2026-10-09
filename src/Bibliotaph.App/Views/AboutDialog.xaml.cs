@@ -18,13 +18,12 @@ public partial class AboutDialog
     public const string LicenceFile = "LICENSE.txt";
     public const string NoticesFile = "THIRD-PARTY-NOTICES.md";
 
-    readonly AboutInfo _info;
     readonly string _licenses = Path.Combine(AppContext.BaseDirectory, "licenses");
 
     public AboutDialog(AboutInfo info)
     {
         InitializeComponent();
-        _info = info;
+        Info = info;
         // An Image takes an .ico's first frame, the 16 px one; a large frame scaled down stays sharp at any DPI.
         var icon = new IconBitmapDecoder(new Uri("pack://application:,,,/Assets/Bibliotaph.ico"), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
         AppIcon.Source = icon.Frames.OrderBy(frame => frame.PixelWidth).FirstOrDefault(frame => frame.PixelWidth >= 96) ?? icon.Frames[^1];
@@ -32,7 +31,7 @@ public partial class AboutDialog
         CopyrightLine.Text = AboutInfo.Copyright;
     }
 
-    public AboutInfo Info => _info;
+    public AboutInfo Info { get; }
 
     /// <summary>True while the licence reader, rather than the summary, is showing.</summary>
     public bool ShowingLicences => Licences.Visibility == Visibility.Visible;
@@ -95,7 +94,7 @@ public partial class AboutDialog
     {
         try
         {
-            Clipboard.SetText(_info.Details);
+            Clipboard.SetText(Info.Details);
             CopyButton.Content = "Copied";
         }
         catch (COMException)
