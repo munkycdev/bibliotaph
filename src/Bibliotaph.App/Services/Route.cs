@@ -9,5 +9,6 @@ public enum Route
     Sessions,
     NeedsReview,
     Settings,
+    PilotReview,
     Viewer,
 }

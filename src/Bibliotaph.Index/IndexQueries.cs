@@ -39,6 +39,9 @@ public sealed record OcrPage(int PdfPage, double WidthPt, double HeightPt);
 /// <summary>A page's indexed text, from the PDF or from OCR.</summary>
 public sealed record PageTextEntry(int PdfPage, string Text);
 
+/// <summary>A book the pilot could pick: its folder hint and game system, to spread the sample across.</summary>
+public sealed record PilotCandidate(long DocumentId, string Folder, string? System);
+
 /// <summary>The PDF's own document information, as Probe read it.</summary>
 public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords);
 
@@ -216,6 +219,33 @@ public sealed class IndexQueries(IndexDatabase database)
             LIMIT 1
             """,
             new { excluded = JsonSerializer.Serialize(excluded), minPages }, cancellationToken: ct));
+    }
+
+    /// <summary>
+    /// PDFs a model could read, for the pilot's sample: those with text on at least <paramref name="minPages"/> pages,
+    /// with their folder hint and game system (if any) to spread the sample across.
+    /// </summary>
+    public async Task<IReadOnlyList<PilotCandidate>> GetPilotCandidatesAsync(int minPages = 3, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<PilotCandidateRow>(new CommandDefinition(
+            """
+            SELECT d.document_id AS DocumentId, coalesce(d.folder_hint, '') AS Folder,
+                   (SELECT min(f.value) FROM doc_facet f WHERE f.document_id = d.document_id AND f.field = 'system') AS System
+            FROM doc d
+            WHERE d.format = 'pdf'
+              AND (SELECT count(*) FROM page p WHERE p.document_id = d.document_id AND length(p.text) > 200) >= @minPages
+            ORDER BY d.document_id
+            """,
+            new { minPages }, cancellationToken: ct))).Select(r => new PilotCandidate(r.DocumentId, r.Folder, r.System))];
+    }
+
+    // A book with no system reads its system as NULL, which Dapper can't match to a record's constructor.
+    sealed class PilotCandidateRow
+    {
+        public long DocumentId { get; init; }
+        public string Folder { get; init; } = "";
+        public string? System { get; init; }
     }
 
     /// <summary>Every document Probe has added, and those with projected metadata.</summary>
