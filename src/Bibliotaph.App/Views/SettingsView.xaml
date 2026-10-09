@@ -50,6 +50,17 @@
 
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Manage" Command="{Binding ManageAiCommand}"
+                AutomationProperties.Name="Manage AI" />
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="AI" Style="{StaticResource Text.Row}" />
+          <TextBlock Text="{Binding AiSummary}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+      <DockPanel>
         <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
           <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
             <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Review" Content="When unsure" IsChecked="{Binding ReviewWhenUnsure}" />

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
@@ -264,6 +265,19 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { row.DocumentId, f.Field, f.Value, f.Label, f.Confirmed }), t);
                 RefreshDocSearch(c, t, row.DocumentId);
             }
+        }, ct);
+
+    /// <summary>
+    /// Records which of <paramref name="documentIds"/> a model has read, and with which model, from
+    /// <paramref name="readBy"/>; those not in it are no longer marked. With no ids, replaces every document's mark.
+    /// </summary>
+    public Task SetAiReadAsync(IReadOnlyCollection<long>? documentIds, IReadOnlyDictionary<long, string> readBy, CancellationToken ct = default) =>
+        documentIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            if (documentIds is null) c.Execute("DELETE FROM doc_ai", transaction: t);
+            else c.Execute("DELETE FROM doc_ai WHERE document_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(documentIds) }, t);
+            c.Execute("INSERT INTO doc_ai (document_id, model) VALUES (@Key, @Value)",
+                readBy.Where(r => documentIds is null || documentIds.Contains(r.Key)), t);
         }, ct);
 
     /// <summary>Drops the projected metadata of documents that no longer have any.</summary>

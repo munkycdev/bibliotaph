@@ -81,6 +81,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _log = log;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         FormatChoice = FormatChoices[0];
+        AiChoice = AiChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -114,6 +115,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public IReadOnlyList<Choice<FormatFilter>> FormatChoices { get; } =
         [new(FormatFilter.All, "All formats"), new(FormatFilter.Pdf, "PDFs"), new(FormatFilter.Images, "Images")];
+
+    /// <summary>Books a model has read (2c): shown once there are some, or while a choice is made.</summary>
+    public IReadOnlyList<Choice<AiFilter>> AiChoices { get; } =
+        [new(AiFilter.All, "All books"), new(AiFilter.Read, "Read by AI"), new(AiFilter.NotRead, "Not read by AI")];
+
+    [ObservableProperty]
+    public partial Choice<AiFilter> AiChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowAiChoice { get; private set; }
 
     public IReadOnlyList<Choice<LibrarySort>> SortChoices => IsSearching ? SearchSorts : BrowseSorts;
 
@@ -317,6 +328,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Refresh();
     }
 
+    partial void OnAiChoiceChanged(Choice<AiFilter> value)
+    {
+        if (value is null) AiChoice = AiChoices[0];
+        else Refresh();
+    }
+
     partial void OnFolderChoiceChanged(Choice<long?> value)
     {
         if (value is null) FolderChoice = AllFolders;
@@ -372,7 +389,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = await _library.GetVisibleDocumentIdsAsync(FolderChoice.Value);
             var filter = new LibraryFilter(scope, FormatChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels);
+                IncludeUnknownLevels, AiChoice.Value);
+            var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
+            if (version == _version) ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
             if (!IsSearching)
             {
                 var entries = await Task.Run(() => _queries.ListAsync(filter));
@@ -439,7 +458,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
         var filtered = FormatChoice.Value != FormatFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
-            || TypeChoice.Value is not null || LevelChoice.Value is not null;
+            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -561,6 +580,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         _holdRefresh = true;
         FormatChoice = FormatChoices[0];
+        AiChoice = AiChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;

@@ -103,6 +103,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
                 new { job.Id, reason }, t);
             SetStatus(c, t, job.DocumentId, job.Stage, outcome, reason, now);
             foreach (var stage in next ?? []) Enqueue(c, t, job.DocumentId, job.ContentHash, stage, PriorityOf(c, t, job.Id), now);
+            WakeDeferred(c, t, job);
         }, ct);
 
     /// <summary>
@@ -125,6 +126,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             {
                 c.Execute("UPDATE job SET status = 'failed', lease_owner = NULL, lease_expires_utc = NULL, last_error = @reason WHERE id = @Id",
                     new { job.Id, reason }, t);
+                WakeDeferred(c, t, job);
                 SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Failed, reason, now);
             }
         }, ct);
@@ -136,6 +138,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             c.Execute("UPDATE job SET status = 'blocked', lease_owner = NULL, lease_expires_utc = NULL, last_error = @reason, attempts = attempts - 1 WHERE id = @Id",
                 new { job.Id, reason }, t);
             SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Blocked, reason, Now());
+            WakeDeferred(c, t, job);
         }, ct);
 
     /// <summary>Puts a leased job back without counting the attempt, for a job interrupted by the app closing or a lane pausing.</summary>
@@ -146,6 +149,33 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
                 new { job.Id }, t);
             SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Pending, null, Now());
         }, ct);
+
+    /// <summary>
+    /// Puts a leased job back to wait at least <paramref name="wait"/>, without counting the attempt: for a stage that
+    /// has to wait for another, as Classify waits for a book's OCR. <paramref name="reason"/> shows as its status. The
+    /// job is woken early when another stage of the same document finishes, and looks again.
+    /// </summary>
+    public Task DeferAsync(JobRecord job, TimeSpan wait, string? reason = null, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            c.Execute(
+                "UPDATE job SET status = 'pending', lease_owner = NULL, lease_expires_utc = NULL, attempts = attempts - 1, not_before_utc = @notBefore WHERE id = @Id",
+                new { job.Id, notBefore = Timestamp(_clock.GetUtcNow() + wait) }, t);
+            SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Pending, reason, Now());
+        }, ct);
+
+    /// <summary>
+    /// Wakes the document's deferred jobs once one of its stages has finished, done, blocked or failed for good, so a
+    /// stage waiting on it looks again now rather than when its wait runs out. Deferring gives the attempt back, so a
+    /// deferred job has none; one waiting after a failure has some and keeps its backoff.
+    /// </summary>
+    static void WakeDeferred(SqliteConnection c, SqliteTransaction t, JobRecord finished) =>
+        c.Execute(
+            """
+            UPDATE job SET not_before_utc = NULL
+            WHERE document_id = @DocumentId AND id <> @Id AND status = 'pending' AND attempts = 0 AND not_before_utc IS NOT NULL
+            """,
+            new { finished.DocumentId, finished.Id }, t);
 
     /// <summary>Returns every leased job to pending. Run once at startup, before any lane leases work (A11).</summary>
     public Task<int> RecoverLeasesAsync(CancellationToken ct = default) =>

@@ -15,27 +15,105 @@ namespace Bibliotaph.App.Services;
 public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
 {
     const string TargetPrefix = "Bibliotaph:pdf:";   // the architecture doc's Bibliotaph: prefix for secrets
+
+    public string? Find(string contentHash)
+    {
+        var (secret, error) = WindowsCredentials.Read(Target(contentHash));
+        if (error is not null) log.LogWarning("Reading a remembered password failed: {Error}", error);
+        return secret;
+    }
+
+    /// <summary>Remembers a password that opened the book. Returns false when Windows refused to store it.</summary>
+    public bool Remember(string contentHash, string password)
+    {
+        var error = WindowsCredentials.Write(Target(contentHash), password, "A PDF password remembered by Bibliotaph");
+        if (error is null) return true;
+        log.LogWarning("Remembering a PDF password failed: {Error}", error);
+        return false;
+    }
+
+    /// <summary>Forgets a remembered password, as when it no longer opens the book.</summary>
+    public void Forget(string contentHash)
+    {
+        if (WindowsCredentials.Delete(Target(contentHash)) is { } error) log.LogWarning("Forgetting a PDF password failed: {Error}", error);
+    }
+
+    /// <summary>Forgets every password Bibliotaph remembered, for Start over. Returns how many there were.</summary>
+    public int ForgetAll()
+    {
+        var (targets, listError) = WindowsCredentials.List(TargetPrefix);
+        if (listError is not null) log.LogWarning("Listing remembered passwords failed: {Error}", listError);
+        foreach (var target in targets)
+            if (WindowsCredentials.Delete(target) is { } error) log.LogWarning("Forgetting a PDF password failed: {Error}", error);
+        return targets.Count;
+    }
+
+    static string Target(string contentHash) => TargetPrefix + contentHash;
+}
+
+/// <summary>
+/// API keys for model endpoints that need one, in Windows Credential Manager under this Windows account, keyed by the
+/// endpoint's address. Never in catalog.db, the logs or a prompt.
+/// </summary>
+public sealed class ApiKeyVault(ILogger<ApiKeyVault> log) : IApiKeyStore
+{
+    const string TargetPrefix = "Bibliotaph:ai:";
+
+    public string? Find(string endpoint)
+    {
+        var (secret, error) = WindowsCredentials.Read(Target(endpoint));
+        if (error is not null) log.LogWarning("Reading an endpoint's key failed: {Error}", error);
+        return secret;
+    }
+
+    public bool Remember(string endpoint, string key)
+    {
+        var error = WindowsCredentials.Write(Target(endpoint), key, "A model endpoint's key, saved by Bibliotaph");
+        if (error is null) return true;
+        log.LogWarning("Saving an endpoint's key failed: {Error}", error);
+        return false;
+    }
+
+    public void Forget(string endpoint)
+    {
+        if (WindowsCredentials.Delete(Target(endpoint)) is { } error) log.LogWarning("Forgetting an endpoint's key failed: {Error}", error);
+    }
+
+    /// <summary>Forgets every endpoint key, for Start over. Returns how many there were.</summary>
+    public int ForgetAll()
+    {
+        var (targets, _) = WindowsCredentials.List(TargetPrefix);
+        foreach (var target in targets)
+            if (WindowsCredentials.Delete(target) is { } error) log.LogWarning("Forgetting an endpoint's key failed: {Error}", error);
+        return targets.Count;
+    }
+
+    static string Target(string endpoint) => TargetPrefix + (Bibliotaph.Classification.LocalModelClient.Tidy(endpoint) ?? endpoint);
+}
+
+/// <summary>Generic credentials in Windows Credential Manager, local to this machine. Errors come back as text for the log.</summary>
+static class WindowsCredentials
+{
     const uint GenericCredential = 1;
     const uint PersistLocalMachine = 2;
     const int NotFound = 1168;
 
-    public string? Find(string contentHash)
+    public static (string? Secret, string? Error) Read(string target)
     {
-        if (!CredRead(Target(contentHash), GenericCredential, 0, out var handle))
+        if (!CredRead(target, GenericCredential, 0, out var handle))
         {
             var error = Marshal.GetLastWin32Error();
-            if (error != NotFound) log.LogWarning("Reading a remembered password failed: {Error}", new Win32Exception(error).Message);
-            return null;
+            return (null, error == NotFound ? null : new Win32Exception(error).Message);
         }
         try
         {
             var credential = Marshal.PtrToStructure<Credential>(handle);
-            if (credential.CredentialBlobSize == 0) return null;
+            if (credential.CredentialBlobSize == 0) return (null, null);
             var bytes = new byte[credential.CredentialBlobSize];
             Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
-            var password = Encoding.Unicode.GetString(bytes);
+            var secret = Encoding.Unicode.GetString(bytes);
             Array.Clear(bytes);
-            return password;
+            return (secret, null);
         }
         finally
         {
@@ -43,10 +121,9 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
         }
     }
 
-    /// <summary>Remembers a password that opened the book. Returns false when Windows refused to store it.</summary>
-    public bool Remember(string contentHash, string password)
+    public static string? Write(string target, string secret, string comment)
     {
-        var bytes = Encoding.Unicode.GetBytes(password);
+        var bytes = Encoding.Unicode.GetBytes(secret);
         var blob = Marshal.AllocHGlobal(bytes.Length);
         try
         {
@@ -54,16 +131,14 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
             var credential = new Credential
             {
                 Type = GenericCredential,
-                TargetName = Target(contentHash),
-                Comment = "A PDF password remembered by Bibliotaph",
+                TargetName = target,
+                Comment = comment,
                 CredentialBlobSize = (uint)bytes.Length,
                 CredentialBlob = blob,
                 Persist = PersistLocalMachine,
                 UserName = "Bibliotaph",
             };
-            if (CredWrite(ref credential, 0)) return true;
-            log.LogWarning("Remembering a PDF password failed: {Error}", new Win32Exception(Marshal.GetLastWin32Error()).Message);
-            return false;
+            return CredWrite(ref credential, 0) ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
         }
         finally
         {
@@ -73,21 +148,20 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
         }
     }
 
-    /// <summary>Forgets a remembered password, as when it no longer opens the book.</summary>
-    public void Forget(string contentHash)
+    /// <summary>Deletes a credential; one that isn't there is not an error.</summary>
+    public static string? Delete(string target)
     {
-        if (!CredDelete(Target(contentHash), GenericCredential, 0) && Marshal.GetLastWin32Error() is var error and not NotFound)
-            log.LogWarning("Forgetting a PDF password failed: {Error}", new Win32Exception(error).Message);
+        if (CredDelete(target, GenericCredential, 0)) return null;
+        var error = Marshal.GetLastWin32Error();
+        return error == NotFound ? null : new Win32Exception(error).Message;
     }
 
-    /// <summary>Forgets every password Bibliotaph remembered, for Start over. Returns how many there were.</summary>
-    public int ForgetAll()
+    public static (IReadOnlyList<string> Targets, string? Error) List(string prefix)
     {
-        if (!CredEnumerate(TargetPrefix + "*", 0, out var count, out var list))
+        if (!CredEnumerate(prefix + "*", 0, out var count, out var list))
         {
             var error = Marshal.GetLastWin32Error();
-            if (error != NotFound) log.LogWarning("Listing remembered passwords failed: {Error}", new Win32Exception(error).Message);
-            return 0;
+            return ([], error == NotFound ? null : new Win32Exception(error).Message);
         }
         var targets = new List<string>((int)count);
         try
@@ -99,13 +173,8 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
         {
             CredFree(list);
         }
-        foreach (var target in targets)
-            if (!CredDelete(target, GenericCredential, 0))
-                log.LogWarning("Forgetting a PDF password failed: {Error}", new Win32Exception(Marshal.GetLastWin32Error()).Message);
-        return targets.Count;
+        return (targets, null);
     }
-
-    static string Target(string contentHash) => TargetPrefix + contentHash;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     struct Credential

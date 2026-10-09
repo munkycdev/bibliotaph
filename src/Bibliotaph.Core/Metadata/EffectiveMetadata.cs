@@ -153,9 +153,11 @@ public sealed class EffectiveMetadata
 
 /// <summary>
 /// A value a source proposes for a field, before it is stored as an assertion. <paramref name="Value"/> is in stored
-/// form: a term's key, a level range ("1-5"), text as written.
+/// form: a term's key, a level range ("1-5"), text as written. <paramref name="FromSampling"/> marks a value read from
+/// pages sampled across the book rather than its opening pages, contents or introduction.
 /// </summary>
-public sealed record MetadataProposal(MetadataField Field, string Value, AssertionOrigin Origin, string? Quote = null, IReadOnlyList<int>? Pages = null)
+public sealed record MetadataProposal(
+    MetadataField Field, string Value, AssertionOrigin Origin, string? Quote = null, IReadOnlyList<int>? Pages = null, bool FromSampling = false)
 {
     public string Normalized => MetadataValues.Normalize(Field, Value);
 }

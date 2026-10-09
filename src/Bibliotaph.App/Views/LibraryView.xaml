@@ -31,11 +31,21 @@
             </Viewbox>
           </Grid>
           <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+          <!-- A model has read this book (2c). -->
+          <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                  Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
+                  AutomationProperties.Name="{Binding AiTip}">
+            <c:LucideIcon Data="{StaticResource Icon.Sparkle}" Size="11" StrokeThickness="2.2" Foreground="{DynamicResource Bt.AccentText}"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
         </Grid>
       </Border>
       <DataTemplate.Triggers>
         <DataTrigger Binding="{Binding HasCover}" Value="True">
           <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsAiRead}" Value="True">
+          <Setter TargetName="AiBadge" Property="Visibility" Value="Visible" />
         </DataTrigger>
       </DataTemplate.Triggers>
     </DataTemplate>
@@ -197,6 +207,11 @@
                     FontSize="11" Foreground="{DynamicResource Bt.Text}"
                     Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
+      </StackPanel>
+      <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
+                  AutomationProperties.Name="Read by AI" MinWidth="150" ToolTip="Books a model has read and catalogued" />
       </StackPanel>
       <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
     </WrapPanel>

@@ -11,11 +11,13 @@ namespace Bibliotaph.Index;
 /// <summary>
 /// A document as the library grid and search results show it. <see cref="Title"/> is its effective title, or the one
 /// from its file name. <see cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/>
-/// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed.
+/// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/>
+/// is the model that last read it, if one has.
 /// </summary>
 public sealed record LibraryEntry(
     long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
-    string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false);
+    string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
+    string? AiModel = null);
 
 public enum LibrarySort
 {
@@ -35,11 +37,20 @@ public enum FormatFilter
     Images,
 }
 
+/// <summary>The AI choice in the filter panel: books a model has read, or those it hasn't yet.</summary>
+public enum AiFilter
+{
+    All,
+    Read,
+    NotRead,
+}
+
 /// <summary>
 /// What the library shows: the documents in scope (from catalog.db: present in a folder the user hasn't removed,
 /// optionally one folder), a format, game systems and document types (any of those chosen; unknown is
 /// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
-/// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12).
+/// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12). <see cref="Ai"/> keeps books a model
+/// has or hasn't read.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<long>? Scope = null,
@@ -48,7 +59,8 @@ public sealed record LibraryFilter(
     IReadOnlyCollection<string>? Systems = null,
     IReadOnlyCollection<string>? Types = null,
     int? Level = null,
-    bool IncludeUnknownLevel = false);
+    bool IncludeUnknownLevel = false,
+    AiFilter Ai = AiFilter.All);
 
 /// <summary>How many documents have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -94,12 +106,14 @@ public sealed class LibraryQueries(IndexDatabase database)
         d.folder_hint AS FolderHint, d.added_utc AS AddedUtc,
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
-        coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested
+        coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
+        ai.model AS AiModel
         """;
 
     const string EntryJoin = """
         LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'
         LEFT JOIN doc_meta m ON m.document_id = d.document_id
+        LEFT JOIN doc_ai ai ON ai.document_id = d.document_id
         """;
 
     /// <summary>The whole library (or the part in scope) with the plan's fields and exclusions applied, in the filter's order.</summary>
@@ -182,6 +196,13 @@ public sealed class LibraryQueries(IndexDatabase database)
             ORDER BY count(*) DESC, d.format
             """, where.Parameters, cancellationToken: ct));
         return [.. counts.Select(c => new FacetCount(c.Format, c.Format.ToUpperInvariant(), c.Count))];
+    }
+
+    /// <summary>How many documents a model has read, so the filter panel offers the AI choice only once there are some.</summary>
+    public async Task<long> CountAiReadAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM doc_ai", cancellationToken: ct));
     }
 
     /// <summary>
@@ -321,7 +342,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         [.. rows.Select(r => new LibraryEntry(r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
-            r.NeedsReview != 0, r.Suggested != 0))];
+            r.NeedsReview != 0, r.Suggested != 0, r.AiModel))];
 
     static string? DescribeLevels(string state, long? min, long? max) => state switch
     {
@@ -360,6 +381,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string LevelState { get; init; } = "unknown";
         public long NeedsReview { get; init; }
         public long Suggested { get; init; }
+        public string? AiModel { get; init; }
     }
 
     sealed class HitRow
@@ -403,6 +425,9 @@ public sealed class LibraryQueries(IndexDatabase database)
                     Parameters.Add("formatPng", SourceFormats.Png);
                     break;
             }
+
+            if (filter.Ai != AiFilter.All)
+                _sql.Append($" AND d.document_id {(filter.Ai == AiFilter.Read ? "IN" : "NOT IN")} (SELECT document_id FROM doc_ai)");
 
             if (plan.Formats.Count > 0) Add("d.format IN (SELECT value FROM json_each(@formats))", "formats", JsonSerializer.Serialize(plan.Formats));
             if (plan.ExcludedFormats.Count > 0)

@@ -132,7 +132,68 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         return added;
     }
 
-    static Assertion NewAssertion(long documentId, MetadataProposal proposal, AssertionState state, DateTime now) => new()
+    /// <summary>
+    /// Stores a classifier run's suggestions (slice 2c), replacing the undecided ones earlier runs of the same origin left:
+    /// a value suggested again keeps its row and its age, with this run's evidence; one not suggested again goes. What
+    /// the user decided stays as it is, a rejected value is never suggested again (A04), and a term value whose term is
+    /// pending is held until the user decides the term. Returns whether anything changed.
+    /// </summary>
+    public async Task<bool> ApplyRunAsync(long documentId, string runId, AssertionOrigin origin, IReadOnlyList<MetadataProposal> proposals, CancellationToken ct = default)
+    {
+        if (HintOrigins.Contains(origin) || origin == AssertionOrigin.User || proposals.Any(p => p.Origin != origin))
+            throw new ArgumentException("A run stores its own origin's suggestions, and never rule hints or the user's values.", nameof(proposals));
+
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.Assertions.Where(a => a.DocumentId == documentId && a.Origin == origin).ToListAsync(ct);
+        var rejected = (await db.Rejections.Where(r => r.DocumentId == documentId).Select(r => new { r.Field, r.NormalizedValue }).ToListAsync(ct))
+            .Select(r => (r.Field, r.NormalizedValue)).ToHashSet();
+        var vocabularies = proposals.Where(p => p.Field.Kind == FieldKind.Term).Select(p => p.Field.Vocabulary!).Distinct().ToList();
+        var terms = (await db.VocabularyTerms.Where(t => vocabularies.Contains(t.Vocabulary)).Select(t => new { t.Vocabulary, t.Key, t.State }).ToListAsync(ct))
+            .ToDictionary(t => (t.Vocabulary, t.Key), t => t.State);
+        var wanted = proposals.Where(p => p.Normalized.Length > 0).DistinctBy(p => (p.Field.Key, p.Normalized)).ToList();
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var changed = false;
+
+        foreach (var row in rows.Where(r => r.State is AssertionState.Provisional or AssertionState.AwaitingTerm))
+        {
+            if (wanted.Any(p => p.Field.Key == row.Field && p.Normalized == row.NormalizedValue)) continue;
+            db.Assertions.Remove(row);
+            changed = true;
+        }
+
+        foreach (var proposal in wanted)
+        {
+            if (rejected.Contains((proposal.Field.Key, proposal.Normalized))) continue;
+            var state = AssertionState.Provisional;
+            if (proposal.Field.Kind == FieldKind.Term && terms.TryGetValue((proposal.Field.Vocabulary!, proposal.Value), out var term))
+            {
+                if (term == TermState.Rejected) continue;
+                if (term == TermState.Pending) state = AssertionState.AwaitingTerm;
+            }
+            var existing = rows.FirstOrDefault(r => r.Field == proposal.Field.Key && r.NormalizedValue == proposal.Normalized);
+            if (existing is null)
+            {
+                db.Assertions.Add(NewAssertion(documentId, proposal, state, now, runId));
+                changed = true;
+            }
+            else if (existing.State is AssertionState.Provisional or AssertionState.AwaitingTerm)
+            {
+                // The same suggestion again: this run's evidence, but its age stays, so nothing looks new.
+                existing.RunId = runId;
+                existing.EvidenceQuote = proposal.Quote;
+                existing.EvidencePagesJson = Pages(proposal);
+                existing.FromSampling = proposal.FromSampling;
+                changed = true;
+            }
+        }
+
+        if (changed) await db.SaveChangesAsync(ct);
+        return changed;
+    }
+
+    static string? Pages(MetadataProposal proposal) => proposal.Pages is { Count: > 0 } pages ? JsonSerializer.Serialize(pages) : null;
+
+    static Assertion NewAssertion(long documentId, MetadataProposal proposal, AssertionState state, DateTime now, string? runId = null) => new()
     {
         DocumentId = documentId,
         Field = proposal.Field.Key,
@@ -140,7 +201,9 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         NormalizedValue = proposal.Normalized,
         Origin = proposal.Origin,
         EvidenceQuote = proposal.Quote,
-        EvidencePagesJson = proposal.Pages is { Count: > 0 } pages ? JsonSerializer.Serialize(pages) : null,
+        EvidencePagesJson = Pages(proposal),
+        FromSampling = proposal.FromSampling,
+        RunId = runId,
         State = state,
         CreatedUtc = now,
         DecidedUtc = state == AssertionState.Provisional ? null : now,

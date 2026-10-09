@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
+using Bibliotaph.Classification;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
@@ -96,6 +97,7 @@ static class SmokeTest
                     () => ReviewAsync(services, window, decide: preference == ThemePreference.Light));
                 await Check($"Library folders progress in {preference}", () => ShowFolderProgressAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
+                await Check($"Settings > AI with no model server in {preference}", () => ShowAiSettingsAsync(services, window));
                 if (real is not { } files) continue;
                 await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
@@ -161,6 +163,7 @@ static class SmokeTest
         await library.ReconcileRootAsync(root.Id, [.. books.Select(b => new ScannedFile(Relative(b.Path), 1000, modified, false))]);
         var files = await library.NextUnhashedAsync(books.Length, includeOnlineOnly: true);
         var documents = new List<long>();
+        var hashes = new Dictionary<long, string>();
         foreach (var file in files)
         {
             var book = books.Single(b => file.FullPath.EndsWith(Relative(b.Path), StringComparison.Ordinal));
@@ -168,6 +171,7 @@ static class SmokeTest
             var hash = ContentHash.Parse(new string((char)('1' + Array.IndexOf(books, book)), ContentHash.HexLength));
             var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A made-up file didn't attach.");
             documents.Add(documentId);
+            hashes[documentId] = hash.Hex;
             var isImage = file.Format != SourceFormats.Pdf;
             await index.UpsertDocumentAsync(
                 new DocRow
@@ -197,6 +201,9 @@ static class SmokeTest
         await metadata.AddSuggestionsAsync(lairs, [new MetadataProposal(MetadataFields.Types, "rulebook", AssertionOrigin.Ai, "the rules for lairs", [1])]);
         var (heist, _) = await services.GetRequiredService<VocabularyStore>().ProposeTermAsync("type", "Heist kit");
         await metadata.AddSuggestionsAsync(gazetteer, [new MetadataProposal(MetadataFields.Types, heist.Key, AssertionOrigin.Ai, "everything a heist needs")]);
+        // A model has read the lairs, so its cover has the AI spark and the filter offers "Read by AI".
+        await services.GetRequiredService<ClassificationStore>().RecordAsync(new RunRecord(lairs, hashes[lairs], "ollama", "smoke-model",
+            ClassifierPrompt.Version, ClassifierPrompt.SchemaVersion, [0], DateTime.UtcNow, ClassificationStore.Complete));
         await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairs, gazetteer]);
     }
 
@@ -333,6 +340,16 @@ static class SmokeTest
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by D&D shows {page.Items.Count} books, not 1.");
         page.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the filters didn't bring back all {books} books.");
+
+        await WaitUntilAsync(window, () => page.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
+            () => "The book a model read isn't marked, or the filters don't offer the AI choice.");
+        page.AiChoice = page.AiChoices.First(c => c.Value == AiFilter.Read);
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs" }], () => $"Filtering by Read by AI shows {page.Items.Count} books, not 1.");
+        // Alone in the list, its row is surely drawn (a long list draws only the rows in view), so its spark should show.
+        await WaitUntilAsync(window, () => Descendants<Border>(window).Any(b => b.Name == "AiBadge" && b.IsVisible),
+            () => $"The book read by AI has no spark on its cover ({Descendants<Border>(window).Count(b => b.Name == "AiBadge")} badges drawn, none visible).");
+        page.ClearFiltersCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the AI filter didn't bring back all {books} books.");
 
         await page.OpenDetailsCommand.ExecuteAsync(page.Items.First(i => i.Title == "Haunted Inn"));
         await Settle(window);
@@ -741,6 +758,53 @@ static class SmokeTest
         await Settle(window);
     }
 
+    /// <summary>
+    /// Settings > AI with no model server: AI is off, the library's folders are listed, and an endpoint nothing
+    /// answers at says so rather than hanging or switching AI on.
+    /// </summary>
+    static async Task ShowAiSettingsAsync(IServiceProvider services, Window window)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.NavigateTo(Route.Ai);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as AiSettingsViewModel
+            ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+        await WaitUntilAsync(window, () => page.HasFolders, () => "Settings > AI doesn't list the library's folders.");
+        if (page.IsOn || page.Activity.AiOn) throw new InvalidOperationException("AI is on before anything was set up.");
+        if (!page.Activity.Phases[^1].Status.StartsWith("Off", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The AI step says {page.Activity.Phases[^1].Status}, not that AI is off.");
+
+        // On before anything is set up springs back and says why, under the switch.
+        var on = Descendants<RadioButton>(window).FirstOrDefault(r => r.GroupName == "UseAi" && Equals(r.Content, "On"))
+            ?? throw new InvalidOperationException("Settings > AI has no On switch.");
+        ((ISelectionItemProvider)new RadioButtonAutomationPeer(on)).Select();
+        await WaitUntilAsync(window, () => page.SwitchProblem is not null && on.IsChecked == false && !page.IsOn,
+            () => "Switching AI on before setting it up didn't spring back and say why.");
+
+        // Port 9 is discard: nothing listens on it, so connecting fails at once.
+        page.Endpoint = "http://127.0.0.1:9";
+        await page.ConnectCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.ConnectionProblem is not null, () => "Connecting to nothing didn't say so.");
+        if (page.IsOn) throw new InvalidOperationException("A failed connection switched AI on.");
+
+        // Test with a book opens its popup, which runs the test and says what went wrong.
+        page.Model = "smoke-model";
+        await Settle(window);
+        var test = Descendants<Button>(window).FirstOrDefault(b => b.Command == page.TestCommand)
+            ?? throw new InvalidOperationException("Settings > AI has no Test with a book button.");
+        // ShowDialog returns only when the popup closes, so click from the queue and go on inside the popup's loop.
+        var click = Clickable(test, "Test with a book");
+        _ = window.Dispatcher.BeginInvoke(click.Invoke);
+        Views.AiTestDialog? dialog = null;
+        await WaitUntilAsync(window, () => (dialog = Application.Current.Windows.OfType<Views.AiTestDialog>().FirstOrDefault()) is { IsLoaded: true },
+            () => "Test with a book didn't open its popup.");
+        await WaitUntilAsync(window, () => dialog!.Test is { IsRunning: false, Problem: not null },
+            () => "Testing with nothing at the address didn't finish and say why.");
+        dialog!.Close();
+        await WaitUntilAsync(window, () => !Application.Current.Windows.OfType<Views.AiTestDialog>().Any(), () => "The test popup didn't close.");
+        navigation.GoBack();
+        await Settle(window);
+    }
+
     /// <summary>Clicks <paramref name="button"/> the way a person would, failing clearly if they couldn't.</summary>
     static void Click(Button? button, string name) => Clickable(button, name).Invoke();
 
@@ -786,7 +850,7 @@ static class SmokeTest
             ?? throw new InvalidOperationException("The Library folders route didn't open Library folders.");
         await WaitUntilAsync(window, () => page.Folders.Count > 0 && page.Folders.All(f => f.Detail.Length > 0),
             () => "Library folders didn't describe its folders.");
-        if (page.Activity.Phases.Count != 4 || page.Activity.Phases.Any(p => p.Status.Length == 0))
+        if (page.Activity.Phases.Count != 5 || page.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
         await WaitUntilAsync(window, () => page.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
             () => "Library folders doesn't list the Adventures folder name.");
