@@ -63,7 +63,18 @@
     </Style>
   </UserControl.Resources>
 
-  <Grid Margin="0,0,42,24">
+  <Grid>
+    <Grid.Style>
+      <Style TargetType="Grid">
+        <Setter Property="Margin" Value="0,0,42,24" />
+        <Style.Triggers>
+          <!-- A pop-out has no shell around it; its window sets the margins. -->
+          <DataTrigger Binding="{Binding IsPoppedOut}" Value="True">
+            <Setter Property="Margin" Value="0" />
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
+    </Grid.Style>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
@@ -129,6 +140,15 @@
                     AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" MinWidth="110" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}" ToolTip="Zoom in (Ctrl+plus)"
                   AutomationProperties.Name="Zoom in" Command="NavigationCommands.IncreaseZoom" Margin="4,0,0,0" />
+          <!-- Pop out: the book moves to a window of its own (one per monitor, say); a pop-out sends it back. -->
+          <Border Style="{StaticResource Divider}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
+                  ToolTip="Pop out into a window of its own" AutomationProperties.Name="Pop out" Command="{Binding PopOutCommand}"
+                  Visibility="{Binding IsPoppedOut, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowDownLeft}"
+                  ToolTip="Return to the main window" AutomationProperties.Name="Return to main window"
+                  Command="{Binding ReturnToMainWindowCommand}"
+                  Visibility="{Binding IsPoppedOut, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
       </DockPanel>
     </Border>

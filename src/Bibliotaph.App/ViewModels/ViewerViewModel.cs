@@ -43,10 +43,16 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
     public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
 }
 
+/// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
+public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, PasswordVault Vault,
+    UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
+    ILogger<ViewerViewModel> Log);
+
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
 /// and the first one in view; an image opens decoded at a capped size. Asks for a PDF's password and can remember
-/// it. Leaving the page closes the book; coming Back reopens it where the reader was.
+/// it. Leaving the page closes the book; coming Back reopens it where the reader was. The same reader runs in the
+/// main window and in a pop-out window; it is given its request when it's made.
 /// </summary>
 public sealed partial class ViewerViewModel : PageViewModel
 {
@@ -59,6 +65,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly LibraryQueries _queries;
     readonly PdfWorkerPool _workers;
     readonly PasswordVault _vault;
+    readonly UnlockedPasswords _unlocked;
     readonly IPasswordPrompt _prompt;
     readonly IndexingService _indexing;
     readonly JobBoard _jobs;
@@ -67,8 +74,12 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
+    readonly ReaderWindows _windows;
 
     DocumentSource? _source;
+    ViewerLease? _lease;
+    Task _closing = Task.CompletedTask;
+    bool _windowClosed;
     PdfRenderer? _renderer;
     IReadOnlyList<string?> _labels = [];
     PageTarget? _resume;
@@ -78,24 +89,30 @@ public sealed partial class ViewerViewModel : PageViewModel
     string _foundText = "";
     int _findIndex = -1;
 
-    public ViewerViewModel(ViewerRequests requests, LibraryStore library, LibraryQueries queries, PdfWorkerPool workers, PasswordVault vault,
-        IPasswordPrompt prompt, IndexingService indexing, JobBoard jobs, ISourceFileReader files, WpfImageCodec codec, ILogger<ViewerViewModel> log)
+    public ViewerViewModel(ViewerRequest? request, ViewerServices services, ReaderWindows windows, bool poppedOut = false)
     {
-        _request = requests.Take();
-        _library = library;
-        _queries = queries;
-        _workers = workers;
-        _vault = vault;
-        _prompt = prompt;
-        _indexing = indexing;
-        _jobs = jobs;
-        _files = files;
-        _codec = codec;
-        _log = log;
+        _request = request;
+        _library = services.Library;
+        _queries = services.Queries;
+        _workers = services.Workers;
+        _vault = services.Vault;
+        _unlocked = services.Unlocked;
+        _prompt = services.Prompt;
+        _indexing = services.Indexing;
+        _jobs = services.Jobs;
+        _files = services.Files;
+        _codec = services.Codec;
+        _log = services.Log;
+        _windows = windows;
+        IsPoppedOut = poppedOut;
+        Zoom = request?.Zoom ?? PdfPagesView.FitWidth;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _noticeTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => Notice = null, _dispatcher);
         _noticeTimer.Stop();
     }
+
+    /// <summary>True in a pop-out window, false in the main window's Reading route.</summary>
+    public bool IsPoppedOut { get; }
 
     public override Route Route => Route.Viewer;
 
@@ -112,6 +129,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -219,6 +237,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             Mode = ViewerMode.Empty;
             return;
         }
+        if (_windowClosed) return;
         var version = ++_version;
         Mode = ViewerMode.Opening;
         try
@@ -265,9 +284,46 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_renderer is { } renderer)
         {
             _renderer = null;
-            _ = CloseAsync(renderer);
+            _closing = CloseAsync(renderer);
         }
     }
+
+    /// <summary>
+    /// The pop-out window is closing: closes the book, and once it's closed gives the window's viewer worker back,
+    /// which stops the worker if no other window is using it.
+    /// </summary>
+    public async Task CloseWindowAsync()
+    {
+        // A load still running stops at its next step rather than leasing a worker nobody would give back.
+        _windowClosed = true;
+        Unload();
+        await _closing;
+        if (_lease is { } lease)
+        {
+            _lease = null;
+            await lease.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// The main window's readers share one viewer worker; a pop-out leases one of its own when it first shows a PDF
+    /// (an image needs none) and gives it back when it closes.
+    /// </summary>
+    WorkerClient Worker() => IsPoppedOut ? (_lease ??= _workers.LeaseViewer()).Worker : _windows.MainWorker;
+
+    /// <summary>A request that opens this book again as it is now: at the page in view and the same zoom.</summary>
+    public ViewerRequest? Here() =>
+        _request is null ? null : _request with { PageIndex = Mode == ViewerMode.Pdf ? CurrentPageIndex : _request.PageIndex, Query = null, Zoom = Zoom };
+
+    /// <summary>Moves the book to a window of its own at the same page and zoom; the main window goes Back.</summary>
+    [RelayCommand(CanExecute = nameof(CanPopOut))]
+    Task PopOut() => _windows.PopOutAsync(this);
+
+    bool CanPopOut() => !IsPoppedOut && Mode is ViewerMode.Pdf or ViewerMode.Image;
+
+    /// <summary>Moves a pop-out's book back to the main window, at the same page and zoom, and closes the pop-out.</summary>
+    [RelayCommand]
+    void ReturnToMainWindow() => _windows.ReturnToMainWindow(this);
 
     async Task OpenImageAsync(DocumentSource source, int version)
     {
@@ -289,7 +345,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     async Task OpenPdfAsync(DocumentSource source, ViewerRequest request, int version)
     {
-        var renderer = new PdfRenderer(_workers[WorkerSlot.Viewer], _dispatcher);
+        var renderer = new PdfRenderer(Worker(), _dispatcher);
         try
         {
             var (doc, password, remember) = await OpenWithPasswordAsync(renderer, source, version);
@@ -298,6 +354,8 @@ public sealed partial class ViewerViewModel : PageViewModel
                 await renderer.DisposeAsync();
                 return;
             }
+            // Kept in memory for this sitting, so the book moving to another window isn't asked for again.
+            if (password is not null) _unlocked.Add(source.ContentHash, password);
             if (remember && password is not null)
             {
                 // A remembered password also lets indexing read the book, so its blocked stages run again.
@@ -332,11 +390,15 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
     }
 
-    /// <summary>Opens the PDF, trying a remembered password first and then asking. A null document means it didn't open.</summary>
+    /// <summary>
+    /// Opens the PDF, trying the password that opened it earlier in this sitting or a remembered one first, and then
+    /// asking. A null document means it didn't open.
+    /// </summary>
     async Task<(DocInfo? Doc, string? Password, bool Remember)> OpenWithPasswordAsync(PdfRenderer renderer, DocumentSource source, int version)
     {
-        var password = _vault.Find(source.ContentHash);
-        var remembered = password is not null;
+        var unlocked = _unlocked.Find(source.ContentHash);
+        var password = unlocked ?? _vault.Find(source.ContentHash);
+        var remembered = unlocked is null && password is not null;
         var remember = false;
         var asked = 0;
         while (true)
@@ -348,7 +410,12 @@ public sealed partial class ViewerViewModel : PageViewModel
             catch (PdfOpenException ex) when (ex.Kind == ErrorKind.Password)
             {
                 if (version != _version) return (null, null, false);
-                if (remembered)
+                if (unlocked is not null)
+                {
+                    _unlocked.Forget(source.ContentHash);
+                    unlocked = null;
+                }
+                else if (remembered)
                 {
                     // The book changed its password, or a different file now has this content hash's name.
                     _vault.Forget(source.ContentHash);

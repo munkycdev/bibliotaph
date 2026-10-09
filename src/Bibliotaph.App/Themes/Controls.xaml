@@ -624,44 +624,51 @@
     <Setter Property="Padding" Value="8,5" />
   </Style>
 
-  <!-- .bt-menu: a small menu under a button, such as the arrow beside Reprocess. A popup doesn't inherit the window's
-       foreground, so it sets its own. -->
+  <!--
+    A right-click menu, as on a book card, or a menu under a button, such as the arrow beside Reprocess. A context menu is a popup, so it takes nothing from the window: its colours
+    and font are set here. Square corners, since the popup may not be transparent. The highlighted item shows focus.
+  -->
   <Style x:Key="Bt.Menu" TargetType="ContextMenu">
     <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
-    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Sans}" />
+    <Setter Property="FontSize" Value="12" />
     <Setter Property="HasDropShadow" Value="False" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ContextMenu">
-          <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="5"
-                  Margin="0,4,0,0" Padding="3" SnapsToDevicePixels="True">
-            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+          <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" Padding="3">
+            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
           </Border>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
-  </Style>
-
-  <Style x:Key="Bt.MenuItem" TargetType="MenuItem">
-    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
-    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
-    <Setter Property="Cursor" Value="Hand" />
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="MenuItem">
-          <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="10,7" SnapsToDevicePixels="True">
-            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
-          </Border>
-          <ControlTemplate.Triggers>
-            <Trigger Property="IsHighlighted" Value="True">
-              <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.5" />
-            </Trigger>
-          </ControlTemplate.Triggers>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
+    <Style.Resources>
+      <Style TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="MenuItem">
+              <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="10,6" MinWidth="190">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Text="{TemplateBinding InputGestureText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}"
+                             Margin="24,0,0,0" VerticalAlignment="Center" />
+                  <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
+                </DockPanel>
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                  <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+    </Style.Resources>
   </Style>
 </ResourceDictionary>

@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 
 namespace Bibliotaph.App.Views;
@@ -24,7 +25,19 @@ public partial class LibraryView
             Attach(null);
         };
         Loaded += (_, _) => Attach(DataContext as LibraryViewModel);
+        AddBookCommand(BookCommands.Open, m => m.OpenBookCommand);
+        AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
+        AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
     }
+
+    /// <summary>A card menu's command, run with the card's book on the Library's own command.</summary>
+    void AddBookCommand(RoutedUICommand command, Func<LibraryViewModel, ICommand> target) =>
+        CommandBindings.Add(new CommandBinding(command,
+            (_, e) =>
+            {
+                if (DataContext is LibraryViewModel model && e.Parameter is LibraryItemViewModel item) target(model).Execute(item);
+            },
+            (_, e) => e.CanExecute = DataContext is LibraryViewModel model && e.Parameter is LibraryItemViewModel item && target(model).CanExecute(item)));
 
     void Attach(LibraryViewModel? model)
     {

@@ -77,6 +77,7 @@ static class SmokeTest
                 await ShowAboutAsync(services, window);
                 if (real is not { } files) continue;
                 await ReadBookAsync(services, window, files.Pdf);
+                await PopOutAsync(services, window, files.Pdf);
                 await ViewImageAsync(services, window, files.Image);
                 Log.Information("Smoke test: a PDF read and an image viewed in {Theme}", preference);
             }
@@ -87,6 +88,8 @@ static class SmokeTest
             }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
+            if (Application.Current.Windows.Count != 1 || services.GetRequiredService<ReaderWindows>().Windows.Count > 0)
+                throw new InvalidOperationException($"The smoke test left {Application.Current.Windows.Count - 1} other windows open.");
         }
         catch (Exception ex)
         {
@@ -96,6 +99,8 @@ static class SmokeTest
         finally
         {
             PresentationTraceSources.DataBindingSource.Listeners.Remove(bindingErrors);
+            // A failed run leaves no pop-out behind either.
+            services.GetRequiredService<ReaderWindows>().CloseAll();
         }
 
         if (bindingErrors.Errors.Count > 0)
@@ -476,6 +481,74 @@ static class SmokeTest
         await WaitUntilAsync(window, () => viewer.Mode == ViewerMode.Problem, () => $"A missing file didn't show a problem (it shows {viewer.Mode}).");
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// Pops the PDF out of the main reader: the main window goes Back, and the pop-out, a top-level window with no
+    /// owner, draws page 1 at full quality at the same zoom on a viewer worker of its own. Return to main window
+    /// brings the book back at the same page and gives the worker back. Then the same book opens straight into two
+    /// new windows from the Library: Ctrl+W's command closes one, and what closing the main window runs closes the rest.
+    /// </summary>
+    static async Task PopOutAsync(IServiceProvider services, Window window, long documentId)
+    {
+        const double Zoom = 1.25;
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var readers = services.GetRequiredService<ReaderWindows>();
+        var workers = services.GetRequiredService<Bibliotaph.Pdf.Host.PdfWorkerPool>();
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        var book = library.Items.First(i => i.DocumentId == documentId);
+
+        library.OpenBookCommand.Execute(book);
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The PDF didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The PDF didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        viewer.Zoom = Zoom;
+        viewer.PageEntry = "1";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => viewer.CurrentPageIndex == 1, () => "Going to page 1 didn't show it before popping out.");
+
+        await viewer.PopOutCommand.ExecuteAsync(null);
+        if (shell.CurrentPage is not LibraryViewModel) throw new InvalidOperationException("Popping out didn't take the main window Back to the Library.");
+        if (readers.Windows is not [var popOut]) throw new InvalidOperationException($"Pop out opened {readers.Windows.Count} windows, not one.");
+        var reader = popOut.Model;
+        if (popOut.Owner is not null || !popOut.ShowInTaskbar || popOut.Title != book.Title || !reader.IsPoppedOut || reader.Zoom != Zoom)
+            throw new InvalidOperationException($"The pop-out is “{popOut.Title}” at {reader.Zoom}, owned: {popOut.Owner is not null}.");
+        await WaitUntilAsync(popOut, () => reader.IsPdf || reader.Mode == ViewerMode.Problem, () => $"The pop-out's PDF didn't open (still {reader.Mode}).");
+        if (!reader.IsPdf) throw new InvalidOperationException($"The pop-out's PDF didn't open: {reader.EmptyTitle} {reader.EmptyMessage}");
+        var popPages = FindChild<Bibliotaph.Viewer.PdfPagesView>(popOut) ?? throw new InvalidOperationException("The pop-out has no page surface.");
+        await WaitUntilAsync(popOut, () => popPages.CurrentPageIndex == 1 && popPages.PageModels[1] is { Image: not null, IsPreview: false },
+            () => $"The pop-out didn't draw page 1 at full quality (page in view {popPages.CurrentPageIndex}).");
+        // The main window's readers keep theirs; the pop-out has its own, so neither waits on the other.
+        if (workers.ViewerWorkerCount != 2) throw new InvalidOperationException($"{workers.ViewerWorkerCount} viewer workers run with one pop-out, not 2.");
+
+        reader.ReturnToMainWindowCommand.Execute(null);
+        await WaitUntilAsync(window, () => readers.Windows.Count == 0 && shell.CurrentPage is ViewerViewModel { IsPdf: true },
+            () => "Return to main window didn't close the pop-out and open the book in the main window.");
+        var returned = (ViewerViewModel)shell.CurrentPage!;
+        if (returned.IsPoppedOut || returned.Zoom != Zoom) throw new InvalidOperationException($"The returned book is at zoom {returned.Zoom}.");
+        await WaitUntilAsync(window, () => FindChild<Bibliotaph.Viewer.PdfPagesView>(window) is { CurrentPageIndex: 1 } pages
+                && pages.PageModels[1] is { Image: not null, IsPreview: false },
+            () => "The returned book didn't draw page 1 in the main window.");
+        await WaitUntilAsync(window, () => workers.ViewerWorkerCount == 1, () => "Closing the pop-out didn't stop its viewer worker.");
+        navigation.GoBack();
+        await Settle(window);
+        if (!ReferenceEquals(shell.CurrentPage, library)) throw new InvalidOperationException("Back didn't return to the Library.");
+
+        // The same book twice, straight from the Library, as from its card's menu.
+        await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
+        await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
+        if (readers.Windows is not [var first, var second]) throw new InvalidOperationException($"{readers.Windows.Count} windows opened, not two.");
+        await WaitUntilAsync(second, () => first.Model.IsPdf && second.Model.IsPdf, () => "The book didn't open in both new windows.");
+        if (workers.ViewerWorkerCount != 3) throw new InvalidOperationException($"{workers.ViewerWorkerCount} viewer workers run with two pop-outs, not 3.");
+        System.Windows.Input.ApplicationCommands.Close.Execute(null, first);
+        await WaitUntilAsync(window, () => readers.Windows is [var left] && ReferenceEquals(left, second), () => "Ctrl+W's command didn't close the pop-out.");
+        readers.CloseAll();
+        await WaitUntilAsync(window, () => readers.Windows.Count == 0 && Application.Current.Windows.Count == 1 && workers.ViewerWorkerCount == 1,
+            () => $"Closing every pop-out left {Application.Current.Windows.Count - 1} windows and {workers.ViewerWorkerCount} viewer workers.");
+        Log.Information("Smoke test: a PDF popped out, returned, and opened in two new windows");
     }
 
     /// <summary>

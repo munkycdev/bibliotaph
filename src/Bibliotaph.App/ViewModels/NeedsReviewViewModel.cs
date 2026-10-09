@@ -29,7 +29,7 @@ public sealed partial class NeedsReviewViewModel(
     IndexingService indexing,
     LibraryActivity activity,
     INavigationService navigation,
-    ViewerRequests viewer,
+    ReaderWindows readers,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
@@ -294,5 +294,5 @@ public sealed partial class NeedsReviewViewModel(
     }
 
     public void Open(ReviewItem item) =>
-        viewer.Open(new ViewerRequest(item.DocumentId, item.Title, item.Issue.Evidence is { Pages.Count: > 0 } claim ? claim.Pages[0] : 0));
+        readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title, item.Issue.Evidence is { Pages.Count: > 0 } claim ? claim.Pages[0] : 0));
 }
