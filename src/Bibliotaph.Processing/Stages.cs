@@ -49,6 +49,7 @@ public sealed class NoPasswords : IPasswordStore
 /// <summary>Everything a stage needs. One per indexing service.</summary>
 public sealed record StageServices(
     LibraryStore Library,
+    EntryStore Entries,
     IndexStore Index,
     IndexQueries Queries,
     PdfWorkerPool Workers,
@@ -128,6 +129,17 @@ sealed class PdfSession(WorkerClient worker, string path, string? password) : IA
 
 static class StageHelpers
 {
+    /// <summary>
+    /// Records a probed document in index.db, and the library cards that show it, so it appears in the library from
+    /// here.
+    /// </summary>
+    public static async Task UpsertDocumentAsync(StageServices s, DocRow doc, IReadOnlyList<PageRow> pages, IReadOnlyList<OutlineRow> outline,
+        CancellationToken ct)
+    {
+        await s.Index.UpsertDocumentAsync(doc, pages, outline, ct);
+        await s.Index.SetEntriesAsync([.. (await s.Entries.GetShownByAsync(doc.DocumentId, ct)).Select(MetadataProjector.ToRow)], ct);
+    }
+
     /// <summary>Opens the job's document in the index worker, or says why the stage can't run.</summary>
     public static async Task<(PdfSession? Session, StageOutcome? Outcome)> OpenPdfAsync(StageServices s, JobRecord job, CancellationToken ct)
     {
@@ -167,7 +179,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             (int Width, int Height)? size;
             await using (var stream = s.Reader.OpenRead(source.FullPath)) size = s.Images.ReadSize(stream);
             if (size is null) return new StageOutcome.Failed("This image could not be read; it may be damaged.", Retry: false);
-            await s.Index.UpsertDocumentAsync(new DocRow
+            await StageHelpers.UpsertDocumentAsync(s, new DocRow
             {
                 DocumentId = job.DocumentId,
                 ContentHash = job.ContentHash,
@@ -188,13 +200,13 @@ public sealed class ProbeStage(StageServices s) : IStage
         {
             // Only a document new to the index: one already there keeps its pages and their text, so a file that won't
             // open this time (in use, say) never makes a reprocessed book unsearchable.
-            if (await s.Queries.GetTitleAsync(job.DocumentId, ct) is null) await s.Index.UpsertDocumentAsync(basic, [], [], ct);
+            if (await s.Queries.GetTitleAsync(job.DocumentId, ct) is null) await StageHelpers.UpsertDocumentAsync(s, basic, [], [], ct);
             return failed!;
         }
         await using (session)
         {
             var doc = session.Doc;
-            await s.Index.UpsertDocumentAsync(basic with
+            await StageHelpers.UpsertDocumentAsync(s, basic with
             {
                 PageCount = doc.PageCount,
                 Encrypted = doc.IsEncrypted,

@@ -18,7 +18,7 @@ public sealed record LevelCondition(string Value, bool Negated = false);
 
 /// <summary>
 /// A parsed query turned into the pieces the SQL needs. FTS5 text is assembled only from quoted strings, the
-/// operators AND, OR, NOT and *, and the fixed doc_fts column names in <see cref="Column"/>, so nothing the user types
+/// operators AND, OR, NOT and *, and the fixed entry_fts column names in <see cref="Column"/>, so nothing the user types
 /// can become FTS5 or SQL syntax; every value reaches SQLite as a bound parameter.
 /// </summary>
 public sealed record SearchPlan
@@ -30,14 +30,14 @@ public sealed record SearchPlan
     /// </summary>
     public const int MinWordStart = 3;
 
-    /// <summary>The words to find, as an FTS5 expression for both page_fts and doc_fts. Null when there are none.</summary>
+    /// <summary>The words to find, as an FTS5 expression for both page_fts and entry_fts. Null when there are none.</summary>
     public string? TextMatch { get; init; }
 
     /// <summary>When the query has exclusions but nothing to find (<c>-maps</c>): what to leave out.</summary>
     public string? TextExclude { get; init; }
 
     /// <summary>
-    /// <c>title:</c>, <c>publisher:</c>, <c>author:</c>, <c>series:</c> and <c>tag:</c> values, as a doc_fts expression
+    /// <c>title:</c>, <c>publisher:</c>, <c>author:</c>, <c>series:</c> and <c>tag:</c> values, as a entry_fts expression
     /// with each value limited to its column.
     /// </summary>
     public string? FieldMatch { get; init; }
@@ -66,7 +66,7 @@ public sealed record SearchPlan
         ({ } text, { } fields) => $"({text}) AND ({fields})",
     };
 
-    /// <summary>The doc_fts column a text field searches, or null for a field that isn't one.</summary>
+    /// <summary>The entry_fts column a text field searches, or null for a field that isn't one.</summary>
     public static string? Column(SearchField field) => field switch
     {
         SearchField.Title => "title",
@@ -77,7 +77,7 @@ public sealed record SearchPlan
         _ => null,
     };
 
-    /// <summary>The doc_facet fields a vocabulary field searches, or null for a field that isn't one.</summary>
+    /// <summary>The entry_facet fields a vocabulary field searches, or null for a field that isn't one.</summary>
     public static IReadOnlyList<string>? FacetFields(SearchField field) => field switch
     {
         SearchField.System => ["system", "edition"],

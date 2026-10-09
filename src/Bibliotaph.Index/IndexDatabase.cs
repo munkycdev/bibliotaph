@@ -7,7 +7,7 @@ namespace Bibliotaph.Index;
 public static class IndexSchema
 {
     /// <summary>Must match the <c>PRAGMA user_version</c> at the end of Schema/index.sql.</summary>
-    public const int Version = 4;
+    public const int Version = 5;
 
     public static string Script { get; } = LoadScript("index") ?? throw new InvalidOperationException("index.sql is not embedded.");
 

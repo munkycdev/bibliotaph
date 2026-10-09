@@ -9,31 +9,35 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Copies effective metadata from catalog.db into index.db (doc_meta, doc_facet, doc_fts, term_alias), where the
-/// library lists, filters and searches it, and which documents a model has read (doc_ai), for the AI badge and filter. index.db holds only this projection, never the assertions, so rebuilding it
-/// loses nothing: the projection runs again.
+/// Copies the library's cards from catalog.db into index.db: which document each entry shows (entry_doc), and its
+/// effective metadata (entry_meta, entry_facet, entry_fts, term_alias), where the library lists, filters and searches
+/// it, and which entries a model has read (entry_ai), for the AI badge and filter. index.db holds only this projection,
+/// never the assertions, so rebuilding it loses nothing: the projection runs again.
 /// </summary>
-public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
+public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
     SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null)
 {
     const int Batch = 200;
 
     readonly ILogger _log = log ?? NullLogger<MetadataProjector>.Instance;
 
-    /// <summary>Raised after documents' metadata changed in index.db, on a background thread.</summary>
-    public event EventHandler<IReadOnlyCollection<long>>? Projected;
+    /// <summary>Raised after entries' metadata changed in index.db, on a background thread.</summary>
+    public event EventHandler<IReadOnlyCollection<EntryId>>? Projected;
 
-    public async Task ProjectAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    public async Task ProjectAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
-        if (documentIds.Count == 0) return;
+        if (entryIds.Count == 0) return;
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
-        var all = await metadata.GetManyAsync(documentIds, ct);
+        await index.SetEntriesAsync([.. (await entries.GetCurrentAsync(entryIds, ct)).Select(ToRow)], ct);
+        var all = await metadata.GetManyAsync(entryIds, ct);
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
-        await index.ClearMetadataAsync([.. documentIds.Where(id => !all.ContainsKey(id))], ct);
-        if (runs is not null) await index.SetAiReadAsync(documentIds, await runs.GetReadByAsync(documentIds, ct), ct);
-        Projected?.Invoke(this, documentIds);
+        await index.ClearMetadataAsync([.. entryIds.Where(id => !all.ContainsKey(id))], ct);
+        if (runs is not null) await index.SetAiReadAsync(entryIds, await runs.GetReadByAsync(entryIds, ct), ct);
+        Projected?.Invoke(this, entryIds);
     }
+
+    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind);
 
     /// <summary>Copies every name of every term into index.db, for field search. Run when a term is added.</summary>
     public async Task ProjectVocabularyAsync(CancellationToken ct = default)
@@ -42,19 +46,21 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
         await index.SetTermAliasesAsync([.. vocabulary.Aliases.Select(a => new TermAliasRow(a.Term.Vocabulary, a.Alias, a.Term.Key))], ct);
     }
 
-    /// <summary>Projects every document and the vocabulary's aliases. Run at startup, and after the vocabulary changes.</summary>
+    /// <summary>Projects every entry and the vocabulary's aliases. Run at startup, and after the vocabulary changes.</summary>
     public async Task ProjectAllAsync(CancellationToken ct = default)
     {
         await ProjectVocabularyAsync(ct);
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
-        var (_, withMetadata) = await queries.GetDocumentIdsAsync(ct);
+        foreach (var chunk in (await entries.GetCurrentAsync(ct: ct)).Chunk(Batch))
+            await index.SetEntriesAsync([.. chunk.Select(ToRow)], ct);
+        var (_, withMetadata) = await queries.GetEntryIdsAsync(ct);
         var all = await metadata.GetManyAsync(null, ct);
         foreach (var chunk in all.Values.Chunk(Batch))
             await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. withMetadata.Where(id => !all.ContainsKey(id))], ct);
         if (runs is not null) await index.SetAiReadAsync(null, await runs.GetReadByAsync(ct: ct), ct);
-        _log.LogInformation("Projected metadata for {Count} documents", all.Count);
+        _log.LogInformation("Projected metadata for {Count} entries", all.Count);
         Projected?.Invoke(this, [.. all.Keys]);
     }
 
@@ -62,29 +68,29 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
     async Task<bool> ReviewAllAsync(CancellationToken ct) =>
         settings is not null && await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
 
-    /// <summary>A document's index.db metadata row: its effective values, labelled through the vocabulary.</summary>
-    public static DocMetaRow Build(DocumentMetadata document, Vocabulary vocabulary, bool reviewAll = false)
+    /// <summary>An entry's index.db metadata row: its effective values, labelled through the vocabulary.</summary>
+    public static EntryMetaRow Build(EntryMetadata entry, Vocabulary vocabulary, bool reviewAll = false)
     {
-        var effective = document.Compute();
+        var effective = entry.Compute();
         string? One(MetadataField field) => effective[field].First?.Value;
         string? Joined(MetadataField field) => effective[field].Values.Count == 0 ? null : string.Join("; ", effective[field].Values.Select(v => v.Value));
 
-        var facets = new List<DocFacetRow>();
+        var facets = new List<FacetRow>();
         foreach (var field in MetadataFields.All.Where(f => f.Kind == FieldKind.Term))
             foreach (var value in effective[field].Values)
-                facets.Add(new DocFacetRow(field.Key, value.Value, vocabulary.Label(field.Vocabulary!, value.Value), value.Confirmed));
+                facets.Add(new FacetRow(field.Key, value.Value, vocabulary.Label(field.Vocabulary!, value.Value), value.Confirmed));
 
         // An edition implies its system, so filtering by D&D finds books only known to be 5e.
         var edition = effective[MetadataFields.Edition].First;
         var editionTerm = edition is null ? null : vocabulary.Find("edition", edition.Value);
         if (editionTerm?.ParentKey is { } parent && facets.All(f => !(f.Field == "system" && f.Value == parent)))
-            facets.Add(new DocFacetRow("system", parent, vocabulary.Label("system", parent), edition!.Confirmed));
+            facets.Add(new FacetRow("system", parent, vocabulary.Label("system", parent), edition!.Confirmed));
 
         var levels = effective[MetadataFields.Levels].First is { } l && LevelRange.TryParse(l.Value, out var range) ? range : (LevelRange?)null;
 
-        return new DocMetaRow
+        return new EntryMetaRow
         {
-            DocumentId = document.DocumentId,
+            EntryId = entry.EntryId,
             Title = One(MetadataFields.Title),
             Publisher = One(MetadataFields.Publisher),
             Series = One(MetadataFields.Series),
@@ -119,34 +125,36 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
     }
 
     /// <summary>Every name of these values that someone might type: label and short label.</summary>
-    static string SearchText(IEnumerable<DocFacetRow> facets, Vocabulary vocabulary) =>
+    static string SearchText(IEnumerable<FacetRow> facets, Vocabulary vocabulary) =>
         string.Join(" · ", facets.SelectMany(f => vocabulary.Find(f.Field, f.Value) is { } term ? new[] { term.Label, term.ShortLabel } : [f.Label])
             .Where(t => !string.IsNullOrEmpty(t)).Distinct());
 }
 
 /// <summary>
 /// Rule hints for documents: reads where the file is and what the PDF says about itself, stores the suggestions in
-/// catalog.db and projects the result. Also lists and switches the folder labels Settings shows.
+/// catalog.db on the document's entry and projects the result. Also lists and switches the folder labels Settings shows.
 /// </summary>
-public sealed class MetadataHints(LibraryStore library, IndexQueries queries, MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector)
+public sealed class MetadataHints(LibraryStore library, EntryStore entries, IndexQueries queries, MetadataStore metadata, VocabularyStore vocabularies,
+    MetadataProjector projector)
 {
-    /// <summary>Re-reads a document's names and replaces its rule-hint suggestions. False when it has no file location left.</summary>
+    /// <summary>Re-reads a document's names and replaces the rule-hint suggestions it gave its entry. False when it has no file location left.</summary>
     public async Task<bool> ApplyAsync(long documentId, CancellationToken ct = default)
     {
-        if (!await StoreAsync(documentId, ct)) return false;
-        await projector.ProjectAsync([documentId], ct);
+        if (await StoreAsync(documentId, ct) is not { } entry) return false;
+        await projector.ProjectAsync([entry], ct);
         return true;
     }
 
-    async Task<bool> StoreAsync(long documentId, CancellationToken ct)
+    /// <summary>Stores a document's hints on its entry, which it returns; null when the document has no file location left.</summary>
+    async Task<EntryId?> StoreAsync(long documentId, CancellationToken ct)
     {
         var path = await library.GetRelativePathAsync(documentId, ct);
-        if (path is null) return false;
+        if (path is null || await entries.GetEntryAsync(documentId, ct) is not { } entry) return null;
         var info = await queries.GetEmbeddedInfoAsync(documentId, ct);
         var source = new HintSource(path, info?.Title, info?.Author, info?.Subject, info?.Keywords);
         var proposals = RuleHints.Propose(source, await vocabularies.GetAsync(ct), await vocabularies.GetIgnoredFolderLabelsAsync(ct));
-        await metadata.ReplaceHintsAsync(documentId, proposals, ct);
-        return true;
+        await metadata.ReplaceHintsAsync(entry.EntryId, entry.ContentHash, proposals, ct);
+        return entry.EntryId;
     }
 
     /// <summary>
@@ -178,8 +186,10 @@ public sealed class MetadataHints(LibraryStore library, IndexQueries queries, Me
         var affected = (await library.GetRelativePathsAsync(ct))
             .Where(p => RuleHints.FolderNames(p.RelativePath).Any(f => MetadataText.Normalize(f) == normalized))
             .Select(p => p.DocumentId).Distinct().ToList();
-        foreach (var documentId in affected) await StoreAsync(documentId, ct);
-        await projector.ProjectAsync(affected, ct);
+        var stored = new List<EntryId>();
+        foreach (var documentId in affected)
+            if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry);
+        await projector.ProjectAsync([.. stored.Distinct()], ct);
     }
 }
 
@@ -201,20 +211,20 @@ public sealed class RuleHintsStage(MetadataHints hints) : IStage
 public sealed record MetadataProblem(MetadataField Field, string Message);
 
 /// <summary>
-/// The inspector's metadata: what a document's fields show and why, and the user's edits. Every change goes to
-/// catalog.db as an assertion state or a rejection, then the document is projected again.
+/// The inspector's metadata: what an entry's fields show and why, and the user's edits. Every change goes to
+/// catalog.db as an assertion state or a rejection, then the entry is projected again.
 /// </summary>
 public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector)
 {
-    public async Task<(EffectiveMetadata Metadata, Vocabulary Vocabulary)> GetAsync(long documentId, CancellationToken ct = default) =>
-        ((await metadata.GetAsync(documentId, ct)).Compute(), await vocabularies.GetAsync(ct));
+    public async Task<(EffectiveMetadata Metadata, Vocabulary Vocabulary)> GetAsync(EntryId entryId, CancellationToken ct = default) =>
+        ((await metadata.GetAsync(entryId, ct)).Compute(), await vocabularies.GetAsync(ct));
 
     /// <summary>
     /// Saves what the user typed for a field: a list, comma-separated, for multi-value fields. Term fields resolve each
     /// value through the vocabulary, adding the user's own term when nothing matches; publishers take the vocabulary's
     /// spelling when they match one. Returns the problem instead of saving when a value can't be stored.
     /// </summary>
-    public async Task<MetadataProblem?> SetAsync(long documentId, MetadataField field, string typed, CancellationToken ct = default)
+    public async Task<MetadataProblem?> SetAsync(EntryId entryId, MetadataField field, string typed, CancellationToken ct = default)
     {
         var values = new List<string>();
         var added = false;
@@ -225,9 +235,9 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
             added |= isNew;
             values.Add(value!);
         }
-        await metadata.SetValuesAsync(documentId, field, values, ct);
+        await metadata.SetValuesAsync(entryId, field, values, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
-        await projector.ProjectAsync([documentId], ct);
+        await projector.ProjectAsync([entryId], ct);
         return null;
     }
 
@@ -257,50 +267,50 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
     }
 
     /// <summary>"Use this": an alternative becomes the value (single fields) or joins the values (multi-value fields).</summary>
-    public async Task UseAsync(long documentId, MetadataField field, string value, CancellationToken ct = default)
+    public async Task UseAsync(EntryId entryId, MetadataField field, string value, CancellationToken ct = default)
     {
-        var current = (await metadata.GetAsync(documentId, ct)).Compute()[field];
+        var current = (await metadata.GetAsync(entryId, ct)).Compute()[field];
         IReadOnlyList<string> values = field.Multiple ? [.. current.Values.Select(v => v.Value), value] : [value];
-        await metadata.SetValuesAsync(documentId, field, values, ct);
-        await projector.ProjectAsync([documentId], ct);
+        await metadata.SetValuesAsync(entryId, field, values, ct);
+        await projector.ProjectAsync([entryId], ct);
     }
 
-    public async Task ConfirmAsync(long documentId, MetadataField field, CancellationToken ct = default)
+    public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
-        await metadata.ConfirmAsync(documentId, field, ct);
-        await projector.ProjectAsync([documentId], ct);
+        await metadata.ConfirmAsync(entryId, field, ct);
+        await projector.ProjectAsync([entryId], ct);
     }
 
-    public async Task RejectAsync(long documentId, MetadataField field, string normalized, CancellationToken ct = default)
+    public async Task RejectAsync(EntryId entryId, MetadataField field, string normalized, CancellationToken ct = default)
     {
-        await metadata.RejectAsync(documentId, field, normalized, ct);
-        await projector.ProjectAsync([documentId], ct);
+        await metadata.RejectAsync(entryId, field, normalized, ct);
+        await projector.ProjectAsync([entryId], ct);
     }
 
-    public async Task ResetAsync(long documentId, MetadataField field, CancellationToken ct = default)
+    public async Task ResetAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
-        await metadata.ResetAsync(documentId, field, ct);
-        await projector.ProjectAsync([documentId], ct);
+        await metadata.ResetAsync(entryId, field, ct);
+        await projector.ProjectAsync([entryId], ct);
     }
 
-    /// <summary>Several documents' metadata, for the bulk editor. A document with none yet has <see cref="EffectiveMetadata.Empty"/>.</summary>
-    public async Task<(IReadOnlyDictionary<long, EffectiveMetadata> Metadata, Vocabulary Vocabulary)> GetManyAsync(IReadOnlyCollection<long> documentIds,
+    /// <summary>Several entries' metadata, for the bulk editor. An entry with none yet has <see cref="EffectiveMetadata.Empty"/>.</summary>
+    public async Task<(IReadOnlyDictionary<EntryId, EffectiveMetadata> Metadata, Vocabulary Vocabulary)> GetManyAsync(IReadOnlyCollection<EntryId> entryIds,
         CancellationToken ct = default)
     {
-        var all = await metadata.GetManyAsync(documentIds, ct);
-        return (documentIds.Distinct().ToDictionary(id => id, id => all.TryGetValue(id, out var m) ? m.Compute() : EffectiveMetadata.Empty),
+        var all = await metadata.GetManyAsync(entryIds, ct);
+        return (entryIds.Distinct().ToDictionary(id => id, id => all.TryGetValue(id, out var m) ? m.Compute() : EffectiveMetadata.Empty),
             await vocabularies.GetAsync(ct));
     }
 
     /// <summary>
-    /// A bulk edit (slice 4e): every change on every document, in one transaction, by the inspector's rules
+    /// A bulk edit (slice 4e): every change on every entry, in one transaction, by the inspector's rules
     /// (<see cref="MetadataStore.ApplyBulkAsync"/>). A Set or Add value is a term's key, or what was typed, which is
     /// read as <see cref="SetAsync"/> reads it: a name the vocabulary doesn't know becomes the user's own term. Remove
     /// values are stored ones, as the field shows them. Every value is checked before anything is saved. Then the
-    /// changed documents are projected a batch at a time, <paramref name="progress"/> counting them, so search sees
+    /// changed entries are projected a batch at a time, <paramref name="progress"/> counting them, so search sees
     /// the new values. Returns the problem, or what undoes the edit.
     /// </summary>
-    public async Task<(MetadataProblem? Problem, IReadOnlyList<FieldSnapshot>? Undo)> EditManyAsync(IReadOnlyCollection<long> documentIds,
+    public async Task<(MetadataProblem? Problem, IReadOnlyList<FieldSnapshot>? Undo)> EditManyAsync(IReadOnlyCollection<EntryId> entryIds,
         IReadOnlyList<BulkChange> changes, IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
     {
         if (changes.FirstOrDefault(c => c.Action is BulkAction.Set or BulkAction.Add && Check(c.Field, c.Value ?? "") is not null) is { } bad)
@@ -321,9 +331,9 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
             }
         }
 
-        var undo = await metadata.ApplyBulkAsync(documentIds, stored, ct);
+        var undo = await metadata.ApplyBulkAsync(entryIds, stored, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
-        await ProjectAsync([.. undo.Select(s => s.DocumentId).Distinct()], progress, ct);
+        await ProjectAsync([.. undo.Select(s => s.EntryId).Distinct()], progress, ct);
         return (null, undo);
     }
 
@@ -331,19 +341,19 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
     public async Task UndoManyAsync(IReadOnlyList<FieldSnapshot> undo, IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
     {
         await metadata.RestoreAsync(undo, ct);
-        await ProjectAsync([.. undo.Select(s => s.DocumentId).Distinct()], progress, ct);
+        await ProjectAsync([.. undo.Select(s => s.EntryId).Distinct()], progress, ct);
     }
 
-    /// <summary>Projects documents a batch at a time, reporting how many are done, so a large selection shows how far it has got.</summary>
-    async Task ProjectAsync(IReadOnlyList<long> documentIds, IProgress<(int Done, int Total)>? progress, CancellationToken ct)
+    /// <summary>Projects entries a batch at a time, reporting how many are done, so a large selection shows how far it has got.</summary>
+    async Task ProjectAsync(IReadOnlyList<EntryId> entryIds, IProgress<(int Done, int Total)>? progress, CancellationToken ct)
     {
         const int Batch = 100;
         var done = 0;
-        foreach (var batch in documentIds.Chunk(Batch))
+        foreach (var batch in entryIds.Chunk(Batch))
         {
             await projector.ProjectAsync(batch, ct);
             done += batch.Length;
-            progress?.Report((done, documentIds.Count));
+            progress?.Report((done, entryIds.Count));
         }
     }
 }

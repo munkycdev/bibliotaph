@@ -24,6 +24,19 @@ public enum ProtectionType
     Unsupported,
 }
 
+/// <summary>What a library card stands for (catalog entry design, choice 1).</summary>
+public enum EntryKind
+{
+    /// <summary>A book or a single image: one document, or several copies of it.</summary>
+    Whole,
+    /// <summary>An adventure inside a file: a page range of its parent entry's documents (slice 5).</summary>
+    Part,
+    /// <summary>Many images shown as one card.</summary>
+    Pack,
+    /// <summary>Owned with no file: in print or on a virtual tabletop.</summary>
+    Elsewhere,
+}
+
 /// <summary>Where a metadata value came from. Order is not priority; the effective-value policy decides that.</summary>
 public enum AssertionOrigin
 {

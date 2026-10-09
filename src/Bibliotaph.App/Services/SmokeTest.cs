@@ -193,13 +193,17 @@ static class SmokeTest
         var titles = await Task.WhenAll(documents.Select(async id => (Id: id, Title: await services.GetRequiredService<IndexQueries>().GetTitleAsync(id))));
         var lairs = titles.Single(t => t.Title == "Dragon Lairs").Id;
         var gazetteer = titles.Single(t => t.Title == "Gazetteer of the Marches").Id;
-        await metadata.AddSuggestionsAsync(lairs, [new MetadataProposal(MetadataFields.Types, "rulebook", AssertionOrigin.Ai, "the rules for lairs", [1])]);
+        var entries = await services.GetRequiredService<EntryStore>().GetEntriesAsync([lairs, gazetteer]);
+        var (lairsEntry, gazetteerEntry) = (entries[lairs].EntryId, entries[gazetteer].EntryId);
+        await metadata.AddSuggestionsAsync(lairsEntry, hashes[lairs],
+            [new MetadataProposal(MetadataFields.Types, "rulebook", AssertionOrigin.Ai, "the rules for lairs", [1])]);
         var (heist, _) = await services.GetRequiredService<VocabularyStore>().ProposeTermAsync("type", "Heist kit");
-        await metadata.AddSuggestionsAsync(gazetteer, [new MetadataProposal(MetadataFields.Types, heist.Key, AssertionOrigin.Ai, "everything a heist needs")]);
+        await metadata.AddSuggestionsAsync(gazetteerEntry, hashes[gazetteer],
+            [new MetadataProposal(MetadataFields.Types, heist.Key, AssertionOrigin.Ai, "everything a heist needs")]);
         // A model has read the lairs, so its cover has the AI spark and the filter offers "Read by AI".
-        await services.GetRequiredService<ClassificationStore>().RecordAsync(new RunRecord(lairs, hashes[lairs], "ollama", "smoke-model",
+        await services.GetRequiredService<ClassificationStore>().RecordAsync(new RunRecord(lairsEntry, hashes[lairs], "ollama", "smoke-model",
             ClassifierPrompt.Version, ClassifierPrompt.SchemaVersion, [0], DateTime.UtcNow, ClassificationStore.Complete));
-        await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairs, gazetteer]);
+        await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairsEntry, gazetteerEntry]);
     }
 
     /// <summary>
@@ -483,6 +487,9 @@ static class SmokeTest
             else image = documentId;
         }
         if (pdf == 0 || image == 0) throw new InvalidOperationException("The smoke fixtures weren't both added.");
+        // Indexing is paused, so their cards are listed here, as Probe would list them.
+        var entries = await services.GetRequiredService<EntryStore>().GetEntriesAsync([pdf, image]);
+        await services.GetRequiredService<MetadataProjector>().ProjectAsync([.. entries.Values.Select(e => e.EntryId)]);
         return (pdf, image);
     }
 
@@ -666,9 +673,9 @@ static class SmokeTest
         var libraryStore = services.GetRequiredService<LibraryStore>();
         async Task<bool> FoundAsync(string words)
         {
-            var filter = new LibraryFilter(await libraryStore.GetVisibleDocumentIdsAsync());
+            var filter = new LibraryFilter(await libraryStore.GetVisibleEntryIdsAsync());
             var hits = await Task.Run(() => queries.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter));
-            return hits.Documents.Any(d => d.Document.DocumentId == documentId);
+            return hits.Entries.Any(d => d.Entry.DocumentId == documentId);
         }
         if (await FoundAsync("midnight")) throw new InvalidOperationException("The smoke PDF was found by a word only its file has before it was reprocessed.");
 
@@ -844,7 +851,8 @@ static class SmokeTest
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == review.SaveCommand), "Save and next");
             await WaitUntilAsync(window, () => review.PositionText.Contains("answered 1", StringComparison.Ordinal),
                 () => $"Saving the answers didn't count them: {review.PositionText}");
-            var (effective, _) = await services.GetRequiredService<MetadataService>().GetAsync(inn);
+            var innEntry = await services.GetRequiredService<EntryStore>().GetEntryAsync(inn) ?? throw new InvalidOperationException("The inn has no entry.");
+            var (effective, _) = await services.GetRequiredService<MetadataService>().GetAsync(innEntry.EntryId);
             if (effective[MetadataFields.Title].First is not { Value: "The Haunted Inn", Confirmed: true })
                 throw new InvalidOperationException("The answer didn't become the book's title in the catalog.");
 

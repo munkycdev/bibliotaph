@@ -40,6 +40,7 @@ public sealed class LibraryQueriesTests : IndexFixture
             new DocRow { DocumentId = id, ContentHash = $"hash{id}", Format = format, DisplayTitle = title, PageCount = pages.Length, FolderHint = folder },
             [.. pages.Select((_, i) => new PageRow(i, (i + 1).ToString(CultureInfo.InvariantCulture), 612, 792))], [], Ct);
         await store.SetPageTextAsync(id, [.. pages.Select((text, i) => new PageTextRow(i, text, "pdf", 1, false))], Ct);
+        await AddEntriesAsync(store, id);
     }
 
     static SearchPlan Plan(string query) => SearchPlan.From(SearchQuery.Parse(query));
@@ -49,7 +50,7 @@ public sealed class LibraryQueriesTests : IndexFixture
 
     async Task<(long Doc, int Page)[]> PagesAsync(string query, LibraryFilter? filter = null) =>
         [.. (await _library.SearchPagesAsync(Plan(query), filter ?? new LibraryFilter(), ct: Ct))
-            .Documents.SelectMany(d => d.Pages.Select(p => (d.Document.DocumentId, p.PdfPage)))];
+            .Entries.SelectMany(d => d.Pages.Select(p => (d.Entry.DocumentId, p.PdfPage)))];
 
     [Fact]
     public async Task The_library_lists_newest_first_or_by_title()
@@ -66,16 +67,16 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal([TavernMap], (await _library.ListAsync(new LibraryFilter(Format: FormatFilter.Images), ct: Ct)).Select(e => e.DocumentId));
         Assert.DoesNotContain(TavernMap, (await _library.ListAsync(new LibraryFilter(Format: FormatFilter.Pdf), ct: Ct)).Select(e => e.DocumentId));
         Assert.Equal([Lairs, Gazetteer],
-            (await _library.ListAsync(new LibraryFilter(Scope: [Gazetteer, Lairs, 99]), ct: Ct)).Select(e => e.DocumentId));
+            (await _library.ListAsync(new LibraryFilter(Scope: [EntryOf(Gazetteer), EntryOf(Lairs), EntryOf(99)]), ct: Ct)).Select(e => e.DocumentId));
     }
 
     [Fact]
     public async Task The_library_marks_and_filters_books_a_model_has_read()
     {
         var store = new IndexStore(Writer, Clock);
-        await store.SetAiReadAsync(null, new Dictionary<long, string> { [Gazetteer] = "model-a", [Lairs] = "model-b" }, Ct);
-        // Reprojecting two documents: the Lairs mark goes, a new one for the inn comes, the Gazetteer's is untouched.
-        await store.SetAiReadAsync([Lairs, HauntedInn], new Dictionary<long, string> { [HauntedInn] = "model-b", [TavernMap] = "ignored" }, Ct);
+        await store.SetAiReadAsync(null, new Dictionary<EntryId, string> { [EntryOf(Gazetteer)] = "model-a", [EntryOf(Lairs)] = "model-b" }, Ct);
+        // Reprojecting two entries: the Lairs mark goes, a new one for the inn comes, the Gazetteer's is untouched.
+        await store.SetAiReadAsync([EntryOf(Lairs), EntryOf(HauntedInn)], new Dictionary<EntryId, string> { [EntryOf(HauntedInn)] = "model-b", [EntryOf(TavernMap)] = "ignored" }, Ct);
 
         var entries = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.DocumentId, e => e.AiModel);
         Assert.Equal("model-a", entries[Gazetteer]);
@@ -145,9 +146,9 @@ public sealed class LibraryQueriesTests : IndexFixture
     {
         var results = await _library.SearchPagesAsync(Plan("dragon"), new LibraryFilter(), pagesPerDocument: 1, ct: Ct);
 
-        Assert.Equal(2, results.MatchingDocuments);
+        Assert.Equal(2, results.MatchingEntries);
         Assert.Equal(3, results.MatchingPages);
-        var gazetteer = results.Documents.Single(d => d.Document.DocumentId == Gazetteer);
+        var gazetteer = results.Entries.Single(d => d.Entry.DocumentId == Gazetteer);
         Assert.Equal(2, gazetteer.MatchingPages);
         var hit = Assert.Single(gazetteer.Pages);
         Assert.Contains($"{LibraryQueries.HitStart}dragon{LibraryQueries.HitEnd}", hit.Snippet, StringComparison.Ordinal);
@@ -182,7 +183,7 @@ public sealed class LibraryQueriesTests : IndexFixture
     [Fact]
     public async Task Pages_from_ocr_say_so()
     {
-        var hit = (await _library.SearchPagesAsync(Plan("inn"), new LibraryFilter(), ct: Ct)).Documents.Single().Pages;
+        var hit = (await _library.SearchPagesAsync(Plan("inn"), new LibraryFilter(), ct: Ct)).Entries.Single().Pages;
 
         Assert.Equal([false, true], hit.OrderBy(p => p.PdfPage).Select(p => p.FromOcr));
     }
@@ -190,7 +191,7 @@ public sealed class LibraryQueriesTests : IndexFixture
     [Fact]
     public async Task Scope_and_format_apply_to_page_search_too()
     {
-        var scoped = await PagesAsync("dragon", new LibraryFilter(Scope: [Lairs]));
+        var scoped = await PagesAsync("dragon", new LibraryFilter(Scope: [EntryOf(Lairs)]));
 
         Assert.Equal([(Lairs, 1)], scoped);
         Assert.Empty(await PagesAsync("dragon", new LibraryFilter(Format: FormatFilter.Images)));
@@ -219,14 +220,14 @@ public sealed class LibraryQueriesTests : IndexFixture
     [Fact]
     public async Task Details_cover_ocr_and_stages()
     {
-        var details = await _library.GetDetailsAsync(HauntedInn, Ct);
+        var details = await _library.GetDetailsAsync(EntryOf(HauntedInn), Ct);
 
         Assert.NotNull(details);
         Assert.Equal("Haunted Inn", details.Entry.Title);
         Assert.Equal(1, details.OcrPages);
         Assert.Empty(details.Stages);
-        Assert.Equal([new StageState(Stage.Text, StageStatus.Complete, null)], (await _library.GetDetailsAsync(Gazetteer, Ct))!.Stages);
-        Assert.Null(await _library.GetDetailsAsync(42, Ct));
+        Assert.Equal([new StageState(Stage.Text, StageStatus.Complete, null)], (await _library.GetDetailsAsync(EntryOf(Gazetteer), Ct))!.Stages);
+        Assert.Null(await _library.GetDetailsAsync(EntryOf(42), Ct));
     }
 
     [Fact]

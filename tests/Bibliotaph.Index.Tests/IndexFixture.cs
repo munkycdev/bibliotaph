@@ -1,3 +1,4 @@
+using Bibliotaph.Core;
 using Microsoft.Data.Sqlite;
 
 namespace Bibliotaph.Index.Tests;
@@ -18,6 +19,16 @@ public abstract class IndexFixture : IAsyncLifetime
         Writer = new IndexWriter(Database);
         await Writer.StartAsync(TestContext.Current.CancellationToken);
     }
+
+    /// <summary>
+    /// The whole-document entry these tests give document <paramref name="documentId"/>. Its id is well above the
+    /// document's, so a query that mixes the two up fails.
+    /// </summary>
+    internal static EntryId EntryOf(long documentId) => new(documentId + 100);
+
+    /// <summary>Records each document's whole-document entry in entry_doc, as Probe does.</summary>
+    internal static Task AddEntriesAsync(IndexStore store, params long[] documentIds) =>
+        store.SetEntriesAsync([.. documentIds.Select(id => new EntryDocRow(EntryOf(id), id, EntryKind.Whole))], TestContext.Current.CancellationToken);
 
     public virtual async ValueTask DisposeAsync()
     {

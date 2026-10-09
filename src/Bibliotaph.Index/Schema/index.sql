@@ -4,7 +4,9 @@
 -- upgrade doesn't re-OCR the library), or don't, and every install deletes and rebuilds index.db on next start;
 -- documents re-queue from their hashes.
 --
--- document_id values refer to document.id in catalog.db (attached at query time, so no foreign keys).
+-- document_id values refer to document.id and entry_id values to entry.id in catalog.db (attached at query time, so no
+-- foreign keys). Pages, text and processing belong to documents; what the library lists, filters and searches is
+-- entries, each shown through its current document.
 
 -- What the Probe stage learned about each document, and its title from the file name.
 -- document_id = document.id in catalog.db.
@@ -87,10 +89,19 @@ CREATE TRIGGER page_au AFTER UPDATE OF text ON page BEGIN
     INSERT INTO page_fts (rowid, text) VALUES (new.id, new.text);
 END;
 
+-- Library cards: each entry and the document it shows (its current source), projected from catalog.db.
+CREATE TABLE entry_doc (
+    entry_id     INTEGER PRIMARY KEY,
+    document_id  INTEGER NOT NULL,
+    kind         TEXT    NOT NULL                -- Bibliotaph.Core.EntryKind
+);
+
+CREATE INDEX entry_doc_document ON entry_doc (document_id);
+
 -- Effective metadata (Bibliotaph.Core.Metadata.EffectiveMetadata), projected from catalog.db's assertions whenever they
--- change. A document without a row has no metadata beyond its file name. Labels are as cards show them.
-CREATE TABLE doc_meta (
-    document_id   INTEGER PRIMARY KEY,
+-- change. An entry without a row has no metadata beyond its document's file name. Labels are as cards show them.
+CREATE TABLE entry_meta (
+    entry_id      INTEGER PRIMARY KEY,
     title         TEXT,                          -- effective title; null shows doc.display_title
     publisher     TEXT,
     series        TEXT,
@@ -104,27 +115,27 @@ CREATE TABLE doc_meta (
     needs_review  INTEGER NOT NULL DEFAULT 0,    -- how many Needs review cards it has
     suggested     INTEGER NOT NULL DEFAULT 0,    -- shows a value nobody has confirmed
     tags          TEXT,                          -- the user's tags, joined with "; "
-    confirmed_text   TEXT,                       -- for doc_fts: labels and short labels of confirmed vocabulary values
+    confirmed_text   TEXT,                       -- for entry_fts: labels and short labels of confirmed vocabulary values
     provisional_text TEXT                        -- and of suggested ones
 );
 
 -- One row per value of a vocabulary field (system, edition, type, setting, theme, environment), for filters, facet
 -- counts and field search. value is the term key.
-CREATE TABLE doc_facet (
-    document_id  INTEGER NOT NULL,
+CREATE TABLE entry_facet (
+    entry_id     INTEGER NOT NULL,
     field        TEXT    NOT NULL,
     value        TEXT    NOT NULL,
     label        TEXT    NOT NULL,
     confirmed    INTEGER NOT NULL,
-    PRIMARY KEY (document_id, field, value)
+    PRIMARY KEY (entry_id, field, value)
 ) WITHOUT ROWID;
 
-CREATE INDEX doc_facet_value ON doc_facet (field, value);
+CREATE INDEX entry_facet_value ON entry_facet (field, value);
 
--- Documents a model has finished reading, with the model of the latest run, projected from catalog.db's
--- classification runs. A document is one version of a file's content, so a changed file isn't here until it is read.
-CREATE TABLE doc_ai (
-    document_id  INTEGER PRIMARY KEY,
+-- Entries a model has finished reading, with the model of the latest run, projected from catalog.db's classification
+-- runs.
+CREATE TABLE entry_ai (
+    entry_id     INTEGER PRIMARY KEY,
     model        TEXT    NOT NULL
 );
 
@@ -137,11 +148,11 @@ CREATE TABLE term_alias (
     PRIMARY KEY (vocabulary, alias, value)
 ) WITHOUT ROWID;
 
--- Documents search over titles and effective metadata. rowid = document_id.
+-- Documents search over titles and effective metadata. rowid = entry_id.
 -- Confirmed and provisional values sit in separate columns so ranking can prefer confirmed ones: confirmed holds the
 -- labels of confirmed vocabulary values, provisional the suggested ones plus the PDF's own information, the file
 -- name's title and the folder names.
-CREATE VIRTUAL TABLE doc_fts USING fts5(
+CREATE VIRTUAL TABLE entry_fts USING fts5(
     title,
     subtitle,
     publisher,
@@ -187,4 +198,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;

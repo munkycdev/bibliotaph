@@ -35,10 +35,11 @@ public sealed record PilotAnswer(string Typed, bool NotInBook);
 /// <summary>
 /// The model pilot (slice 2d): picks the books, runs each model over them into pilot.db with the Classify lane paused,
 /// takes the user's answers on the review page (and, by choice, into the catalog), and scores the models into a report.
-/// None of it runs unless the app starts with --pilot.
+/// None of it runs unless the app starts with --pilot. pilot.db keys books by document, since a model reads one copy
+/// of a book; the catalog's values for a book are its entry's.
 /// </summary>
 public sealed class PilotService(
-    PilotStore store, AiSettings ai, IndexingService indexing, IndexQueries queries, LibraryStore library, ClassifierInputs inputs,
+    PilotStore store, AiSettings ai, IndexingService indexing, IndexQueries queries, LibraryStore library, EntryStore entries, ClassifierInputs inputs,
     MetadataService metadata, VocabularyStore vocabularies, TimeProvider? clock = null, ILogger<PilotService>? log = null)
 {
     /// <summary>The models the plan names (choice P3); Settings lets the user change the list.</summary>
@@ -234,7 +235,7 @@ public sealed class PilotService(
     /// </summary>
     public async Task<PilotBookReview> GetReviewAsync(PilotBook book, CancellationToken ct = default)
     {
-        var (effective, vocabulary) = await metadata.GetAsync(book.DocumentId, ct);
+        var (effective, vocabulary) = await metadata.GetAsync(await EntryOfAsync(book.DocumentId, ct), ct);
         var matcher = new PilotMatcher(vocabulary);
         var proposals = (await store.GetProposalsAsync(book.DocumentId, ct)).Where(p => p.Kept).ToList();
         var answers = (await store.GetAnswersAsync(ct)).GetValueOrDefault(book.DocumentId);
@@ -296,10 +297,14 @@ public sealed class PilotService(
         }
         await store.SaveAnswersAsync(documentId, stored, ct);
         if (!alsoCatalog) return null;
+        var entry = await EntryOfAsync(documentId, ct);
         foreach (var (field, answer) in answers.Where(a => !a.Value.NotInBook && stored.ContainsKey(a.Key.Key)))
-            if (await metadata.SetAsync(documentId, field, answer.Typed, ct) is { } problem) return problem;
+            if (await metadata.SetAsync(entry, field, answer.Typed, ct) is { } problem) return problem;
         return null;
     }
+
+    async Task<EntryId> EntryOfAsync(long documentId, CancellationToken ct) =>
+        (await entries.GetEntryAsync(documentId, ct))?.EntryId ?? throw new InvalidOperationException($"Document {documentId} has no entry.");
 
     /// <summary>Scores every model that has read any book on the list against the answers so far.</summary>
     public async Task<IReadOnlyList<PilotModelScore>> ScoreAsync(CancellationToken ct = default)

@@ -71,7 +71,7 @@ public class SearchGuideTests
     public void Closed_fields_are_the_vocabulary_ones_and_format()
     {
         Assert.Equal(["system", "edition", "type", "setting", "theme", "environment", "format"], SearchFields.All.Where(f => f.ListsValues).Select(f => f.Name));
-        // A Term field's values are its catalog field's vocabulary, which is also its doc_facet field.
+        // A Term field's values are its catalog field's vocabulary, which is also its entry_facet field.
         Assert.All(SearchFields.All.Where(f => f.Kind == SearchFieldKind.Term),
             f => Assert.True(f.Metadata is { Kind: FieldKind.Term, Vocabulary: not null } m && m.Vocabulary == m.Key, f.Name));
     }

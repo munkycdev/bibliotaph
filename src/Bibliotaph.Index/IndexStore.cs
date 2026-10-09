@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Bibliotaph.Core;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
@@ -33,8 +34,11 @@ public sealed record PageTextRow(int PdfPage, string Text, string Source, double
 /// <summary>An OCR'd word with its box in PDF points, origin bottom-left.</summary>
 public sealed record OcrWordRow(string Text, double Left, double Top, double Right, double Bottom);
 
+/// <summary>A library card: an entry and the document it shows.</summary>
+public sealed record EntryDocRow(EntryId EntryId, long DocumentId, EntryKind Kind);
+
 /// <summary>One value of a vocabulary field: a term key and its label.</summary>
-public sealed record DocFacetRow(string Field, string Value, string Label, bool Confirmed);
+public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed);
 
 /// <summary>Whether a document's levels are known, known not to apply, or unknown.</summary>
 public enum LevelState
@@ -45,12 +49,12 @@ public enum LevelState
 }
 
 /// <summary>
-/// A document's effective metadata as index.db holds it for listing, filtering and search. The metadata projector
+/// An entry's effective metadata as index.db holds it for listing, filtering and search. The metadata projector
 /// builds these from catalog.db; nothing else writes them.
 /// </summary>
-public sealed record DocMetaRow
+public sealed record EntryMetaRow
 {
-    public required long DocumentId { get; init; }
+    public required EntryId EntryId { get; init; }
     public string? Title { get; init; }
     public string? Publisher { get; init; }
     public string? Series { get; init; }
@@ -61,20 +65,21 @@ public sealed record DocMetaRow
     public int? LevelMin { get; init; }
     public int? LevelMax { get; init; }
     public LevelState Levels { get; init; }
-    /// <summary>How many Needs review cards the document has (<see cref="Core.Metadata.MetadataReview"/>).</summary>
+    /// <summary>How many Needs review cards the entry has (<see cref="Core.Metadata.MetadataReview"/>).</summary>
     public int Reviews { get; init; }
     public bool Suggested { get; init; }
     public string? Tags { get; init; }
     public string? ConfirmedText { get; init; }
     public string? ProvisionalText { get; init; }
-    public IReadOnlyList<DocFacetRow> Facets { get; init; } = [];
+    public IReadOnlyList<FacetRow> Facets { get; init; } = [];
 }
 
 /// <summary>A name a vocabulary term goes by, in comparison form, for field search.</summary>
 public sealed record TermAliasRow(string Vocabulary, string Alias, string Value);
 
 /// <summary>
-/// Pipeline writes to index.db: documents, pages, page text, OCR words and covers. Everything goes through the
+/// Pipeline writes to index.db: documents, pages, page text, OCR words and covers, and the projection of entries and
+/// their metadata from catalog.db. Everything goes through the
 /// <see cref="IndexWriter"/>; page inserts and updates reuse one prepared command per batch.
 /// </summary>
 public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
@@ -119,7 +124,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.FolderHint,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
-            RefreshDocSearch(c, t, doc.DocumentId);
+            RefreshDocumentSearch(c, t, doc.DocumentId);
 
             using (var insert = c.CreateCommand())
             {
@@ -220,22 +225,42 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
     /// <summary>
-    /// Replaces the projected metadata of these documents: their doc_meta row (deleted when the document has no
-    /// metadata), their facets, and their doc_fts row.
+    /// Records which document each of these entries shows, and refreshes their entry_fts rows, which take the
+    /// document's file name, PDF information and folders.
     /// </summary>
-    public Task SetMetadataAsync(IReadOnlyList<DocMetaRow> rows, CancellationToken ct = default) =>
+    public Task SetEntriesAsync(IReadOnlyList<EntryDocRow> entries, CancellationToken ct = default) =>
+        entries.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            foreach (var entry in entries)
+            {
+                c.Execute(
+                    """
+                    INSERT INTO entry_doc (entry_id, document_id, kind) VALUES (@entryId, @documentId, @kind)
+                    ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind
+                    """,
+                    new { entryId = entry.EntryId.Value, documentId = entry.DocumentId, kind = entry.Kind.ToString() }, t);
+                RefreshEntrySearch(c, t, entry.EntryId.Value);
+            }
+        }, ct);
+
+    /// <summary>
+    /// Replaces the projected metadata of these entries: their entry_meta row (deleted when the entry has no
+    /// metadata), their facets, and their entry_fts row.
+    /// </summary>
+    public Task SetMetadataAsync(IReadOnlyList<EntryMetaRow> rows, CancellationToken ct = default) =>
         rows.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
         {
             foreach (var row in rows)
             {
-                c.Execute("DELETE FROM doc_facet WHERE document_id = @DocumentId", new { row.DocumentId }, t);
+                var entryId = row.EntryId.Value;
+                c.Execute("DELETE FROM entry_facet WHERE entry_id = @entryId", new { entryId }, t);
                 c.Execute(
                     """
-                    INSERT INTO doc_meta (document_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
+                    INSERT INTO entry_meta (entry_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
                                           level_state, needs_review, suggested, tags, confirmed_text, provisional_text)
-                    VALUES (@DocumentId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
+                    VALUES (@entryId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
                             @levelState, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
-                    ON CONFLICT (document_id) DO UPDATE SET
+                    ON CONFLICT (entry_id) DO UPDATE SET
                         title = excluded.title, publisher = excluded.publisher, series = excluded.series, authors = excluded.authors,
                         year = excluded.year, system_label = excluded.system_label, kind_label = excluded.kind_label,
                         level_min = excluded.level_min, level_max = excluded.level_max, level_state = excluded.level_state,
@@ -244,7 +269,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     """,
                     new
                     {
-                        row.DocumentId,
+                        entryId,
                         row.Title,
                         row.Publisher,
                         row.Series,
@@ -261,34 +286,34 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.ConfirmedText,
                         row.ProvisionalText,
                     }, t);
-                c.Execute("INSERT INTO doc_facet (document_id, field, value, label, confirmed) VALUES (@DocumentId, @Field, @Value, @Label, @Confirmed)",
-                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { row.DocumentId, f.Field, f.Value, f.Label, f.Confirmed }), t);
-                RefreshDocSearch(c, t, row.DocumentId);
+                c.Execute("INSERT INTO entry_facet (entry_id, field, value, label, confirmed) VALUES (@entryId, @Field, @Value, @Label, @Confirmed)",
+                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { entryId, f.Field, f.Value, f.Label, f.Confirmed }), t);
+                RefreshEntrySearch(c, t, entryId);
             }
         }, ct);
 
     /// <summary>
-    /// Records which of <paramref name="documentIds"/> a model has read, and with which model, from
-    /// <paramref name="readBy"/>; those not in it are no longer marked. With no ids, replaces every document's mark.
+    /// Records which of <paramref name="entryIds"/> a model has read, and with which model, from
+    /// <paramref name="readBy"/>; those not in it are no longer marked. With no ids, replaces every entry's mark.
     /// </summary>
-    public Task SetAiReadAsync(IReadOnlyCollection<long>? documentIds, IReadOnlyDictionary<long, string> readBy, CancellationToken ct = default) =>
-        documentIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+    public Task SetAiReadAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyDictionary<EntryId, string> readBy, CancellationToken ct = default) =>
+        entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
         {
-            if (documentIds is null) c.Execute("DELETE FROM doc_ai", transaction: t);
-            else c.Execute("DELETE FROM doc_ai WHERE document_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(documentIds) }, t);
-            c.Execute("INSERT INTO doc_ai (document_id, model) VALUES (@Key, @Value)",
-                readBy.Where(r => documentIds is null || documentIds.Contains(r.Key)), t);
+            if (entryIds is null) c.Execute("DELETE FROM entry_ai", transaction: t);
+            else c.Execute("DELETE FROM entry_ai WHERE entry_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(entryIds) }, t);
+            c.Execute("INSERT INTO entry_ai (entry_id, model) VALUES (@entryId, @model)",
+                readBy.Where(r => entryIds is null || entryIds.Contains(r.Key)).Select(r => new { entryId = r.Key.Value, model = r.Value }), t);
         }, ct);
 
-    /// <summary>Drops the projected metadata of documents that no longer have any.</summary>
-    public Task ClearMetadataAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default) =>
-        documentIds.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+    /// <summary>Drops the projected metadata of entries that no longer have any.</summary>
+    public Task ClearMetadataAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default) =>
+        entryIds.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
         {
-            foreach (var id in documentIds)
+            foreach (var id in entryIds.Select(e => e.Value))
             {
-                c.Execute("DELETE FROM doc_meta WHERE document_id = @id", new { id }, t);
-                c.Execute("DELETE FROM doc_facet WHERE document_id = @id", new { id }, t);
-                RefreshDocSearch(c, t, id);
+                c.Execute("DELETE FROM entry_meta WHERE entry_id = @id", new { id }, t);
+                c.Execute("DELETE FROM entry_facet WHERE entry_id = @id", new { id }, t);
+                RefreshEntrySearch(c, t, id);
             }
         }, ct);
 
@@ -307,24 +332,32 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         _ => "unknown",
     };
 
-    /// <summary>
-    /// Rebuilds a document's doc_fts row from its doc row and projected metadata. The effective title is the title;
-    /// the file name's title, the PDF's own information and the folder names are provisional text.
-    /// </summary>
-    static void RefreshDocSearch(SqliteConnection c, SqliteTransaction t, long documentId)
+    /// <summary>Rebuilds the entry_fts rows of the entries that show <paramref name="documentId"/>.</summary>
+    static void RefreshDocumentSearch(SqliteConnection c, SqliteTransaction t, long documentId)
     {
-        c.Execute("DELETE FROM doc_fts WHERE rowid = @documentId", new { documentId }, t);
+        foreach (var entryId in c.Query<long>("SELECT entry_id FROM entry_doc WHERE document_id = @documentId", new { documentId }, t).ToList())
+            RefreshEntrySearch(c, t, entryId);
+    }
+
+    /// <summary>
+    /// Rebuilds an entry's entry_fts row from its document's doc row and its projected metadata. The effective title
+    /// is the title; the file name's title, the PDF's own information and the folder names are provisional text. An
+    /// entry whose document Probe hasn't reached has no row yet.
+    /// </summary>
+    static void RefreshEntrySearch(SqliteConnection c, SqliteTransaction t, long entryId)
+    {
+        c.Execute("DELETE FROM entry_fts WHERE rowid = @entryId", new { entryId }, t);
         c.Execute(
             """
-            INSERT INTO doc_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
-            SELECT d.document_id, coalesce(m.title, d.display_title), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
+            INSERT INTO entry_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
+            SELECT e.entry_id, coalesce(m.title, d.display_title), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
                    coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), '', coalesce(m.confirmed_text, ''),
                    coalesce(m.provisional_text, '') || ' · ' || coalesce(d.meta_title, '') || ' · ' || coalesce(d.meta_author, '') || ' · '
                        || coalesce(d.meta_keywords, '') || ' · ' || coalesce(d.folder_hint, '')
                        || CASE WHEN m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
-            FROM doc d LEFT JOIN doc_meta m ON m.document_id = d.document_id
-            WHERE d.document_id = @documentId
+            FROM entry_doc e JOIN doc d ON d.document_id = e.document_id LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
+            WHERE e.entry_id = @entryId
             """,
-            new { documentId }, t);
+            new { entryId }, t);
     }
 }

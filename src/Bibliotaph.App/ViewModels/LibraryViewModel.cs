@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
@@ -56,7 +57,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly ReaderWindows _readers;
     readonly IndexingService _indexing;
     readonly ILogger<LibraryViewModel> _log;
-    readonly Dictionary<long, LibraryItemViewModel> _known = [];
+    readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
     int _version;
     bool _loaded;
@@ -387,7 +388,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         var version = ++_version;
         try
         {
-            var scope = await _library.GetVisibleDocumentIdsAsync(FolderChoice.Value);
+            var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
             var filter = new LibraryFilter(scope, FormatChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
@@ -496,12 +497,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             return;
         }
 
-        Hits = [.. pages.Documents.Select(d => new DocumentHitsViewModel(Item(d.Document), [.. d.Pages.Select(p => new PageHitViewModel(p))], d.MatchingPages))];
+        Hits = [.. pages.Entries.Select(d => new DocumentHitsViewModel(Item(d.Entry), [.. d.Pages.Select(p => new PageHitViewModel(p))], d.MatchingPages))];
         CountText = pages.MatchingPages.ToString("N0", CultureInfo.CurrentCulture);
-        CountLabel = $"matching {(pages.MatchingPages == 1 ? "page" : "pages")} in {pages.MatchingDocuments.ToString("N0", CultureInfo.CurrentCulture)} "
-            + $"{(pages.MatchingDocuments == 1 ? "document" : "documents")} {forQuery}";
-        if (pages.Documents.Count < pages.MatchingDocuments)
-            CountLabel += $", best {pages.Documents.Count.ToString("N0", CultureInfo.CurrentCulture)} shown";
+        CountLabel = $"matching {(pages.MatchingPages == 1 ? "page" : "pages")} in {pages.MatchingEntries.ToString("N0", CultureInfo.CurrentCulture)} "
+            + $"{(pages.MatchingEntries == 1 ? "document" : "documents")} {forQuery}";
+        if (pages.Entries.Count < pages.MatchingEntries)
+            CountLabel += $", best {pages.Entries.Count.ToString("N0", CultureInfo.CurrentCulture)} shown";
         if (plan.TextMatch is null)
             SetEmpty(("Inside documents looks for words.", "Add a word to search the pages, or see the matching books on the Documents tab.",
                 "Show documents", ShowDocumentsCommand));
@@ -533,12 +534,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     LibraryItemViewModel Item(LibraryEntry entry)
     {
-        if (_known.TryGetValue(entry.DocumentId, out var item))
+        if (_known.TryGetValue(entry.EntryId, out var item))
         {
             item.Update(entry);
             return item;
         }
-        return _known[entry.DocumentId] = new LibraryItemViewModel(entry, _covers);
+        return _known[entry.EntryId] = new LibraryItemViewModel(entry, _covers);
     }
 
     /// <summary>
@@ -631,7 +632,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     ViewerRequest PageRequest(PageHitViewModel page)
     {
-        var title = _known.TryGetValue(page.Hit.DocumentId, out var item) ? item.Title : "";
+        var title = _known.TryGetValue(page.Hit.EntryId, out var item) ? item.Title : "";
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
@@ -723,7 +724,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var bulk = await BulkEditViewModel.LoadAsync(Selection.DocumentIds, _metadata);
+            var bulk = await BulkEditViewModel.LoadAsync(Selection.EntryIds, _metadata);
             bulk.Closed += async (_, result) => await BulkEditClosedAsync(result);
             Inspector = null;
             BulkEdit = bulk;

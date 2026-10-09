@@ -30,12 +30,12 @@ static class SearchMeasurement
         var queries = services.GetRequiredService<LibraryQueries>();
         try
         {
-            var visible = await library.GetVisibleDocumentIdsAsync();
+            var visible = await library.GetVisibleEntryIdsAsync();
             Log.Information("Measuring search over {Documents} documents, {Runs} runs per query", visible.Count, Runs);
             var all = new List<double>();
 
             var (browse, listed) = await TimeAsync(async () =>
-                $"{(await queries.ListAsync(new LibraryFilter(await library.GetVisibleDocumentIdsAsync()))).Count} documents");
+                $"{(await queries.ListAsync(new LibraryFilter(await library.GetVisibleEntryIdsAsync()))).Count} documents");
             Report("(browse the library)", browse, listed);
 
             foreach (var text in Queries)
@@ -43,7 +43,7 @@ static class SearchMeasurement
                 var plan = SearchPlan.From(SearchQuery.Parse(text));
                 var (times, found) = await TimeAsync(async () =>
                 {
-                    var filter = new LibraryFilter(await library.GetVisibleDocumentIdsAsync());
+                    var filter = new LibraryFilter(await library.GetVisibleEntryIdsAsync());
                     var documents = Task.Run(() => queries.SearchDocumentsAsync(plan, filter));
                     var pages = Task.Run(() => queries.SearchPagesAsync(plan, filter));
                     return $"{(await documents).Count} documents, {(await pages).MatchingPages} pages";

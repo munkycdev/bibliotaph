@@ -131,7 +131,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Records a location's hash and links it to the document with that content, creating the document when the
-    /// content is new. Returns null when the file changed while it was being hashed (the next scan picks it up).
+    /// content is new, with a whole-document entry for its library card. Returns null when the file changed while it
+    /// was being hashed (the next scan picks it up).
     /// </summary>
     public async Task<(long DocumentId, bool IsNew)?> AttachHashAsync(UnhashedFile file, ContentHash hash, CancellationToken ct = default)
     {
@@ -141,7 +142,12 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
         var document = await db.Documents.FirstOrDefaultAsync(d => d.ContentHash == hash.Hex, ct);
         var isNew = document is null;
-        document ??= db.Documents.Add(new Document { ContentHash = hash.Hex, Format = file.Format, CreatedUtc = _clock.GetUtcNow().UtcDateTime }).Entity;
+        if (document is null)
+        {
+            var now = _clock.GetUtcNow().UtcDateTime;
+            document = db.Documents.Add(new Document { ContentHash = hash.Hex, Format = file.Format, CreatedUtc = now }).Entity;
+            db.EntrySources.Add(new EntrySource { Entry = new Entry { Kind = EntryKind.Whole, CreatedUtc = now }, Document = document, IsCurrent = true });
+        }
         location.ContentHash = hash.Hex;
         location.Document = document;
         await db.SaveChangesAsync(ct);
@@ -219,16 +225,18 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// The documents the library shows: those with a file that isn't missing, in a folder the user hasn't removed
-    /// (an offline folder's books stay). With <paramref name="rootId"/>, only that folder's.
+    /// The entries the library shows: those backed by a document with a file that isn't missing, in a folder the user
+    /// hasn't removed (an offline folder's books stay). With <paramref name="rootId"/>, only that folder's.
     /// </summary>
-    public async Task<IReadOnlyList<long>> GetVisibleDocumentIdsAsync(long? rootId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EntryId>> GetVisibleEntryIdsAsync(long? rootId = null, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var locations = db.FileLocations.Where(f =>
             f.DocumentId != null && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
         if (rootId is { } id) locations = locations.Where(f => f.SourceRootId == id);
-        return await locations.Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
+        var documents = locations.Select(f => f.DocumentId!.Value);
+        var entries = await db.EntrySources.Where(s => documents.Contains(s.DocumentId)).Select(s => s.EntryId).Distinct().ToListAsync(ct);
+        return [.. entries.Select(e => new EntryId(e))];
     }
 
     /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>

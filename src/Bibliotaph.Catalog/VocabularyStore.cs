@@ -175,14 +175,14 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
         await using var db = await contexts.CreateDbContextAsync(ct);
         var terms = await db.VocabularyTerms.AsNoTracking().Where(t => t.State == TermState.Pending).OrderBy(t => t.Id).ToListAsync(ct);
         var waiting = await db.Assertions.AsNoTracking().Where(a => a.State == AssertionState.AwaitingTerm)
-            .Select(a => new { a.Field, a.NormalizedValue, a.DocumentId, a.EvidenceQuote }).ToListAsync(ct);
+            .Select(a => new { a.Field, a.NormalizedValue, a.EntryId, a.EvidenceQuote }).ToListAsync(ct);
         var pending = new List<PendingTerm>();
         foreach (var term in terms)
         {
             if (MetadataFields.ForVocabulary(term.Vocabulary) is not { } field) continue;
             var uses = waiting.Where(a => a.Field == field.Key && a.NormalizedValue == term.Key).ToList();
             if (uses.Count == 0) continue;
-            pending.Add(new PendingTerm(term.Id, ToTerm(term), field, uses.Select(u => u.DocumentId).Distinct().Count(),
+            pending.Add(new PendingTerm(term.Id, ToTerm(term), field, uses.Select(u => u.EntryId).Distinct().Count(),
                 uses.Select(u => u.EvidenceQuote).FirstOrDefault(q => !string.IsNullOrWhiteSpace(q))));
         }
         return pending;
@@ -211,7 +211,7 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
         var field = MetadataFields.ForVocabulary(term.Vocabulary) ?? throw new InvalidOperationException($"No field uses the {term.Vocabulary} vocabulary.");
         var rows = await db.Assertions.Where(a => a.State == AssertionState.AwaitingTerm && a.Field == field.Key && a.NormalizedValue == term.Key).ToListAsync(ct);
         var decision = new TermDecision(term.Id, [.. rows.Select(r => new TermDecision.Row(r.Id, r.ValueJson, r.NormalizedValue))],
-            [.. rows.Select(r => r.DocumentId).Distinct()]);
+            [.. rows.Select(r => new EntryId(r.EntryId)).Distinct()]);
         var now = _clock.GetUtcNow().UtcDateTime;
 
         VocabularyTerm? into = null;
@@ -425,8 +425,8 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
 /// <summary>A pending term in Needs review: the field it would fill, how many documents wait on it, and a quote.</summary>
 public sealed record PendingTerm(long Id, Term Term, MetadataField Field, int Documents, string? Example);
 
-/// <summary>What deciding a pending term changed, so it can be undone, and the documents to project again.</summary>
-public sealed record TermDecision(long TermId, IReadOnlyList<TermDecision.Row> Rows, IReadOnlyList<long> DocumentIds, long? AddedAliasId = null)
+/// <summary>What deciding a pending term changed, so it can be undone, and the entries to project again.</summary>
+public sealed record TermDecision(long TermId, IReadOnlyList<TermDecision.Row> Rows, IReadOnlyList<EntryId> EntryIds, long? AddedAliasId = null)
 {
     public sealed record Row(long Id, string ValueJson, string Normalized);
 }

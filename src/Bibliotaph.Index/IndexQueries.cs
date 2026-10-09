@@ -122,38 +122,44 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT display_title FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
     }
 
-    /// <summary>How many of <paramref name="documentIds"/> are searchable, as <see cref="IndexProgress.Searchable"/> counts them.</summary>
-    public async Task<long> CountSearchableAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    /// <summary>
+    /// How many of <paramref name="entryIds"/> are searchable: the document each shows is, as
+    /// <see cref="IndexProgress.Searchable"/> counts documents.
+    /// </summary>
+    public async Task<long> CountSearchableAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
-        if (documentIds.Count == 0) return 0;
+        if (entryIds.Count == 0) return 0;
         await using var connection = database.OpenRead();
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             """
-            SELECT count(*) FROM stage_status
-            WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped') AND document_id IN (SELECT value FROM json_each(@ids))
+            SELECT count(*) FROM entry_doc e JOIN stage_status s ON s.document_id = e.document_id
+            WHERE s.stage = 'Text' AND s.status IN ('Complete', 'Partial', 'Skipped') AND e.entry_id IN (SELECT value FROM json_each(@ids))
             """,
-            new { ids = JsonSerializer.Serialize(documentIds) }, cancellationToken: ct));
+            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
     }
 
-    /// <summary>The documents with Needs review cards, by title, and how many cards each has.</summary>
-    public async Task<IReadOnlyList<(long DocumentId, string Title, int Reviews)>> GetReviewDocumentsAsync(CancellationToken ct = default)
+    /// <summary>
+    /// The entries with Needs review cards, by title, with the document each shows (null before Probe has added it)
+    /// and how many cards each has.
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId EntryId, long? DocumentId, string Title, int Reviews)>> GetReviewEntriesAsync(CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
-        var rows = await connection.QueryAsync<(long DocumentId, string? Title, long Reviews)>(new CommandDefinition(
+        var rows = await connection.QueryAsync<(long EntryId, long? DocumentId, string? Title, long Reviews)>(new CommandDefinition(
             """
-            SELECT m.document_id, coalesce(m.title, d.display_title), m.needs_review
-            FROM doc_meta m LEFT JOIN doc d ON d.document_id = m.document_id
+            SELECT m.entry_id, e.document_id, coalesce(m.title, d.display_title), m.needs_review
+            FROM entry_meta m LEFT JOIN entry_doc e ON e.entry_id = m.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
             WHERE m.needs_review > 0
-            ORDER BY coalesce(m.title, d.display_title) COLLATE NOCASE, m.document_id
+            ORDER BY coalesce(m.title, d.display_title) COLLATE NOCASE, m.entry_id
             """, cancellationToken: ct));
-        return [.. rows.Select(r => (r.DocumentId, r.Title ?? $"Document {r.DocumentId}", (int)r.Reviews))];
+        return [.. rows.Select(r => (new EntryId(r.EntryId), r.DocumentId, r.Title ?? $"Document {r.EntryId}", (int)r.Reviews))];
     }
 
-    /// <summary>How many Needs review cards documents have, in all.</summary>
+    /// <summary>How many Needs review cards entries have, in all.</summary>
     public async Task<long> CountReviewsAsync(CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
-        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT coalesce(sum(needs_review), 0) FROM doc_meta", cancellationToken: ct));
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT coalesce(sum(needs_review), 0) FROM entry_meta", cancellationToken: ct));
     }
 
     /// <summary>A document's embedded information, or null before Probe has added it.</summary>
@@ -231,7 +237,8 @@ public sealed class IndexQueries(IndexDatabase database)
         return [.. (await connection.QueryAsync<PilotCandidateRow>(new CommandDefinition(
             """
             SELECT d.document_id AS DocumentId, coalesce(d.folder_hint, '') AS Folder,
-                   (SELECT min(f.value) FROM doc_facet f WHERE f.document_id = d.document_id AND f.field = 'system') AS System
+                   (SELECT min(f.value) FROM entry_facet f JOIN entry_doc e ON e.entry_id = f.entry_id
+                    WHERE e.document_id = d.document_id AND f.field = 'system') AS System
             FROM doc d
             WHERE d.format = 'pdf'
               AND (SELECT count(*) FROM page p WHERE p.document_id = d.document_id AND length(p.text) > 200) >= @minPages
@@ -248,12 +255,12 @@ public sealed class IndexQueries(IndexDatabase database)
         public string? System { get; init; }
     }
 
-    /// <summary>Every document Probe has added, and those with projected metadata.</summary>
-    public async Task<(IReadOnlyList<long> Documents, IReadOnlyList<long> WithMetadata)> GetDocumentIdsAsync(CancellationToken ct = default)
+    /// <summary>The entries index.db has cards for, and those with projected metadata.</summary>
+    public async Task<(IReadOnlyList<EntryId> Entries, IReadOnlyList<EntryId> WithMetadata)> GetEntryIdsAsync(CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
-        var documents = await connection.QueryAsync<long>(new CommandDefinition("SELECT document_id FROM doc", cancellationToken: ct));
-        var withMetadata = await connection.QueryAsync<long>(new CommandDefinition("SELECT document_id FROM doc_meta", cancellationToken: ct));
-        return ([.. documents], [.. withMetadata]);
+        var entries = await connection.QueryAsync<long>(new CommandDefinition("SELECT entry_id FROM entry_doc", cancellationToken: ct));
+        var withMetadata = await connection.QueryAsync<long>(new CommandDefinition("SELECT entry_id FROM entry_meta", cancellationToken: ct));
+        return ([.. entries.Select(e => new EntryId(e))], [.. withMetadata.Select(e => new EntryId(e))]);
     }
 }

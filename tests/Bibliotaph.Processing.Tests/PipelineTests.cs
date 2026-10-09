@@ -29,6 +29,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     IndexQueries _queries = null!;
     SourceRootStore _roots = null!;
     LibraryStore _libraryStore = null!;
+    EntryStore _entries = null!;
     IndexingService _service = null!;
     MetadataService _metadata = null!;
     MetadataStore _metadataStore = null!;
@@ -59,24 +60,25 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _queries = new IndexQueries(_index);
         _roots = new SourceRootStore(contexts);
         var library = _libraryStore = new LibraryStore(contexts);
+        var entries = _entries = new EntryStore(contexts);
         var queue = new JobBoard(_writer, _index);
         var reader = new SourceFileReader();
         var index = new IndexStore(_writer);
-        var services = new StageServices(library, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords());
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
         _runs = new ClassificationStore(contexts);
-        var projector = _projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries, _settings, runs: _runs);
+        var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
-        var hints = new MetadataHints(library, _queries, _metadataStore, vocabulary, projector);
+        var hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
-            new ClassificationResults(_runs, _metadataStore, vocabulary, projector));
+            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector));
         _service = new IndexingService(_roots, library, queue,
             [new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify],
             new FileHasher(reader), new DiskSpace(),
@@ -152,9 +154,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
 
         // The Library's own search finds it too, over the documents catalog.db says are visible.
         var search = new LibraryQueries(_index);
-        var filter = new LibraryFilter(await _libraryStore.GetVisibleDocumentIdsAsync(ct: Ct));
+        var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
         var hits = await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse("owlbear")), filter, ct: Ct);
-        var hit = Assert.Single(Assert.Single(hits.Documents).Pages);
+        var hit = Assert.Single(Assert.Single(hits.Entries).Pages);
         Assert.Equal(SyntheticPdfs.KnownPhrasePage, hit.PdfPage);
         Assert.Contains($"{LibraryQueries.HitStart}owlbear{LibraryQueries.HitEnd}", hit.Snippet, StringComparison.Ordinal);
         Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("format:png")), filter, ct: Ct),
@@ -256,18 +258,18 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
         Assert.Equal(("D&D 5e", "Adventure", "Levels 1–3"), (entry.System, entry.Kind, entry.Levels));
         Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("system:5e type:adventure level:2")), new LibraryFilter(), ct: Ct),
-            e => e.DocumentId == entry.DocumentId);
-        var metadata = (await _metadataStore.GetAsync(entry.DocumentId, Ct)).Compute();
+            e => e.EntryId == entry.EntryId);
+        var metadata = (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute();
         Assert.Equal(AssertionOrigin.Folder, metadata[Core.Metadata.MetadataFields.Edition].First!.Origin);
 
         // The user says it is a bestiary, not an adventure.
-        Assert.Null(await _metadata.SetAsync(entry.DocumentId, Core.Metadata.MetadataFields.Types, "Bestiary", Ct));
+        Assert.Null(await _metadata.SetAsync(entry.EntryId, Core.Metadata.MetadataFields.Types, "Bestiary", Ct));
         Assert.Equal("Bestiary", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
 
         // index.db loses its metadata and hint jobs, as a rebuild would; the hints run again on the next start.
         await _service.StopAsync(Ct);
         await _writer.WriteAsync((c, t) => c.Execute(
-            "DELETE FROM doc_meta; DELETE FROM doc_facet; DELETE FROM job WHERE stage = 'RuleHints'; DELETE FROM stage_status WHERE stage = 'RuleHints';", transaction: t), Ct);
+            "DELETE FROM entry_meta; DELETE FROM entry_facet; DELETE FROM job WHERE stage = 'RuleHints'; DELETE FROM stage_status WHERE stage = 'RuleHints';", transaction: t), Ct);
         await _service.StartAsync(Ct);
         await SettleAsync();
 
@@ -283,18 +285,19 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await _service.StartAsync(Ct);
         await SettleAsync();
         var search = new LibraryQueries(_index);
-        var id = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).DocumentId;
+        var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        var (id, entryId) = (book.DocumentId, book.EntryId);
 
         // The user keeps the folder's edition, says it isn't an adventure, and adds a tag of their own. (Notes, which
         // arrive in slice 3, are user data in catalog.db like these.)
-        await _metadata.ConfirmAsync(id, Core.Metadata.MetadataFields.Edition, Ct);
-        await _metadata.RejectAsync(id, Core.Metadata.MetadataFields.Types, "adventure", Ct);
-        Assert.Null(await _metadata.SetAsync(id, Core.Metadata.MetadataFields.Tags, "Friday game", Ct));
+        await _metadata.ConfirmAsync(entryId, Core.Metadata.MetadataFields.Edition, Ct);
+        await _metadata.RejectAsync(entryId, Core.Metadata.MetadataFields.Types, "adventure", Ct);
+        Assert.Null(await _metadata.SetAsync(entryId, Core.Metadata.MetadataFields.Tags, "Friday game", Ct));
         // The phrase's page comes out garbled, as a bad text layer or an old pipeline bug would leave it.
         await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = 'xq zv garbled' WHERE pdf_page = @page", new { page = SyntheticPdfs.KnownPhrasePage }, t), Ct);
-        var filter = new LibraryFilter(await _libraryStore.GetVisibleDocumentIdsAsync(ct: Ct));
+        var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
         async Task<bool> FoundAsync(string words) =>
-            (await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter, ct: Ct)).Documents.Any(d => d.Document.DocumentId == id);
+            (await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter, ct: Ct)).Entries.Any(d => d.Entry.EntryId == entryId);
         Assert.False(await FoundAsync("owlbear"));
 
         Assert.True(await _service.ReprocessAsync(id, ct: Ct));
@@ -319,7 +322,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
                 Assert.Equal("Complete", c.ExecuteScalar<string>("SELECT status FROM stage_status WHERE document_id = @id AND stage = @stage", new { id, stage = stage.ToString() }));
         }
 
-        var metadata = (await _metadataStore.GetAsync(id, Ct)).Compute();
+        var metadata = (await _metadataStore.GetAsync(entryId, Ct)).Compute();
         Assert.True(metadata[Core.Metadata.MetadataFields.Edition].First?.Confirmed);
         Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Values, v => v.Normalized == "adventure");
         Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Alternatives, v => v.Normalized == "adventure");
@@ -387,10 +390,10 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await _service.StartAsync(Ct);
         await SettleAsync();
         var search = new LibraryQueries(_index);
-        var ids = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.DocumentId).Order().ToList();
+        var ids = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.EntryId).OrderBy(e => e.Value).ToList();
         Assert.Equal(2, ids.Count);
-        async Task<List<long>> FindAsync(string words) =>
-            [.. (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(words)), new LibraryFilter(), ct: Ct)).Select(e => e.DocumentId).Order()];
+        async Task<List<EntryId>> FindAsync(string words) =>
+            [.. (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(words)), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId).OrderBy(e => e.Value)];
         Assert.Equal(ids, await FindAsync("type:adventure"));
 
         // A value that can't be stored stops the whole edit before anything is saved.

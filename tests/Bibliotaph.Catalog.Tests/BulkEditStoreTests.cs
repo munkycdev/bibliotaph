@@ -1,4 +1,3 @@
-using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Microsoft.Data.Sqlite;
@@ -12,9 +11,12 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
     readonly MetadataStoreTests.SteppingClock _clock = new(new DateTimeOffset(2026, 10, 9, 9, 0, 0, TimeSpan.Zero));
     CatalogDatabase _database = null!;
     MetadataStore _metadata = null!;
-    long _first;
-    long _second;
-    long _third;
+    EntryId _first;
+    EntryId _second;
+    EntryId _third;
+
+    /// <summary>The content hash suggestions are read from; one copy per entry here.</summary>
+    static readonly string Hash = new('a', 64);
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -23,10 +25,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
         await _database.MigrateAsync();
         _metadata = new MetadataStore(new Factory(_database), _clock);
-        await using var db = _database.CreateContext();
-        var documents = "abc".Select(c => db.Documents.Add(new Document { ContentHash = new string(c, 64), Format = "pdf", CreatedUtc = DateTime.UtcNow }).Entity).ToList();
-        await db.SaveChangesAsync();
-        (_first, _second, _third) = (documents[0].Id, documents[1].Id, documents[2].Id);
+        (_first, _second, _third) = (await TestEntries.AddAsync(_database, 'a'), await TestEntries.AddAsync(_database, 'b'), await TestEntries.AddAsync(_database, 'c'));
     }
 
     public ValueTask DisposeAsync()
@@ -36,16 +35,16 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    long[] All => [_first, _second, _third];
+    EntryId[] All => [_first, _second, _third];
 
     static MetadataProposal Hint(MetadataField field, string value, AssertionOrigin origin = AssertionOrigin.Folder) => new(field, value, origin);
 
-    async Task<EffectiveField> FieldAsync(long document, MetadataField field) => (await _metadata.GetAsync(document, Ct)).Compute()[field];
+    async Task<EffectiveField> FieldAsync(EntryId document, MetadataField field) => (await _metadata.GetAsync(document, Ct)).Compute()[field];
 
     [Fact]
     public async Task Setting_a_single_field_confirms_the_value_on_every_book_and_supersedes_the_users_own()
     {
-        await _metadata.ReplaceHintsAsync(_first, [Hint(MetadataFields.System, "dnd")], Ct);
+        await _metadata.ReplaceHintsAsync(_first, Hash, [Hint(MetadataFields.System, "dnd")], Ct);
         await _metadata.SetValuesAsync(_second, MetadataFields.System, ["pathfinder"], Ct);
         _clock.Step();
 
@@ -70,13 +69,13 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
 
         var undo = await _metadata.ApplyBulkAsync(All, [new BulkChange(MetadataFields.Year, BulkAction.Set, "2019")], Ct);
 
-        Assert.Equal([_second, _third], undo.Select(s => s.DocumentId).Order());
+        Assert.Equal([_second, _third], undo.Select(s => s.EntryId).OrderBy(e => e.Value));
     }
 
     [Fact]
     public async Task Adding_a_value_puts_it_on_every_book_and_keeps_the_values_each_shows()
     {
-        await _metadata.ReplaceHintsAsync(_first, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Types, "adventure")], Ct);
+        await _metadata.ReplaceHintsAsync(_first, Hash, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Types, "adventure")], Ct);
         await _metadata.SetValuesAsync(_second, MetadataFields.Themes, ["heist"], Ct);
         _clock.Step();
 
@@ -95,7 +94,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
     public async Task A_removed_value_is_rejected_on_every_book_and_survives_the_next_hint_run()
     {
         foreach (var document in All)
-            await _metadata.ReplaceHintsAsync(document, [Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Types, "map", AssertionOrigin.Folder)], Ct);
+            await _metadata.ReplaceHintsAsync(document, Hash, [Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Types, "map", AssertionOrigin.Folder)], Ct);
         await _metadata.SetValuesAsync(_second, MetadataFields.Types, ["adventure", "map"], Ct);
         _clock.Step();
 
@@ -105,7 +104,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
         // The hints from names run again, as on a reindex, and propose the same.
         _clock.Step();
         foreach (var document in All)
-            await _metadata.ReplaceHintsAsync(document, [Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Types, "map", AssertionOrigin.Folder)], Ct);
+            await _metadata.ReplaceHintsAsync(document, Hash, [Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Types, "map", AssertionOrigin.Folder)], Ct);
 
         foreach (var document in All)
         {
@@ -136,13 +135,13 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
     [Fact]
     public async Task Back_to_suggestions_forgets_the_users_own_value_on_every_book()
     {
-        foreach (var document in All) await _metadata.ReplaceHintsAsync(document, [Hint(MetadataFields.Edition, "dnd-5e")], Ct);
+        foreach (var document in All) await _metadata.ReplaceHintsAsync(document, Hash, [Hint(MetadataFields.Edition, "dnd-5e")], Ct);
         await _metadata.SetValuesAsync(_first, MetadataFields.Edition, ["dnd-35"], Ct);
         await _metadata.ConfirmAsync(_second, MetadataFields.Edition, Ct);
 
         var undo = await _metadata.ApplyBulkAsync(All, [new BulkChange(MetadataFields.Edition, BulkAction.Reset)], Ct);
 
-        Assert.Equal([_first, _second], undo.Select(s => s.DocumentId).Order());
+        Assert.Equal([_first, _second], undo.Select(s => s.EntryId).OrderBy(e => e.Value));
         foreach (var document in All)
         {
             var edition = await FieldAsync(document, MetadataFields.Edition);
@@ -154,11 +153,11 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
     [Fact]
     public async Task Undo_puts_every_affected_field_back_exactly()
     {
-        await _metadata.ReplaceHintsAsync(_first, [Hint(MetadataFields.System, "dnd"), Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Themes, "horror")], Ct);
+        await _metadata.ReplaceHintsAsync(_first, Hash, [Hint(MetadataFields.System, "dnd"), Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Themes, "horror")], Ct);
         await _metadata.SetValuesAsync(_second, MetadataFields.System, ["pathfinder"], Ct);
         await _metadata.RejectAsync(_second, MetadataFields.Types, "bestiary", Ct);
         await _metadata.SetValuesAsync(_second, MetadataFields.Tags, ["Friday game"], Ct);
-        await _metadata.ReplaceHintsAsync(_third, [Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Edition, "dnd-5e")], Ct);
+        await _metadata.ReplaceHintsAsync(_third, Hash, [Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Edition, "dnd-5e")], Ct);
         await _metadata.ConfirmAsync(_third, MetadataFields.Edition, Ct);
         MetadataField[] fields = [MetadataFields.System, MetadataFields.Edition, MetadataFields.Types, MetadataFields.Themes, MetadataFields.Tags];
         var before = new List<FieldSnapshot>();
@@ -210,10 +209,10 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
         public static readonly SnapshotComparer Instance = new();
 
         public bool Equals(FieldSnapshot? x, FieldSnapshot? y) =>
-            x is not null && y is not null && x.DocumentId == y.DocumentId && x.Field == y.Field
+            x is not null && y is not null && x.EntryId == y.EntryId && x.Field == y.Field
             && x.Rows.OrderBy(r => r.Id).SequenceEqual(y.Rows.OrderBy(r => r.Id))
             && x.Rejections.OrderBy(r => r.Normalized, StringComparer.Ordinal).SequenceEqual(y.Rejections.OrderBy(r => r.Normalized, StringComparer.Ordinal));
 
-        public int GetHashCode(FieldSnapshot obj) => obj.DocumentId.GetHashCode();
+        public int GetHashCode(FieldSnapshot obj) => obj.EntryId.GetHashCode();
     }
 }

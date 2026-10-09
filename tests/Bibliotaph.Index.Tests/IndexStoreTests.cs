@@ -33,7 +33,7 @@ public sealed class IndexStoreTests : IndexFixture
     static PageRow[] Pages(int count) => [.. Enumerable.Range(0, count).Select(i => new PageRow(i, (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), 612, 792))];
 
     long[] DocSearch(string match) =>
-        [.. Connection.Query<long>("SELECT rowid FROM doc_fts WHERE doc_fts MATCH @match", new { match })];
+        [.. Connection.Query<long>("SELECT rowid FROM entry_fts WHERE entry_fts MATCH @match", new { match })];
 
     long[] PageSearch(string match) =>
         [.. Connection.Query<long>("SELECT p.pdf_page FROM page_fts JOIN page p ON p.id = page_fts.rowid WHERE page_fts MATCH @match", new { match })];
@@ -42,10 +42,11 @@ public sealed class IndexStoreTests : IndexFixture
     public async Task A_probed_document_is_searchable_by_title_and_its_provisional_details()
     {
         await _store.UpsertDocumentAsync(Doc(), Pages(3), [new OutlineRow("Chapter one", 1, 0)], Ct);
+        await AddEntriesAsync(_store, 1);
 
-        Assert.Equal([1L], DocSearch("title:gazetteer"));
-        Assert.Equal([1L], DocSearch("provisional:cartographer"));
-        Assert.Equal([1L], DocSearch("provisional:maps"));
+        Assert.Equal([EntryOf(1).Value], DocSearch("title:gazetteer"));
+        Assert.Equal([EntryOf(1).Value], DocSearch("provisional:cartographer"));
+        Assert.Equal([EntryOf(1).Value], DocSearch("provisional:maps"));
         Assert.Equal(3, Connection.ExecuteScalar<long>("SELECT count(*) FROM page WHERE document_id = 1"));
         Assert.Equal("Chapter one", Connection.ExecuteScalar<string>("SELECT title FROM outline WHERE document_id = 1"));
     }
@@ -54,14 +55,15 @@ public sealed class IndexStoreTests : IndexFixture
     public async Task Probing_again_keeps_extracted_text_and_drops_pages_that_are_gone()
     {
         await _store.UpsertDocumentAsync(Doc(), Pages(3), [], Ct);
+        await AddEntriesAsync(_store, 1);
         await _store.SetPageTextAsync(1, [new PageTextRow(0, "the owlbear sleeps", "pdf", 1, false)], Ct);
 
         await _store.UpsertDocumentAsync(Doc() with { DisplayTitle = "Gazetteer, revised" }, Pages(2), [], Ct);
 
         Assert.Equal([0L], PageSearch("owlbear"));
         Assert.Equal(2, Connection.ExecuteScalar<long>("SELECT count(*) FROM page WHERE document_id = 1"));
-        Assert.Equal([1L], DocSearch("title:revised"));
-        Assert.Equal(1, Connection.ExecuteScalar<long>("SELECT count(*) FROM doc_fts"));
+        Assert.Equal([EntryOf(1).Value], DocSearch("title:revised"));
+        Assert.Equal(1, Connection.ExecuteScalar<long>("SELECT count(*) FROM entry_fts"));
     }
 
     [Fact]
@@ -92,6 +94,7 @@ public sealed class IndexStoreTests : IndexFixture
     {
         await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
         await _store.UpsertDocumentAsync(Doc(2) with { DisplayTitle = "Locked book" }, Pages(1), [], Ct);
+        await AddEntriesAsync(_store, 1, 2);
         await _queue.EnqueueAsync(1, "hash1", Stage.Text, ct: Ct);
         await _queue.EnqueueAsync(2, "hash2", Stage.Text, ct: Ct);
         var lane = new[] { Stage.Text };
@@ -103,8 +106,8 @@ public sealed class IndexStoreTests : IndexFixture
 
         Assert.Equal(new IndexProgress(2, 1, 0, 1, 0, 0, Queued: 2), progress);
         Assert.Equal(2, progress.Indexed);
-        Assert.Equal(1, await _queries.CountSearchableAsync([1, 2, 3], Ct));
-        Assert.Equal(0, await _queries.CountSearchableAsync([2], Ct));
+        Assert.Equal(1, await _queries.CountSearchableAsync([EntryOf(1), EntryOf(2), EntryOf(3)], Ct));
+        Assert.Equal(0, await _queries.CountSearchableAsync([EntryOf(2)], Ct));
         Assert.Equal("Locked book", await _queries.GetTitleAsync(2, Ct));
         Assert.Null(await _queries.GetTitleAsync(9, Ct));
         Assert.Equal(("Locked book", StageStatus.Blocked, "Needs a password"), (attention.Title, attention.Status, attention.Reason));
@@ -156,6 +159,31 @@ public sealed class IndexStoreTests : IndexFixture
         Assert.Equal([2L], PageSearch("haunted"));
         Assert.Equal([3L], PageSearch("lich"));
         Assert.Equal([1, 2, 3], (await _queries.GetPagesNeedingOcrAsync(1, Ct)).Select(p => p.PdfPage));
+    }
+
+    [Fact]
+    public async Task An_entry_recorded_before_its_document_is_probed_becomes_searchable_with_the_probe()
+    {
+        await AddEntriesAsync(_store, 1);
+        Assert.Empty(DocSearch("title:gazetteer"));
+
+        await _store.UpsertDocumentAsync(Doc(), Pages(1), [], Ct);
+
+        Assert.Equal([EntryOf(1).Value], DocSearch("title:gazetteer"));
+    }
+
+    [Fact]
+    public async Task Moving_an_entry_to_another_document_searches_the_new_documents_details()
+    {
+        await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2) with { DisplayTitle = "Bestiary, second printing" }, Pages(1), [], Ct);
+        await AddEntriesAsync(_store, 1);
+
+        await _store.SetEntriesAsync([new EntryDocRow(EntryOf(1), 2, EntryKind.Whole)], Ct);
+
+        Assert.Empty(DocSearch("title:gazetteer"));
+        Assert.Equal([EntryOf(1).Value], DocSearch("title:bestiary"));
+        Assert.Equal(2, Connection.ExecuteScalar<long>("SELECT document_id FROM entry_doc WHERE entry_id = @id", new { id = EntryOf(1).Value }));
     }
 
     [Fact]

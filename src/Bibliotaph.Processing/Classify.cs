@@ -125,10 +125,13 @@ public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries,
 /// Turns a classifier's checked claims into stored suggestions: a new term becomes a pending term (and its values
 /// wait for the user's decision on it), a term the user rejected is dropped, and the run is recorded with its pages.
 /// </summary>
-public sealed class ClassificationResults(ClassificationStore runs, MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector)
+public sealed class ClassificationResults(ClassificationStore runs, EntryStore entries, MetadataStore metadata, VocabularyStore vocabularies,
+    MetadataProjector projector)
 {
+    /// <summary>Stores a run over one copy of a book, and its suggestions on the book's entry. Returns the run's id.</summary>
     public async Task<string> StoreAsync(long documentId, string contentHash, ClassifierInput input, ClassifierResult result, DateTime startedUtc, CancellationToken ct = default)
     {
+        var entry = await EntryOfAsync(documentId, ct);
         var proposals = new List<MetadataProposal>();
         foreach (var claim in result.Accepted)
         {
@@ -141,12 +144,21 @@ public sealed class ClassificationResults(ClassificationStore runs, MetadataStor
             }
             proposals.Add(new MetadataProposal(claim.Field, value, AssertionOrigin.Ai, claim.Quote, [claim.PdfPage], claim.FromSampling));
         }
-        var runId = await runs.RecordAsync(new RunRecord(documentId, contentHash, result.Provider, result.Model, ClassifierPrompt.Version,
+        var runId = await runs.RecordAsync(new RunRecord(entry, contentHash, result.Provider, result.Model, ClassifierPrompt.Version,
             ClassifierPrompt.SchemaVersion, input.Excerpt.PdfPages, startedUtc, ClassificationStore.Complete), ct);
-        await metadata.ApplyRunAsync(documentId, runId, AssertionOrigin.Ai, proposals, ct);
-        await projector.ProjectAsync([documentId], ct);
+        await metadata.ApplyRunAsync(entry, contentHash, runId, AssertionOrigin.Ai, proposals, ct);
+        await projector.ProjectAsync([entry], ct);
         return runId;
     }
+
+    /// <summary>Records a run whose answer couldn't be used, and why.</summary>
+    public async Task RecordFailedAsync(long documentId, string contentHash, string provider, string model, ClassifierInput input, DateTime startedUtc,
+        string problem, CancellationToken ct = default) =>
+        await runs.RecordAsync(new RunRecord(await EntryOfAsync(documentId, ct), contentHash, provider, model, ClassifierPrompt.Version,
+            ClassifierPrompt.SchemaVersion, input.Excerpt.PdfPages, startedUtc, problem), ct);
+
+    async Task<EntryId> EntryOfAsync(long documentId, CancellationToken ct) =>
+        (await entries.GetEntryAsync(documentId, ct))?.EntryId ?? throw new InvalidOperationException($"Document {documentId} has no entry.");
 }
 
 /// <summary>
@@ -203,8 +215,7 @@ public sealed class ClassifyStage(
         }
         catch (ClassifierAnswerException ex)
         {
-            await runs.RecordAsync(new RunRecord(job.DocumentId, job.ContentHash, classifier.Provider, classifier.Model, ClassifierPrompt.Version,
-                ClassifierPrompt.SchemaVersion, input.Excerpt.PdfPages, started, ex.Message), CancellationToken.None);
+            await results.RecordFailedAsync(job.DocumentId, job.ContentHash, classifier.Provider, classifier.Model, input, started, ex.Message, CancellationToken.None);
             return new StageOutcome.Failed(ex.Message, Retry: true);
         }
 

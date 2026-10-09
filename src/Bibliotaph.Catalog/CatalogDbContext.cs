@@ -9,6 +9,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<SourceRoot> SourceRoots => Set<SourceRoot>();
     public DbSet<FileLocation> FileLocations => Set<FileLocation>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Entry> Entries => Set<Entry>();
+    public DbSet<EntrySource> EntrySources => Set<EntrySource>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Setting> Settings => Set<Setting>();
@@ -45,16 +47,32 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne(d => d.PreviousVersion).WithMany().HasForeignKey(d => d.PreviousVersionId).OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<Entry>(e =>
+        {
+            e.HasIndex(x => x.ParentEntryId);
+            e.HasOne(x => x.ParentEntry).WithMany().HasForeignKey(x => x.ParentEntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EntrySource>(e =>
+        {
+            e.HasIndex(s => s.EntryId).IsUnique().HasFilter("is_current = 1").HasDatabaseName("ix_entry_source_current");
+            // A document backs at most one whole-document entry; parts take page ranges of it as well.
+            e.HasIndex(s => s.DocumentId).IsUnique().HasFilter("first_pdf_page IS NULL").HasDatabaseName("ix_entry_source_whole");
+            e.HasIndex(s => new { s.DocumentId, s.EntryId });
+            e.HasOne(s => s.Entry).WithMany(x => x.Sources).HasForeignKey(s => s.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(s => s.Document).WithMany(d => d.Sources).HasForeignKey(s => s.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Assertion>(e =>
         {
-            e.HasIndex(a => new { a.DocumentId, a.Field, a.State });
-            e.HasOne(a => a.Document).WithMany(d => d.Assertions).HasForeignKey(a => a.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(a => new { a.EntryId, a.Field, a.State });
+            e.HasOne(a => a.Entry).WithMany(x => x.Assertions).HasForeignKey(a => a.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Rejection>(e =>
         {
-            e.HasIndex(r => new { r.DocumentId, r.Field, r.NormalizedValue }).IsUnique();
-            e.HasOne(r => r.Document).WithMany(d => d.Rejections).HasForeignKey(r => r.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(r => new { r.EntryId, r.Field, r.NormalizedValue }).IsUnique();
+            e.HasOne(r => r.Entry).WithMany(x => x.Rejections).HasForeignKey(r => r.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<VocabularyTerm>(e =>
@@ -68,7 +86,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         modelBuilder.Entity<ClassificationRun>(e =>
         {
             e.HasIndex(r => new { r.ContentHash, r.Model, r.PromptVersion });
-            e.HasOne(r => r.Document).WithMany().HasForeignKey(r => r.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(r => r.Entry).WithMany().HasForeignKey(r => r.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<IgnoredFolderLabel>(e => e.HasIndex(l => new { l.Folder, l.Vocabulary, l.TermKey }).IsUnique());

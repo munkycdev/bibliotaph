@@ -22,6 +22,7 @@ public sealed class MetadataSearchTests : IndexFixture
         {
             Clock.Advance(TimeSpan.FromMinutes(1));
             await _store.UpsertDocumentAsync(new DocRow { DocumentId = id, ContentHash = $"h{id}", Format = format, DisplayTitle = title }, [], [], Ct);
+            await AddEntriesAsync(_store, id);
         }
         await _store.SetTermAliasesAsync(
             [
@@ -30,23 +31,23 @@ public sealed class MetadataSearchTests : IndexFixture
             ], Ct);
         await _store.SetMetadataAsync(
             [
-                new DocMetaRow
+                new EntryMetaRow
                 {
-                    DocumentId = Tomb, Title = "Tomb of Horrors", Publisher = "TSR", Authors = "Gary Gygax", SystemLabel = "D&D 5e", KindLabel = "Adventure",
+                    EntryId = EntryOf(Tomb), Title = "Tomb of Horrors", Publisher = "TSR", Authors = "Gary Gygax", SystemLabel = "D&D 5e", KindLabel = "Adventure",
                     LevelMin = 10, LevelMax = 14, Levels = LevelState.Known, ConfirmedText = "5th edition · 5e",
                     Facets = [new("system", "dnd", "Dungeons & Dragons", true), new("edition", "dnd-5e", "5th edition", true), new("type", "adventure", "Adventure", false), new("theme", "horror", "Horror", false)],
                 },
-                new DocMetaRow
+                new EntryMetaRow
                 {
-                    DocumentId = Citadel, Publisher = "Wizards of the Coast", SystemLabel = "D&D 5e", KindLabel = "Adventure", LevelMin = 1, LevelMax = 3, Levels = LevelState.Known,
+                    EntryId = EntryOf(Citadel), Publisher = "Wizards of the Coast", SystemLabel = "D&D 5e", KindLabel = "Adventure", LevelMin = 1, LevelMax = 3, Levels = LevelState.Known,
                     Facets = [new("system", "dnd", "Dungeons & Dragons", false), new("edition", "dnd-5e", "5th edition", false), new("type", "adventure", "Adventure", false)],
                 },
-                new DocMetaRow
+                new EntryMetaRow
                 {
-                    DocumentId = Bestiary, Publisher = "Kobold Press", SystemLabel = "PF2e", KindLabel = "Bestiary", Levels = LevelState.NotApplicable, Reviews = 1,
+                    EntryId = EntryOf(Bestiary), Publisher = "Kobold Press", SystemLabel = "PF2e", KindLabel = "Bestiary", Levels = LevelState.NotApplicable, Reviews = 1,
                     Facets = [new("system", "pathfinder", "Pathfinder", false), new("edition", "pathfinder-2e", "Pathfinder 2nd edition", false), new("type", "bestiary", "Bestiary", false)],
                 },
-                new DocMetaRow { DocumentId = Map, Facets = [new("type", "map-pack", "Map pack", true)] },
+                new EntryMetaRow { EntryId = EntryOf(Map), Facets = [new("type", "map-pack", "Map pack", true)] },
             ], Ct);
     }
 
@@ -158,7 +159,7 @@ public sealed class MetadataSearchTests : IndexFixture
         var formats = await _library.GetFormatCountsAsync(new LibraryFilter(), Ct);
         Assert.Equal([("pdf", "PDF", 4L), ("png", "PNG", 1L)], formats.Select(c => (c.Value, c.Label, c.Count)));
 
-        var scoped = await _library.GetFormatCountsAsync(new LibraryFilter(Scope: [Map, Tomb]), Ct);
+        var scoped = await _library.GetFormatCountsAsync(new LibraryFilter(Scope: [EntryOf(Map), EntryOf(Tomb)]), Ct);
         Assert.Equal([("pdf", 1L), ("png", 1L)], scoped.Select(c => (c.Value, c.Count)));
     }
 
@@ -173,7 +174,7 @@ public sealed class MetadataSearchTests : IndexFixture
     [Fact]
     public async Task Clearing_metadata_drops_it_from_search_and_the_list()
     {
-        await _store.ClearMetadataAsync([Tomb], Ct);
+        await _store.ClearMetadataAsync([EntryOf(Tomb)], Ct);
 
         Assert.Empty(await FindAsync("horrors"));
         Assert.Equal([Tomb], await FindAsync("tomb_final"));

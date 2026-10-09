@@ -15,7 +15,9 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     Factory _contexts = null!;
     MetadataStore _metadata = null!;
     VocabularyStore _vocabulary = null!;
-    long _document;
+    EntryId _document;
+
+    static readonly string Hash = new('a', 64);
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -26,10 +28,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
         _contexts = new Factory(_database);
         _metadata = new MetadataStore(_contexts, _clock);
         _vocabulary = new VocabularyStore(_contexts, _clock);
-        await using var db = _database.CreateContext();
-        var document = db.Documents.Add(new Document { ContentHash = new string('a', 64), Format = "pdf", CreatedUtc = DateTime.UtcNow }).Entity;
-        await db.SaveChangesAsync();
-        _document = document.Id;
+        _document = await TestEntries.AddAsync(_database, 'a');
     }
 
     public ValueTask DisposeAsync()
@@ -47,13 +46,13 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     async Task<List<Assertion>> RowsAsync()
     {
         await using var db = _database.CreateContext();
-        return await db.Assertions.AsNoTracking().Where(a => a.DocumentId == _document).OrderBy(a => a.Id).ToListAsync(Ct);
+        return await db.Assertions.AsNoTracking().Where(a => a.EntryId == _document.Value).OrderBy(a => a.Id).ToListAsync(Ct);
     }
 
     [Fact]
     public async Task Rule_hints_are_stored_as_provisional_suggestions_with_their_evidence()
     {
-        Assert.True(await _metadata.ReplaceHintsAsync(_document,
+        Assert.True(await _metadata.ReplaceHintsAsync(_document, Hash,
             [Hint(MetadataFields.Edition, "dnd-5e", quote: "D&D 5e"), Hint(MetadataFields.Title, "Tomb", AssertionOrigin.Filename, "Tomb.pdf")], Ct));
 
         var edition = (await EffectiveAsync())[MetadataFields.Edition].First!;
@@ -66,34 +65,34 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Rerunning_hints_keeps_unchanged_rows_and_replaces_only_provisional_ones()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Types, "adventure")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Types, "adventure")], Ct);
         var before = await RowsAsync();
         _clock.Step();
 
-        Assert.False(await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Types, "adventure")], Ct));
+        Assert.False(await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Types, "adventure")], Ct));
         Assert.Equal(before.Select(r => (r.Id, r.CreatedUtc)), (await RowsAsync()).Select(r => (r.Id, r.CreatedUtc)));
 
-        Assert.True(await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-5e")], Ct));
+        Assert.True(await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e")], Ct));
         Assert.Equal(["edition"], (await RowsAsync()).Select(r => r.Field));
     }
 
     [Fact]
     public async Task Hints_cannot_touch_other_origins()
     {
-        await Assert.ThrowsAsync<ArgumentException>(() => _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Title, "x", AssertionOrigin.Ai)], Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Title, "x", AssertionOrigin.Ai)], Ct));
     }
 
     [Fact]
     public async Task A04_a_corrected_field_and_a_rejected_value_survive_the_hints_running_again()
     {
         // Folder names said 3.5 and an Adventure; the user corrects the edition to 5e and removes the type.
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-35"), Hint(MetadataFields.Types, "adventure")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-35"), Hint(MetadataFields.Types, "adventure")], Ct);
         await _metadata.SetValuesAsync(_document, MetadataFields.Edition, ["dnd-5e"], Ct);
         await _metadata.SetValuesAsync(_document, MetadataFields.Types, [], Ct);
 
         // A reindex proposes the same things again, and more.
         _clock.Step();
-        await _metadata.ReplaceHintsAsync(_document,
+        await _metadata.ReplaceHintsAsync(_document, Hash,
             [Hint(MetadataFields.Edition, "dnd-35"), Hint(MetadataFields.Types, "adventure"), Hint(MetadataFields.Themes, "horror")], Ct);
 
         var metadata = await EffectiveAsync();
@@ -107,7 +106,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Typing_a_suggested_value_confirms_that_suggestion_and_keeps_its_evidence()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.System, "dnd", quote: "D&D")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.System, "dnd", quote: "D&D")], Ct);
 
         await _metadata.SetValuesAsync(_document, MetadataFields.System, ["dnd"], Ct);
 
@@ -130,7 +129,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Clearing_a_single_field_rejects_its_value_and_shows_the_next_suggestion()
     {
-        await _metadata.ReplaceHintsAsync(_document,
+        await _metadata.ReplaceHintsAsync(_document, Hash,
             [Hint(MetadataFields.Title, "Junk Title", AssertionOrigin.Embedded), Hint(MetadataFields.Title, "Tomb", AssertionOrigin.Filename)], Ct);
 
         await _metadata.SetValuesAsync(_document, MetadataFields.Title, [], Ct);
@@ -141,7 +140,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Editing_a_multi_value_field_confirms_kept_values_rejects_removed_ones_and_adds_new_ones()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Themes, "mystery")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Themes, "mystery")], Ct);
 
         await _metadata.SetValuesAsync(_document, MetadataFields.Themes, ["horror", "heist"], Ct);
 
@@ -155,7 +154,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Typing_a_rejected_value_again_lifts_the_rejection()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Themes, "horror")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Themes, "horror")], Ct);
         await _metadata.RejectAsync(_document, MetadataFields.Themes, "horror", Ct);
         Assert.False((await EffectiveAsync())[MetadataFields.Themes].IsKnown);
 
@@ -168,7 +167,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Keep_this_confirms_what_the_field_shows()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Edition, "dnd-35", AssertionOrigin.Embedded)], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Edition, "dnd-35", AssertionOrigin.Embedded)], Ct);
         Assert.True((await EffectiveAsync()).NeedsReview);
 
         await _metadata.ConfirmAsync(_document, MetadataFields.Edition, Ct);
@@ -182,7 +181,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Reset_forgets_the_users_decisions_about_a_field()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Themes, "mystery")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Themes, "horror"), Hint(MetadataFields.Themes, "mystery")], Ct);
         await _metadata.SetValuesAsync(_document, MetadataFields.Themes, ["heist"], Ct);
 
         await _metadata.ResetAsync(_document, MetadataFields.Themes, Ct);
@@ -239,7 +238,7 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task Typing_a_different_type_replaces_the_suggested_one()
     {
-        await _metadata.ReplaceHintsAsync(_document, [Hint(MetadataFields.Types, "adventure")], Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Types, "adventure")], Ct);
         _clock.Step();
 
         await _metadata.SetValuesAsync(_document, MetadataFields.Types, ["bestiary"], Ct);
@@ -256,14 +255,14 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     [Fact]
     public async Task A_run_replaces_its_origins_undecided_suggestions_and_leaves_decisions_alone()
     {
-        await _metadata.ApplyRunAsync(_document, "run1", AssertionOrigin.Ai,
+        await _metadata.ApplyRunAsync(_document, Hash, "run1", AssertionOrigin.Ai,
             [Ai(MetadataFields.Title, "The Sunken Lantern"), Ai(MetadataFields.Year, "2019"), Ai(MetadataFields.Types, "adventure"), Ai(MetadataFields.Authors, "Ana Ruiz")], Ct);
         var first = await RowsAsync();
         await _metadata.ConfirmAsync(_document, MetadataFields.Authors, Ct);
         await _metadata.RejectAsync(_document, MetadataFields.Year, "2019", Ct);
 
         // A later run: the title again with new evidence, the year again, a new type, and no author.
-        await _metadata.ApplyRunAsync(_document, "run2", AssertionOrigin.Ai,
+        await _metadata.ApplyRunAsync(_document, Hash, "run2", AssertionOrigin.Ai,
             [Ai(MetadataFields.Title, "The Sunken Lantern", "THE SUNKEN LANTERN", 0), Ai(MetadataFields.Year, "2019"), Ai(MetadataFields.Types, "bestiary")], Ct);
 
         var rows = await RowsAsync();
@@ -279,9 +278,9 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     public async Task A_run_never_writes_hints_or_user_values()
     {
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _metadata.ApplyRunAsync(_document, "run", AssertionOrigin.Ai, [Hint(MetadataFields.Title, "Tomb", AssertionOrigin.User)], Ct));
+            _metadata.ApplyRunAsync(_document, Hash, "run", AssertionOrigin.Ai, [Hint(MetadataFields.Title, "Tomb", AssertionOrigin.User)], Ct));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _metadata.ApplyRunAsync(_document, "run", AssertionOrigin.Folder, [Hint(MetadataFields.Title, "Tomb")], Ct));
+            _metadata.ApplyRunAsync(_document, Hash, "run", AssertionOrigin.Folder, [Hint(MetadataFields.Title, "Tomb")], Ct));
     }
 
     [Fact]
