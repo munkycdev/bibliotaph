@@ -228,8 +228,17 @@ static class SmokeTest
         await hints.ApplyAsync(backup);
         var entryStore = services.GetRequiredService<EntryStore>();
         var backupEntry = (await entryStore.GetEntryAsync(backup))!.EntryId;
+        // The user had given the two cards different years, so the joined card has a "Copies disagree" card.
+        await metadata.SetValuesAsync(lairsEntry, MetadataFields.Year, ["2019"]);
+        await metadata.SetValuesAsync(backupEntry, MetadataFields.Year, ["2020"]);
         if (await entryStore.JoinAsCopyAsync(lairs, backup) is null) throw new InvalidOperationException("The made-up copy didn't join the lairs.");
         await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairsEntry, backupEntry]);
+
+        // And a "new version?" card, as Match proposes one for a file that shares most of a book's pages.
+        var scan = titles.Single(t => t.Title == "IMG_0042").Id;
+        var inn = titles.Single(t => t.Title == "Haunted Inn").Id;
+        if (!await services.GetRequiredService<VersionStore>().ProposeAsync(scan, inn, VersionEvidence.SharedPages, 1, 1))
+            throw new InvalidOperationException("The made-up new version wasn't proposed.");
     }
 
     /// <summary>
@@ -276,6 +285,28 @@ static class SmokeTest
             title.EditText = "Box Set Handout";
             await title.SaveCommand.ExecuteAsync(null);
             if (!title.IsDone) throw new InvalidOperationException($"Typing a title didn't decide its card: {title.Problem}");
+
+            // Copies that disagree (F2): keep this card's year, then undo, so the card is drawn again in Dark.
+            var years = page.Cards.OfType<ReviewCardViewModel>().FirstOrDefault(c => c is { Kind: ReviewKind.CopiesDisagree, Title: "Dragon Lairs" })
+                ?? throw new InvalidOperationException("The lairs' two years aren't a Copies disagree card.");
+            if (years is not { CurrentText: "2019", ProposedText: "2020", CurrentLabel: "This card", SuggestedLabel: "The other copy" })
+                throw new InvalidOperationException($"The Copies disagree card shows {years.CurrentText} against {years.ProposedText}.");
+            await Settle(window);
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == years.RejectCommand), "Keep this card's");
+            await WaitUntilAsync(window, () => years.IsDone, () => "Keep this card's didn't decide the Copies disagree card.");
+            await years.UndoCommand.ExecuteAsync(null);
+
+            // A new version (F2): make it current, then undo, which gives the scan its own card back.
+            var version = page.Cards.OfType<VersionCardViewModel>().FirstOrDefault()
+                ?? throw new InvalidOperationException("The made-up new version isn't a card.");
+            // Whichever of the two files is newer is the one proposed, so the card names either book.
+            if (!version.Heading.StartsWith("Looks like a new version of ", StringComparison.Ordinal) || version.Item.Version.Evidence != VersionEvidence.SharedPages)
+                throw new InvalidOperationException($"The new version card says {version.Heading} ({version.Evidence}).");
+            await Settle(window);
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == version.MakeCurrentCommand), "Make it current");
+            await WaitUntilAsync(window, () => version.IsDone, () => "Make it current didn't decide the new version card.");
+            await version.UndoCommand.ExecuteAsync(null);
+            if (version.IsDone) throw new InvalidOperationException("Undo didn't bring the new version card back.");
         }
         page.IsFilesTab = true;
         await Settle(window);

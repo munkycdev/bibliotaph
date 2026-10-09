@@ -29,7 +29,8 @@ public static class Pipeline
         Stage.Ocr => 1,
         // Never bumped for a new prompt or model: those are recorded per run, and reclassifying is the user's call.
         Stage.Classify => 1,
-        Stage.Match => 1,
+        // 2: new-version cards (F2b), so a library matched before gets them.
+        Stage.Match => 2,
         _ => 1,
     };
 

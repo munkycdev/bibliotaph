@@ -135,6 +135,25 @@ public sealed class CopyDecision
 }
 
 /// <summary>
+/// A "new version?" card in Needs review (F2 plan, choice 4): a file that looks like a revision of a book already
+/// in the library, but isn't the same text page for page. One per file, for its best match; it goes once answered.
+/// </summary>
+public sealed class VersionProposal
+{
+    public long Id { get; set; }
+    /// <summary>The newer file, which would join the book's card.</summary>
+    public long DocumentId { get; set; }
+    /// <summary>The file of the book it looks like a new version of.</summary>
+    public long MatchedDocumentId { get; set; }
+    public VersionEvidence Evidence { get; set; }
+    /// <summary>For <see cref="VersionEvidence.SharedPages"/>: how many of the smaller file's fingerprinted pages the other has.</summary>
+    public int SharedPages { get; set; }
+    /// <summary>For <see cref="VersionEvidence.SharedPages"/>: the smaller file's fingerprinted pages.</summary>
+    public int ComparedPages { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
 /// One claimed value for one metadata field, with where it came from and its evidence. The effective value
 /// of a field is derived from these rows; nothing overwrites a value in place.
 /// </summary>

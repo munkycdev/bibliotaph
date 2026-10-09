@@ -80,7 +80,7 @@ public sealed class EntryStoreTests : IAsyncLifetime
         Assert.Equal([new EntryDocument(original, core, EntryKind.Whole, Copies: 2)], await _entries.GetCurrentAsync(ct: Ct));
         var effective = (await _metadata.GetAsync(original, Ct)).Compute();
         Assert.Equal(("The Drowned Abbey", true), (effective[MetadataFields.Title].First!.Value, effective[MetadataFields.Title].First!.Confirmed));
-        Assert.Contains(await ClaimsAsync(original, MetadataFields.Title), a => a is { NormalizedValue: "abbey backup", State: AssertionState.Provisional });
+        Assert.Contains(await ClaimsAsync(original, MetadataFields.Title), a => a is { NormalizedValue: "abbey backup", State: AssertionState.SetAside });
         Assert.Equal(["Friday game", "Printed"], effective[MetadataFields.Tags].Values.Select(v => v.Value).Order());
         Assert.Equal("dnd-5e", effective[MetadataFields.Edition].First?.Value);
         Assert.Contains((await _metadata.GetAsync(original, Ct)).Rejections, r => r.Normalized == "adventure");
@@ -88,7 +88,7 @@ public sealed class EntryStoreTests : IAsyncLifetime
         var copies = await _entries.GetCopiesAsync(original, Ct);
         Assert.Equal([(core, true, false), (backup, false, true)], copies.Select(c => (c.DocumentId, c.IsCurrent, c.Joined)));
 
-        var split = await _entries.SplitCopyAsync(original, backup, Ct);
+        var split = await _entries.SplitCopyAsync(original, backup, ct: Ct);
 
         Assert.Equal(copy, split);
         Assert.Equal([(original, core, 1), (copy, backup, 1)],
@@ -105,6 +105,63 @@ public sealed class EntryStoreTests : IAsyncLifetime
         Assert.True(await _entries.IsNotSameBookAsync(Hex('b'), Hex('a'), Ct));
         Assert.Null(await _entries.JoinAsCopyAsync(backup, core, Ct));
     }
+
+    /// <summary>The entry's Needs review cards, less the missing-title card these untitled test books all have.</summary>
+    static IReadOnlyList<ReviewIssue> Cards(EntryMetadata metadata) =>
+        [.. MetadataReview.Find(metadata.Compute(), reviewAll: false).Where(i => i.Kind != ReviewKind.MissingTitle)];
+
+    [Fact]
+    public async Task Copies_that_disagree_are_settled_by_the_users_choice_and_a_split_gives_each_card_its_own_value_back()
+    {
+        var (core, original) = await AddBookAsync("Core/abbey.pdf", 'a');
+        var (backup, copy) = await AddBookAsync("Backup/abbey.pdf", 'b');
+        await _metadata.SetValuesAsync(original, MetadataFields.Title, ["The Drowned Abbey"], Ct);
+        await _metadata.SetValuesAsync(copy, MetadataFields.Title, ["The Drowned Abbey, revised"], Ct);
+        await _entries.JoinAsCopyAsync(core, backup, Ct);
+
+        var card = Assert.Single(Cards(await _metadata.GetAsync(original, Ct)));
+        Assert.Equal((ReviewKind.CopiesDisagree, "The Drowned Abbey, revised"), (card.Kind, card.Proposed.Single().Value));
+
+        // Accepting the other copy's title settles the card.
+        await _metadata.SetValuesAsync(original, MetadataFields.Title, ["The Drowned Abbey, revised"], Ct);
+        Assert.Empty(Cards(await _metadata.GetAsync(original, Ct)));
+        Assert.Equal("The Drowned Abbey, revised", (await _metadata.GetAsync(original, Ct)).Compute()[MetadataFields.Title].First?.Value);
+
+        // Split, each card has the title the user gave it: the copy's from before the join, the book's from the card.
+        var split = (await _entries.SplitCopyAsync(original, backup, ct: Ct))!.Value;
+        Assert.Equal(copy, split);
+        Assert.Equal(("The Drowned Abbey, revised", true), Title(await _metadata.GetAsync(copy, Ct)));
+        Assert.Equal(("The Drowned Abbey, revised", true), Title(await _metadata.GetAsync(original, Ct)));
+        Assert.Empty(Cards(await _metadata.GetAsync(copy, Ct)));
+    }
+
+    [Fact]
+    public async Task Keeping_this_cards_value_or_resetting_the_field_settles_copies_that_disagree()
+    {
+        var (core, original) = await AddBookAsync("Core/abbey.pdf", 'a');
+        var (backup, copy) = await AddBookAsync("Backup/abbey.pdf", 'b');
+        var (lantern, lanternCard) = await AddBookAsync("lantern.pdf", 'c');
+        var (lanternCopy, lanternCopyCard) = await AddBookAsync("Backup/lantern.pdf", 'd');
+        foreach (var (entry, year) in new[] { (original, "1999"), (copy, "2001"), (lanternCard, "1999"), (lanternCopyCard, "2001") })
+            await _metadata.SetValuesAsync(entry, MetadataFields.Year, [year], Ct);
+        await _entries.JoinAsCopyAsync(core, backup, Ct);
+        await _entries.JoinAsCopyAsync(lantern, lanternCopy, Ct);
+
+        await _metadata.RejectAndKeepAsync(original, MetadataFields.Year, ["2001"], ["1999"], Ct);
+        await _metadata.ResetAsync(lanternCard, MetadataFields.Year, Ct);
+
+        Assert.Empty(Cards(await _metadata.GetAsync(original, Ct)));
+        Assert.Equal(("1999", true), Year(await _metadata.GetAsync(original, Ct)));
+        Assert.Empty(Cards(await _metadata.GetAsync(lanternCard, Ct)));
+        Assert.Null((await _metadata.GetAsync(lanternCard, Ct)).Compute()[MetadataFields.Year].First);
+    }
+
+    static (string?, bool) Title(EntryMetadata metadata) => Value(metadata, MetadataFields.Title);
+
+    static (string?, bool) Year(EntryMetadata metadata) => Value(metadata, MetadataFields.Year);
+
+    static (string?, bool) Value(EntryMetadata metadata, MetadataField field) =>
+        metadata.Compute()[field].First is { } value ? (value.Value, value.Confirmed) : (null, false);
 
     [Fact]
     public async Task Make_current_chooses_the_copy_that_opens_and_a_copy_whose_file_has_gone_gives_way()
@@ -140,14 +197,14 @@ public sealed class EntryStoreTests : IAsyncLifetime
         Assert.Equal([(second, true, true), (first, false, false)], (await _entries.GetCopiesAsync(entry, Ct)).Select(c => (c.DocumentId, c.IsCurrent, c.HasFile)));
 
         // Not the same book on a version that didn't join by matching: it gets a new card, and the book keeps its work.
-        var split = await _entries.SplitCopyAsync(entry, second, Ct);
+        var split = await _entries.SplitCopyAsync(entry, second, ct: Ct);
 
         Assert.NotNull(split);
         Assert.NotEqual(entry, split);
         Assert.Equal(first, await _entries.GetCurrentDocumentAsync(entry, Ct));
         Assert.Equal(second, await _entries.GetCurrentDocumentAsync(split.Value, Ct));
         Assert.Equal(["Friday game"], (await _metadata.GetAsync(entry, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
-        Assert.Null(await _entries.SplitCopyAsync(split.Value, second, Ct));
+        Assert.Null(await _entries.SplitCopyAsync(split.Value, second, ct: Ct));
     }
 
     [Fact]

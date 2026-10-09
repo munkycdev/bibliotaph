@@ -195,7 +195,7 @@ public sealed class IndexStoreTests : IndexFixture
         await _store.SetFingerprintsAsync(3, ["bb", "bb", "dd"], Ct);
 
         Assert.Equal(["aa", "bb", null], await _queries.GetFingerprintsAsync(1, Ct));
-        Assert.Equal([(2L, 2), (3L, 1)], await _queries.GetSharingPagesAsync(1, Ct));
+        Assert.Equal([(2L, 2, 3), (3L, 1, 2)], await _queries.GetSharingPagesAsync(1, Ct));
         Assert.Empty(await _queries.GetSharingPagesAsync(99, Ct));
     }
 

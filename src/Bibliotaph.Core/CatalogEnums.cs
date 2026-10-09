@@ -59,6 +59,12 @@ public enum AssertionState
     /// maps it to an existing one (and the assertion becomes provisional) or rejects it (and so the assertion).
     /// </summary>
     AwaitingTerm,
+    /// <summary>
+    /// A value the user set on another card of the same book, for a field with one value, that disagreed with this
+    /// card's when the two were joined as copies (F2). Held out of the metadata, and offered by a "Copies disagree"
+    /// card in Needs review until the user decides the field.
+    /// </summary>
+    SetAside,
 }
 
 /// <summary>Where a vocabulary term came from. Starter terms ship with the app; the rest were added later.</summary>
@@ -97,6 +103,29 @@ public enum CopyAnswer
 {
     /// <summary>"Not the same book": the two stay on separate cards.</summary>
     NotSameBook,
+}
+
+/// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>
+public enum VersionEvidence
+{
+    /// <summary>Most of the smaller file's pages have the same text as pages of the other.</summary>
+    SharedPages,
+
+    /// <summary>Both cards have the same title and publisher.</summary>
+    TitleAndPublisher,
+}
+
+/// <summary>The user's answer to a "new version?" card in Needs review.</summary>
+public enum VersionAnswer
+{
+    /// <summary>Join the book's card and open this file from now on.</summary>
+    MakeCurrent,
+
+    /// <summary>Join the book's card as another copy; the card keeps opening the file it opened.</summary>
+    KeepAsCopy,
+
+    /// <summary>A different book: keep the two cards apart and don't ask again.</summary>
+    SeparateBook,
 }
 
 public enum StageStatus
