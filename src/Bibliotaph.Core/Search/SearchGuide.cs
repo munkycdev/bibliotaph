@@ -123,7 +123,7 @@ public static class SearchGuide
     {
         var insert = Quote(value);
         var rest = text[at.End..];
-        if (rest.Length == 0 || !char.IsWhiteSpace(rest[0]) && rest[0] != ')') rest = " " + rest;
+        if (rest.Length == 0 || (!char.IsWhiteSpace(rest[0]) && rest[0] != ')')) rest = " " + rest;
         var caret = at.Start + insert.Length + (char.IsWhiteSpace(rest[0]) ? 1 : 0);
         return new GuideEdit(text[..at.Start] + insert + rest, caret);
     }
@@ -142,7 +142,7 @@ public static class SearchGuide
 
     /// <summary>True when <paramref name="at"/> is where a word starts, or just after the minus that starts one.</summary>
     static bool StartsWord(string text, int at) =>
-        at == 0 || IsBreak(text[at - 1]) || text[at - 1] == '-' && (at == 1 || IsBreak(text[at - 2]));
+        at == 0 || IsBreak(text[at - 1]) || (text[at - 1] == '-' && (at == 1 || IsBreak(text[at - 2])));
 
     static bool HasQuote(string s) => s.AsSpan().IndexOfAny('"', '“', '”') >= 0;
 }

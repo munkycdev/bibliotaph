@@ -181,6 +181,7 @@ public partial class App : Application
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibraryFoldersViewModel>();
         builder.Services.AddTransient<ViewerViewModel>();
+        builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();
     }
