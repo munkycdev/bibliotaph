@@ -86,6 +86,7 @@ static class SmokeTest
             {
                 await theme.SetPreferenceAsync(preference);
                 await Check($"library browsed and searched in {preference}", () => BrowseLibraryAsync(services, window, books));
+                await Check($"a book's copies in {preference}", () => ShowCopiesAsync(window, services, books));
                 await Check($"a search built from the search guide in {preference}", () => UseSearchGuideAsync(services, window, books));
                 await Check($"Needs review and the vocabulary worked through in {preference}",
                     () => ReviewAsync(services, window, decide: preference == ThemePreference.Light));
@@ -204,6 +205,31 @@ static class SmokeTest
         await services.GetRequiredService<ClassificationStore>().RecordAsync(new RunRecord(lairsEntry, hashes[lairs], "ollama", "smoke-model",
             ClassifierPrompt.Version, ClassifierPrompt.SchemaVersion, [0], DateTime.UtcNow, ClassificationStore.Complete));
         await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairsEntry, gazetteerEntry]);
+
+        // A second file of the lairs in another folder, joined to its card as a copy, as Match joins one (F2).
+        const string BackupPath = "Backup/Dragon Lairs.pdf";
+        var (_, lairsTitle, lairsPages) = books.Single(b => b.Title == "Dragon Lairs");
+        await library.ReconcileRootAsync(root.Id, [.. books.Select(b => b.Path).Append(BackupPath).Select(p => new ScannedFile(Relative(p), 1000, modified, false))]);
+        var backupFile = (await library.NextUnhashedAsync(1, includeOnlineOnly: true)).Single();
+        var backupHash = ContentHash.Parse(new string((char)('1' + books.Length), ContentHash.HexLength));
+        var (backup, _) = await library.AttachHashAsync(backupFile, backupHash) ?? throw new InvalidOperationException("The made-up copy didn't attach.");
+        await index.UpsertDocumentAsync(
+            new DocRow
+            {
+                DocumentId = backup,
+                ContentHash = backupHash.Hex,
+                Format = SourceFormats.Pdf,
+                DisplayTitle = lairsTitle,
+                PageCount = lairsPages.Length,
+                FolderHint = "Backup",
+            },
+            [.. lairsPages.Select((_, i) => new PageRow(i, (i + 1).ToString(CultureInfo.InvariantCulture), 612, 792))], []);
+        await index.SetPageTextAsync(backup, [.. lairsPages.Select((text, i) => new PageTextRow(i, text, "pdf", 1, false))]);
+        await hints.ApplyAsync(backup);
+        var entryStore = services.GetRequiredService<EntryStore>();
+        var backupEntry = (await entryStore.GetEntryAsync(backup))!.EntryId;
+        if (await entryStore.JoinAsCopyAsync(lairs, backup) is null) throw new InvalidOperationException("The made-up copy didn't join the lairs.");
+        await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairsEntry, backupEntry]);
     }
 
     /// <summary>
@@ -323,6 +349,46 @@ static class SmokeTest
         page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books, () => $"Clearing the search didn't bring back all {books} books.");
+    }
+
+    /// <summary>
+    /// A book in two files (F2): "2 copies" in the list, the Copies filter, and the inspector's Copies section, where
+    /// Make current switches which file opens and switches it back.
+    /// </summary>
+    static async Task ShowCopiesAsync(Window window, IServiceProvider services, int books)
+    {
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        page.Layout = LibraryLayout.List;
+        page.ShowFilters = true;
+        await WaitUntilAsync(window, () => page.ShowCopiesChoice && page.Items.Count == books,
+            () => $"The Library shows {page.Items.Count} books and {(page.ShowCopiesChoice ? "the" : "no")} Copies filter.");
+
+        page.CopiesChoice = page.CopiesChoices.Single(c => c.Value);
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs", CopiesLabel: "2 copies" }],
+            () => $"Filtering by copies shows {string.Join(", ", page.Items.Select(i => $"{i.Title} ({i.CopiesLabel})"))}.");
+        var lairs = page.Items[0];
+        await page.OpenDetailsCommand.ExecuteAsync(lairs);
+        await WaitUntilAsync(window, () => page.Inspector is { Copies.Count: 2 }, () => "The inspector doesn't list the lairs' two copies.");
+        var first = page.Inspector!.Copies.Single(c => c.IsCurrent).DocumentId;
+
+        foreach (var expected in new[] { "the backup", "the original" })
+        {
+            var inspector = page.Inspector!;
+            var other = inspector.Copies.Single(c => !c.IsCurrent);
+            await Settle(window);
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == inspector.MakeCurrentCommand && Equals(b.CommandParameter, other)), "Make current");
+            await WaitUntilAsync(window, () => page.Inspector is { } next && next != inspector && next.Copies.Single(c => c.IsCurrent).DocumentId == other.DocumentId,
+                () => $"Make current didn't make {expected} the copy that opens.");
+        }
+        if (page.Inspector!.Copies.Single(c => c.IsCurrent).DocumentId != first) throw new InvalidOperationException("The lairs don't open their first copy again.");
+
+        page.CloseDetailsCommand.Execute(null);
+        page.CopiesChoice = page.CopiesChoices[0];
+        page.Layout = LibraryLayout.Grid;
+        page.ShowFilters = false;
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the Copies filter didn't bring back all {books} books.");
     }
 
     /// <summary>
