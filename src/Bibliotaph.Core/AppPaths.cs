@@ -13,6 +13,9 @@ public sealed record AppPaths(string Root)
     public string Logs => Path.Combine(Root, "logs");
     public string Cache => Path.Combine(Root, "cache");
 
+    /// <summary>The model pilot's book list, proposals, answers and report (slice 2d). Never part of a backup or the repo.</summary>
+    public string Pilot => Path.Combine(Root, "pilot");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

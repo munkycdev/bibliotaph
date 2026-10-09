@@ -12,5 +12,6 @@ public enum Route
     LibraryFolders,
     Vocabulary,
     Ai,
+    PilotReview,
     Viewer,
 }
