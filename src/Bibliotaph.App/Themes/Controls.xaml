@@ -156,11 +156,15 @@
       <Setter.Value>
         <ControlTemplate TargetType="Button">
           <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6" Padding="10" MinHeight="38" SnapsToDevicePixels="True">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <DockPanel VerticalAlignment="Center">
+              <!-- .bt-count -->
+              <TextBlock DockPanel.Dock="Right" Text="{Binding (c:Ui.Count), RelativeSource={RelativeSource TemplatedParent}}"
+                         FontSize="11" FontWeight="Normal" Foreground="{DynamicResource Bt.Muted}" MinWidth="20" TextAlignment="Center"
+                         VerticalAlignment="Center" Margin="8,0,0,0" />
               <c:LucideIcon x:Name="Icon" Margin="0,0,10,0" VerticalAlignment="Center"
                             Data="{Binding (c:Ui.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
               <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
-            </StackPanel>
+            </DockPanel>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="c:Ui.Icon" Value="{x:Null}">
@@ -373,6 +377,33 @@
               <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Panel}" />
               <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
               <Setter Property="FontWeight" Value="Medium" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- .bt-tab: tabs over a list, the active one on the soft background. -->
+  <Style x:Key="Bt.Tab" TargetType="RadioButton">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Margin" Value="0,0,4,0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Border x:Name="Chrome" Background="Transparent" CornerRadius="5" Padding="10,6">
+            <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+              <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

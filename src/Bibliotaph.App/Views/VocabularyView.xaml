@@ -1,0 +1,182 @@
+<UserControl x:Class="Bibliotaph.App.Views.VocabularyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:catalog="clr-namespace:Bibliotaph.Catalog;assembly=Bibliotaph.Catalog"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:VocabularyViewModel}">
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+
+    <!-- The × on a name's chip. -->
+    <Style x:Key="ChipRemove" TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" Background="Transparent" CornerRadius="3" Padding="4">
+              <c:LucideIcon Data="{StaticResource Icon.X}" Size="11" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+
+  <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+    <TextBlock Text="What things are called." Style="{StaticResource Text.H1}" />
+    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8" TextWrapping="Wrap"
+               Text="The game systems, types and other terms your books are filed under, and the other names each one goes by. Folder names, searches and what you type all go through these names." />
+
+    <ItemsControl ItemsSource="{Binding Vocabularies}" Focusable="False" Margin="0,12,0,12" AutomationProperties.Name="Vocabularies">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:VocabularyChoice}">
+          <RadioButton Style="{StaticResource Bt.Tab}" GroupName="Vocabulary" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Border Style="{StaticResource Bt.Rule}" />
+
+    <!-- Add a term -->
+    <TextBlock Text="{Binding AddLabel}" Style="{StaticResource FieldLabel}" Margin="0,18,0,5" />
+    <DockPanel>
+      <Button DockPanel.Dock="Right" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding AddTermCommand}" Margin="8,0,0,0" />
+      <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding NewTerm, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding AddLabel}">
+        <TextBox.InputBindings>
+          <KeyBinding Key="Enter" Command="{Binding AddTermCommand}" />
+        </TextBox.InputBindings>
+      </TextBox>
+    </DockPanel>
+    <TextBlock Text="{Binding AddProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,6,0,0"
+               Visibility="{Binding AddProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+    <TextBlock Text="{Binding AddNote}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,6,0,0"
+               Visibility="{Binding AddNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+    <!-- Find -->
+    <TextBlock Text="Find a term" Style="{StaticResource FieldLabel}" Margin="0,18,0,5" />
+    <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find a term" />
+
+    <ItemsControl ItemsSource="{Binding Terms}" Focusable="False" Margin="0,12,0,0" AutomationProperties.Name="Terms">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:TermRowViewModel}">
+          <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,12">
+            <StackPanel>
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                        Command="{Binding EditCommand}" VerticalAlignment="Top"
+                        ToolTip="Rename, or change its other names" AutomationProperties.Name="{Binding Label, StringFormat='Edit {0}'}"
+                        Visibility="{Binding IsEditing, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                <StackPanel>
+                  <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Row}" />
+                  <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                             Visibility="{Binding Detail, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                </StackPanel>
+              </DockPanel>
+
+              <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0"
+                      Visibility="{Binding IsEditing, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="2*" />
+                      <ColumnDefinition Width="12" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="Name" Style="{StaticResource FieldLabel}" />
+                      <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding EditLabel, UpdateSourceTrigger=PropertyChanged}"
+                               AutomationProperties.Name="Name" c:Ui.FocusWhenVisible="True">
+                        <TextBox.InputBindings>
+                          <KeyBinding Key="Enter" Command="{Binding RenameCommand}" />
+                          <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
+                        </TextBox.InputBindings>
+                      </TextBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                      <TextBlock Text="Short name, on covers" Style="{StaticResource FieldLabel}" />
+                      <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding EditShort, UpdateSourceTrigger=PropertyChanged}"
+                               AutomationProperties.Name="Short name">
+                        <TextBox.InputBindings>
+                          <KeyBinding Key="Enter" Command="{Binding RenameCommand}" />
+                          <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
+                        </TextBox.InputBindings>
+                      </TextBox>
+                    </StackPanel>
+                  </Grid>
+                  <Button Content="Save name" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding RenameCommand}" HorizontalAlignment="Left"
+                          Margin="0,10,0,0" />
+
+                  <TextBlock Text="Other names" Style="{StaticResource FieldLabel}" Margin="0,18,0,5" />
+                  <ItemsControl ItemsSource="{Binding Aliases}" Focusable="False" AutomationProperties.Name="Other names">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type catalog:AliasEntry}">
+                        <Border Style="{StaticResource Bt.Chip}" Background="{DynamicResource Bt.Panel}" Padding="8,2,2,2">
+                          <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Text}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ChipRemove}" Margin="4,0,0,0"
+                                    ToolTip="Remove this name" AutomationProperties.Name="{Binding Text, StringFormat='Remove {0}'}"
+                                    Command="{Binding DataContext.RemoveAliasCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Text="None yet." Style="{StaticResource Text.Small}"
+                             Visibility="{Binding HasAliases, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                  <DockPanel Margin="0,10,0,0">
+                    <Button DockPanel.Dock="Right" Content="Add name" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding AddAliasCommand}"
+                            Margin="8,0,0,0" />
+                    <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding NewAlias, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="Another name">
+                      <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding AddAliasCommand}" />
+                        <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
+                      </TextBox.InputBindings>
+                    </TextBox>
+                  </DockPanel>
+                  <TextBlock Text="A name another term already has as another name moves here." Style="{StaticResource Text.Small}"
+                             Margin="0,6,0,0" TextWrapping="Wrap" />
+
+                  <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,10,0,0"
+                             Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                  <TextBlock Text="{Binding Note}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,10,0,0"
+                             Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                  <Button Content="Done" Command="{Binding CloseCommand}" HorizontalAlignment="Left" Margin="0,14,0,0" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Style="{StaticResource Text.Small}" Margin="0,18,0,0" TextWrapping="Wrap"
+               Text="Renaming keeps everything filed under a term. Changes reach the library in the background; books under renamed folders are read again." />
+  </StackPanel>
+</UserControl>

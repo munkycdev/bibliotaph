@@ -38,33 +38,6 @@
       </DataTemplate.Triggers>
     </DataTemplate>
 
-    <!-- .bt-tab: results tabs, the active one on the soft background. -->
-    <Style x:Key="Tab" TargetType="RadioButton">
-      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
-      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="Margin" Value="0,0,4,0" />
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="RadioButton">
-            <Border x:Name="Chrome" Background="Transparent" CornerRadius="5" Padding="10,6">
-              <ContentPresenter VerticalAlignment="Center" />
-            </Border>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
-              </Trigger>
-              <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
-                <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
     <!-- A book title that opens its details, in search results. -->
     <Style x:Key="TitleLink" TargetType="Button">
       <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
@@ -160,8 +133,8 @@
         </StackPanel>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" AutomationProperties.Name="Results"
                     Visibility="{Binding IsSearching, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <RadioButton Style="{StaticResource Tab}" Content="{Binding DocumentsTabLabel}" IsChecked="{Binding IsDocumentsTab}" />
-          <RadioButton Style="{StaticResource Tab}" Content="{Binding PagesTabLabel}" IsChecked="{Binding IsPagesTab}" />
+          <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding DocumentsTabLabel}" IsChecked="{Binding IsDocumentsTab}" />
+          <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding PagesTabLabel}" IsChecked="{Binding IsPagesTab}" />
         </StackPanel>
       </DockPanel>
     </Border>

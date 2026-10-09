@@ -10,6 +10,9 @@ public static class SettingKeys
 
     /// <summary>Where the last pop-out reader window was: a <c>WindowPlacement</c> in pixels.</summary>
     public const string ReaderWindow = "reader-window";
+
+    /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
+    public const string ReviewAll = "review.all";
 }
 
 /// <summary>Key-value settings in catalog.db, so they travel with backups.</summary>

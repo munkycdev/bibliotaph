@@ -91,6 +91,7 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly IndexingService _indexing;
     readonly IndexQueries _queries;
     readonly LibraryStore _library;
+    readonly ReviewService _review;
     readonly ILogger<LibraryActivity> _log;
     readonly DispatcherTimer _timer;
     readonly PhaseProgress _finding = new("Finding files", "Listing your folders");
@@ -101,11 +102,13 @@ public sealed partial class LibraryActivity : ObservableObject
     int _dirty = 1;
     bool _refreshing;
 
-    public LibraryActivity(IndexingService indexing, IndexQueries queries, LibraryStore library, MetadataProjector metadata, ILogger<LibraryActivity> log)
+    public LibraryActivity(IndexingService indexing, IndexQueries queries, LibraryStore library, MetadataProjector metadata, ReviewService review,
+        ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
         _queries = queries;
         _library = library;
+        _review = review;
         _log = log;
         _timer = new DispatcherTimer(Tick, DispatcherPriority.Background, async (_, _) => await OnTickAsync(), Dispatcher.CurrentDispatcher);
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
@@ -138,6 +141,19 @@ public sealed partial class LibraryActivity : ObservableObject
     /// <summary>Files needing attention and online-only files still to download, in a line.</summary>
     [ObservableProperty]
     public partial string Notes { get; private set; } = "";
+
+    /// <summary>Metadata suggestions in Needs review: cards for documents' fields, and new terms.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReviewCount))]
+    public partial long SuggestionCount { get; private set; }
+
+    /// <summary>Files needing attention, as Needs review's second tab lists them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReviewCount))]
+    public partial long AttentionCount { get; private set; }
+
+    /// <summary>Everything in Needs review, for the sidebar.</summary>
+    public long ReviewCount => SuggestionCount + AttentionCount;
 
     /// <summary>Files or stages the user could do something about (a password, a damaged file).</summary>
     [ObservableProperty]
@@ -199,6 +215,8 @@ public sealed partial class LibraryActivity : ObservableObject
             OcrPaused = _indexing.IsPaused(Lane.Ocr);
             WaitingForDiskSpace = _indexing.WaitingForDiskSpace;
             NeedsAttention = Progress.NeedAttention > 0 || _indexing.Unreadable.Count > 0;
+            AttentionCount = Progress.NeedAttention + _indexing.Unreadable.Count;
+            SuggestionCount = await _review.CountAsync();
             HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
             HasOcrWork = Progress.PagesAwaitingOcr > 0;
             Summary = Describe();
