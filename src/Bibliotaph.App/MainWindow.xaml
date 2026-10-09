@@ -6,6 +6,7 @@
         xmlns:c="clr-namespace:Bibliotaph.App.Controls"
         xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
         xmlns:services="clr-namespace:Bibliotaph.App.Services"
+        xmlns:search="clr-namespace:Bibliotaph.Core.Search;assembly=Bibliotaph.Core"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:ShellViewModel}"
         Title="Bibliotaph"
@@ -183,6 +184,88 @@
           </ContentControl.Style>
         </ContentControl>
       </ScrollViewer>
+
+      <!--
+        The search box's field guide: the fields you can search, and after a field's colon its values in your library.
+        Its DataContext is the SearchGuideViewModel, set in code. The box keeps keyboard focus, so the rows don't take it;
+        the arrow keys move the highlight from the box. A popup doesn't take the window's text colour, so it is set here.
+      -->
+      <Popup x:Name="SearchGuide" PlacementTarget="{Binding ElementName=Search}" Placement="Bottom" AllowsTransparency="True"
+             Focusable="False" StaysOpen="True" IsOpen="{Binding IsOpen, Mode=OneWay}" Width="{Binding ActualWidth, ElementName=Search}">
+        <Popup.Resources>
+          <Style x:Key="Bt.GuideRow" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                  <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="8,5">
+                    <ContentPresenter />
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                    </Trigger>
+                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                      <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                    </DataTrigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+          <!-- "system: the game system, e.g. system:5e" -->
+          <DataTemplate DataType="{x:Type vm:FieldSuggestionViewModel}">
+            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource Bt.Text}">
+              <Run Text="{Binding Name, Mode=OneWay}" FontWeight="Medium" /><Run Text=" " /><Run Text="{Binding Description, Mode=OneWay}" Foreground="{DynamicResource Bt.Muted}" /><Run Text="{Binding Example, Mode=OneWay}" />
+            </TextBlock>
+          </DataTemplate>
+          <!-- "Dungeons & Dragons  system:dnd    12" -->
+          <DataTemplate DataType="{x:Type vm:ValueSuggestionViewModel}">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Margin="10,0,0,0" Text="{Binding Count, Mode=OneWay}" Foreground="{DynamicResource Bt.Muted}" />
+              <TextBlock TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Bt.Text}">
+                <Run Text="{Binding Label, Mode=OneWay}" /><Run Text="   " /><Run Text="{Binding Search, Mode=OneWay}" Foreground="{DynamicResource Bt.Muted}" />
+              </TextBlock>
+            </DockPanel>
+          </DataTemplate>
+        </Popup.Resources>
+        <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="7"
+                Margin="0,4,0,0" Padding="4" TextElement.Foreground="{DynamicResource Bt.Text}"
+                TextElement.FontFamily="{StaticResource Font.Sans}" TextElement.FontSize="11">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Text.Eyebrow}" Margin="8,4,8,3" Text="{Binding Heading, Mode=OneWay}" />
+            <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,4,0,0" Padding="8,6,8,3">
+              <TextBlock Style="{StaticResource Text.Small}" FontSize="10" Text="{x:Static search:SearchFields.Syntax}" />
+            </Border>
+            <ContentPresenter DockPanel.Dock="Top" Margin="8,5" Content="{Binding Hint, Mode=OneWay}"
+                              Visibility="{Binding Hint, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <ScrollViewer x:Name="SearchGuideScroll" MaxHeight="380" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          Focusable="False">
+              <ItemsControl x:Name="SearchGuideRows" ItemsSource="{Binding Suggestions, Mode=OneWay}" Focusable="False"
+                            AutomationProperties.Name="Search suggestions">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource Bt.GuideRow}" Content="{Binding}" AutomationProperties.Name="{Binding Spoken, Mode=OneWay}"
+                            Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Popup>
+
+      <!--
+        Screen readers hear the guide's highlighted row from this live region as the arrow keys move it, since keyboard
+        focus stays in the box. It is in the tree, so it has an automation peer, but can't be seen or clicked. The window
+        sets its text just before announcing it.
+      -->
+      <TextBlock x:Name="SearchGuideAnnouncement" Width="1" Height="1" Opacity="0" IsHitTestVisible="False" Focusable="False"
+                 HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.LiveSetting="Assertive" />
     </Grid>
   </Grid>
 </Window>
