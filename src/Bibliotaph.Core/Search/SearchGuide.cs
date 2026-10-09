@@ -61,19 +61,19 @@ public static class SearchGuide
         var colon = typed.IndexOf(':', StringComparison.Ordinal);
         if (colon >= 0 && !HasQuote(typed[..colon]))
         {
-            if (SearchFields.Find(typed[..colon]) is not { } field) return requested ? After(text, end) : null;
+            if (SearchFields.Find(typed[..colon]) is not { } field) return requested ? After(end) : null;
             var value = typed[(colon + 1)..];
             if (HasQuote(value)) return null; // a phrase is free text; no list helps with it
             return new GuideContext(field.ListsValues ? GuideMode.Values : GuideMode.Example, start + colon + 1, end, value, [], field);
         }
 
         // Only a whole word at the cursor is narrowed on; a cursor inside a word, or in a quote, isn't naming a field.
-        if (end > caret || word.Contains(':', StringComparison.Ordinal) || HasQuote(word)) return requested ? After(text, end) : null;
+        if (end > caret || word.Contains(':', StringComparison.Ordinal) || HasQuote(word)) return requested ? After(end) : null;
         if (typed.Length == 0)
             return requested || string.IsNullOrWhiteSpace(text) ? new GuideContext(GuideMode.Fields, caret, caret, "", SearchFields.All) : null;
         var matches = Matching(typed);
         if (matches.Count > 0) return new GuideContext(GuideMode.Fields, start, end, typed, matches);
-        return requested ? After(text, end) : null;
+        return requested ? After(end) : null;
     }
 
     /// <summary>The fields whose name or an alias starts with <paramref name="typed"/>, ignoring case, in list order.</summary>
@@ -135,7 +135,7 @@ public static class SearchGuide
             : "\"" + value.Replace("\"", "", StringComparison.Ordinal) + "\"";
 
     /// <summary>Every field, added after the word that ends at <paramref name="end"/>.</summary>
-    static GuideContext After(string text, int end) => new(GuideMode.Fields, end, end, "", SearchFields.All);
+    static GuideContext After(int end) => new(GuideMode.Fields, end, end, "", SearchFields.All);
 
     /// <summary>Where a word ends in the search box, as the parser splits them.</summary>
     static bool IsBreak(char c) => char.IsWhiteSpace(c) || c is '(' or ')';
