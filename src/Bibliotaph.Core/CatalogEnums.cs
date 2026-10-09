@@ -41,6 +41,11 @@ public enum AssertionState
     Confirmed,
     Rejected,
     Superseded,
+    /// <summary>
+    /// Names a vocabulary term that is still pending: held out of the document's metadata until the user adds the term,
+    /// maps it to an existing one (and the assertion becomes provisional) or rejects it (and so the assertion).
+    /// </summary>
+    AwaitingTerm,
 }
 
 /// <summary>Where a vocabulary term came from. Starter terms ship with the app; the rest were added later.</summary>

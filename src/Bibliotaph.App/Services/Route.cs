@@ -10,5 +10,6 @@ public enum Route
     NeedsReview,
     Settings,
     LibraryFolders,
+    Vocabulary,
     Viewer,
 }

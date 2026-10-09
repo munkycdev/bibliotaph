@@ -159,6 +159,8 @@ public partial class App : Application
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<MetadataService>();
+        builder.Services.AddSingleton<VocabularyService>();
+        builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
@@ -180,6 +182,7 @@ public partial class App : Application
         builder.Services.AddTransient<NeedsReviewViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibraryFoldersViewModel>();
+        builder.Services.AddTransient<VocabularyViewModel>();
         builder.Services.AddTransient<ViewerViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();
@@ -194,6 +197,7 @@ public partial class App : Application
         Route.NeedsReview => services.GetRequiredService<NeedsReviewViewModel>(),
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.LibraryFolders => services.GetRequiredService<LibraryFoldersViewModel>(),
+        Route.Vocabulary => services.GetRequiredService<VocabularyViewModel>(),
         Route.Viewer => services.GetRequiredService<ViewerViewModel>(),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

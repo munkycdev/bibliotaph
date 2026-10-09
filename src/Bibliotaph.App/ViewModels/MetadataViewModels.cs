@@ -29,7 +29,7 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
     public bool Confirmed => Value.Confirmed;
 
     /// <summary>"From the folder name “D&amp;D 5e”", "You set this", one line per source that agrees.</summary>
-    public IReadOnlyList<string> Sources { get; } = [.. value.Support.Select(Describe).Distinct()];
+    public IReadOnlyList<string> Sources { get; } = [.. value.Support.Select(c => Describe(c)).Distinct()];
 
     public static string Display(MetadataField field, string value, Vocabulary vocabulary) => field.Kind switch
     {
@@ -38,7 +38,8 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
         _ => value,
     };
 
-    static string Describe(MetadataClaim claim)
+    /// <summary>Where one claim came from, in words: "From the folder name “D&amp;D 5e”", with its pages unless told not to.</summary>
+    public static string Describe(MetadataClaim claim, bool pages = true)
     {
         var quote = string.IsNullOrWhiteSpace(claim.Quote) ? "" : $" “{claim.Quote}”";
         var source = claim.Origin switch
@@ -48,7 +49,7 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
             AssertionOrigin.Filename => "From the file name" + quote,
             AssertionOrigin.Embedded => "From the PDF's own information" + quote,
             AssertionOrigin.Rule => "Written in the file's name or title" + quote,
-            AssertionOrigin.Ai => "Suggested by the AI model" + quote + (claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
+            AssertionOrigin.Ai => "Suggested by the AI model" + quote + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
             _ => claim.Origin.ToString(),
         };
         return claim.Origin != AssertionOrigin.User && claim.State == AssertionState.Confirmed ? $"You kept this. {source}" : source;
@@ -73,9 +74,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
         Values = [.. field.Values.Select(v => new MetadataValueViewModel(field.Field, v, vocabulary))];
         Alternatives = [.. field.Alternatives.Select(v => new MetadataValueViewModel(field.Field, v, vocabulary))];
         NeedsReview = field.NeedsReview;
-        Choices = field.Field.Kind == FieldKind.Term
-            ? [.. vocabulary.InVocabulary(field.Field.Vocabulary!).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase)]
-            : [];
+        Choices = ChoicesFor(field.Field, vocabulary);
         EditText = string.Join(", ", Values.Select(v => v.Text));
     }
 
@@ -143,23 +142,28 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     [ObservableProperty]
     public partial string Resolution { get; private set; } = "";
 
-    partial void OnEditTextChanged(string value)
+    partial void OnEditTextChanged(string value) => Resolution = DescribeResolution(Field, value, _vocabulary);
+
+    /// <summary>How typed text will be filed in a term field; empty for other fields, or when every value is a label.</summary>
+    public static string DescribeResolution(MetadataField field, string? typed, Vocabulary vocabulary)
     {
-        if (Field.Kind != FieldKind.Term)
-        {
-            Resolution = "";
-            return;
-        }
+        if (field.Kind != FieldKind.Term) return "";
         var notes = new List<string>();
-        foreach (var part in MetadataValues.Split(Field, value ?? ""))
+        foreach (var part in MetadataValues.Split(field, typed ?? ""))
         {
             if (MetadataText.Normalize(part).Length == 0) continue;
-            var term = _vocabulary.Resolve(Field.Vocabulary!, part);
-            if (term is null) notes.Add($"“{part}” will be added as a new {Field.Label.ToLower(CultureInfo.CurrentCulture)}.");
+            var term = vocabulary.Resolve(field.Vocabulary!, part);
+            if (term is null) notes.Add($"“{part}” will be added as a new {field.Label.ToLower(CultureInfo.CurrentCulture)}.");
             else if (MetadataText.Normalize(term.Label) != MetadataText.Normalize(part)) notes.Add($"“{part}” is another name for {term.Label}.");
         }
-        Resolution = string.Join(" ", notes);
+        return string.Join(" ", notes);
     }
+
+    /// <summary>The labels of a term field's vocabulary, to pick from; empty for other fields.</summary>
+    public static IReadOnlyList<string> ChoicesFor(MetadataField field, Vocabulary vocabulary) =>
+        field.Kind == FieldKind.Term
+            ? [.. vocabulary.InVocabulary(field.Vocabulary!).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase)]
+            : [];
 
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
