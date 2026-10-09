@@ -54,7 +54,8 @@ public sealed class IndexingService(
     ArchiveReader archives,
     IndexingOptions? options = null,
     ILogger<IndexingService>? log = null,
-    TimeProvider? clock = null) : BackgroundService
+    TimeProvider? clock = null,
+    PackService? packs = null) : BackgroundService
 {
     readonly IndexingOptions _options = options ?? new IndexingOptions();
     readonly ILogger _log = log ?? NullLogger<IndexingService>.Instance;
@@ -68,6 +69,8 @@ public sealed class IndexingService(
     readonly Dictionary<Lane, Signal> _laneSignals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
     readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
+    /// <summary>Set when files may have arrived, moved or been hashed, so folders are looked at for packs (F4) after hashing.</summary>
+    volatile bool _packsDue = true;
     HashSet<long>? _pendingScans; // null: every root
     bool _scanAll = true;
     readonly Dictionary<long, RootScan> _scans = [];
@@ -324,6 +327,7 @@ public sealed class IndexingService(
                 RaiseChanged();
             }
             await ReleaseReachableAsync(ct);
+            _packsDue = true;
             _hashSignal.Set();
         }
     }
@@ -402,6 +406,27 @@ public sealed class IndexingService(
             await _hashSignal.WaitAsync(_options.IdleRecheck, ct);
             if (IsPaused(Lane.Index)) continue;
             await HashPendingAsync(ct);
+            await PackAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// Makes folders and ZIPs of many images one card (F4 plan, choice 2), once what's there has been hashed. A failure
+    /// is logged and tried again next time, so it never stops hashing.
+    /// </summary>
+    async Task PackAsync(CancellationToken ct)
+    {
+        if (packs is null || !_packsDue || IsPaused(Lane.Index)) return;
+        _packsDue = false;
+        try
+        {
+            await packs.PlanAsync(ct);
+            RaiseChanged();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+        {
+            _log.LogError(ex, "Looking for image packs failed");
+            _packsDue = true;
         }
     }
 
@@ -481,6 +506,7 @@ public sealed class IndexingService(
     async Task AttachAsync(UnhashedFile file, ContentHash hash, CancellationToken ct)
     {
         var attached = await library.AttachHashAsync(file, hash, ct);
+        _packsDue = true;
         // Idempotent: a copy of a known document finds its Probe job already there.
         if (attached is { } document) await queue.EnqueueAsync(document.DocumentId, hash.Hex, Pipeline.First, ct: ct);
     }

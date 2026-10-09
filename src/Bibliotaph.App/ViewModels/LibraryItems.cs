@@ -40,12 +40,29 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>The publisher, or the folders when there isn't one, under the title in the list.</summary>
     public string Byline => Entry.Publisher ?? Entry.FolderHint ?? "";
 
-    /// <summary>Pages for a PDF, the format for an image.</summary>
-    public string SizeLabel => PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
+    /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack.</summary>
+    public string SizeLabel => IsPack ? ImagesLabel : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
+
+    /// <summary>Many images shown as one card (F4): its cover is a mosaic of its first four.</summary>
+    public bool IsPack => Entry.IsPack;
+
+    /// <summary>"120 images", for a pack.</summary>
+    public string ImagesLabel => IsPack ? Images(Entry.Members) : "";
+
+    /// <summary>The covers of a pack's first four images, for its mosaic. Each loads the first time a cell asks for it.</summary>
+    public IReadOnlyList<CoverTile> Mosaic
+    {
+        get
+        {
+            if (field is null || !field.Select(t => t.Name).SequenceEqual(Entry.MosaicCovers))
+                field = [.. Entry.MosaicCovers.Select(name => new CoverTile(name, covers))];
+            return field;
+        }
+    }
 
     public string Folder => Entry.FolderHint ?? "";
 
-    public string FormatLabel => Entry.Format.ToUpperInvariant();
+    public string FormatLabel => IsPack ? "PACK" : Entry.Format.ToUpperInvariant();
 
     /// <summary>A model has read this book: its cover carries a spark.</summary>
     public bool IsAiRead => Entry.AiModel is not null;
@@ -120,12 +137,55 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(Initial));
         OnPropertyChanged(nameof(IsAiRead));
         OnPropertyChanged(nameof(AiTip));
+        OnPropertyChanged(nameof(ImagesLabel));
+        OnPropertyChanged(nameof(Mosaic));
     }
 
+    public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";
+
     public static string Describe(LibraryEntry entry) =>
-        SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
+        entry.IsPack ? $"Image pack · {Images(entry.Members)}"
+        : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
         : entry.PageCount is { } pages ? $"PDF · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
         : "PDF";
+}
+
+/// <summary>One image's cover in a pack's mosaic or grid, loaded the first time it is asked for.</summary>
+public sealed class CoverTile(string name, CoverImages covers) : ObservableObject
+{
+    bool _requested;
+
+    public string Name { get; } = name;
+
+    public ImageSource? Cover
+    {
+        get
+        {
+            if (!_requested)
+            {
+                _requested = true;
+                field = covers.TryGet(Name);
+                if (field is null) _ = LoadAsync();
+            }
+            return field;
+        }
+        private set => SetProperty(ref field, value);
+    }
+
+    async Task LoadAsync()
+    {
+        if (await covers.LoadAsync(Name) is { } image) Cover = image;
+    }
+}
+
+/// <summary>An image in a pack's inspector grid: its name and cover. Clicking it opens it in the viewer.</summary>
+public sealed class PackImageViewModel(PackImage image, CoverImages covers)
+{
+    public PackImage Image { get; } = image;
+
+    public string Name => Image.Name;
+
+    public CoverTile? Tile { get; } = image.Cover is { } cover ? new CoverTile(cover, covers) : null;
 }
 
 /// <summary>A page that matched a search, quoted around the hit.</summary>

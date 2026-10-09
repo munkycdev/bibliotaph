@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Bibliotaph.Catalog;
+using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
@@ -50,20 +51,41 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly LibraryQueries _queries;
     readonly IndexingService _indexing;
     readonly CopiesService _copies;
+    readonly PackService _packs;
     bool _refreshing;
     bool _refreshAgain;
 
-    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations, IReadOnlyList<CopyDetails> copies,
-        MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService)
+    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
+        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
+        PackService packs)
     {
         Item = item;
         _metadata = metadata;
         _queries = queries;
         _indexing = indexing;
         _copies = copiesService;
-        Locations = [.. locations.Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath))];
+        _packs = packs;
+        Locations = locations;
         Copies = copies.Count < 2 ? [] : [.. copies.Select(ToCopy)];
+        PackImages = images;
         ShowProcessing(details?.Entry ?? item.Entry, details);
+    }
+
+    /// <summary>A pack's images, for its grid (F4 plan, choice 7); empty for anything else.</summary>
+    public IReadOnlyList<PackImageViewModel> PackImages { get; }
+
+    public bool IsPack => Item.IsPack;
+
+    public string PackImagesHeading => $"IMAGES ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    /// <summary>Raised after "Split into separate images", with how many images got their cards back.</summary>
+    public event EventHandler<int>? PackSplit;
+
+    /// <summary>"Split into separate images" (choice 4): every image gets its card back, and the folder isn't packed again.</summary>
+    [RelayCommand]
+    async Task SplitPack()
+    {
+        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId))) PackSplit?.Invoke(this, PackImages.Count);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
@@ -182,7 +204,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public string Title => Item.Title;
 
-    public string Eyebrow => Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
+    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -216,12 +238,26 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool CanOcrEveryPage => PageCount > 0;
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing, CopiesService copies)
+        IndexingService indexing, CopiesService copies, PackService packs, CoverImages covers)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
-        var locations = await library.GetLocationsAsync(item.DocumentId);
-        var copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
-        var inspector = new InspectorViewModel(item, details, locations, copyList, metadata, queries, indexing, copies);
+        IReadOnlyList<InspectorLocation> locations;
+        IReadOnlyList<CopyDetails> copyList = [];
+        IReadOnlyList<PackImageViewModel> images = [];
+        if (item.IsPack)
+        {
+            // A pack is where its folder or ZIP is; its images are listed below, each with its own file.
+            var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
+            locations = place is null ? [] : [new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder")];
+            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+        }
+        else
+        {
+            locations = [.. (await library.GetLocationsAsync(item.DocumentId))
+                .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath))];
+            copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
+        }
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs);
         await inspector.ReloadMetadataAsync(changed: false);
         return inspector;
     }
@@ -282,11 +318,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         var facts = BuildFacts(entry, details);
         if (!facts.SequenceEqual(Facts)) Facts = facts;
-        IReadOnlyList<InspectorStage> stages = details is null ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
+        // A pack's processing is its images', each read like any image.
+        IReadOnlyList<InspectorStage> stages = details is null || entry.IsPack ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
         if (!stages.SequenceEqual(Stages)) Stages = stages;
         // AI cataloguing isn't part of Reprocess and can wait for hours (AI off, a model server down), so only the
         // stages that read the file count.
-        IsReprocessing = details?.Stages.Any(s => Pipeline.FileStages.Contains(s.Stage) && s.Status is StageStatus.Pending or StageStatus.Running) == true;
+        IsReprocessing = !entry.IsPack && details?.Stages.Any(s => Pipeline.FileStages.Contains(s.Stage) && s.Status is StageStatus.Pending or StageStatus.Running) == true;
         PageCount = entry.Format == SourceFormats.Pdf ? entry.PageCount ?? 0 : 0;
     }
 
@@ -299,7 +336,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         var facts = new List<InspectorFact>
         {
-            new("Format", details is { WidthPx: { } w, HeightPx: { } h }
+            new("Format", details is { WidthPx: { } w, HeightPx: { } h } && !entry.IsPack
                 ? $"{LibraryItemViewModel.Describe(entry)} · {w.ToString("N0", CultureInfo.CurrentCulture)} × {h.ToString("N0", CultureInfo.CurrentCulture)} px"
                 : LibraryItemViewModel.Describe(entry)),
             new("Added", entry.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture)),
@@ -319,7 +356,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     static string SearchText(LibraryEntry entry, DocumentDetails details)
     {
-        if (SourceFormats.IsImage(entry.Format)) return "Found by its name";
+        if (entry.IsPack || SourceFormats.IsImage(entry.Format)) return "Found by its name";
         if (!entry.Searchable) return "Its text is still being read";
         var text = details.OcrPages > 0
             ? $"Text searchable, {details.OcrPages.ToString("N0", CultureInfo.CurrentCulture)} scanned {(details.OcrPages == 1 ? "page" : "pages")} read"

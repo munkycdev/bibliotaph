@@ -34,6 +34,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     MetadataService _metadata = null!;
     MetadataStore _metadataStore = null!;
     MetadataProjector _projector = null!;
+    PackService _packs = null!;
     VocabularyStore _vocabulary = null!;
     SettingsStore _settings = null!;
     readonly FakeModel _model = new();
@@ -91,7 +92,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
                 new MatchStage(entries, versions, index, _queries, projector),
             ],
             new FileHasher(reader), new DiskSpace(), archives,
-            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
+            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
+            packs: _packs = new PackService(new PackStore(contexts), projector));
     }
 
     public async ValueTask DisposeAsync()

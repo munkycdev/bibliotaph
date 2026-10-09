@@ -12,12 +12,23 @@ namespace Bibliotaph.Index;
 /// A library card as the grid and search results show it: an entry, through the document it shows
 /// (<see cref="DocumentId"/>, which opens). <see cref="Title"/> is its effective title, or the one from its file name. <see cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/>
 /// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/>
-/// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has.
+/// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack
+/// (<see cref="EntryKind"/>) shows its first image, counts its <see cref="Members"/>, and has the covers of its first
+/// four images for its mosaic (<see cref="MemberCovers"/>).
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
     string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
-    string? AiModel = null, int Copies = 1);
+    string? AiModel = null, int Copies = 1, EntryKind EntryKind = EntryKind.Whole, int Members = 0, string? MemberCovers = null)
+{
+    public bool IsPack => EntryKind == EntryKind.Pack;
+
+    /// <summary>The cover file names of a pack's first four images that have one.</summary>
+    public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
+}
+
+/// <summary>An image in a pack, in file name order: the document it shows, its own entry, its name and its cover.</summary>
+public sealed record PackImage(long DocumentId, EntryId MemberEntryId, string Name, string Format, string? Cover);
 
 public enum LibrarySort
 {
@@ -29,12 +40,15 @@ public enum LibrarySort
     Publisher,
 }
 
-/// <summary>Format choices in the filter panel. The format: field gives finer control.</summary>
-public enum FormatFilter
+/// <summary>Kind choices in the filter panel (F4 plan, choice 10). The format: field gives finer control.</summary>
+public enum KindFilter
 {
     All,
-    Pdf,
+    /// <summary>PDFs.</summary>
+    Books,
+    /// <summary>Single images, not those in packs.</summary>
     Images,
+    Packs,
 }
 
 /// <summary>The AI choice in the filter panel: books a model has read, or those it hasn't yet.</summary>
@@ -54,7 +68,7 @@ public enum AiFilter
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
-    FormatFilter Format = FormatFilter.All,
+    KindFilter Kind = KindFilter.All,
     LibrarySort Sort = LibrarySort.Relevance,
     IReadOnlyCollection<string>? Systems = null,
     IReadOnlyCollection<string>? Types = null,
@@ -103,12 +117,16 @@ public sealed class LibraryQueries(IndexDatabase database)
     const string DocRank = "bm25(entry_fts, 10.0, 5.0, 2.0, 3.0, 2.0, 3.0, 1.0, 4.0, 1.0)";
 
     const string EntryColumns = """
-        e.entry_id AS EntryId, d.document_id AS DocumentId, coalesce(m.title, d.display_title) AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,
+        e.entry_id AS EntryId, d.document_id AS DocumentId, coalesce(m.title, e.name, d.display_title) AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,
         d.folder_hint AS FolderHint, d.added_utc AS AddedUtc,
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
         coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
-        ai.model AS AiModel, e.copies AS Copies
+        ai.model AS AiModel, e.copies AS Copies, e.kind AS EntryKind, e.members AS Members,
+        CASE WHEN e.kind = 'Pack' THEN (
+            SELECT json_group_array(cover) FROM (
+                SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
+                WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers
         """;
 
     /// <summary>Library cards: each entry with the document it shows.</summary>
@@ -337,6 +355,20 @@ public sealed class LibraryQueries(IndexDatabase database)
         return [.. rows.Select(r => new OcrWordRow(r.Text, r.LeftPt, r.TopPt, r.RightPt, r.BottomPt))];
     }
 
+    /// <summary>A pack's images in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
+    public async Task<IReadOnlyList<PackImage>> GetPackImagesAsync(EntryId packId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, long MemberEntryId, string Name, string? Format, string? Cover)>(new CommandDefinition(
+            """
+            SELECT em.document_id, em.member_entry_id, em.name, d.format, d.cover
+            FROM entry_member em LEFT JOIN doc d ON d.document_id = em.document_id
+            WHERE em.entry_id = @packId
+            ORDER BY em.ord
+            """, new { packId = packId.Value }, cancellationToken: ct));
+        return [.. rows.Select(r => new PackImage(r.DocumentId, new EntryId(r.MemberEntryId), r.Name, r.Format ?? "", r.Cover))];
+    }
+
     /// <summary>The library cards of these entries, as the grid shows them.</summary>
     public async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -355,8 +387,8 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     static string Order(LibrarySort sort, string? relevance) => sort switch
     {
-        LibrarySort.Title => "coalesce(m.title, d.display_title) COLLATE NOCASE, e.entry_id",
-        LibrarySort.Publisher => "m.publisher IS NULL, m.publisher COLLATE NOCASE, coalesce(m.title, d.display_title) COLLATE NOCASE, e.entry_id",
+        LibrarySort.Title => "coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
+        LibrarySort.Publisher => "m.publisher IS NULL, m.publisher COLLATE NOCASE, coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
         LibrarySort.Relevance when relevance is not null => $"{relevance}, e.entry_id",
         _ => "d.added_utc DESC, e.entry_id DESC",
     };
@@ -365,7 +397,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
-            r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies))];
+            r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers))];
 
     static string? DescribeLevels(string state, long? min, long? max) => state switch
     {
@@ -407,6 +439,9 @@ public sealed class LibraryQueries(IndexDatabase database)
         public long Suggested { get; init; }
         public string? AiModel { get; init; }
         public long Copies { get; init; } = 1;
+        public string EntryKind { get; init; } = nameof(Core.EntryKind.Whole);
+        public long Members { get; init; }
+        public string? MemberCovers { get; init; }
     }
 
     sealed class HitRow
@@ -440,14 +475,17 @@ public sealed class LibraryQueries(IndexDatabase database)
         {
             if (filter.Scope is { } scope) Add("e.entry_id IN (SELECT value FROM json_each(@scope))", "scope", JsonSerializer.Serialize(scope));
 
-            switch (filter.Format)
+            switch (filter.Kind)
             {
-                case FormatFilter.Pdf:
-                    Add("d.format = @formatPdf", "formatPdf", SourceFormats.Pdf);
+                case KindFilter.Books:
+                    Add("e.kind <> 'Pack' AND d.format = @formatPdf", "formatPdf", SourceFormats.Pdf);
                     break;
-                case FormatFilter.Images:
-                    Add("d.format IN (@formatJpeg, @formatPng)", "formatJpeg", SourceFormats.Jpeg);
+                case KindFilter.Images:
+                    Add("e.kind <> 'Pack' AND d.format IN (@formatJpeg, @formatPng)", "formatJpeg", SourceFormats.Jpeg);
                     Parameters.Add("formatPng", SourceFormats.Png);
+                    break;
+                case KindFilter.Packs:
+                    _sql.Append(" AND e.kind = 'Pack'");
                     break;
             }
 

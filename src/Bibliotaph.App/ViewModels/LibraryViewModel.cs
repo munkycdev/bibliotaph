@@ -57,6 +57,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly ReaderWindows _readers;
     readonly IndexingService _indexing;
     readonly CopiesService _copies;
+    readonly PackService _packs;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -67,11 +68,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
-        IndexingService indexing, CopiesService copies, ILogger<LibraryViewModel> log)
+        IndexingService indexing, CopiesService copies, PackService packs, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _indexing = indexing;
         _copies = copies;
+        _packs = packs;
         _roots = roots;
         _library = library;
         _queries = queries;
@@ -83,7 +85,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _readers = readers;
         _log = log;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
-        FormatChoice = FormatChoices[0];
+        KindChoice = KindChoices[0];
         AiChoice = AiChoices[0];
         CopiesChoice = CopiesChoices[0];
         FolderChoice = AllFolders;
@@ -117,8 +119,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
 
-    public IReadOnlyList<Choice<FormatFilter>> FormatChoices { get; } =
-        [new(FormatFilter.All, "All formats"), new(FormatFilter.Pdf, "PDFs"), new(FormatFilter.Images, "Images")];
+    /// <summary>Books, single images or image packs (F4 plan, choice 10).</summary>
+    public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
+        [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs")];
 
     /// <summary>Books a model has read (2c): shown once there are some, or while a choice is made.</summary>
     public IReadOnlyList<Choice<AiFilter>> AiChoices { get; } =
@@ -148,7 +151,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial Choice<LibrarySort> SortChoice { get; set; }
 
     [ObservableProperty]
-    public partial Choice<FormatFilter> FormatChoice { get; set; }
+    public partial Choice<KindFilter> KindChoice { get; set; }
 
     [ObservableProperty]
     public partial Choice<long?> FolderChoice { get; set; }
@@ -266,8 +269,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Activity.Refreshed -= OnActivityRefreshed;
         Search.PropertyChanged -= OnSearchChanged;
         _staleTimer.Stop();
-        // A bulk edit can be undone until the Library is left (plan choice 7).
+        // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
         BulkUndo = null;
+        SplitUndo = null;
         BulkMessage = null;
         if (BulkEdit is { IsApplyingStep: false }) BulkEdit = null;
     }
@@ -338,9 +342,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Refresh();
     }
 
-    partial void OnFormatChoiceChanged(Choice<FormatFilter> value)
+    partial void OnKindChoiceChanged(Choice<KindFilter> value)
     {
-        if (value is null) FormatChoice = FormatChoices[0];
+        if (value is null) KindChoice = KindChoices[0];
         else Refresh();
     }
 
@@ -410,7 +414,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         try
         {
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
-            var filter = new LibraryFilter(scope, FormatChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
+            var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
@@ -484,7 +488,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
-        var filtered = FormatChoice.Value != FormatFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
+        var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
             || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
@@ -606,7 +610,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void ClearFilters()
     {
         _holdRefresh = true;
-        FormatChoice = FormatChoices[0];
+        KindChoice = KindChoices[0];
         AiChoice = AiChoices[0];
         CopiesChoice = CopiesChoices[0];
         FolderChoice = AllFolders;
@@ -633,9 +637,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _covers);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
+            inspector.PackSplit += async (_, images) => await ShowPackSplitAsync(item, images);
             Inspector = inspector;
         }
         catch (Exception ex)
@@ -675,13 +680,75 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
-    /// <summary>Opens a book at its first page, from the inspector or a card's menu.</summary>
+    /// <summary>Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu.</summary>
     [RelayCommand]
-    void OpenBook(LibraryItemViewModel item) => _readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title));
+    async Task OpenBook(LibraryItemViewModel item)
+    {
+        if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
+    }
 
     /// <summary>Opens a book in a window of its own, from a card's menu, the inspector, Shift+Enter or middle-click.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
-    Task OpenBookInNewWindow(LibraryItemViewModel item) => _readers.OpenInNewWindowAsync(new ViewerRequest(item.DocumentId, item.Title));
+    async Task OpenBookInNewWindow(LibraryItemViewModel item)
+    {
+        if (await RequestAsync(item) is { } request) await _readers.OpenInNewWindowAsync(request);
+    }
+
+    /// <summary>Opens one of a pack's images, from its inspector's grid; the viewer steps through the rest (choice 7).</summary>
+    [RelayCommand]
+    async Task OpenPackImage(PackImageViewModel image)
+    {
+        if (Inspector is { } inspector && await RequestAsync(inspector.Item, image.Image.DocumentId) is { } request) _readers.OpenInMainWindow(request);
+    }
+
+    /// <summary>What opens a card: its document, or for a pack one of its images (the first by default) with all of them to step through.</summary>
+    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
+    {
+        if (!item.Entry.IsPack) return new ViewerRequest(item.DocumentId, item.Title);
+        var images = await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId));
+        if (images.Count == 0) return null;
+        var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
+        var at = documentId is { } id ? Math.Max(0, pack.FindIndex(p => p.DocumentId == id)) : 0;
+        return new ViewerRequest(pack[at].DocumentId, pack[at].Title) { Pack = pack, PackTitle = item.Title };
+    }
+
+    /// <summary>After "Split into separate images": the library with the images back, and Undo beside a note saying so.</summary>
+    async Task ShowPackSplitAsync(LibraryItemViewModel pack, int images)
+    {
+        Inspector = null;
+        BulkUndo = null;
+        SplitUndo = pack.EntryId;
+        BulkMessage = $"Split {pack.Title} into {images.ToString("N0", CultureInfo.CurrentCulture)} {(images == 1 ? "image" : "images")}.";
+        await RefreshAsync();
+    }
+
+    /// <summary>The pack the last split took apart, until the next edit or until the Library is left.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSplitUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoSplitCommand))]
+    public partial EntryId? SplitUndo { get; private set; }
+
+    public bool HasSplitUndo => SplitUndo is not null;
+
+    /// <summary>Makes the split folder or ZIP one card again.</summary>
+    [RelayCommand(CanExecute = nameof(HasSplitUndo))]
+    async Task UndoSplit()
+    {
+        if (SplitUndo is not { } pack) return;
+        SplitUndo = null;
+        BulkMessage = "Undoing…";
+        try
+        {
+            await Task.Run(() => _packs.RepackAsync(pack));
+            BulkMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing the split of pack {EntryId} failed", pack);
+            BulkMessage = "The split couldn't be undone.";
+        }
+        await RefreshAsync();
+    }
 
     /// <summary>
     /// How far the visible list was scrolled when the reader left the Library, so Back returns to the same place.
@@ -779,6 +846,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         BulkEdit = null;
         if (result is null) return;
         // Leaving the Library while it applied ends the Undo, as leaving afterwards would.
+        SplitUndo = null;
         BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
         BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
             : $"Edited {BulkEditViewModel.Books(result.Books)}.";

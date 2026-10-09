@@ -60,7 +60,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     const int MaxFindHits = 2000;
     const int MaxHitsPerTerm = 200;
 
-    readonly ViewerRequest? _request;
+    ViewerRequest? _request;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
     readonly PdfWorkerPool _workers;
@@ -121,6 +121,42 @@ public sealed partial class ViewerViewModel : PageViewModel
     public override Route Route => Route.Viewer;
 
     public override string Title => _request?.Title ?? "Reader";
+
+    /// <summary>True for an image opened from a pack: Previous and Next step through its images.</summary>
+    public bool IsInPack => _request?.Pack is { Count: > 0 };
+
+    int PackIndex => _request?.Pack is { } pack ? pack.ToList().FindIndex(p => p.DocumentId == _request.DocumentId) : -1;
+
+    /// <summary>"12 of 120", for an image in a pack.</summary>
+    public string PackPosition => _request?.Pack is { } pack
+        ? $"{(PackIndex + 1).ToString("N0", CultureInfo.CurrentCulture)} of {pack.Count.ToString("N0", CultureInfo.CurrentCulture)}"
+        : "";
+
+    /// <summary>The previous image in the pack (Left arrow).</summary>
+    [RelayCommand(CanExecute = nameof(CanGoToPreviousImage))]
+    Task PreviousImage() => StepAsync(-1);
+
+    bool CanGoToPreviousImage() => IsInPack && PackIndex > 0;
+
+    /// <summary>The next image in the pack (Right arrow).</summary>
+    [RelayCommand(CanExecute = nameof(CanGoToNextImage))]
+    Task NextImage() => StepAsync(1);
+
+    bool CanGoToNextImage() => _request?.Pack is { } pack && PackIndex >= 0 && PackIndex < pack.Count - 1;
+
+    /// <summary>Shows the image <paramref name="by"/> places on in the pack, at the same zoom.</summary>
+    async Task StepAsync(int by)
+    {
+        if (_request?.Pack is not { } pack) return;
+        var next = PackIndex + by;
+        if (next < 0 || next >= pack.Count) return;
+        _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0 };
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(PackPosition));
+        PreviousImageCommand.NotifyCanExecuteChanged();
+        NextImageCommand.NotifyCanExecuteChanged();
+        await LoadAsync();
+    }
 
     public override string Section => "Library";
 
@@ -243,7 +279,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
         if (_windowClosed) return;
         var version = ++_version;
-        Mode = ViewerMode.Opening;
+        // Stepping through a pack keeps the image in view until the next one is ready.
+        if (!(IsInPack && Mode == ViewerMode.Image)) Mode = ViewerMode.Opening;
         try
         {
             _source = await _library.GetSourceAsync(request.DocumentId);
@@ -345,7 +382,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             return;
         }
         Image = image;
-        Subtitle = DescribeSource(source, $"{source.Format.ToUpperInvariant()} image");
+        Subtitle = DescribeSource(source, _request?.PackTitle is { } pack ? $"{source.Format.ToUpperInvariant()} image in {pack}" : $"{source.Format.ToUpperInvariant()} image");
         Mode = ViewerMode.Image;
     }
 

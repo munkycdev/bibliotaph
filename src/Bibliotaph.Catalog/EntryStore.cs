@@ -8,9 +8,18 @@ namespace Bibliotaph.Catalog;
 
 /// <summary>
 /// An entry and the document its card shows: the current source, which opens and supplies cover and pages, and how
-/// many copies (whole-document sources) the entry has.
+/// many copies (whole-document sources) the entry has. A pack shows its first image, and has a
+/// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> in file name order.
 /// </summary>
-public sealed record EntryDocument(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1);
+public sealed record EntryDocument(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1)
+{
+    public string? Name { get; init; }
+
+    public IReadOnlyList<PackMember>? Members { get; init; }
+}
+
+/// <summary>An image in a pack: its own entry, the document it shows, and its file name.</summary>
+public sealed record PackMember(EntryId EntryId, long DocumentId, string Name);
 
 /// <summary>A document, its content hash, and the whole-document entry it backs.</summary>
 public sealed record DocumentEntry(long DocumentId, string ContentHash, EntryId EntryId);
@@ -49,11 +58,16 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return rows.ToDictionary(r => r.DocumentId, r => new DocumentEntry(r.DocumentId, r.ContentHash, new EntryId(r.EntryId)));
     }
 
-    /// <summary>The entries <paramref name="documentId"/> is a copy of, with the document each one's card shows.</summary>
+    /// <summary>
+    /// The entries <paramref name="documentId"/> is a copy of, with the document each one's card shows. An image in a
+    /// pack shows on the pack's card instead.
+    /// </summary>
     public async Task<IReadOnlyList<EntryDocument>> GetShownByAsync(long documentId, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var entries = await db.EntrySources.AsNoTracking().Where(s => s.DocumentId == documentId).Select(s => s.EntryId).Distinct().ToListAsync(ct);
+        var entries = await db.EntrySources.AsNoTracking().Where(s => s.DocumentId == documentId)
+            .Select(s => s.Entry.ParentEntryId != null && s.Entry.ParentEntry!.Kind == EntryKind.Pack ? s.Entry.ParentEntryId.Value : s.EntryId)
+            .Distinct().ToListAsync(ct);
         return entries.Count == 0 ? [] : await GetCurrentAsync([.. entries.Select(e => new EntryId(e))], ct);
     }
 
@@ -64,24 +78,56 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// <summary>
     /// The document each entry's card shows, for <paramref name="entryIds"/> or, when it is null, every entry with
     /// one. That is the current copy, unless none of its files is left and another copy's is (choice 6): then the
-    /// newest copy with a file. An entry with no file (owned elsewhere, or joined to another) isn't listed.
+    /// newest copy with a file. An entry with no file (owned elsewhere, or joined to another) isn't listed, nor is an
+    /// image in a pack: the pack is, showing its first image that has a file, with all of them as its members.
     /// </summary>
     public async Task<IReadOnlyList<EntryDocument>> GetCurrentAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
         if (entryIds is { Count: 0 }) return [];
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var sources = db.EntrySources.AsNoTracking();
-        if (entryIds is not null)
-        {
-            var ids = entryIds.Select(e => e.Value).Distinct().ToList();
-            sources = sources.Where(s => ids.Contains(s.EntryId));
-        }
+        var ids = entryIds?.Select(e => e.Value).Distinct().ToList();
+        var sources = db.EntrySources.AsNoTracking().Where(s => s.Entry.ParentEntryId == null || s.Entry.ParentEntry!.Kind != EntryKind.Pack);
+        if (ids is not null) sources = sources.Where(s => ids.Contains(s.EntryId));
         var rows = await Sources(sources).ToListAsync(ct);
-        return [.. rows.GroupBy(r => r.EntryId).Select(g =>
+        var current = rows.GroupBy(r => r.EntryId).Select(g =>
         {
             var shown = Shown([.. g]);
             return new EntryDocument(new EntryId(g.Key), shown.DocumentId, shown.Kind, g.Count(s => s.Whole));
-        })];
+        }).ToList();
+
+        var packs = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Pack);
+        if (ids is not null) packs = packs.Where(e => ids.Contains(e.Id));
+        var packIds = await packs.Select(e => e.Id).ToListAsync(ct);
+        if (packIds.Count > 0) current.AddRange(await GetPacksAsync(db, packIds, ct));
+        return current;
+    }
+
+    /// <summary>Each pack with an image that has a file: its first image, its name, and its images in file name order.</summary>
+    static async Task<IEnumerable<EntryDocument>> GetPacksAsync(CatalogDbContext db, List<long> packIds, CancellationToken ct)
+    {
+        var rows = await Sources(db.EntrySources.AsNoTracking().Where(s => s.Entry.ParentEntryId != null && packIds.Contains(s.Entry.ParentEntryId.Value)))
+            .ToListAsync(ct);
+        var shown = rows.GroupBy(r => r.EntryId).Select(g => Shown([.. g])).Where(s => s.HasFile).ToList();
+        var documentIds = shown.Select(s => s.DocumentId).Distinct().ToList();
+        var paths = (await db.FileLocations.AsNoTracking()
+                .Where(l => l.DocumentId != null && documentIds.Contains(l.DocumentId.Value) && l.State != FileLocationState.Missing)
+                .Select(l => new { DocumentId = l.DocumentId!.Value, l.RelativePath })
+                .ToListAsync(ct))
+            .GroupBy(l => l.DocumentId)
+            .ToDictionary(g => g.Key, g => g.Select(l => l.RelativePath).Min(StringComparer.Ordinal)!);
+        var names = await db.PackDecisions.AsNoTracking().Where(d => packIds.Contains(d.EntryId))
+            .ToDictionaryAsync(d => d.EntryId, d => PackStore.Name(d.FolderPath, d.IsArchive), ct);
+        return shown.GroupBy(s => s.ParentEntryId!.Value).Select(g =>
+        {
+            List<PackMember> members = [.. g.Select(s => new PackMember(new EntryId(s.EntryId), s.DocumentId,
+                    paths.TryGetValue(s.DocumentId, out var path) ? PackStore.FileName(path) : ""))
+                .OrderBy(m => m.Name, NaturalOrder.Instance).ThenBy(m => m.EntryId.Value)];
+            return new EntryDocument(new EntryId(g.Key), members[0].DocumentId, EntryKind.Pack, Copies: 1)
+            {
+                Name = names.GetValueOrDefault(g.Key),
+                Members = members,
+            };
+        });
     }
 
     /// <summary>The copies of <paramref name="entryId"/>'s book, the current one first, then newest first.</summary>
@@ -310,12 +356,13 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     static (string, string) Pair(string first, string second) =>
         string.CompareOrdinal(first, second) <= 0 ? (first, second) : (second, first);
 
-    sealed record SourceRow(long EntryId, long DocumentId, EntryKind Kind, bool IsCurrent, bool Whole, bool HasFile, string ContentHash, int? PageCount, DateTime AddedUtc);
+    sealed record SourceRow(long EntryId, long DocumentId, EntryKind Kind, bool IsCurrent, bool Whole, bool HasFile, string ContentHash, int? PageCount, DateTime AddedUtc,
+        long? ParentEntryId);
 
     static IQueryable<SourceRow> Sources(IQueryable<EntrySource> sources) => sources.Select(s => new SourceRow(
         s.EntryId, s.DocumentId, s.Entry.Kind, s.IsCurrent, s.FirstPdfPage == null,
         s.Document.Locations.Any(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability != SourceRootAvailability.RemovedByUser),
-        s.Document.ContentHash, s.Document.PageCount, s.Document.CreatedUtc));
+        s.Document.ContentHash, s.Document.PageCount, s.Document.CreatedUtc, s.Entry.ParentEntryId));
 
     /// <summary>The current copy, unless it has no file and another copy has: then the newest one that has.</summary>
     static SourceRow Shown(List<SourceRow> sources)

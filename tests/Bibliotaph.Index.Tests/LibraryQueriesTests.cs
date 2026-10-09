@@ -62,12 +62,48 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
-    public async Task The_library_filters_by_format_and_scope()
+    public async Task The_library_filters_by_kind_and_scope()
     {
-        Assert.Equal([TavernMap], (await _library.ListAsync(new LibraryFilter(Format: FormatFilter.Images), ct: Ct)).Select(e => e.DocumentId));
-        Assert.DoesNotContain(TavernMap, (await _library.ListAsync(new LibraryFilter(Format: FormatFilter.Pdf), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([TavernMap], (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Images), ct: Ct)).Select(e => e.DocumentId));
+        Assert.DoesNotContain(TavernMap, (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Books), ct: Ct)).Select(e => e.DocumentId));
         Assert.Equal([Lairs, Gazetteer],
             (await _library.ListAsync(new LibraryFilter(Scope: [EntryOf(Gazetteer), EntryOf(Lairs), EntryOf(99)]), ct: Ct)).Select(e => e.DocumentId));
+    }
+
+    [Fact]
+    public async Task A_pack_shows_its_name_its_image_count_and_a_mosaic_and_has_a_kind_of_its_own()
+    {
+        var store = new IndexStore(Writer, Clock);
+        List<long> images = [10, 11, 12, 13, 14];
+        foreach (var id in images)
+        {
+            await AddAsync(store, id, $"Zombie {id}", "png", "Tokens / Undead");
+            if (id != 11) await store.SetCoverAsync(id, $"cover{id}.webp", Ct);
+        }
+        await store.RemoveEntriesAsync([.. images.Select(EntryOf)], Ct);
+        var pack = new EntryId(50);
+        await store.SetEntriesAsync([new EntryDocRow(pack, 10, EntryKind.Pack)
+        {
+            Name = "Undead",
+            Members = [.. images.Select(id => new EntryMemberRow(id, EntryOf(id), $"Zombie {id}.png"))],
+        }], Ct);
+
+        var card = Assert.Single(await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Packs), ct: Ct));
+        Assert.Equal((pack, "Undead", true, 5), (card.EntryId, card.Title, card.IsPack, card.Members));
+        // The first four images with a cover, in order.
+        Assert.Equal(["cover10.webp", "cover12.webp", "cover13.webp", "cover14.webp"], card.MosaicCovers);
+        Assert.Equal([TavernMap], (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Images), ct: Ct)).Select(e => e.DocumentId));
+        Assert.DoesNotContain(pack, (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Books), ct: Ct)).Select(e => e.EntryId));
+        // Found by its name, not by its first image's.
+        Assert.Equal(10L, Assert.Single(await DocumentsAsync("undead")));
+        Assert.Empty(await DocumentsAsync("title:zombie"));
+        Assert.Equal(["Zombie 10.png", "Zombie 11.png", "Zombie 12.png", "Zombie 13.png", "Zombie 14.png"],
+            (await _library.GetPackImagesAsync(pack, Ct)).Select(i => i.Name));
+        var second = (await _library.GetPackImagesAsync(pack, Ct))[1];
+        Assert.Equal((11L, EntryOf(11), (string?)null), (second.DocumentId, second.MemberEntryId, second.Cover));
+
+        await store.RemoveEntriesAsync([pack], Ct);
+        Assert.Empty(await _library.GetPackImagesAsync(pack, Ct));
     }
 
     [Fact]
@@ -207,7 +243,7 @@ public sealed class LibraryQueriesTests : IndexFixture
         var scoped = await PagesAsync("dragon", new LibraryFilter(Scope: [EntryOf(Lairs)]));
 
         Assert.Equal([(Lairs, 1)], scoped);
-        Assert.Empty(await PagesAsync("dragon", new LibraryFilter(Format: FormatFilter.Images)));
+        Assert.Empty(await PagesAsync("dragon", new LibraryFilter(Kind: KindFilter.Images)));
     }
 
     [Theory]

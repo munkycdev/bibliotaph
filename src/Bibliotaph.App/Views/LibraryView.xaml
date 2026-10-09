@@ -30,7 +30,22 @@
               <TextBlock Text="{Binding Initial}" FontFamily="{StaticResource Font.Display}" Foreground="{DynamicResource Bt.Muted}" />
             </Viewbox>
           </Grid>
-          <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+          <Image x:Name="SingleCover" Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+          <!-- A pack (F4): its first four images' covers, two by two. -->
+          <ItemsControl x:Name="Mosaic" ItemsSource="{Binding Mosaic}" Focusable="False" Visibility="Collapsed" IsHitTestVisible="False">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Rows="2" Columns="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:CoverTile}">
+                <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0.5" ClipToBounds="True">
+                  <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
           <!-- A model has read this book (2c). -->
           <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
                   Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
@@ -46,6 +61,11 @@
         </DataTrigger>
         <DataTrigger Binding="{Binding IsAiRead}" Value="True">
           <Setter TargetName="AiBadge" Property="Visibility" Value="Visible" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsPack}" Value="True">
+          <Setter TargetName="Mosaic" Property="Visibility" Value="Visible" />
+          <Setter TargetName="SingleCover" Property="Visibility" Value="Collapsed" />
+          <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
         </DataTrigger>
       </DataTemplate.Triggers>
     </DataTemplate>
@@ -179,9 +199,9 @@
 
     <WrapPanel Grid.Row="2" Margin="0,15,42,-12" Visibility="{Binding ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <StackPanel Margin="0,0,12,12">
-        <TextBlock Text="Format" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FormatChoices}" SelectedItem="{Binding FormatChoice}"
-                  AutomationProperties.Name="Format" MinWidth="150" />
+        <TextBlock Text="Kind" Style="{StaticResource FieldLabel}" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding KindChoices}" SelectedItem="{Binding KindChoice}"
+                  AutomationProperties.Name="Kind" MinWidth="150" />
       </StackPanel>
       <StackPanel Margin="0,0,12,12">
         <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
@@ -242,6 +262,8 @@
         <DockPanel>
           <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoBulkEditCommand}"
                   Padding="12,0,0,0" AutomationProperties.Name="Undo the edit" Visibility="{Binding HasBulkUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoSplitCommand}"
+                  Padding="12,0,0,0" AutomationProperties.Name="Undo the split" Visibility="{Binding HasSplitUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="{Binding BulkMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
         </DockPanel>
       </Border>
@@ -488,6 +510,52 @@
                 </StackPanel>
               </StackPanel>
             </Grid>
+
+            <!-- A pack's images (F4): click one to open it, then step through the rest; or split the pack. -->
+            <StackPanel Visibility="{Binding IsPack, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <DockPanel Margin="0,28,0,10">
+                <Button x:Name="SplitPack" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Split into separate images"
+                        ToolTip="Give every image its own card again. Bibliotaph won't pack this folder again."
+                        Command="{Binding SplitPackCommand}" />
+                <TextBlock Text="{Binding PackImagesHeading}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+              </DockPanel>
+              <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" AutomationProperties.Name="Images in the pack"
+                            KeyboardNavigation.TabNavigation="Continue">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:PackImageViewModel}">
+                    <Button Width="88" Margin="0,0,8,10" Padding="0" Cursor="Hand" ToolTip="{Binding Name}"
+                            AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}"
+                            Command="{Binding DataContext.OpenPackImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}">
+                      <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                          <StackPanel Background="Transparent">
+                            <Border x:Name="Thumb" Height="88" CornerRadius="4" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}"
+                                    BorderThickness="1" ClipToBounds="True">
+                              <Image Source="{Binding Tile.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                            </Border>
+                            <TextBlock Text="{Binding Name}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                          </StackPanel>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="Thumb" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                              <Setter TargetName="Thumb" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Button.Template>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
 
             <!-- Details: each field's value, where it came from, and the user's corrections. -->
             <DockPanel Margin="0,28,0,4">

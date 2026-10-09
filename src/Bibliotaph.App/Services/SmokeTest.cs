@@ -103,6 +103,7 @@ static class SmokeTest
             {
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
+                await Check("a ZIP of images packed, stepped through, split and packed again", () => UsePackAsync(services, window));
             }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
@@ -874,6 +875,93 @@ static class SmokeTest
 
         var files = System.IO.Directory.GetFiles(folder, "*", System.IO.SearchOption.AllDirectories);
         if (files is not [var only] || only != zipPath) throw new InvalidOperationException($"The ZIP's folder holds {files.Length} files, not just the ZIP.");
+    }
+
+    /// <summary>
+    /// Image packs (F4a): twenty token images in a ZIP become one card with a mosaic; its inspector lists them,
+    /// one opens in the viewer, which steps to the next; Split gives them their cards back and Undo packs them again.
+    /// </summary>
+    static async Task UsePackAsync(IServiceProvider services, Window window)
+    {
+        const string Name = "Smoke Tokens";
+        // Left for the system's temp cleaning: the app may not delete folders.
+        // In a ZIP, which counts as one folder however it is laid out, since the app may only write ZIPs.
+        var folder = System.IO.Directory.CreateTempSubdirectory("bibliotaph-smoke-pack-").FullName;
+        var tokens = System.IO.Path.Combine(folder, $"{Name}.zip");
+        using (var zip = System.IO.Compression.ZipFile.Open(tokens, System.IO.Compression.ZipArchiveMode.Create))
+            for (var i = 1; i <= PackStore.AutomaticMinimum; i++)
+            {
+                await using var member = zip.CreateEntry($"{(i % 2 == 0 ? "Even" : "Odd")}/Token {i}.png").Open();
+                await member.WriteAsync(TokenPng(i));
+            }
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        LibraryEntry? pack = null;
+        while ((pack = (await Task.Run(() => queries.ListAsync(new LibraryFilter(Kind: KindFilter.Packs)))).FirstOrDefault(e => e.Title == Name))
+            is not { Members: PackStore.AutomaticMinimum, MosaicCovers.Count: 4 })
+        {
+            if (Stopwatch.GetTimestamp() > deadline)
+                throw new InvalidOperationException($"The ZIP of images wasn't packed ({(pack is null ? "no pack card" : $"{pack.Members} images, {pack.MosaicCovers.Count} covers")}).");
+            await Settle(window);
+            await Task.Delay(200);
+        }
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == pack.EntryId), () => "The pack isn't in the Library.");
+        var card = library.Items.First(i => i.EntryId == pack.EntryId);
+        if (card is not { IsPack: true, SizeLabel: "20 images", Mosaic.Count: 4 }) throw new InvalidOperationException($"The pack's card shows {card.SizeLabel} and {card.Mosaic.Count} covers.");
+        if (library.Items.Any(i => i.Folder.Contains(Name, StringComparison.Ordinal) && !i.IsPack)) throw new InvalidOperationException("A packed image still has a card of its own.");
+
+        await library.OpenDetailsCommand.ExecuteAsync(card);
+        await WaitUntilAsync(window, () => library.Inspector is { IsPack: true, PackImages.Count: PackStore.AutomaticMinimum },
+            () => $"The pack's inspector didn't list its images ({library.Inspector?.PackImages.Count}).");
+        var inspector = library.Inspector!;
+        if (inspector.Locations is not [{ Path: var where }] || where != tokens) throw new InvalidOperationException($"The pack's inspector says it is in {string.Join(", ", inspector.Locations)}.");
+        var second = inspector.PackImages[1];
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.OpenPackImageCommand && b.CommandParameter == second), "Token 2");
+        await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { IsImage: true }, () => "The pack's image didn't open in the viewer.");
+        var viewer = (ViewerViewModel)shell.CurrentPage!;
+        if (viewer.PackPosition != "2 of 20" || viewer.Title != "Token 2") throw new InvalidOperationException($"The viewer shows {viewer.Title}, {viewer.PackPosition}.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == viewer.NextImageCommand), "Next image");
+        await WaitUntilAsync(window, () => viewer is { PackPosition: "3 of 20", IsImage: true, Image: not null }, () => $"Next image didn't step ({viewer.PackPosition}, {viewer.Mode}).");
+        navigation.GoBack();
+        await Settle(window);
+
+        library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
+        if (library.Inspector is not { IsPack: true }) await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
+        await WaitUntilAsync(window, () => library.Inspector is { IsPack: true }, () => "The pack's inspector didn't open again.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Inspector!.SplitPackCommand), "Split into separate images");
+        await WaitUntilAsync(window, () => library.HasSplitUndo && library.Items.Count(i => i.Folder.Contains(Name, StringComparison.Ordinal)) == PackStore.AutomaticMinimum
+            && library.Items.All(i => i.EntryId != pack.EntryId), () => "Split didn't give the images their cards back.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.UndoSplitCommand), "Undo the split");
+        await WaitUntilAsync(window, () => !library.HasSplitUndo && library.Items.Any(i => i.EntryId == pack.EntryId)
+            && !library.Items.Any(i => i.Folder.Contains(Name, StringComparison.Ordinal) && !i.IsPack), () => "Undo didn't pack the images again.");
+    }
+
+    /// <summary>A small PNG of its own colour, so each token is different content.</summary>
+    static byte[] TokenPng(int seed)
+    {
+        const int Size = 16;
+        var pixels = new byte[Size * Size * 4];
+        for (var p = 0; p < pixels.Length; p += 4)
+        {
+            pixels[p] = (byte)(seed * 37);
+            pixels[p + 1] = (byte)(seed * 91);
+            pixels[p + 2] = (byte)(255 - seed * 11);
+            pixels[p + 3] = 255;
+        }
+        var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(Size, Size, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, Size * 4);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var stream = new System.IO.MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
     }
 
     /// <summary>

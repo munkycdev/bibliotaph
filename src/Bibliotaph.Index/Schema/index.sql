@@ -92,15 +92,31 @@ CREATE TRIGGER page_au AFTER UPDATE OF text ON page BEGIN
     INSERT INTO page_fts (rowid, text) VALUES (new.id, new.text);
 END;
 
--- Library cards: each entry and the document it shows (its current source), projected from catalog.db.
+-- Library cards: each entry and the document it shows (its current source), projected from catalog.db. A pack shows
+-- its first image.
 CREATE TABLE entry_doc (
     entry_id     INTEGER PRIMARY KEY,
     document_id  INTEGER NOT NULL,
     kind         TEXT    NOT NULL,               -- Bibliotaph.Core.EntryKind
-    copies       INTEGER NOT NULL DEFAULT 1      -- how many files of the book the entry has: "2 copies"
+    copies       INTEGER NOT NULL DEFAULT 1,     -- how many files of the book the entry has: "2 copies"
+    name         TEXT,                           -- a pack's name, from its folder or ZIP; the title until one is set
+    members      INTEGER NOT NULL DEFAULT 0      -- a pack's images: "120 images"
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
+
+-- A pack's images in file name order, for its mosaic cover, its inspector grid and stepping through it in the viewer.
+-- member_entry_id is the image's own entry, hidden while it's in the pack.
+CREATE TABLE entry_member (
+    entry_id         INTEGER NOT NULL,
+    ord              INTEGER NOT NULL,
+    document_id      INTEGER NOT NULL,
+    member_entry_id  INTEGER NOT NULL,
+    name             TEXT    NOT NULL,           -- the image's file name
+    PRIMARY KEY (entry_id, ord)
+) WITHOUT ROWID;
+
+CREATE INDEX entry_member_document ON entry_member (document_id);
 
 -- Effective metadata (Bibliotaph.Core.Metadata.EffectiveMetadata), projected from catalog.db's assertions whenever they
 -- change. An entry without a row has no metadata beyond its document's file name. Labels are as cards show them.
@@ -202,4 +218,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 6;
+PRAGMA user_version = 7;
