@@ -160,31 +160,6 @@ sealed class QueryParser(string text)
     /// <summary>Deeper nesting than this is almost certainly a paste accident; it also bounds recursion.</summary>
     const int MaxDepth = 16;
 
-    /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
-    static readonly HashSet<string> FutureFields = [with(StringComparer.OrdinalIgnoreCase), "length", "duration"];
-
-    static readonly Dictionary<string, SearchField> Fields = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["title"] = SearchField.Title,
-        ["format"] = SearchField.Format,
-        ["folder"] = SearchField.Folder,
-        ["publisher"] = SearchField.Publisher,
-        ["author"] = SearchField.Author,
-        ["authors"] = SearchField.Author,
-        ["series"] = SearchField.Series,
-        ["tag"] = SearchField.Tag,
-        ["tags"] = SearchField.Tag,
-        ["system"] = SearchField.System,
-        ["edition"] = SearchField.Edition,
-        ["type"] = SearchField.Type,
-        ["setting"] = SearchField.Setting,
-        ["theme"] = SearchField.Theme,
-        ["environment"] = SearchField.Environment,
-        ["env"] = SearchField.Environment,
-        ["level"] = SearchField.Level,
-        ["levels"] = SearchField.Level,
-    };
-
     readonly List<Token> _tokens = [];
     readonly List<QueryIssue> _issues = [];
     int _at;
@@ -341,15 +316,15 @@ sealed class QueryParser(string text)
         Token? valueToken = Peek() is { Kind: TokenKind.Word or TokenKind.Phrase } v && v.Start == token.Start + token.Length ? v : null;
         if (valueToken is not null) _at++;
 
-        if (FutureFields.Contains(name))
+        if (SearchFields.Find(name) is not { } info)
         {
             Issue($"Searching by {name.ToLowerInvariant()} isn't available yet.", Span(token, valueToken));
             return null;
         }
-        var field = Fields[name];
+        var field = info.Field;
         if (valueToken is null)
         {
-            Issue($"{name.ToLowerInvariant()}: needs a value straight after it, like {Example(field)}.", token);
+            Issue($"{name.ToLowerInvariant()}: needs a value straight after it, like {info.Example}.", token);
             return null;
         }
 
@@ -388,17 +363,6 @@ sealed class QueryParser(string text)
         MetadataText.Normalize(value) is "unknown" or "unknown levels" ? SearchQuery.Unknown
         : LevelRange.TryParse(value, out var range) ? range.ToString()
         : null;
-
-    static string Example(SearchField field) => field switch
-    {
-        SearchField.Title => "title:dragon",
-        SearchField.Format => "format:pdf",
-        SearchField.Folder => "folder:maps",
-        SearchField.Level => "level:3",
-        SearchField.System => "system:5e",
-        SearchField.Type => "type:adventure",
-        _ => $"{field.ToString().ToLowerInvariant()}:word",
-    };
 
     /// <summary>pdf, jpg or png, or image for both image formats.</summary>
     static string? NormalizeFormat(string value) => value.ToLowerInvariant() switch
@@ -509,6 +473,9 @@ sealed class QueryParser(string text)
         return end;
     }
 
-    /// <summary>Only known names make a field, so "http://..." or "AD:D" stay ordinary words.</summary>
-    static bool IsFieldName(string name) => Fields.ContainsKey(name) || FutureFields.Contains(name);
+    /// <summary>
+    /// Only known names (<see cref="SearchFields"/>, and those still to come) make a field, so "http://..." or "AD:D"
+    /// stay ordinary words.
+    /// </summary>
+    static bool IsFieldName(string name) => SearchFields.Find(name) is not null || SearchFields.IsComing(name);
 }

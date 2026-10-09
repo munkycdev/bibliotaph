@@ -243,6 +243,15 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability))];
     }
 
+    /// <summary>The library folders a document has a file in, for scanning them when it is reprocessed.</summary>
+    public async Task<IReadOnlyList<long>> GetRootIdsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations
+            .Where(f => f.DocumentId == documentId && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .Select(f => f.SourceRootId).Distinct().ToListAsync(ct);
+    }
+
     public async Task<LibraryCounts> GetCountsAsync(CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);

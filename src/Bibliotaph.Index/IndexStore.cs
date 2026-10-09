@@ -152,15 +152,27 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 outline.Select((o, i) => new { doc.DocumentId, Ord = i, o.Title, o.PdfPage, o.Depth }), t);
         }, ct);
 
-    /// <summary>Stores extracted or OCR'd text for a run of pages. The FTS triggers keep page_fts in step.</summary>
+    /// <summary>
+    /// Stores extracted or OCR'd text for a run of pages. The FTS triggers keep page_fts in step. A page already flagged
+    /// for OCR stays flagged (Reprocess with OCR on every page flags them all first). When a page is read again, as on
+    /// Reprocess, text it already has is kept while the new reading is no better: an OCR'd page that will be OCR'd again
+    /// keeps its OCR text until then, and a page that can't be read this time keeps what it had, so a book never drops
+    /// out of search while it is reprocessed. A page read for the first time has no text, so nothing is kept.
+    /// </summary>
     public Task SetPageTextAsync(long documentId, IReadOnlyList<PageTextRow> pages, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
         {
             using var update = c.CreateCommand();
             update.Transaction = t;
+            // SQLite reads every column here as it was before the update, so needs_ocr is the page's old flag.
+            const string Keep = "text <> '' AND ($error IS NOT NULL OR (text_source = 'ocr' AND max(needs_ocr, $needsOcr) = 1))";
             update.CommandText =
-                """
-                UPDATE page SET text = $text, text_source = $source, text_quality = $quality, needs_ocr = $needsOcr, error = $error
+                $"""
+                UPDATE page SET
+                    text = CASE WHEN {Keep} THEN text ELSE $text END,
+                    text_source = CASE WHEN {Keep} THEN text_source ELSE $source END,
+                    text_quality = CASE WHEN {Keep} THEN text_quality ELSE $quality END,
+                    needs_ocr = max(needs_ocr, $needsOcr), error = $error
                 WHERE document_id = $doc AND pdf_page = $page
                 """;
             var textParam = update.Parameters.Add("$text", SqliteType.Text);

@@ -17,7 +17,9 @@ public sealed class PasswordPrompt : IPasswordPrompt
 {
     public EnteredPassword? Ask(string title, bool retry)
     {
-        var dialog = new PasswordDialog(title, retry) { Owner = Application.Current.MainWindow };
+        // Over the window being read, which may be a pop-out.
+        var owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+        var dialog = new PasswordDialog(title, retry) { Owner = owner };
         return dialog.ShowDialog() == true ? new EnteredPassword(dialog.EnteredPassword, dialog.RememberPassword) : null;
     }
 }

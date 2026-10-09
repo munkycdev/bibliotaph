@@ -116,7 +116,7 @@ static class StageHelpers
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return (null, new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable));
 
-        var session = new PdfSession(s.Workers[WorkerSlot.Index], source.FullPath, s.Passwords.Find(job.ContentHash));
+        var session = new PdfSession(s.Workers.Index, source.FullPath, s.Passwords.Find(job.ContentHash));
         var error = await session.OpenAsync(ct);
         if (error is null) return (session, null);
         await session.DisposeAsync();
@@ -168,7 +168,9 @@ public sealed class ProbeStage(StageServices s) : IStage
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
         if (session is null)
         {
-            await s.Index.UpsertDocumentAsync(basic, [], [], ct);
+            // Only a document new to the index: one already there keeps its pages and their text, so a file that won't
+            // open this time (in use, say) never makes a reprocessed book unsearchable.
+            if (await s.Queries.GetTitleAsync(job.DocumentId, ct) is null) await s.Index.UpsertDocumentAsync(basic, [], [], ct);
             return failed!;
         }
         await using (session)
@@ -217,19 +219,20 @@ public sealed class TextStage(StageServices s) : IStage
         if (session is null) return failed!;
         await using (session)
         {
-            int ocrPages = 0, failedPages = 0;
+            var failedPages = 0;
             for (var first = 0; first < session.Doc.PageCount; first += RunLength)
             {
                 ct.ThrowIfCancellationRequested();
                 var count = Math.Min(RunLength, session.Doc.PageCount - first);
                 var pages = await ExtractRunAsync(session, first, count, ct) ?? await ExtractOneByOneAsync(session, first, count, ct);
                 var rows = pages.Select(Score).ToList();
-                ocrPages += rows.Count(r => r.NeedsOcr);
                 failedPages += rows.Count(r => r.Error is not null);
                 await s.Index.SetPageTextAsync(job.DocumentId, rows, ct);
             }
 
-            var next = ocrPages > 0 ? new[] { Stage.Ocr } : [];
+            // Read back rather than counted from the scores: a page flagged for OCR before Text ran (Reprocess with OCR
+            // on every page) keeps its flag whatever its text layer scores.
+            var next = (await s.Queries.GetPagesNeedingOcrAsync(job.DocumentId, ct)).Count > 0 ? new[] { Stage.Ocr } : [];
             return failedPages == 0
                 ? new StageOutcome.Done(StageStatus.Complete, next)
                 : new StageOutcome.Done(StageStatus.Partial, next, $"{failedPages} page(s) could not be read.");
@@ -316,7 +319,8 @@ public sealed class CoversStage(StageServices s) : IStage
 }
 
 /// <summary>
-/// OCR: each flagged page, rendered at 300 dpi and read by the worker's OCR engine. Progress is saved page by
+/// OCR: each flagged page (those Text scored too poor to trust, or every page when the user asked for that on
+/// Reprocess), rendered at 300 dpi and read by the worker's OCR engine. Progress is saved page by
 /// page, so a paused or interrupted job carries on where it stopped. Page numbering never changes (A05).
 /// </summary>
 public sealed class OcrStage(StageServices s) : IStage

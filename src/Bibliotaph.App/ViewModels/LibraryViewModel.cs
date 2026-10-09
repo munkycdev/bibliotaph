@@ -52,7 +52,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CoverImages _covers;
     readonly LibraryFolders _folders;
     readonly MetadataService _metadata;
-    readonly ViewerRequests _viewer;
+    readonly ReaderWindows _readers;
+    readonly IndexingService _indexing;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<long, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -62,10 +63,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     bool _holdRefresh;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, MetadataService metadata, ViewerRequests viewer,
-        ILogger<LibraryViewModel> log)
+        CoverImages covers, LibraryFolders folders, MetadataService metadata, ReaderWindows readers,
+        IndexingService indexing, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _indexing = indexing;
         _roots = roots;
         _library = library;
         _queries = queries;
@@ -73,7 +75,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _covers = covers;
         _folders = folders;
         _metadata = metadata;
-        _viewer = viewer;
+        _readers = readers;
         _log = log;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         FormatChoice = FormatChoices[0];
@@ -262,6 +264,18 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
+        // The open inspector follows its book's stages, as while it is reprocessed.
+        if (Inspector is { } inspector)
+        {
+            try
+            {
+                await inspector.RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Refreshing details for document {DocumentId} failed", inspector.Item.DocumentId);
+            }
+        }
         // Browsing is cheap to refresh; a search waits for the stale timer.
         if (IsSearching) _stale = true;
         else
@@ -562,7 +576,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             Inspector = inspector;
         }
@@ -575,17 +589,30 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void CloseDetails() => Inspector = null;
 
-    /// <summary>Opens a book at a page that matched, with the search's words marked.</summary>
+    /// <summary>
+    /// Opens a book at a page that matched, with the search's words marked. Always in the main window's reader, even
+    /// when the book is popped out, so a hit never jumps to another window.
+    /// </summary>
     [RelayCommand]
-    void OpenPage(PageHitViewModel page)
+    void OpenPage(PageHitViewModel page) => _readers.OpenInMainWindow(PageRequest(page));
+
+    /// <summary>Opens a page that matched in a window of its own (its button, Shift+Enter or middle-click).</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    Task OpenPageInNewWindow(PageHitViewModel page) => _readers.OpenInNewWindowAsync(PageRequest(page));
+
+    ViewerRequest PageRequest(PageHitViewModel page)
     {
         var title = _known.TryGetValue(page.Hit.DocumentId, out var item) ? item.Title : "";
-        _viewer.Open(new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query));
+        return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
-    /// <summary>Opens the book shown in the inspector at its first page.</summary>
+    /// <summary>Opens a book at its first page, from the inspector or a card's menu.</summary>
     [RelayCommand]
-    void OpenBook(LibraryItemViewModel item) => _viewer.Open(new ViewerRequest(item.DocumentId, item.Title));
+    void OpenBook(LibraryItemViewModel item) => _readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title));
+
+    /// <summary>Opens a book in a window of its own, from a card's menu, the inspector, Shift+Enter or middle-click.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    Task OpenBookInNewWindow(LibraryItemViewModel item) => _readers.OpenInNewWindowAsync(new ViewerRequest(item.DocumentId, item.Title));
 
     /// <summary>
     /// How far the visible list was scrolled when the reader left the Library, so Back returns to the same place.

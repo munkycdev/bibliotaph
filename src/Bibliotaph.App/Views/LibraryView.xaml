@@ -68,6 +68,29 @@
     <Style x:Key="SectionHead" TargetType="TextBlock" BasedOn="{StaticResource Text.Eyebrow}">
       <Setter Property="Margin" Value="0,28,0,10" />
     </Style>
+
+    <!--
+      A book in the covers or the list: Bt.PlainList's item, with a menu on right-click (or the Menu key, or Shift+F10).
+      The menu is a popup outside the page, so its items use routed commands, which reach the page through the item.
+    -->
+    <ContextMenu x:Key="BookMenu" x:Shared="False" Style="{StaticResource Bt.Menu}">
+      <MenuItem Header="Open" Command="{x:Static c:BookCommands.Open}" CommandParameter="{Binding}" />
+      <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
+                CommandParameter="{Binding}" />
+      <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
+    </ContextMenu>
+    <Style x:Key="BookItem" TargetType="ListBoxItem">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="ContextMenu" Value="{DynamicResource BookMenu}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <ContentPresenter />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </UserControl.Resources>
 
   <Grid>
@@ -169,6 +192,7 @@
       <!-- .bt-books: the cover grid. Only the covers in view are created. -->
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding OpenDetailsCommand}"
+               ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemsPanel>
           <ItemsPanelTemplate>
@@ -204,6 +228,7 @@
       <!-- .bt-listrow: the detail list. -->
       <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding OpenDetailsCommand}"
+               ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemTemplate>
           <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
@@ -279,9 +304,16 @@
                       <DataTemplate DataType="{x:Type vm:PageHitViewModel}">
                         <StackPanel Margin="0,12,0,0">
                           <DockPanel>
+                            <!-- Open in new window also by middle-click or Shift+Enter on Open page. -->
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
+                                    VerticalAlignment="Top" Margin="4,0,0,0" ToolTip="Open in new window (Shift+Enter)"
+                                    AutomationProperties.Name="{Binding Where, StringFormat='Open {0} in new window'}"
+                                    Command="{Binding DataContext.OpenPageInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
                             <Button DockPanel.Dock="Right" Content="Open page" c:Ui.Icon="{StaticResource Icon.BookOpen}" VerticalAlignment="Top"
                                     AutomationProperties.Name="{Binding Where, StringFormat='Open {0}'}"
                                     Command="{Binding DataContext.OpenPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    c:NewWindowGesture.Command="{Binding DataContext.OpenPageInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}" />
                             <TextBlock Text="{Binding Where}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
                           </DockPanel>
@@ -358,10 +390,17 @@
                     <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
                   </Border>
                 </WrapPanel>
-                <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
-                        HorizontalAlignment="Left" Margin="0,16,0,0" AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0}'}"
-                        Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="{Binding Item}" />
+                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                  <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
+                          AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0}'}"
+                          Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          c:NewWindowGesture.Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding Item}" />
+                  <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="6,0,0,0"
+                          ToolTip="Open in new window (Shift+Enter)" AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0} in new window'}"
+                          Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding Item}" />
+                </StackPanel>
               </StackPanel>
             </Grid>
 
@@ -533,9 +572,30 @@
                       <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" />
                       <TextBlock Text="{Binding State}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
                                  Visibility="{Binding HasState, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                      <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,10,0,0"
-                              Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                              CommandParameter="{Binding}" />
+                      <WrapPanel Margin="0,10,0,0">
+                        <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,0"
+                                Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                        <!-- Reprocess, with a small menu for OCR on every page. Disabled, reading Reprocessing…, while a stage waits or runs. -->
+                        <Border Visibility="{Binding ShowsReprocess, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                          <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                            <Button x:Name="Reprocess" Content="{Binding ReprocessLabel}" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
+                                    Command="{Binding ReprocessCommand}" AutomationProperties.Name="{Binding ReprocessLabel}"
+                                    ToolTip="Read the file again: pages, text, cover and hints from names. What you added stays." />
+                            <Button x:Name="ReprocessMenu" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Padding="7,8" Margin="4,0,0,0"
+                                    IsEnabled="{Binding CanReprocess}" Click="ReprocessMenu_Click"
+                                    ToolTip="More ways to reprocess" AutomationProperties.Name="More ways to reprocess"
+                                    Visibility="{Binding CanOcrEveryPage, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource Bt.Menu}">
+                                  <MenuItem Header="Reprocess with OCR on every page…"
+                                            AutomationProperties.Name="Reprocess with OCR on every page" Command="{Binding ReprocessWithOcrCommand}" />
+                                </ContextMenu>
+                              </Button.ContextMenu>
+                            </Button>
+                          </StackPanel>
+                        </Border>
+                      </WrapPanel>
                     </StackPanel>
                   </Border>
                 </DataTemplate>

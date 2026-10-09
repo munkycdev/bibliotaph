@@ -127,6 +127,38 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task Reading_pages_again_keeps_text_the_new_reading_cannot_replace_yet()
+    {
+        await _store.UpsertDocumentAsync(Doc(), Pages(4), [], Ct);
+        await _store.SetPageTextAsync(1,
+        [
+            new PageTextRow(0, "the owlbear sleeps", "pdf", 1, false),
+            new PageTextRow(1, "", "none", 0, true),
+            new PageTextRow(2, "", "none", 0, true),
+            new PageTextRow(3, "lich ledger", "pdf", 1, false),
+        ], Ct);
+        await _store.SetOcrPageAsync(1, 1, "goblin market", 0.9, [], Ct);
+        await _store.SetOcrPageAsync(1, 2, "haunted mill", 0.9, [], Ct);
+        // As Reprocess with OCR on every page does, before Text runs again.
+        await Writer.WriteAsync((c, t) => c.Execute("UPDATE page SET needs_ocr = 1 WHERE document_id = 1 AND pdf_page IN (2, 3)", transaction: t), Ct);
+
+        await _store.SetPageTextAsync(1,
+        [
+            new PageTextRow(0, "the owlbear wakes", "pdf", 1, false),
+            new PageTextRow(1, "", "none", 0, true),
+            new PageTextRow(2, "a good text layer", "pdf", 1, false),
+            new PageTextRow(3, "", "none", 0, false, "The page could not be read."),
+        ], Ct);
+
+        // New text replaces old; OCR text waits for OCR; a page that couldn't be read keeps its text.
+        Assert.Equal([0L], PageSearch("wakes"));
+        Assert.Equal([1L], PageSearch("goblin"));
+        Assert.Equal([2L], PageSearch("haunted"));
+        Assert.Equal([3L], PageSearch("lich"));
+        Assert.Equal([1, 2, 3], (await _queries.GetPagesNeedingOcrAsync(1, Ct)).Select(p => p.PdfPage));
+    }
+
+    [Fact]
     public async Task A_cover_is_recorded_against_its_document()
     {
         await _store.UpsertDocumentAsync(Doc(), Pages(1), [], Ct);
