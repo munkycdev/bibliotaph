@@ -47,6 +47,23 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         Projected?.Invoke(this, entryIds);
     }
 
+    /// <summary>
+    /// Records which cards show a document that has just been read, so it appears in the library. Taken with the other
+    /// projections, so it can't put back a card that one has just removed.
+    /// </summary>
+    public async Task ProjectShownByAsync(long documentId, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await index.SetEntriesAsync([.. (await entries.GetShownByAsync(documentId, ct)).Select(ToRow)], ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     async Task WriteAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct)
     {
         var vocabulary = await vocabularies.GetAsync(ct);

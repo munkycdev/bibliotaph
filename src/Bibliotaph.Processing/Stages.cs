@@ -57,7 +57,8 @@ public sealed record StageServices(
     IImageCodec Images,
     CoverCache Covers,
     IPasswordStore Passwords,
-    SourceFiles Sources);
+    SourceFiles Sources,
+    MetadataProjector Projector);
 
 public interface IStage
 {
@@ -144,7 +145,7 @@ static class StageHelpers
         CancellationToken ct)
     {
         await s.Index.UpsertDocumentAsync(doc, pages, outline, ct);
-        await s.Index.SetEntriesAsync([.. (await s.Entries.GetShownByAsync(doc.DocumentId, ct)).Select(MetadataProjector.ToRow)], ct);
+        await s.Projector.ProjectShownByAsync(doc.DocumentId, ct);
     }
 
     /// <summary>

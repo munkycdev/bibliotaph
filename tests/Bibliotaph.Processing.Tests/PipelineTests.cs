@@ -69,13 +69,13 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var index = new IndexStore(_writer);
         var archives = new ArchiveReader(reader);
         _sources = new SourceFiles(_paths, archives, new DiskSpace());
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources);
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
         _runs = new ClassificationStore(contexts);
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs);
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources, projector);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
