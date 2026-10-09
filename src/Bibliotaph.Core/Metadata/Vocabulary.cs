@@ -24,7 +24,7 @@ public sealed class Vocabulary
 
     readonly Dictionary<(string Vocabulary, string Key), Term> _terms = [];
     readonly Dictionary<(string Vocabulary, string Alias), Term> _byAlias = [];
-    readonly Dictionary<string, List<Term>> _anyByAlias = new(StringComparer.Ordinal);
+    readonly Dictionary<string, List<Term>> _anyByAlias = [with(StringComparer.Ordinal)];
 
     public Vocabulary(IEnumerable<Term> terms, IEnumerable<(string Vocabulary, string Key, string Alias)>? aliases = null)
     {
