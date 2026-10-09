@@ -33,12 +33,33 @@ static class SmokeTest
         var bindingErrors = new BindingErrorListener();
         PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
+        var navigation = services.GetRequiredService<INavigationService>();
+        var failed = new List<string>();
+
+        // A failed check is logged and the rest still run, so one CI round shows every broken check, not just the
+        // first. The window is put back first: pop-outs and popups closed, navigation back at the start.
+        async Task Check(string name, Func<Task> check)
+        {
+            try
+            {
+                await check();
+                Log.Information("Smoke test: {Check}", name);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Smoke test failed: {Check}", name);
+                failed.Add(name);
+                services.GetRequiredService<ReaderWindows>().CloseAll();
+                foreach (var other in Application.Current.Windows.OfType<Window>().Where(w => w != window).ToList()) other.Close();
+                while (navigation.GoBack()) await Settle(window);
+            }
+        }
+
         try
         {
             if (window.Icon is null) throw new InvalidOperationException("The main window has no icon.");
             // Covers are encoded on indexing threads, so check the codec off the UI thread.
             await Task.Run(CheckImageCodec);
-            var navigation = services.GetRequiredService<INavigationService>();
             var theme = services.GetRequiredService<ThemeService>();
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
             {
@@ -52,41 +73,37 @@ static class SmokeTest
                 while (navigation.GoBack()) await Settle(window);
             }
 
-            // The sidebar's status line opens Library folders.
-            var status = (Button)window.FindName("StatusButton");
-            ((IInvokeProvider)new ButtonAutomationPeer(status).GetPattern(PatternInterface.Invoke)).Invoke();
-            await Settle(window);
-            if (services.GetRequiredService<ShellViewModel>().CurrentPage?.Route != Route.LibraryFolders)
-                throw new InvalidOperationException("The sidebar status didn't open Library folders.");
-            navigation.GoBack();
-            await Settle(window);
+            await Check("the sidebar status opened Library folders", async () =>
+            {
+                Click(window.FindName("StatusButton") as Button, "sidebar status");
+                await Settle(window);
+                if (services.GetRequiredService<ShellViewModel>().CurrentPage?.Route != Route.LibraryFolders)
+                    throw new InvalidOperationException("The sidebar status didn't open Library folders.");
+                navigation.GoBack();
+                await Settle(window);
+            });
 
+            // Every later check needs the library, so a failure here ends the run.
             await SeedLibraryAsync(services);
             (long Pdf, long Image)? real = smokeFiles is null ? null : await SeedRealFilesAsync(services, smokeFiles);
             var books = real is null ? 5 : 7;
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
             {
                 await theme.SetPreferenceAsync(preference);
-                await BrowseLibraryAsync(services, window, books);
-                Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
-                await UseSearchGuideAsync(services, window, books);
-                Log.Information("Smoke test: a search built from the search guide in {Theme}", preference);
-                await ReviewAsync(services, window, decide: preference == ThemePreference.Light);
-                Log.Information("Smoke test: Needs review and the vocabulary worked through in {Theme}", preference);
-                await ShowFolderProgressAsync(services, window);
-                await ShowAboutAsync(services, window);
-                await ShowAiSettingsAsync(services, window);
+                await Check($"library browsed and searched in {preference}", () => BrowseLibraryAsync(services, window, books));
+                await Check($"a search built from the search guide in {preference}", () => UseSearchGuideAsync(services, window, books));
+                await Check($"Needs review and the vocabulary worked through in {preference}",
+                    () => ReviewAsync(services, window, decide: preference == ThemePreference.Light));
+                await Check($"Library folders progress in {preference}", () => ShowFolderProgressAsync(services, window));
+                await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
+                await Check($"Settings > AI with no model server in {preference}", () => ShowAiSettingsAsync(services, window));
                 if (real is not { } files) continue;
-                await ReadBookAsync(services, window, files.Pdf);
-                await PopOutAsync(services, window, files.Pdf);
-                await ViewImageAsync(services, window, files.Image);
-                Log.Information("Smoke test: a PDF read and an image viewed in {Theme}", preference);
+                await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
+                await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
+                await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
             if (real is { } reprocessed)
-            {
-                await ReprocessBookAsync(services, window, reprocessed.Pdf);
-                Log.Information("Smoke test: a PDF reprocessed from its file and found throughout");
-            }
+                await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
             if (Application.Current.Windows.Count != 1 || services.GetRequiredService<ReaderWindows>().Windows.Count > 0)
@@ -107,6 +124,11 @@ static class SmokeTest
         if (bindingErrors.Errors.Count > 0)
         {
             foreach (var error in bindingErrors.Errors) Log.Error("Smoke test binding error: {Error}", error);
+            return 1;
+        }
+        if (failed.Count > 0)
+        {
+            Log.Error("Smoke test failed {Count} checks: {Checks}", failed.Count, string.Join("; ", failed));
             return 1;
         }
         Log.Information("Smoke test passed");
@@ -289,7 +311,7 @@ static class SmokeTest
         var box = (TextBox)window.FindName("Search");
         var clear = box.Template.FindName("Clear", box) as Button ?? throw new InvalidOperationException("The search box has no clear button.");
         if (clear.Visibility != Visibility.Visible) throw new InvalidOperationException("The search box's × is hidden while it has text.");
-        ((IInvokeProvider)new ButtonAutomationPeer(clear).GetPattern(PatternInterface.Invoke)).Invoke();
+        Click(clear, "clear search");
         await WaitUntilAsync(window, () => box.Text.Length == 0 && !search.IsSearching && clear.Visibility == Visibility.Collapsed,
             () => "The search box's × didn't clear the search.");
         page.Tab = ResultsTab.Documents;
@@ -627,7 +649,8 @@ static class SmokeTest
         var link = Descendants<Button>(window).FirstOrDefault(b => b.Command == settings.ShowAboutCommand)
             ?? throw new InvalidOperationException("Settings has no About Bibliotaph link.");
         // ShowDialog returns only when the popup closes, so click from the queue and go on inside the popup's loop.
-        _ = window.Dispatcher.BeginInvoke(() => ((IInvokeProvider)new ButtonAutomationPeer(link).GetPattern(PatternInterface.Invoke)).Invoke());
+        var click = Clickable(link, "About Bibliotaph");
+        _ = window.Dispatcher.BeginInvoke(click.Invoke);
         Views.AboutDialog? about = null;
         await WaitUntilAsync(window, () => (about = Application.Current.Windows.OfType<Views.AboutDialog>().FirstOrDefault()) is { IsLoaded: true },
             () => "The About popup didn't open.");
@@ -672,6 +695,21 @@ static class SmokeTest
         if (page.IsOn) throw new InvalidOperationException("A failed connection switched AI on.");
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>Clicks <paramref name="button"/> the way a person would, failing clearly if they couldn't.</summary>
+    static void Click(Button? button, string name) => Clickable(button, name).Invoke();
+
+    /// <summary>
+    /// The automation click for <paramref name="button"/>, once it is shown and enabled. Automation refuses a disabled
+    /// button with an exception that names neither the button nor the step, and clicks a hidden one when no person can.
+    /// </summary>
+    static IInvokeProvider Clickable(Button? button, string name)
+    {
+        if (button is null) throw new InvalidOperationException($"There is no {name} button.");
+        if (!button.IsVisible) throw new InvalidOperationException($"The {name} button isn't showing, so it can't be clicked.");
+        if (!button.IsEnabled) throw new InvalidOperationException($"The {name} button is disabled, so it can't be clicked.");
+        return (IInvokeProvider)new ButtonAutomationPeer(button).GetPattern(PatternInterface.Invoke);
     }
 
     static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
