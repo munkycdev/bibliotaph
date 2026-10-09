@@ -368,6 +368,68 @@ public sealed class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.Equal(0, await review.CountAsync(Ct));
     }
 
+    [Fact]
+    public async Task A_bulk_edit_reaches_search_on_every_book_survives_the_hints_and_undo_takes_it_back()
+    {
+        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
+        Copy(pdfs.Scanned, "Adventures/Goblin Scan.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var search = new LibraryQueries(_index);
+        var ids = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.DocumentId).Order().ToList();
+        Assert.Equal(2, ids.Count);
+        async Task<List<long>> FindAsync(string words) =>
+            [.. (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(words)), new LibraryFilter(), ct: Ct)).Select(e => e.DocumentId).Order()];
+        Assert.Equal(ids, await FindAsync("type:adventure"));
+
+        // A value that can't be stored stops the whole edit before anything is saved.
+        var (problem, none) = await _metadata.EditManyAsync(ids,
+            [new BulkChange(Core.Metadata.MetadataFields.Tags, BulkAction.Add, "Friday game"), new BulkChange(Core.Metadata.MetadataFields.Year, BulkAction.Set, "soon")], ct: Ct);
+        Assert.NotNull(problem);
+        Assert.Null(none);
+        Assert.Empty(await FindAsync("tag:friday"));
+
+        var progress = new Reports();
+        var (ok, undo) = await _metadata.EditManyAsync(ids,
+        [
+            new BulkChange(Core.Metadata.MetadataFields.Tags, BulkAction.Add, "Friday game"),
+            new BulkChange(Core.Metadata.MetadataFields.Types, BulkAction.Remove, "adventure"),
+            new BulkChange(Core.Metadata.MetadataFields.Types, BulkAction.Add, "Heist kit"),
+            new BulkChange(Core.Metadata.MetadataFields.System, BulkAction.Set, "Pathfinder"),
+        ], progress, Ct);
+        Assert.Null(ok);
+        Assert.Equal(ids, await FindAsync("tag:friday"));
+        Assert.Empty(await FindAsync("type:adventure"));
+        Assert.Equal((2, 2), progress.Last);
+        var heist = (await _vocabulary.GetAsync(Ct)).Resolve("type", "heist kit");
+        Assert.Equal("Heist kit", heist?.Label);
+        foreach (var id in ids)
+        {
+            var metadata = (await _metadataStore.GetAsync(id, Ct)).Compute();
+            Assert.Equal([heist!.Key], metadata[Core.Metadata.MetadataFields.Types].Values.Select(v => v.Value));
+            Assert.True(metadata[Core.Metadata.MetadataFields.System].First?.Confirmed);
+        }
+
+        // The hints from names run again, as after a vocabulary change: the Adventures folder doesn't bring it back.
+        await _service.RerunAsync(Stage.RuleHints, Ct);
+        await SettleAsync();
+        Assert.Empty(await FindAsync("type:adventure"));
+
+        await _metadata.UndoManyAsync(undo!, ct: Ct);
+        Assert.Empty(await FindAsync("tag:friday"));
+        Assert.Equal(ids, await FindAsync("type:adventure"));
+        Assert.All(await search.ListAsync(new LibraryFilter(), ct: Ct), e => Assert.Equal("Adventure", e.Kind));
+    }
+
+    /// <summary>Keeps the last progress report, synchronously, where <see cref="Progress{T}"/> would post it.</summary>
+    sealed class Reports : IProgress<(int Done, int Total)>
+    {
+        public (int Done, int Total) Last { get; private set; }
+
+        public void Report((int Done, int Total) value) => Last = value;
+    }
+
     /// <summary>How many jobs there are and how many times they have run.</summary>
     async Task<(long Jobs, long Attempts)> JobsAsync()
     {

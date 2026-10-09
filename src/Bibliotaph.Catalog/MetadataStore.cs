@@ -157,38 +157,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var (rows, rejections) = await LoadFieldAsync(db, documentId, field, ct);
-        var current = Compute(field, rows, rejections);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        var wanted = values.Select(v => (Value: v, Normalized: MetadataValues.Normalize(field, v)))
-            .Where(v => v.Normalized.Length > 0).DistinctBy(v => v.Normalized).ToList();
-        if (!field.Multiple && wanted.Count > 1) wanted = wanted[..1];
-
-        if (field.Multiple || wanted.Count == 0)
-            foreach (var gone in current.Values.Where(v => wanted.All(w => w.Normalized != v.Normalized)))
-                Reject(db, documentId, field, gone.Normalized, rows, rejections, now);
-
-        foreach (var (value, normalized) in wanted)
-        {
-            if (rejections.FirstOrDefault(r => r.NormalizedValue == normalized) is { } rejection) db.Rejections.Remove(rejection);
-            var same = rows.Where(r => r.NormalizedValue == normalized).ToList();
-            if (same.Any(r => r.State == AssertionState.Confirmed)) continue;
-            var best = same.Where(r => r.State is AssertionState.Provisional or AssertionState.Rejected)
-                .OrderByDescending(r => EffectiveMetadata.Priority(r.Origin)).ThenByDescending(r => r.CreatedUtc).FirstOrDefault();
-            if (best is not null && best.Origin != AssertionOrigin.User)
-            {
-                best.State = AssertionState.Confirmed;
-                best.DecidedUtc = now;
-            }
-            else db.Assertions.Add(NewAssertion(documentId, new MetadataProposal(field, value, AssertionOrigin.User), AssertionState.Confirmed, now));
-        }
-
-        if (!field.Multiple && wanted.Count == 1)
-            foreach (var old in rows.Where(r => r.State == AssertionState.Confirmed && r.NormalizedValue != wanted[0].Normalized))
-            {
-                old.State = AssertionState.Superseded;
-                old.DecidedUtc = now;
-            }
-
+        SetValues(db, documentId, field, values, rows, rejections, _clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct);
     }
 
@@ -225,22 +194,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var (rows, rejections) = await LoadFieldAsync(db, documentId, field, ct);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        db.Rejections.RemoveRange(rejections);
-        foreach (var row in rows.Where(r => r.State is AssertionState.Confirmed or AssertionState.Rejected or AssertionState.Superseded))
-        {
-            if (row.Origin == AssertionOrigin.User)
-            {
-                if (row.State == AssertionState.Superseded) continue;
-                row.State = AssertionState.Superseded;
-                row.DecidedUtc = now;
-            }
-            else
-            {
-                row.State = AssertionState.Provisional;
-                row.DecidedUtc = null;
-            }
-        }
+        Reset(db, rows, rejections, _clock.GetUtcNow().UtcDateTime);
         await db.SaveChangesAsync(ct);
     }
 
@@ -266,9 +220,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var (rows, rejections) = await LoadFieldAsync(db, documentId, field, ct);
-        return new FieldSnapshot(documentId, field,
-            [.. rows.Select(r => new FieldSnapshot.Row(r.Id, r.State, r.DecidedUtc))],
-            [.. rejections.Select(r => new FieldSnapshot.Rejected(r.NormalizedValue, r.CreatedUtc))]);
+        return Snapshot(documentId, field, rows, rejections);
     }
 
     /// <summary>
@@ -279,6 +231,188 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var (rows, rejections) = await LoadFieldAsync(db, snapshot.DocumentId, snapshot.Field, ct);
+        Restore(db, snapshot, rows, rejections);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// A bulk edit (slice 4e): the same changes to fields of many documents, in one transaction, by the inspector's
+    /// per-value rules. Set makes a single-value field's value the user's own, as <see cref="SetValuesAsync"/> does.
+    /// Add puts a value in a multi-value field and keeps the values it shows, as "Use this" does, which confirms them;
+    /// Remove rejects a value the field shows, from every source now and later, as "Not right" does. Reset is "Reset to
+    /// suggestion". A field with no change, and a document a change makes no difference to, are left as they are.
+    /// Returns the snapshot, from before, of each field it changed, which <see cref="RestoreAsync(IReadOnlyCollection{FieldSnapshot}, CancellationToken)"/>
+    /// puts back.
+    /// </summary>
+    public async Task<IReadOnlyList<FieldSnapshot>> ApplyBulkAsync(IReadOnlyCollection<long> documentIds, IReadOnlyList<BulkChange> changes,
+        CancellationToken ct = default)
+    {
+        foreach (var change in changes)
+        {
+            if (change.Action == BulkAction.Reset ? change.Value is not null : string.IsNullOrEmpty(change.Value))
+                throw new ArgumentException($"{change.Action} of {change.Field} has the wrong value.", nameof(changes));
+            if (change.Action == BulkAction.Set && change.Field.Multiple || change.Action is BulkAction.Add or BulkAction.Remove && !change.Field.Multiple)
+                throw new ArgumentException($"{change.Action} doesn't apply to {change.Field}.", nameof(changes));
+        }
+        var byField = changes.GroupBy(c => c.Field).ToList();
+        if (byField.Any(g => g.Count() > 1 && g.Any(c => c.Action is BulkAction.Set or BulkAction.Reset)))
+            throw new ArgumentException("A field that is set or reset has no other change.", nameof(changes));
+        var ids = documentIds.Distinct().ToList();
+        if (ids.Count == 0 || byField.Count == 0) return [];
+
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var keys = byField.Select(g => g.Key.Key).ToList();
+        var (rows, rejected) = await LoadFieldsAsync(db, ids, keys, ct);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var snapshots = new List<FieldSnapshot>();
+        foreach (var documentId in ids)
+            foreach (var group in byField)
+            {
+                var field = group.Key;
+                var fieldRows = rows[(documentId, field.Key)].ToList();
+                var rejections = rejected[(documentId, field.Key)].ToList();
+                var before = Snapshot(documentId, field, fieldRows, rejections);
+                if (ApplyBulk(db, documentId, field, [.. group], fieldRows, rejections, now)) snapshots.Add(before);
+            }
+        await db.SaveChangesAsync(ct);
+        return snapshots;
+    }
+
+    /// <summary>Undo for a bulk edit: puts every field back as its snapshot found it, in one transaction.</summary>
+    public async Task RestoreAsync(IReadOnlyCollection<FieldSnapshot> snapshots, CancellationToken ct = default)
+    {
+        if (snapshots.Count == 0) return;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var (rows, rejected) = await LoadFieldsAsync(db, [.. snapshots.Select(s => s.DocumentId).Distinct()], [.. snapshots.Select(s => s.Field.Key).Distinct()], ct);
+        foreach (var snapshot in snapshots)
+        {
+            var key = (snapshot.DocumentId, snapshot.Field.Key);
+            Restore(db, snapshot, [.. rows[key]], [.. rejected[key]]);
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
+    static async Task<(List<Assertion> Rows, List<Rejection> Rejections)> LoadFieldAsync(CatalogDbContext db, long documentId, MetadataField field, CancellationToken ct) =>
+        (await db.Assertions.Where(a => a.DocumentId == documentId && a.Field == field.Key).ToListAsync(ct),
+         await db.Rejections.Where(r => r.DocumentId == documentId && r.Field == field.Key).ToListAsync(ct));
+
+    /// <summary>Several documents' rows for several fields, by document and field, tracked so they can be changed.</summary>
+    static async Task<(ILookup<(long, string), Assertion> Rows, ILookup<(long, string), Rejection> Rejections)> LoadFieldsAsync(CatalogDbContext db,
+        List<long> documentIds, List<string> fields, CancellationToken ct) =>
+        ((await db.Assertions.Where(a => documentIds.Contains(a.DocumentId) && fields.Contains(a.Field)).ToListAsync(ct)).ToLookup(a => (a.DocumentId, a.Field)),
+         (await db.Rejections.Where(r => documentIds.Contains(r.DocumentId) && fields.Contains(r.Field)).ToListAsync(ct)).ToLookup(r => (r.DocumentId, r.Field)));
+
+    static EffectiveField Compute(MetadataField field, List<Assertion> rows, List<Rejection> rejections) =>
+        EffectiveMetadata.Compute(rows.Select(ToClaim), rejections.Select(r => (r.Field, r.NormalizedValue)))[field];
+
+    /// <summary>
+    /// <see cref="SetValuesAsync"/>'s rules on one field's loaded rows. Returns whether anything changed: typing the
+    /// values a field already shows as confirmed changes nothing.
+    /// </summary>
+    static bool SetValues(CatalogDbContext db, long documentId, MetadataField field, IReadOnlyList<string> values, List<Assertion> rows,
+        List<Rejection> rejections, DateTime now)
+    {
+        var current = Compute(field, rows, rejections);
+        var wanted = values.Select(v => (Value: v, Normalized: MetadataValues.Normalize(field, v)))
+            .Where(v => v.Normalized.Length > 0).DistinctBy(v => v.Normalized).ToList();
+        if (!field.Multiple && wanted.Count > 1) wanted = wanted[..1];
+        var changed = false;
+
+        if (field.Multiple || wanted.Count == 0)
+            foreach (var gone in current.Values.Where(v => wanted.All(w => w.Normalized != v.Normalized)))
+                changed |= Reject(db, documentId, field, gone.Normalized, rows, rejections, now);
+
+        foreach (var (value, normalized) in wanted)
+        {
+            if (rejections.FirstOrDefault(r => r.NormalizedValue == normalized) is { } rejection)
+            {
+                db.Rejections.Remove(rejection);
+                rejections.Remove(rejection);
+                changed = true;
+            }
+            var same = rows.Where(r => r.NormalizedValue == normalized).ToList();
+            if (same.Any(r => r.State == AssertionState.Confirmed)) continue;
+            var best = same.Where(r => r.State is AssertionState.Provisional or AssertionState.Rejected)
+                .OrderByDescending(r => EffectiveMetadata.Priority(r.Origin)).ThenByDescending(r => r.CreatedUtc).FirstOrDefault();
+            if (best is not null && best.Origin != AssertionOrigin.User)
+            {
+                best.State = AssertionState.Confirmed;
+                best.DecidedUtc = now;
+            }
+            else
+            {
+                var added = NewAssertion(documentId, new MetadataProposal(field, value, AssertionOrigin.User), AssertionState.Confirmed, now);
+                db.Assertions.Add(added);
+                rows.Add(added);
+            }
+            changed = true;
+        }
+
+        if (!field.Multiple && wanted.Count == 1)
+            foreach (var old in rows.Where(r => r.State == AssertionState.Confirmed && r.NormalizedValue != wanted[0].Normalized))
+            {
+                old.State = AssertionState.Superseded;
+                old.DecidedUtc = now;
+                changed = true;
+            }
+        return changed;
+    }
+
+    /// <summary><see cref="ResetAsync"/>'s rules on one field's loaded rows. Returns whether there was anything to forget.</summary>
+    static bool Reset(CatalogDbContext db, List<Assertion> rows, List<Rejection> rejections, DateTime now)
+    {
+        var changed = rejections.Count > 0;
+        db.Rejections.RemoveRange(rejections);
+        rejections.Clear();
+        foreach (var row in rows.Where(r => r.State is AssertionState.Confirmed or AssertionState.Rejected or AssertionState.Superseded))
+        {
+            if (row.Origin == AssertionOrigin.User)
+            {
+                if (row.State == AssertionState.Superseded) continue;
+                row.State = AssertionState.Superseded;
+                row.DecidedUtc = now;
+            }
+            else
+            {
+                row.State = AssertionState.Provisional;
+                row.DecidedUtc = null;
+            }
+            changed = true;
+        }
+        return changed;
+    }
+
+    /// <summary>
+    /// One field of one document in a bulk edit. When every value to add already shows confirmed, there is nothing to
+    /// add; otherwise the field is saved as the inspector saves an edited list: what it shows, less what is removed,
+    /// plus what is added. With nothing to add, only the removed values it shows are rejected, and the rest is left alone.
+    /// </summary>
+    static bool ApplyBulk(CatalogDbContext db, long documentId, MetadataField field, IReadOnlyList<BulkChange> changes, List<Assertion> rows,
+        List<Rejection> rejections, DateTime now)
+    {
+        if (changes is [{ Action: BulkAction.Reset }]) return Reset(db, rows, rejections, now);
+        if (changes is [{ Action: BulkAction.Set, Value: { } value }]) return SetValues(db, documentId, field, [value], rows, rejections, now);
+
+        var current = Compute(field, rows, rejections);
+        var removed = changes.Where(c => c.Action == BulkAction.Remove).Select(c => MetadataValues.Normalize(field, c.Value!)).ToHashSet(StringComparer.Ordinal);
+        var added = changes.Where(c => c.Action == BulkAction.Add).Select(c => c.Value!).Where(v => !removed.Contains(MetadataValues.Normalize(field, v))).ToList();
+        if (added.Any(v => !current.Values.Any(c => c.Confirmed && c.Normalized == MetadataValues.Normalize(field, v))))
+            return SetValues(db, documentId, field, [.. current.Values.Where(v => !removed.Contains(v.Normalized)).Select(v => v.Value), .. added],
+                rows, rejections, now);
+
+        var changed = false;
+        foreach (var normalized in removed.Where(r => current.Values.Any(v => v.Normalized == r)))
+            changed |= Reject(db, documentId, field, normalized, rows, rejections, now);
+        return changed;
+    }
+
+    static FieldSnapshot Snapshot(long documentId, MetadataField field, List<Assertion> rows, List<Rejection> rejections) =>
+        new(documentId, field,
+            [.. rows.Select(r => new FieldSnapshot.Row(r.Id, r.State, r.DecidedUtc))],
+            [.. rejections.Select(r => new FieldSnapshot.Rejected(r.NormalizedValue, r.CreatedUtc))]);
+
+    static void Restore(CatalogDbContext db, FieldSnapshot snapshot, List<Assertion> rows, List<Rejection> rejections)
+    {
         var before = snapshot.Rows.ToDictionary(r => r.Id);
         foreach (var row in rows)
         {
@@ -293,33 +427,49 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         db.Rejections.RemoveRange(rejections.Where(r => snapshot.Rejections.All(s => s.Normalized != r.NormalizedValue)));
         foreach (var gone in snapshot.Rejections.Where(s => rejections.All(r => r.NormalizedValue != s.Normalized)))
             db.Rejections.Add(new Rejection { DocumentId = snapshot.DocumentId, Field = snapshot.Field.Key, NormalizedValue = gone.Normalized, CreatedUtc = gone.CreatedUtc });
-        await db.SaveChangesAsync(ct);
     }
 
-    static async Task<(List<Assertion> Rows, List<Rejection> Rejections)> LoadFieldAsync(CatalogDbContext db, long documentId, MetadataField field, CancellationToken ct) =>
-        (await db.Assertions.Where(a => a.DocumentId == documentId && a.Field == field.Key).ToListAsync(ct),
-         await db.Rejections.Where(r => r.DocumentId == documentId && r.Field == field.Key).ToListAsync(ct));
-
-    static EffectiveField Compute(MetadataField field, List<Assertion> rows, List<Rejection> rejections) =>
-        EffectiveMetadata.Compute(rows.Select(ToClaim), rejections.Select(r => (r.Field, r.NormalizedValue)))[field];
-
-    static void Reject(CatalogDbContext db, long documentId, MetadataField field, string normalized, List<Assertion> rows, List<Rejection> rejections, DateTime now)
+    /// <summary>"Not right" on one field's loaded rows. Returns whether anything changed.</summary>
+    static bool Reject(CatalogDbContext db, long documentId, MetadataField field, string normalized, List<Assertion> rows, List<Rejection> rejections, DateTime now)
     {
+        var changed = false;
         if (rejections.All(r => r.NormalizedValue != normalized))
         {
             var rejection = new Rejection { DocumentId = documentId, Field = field.Key, NormalizedValue = normalized, CreatedUtc = now };
             db.Rejections.Add(rejection);
             rejections.Add(rejection);
+            changed = true;
         }
         foreach (var row in rows.Where(r => r.NormalizedValue == normalized && r.State is AssertionState.Provisional or AssertionState.Confirmed))
         {
             row.State = AssertionState.Rejected;
             row.DecidedUtc = now;
+            changed = true;
         }
+        return changed;
     }
 }
 
-/// <summary>A field's assertion states and rejections at one moment, which <see cref="MetadataStore.RestoreAsync"/> puts back.</summary>
+/// <summary>What a bulk edit does to a field on every selected document (slice 4e plan, choices 3 and 4).</summary>
+public enum BulkAction
+{
+    /// <summary>Makes a single-value field's value the user's own.</summary>
+    Set,
+
+    /// <summary>Puts a value in a multi-value field.</summary>
+    Add,
+
+    /// <summary>Takes a value out of a multi-value field and rejects it, so no source suggests it again.</summary>
+    Remove,
+
+    /// <summary>Back to suggestions: forgets the user's decisions about the field.</summary>
+    Reset,
+}
+
+/// <summary>One change in a bulk edit. <see cref="Value"/> is in stored form (a term's key, "1-5"); Reset has none.</summary>
+public sealed record BulkChange(MetadataField Field, BulkAction Action, string? Value = null);
+
+/// <summary>A field's assertion states and rejections at one moment, which <see cref="MetadataStore.RestoreAsync(FieldSnapshot, CancellationToken)"/> puts back.</summary>
 public sealed record FieldSnapshot(long DocumentId, MetadataField Field, IReadOnlyList<FieldSnapshot.Row> Rows, IReadOnlyList<FieldSnapshot.Rejected> Rejections)
 {
     public sealed record Row(long Id, AssertionState State, DateTime? DecidedUtc);

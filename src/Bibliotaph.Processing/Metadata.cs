@@ -218,22 +218,40 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         var added = false;
         foreach (var part in MetadataValues.Split(field, typed))
         {
-            if (field.Kind == FieldKind.Term)
-            {
-                if (MetadataText.Normalize(part).Length == 0) return new MetadataProblem(field, $"{field.Label} needs some letters or numbers.");
-                added |= (await vocabularies.GetAsync(ct)).Resolve(field.Vocabulary!, part) is null;
-                values.Add((await vocabularies.ResolveOrAddAsync(field.Vocabulary!, part, ct)).Key);
-                continue;
-            }
-            var (value, problem) = MetadataValues.Parse(field, part);
-            if (problem is not null) return new MetadataProblem(field, problem);
-            if (field.Vocabulary is { } aliases && (await vocabularies.GetAsync(ct)).Resolve(aliases, value!) is { } known) value = known.Label;
+            var (value, problem, isNew) = await ReadAsync(field, part, ct);
+            if (problem is not null) return problem;
+            added |= isNew;
             values.Add(value!);
         }
         await metadata.SetValuesAsync(documentId, field, values, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([documentId], ct);
         return null;
+    }
+
+    /// <summary>
+    /// One typed value in stored form. A term field resolves it through the vocabulary, adding the user's own term when
+    /// nothing matches (IsNew); a publisher takes the vocabulary's spelling.
+    /// </summary>
+    async Task<(string? Value, MetadataProblem? Problem, bool IsNew)> ReadAsync(MetadataField field, string part, CancellationToken ct)
+    {
+        if (Check(field, part) is { } problem) return (null, problem, false);
+        if (field.Kind == FieldKind.Term)
+        {
+            var isNew = (await vocabularies.GetAsync(ct)).Resolve(field.Vocabulary!, part) is null;
+            return ((await vocabularies.ResolveOrAddAsync(field.Vocabulary!, part, ct)).Key, null, isNew);
+        }
+        var value = MetadataValues.Parse(field, part).Value!;
+        if (field.Vocabulary is { } aliases && (await vocabularies.GetAsync(ct)).Resolve(aliases, value) is { } known) value = known.Label;
+        return (value, null, false);
+    }
+
+    /// <summary>Why a typed value can't be stored in a field, or null when it can.</summary>
+    public static MetadataProblem? Check(MetadataField field, string part)
+    {
+        if (field.Kind == FieldKind.Term)
+            return MetadataText.Normalize(part).Length == 0 ? new MetadataProblem(field, $"{field.Label} needs some letters or numbers.") : null;
+        return MetadataValues.Parse(field, part).Problem is { } problem ? new MetadataProblem(field, problem) : null;
     }
 
     /// <summary>"Use this": an alternative becomes the value (single fields) or joins the values (multi-value fields).</summary>
@@ -261,5 +279,69 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
     {
         await metadata.ResetAsync(documentId, field, ct);
         await projector.ProjectAsync([documentId], ct);
+    }
+
+    /// <summary>Several documents' metadata, for the bulk editor. A document with none yet has <see cref="EffectiveMetadata.Empty"/>.</summary>
+    public async Task<(IReadOnlyDictionary<long, EffectiveMetadata> Metadata, Vocabulary Vocabulary)> GetManyAsync(IReadOnlyCollection<long> documentIds,
+        CancellationToken ct = default)
+    {
+        var all = await metadata.GetManyAsync(documentIds, ct);
+        return (documentIds.Distinct().ToDictionary(id => id, id => all.TryGetValue(id, out var m) ? m.Compute() : EffectiveMetadata.Empty),
+            await vocabularies.GetAsync(ct));
+    }
+
+    /// <summary>
+    /// A bulk edit (slice 4e): every change on every document, in one transaction, by the inspector's rules
+    /// (<see cref="MetadataStore.ApplyBulkAsync"/>). A Set or Add value is a term's key, or what was typed, which is
+    /// read as <see cref="SetAsync"/> reads it: a name the vocabulary doesn't know becomes the user's own term. Remove
+    /// values are stored ones, as the field shows them. Every value is checked before anything is saved. Then the
+    /// changed documents are projected a batch at a time, <paramref name="progress"/> counting them, so search sees
+    /// the new values. Returns the problem, or what undoes the edit.
+    /// </summary>
+    public async Task<(MetadataProblem? Problem, IReadOnlyList<FieldSnapshot>? Undo)> EditManyAsync(IReadOnlyCollection<long> documentIds,
+        IReadOnlyList<BulkChange> changes, IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
+    {
+        if (changes.FirstOrDefault(c => c.Action is BulkAction.Set or BulkAction.Add && Check(c.Field, c.Value ?? "") is not null) is { } bad)
+            return (Check(bad.Field, bad.Value ?? ""), null);
+
+        var stored = new List<BulkChange>();
+        var added = false;
+        foreach (var change in changes)
+        {
+            if (change.Action is BulkAction.Remove or BulkAction.Reset) stored.Add(change);
+            else if (change.Field.Kind == FieldKind.Term && (await vocabularies.GetAsync(ct)).Find(change.Field.Vocabulary!, change.Value!) is { } term)
+                stored.Add(change with { Value = term.Key });
+            else
+            {
+                var (value, _, isNew) = await ReadAsync(change.Field, change.Value!, ct);
+                added |= isNew;
+                stored.Add(change with { Value = value });
+            }
+        }
+
+        var undo = await metadata.ApplyBulkAsync(documentIds, stored, ct);
+        if (added) await projector.ProjectVocabularyAsync(ct);
+        await ProjectAsync([.. undo.Select(s => s.DocumentId).Distinct()], progress, ct);
+        return (null, undo);
+    }
+
+    /// <summary>Undoes a bulk edit: every field it changed goes back as it was, in one transaction, and search follows.</summary>
+    public async Task UndoManyAsync(IReadOnlyList<FieldSnapshot> undo, IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
+    {
+        await metadata.RestoreAsync(undo, ct);
+        await ProjectAsync([.. undo.Select(s => s.DocumentId).Distinct()], progress, ct);
+    }
+
+    /// <summary>Projects documents a batch at a time, reporting how many are done, so a large selection shows how far it has got.</summary>
+    async Task ProjectAsync(IReadOnlyList<long> documentIds, IProgress<(int Done, int Total)>? progress, CancellationToken ct)
+    {
+        const int Batch = 100;
+        var done = 0;
+        foreach (var batch in documentIds.Chunk(Batch))
+        {
+            await projector.ProjectAsync(batch, ct);
+            done += batch.Length;
+            progress?.Report((done, documentIds.Count));
+        }
     }
 }
