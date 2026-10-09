@@ -47,6 +47,8 @@ public sealed partial class PilotPanelViewModel : ObservableObject
 
     public async Task LoadAsync()
     {
+        // Settings loads its AI section again when it is chosen while showing, without an Unload in between.
+        Unload();
         Session.PropertyChanged += OnSessionChanged;
         Session.Stopped += OnStopped;
         await RefreshAsync();

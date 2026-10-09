@@ -30,12 +30,10 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
     PilotPanelViewModel pilot, ILogger<AiSettingsViewModel> log)
-    : PageViewModel
+    : SettingsSectionViewModel
 {
-    public override Route Route => Route.Ai;
-    public override string Title => "AI";
-    public override string Section => "Settings";
-    public override Route? SectionRoute => Route.Settings;
+    public override SettingsSection Section => SettingsSection.Ai;
+    public override string Label => "AI";
 
     public LibraryActivity Activity { get; } = activity;
 
@@ -163,6 +161,8 @@ public sealed partial class AiSettingsViewModel(
             Folders.Add(new AiFolderItem(root.Id, root.Path, !setup.SkippedRoots.Contains(root.Id), OnFolderChangedAsync));
         HasFolders = Folders.Count > 0;
 
+        // Choosing the section that is showing loads it again, without an Unload in between.
+        Activity.Refreshed -= OnActivityRefreshed;
         Activity.Refreshed += OnActivityRefreshed;
         await RefreshProgressAsync();
         if (ShowPilot) await Pilot.LoadAsync();

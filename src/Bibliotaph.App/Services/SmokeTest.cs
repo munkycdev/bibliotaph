@@ -22,10 +22,11 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// <c>Bibliotaph.exe --smoke-test --data-root &lt;folder&gt; [--smoke-files &lt;folder&gt;]</c>: opens the real window,
-/// visits every route in light and dark, fills a small made-up library and browses and searches it in both themes,
-/// then exits 0, or 1 on any exception or binding error. With <c>--smoke-files</c> (tests/fixtures/smoke), it also
-/// opens a real PDF from a search hit and reads it, and opens an image. CI runs it on Windows so a broken resource or
-/// template fails the build instead of the first launch. It is not a substitute for looking.
+/// visits every route and every section of Settings in light and dark, fills a small made-up library and browses and
+/// searches it in both themes, then exits 0, or 1 on any exception or binding error. With <c>--smoke-files</c>
+/// (tests/fixtures/smoke), it also opens a real PDF from a search hit and reads it, and opens an image. CI runs it on
+/// Windows so a broken resource or template fails the build instead of the first launch. It is not a substitute for
+/// looking.
 /// </summary>
 static class SmokeTest
 {
@@ -69,20 +70,13 @@ static class SmokeTest
                 {
                     navigation.NavigateTo(route);
                     await Settle(window);
+                    if (navigation.Current is SettingsViewModel settings) await ShowEachSectionAsync(window, settings);
                     Log.Information("Smoke test: {Route} rendered in {Theme}", route, preference);
                 }
                 while (navigation.GoBack()) await Settle(window);
             }
 
-            await Check("the sidebar status opened Library folders", async () =>
-            {
-                Click(window.FindName("StatusButton") as Button, "sidebar status");
-                await Settle(window);
-                if (services.GetRequiredService<ShellViewModel>().CurrentPage?.Route != Route.LibraryFolders)
-                    throw new InvalidOperationException("The sidebar status didn't open Library folders.");
-                navigation.GoBack();
-                await Settle(window);
-            });
+            await Check("the sidebar status opened Settings > Processing", () => OpenProcessingFromStatusAsync(services, window));
 
             // Every later check needs the library, so a failure here ends the run.
             await SeedLibraryAsync(services);
@@ -95,7 +89,7 @@ static class SmokeTest
                 await Check($"a search built from the search guide in {preference}", () => UseSearchGuideAsync(services, window, books));
                 await Check($"Needs review and the vocabulary worked through in {preference}",
                     () => ReviewAsync(services, window, decide: preference == ThemePreference.Light));
-                await Check($"Library folders progress in {preference}", () => ShowFolderProgressAsync(services, window));
+                await Check($"Settings worked through with a library in {preference}", () => ShowSettingsAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
                 await Check($"Settings > AI with no model server in {preference}", () => ShowAiSettingsAsync(services, window));
                 if (real is not { } files) continue;
@@ -258,8 +252,7 @@ static class SmokeTest
         page.IsSuggestionsTab = true;
         await Settle(window);
 
-        navigation.NavigateTo(Route.Vocabulary);
-        var vocabulary = shell.CurrentPage as VocabularyViewModel ?? throw new InvalidOperationException("The Vocabulary route didn't open the vocabulary.");
+        var vocabulary = (VocabularyViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Vocabulary)).Selected;
         await WaitUntilAsync(window, () => vocabulary.Terms.Any(t => t.Label == "Adventure"), () => "The vocabulary doesn't list Adventure.");
         if (decide)
         {
@@ -765,10 +758,7 @@ static class SmokeTest
     /// </summary>
     static async Task ShowAiSettingsAsync(IServiceProvider services, Window window)
     {
-        var navigation = services.GetRequiredService<INavigationService>();
-        navigation.NavigateTo(Route.Ai);
-        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as AiSettingsViewModel
-            ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+        var page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
         await WaitUntilAsync(window, () => page.HasFolders, () => "Settings > AI doesn't list the library's folders.");
         if (page.IsOn || page.Activity.AiOn) throw new InvalidOperationException("AI is on before anything was set up.");
         if (!page.Activity.Phases[^1].Status.StartsWith("Off", StringComparison.Ordinal))
@@ -802,7 +792,7 @@ static class SmokeTest
             () => "Testing with nothing at the address didn't finish and say why.");
         dialog!.Close();
         await WaitUntilAsync(window, () => !Application.Current.Windows.OfType<Views.AiTestDialog>().Any(), () => "The test popup didn't close.");
-        navigation.GoBack();
+        services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
     }
 
@@ -819,8 +809,7 @@ static class SmokeTest
         mode.IsOn = true;
         try
         {
-            navigation.NavigateTo(Route.Ai);
-            var page = shell.CurrentPage as AiSettingsViewModel ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+            var page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
             await WaitUntilAsync(window, () => page.Pilot.BooksText.Length > 0, () => "Settings > AI doesn't show the model pilot.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Pilot.PickBooksCommand), "Pick books");
             await WaitUntilAsync(window, () => page.Pilot.Note is not null, () => "Picking books didn't say what it picked.");
@@ -835,8 +824,7 @@ static class SmokeTest
                 [new PilotProposal(Model, inn, "title", "The Haunted Inn", 0, "The inn is haunted", true)]);
             navigation.GoBack();
             await Settle(window);
-            navigation.NavigateTo(Route.Ai);
-            page = shell.CurrentPage as AiSettingsViewModel ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+            page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
             await WaitUntilAsync(window, () => page.Pilot.Books == 1, () => "Settings > AI doesn't count the book on the pilot list.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Pilot.ReviewCommand), "Review answers");
             await Settle(window);
@@ -913,28 +901,97 @@ static class SmokeTest
         return null;
     }
 
-    /// <summary>Library folders with a library in it: the step-by-step progress and a card per folder.</summary>
-    static async Task ShowFolderProgressAsync(IServiceProvider services, Window window)
+    /// <summary>Chooses each section of Settings in turn from its list, as a click does, and checks the list marks it.</summary>
+    static async Task ShowEachSectionAsync(Window window, SettingsViewModel settings)
+    {
+        foreach (var section in settings.Sections)
+        {
+            section.IsSelected = true;
+            await Settle(window);
+            var entry = Descendants<RadioButton>(window).SingleOrDefault(r => r.GroupName == "SettingsSection" && r.IsChecked == true);
+            if (!ReferenceEquals(settings.Selected, section) || !ReferenceEquals(entry?.DataContext, section))
+                throw new InvalidOperationException($"Choosing {section.Label} in the section list didn't show it.");
+        }
+    }
+
+    /// <summary>
+    /// The sidebar's status line opens Settings at Processing, both from another page and from another section of
+    /// Settings, under the breadcrumb "Workspace / Settings".
+    /// </summary>
+    static async Task OpenProcessingFromStatusAsync(IServiceProvider services, Window window)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        void ClickStatus() => Click(window.FindName("StatusButton") as Button, "sidebar status");
+
+        ClickStatus();
+        var settings = await ExpectSettingsAsync(window, shell, SettingsSection.Processing, "The sidebar status");
+        if (shell.Section != "Workspace" || shell.Title != "Settings" || shell.OpenSectionCommand.CanExecute(null))
+            throw new InvalidOperationException($"The breadcrumb reads {shell.Section} / {shell.Title}, not Workspace / Settings.");
+        settings.Show(SettingsSection.Appearance);
+        await Settle(window);
+        ClickStatus();
+        await WaitUntilAsync(window, () => settings.Selected.Section == SettingsSection.Processing,
+            () => $"The sidebar status left Settings at {settings.Selected.Label}, not Processing.");
+        if (!ReferenceEquals(shell.CurrentPage, settings)) throw new InvalidOperationException("The sidebar status opened a second Settings page.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// Settings with a library in it, from the Library page and back to it: the Library's and Home's Manage folders
+    /// open the Library section, which describes each folder and lists the folder names read as labels; Processing
+    /// shows each step of indexing; and Back returns to the section that was showing.
+    /// </summary>
+    static async Task ShowSettingsAsync(IServiceProvider services, Window window)
     {
         var navigation = services.GetRequiredService<INavigationService>();
-        navigation.NavigateTo(Route.LibraryFolders);
-        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryFoldersViewModel
-            ?? throw new InvalidOperationException("The Library folders route didn't open Library folders.");
-        await WaitUntilAsync(window, () => page.Folders.Count > 0 && page.Folders.All(f => f.Detail.Length > 0),
-            () => "Library folders didn't describe its folders.");
-        if (page.Activity.Phases.Count != 5 || page.Activity.Phases.Any(p => p.Status.Length == 0))
-            throw new InvalidOperationException("The indexing steps aren't all described.");
-        await WaitUntilAsync(window, () => page.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
-            () => "Library folders doesn't list the Adventures folder name.");
-        // Library folders came from the Library, so the Settings breadcrumb opens a new Settings page.
         var shell = services.GetRequiredService<ShellViewModel>();
-        shell.OpenSectionCommand.Execute(null);
-        await Settle(window);
-        if (shell.CurrentPage is not SettingsViewModel) throw new InvalidOperationException("The Settings breadcrumb didn't open Settings.");
+        var libraryPage = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library isn't showing.");
+        libraryPage.ManageFoldersCommand.Execute(null);
+        var settings = await ExpectSettingsAsync(window, shell, SettingsSection.Library, "The Library's Manage folders");
+        var library = (LibrarySectionViewModel)settings.Selected;
+        await WaitUntilAsync(window, () => library.Folders.Count > 0 && library.Folders.All(f => f.Detail.Length > 0),
+            () => "Settings > Library didn't describe its folders.");
+        await WaitUntilAsync(window, () => library.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
+            () => "Settings > Library doesn't list the Adventures folder name.");
+        await ShowEachSectionAsync(window, settings);
+
+        settings.Show(SettingsSection.Processing);
+        var processing = (ProcessingSectionViewModel)settings.Selected;
+        await WaitUntilAsync(window, () => processing.HasFolders, () => "Settings > Processing says there are no folders.");
+        if (processing.Activity.Phases.Count != 5 || processing.Activity.Phases.Any(p => p.Status.Length == 0))
+            throw new InvalidOperationException("The indexing steps aren't all described.");
+
+        navigation.NavigateTo(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("The Home route didn't open Home.");
+        home.ManageFoldersCommand.Execute(null);
+        var fromHome = await ExpectSettingsAsync(window, shell, SettingsSection.Library, "Home's Manage folders");
+        if (ReferenceEquals(fromHome, settings)) throw new InvalidOperationException("Home's Manage folders didn't open a new Settings page.");
+
         navigation.GoBack();
         await Settle(window);
         navigation.GoBack();
         await Settle(window);
+        if (!ReferenceEquals(shell.CurrentPage, settings) || !ReferenceEquals(settings.Selected, processing))
+            throw new InvalidOperationException("Back didn't return to Settings at Processing.");
+        navigation.GoBack();
+        await Settle(window);
+        if (!ReferenceEquals(shell.CurrentPage, libraryPage)) throw new InvalidOperationException("Back didn't return from Settings to the Library.");
+    }
+
+    /// <summary>Opens Settings at <paramref name="section"/>, as a link into it does.</summary>
+    static Task<SettingsViewModel> OpenSettingsAsync(IServiceProvider services, Window window, SettingsSection section)
+    {
+        services.GetRequiredService<SettingsLinks>().Open(section);
+        return ExpectSettingsAsync(window, services.GetRequiredService<ShellViewModel>(), section, $"Opening Settings at {section}");
+    }
+
+    /// <summary>Waits for Settings to show at <paramref name="section"/> after <paramref name="link"/> was followed.</summary>
+    static async Task<SettingsViewModel> ExpectSettingsAsync(Window window, ShellViewModel shell, SettingsSection section, string link)
+    {
+        await WaitUntilAsync(window, () => shell.CurrentPage is SettingsViewModel settings && settings.Selected.Section == section,
+            () => $"{link} opened {(shell.CurrentPage as SettingsViewModel)?.Selected.Label ?? shell.CurrentPage?.Title}, not Settings > {section}.");
+        return (SettingsViewModel)shell.CurrentPage!;
     }
 
     /// <summary>Lets the window work until <paramref name="condition"/> holds, or fails after a few seconds.</summary>

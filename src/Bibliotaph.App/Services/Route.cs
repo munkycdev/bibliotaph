@@ -9,9 +9,6 @@ public enum Route
     Sessions,
     NeedsReview,
     Settings,
-    LibraryFolders,
-    Vocabulary,
-    Ai,
     PilotReview,
     Viewer,
 }

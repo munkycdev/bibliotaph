@@ -1,4 +1,4 @@
-<UserControl x:Class="Bibliotaph.App.Views.LibraryFoldersView"
+<UserControl x:Class="Bibliotaph.App.Views.ProcessingSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,7 +7,7 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              xmlns:services="clr-namespace:Bibliotaph.App.Services"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance vm:LibraryFoldersViewModel}">
+             d:DataContext="{d:DesignInstance vm:ProcessingSectionViewModel}">
   <UserControl.Resources>
     <!-- A pause button that becomes Resume while its lane is paused. Tag carries the paused flag. -->
     <Style x:Key="PauseToggle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -20,10 +20,17 @@
     </Style>
   </UserControl.Resources>
 
-  <StackPanel MaxWidth="640" HorizontalAlignment="Left">
-    <TextBlock Text="Library folders" Style="{StaticResource Text.H1}" />
+  <StackPanel>
+    <TextBlock Text="Processing" Style="{StaticResource Text.H2}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
-               Text="Bibliotaph reads your folders. Your books stay exactly where you put them." />
+               Text="Only while Bibliotaph is open. Closing the app stops it; reopening resumes it." />
+
+    <!-- With no folders there is nothing to show yet. -->
+    <StackPanel Margin="0,12,0,0" Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+      <TextBlock Style="{StaticResource Text.Small}" Text="Nothing to process until you add a folder." />
+      <Button Style="{StaticResource Bt.Link}" Content="Add a folder in Library" Command="{Binding OpenLibraryCommand}"
+              HorizontalAlignment="Left" Margin="0,4,0,0" AutomationProperties.Name="Open Library to add a folder" />
+    </StackPanel>
 
     <!-- Indexing progress (spec 4.1: separate progress for each step), with pause and resume for each lane while it has work. -->
     <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0"
@@ -78,7 +85,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- What each part is on right now, so the page shows movement even while a bar creeps. -->
+        <!-- What each part is on right now, so the section shows movement even while a bar creeps. -->
         <StackPanel Margin="0,12,0,0">
           <StackPanel.Style>
             <Style TargetType="StackPanel">
@@ -167,111 +174,10 @@
               </TextBlock>
             </Button.Content>
           </Button>
-          <Button Content="Look for changes" c:Ui.Icon="{StaticResource Icon.RotateCcw}" Command="{Binding RescanCommand}" />
         </WrapPanel>
       </StackPanel>
     </Border>
 
-    <ItemsControl ItemsSource="{Binding Folders}" Focusable="False">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate DataType="{x:Type vm:LibraryFolderItem}">
-          <!-- .bt-source -->
-          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
-            <DockPanel>
-              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
-                      ToolTip="Remove from library" AutomationProperties.Name="{Binding Path, StringFormat='Remove {0} from the library'}"
-                      Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                      CommandParameter="{Binding}" />
-              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Folder}" Margin="0,0,10,0" VerticalAlignment="Top" />
-              <StackPanel>
-                <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
-                <ProgressBar Style="{StaticResource Bt.ProgressBar}" Value="{Binding Percent, Mode=OneWay}" Height="4" Margin="0,8,0,2"
-                             Visibility="{Binding ShowProgress, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
-              </StackPanel>
-            </DockPanel>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <TextBlock Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}"
-               Style="{StaticResource Text.Small}" Margin="0,12,0,0" Text="No folders yet." />
-
-    <!-- Picked folders: what each holds, before it is added. -->
-    <ItemsControl ItemsSource="{Binding Pending}" Focusable="False">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate DataType="{x:Type vm:PendingFolder}">
-          <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,12,0,0">
-            <StackPanel>
-              <DockPanel>
-                <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.FolderPlus}" Margin="0,0,10,0" VerticalAlignment="Top" />
-                <StackPanel>
-                  <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
-                </StackPanel>
-              </DockPanel>
-              <WrapPanel Margin="0,12,0,0">
-                <Button Style="{StaticResource Bt.Button.Primary}" Content="Add to library" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,0"
-                        IsEnabled="{Binding CanAdd}"
-                        Command="{Binding DataContext.ConfirmAddCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}" />
-                <Button Content="Cancel"
-                        Command="{Binding DataContext.CancelAddCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}" />
-              </WrapPanel>
-            </StackPanel>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,25,0,0" Content="Add a folder"
-            c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
-    <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0"
-               Text="Removing a folder keeps your notes, collections and corrections. Files are never deleted." />
-
-    <!-- Folder names read as labels, each of which can be switched off. -->
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
-      <StackPanel>
-        <DockPanel>
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Refresh" Command="{Binding RefreshFolderLabelsCommand}"
-                  AutomationProperties.Name="Refresh folder names" />
-          <TextBlock Text="Folder names" Style="{StaticResource Text.Row}" VerticalAlignment="Center" />
-        </DockPanel>
-        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
-                   Text="Folder names like “D&amp;D 5e” or “Adventures” are read as suggestions for the books inside. Switch one off if a name means something else in your library. Your own corrections always win." />
-        <TextBlock Style="{StaticResource Text.Small}" Text="No folder names in your library match a game system, type or other label yet."
-                   Visibility="{Binding HasFolderLabels, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-        <ItemsControl ItemsSource="{Binding FolderLabels}" Focusable="False">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate DataType="{x:Type vm:FolderLabelItem}">
-              <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,9">
-                <CheckBox IsChecked="{Binding IsEnabled}" VerticalContentAlignment="Top" Foreground="{DynamicResource Bt.Text}"
-                          AutomationProperties.Name="{Binding Folder, StringFormat='Read the folder name {0} as a label'}">
-                  <StackPanel Margin="4,0,0,0">
-                    <TextBlock FontSize="12" TextWrapping="Wrap">
-                      <Run Text="{Binding Folder, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" → " Foreground="{DynamicResource Bt.Muted}" /><Run Text="{Binding Meaning, Mode=OneWay}" />
-                    </TextBlock>
-                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" />
-                  </StackPanel>
-                </CheckBox>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-    </Border>
-
-    <!-- Start over: a development aid, to be removed before 1.0. -->
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
-      <StackPanel>
-        <TextBlock Text="Start over" Style="{StaticResource Text.Row}" />
-        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
-                   Text="Forgets every folder, the index, covers, settings and remembered passwords, then restarts. Your files are not touched. Here while Bibliotaph is in development." />
-        <Button Content="Start over…" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Left"
-                Command="{Binding StartOverCommand}" />
-      </StackPanel>
-    </Border>
+    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,24,0,0" Text="Your files, notes and collections stay on this device." />
   </StackPanel>
 </UserControl>

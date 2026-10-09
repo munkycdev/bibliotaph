@@ -88,7 +88,7 @@ public sealed partial class TermRowViewModel(VocabularyEntry entry, VocabularyVi
 /// keeps a term's key, so nothing filed under it moves; a name taken from another term's aliases says so. The library
 /// catches up in the background once the edits pause.
 /// </summary>
-public sealed partial class VocabularyViewModel : PageViewModel
+public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 {
     readonly VocabularyService _vocabulary;
     readonly ILogger<VocabularyViewModel> _log;
@@ -111,10 +111,8 @@ public sealed partial class VocabularyViewModel : PageViewModel
         Selected = Vocabularies[2];
     }
 
-    public override Route Route => Route.Vocabulary;
-    public override string Title => "Vocabulary";
-    public override string Section => "Settings";
-    public override Route? SectionRoute => Route.Settings;
+    public override SettingsSection Section => SettingsSection.Vocabulary;
+    public override string Label => "Vocabulary";
 
     public IReadOnlyList<VocabularyChoice> Vocabularies { get; }
 

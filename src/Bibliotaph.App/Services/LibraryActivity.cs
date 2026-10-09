@@ -12,7 +12,7 @@ namespace Bibliotaph.App.Services;
 public enum PhaseState { Waiting, Running, Paused, Done }
 
 /// <summary>
-/// One step of indexing as the Library folders page shows it: a bar, "1,100 of 1,240 · about 2 minutes left".
+/// One step of indexing as Settings > Processing shows it: a bar, "1,100 of 1,240 · about 2 minutes left".
 /// Updated in place each refresh, so the row (and an indeterminate bar's sweep) isn't rebuilt every tick.
 /// <see cref="Left"/> is the estimate while it runs, null until there is enough to go on.
 /// </summary>
@@ -81,7 +81,7 @@ public sealed partial class PhaseProgress(string label, string detail, string un
 }
 
 /// <summary>
-/// What indexing is doing, in words, for the sidebar and the Library folders page. The indexing service reports
+/// What indexing is doing, in words, for the sidebar and Settings > Processing. The indexing service reports
 /// changes from background threads, often; this coalesces them into at most one refresh per tick on the UI thread.
 /// </summary>
 public sealed partial class LibraryActivity : ObservableObject

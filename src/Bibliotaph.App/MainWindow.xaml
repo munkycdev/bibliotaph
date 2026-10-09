@@ -69,12 +69,11 @@
 
         <!-- .bt-sidebottom: processing status, then Settings. -->
         <StackPanel DockPanel.Dock="Bottom">
-          <!-- Opens Library folders, where the details and pause buttons are. -->
+          <!-- Opens Settings > Processing, where the details and pause buttons are. -->
           <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
-                  FocusVisualStyle="{StaticResource Bt.FocusVisual}"
-                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.LibraryFolders}"
-                  AutomationProperties.Name="{Binding Activity.Summary, StringFormat='{}{0}. Open Library folders'}"
-                  ToolTip="Open Library folders">
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding OpenProcessingCommand}"
+                  AutomationProperties.Name="{Binding Activity.Summary, StringFormat='{}{0}. Open processing in Settings'}"
+                  ToolTip="Open processing in Settings">
             <Button.Template>
               <ControlTemplate TargetType="Button">
                 <Border x:Name="Chrome" Background="Transparent" CornerRadius="5" Padding="6">

@@ -155,7 +155,7 @@ public sealed class ClassificationRun
     public string? Outcome { get; set; }
 }
 
-/// <summary>A folder label the user switched off in Settings > Library folders: that folder name no longer suggests that term.</summary>
+/// <summary>A folder label the user switched off in Settings > Library: that folder name no longer suggests that term.</summary>
 public sealed class IgnoredFolderLabel
 {
     public long Id { get; set; }

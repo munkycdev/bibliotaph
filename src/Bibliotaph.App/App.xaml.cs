@@ -181,6 +181,7 @@ public partial class App : Application
 
         // Shell
         builder.Services.AddSingleton<ThemeService>();
+        builder.Services.AddSingleton<SettingsLinks>();
         builder.Services.AddSingleton<LibraryFolders>();
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
@@ -196,8 +197,12 @@ public partial class App : Application
         builder.Services.AddTransient<SessionsViewModel>();
         builder.Services.AddTransient<NeedsReviewViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
-        builder.Services.AddTransient<LibraryFoldersViewModel>();
+        builder.Services.AddTransient<LibrarySectionViewModel>();
+        builder.Services.AddTransient<ProcessingSectionViewModel>();
+        builder.Services.AddTransient<AppearanceSectionViewModel>();
+        builder.Services.AddTransient<ReviewSectionViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
+        builder.Services.AddTransient<StartOverSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
         builder.Services.AddTransient<PilotReviewViewModel>();
@@ -218,9 +223,6 @@ public partial class App : Application
         Route.Sessions => services.GetRequiredService<SessionsViewModel>(),
         Route.NeedsReview => services.GetRequiredService<NeedsReviewViewModel>(),
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
-        Route.LibraryFolders => services.GetRequiredService<LibraryFoldersViewModel>(),
-        Route.Vocabulary => services.GetRequiredService<VocabularyViewModel>(),
-        Route.Ai => services.GetRequiredService<AiSettingsViewModel>(),
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),

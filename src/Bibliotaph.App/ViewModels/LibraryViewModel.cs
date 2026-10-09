@@ -570,7 +570,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void AddFolder() => _folders.RequestPick();
 
     [RelayCommand]
-    void ManageFolders() => _navigation.NavigateTo(Route.LibraryFolders);
+    void ManageFolders() => _folders.Manage();
 
     [RelayCommand]
     void ToggleFilters() => ShowFilters = !ShowFilters;

@@ -15,15 +15,18 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly INavigationService _navigation;
     readonly ThemeService _theme;
     readonly SearchState _search;
+    readonly SettingsLinks _settings;
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
-    public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, ILogger<ShellViewModel> log)
+    public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
+        ILogger<ShellViewModel> log)
     {
         _navigation = navigation;
         _theme = theme;
         Activity = activity;
         _search = search;
+        _settings = settings;
         _log = log;
         // Search as you type, once typing pauses.
         _searchDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Input, (_, _) => SubmitSearch(), Dispatcher.CurrentDispatcher);
@@ -113,6 +116,10 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     void GoBack() => _navigation.GoBack();
 
+    /// <summary>The sidebar's status line: Settings > Processing, where the details and pause buttons are.</summary>
+    [RelayCommand]
+    void OpenProcessing() => _settings.Open(SettingsSection.Processing);
+
     /// <summary>The breadcrumb's parent, as it was left if it is in the history.</summary>
     [RelayCommand(CanExecute = nameof(CanOpenSection))]
     void OpenSection()
@@ -135,8 +142,7 @@ public sealed partial class ShellViewModel : ObservableObject
             _shown = CurrentPage;
         }
         foreach (var item in NavItems.Append(Settings))
-            item.IsActive = item.Route == CurrentPage?.Route
-                || (item.Route == Route.Settings && CurrentPage?.Route is Route.LibraryFolders or Route.Vocabulary);
+            item.IsActive = item.Route == CurrentPage?.Route;
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(Section));
         OnPropertyChanged(nameof(Title));
