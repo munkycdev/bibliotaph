@@ -41,59 +41,33 @@ jobs:
       - name: Show SDK
         run: dotnet --info
 
+      # Each step runs build/verify.ps1, the same script developers run before pushing, so the two can't drift apart.
       - name: Restore
-        run: dotnet restore Bibliotaph.slnx
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Restore
 
-      # Debug builds contain the worker's fault-injection requests that the isolation tests use.
       - name: Build (Debug, warnings as errors)
-        run: dotnet build Bibliotaph.slnx --configuration Debug --no-restore
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Build
 
       - name: Test
-        run: dotnet test --solution Bibliotaph.slnx --configuration Debug --no-build --report-xunit-trx --results-directory TestResults
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Test
 
       # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
-      # exception or binding error. The fixtures are copied out of the checkout so the app's folder holds nothing else.
+      # exception or binding error.
       - name: App smoke test
         shell: pwsh
-        run: |
-          $exe = Resolve-Path 'src/Bibliotaph.App/bin/Debug/net11.0-windows/Bibliotaph.exe'
-          $data = Join-Path $env:RUNNER_TEMP 'bibliotaph-smoke'
-          $files = Join-Path $env:RUNNER_TEMP 'bibliotaph-smoke-files'
-          New-Item -ItemType Directory -Force $files | Out-Null
-          Copy-Item 'tests/fixtures/smoke/smoke-book.pdf', 'tests/fixtures/smoke/smoke-map.png' $files
-          $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"", '--smoke-files', "`"$files`"" -PassThru
-          if (-not $app.WaitForExit(120000)) { $app.Kill(); throw 'Smoke test did not finish within 2 minutes.' }
-          $log = @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content)
-          $log
-          if ($app.ExitCode -ne 0) {
-            # Errors also become annotations, readable on the PR's checks without opening the log.
-            for ($i = 0; $i -lt $log.Count; $i++) {
-              if ($log[$i] -match '\[(ERR|FTL)\]') {
-                $detail = ($log[$i..([Math]::Min($i + 12, $log.Count - 1))] -join '%0A')
-                Write-Host "::error title=Smoke test::$detail"
-              }
-            }
-            throw "Smoke test failed with exit code $($app.ExitCode)."
-          }
+        run: ./build/verify.ps1 -Step Smoke
 
       # Source files are read-only by construction: a write API in Core must fail the build.
       - name: Banned file APIs fail the build
         shell: pwsh
-        run: |
-          $probe = 'src/Bibliotaph.Core/BannedApiProbe.cs'
-          Set-Content $probe 'namespace Bibliotaph.Core; static class BannedApiProbe { static void Write() => System.IO.File.WriteAllText("x", "y"); }'
-          dotnet build src/Bibliotaph.Core/Bibliotaph.Core.csproj --configuration Debug --no-restore 2>&1 | Tee-Object -Variable output | Out-Null
-          $failed = $LASTEXITCODE -ne 0
-          Remove-Item $probe
-          if (-not $failed) { throw 'File.WriteAllText in Core built successfully; the banned-API analyzer is not working.' }
-          if (-not ($output -match 'RS0030')) { $output; throw 'Core failed to build, but not because of RS0030.' }
-          Write-Host 'Core rejected File.WriteAllText with RS0030, as it should.'
-          # The expected build failure left a non-zero exit code behind; the step itself passed.
-          exit 0
+        run: ./build/verify.ps1 -Step BannedApi
 
-      # Release builds leave out the worker's fault-injection requests; make sure they still compile cleanly.
       - name: Build (Release)
-        run: dotnet build Bibliotaph.slnx --configuration Release --no-restore
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Release
 
       - name: Upload test results
         if: failure()
