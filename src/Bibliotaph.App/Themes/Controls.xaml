@@ -402,8 +402,12 @@
     </Setter>
   </Style>
 
-  <!-- A list with no chrome of its own: the items draw everything, and keyboard focus shows on the item. -->
+  <!--
+    A list with no chrome of its own: the items draw everything, and keyboard focus shows on the item.
+    Foreground is set because ListBox's system style uses the Windows control-text colour (black), not the window's.
+  -->
   <Style x:Key="Bt.PlainList" TargetType="ListBox">
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
