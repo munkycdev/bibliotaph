@@ -18,6 +18,9 @@ public partial class LibraryView
     public LibraryView()
     {
         InitializeComponent();
+        // Hooked here, not in XAML: the bulk editor is a control from this assembly, and XAML events on those are wired
+        // in a second compile pass the code-style analyzers don't see, so they report the handler as unused.
+        BulkDialog.IsVisibleChanged += BulkDialog_IsVisibleChanged;
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
         Unloaded += (_, _) =>
         {

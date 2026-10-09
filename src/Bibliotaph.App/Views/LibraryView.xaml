@@ -688,8 +688,7 @@
     <!-- The bulk editor, a dialog over the page. Esc or Cancel closes it; nothing behind it can be clicked meanwhile. -->
     <Grid Grid.RowSpan="5" Visibility="{Binding BulkEdit, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
-      <v:BulkEditView x:Name="BulkDialog" DataContext="{Binding BulkEdit}" MaxWidth="660" Margin="0,24,42,24" VerticalAlignment="Center"
-                      IsVisibleChanged="BulkDialog_IsVisibleChanged" />
+      <v:BulkEditView x:Name="BulkDialog" DataContext="{Binding BulkEdit}" MaxWidth="660" Margin="0,24,42,24" VerticalAlignment="Center" />
     </Grid>
   </Grid>
 </UserControl>

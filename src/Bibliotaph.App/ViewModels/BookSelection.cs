@@ -48,7 +48,7 @@ public sealed class BookSelection : ObservableObject
     public void Stop()
     {
         if (!IsActive) return;
-        Untick(_ticked.Values.ToList());
+        Untick([.. _ticked.Values]);
         IsActive = false;
         Notify();
     }
@@ -86,7 +86,7 @@ public sealed class BookSelection : ObservableObject
 
     public void Clear()
     {
-        Untick(_ticked.Values.ToList());
+        Untick([.. _ticked.Values]);
         _anchor = null;
         Notify();
     }
