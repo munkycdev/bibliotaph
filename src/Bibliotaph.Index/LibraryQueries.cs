@@ -86,8 +86,8 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// <summary>Words of context around hits in a snippet.</summary>
     const int SnippetTokens = 24;
 
-    /// <summary>Column weights for doc_fts, in schema order: title, subtitle, publisher, series, tags, notes, confirmed, provisional.</summary>
-    const string DocRank = "bm25(doc_fts, 10.0, 5.0, 2.0, 3.0, 3.0, 1.0, 4.0, 1.0)";
+    /// <summary>Column weights for doc_fts, in schema order: title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional.</summary>
+    const string DocRank = "bm25(doc_fts, 10.0, 5.0, 2.0, 3.0, 2.0, 3.0, 1.0, 4.0, 1.0)";
 
     const string EntryColumns = """
         d.document_id AS DocumentId, coalesce(m.title, d.display_title) AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,

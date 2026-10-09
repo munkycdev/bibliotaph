@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
@@ -110,7 +111,7 @@ static class SmokeTest
         [
             ("Setting/Gazetteer of the Marches.pdf", "Gazetteer of the Marches", ["Contents", "The red dragon sleeps beneath the mill.", "Goblins raid the tavern."]),
             ("Monsters/Dragon Lairs.pdf", "Dragon Lairs", ["A lich keeps a tavern ledger.", "Red dragon lair maps."]),
-            ("Adventures/Haunted Inn.pdf", "Haunted Inn", ["The inn is haunted; a secret door hides behind the bar."]),
+            ("D&D 5e/Adventures/Haunted Inn.pdf", "Haunted Inn", ["The inn is haunted; a secret door hides behind the bar."]),
             ("Handouts/Tavern Map.png", "Tavern Map", []),
         ];
         var modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -118,11 +119,13 @@ static class SmokeTest
         static string Relative(string path) => path.Replace('/', System.IO.Path.DirectorySeparatorChar);
         await library.ReconcileRootAsync(root.Id, [.. books.Select(b => new ScannedFile(Relative(b.Path), 1000, modified, false))]);
         var files = await library.NextUnhashedAsync(books.Length, includeOnlineOnly: true);
+        var documents = new List<long>();
         foreach (var file in files)
         {
             var book = books.Single(b => file.FullPath.EndsWith(Relative(b.Path), StringComparison.Ordinal));
             var hash = ContentHash.Parse(new string((char)('a' + Array.IndexOf(books, book)), ContentHash.HexLength));
             var (documentId, _) = await library.AttachHashAsync(file, hash) ?? throw new InvalidOperationException("A made-up file didn't attach.");
+            documents.Add(documentId);
             var isImage = file.Format != SourceFormats.Pdf;
             await index.UpsertDocumentAsync(
                 new DocRow
@@ -139,6 +142,9 @@ static class SmokeTest
                 [.. book.Pages.Select((_, i) => new PageRow(i, (i + 1).ToString(CultureInfo.InvariantCulture), 612, 792))], []);
             if (!isImage) await index.SetPageTextAsync(documentId, [.. book.Pages.Select((text, i) => new PageTextRow(i, text, "pdf", 1, false))]);
         }
+        // Indexing is paused, so the hints from folder and file names are read here.
+        var hints = services.GetRequiredService<MetadataHints>();
+        foreach (var documentId in documents) await hints.ApplyAsync(documentId);
     }
 
     /// <summary>The Library in covers and as a list, both search tabs, a query with a problem, and the inspector.</summary>
@@ -154,6 +160,7 @@ static class SmokeTest
         page.Layout = LibraryLayout.List;
         page.ShowFilters = true;
         await Settle(window);
+        await EditMetadataAsync(window, page, books);
 
         search.Search("dragon");
         await WaitUntilAsync(window, () => page.IsSearching && page.Items.Count > 0 && !page.IsEmpty, () => "Searching for dragon found no documents.");
@@ -165,8 +172,11 @@ static class SmokeTest
         if (page.Inspector is null) throw new InvalidOperationException("The inspector didn't open.");
         page.CloseDetailsCommand.Execute(null);
 
-        search.Search("type:adventure tavern");
-        await WaitUntilAsync(window, () => page.IssueText is not null, () => "A metadata field didn't say it arrives later.");
+        search.Search("system:5e type:adventure");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => "Searching by system and type didn't find the Haunted Inn.");
+
+        search.Search("length:short tavern");
+        await WaitUntilAsync(window, () => page.IssueText is not null, () => "A field that isn't searchable yet didn't say so.");
 
         search.Search("nothing-matches-this");
         await WaitUntilAsync(window, () => page.IsEmpty, () => "A search with no results didn't show the empty state.");
@@ -182,6 +192,45 @@ static class SmokeTest
         page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books, () => $"Clearing the search didn't bring back all {books} books.");
+    }
+
+    /// <summary>
+    /// Metadata from folder names in the list and the filters, then the inspector's Details: edit a title, see it in the
+    /// list, open the evidence, and reset it to the suggestion.
+    /// </summary>
+    static async Task EditMetadataAsync(Window window, LibraryViewModel page, int books)
+    {
+        await WaitUntilAsync(window, () => page.Items.Any(i => i is { Title: "Haunted Inn", SystemLabel: "D&D 5e", KindLabel: "Adventure" }),
+            () => "The Haunted Inn's folders didn't make it a D&D 5e adventure.");
+        await WaitUntilAsync(window, () => page.SystemChoices.Any(c => c.Value == "dnd"), () => "The game system filter doesn't offer D&D.");
+        page.SystemChoice = page.SystemChoices.First(c => c.Value == "dnd");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by D&D shows {page.Items.Count} books, not 1.");
+        page.ClearFiltersCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the filters didn't bring back all {books} books.");
+
+        await page.OpenDetailsCommand.ExecuteAsync(page.Items.First(i => i.Title == "Haunted Inn"));
+        await Settle(window);
+        var inspector = page.Inspector ?? throw new InvalidOperationException("The inspector didn't open.");
+        MetadataFieldViewModel Field(MetadataField field) => inspector.Fields.First(f => f.Field == field);
+        if (Field(MetadataFields.System) is not { IsSuggested: true, Display: "Dungeons & Dragons" })
+            throw new InvalidOperationException($"The inspector's game system says {Field(MetadataFields.System).Display}, not a suggested Dungeons & Dragons.");
+        Field(MetadataFields.System).ShowEvidence = true;
+        inspector.ShowAllFields = true;
+        await Settle(window);
+
+        var title = Field(MetadataFields.Title);
+        title.EditCommand.Execute(null);
+        await Settle(window);
+        title.EditText = "Haunted Inn Revised";
+        await title.SaveCommand.ExecuteAsync(null);
+        if (title.Problem is not null) throw new InvalidOperationException($"Saving a title said: {title.Problem}");
+        await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == "Haunted Inn Revised"), () => "The edited title didn't reach the list.");
+        if (!Field(MetadataFields.Title).CanReset || !Field(MetadataFields.System).ShowEvidence)
+            throw new InvalidOperationException("After saving, the title can't be reset or the evidence closed.");
+        await Field(MetadataFields.Title).ResetCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == "Haunted Inn"), () => "Resetting the title didn't bring back the suggestion.");
+        page.CloseDetailsCommand.Execute(null);
+        await Settle(window);
     }
 
     /// <summary>
@@ -341,6 +390,8 @@ static class SmokeTest
             () => "Library folders didn't describe its folders.");
         if (page.Activity.Phases.Count != 4 || page.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
+        await WaitUntilAsync(window, () => page.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
+            () => "Library folders doesn't list the Adventures folder name.");
         navigation.GoBack();
         await Settle(window);
     }

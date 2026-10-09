@@ -18,8 +18,27 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string Title => Entry.Title;
 
-    /// <summary>"PDF · 320 pages", "PNG image", with "still being read" until its text is searchable.</summary>
-    public string Meta => Describe(Entry) + (Entry.Searchable ? "" : " · still being read");
+    /// <summary>
+    /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
+    /// read" until its text is searchable.
+    /// </summary>
+    public string Meta => (Catalogued ?? Describe(Entry)) + (Entry.Searchable ? "" : " · still being read");
+
+    string? Catalogued => Entry.System is null && Entry.Kind is null ? null : string.Join(" · ", new[] { Entry.System, Entry.Kind }.OfType<string>());
+
+    public string SystemLabel => Entry.System ?? "";
+
+    public string KindLabel => Entry.Kind ?? "";
+
+    public string LevelsLabel => Entry.Levels ?? "";
+
+    public string PublisherLabel => Entry.Publisher ?? "";
+
+    /// <summary>The publisher, or the folders when there isn't one, under the title in the list.</summary>
+    public string Byline => Entry.Publisher ?? Entry.FolderHint ?? "";
+
+    /// <summary>Pages for a PDF, the format for an image.</summary>
+    public string SizeLabel => PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
 
     public string Folder => Entry.FolderHint ?? "";
 
@@ -73,6 +92,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(Meta));
         OnPropertyChanged(nameof(Folder));
         OnPropertyChanged(nameof(PagesLabel));
+        OnPropertyChanged(nameof(SystemLabel));
+        OnPropertyChanged(nameof(KindLabel));
+        OnPropertyChanged(nameof(LevelsLabel));
+        OnPropertyChanged(nameof(PublisherLabel));
+        OnPropertyChanged(nameof(Byline));
+        OnPropertyChanged(nameof(SizeLabel));
+        OnPropertyChanged(nameof(Initial));
     }
 
     public static string Describe(LibraryEntry entry) =>

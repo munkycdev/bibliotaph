@@ -2,7 +2,10 @@ using System.Diagnostics;
 using System.Globalization;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
+using Bibliotaph.Processing;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
@@ -18,17 +21,87 @@ public sealed record InspectorLocation(string Path, string State)
 public sealed record InspectorStage(string Name, string Status);
 
 /// <summary>
-/// The simple slice 1 inspector: what Bibliotaph knows about one document from its file (pages, capabilities,
-/// where it is, how far indexing got). Metadata, suggestions and evidence arrive in slice 2.
+/// The inspector: a document's metadata, with where each value came from and the user's corrections (Details), then
+/// what Bibliotaph knows from its file (pages, capabilities, where it is, how far indexing got).
 /// </summary>
-public sealed partial class InspectorViewModel
+public sealed partial class InspectorViewModel : ObservableObject, IMetadataEditor
 {
-    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations)
+    /// <summary>The fields shown even when nothing is known about them.</summary>
+    static readonly HashSet<MetadataField> PrimaryFields =
+        [MetadataFields.Title, MetadataFields.System, MetadataFields.Edition, MetadataFields.Types, MetadataFields.Levels, MetadataFields.Publisher];
+
+    readonly MetadataService _metadata;
+
+    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations, MetadataService metadata)
     {
         Item = item;
+        _metadata = metadata;
         Facts = BuildFacts(item.Entry, details);
         Locations = [.. locations.Select(l => new InspectorLocation(l.FullPath, LocationState(l)))];
         Stages = details is null ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
+    }
+
+    /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
+    public event EventHandler? MetadataChanged;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields))]
+    public partial IReadOnlyList<MetadataFieldViewModel> Fields { get; private set; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields), nameof(MoreFieldsLabel))]
+    public partial bool ShowAllFields { get; set; }
+
+    public IReadOnlyList<MetadataFieldViewModel> VisibleFields => [.. Fields.Where(f => ShowAllFields || f.IsKnown || f.IsPrimary)];
+
+    public bool HasHiddenFields => Fields.Any(f => !f.IsKnown && !f.IsPrimary);
+
+    public string MoreFieldsLabel => ShowAllFields ? "Fewer fields" : "More fields";
+
+    [RelayCommand]
+    void ToggleAllFields() => ShowAllFields = !ShowAllFields;
+
+    async Task ReloadMetadataAsync(bool changed)
+    {
+        var (metadata, vocabulary) = await _metadata.GetAsync(Item.DocumentId);
+        var open = Fields.Where(f => f.ShowEvidence).Select(f => f.Field).ToHashSet();
+        Fields = [.. metadata.Fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this, PrimaryFields.Contains(f.Field))
+        {
+            ShowEvidence = open.Contains(f.Field),
+        })];
+        if (changed) MetadataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    async Task<string?> IMetadataEditor.SaveAsync(MetadataField field, string typed)
+    {
+        var problem = await Task.Run(() => _metadata.SetAsync(Item.DocumentId, field, typed));
+        if (problem is not null) return problem.Message;
+        await ReloadMetadataAsync(changed: true);
+        return null;
+    }
+
+    async Task IMetadataEditor.KeepAsync(MetadataField field)
+    {
+        await Task.Run(() => _metadata.ConfirmAsync(Item.DocumentId, field));
+        await ReloadMetadataAsync(changed: true);
+    }
+
+    async Task IMetadataEditor.RejectAsync(MetadataField field, string normalized)
+    {
+        await Task.Run(() => _metadata.RejectAsync(Item.DocumentId, field, normalized));
+        await ReloadMetadataAsync(changed: true);
+    }
+
+    async Task IMetadataEditor.UseAsync(MetadataField field, string value)
+    {
+        await Task.Run(() => _metadata.UseAsync(Item.DocumentId, field, value));
+        await ReloadMetadataAsync(changed: true);
+    }
+
+    async Task IMetadataEditor.ResetAsync(MetadataField field)
+    {
+        await Task.Run(() => _metadata.ResetAsync(Item.DocumentId, field));
+        await ReloadMetadataAsync(changed: true);
     }
 
     public LibraryItemViewModel Item { get; }
@@ -45,11 +118,13 @@ public sealed partial class InspectorViewModel
 
     public bool HasStages => Stages.Count > 0;
 
-    public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library)
+    public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.DocumentId));
         var locations = await library.GetLocationsAsync(item.DocumentId);
-        return new InspectorViewModel(item, details, locations);
+        var inspector = new InspectorViewModel(item, details, locations, metadata);
+        await inspector.ReloadMetadataAsync(changed: false);
+        return inspector;
     }
 
     /// <summary>Opens File Explorer with the file selected. Explorer only shows it; nothing is changed.</summary>
@@ -104,6 +179,7 @@ public sealed partial class InspectorViewModel
         Stage.Probe => "Opening",
         Stage.Text => "Reading text",
         Stage.Covers => "Cover",
+        Stage.RuleHints => "Hints from names",
         Stage.Ocr => "Reading scanned pages",
         _ => stage.ToString(),
     };

@@ -6,6 +6,7 @@ using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -37,15 +38,20 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     static readonly Choice<LibrarySort> BestMatch = new(LibrarySort.Relevance, "Best match");
     static readonly Choice<LibrarySort> RecentlyAdded = new(LibrarySort.RecentlyAdded, "Recently added");
     static readonly Choice<LibrarySort> TitleOrder = new(LibrarySort.Title, "Title A–Z");
+    static readonly Choice<LibrarySort> PublisherOrder = new(LibrarySort.Publisher, "Publisher A–Z");
     static readonly Choice<long?> AllFolders = new(null, "All folders");
-    static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, TitleOrder];
-    static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, TitleOrder];
+    static readonly Choice<string?> AllSystems = new(null, "All systems");
+    static readonly Choice<string?> AllTypes = new(null, "All types");
+    static readonly Choice<int?> AnyLevel = new(null, "Any level");
+    static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, TitleOrder, PublisherOrder];
+    static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, TitleOrder, PublisherOrder];
 
     readonly SourceRootStore _roots;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
     readonly CoverImages _covers;
     readonly LibraryFolders _folders;
+    readonly MetadataService _metadata;
     readonly INavigationService _navigation;
     readonly ViewerRequests _viewer;
     readonly ILogger<LibraryViewModel> _log;
@@ -57,7 +63,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     bool _holdRefresh;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, INavigationService navigation, ViewerRequests viewer, ILogger<LibraryViewModel> log)
+        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ViewerRequests viewer,
+        ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _roots = roots;
@@ -66,12 +73,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Search = search;
         _covers = covers;
         _folders = folders;
+        _metadata = metadata;
         _navigation = navigation;
         _viewer = viewer;
         _log = log;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         FormatChoice = FormatChoices[0];
         FolderChoice = AllFolders;
+        SystemChoice = AllSystems;
+        TypeChoice = AllTypes;
+        LevelChoice = AnyLevel;
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
         _staleTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RefreshIfStaleAsync(),
             Dispatcher.CurrentDispatcher);
@@ -111,6 +122,30 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial Choice<long?> FolderChoice { get; set; }
+
+    /// <summary>"All systems", then each game system with how many books have it, then Unknown.</summary>
+    public ObservableCollection<Choice<string?>> SystemChoices { get; } = [AllSystems];
+
+    public ObservableCollection<Choice<string?>> TypeChoices { get; } = [AllTypes];
+
+    public IReadOnlyList<Choice<int?>> LevelChoices { get; } =
+        [AnyLevel, .. Enumerable.Range(1, 20).Select(l => new Choice<int?>(l, $"Level {l.ToString(CultureInfo.CurrentCulture)}"))];
+
+    [ObservableProperty]
+    public partial Choice<string?> SystemChoice { get; set; }
+
+    [ObservableProperty]
+    public partial Choice<string?> TypeChoice { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLevelChoice))]
+    public partial Choice<int?> LevelChoice { get; set; }
+
+    /// <summary>Whether a level filter also keeps books whose levels nobody knows yet (A12).</summary>
+    [ObservableProperty]
+    public partial bool IncludeUnknownLevels { get; set; }
+
+    public bool HasLevelChoice => LevelChoice.Value is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDocumentsTab), nameof(IsPagesTab), nameof(ShowGrid), nameof(ShowList), nameof(ShowHits), nameof(ShowLayoutChoice))]
@@ -269,6 +304,29 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Refresh();
     }
 
+    partial void OnSystemChoiceChanged(Choice<string?> value)
+    {
+        if (value is null) SystemChoice = AllSystems;
+        else Refresh();
+    }
+
+    partial void OnTypeChoiceChanged(Choice<string?> value)
+    {
+        if (value is null) TypeChoice = AllTypes;
+        else Refresh();
+    }
+
+    partial void OnLevelChoiceChanged(Choice<int?> value)
+    {
+        if (value is null) LevelChoice = AnyLevel;
+        else Refresh();
+    }
+
+    partial void OnIncludeUnknownLevelsChanged(bool value)
+    {
+        if (LevelChoice.Value is not null) Refresh();
+    }
+
     partial void OnTabChanged(ResultsTab value) => Refresh();
 
     async Task LoadFolderChoicesAsync()
@@ -294,11 +352,14 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         try
         {
             var scope = await _library.GetVisibleDocumentIdsAsync(FolderChoice.Value);
-            var filter = new LibraryFilter(scope, FormatChoice.Value, SortChoice.Value);
+            var filter = new LibraryFilter(scope, FormatChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
+                IncludeUnknownLevels);
             if (!IsSearching)
             {
                 var entries = await Task.Run(() => _queries.ListAsync(filter));
+                var browseFacets = await CountFacetsAsync(filter, null);
                 if (version != _version) return;
+                ShowFacets(browseFacets);
                 ShowResults(entries, null, null, SearchQuery.Parse(""));
                 return;
             }
@@ -309,7 +370,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var pages = Task.Run(() => _queries.SearchPagesAsync(plan, filter));
             var found = await documents;
             var pageResults = await pages;
+            var facets = await CountFacetsAsync(filter, plan);
             if (version != _version) return;
+            ShowFacets(facets);
             ShowResults(found, pageResults, plan, query);
         }
         catch (Exception ex)
@@ -318,9 +381,46 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         }
     }
 
+    static string[]? Selected(Choice<string?> choice) => choice.Value is { } value ? [value] : null;
+
+    /// <summary>
+    /// How many books each system and type would show. Each menu is counted without its own choice, so picking a
+    /// system still shows how many books the other systems have.
+    /// </summary>
+    Task<(IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types)> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan) => Task.Run(async () =>
+        (await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
+            await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan)));
+
+    void ShowFacets((IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types) facets)
+    {
+        _holdRefresh = true;
+        SystemChoice = ShowChoices(SystemChoices, AllSystems, facets.Systems, SystemChoice);
+        TypeChoice = ShowChoices(TypeChoices, AllTypes, facets.Types, TypeChoice);
+        _holdRefresh = false;
+    }
+
+    /// <summary>
+    /// Replaces a menu's counted choices, and returns the choice to select: the one with the same value, which is
+    /// kept with a count of none when no book has it any more, so the menu never changes what was picked.
+    /// </summary>
+    static Choice<string?> ShowChoices(ObservableCollection<Choice<string?>> menu, Choice<string?> all, IReadOnlyList<FacetCount> counts,
+        Choice<string?> selected)
+    {
+        var choices = counts.Select(c => new Choice<string?>(c.Value, $"{c.Label} ({c.Count.ToString("N0", CultureInfo.CurrentCulture)})")).ToList();
+        if (selected.Value is { } value && choices.All(c => c.Value != value))
+            choices.Add(new Choice<string?>(value, Uncounted(selected.Label) + " (0)"));
+        if (menu.Skip(1).SequenceEqual(choices)) return menu.FirstOrDefault(c => c.Value == selected.Value) ?? all;
+        while (menu.Count > 1) menu.RemoveAt(1);
+        foreach (var choice in choices) menu.Add(choice);
+        return menu.FirstOrDefault(c => c.Value == selected.Value) ?? all;
+    }
+
+    static string Uncounted(string label) => label.LastIndexOf(" (", StringComparison.Ordinal) is var i and > 0 ? label[..i] : label;
+
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
-        var filtered = FormatChoice.Value != FormatFilter.All || FolderChoice.Value is not null;
+        var filtered = FormatChoice.Value != FormatFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
+            || TypeChoice.Value is not null || LevelChoice.Value is not null;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -441,6 +541,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _holdRefresh = true;
         FormatChoice = FormatChoices[0];
         FolderChoice = AllFolders;
+        SystemChoice = AllSystems;
+        TypeChoice = AllTypes;
+        LevelChoice = AnyLevel;
+        IncludeUnknownLevels = false;
         _holdRefresh = false;
         Refresh();
     }
@@ -460,7 +564,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            Inspector = await InspectorViewModel.LoadAsync(item, _queries, _library);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata);
+            inspector.MetadataChanged += async (_, _) => await RefreshAsync();
+            Inspector = inspector;
         }
         catch (Exception ex)
         {
