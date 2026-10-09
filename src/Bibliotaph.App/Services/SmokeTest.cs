@@ -103,6 +103,7 @@ static class SmokeTest
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
+            await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             if (real is { } reprocessed)
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
             await theme.SetPreferenceAsync(ThemePreference.System);
@@ -735,6 +736,77 @@ static class SmokeTest
         await WaitUntilAsync(window, () => !Application.Current.Windows.OfType<Views.AiTestDialog>().Any(), () => "The test popup didn't close.");
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// The model pilot, as with --pilot: Settings > AI shows its section; the made-up library has no book with enough
+    /// text to pick; and with a book put on the list and one model's reading of it, the review page offers that model's
+    /// value without its name, saves the answers into the catalog too, and the report scores the model.
+    /// </summary>
+    static async Task RunPilotAsync(IServiceProvider services, Window window)
+    {
+        var mode = services.GetRequiredService<PilotMode>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        mode.IsOn = true;
+        try
+        {
+            navigation.NavigateTo(Route.Ai);
+            var page = shell.CurrentPage as AiSettingsViewModel ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+            await WaitUntilAsync(window, () => page.Pilot.BooksText.Length > 0, () => "Settings > AI doesn't show the model pilot.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Pilot.PickBooksCommand), "Pick books");
+            await WaitUntilAsync(window, () => page.Pilot.Note is not null, () => "Picking books didn't say what it picked.");
+            if (page.Pilot.Books != 0) throw new InvalidOperationException($"The pilot picked {page.Pilot.Books} made-up books, whose pages are too short.");
+
+            var pilot = services.GetRequiredService<PilotService>();
+            var inn = (await services.GetRequiredService<LibraryStore>().GetRelativePathsAsync())
+                .First(p => p.RelativePath.EndsWith("Haunted Inn.pdf", StringComparison.Ordinal)).DocumentId;
+            await pilot.UseBooksAsync([inn]);
+            const string Model = "smoke-pilot-model";
+            await pilot.Store.RecordAsync(new PilotRun(Model, inn, 12, null),
+                [new PilotProposal(Model, inn, "title", "The Haunted Inn", 0, "The inn is haunted", true)]);
+            navigation.GoBack();
+            await Settle(window);
+            navigation.NavigateTo(Route.Ai);
+            page = shell.CurrentPage as AiSettingsViewModel ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+            await WaitUntilAsync(window, () => page.Pilot.Books == 1, () => "Settings > AI doesn't count the book on the pilot list.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Pilot.ReviewCommand), "Review answers");
+            await Settle(window);
+            var review = shell.CurrentPage as PilotReviewViewModel ?? throw new InvalidOperationException("Review answers didn't open the review page.");
+            await WaitUntilAsync(window, () => review.Book is not null && review.Fields.Count == PilotFields.Core.Count,
+                () => "The review page doesn't show the book and its fields.");
+
+            var title = review.Fields.Single(f => f.Field == MetadataFields.Title);
+            var offered = title.Options.FirstOrDefault(o => o.Text == "The Haunted Inn")
+                ?? throw new InvalidOperationException("The review page doesn't offer the model's title.");
+            if (Descendants<TextBlock>(window).Any(t => t.Text.Contains(Model, StringComparison.Ordinal)))
+                throw new InvalidOperationException("The review page names the model, so it isn't blind.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == offered.UseCommand), "Use the model's title");
+            // An automation click runs from the dispatcher's queue, so the answer changes once the window has worked.
+            await WaitUntilAsync(window, () => title.Answer == "The Haunted Inn", () => $"Use put “{title.Answer}” in the answer.");
+            review.Fields.Single(f => f.Field == MetadataFields.Levels).NotInBook = true;
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == review.SaveCommand), "Save and next");
+            await WaitUntilAsync(window, () => review.PositionText.Contains("answered 1", StringComparison.Ordinal),
+                () => $"Saving the answers didn't count them: {review.PositionText}");
+            var (effective, _) = await services.GetRequiredService<MetadataService>().GetAsync(inn);
+            if (effective[MetadataFields.Title].First is not { Value: "The Haunted Inn", Confirmed: true })
+                throw new InvalidOperationException("The answer didn't become the book's title in the catalog.");
+
+            var scores = await pilot.ScoreAsync();
+            if (scores is not [{ Answered: 1, Fields: var fields }] || fields.Single(f => f.Field == "title") is not { Proposed: 1, Correct: 1 })
+                throw new InvalidOperationException("The pilot didn't score the model's title as right.");
+            var report = await pilot.WriteReportAsync();
+            if (!System.IO.File.ReadAllText(report).Contains(Model, StringComparison.Ordinal))
+                throw new InvalidOperationException("The pilot report doesn't list the model.");
+            navigation.GoBack();
+            await Settle(window);
+            navigation.GoBack();
+            await Settle(window);
+        }
+        finally
+        {
+            mode.IsOn = false;
+        }
     }
 
     /// <summary>Clicks <paramref name="button"/> the way a person would, failing clearly if they couldn't.</summary>

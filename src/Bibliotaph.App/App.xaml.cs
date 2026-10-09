@@ -30,6 +30,7 @@ public partial class App : Application
         _smokeTest = e.Args.Contains("--smoke-test");
         var measureSearch = e.Args.Contains("--measure-search");
         var measureViewer = e.Args.Contains("--measure-viewer");
+        var pilot = e.Args.Contains("--pilot");
         var paths = DataRootArgument(e.Args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
         foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
 
@@ -51,7 +52,7 @@ public partial class App : Application
         {
             StartOver.FinishIfRequested(paths, e.Args);
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
-            _host = BuildHost(paths);
+            _host = BuildHost(paths, pilot);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
 
@@ -104,7 +105,7 @@ public partial class App : Application
         return at >= 0 && at + 1 < args.Length ? System.IO.Path.GetFullPath(args[at + 1]) : null;
     }
 
-    static IHost BuildHost(AppPaths paths)
+    static IHost BuildHost(AppPaths paths, bool pilot)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -169,6 +170,11 @@ public partial class App : Application
         builder.Services.AddSingleton<VocabularyService>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
+        // The model pilot (slice 2d): its own pilot.db, shown only with --pilot.
+        builder.Services.AddSingleton(sp => new PilotStore(paths.Pilot, sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton<PilotService>();
+        builder.Services.AddSingleton(new PilotMode(pilot));
+        builder.Services.AddSingleton<PilotSession>();
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
@@ -193,6 +199,8 @@ public partial class App : Application
         builder.Services.AddTransient<LibraryFoldersViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
+        builder.Services.AddTransient<PilotPanelViewModel>();
+        builder.Services.AddTransient<PilotReviewViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
@@ -213,6 +221,7 @@ public partial class App : Application
         Route.LibraryFolders => services.GetRequiredService<LibraryFoldersViewModel>(),
         Route.Vocabulary => services.GetRequiredService<VocabularyViewModel>(),
         Route.Ai => services.GetRequiredService<AiSettingsViewModel>(),
+        Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

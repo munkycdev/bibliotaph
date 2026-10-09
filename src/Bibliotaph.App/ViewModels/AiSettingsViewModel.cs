@@ -28,7 +28,8 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 /// switched on; an endpoint off this computer and network needs the user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
-    AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, ILogger<AiSettingsViewModel> log)
+    AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
+    PilotPanelViewModel pilot, ILogger<AiSettingsViewModel> log)
     : PageViewModel
 {
     public override Route Route => Route.Ai;
@@ -37,6 +38,11 @@ public sealed partial class AiSettingsViewModel(
     public override Route? SectionRoute => Route.Settings;
 
     public LibraryActivity Activity { get; } = activity;
+
+    /// <summary>The model pilot's section, shown only when the app started with --pilot.</summary>
+    public PilotPanelViewModel Pilot { get; } = pilot;
+
+    public bool ShowPilot => pilotMode.IsOn;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsRemote))]
@@ -159,10 +165,15 @@ public sealed partial class AiSettingsViewModel(
 
         Activity.Refreshed += OnActivityRefreshed;
         await RefreshProgressAsync();
+        if (ShowPilot) await Pilot.LoadAsync();
         if (setup.Endpoint is not null) _ = ConnectAsync();
     }
 
-    public override void Unload() => Activity.Refreshed -= OnActivityRefreshed;
+    public override void Unload()
+    {
+        Activity.Refreshed -= OnActivityRefreshed;
+        Pilot.Unload();
+    }
 
     void OnActivityRefreshed(object? sender, EventArgs e) => _ = RefreshProgressAsync();
 
