@@ -107,6 +107,15 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     void GoBack() => _navigation.GoBack();
 
+    /// <summary>The breadcrumb's parent, as it was left if it is in the history.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenSection))]
+    void OpenSection()
+    {
+        if (CurrentPage?.SectionRoute is { } route) _navigation.NavigateUp(route);
+    }
+
+    bool CanOpenSection() => CurrentPage?.SectionRoute is not null;
+
     [RelayCommand]
     Task ToggleAppearance() => _theme.ToggleAsync();
 
@@ -127,6 +136,7 @@ public sealed partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(CanGoBack));
         GoBackCommand.NotifyCanExecuteChanged();
+        OpenSectionCommand.NotifyCanExecuteChanged();
 
         try
         {

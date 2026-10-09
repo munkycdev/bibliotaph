@@ -103,6 +103,8 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     public override string Section => "Library";
 
+    public override Route? SectionRoute => Route.Library;
+
     public override bool ScrollsItself => true;
 
     /// <summary>Raised when the view should scroll to a page, as for the next find result.</summary>

@@ -124,9 +124,27 @@
                   Command="{Binding GoBackCommand}" Margin="-8,0,6,0"
                   Visibility="{Binding CanGoBack, Converter={StaticResource Bt.VisibleWhenTrue}}"
                   ToolTip="Back (Alt+Left)" AutomationProperties.Name="Back" />
-          <!-- .bt-breadcrumb -->
+          <!-- .bt-breadcrumb: the section links to its page when it names one (Library, Settings). -->
           <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Bt.Muted}">
-            <Run Text="{Binding Section, Mode=OneWay}" /><Run Text="  /  " Foreground="{DynamicResource Bt.Line}" /><Run Text="{Binding Title, Mode=OneWay}" />
+            <TextBlock.Resources>
+              <Style TargetType="Hyperlink">
+                <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+                <Setter Property="TextDecorations" Value="{x:Null}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+                <Style.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+                    <Setter Property="TextDecorations" Value="Underline" />
+                  </Trigger>
+                  <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                  </Trigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Resources>
+            <Hyperlink Command="{Binding OpenSectionCommand}"
+                       AutomationProperties.Name="{Binding Section, Mode=OneWay, StringFormat='Go to {0}'}"><Run Text="{Binding Section, Mode=OneWay}" /></Hyperlink><Run Text="  /  " Foreground="{DynamicResource Bt.Line}" /><Run Text="{Binding Title, Mode=OneWay}" />
           </TextBlock>
           <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SunMoon}"
                   Command="{Binding ToggleAppearanceCommand}" Margin="15,0,0,0"
