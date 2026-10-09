@@ -87,6 +87,9 @@ public sealed class LibraryQueriesTests : IndexFixture
     [InlineData("haunted OR gazetteer", new[] { HauntedInn, Gazetteer })]
     [InlineData("title:map*", new[] { TavernMap })]
     [InlineData("maps", new[] { Gazetteer })] // the folder name is searchable metadata
+    [InlineData("drag", new[] { Lairs })] // a word finds words that start with it
+    [InlineData("title:haun", new[] { HauntedInn })]
+    [InlineData("\"dragon lai\"", new long[0])] // phrases stay exact
     public async Task The_documents_tab_matches_titles_and_metadata(string query, long[] expected) =>
         Assert.Equal(expected.Order(), (await DocumentsAsync(query)).Order());
 
@@ -133,6 +136,9 @@ public sealed class LibraryQueriesTests : IndexFixture
     [InlineData("\"red dragon\" -lair", new[] { "1:1" })]
     [InlineData("lich OR goblins", new[] { "1:2", "2:0" })]
     [InlineData("gob*", new[] { "1:2" })]
+    [InlineData("gob", new[] { "1:2" })]
+    [InlineData("re", new string[0])] // too short to stand for red, ruins or the rest
+    [InlineData("pass -drag", new[] { "4:1" })]
     [InlineData("title:lairs dragon", new[] { "2:1" })]
     [InlineData("dragon -title:lairs", new[] { "1:1", "1:3" })]
     [InlineData("tavern folder:monsters", new[] { "2:0" })]
