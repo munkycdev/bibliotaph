@@ -177,13 +177,14 @@ public sealed partial class PipelineTests
         Assert.Equal(AssertionOrigin.User, metadata[MetadataFields.Types].First!.Origin);
         Assert.False(metadata[MetadataFields.Year].IsKnown);
         Assert.Equal("The Sunken Lantern", metadata[MetadataFields.Title].First?.Value);
+        Assert.Equal("fake-14b", Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(Ai: AiFilter.Read), ct: Ct)).AiModel);
 
-        // index.db loses its metadata; what the user said comes back from catalog.db.
+        // index.db loses its metadata; what the user said, and which model read the book, come back from catalog.db.
         await _service.StopAsync(Ct);
-        await _writer.WriteAsync((c, t) => c.Execute("DELETE FROM doc_meta; DELETE FROM doc_facet;", transaction: t), Ct);
+        await _writer.WriteAsync((c, t) => c.Execute("DELETE FROM doc_meta; DELETE FROM doc_facet; DELETE FROM doc_ai;", transaction: t), Ct);
         await _projector.ProjectAllAsync(Ct);
         var entry = Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct));
-        Assert.Equal(("The Sunken Lantern", "Bestiary"), (entry.Title, entry.Kind));
+        Assert.Equal(("The Sunken Lantern", "Bestiary", "fake-14b"), (entry.Title, entry.Kind, entry.AiModel));
     }
 
     [Fact]
@@ -220,6 +221,35 @@ public sealed partial class PipelineTests
     }
 
     [Fact]
+    public async Task Test_with_a_book_says_each_step_and_stores_nothing()
+    {
+        _model.Answer = _ => ObedientAnswer;
+        Copy(pdfs.Injected, "Adventures/Lantern.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        // The test picks a book with some length to it: three pages of more than 200 characters.
+        await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = text || ' ' || @filler", new { filler = string.Join(' ', Enumerable.Repeat("More of the adventure.", 12)) }, t), Ct);
+        var ai = new AiService(_ai, new NoApiKeys(), _service, _runs, new ClassifierInputs(_libraryStore, _queries, _vocabulary), _queries,
+            _libraryStore, _vocabulary);
+        var steps = new List<AiTestProgress>();
+
+        var test = await ai.TestAsync(Endpoint, "fake-8b", new Collect<AiTestProgress>(steps.Add), Ct);
+
+        Assert.Equal([AiTestStep.Choosing, AiTestStep.Reading, AiTestStep.Asking], steps.Select(s => s.Step));
+        Assert.Equal([null, test.Title, test.Title], steps.Select(s => s.Title));
+        Assert.Contains(test.Result!.Accepted, c => c.Value == "The Sunken Lantern");
+        Assert.Empty(await _runs.GetReadByAsync(ct: Ct));
+        Assert.DoesNotContain((await _metadataStore.GetAsync(await OnlyDocumentAsync(), Ct)).Claims, c => c.Origin == AssertionOrigin.Ai);
+    }
+
+    /// <summary>Reports on the thread that reports, unlike <see cref="Progress{T}"/>, so a test sees every step in order.</summary>
+    sealed class Collect<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
+    }
+
+    [Fact]
     public async Task Books_in_a_folder_kept_from_ai_are_never_sent()
     {
         Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
@@ -231,6 +261,7 @@ public sealed partial class PipelineTests
 
         Assert.Equal(1, progress.Classified);
         Assert.Empty(_model.Requests);
+        Assert.Null(Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).AiModel);
         await using var c = _index.OpenRead();
         Assert.Equal("Skipped", StatusOf(c, "Known Text", Stage.Classify));
     }

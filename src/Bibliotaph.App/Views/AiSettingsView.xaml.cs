@@ -21,8 +21,23 @@ public partial class AiSettingsView : UserControl
 
     void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.OldValue is AiSettingsViewModel old) old.PropertyChanged -= OnPagePropertyChanged;
-        if (e.NewValue is AiSettingsViewModel page) page.PropertyChanged += OnPagePropertyChanged;
+        if (e.OldValue is AiSettingsViewModel old)
+        {
+            old.PropertyChanged -= OnPagePropertyChanged;
+            old.FocusEndpointRequested -= OnFocusEndpointRequested;
+        }
+        if (e.NewValue is AiSettingsViewModel page)
+        {
+            page.PropertyChanged += OnPagePropertyChanged;
+            page.FocusEndpointRequested += OnFocusEndpointRequested;
+        }
+    }
+
+    /// <summary>Setting up starts at the address: after "On" was refused, the cursor goes there.</summary>
+    void OnFocusEndpointRequested(object? sender, EventArgs e)
+    {
+        EndpointBox.Focus();
+        EndpointBox.SelectAll();
     }
 
     /// <summary>Once a key is saved, the box empties: the saved key is never shown again.</summary>

@@ -71,6 +71,9 @@
           <TextBlock Text="{Binding ProgressText}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Activity.AiWaiting, StringFormat='Waiting: {0}'}" Style="{StaticResource Problem}"
                      Visibility="{Binding Activity.AiWaiting, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          <TextBlock Text="{Binding SwitchNote}" Style="{StaticResource Note}" Visibility="{Binding SwitchNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          <TextBlock Text="{Binding SwitchProblem}" Style="{StaticResource Problem}"
+                     Visibility="{Binding SwitchProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
         </StackPanel>
       </DockPanel>
     </Border>
@@ -82,7 +85,8 @@
     <TextBlock Text="Address" Style="{StaticResource FieldLabel}" />
     <DockPanel>
       <Button DockPanel.Dock="Right" Content="Connect" c:Ui.Icon="{StaticResource Icon.RotateCcw}" Command="{Binding ConnectCommand}" Margin="8,0,0,0" />
-      <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Model server address">
+      <TextBox x:Name="EndpointBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}"
+               AutomationProperties.Name="Model server address">
         <TextBox.InputBindings>
           <KeyBinding Key="Enter" Command="{Binding ConnectCommand}" />
         </TextBox.InputBindings>
@@ -119,37 +123,6 @@
       <Button Content="Test with a book" Command="{Binding TestCommand}" />
     </WrapPanel>
     <TextBlock Text="{Binding SaveNote}" Style="{StaticResource Note}" Visibility="{Binding SaveNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
-
-    <!-- Test -->
-    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,14,0,0"
-            Visibility="{Binding TestSummary, Converter={StaticResource Bt.VisibleWhenSet}}">
-      <StackPanel>
-        <TextBlock Text="{Binding TestSummary}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
-        <TextBlock Text="{Binding TestProblem}" Style="{StaticResource Problem}" Visibility="{Binding TestProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
-        <ItemsControl ItemsSource="{Binding TestKept}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="What the model found">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate DataType="{x:Type vm:AiTestLine}">
-              <StackPanel Margin="0,6,0,0">
-                <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,2,0,0" />
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <StackPanel Visibility="{Binding HasTestDropped, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,12,0,0">
-          <TextBlock Text="Thrown away" Style="{StaticResource FieldLabel}" />
-          <ItemsControl ItemsSource="{Binding TestDropped}" Focusable="False" AutomationProperties.Name="What the check threw away">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="{x:Type vm:AiTestLine}">
-                <TextBlock Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,3,0,0">
-                  <Run Text="{Binding Text, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Detail, Mode=OneWay}" />
-                </TextBlock>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </StackPanel>
-    </Border>
 
     <!-- Reclassify -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,24,0,0"

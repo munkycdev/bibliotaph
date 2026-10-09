@@ -110,6 +110,7 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM job"));
         Assert.Equal(7, read.ExecuteScalar<long>("SELECT rowid FROM doc_fts WHERE doc_fts MATCH 'provisional : horrors'"));
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_meta"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_ai"));
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_fts WHERE doc_fts MATCH 'authors : x'"));
     }
 

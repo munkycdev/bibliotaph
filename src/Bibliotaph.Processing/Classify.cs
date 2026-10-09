@@ -220,6 +220,22 @@ public sealed class ClassifyStage(
 /// <summary>What Settings > AI's Test button shows: the book it read, what it kept with its evidence, and what it dropped.</summary>
 public sealed record AiTestResult(string Title, TimeSpan Took, ClassifierResult? Result, string? Problem);
 
+/// <summary>How far a test has got, so the test dialog can say what it is waiting for.</summary>
+public enum AiTestStep
+{
+    /// <summary>Picking a book with text from the library.</summary>
+    Choosing,
+
+    /// <summary>Reading the book's pages into an excerpt.</summary>
+    Reading,
+
+    /// <summary>Waiting for the model's answer, which takes longest while the server loads the model.</summary>
+    Asking,
+}
+
+/// <summary>A test's step, with the book once it is chosen.</summary>
+public sealed record AiTestProgress(AiTestStep Step, string? Title);
+
 /// <summary>
 /// Settings > AI's work: connecting to an endpoint and listing its models, saving the setup, the Test button, and
 /// "Reclassify N documents". Nothing here reclassifies by itself (choice 10).
@@ -263,17 +279,20 @@ public sealed class AiService(
     public Task<int> ReclassifyAsync(CancellationToken ct = default) => indexing.RerunAsync(Stage.Classify, ct);
 
     /// <summary>Classifies one book from the library with the setup on screen, and stores nothing.</summary>
-    public async Task<AiTestResult> TestAsync(string endpoint, string model, CancellationToken ct = default)
+    public async Task<AiTestResult> TestAsync(string endpoint, string model, IProgress<AiTestProgress>? progress = null, CancellationToken ct = default)
     {
+        progress?.Report(new AiTestProgress(AiTestStep.Choosing, null));
         var skipped = await library.GetDocumentIdsInRootsAsync([.. settings.Setup.SkippedRoots], ct);
         if (await queries.FindSampleAsync(skipped, ct: ct) is not { } documentId)
             return new AiTestResult("", TimeSpan.Zero, null, "There's no book with text to try yet. Add a folder, or wait for its books to be read.");
         var title = await queries.GetTitleAsync(documentId, ct) ?? "a book";
+        progress?.Report(new AiTestProgress(AiTestStep.Reading, title));
         var (input, why) = await inputs.BuildAsync(documentId, ct);
         if (input is null) return new AiTestResult(title, TimeSpan.Zero, null, why);
 
         var client = settings.ClientFor(endpoint);
         var started = _clock.GetTimestamp();
+        progress?.Report(new AiTestProgress(AiTestStep.Asking, title));
         try
         {
             var info = await client.ConnectAsync(ct);

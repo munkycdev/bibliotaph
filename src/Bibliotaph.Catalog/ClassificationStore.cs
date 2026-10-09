@@ -56,6 +56,19 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     }
 
     /// <summary>
+    /// The model of each document's latest finished run, for the documents a model has read: all of them, or those of
+    /// <paramref name="documentIds"/>. A document is one version of a file's content, so an edited file needs a new run.
+    /// </summary>
+    public async Task<Dictionary<long, string>> GetReadByAsync(IReadOnlyCollection<long>? documentIds = null, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var complete = db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete);
+        if (documentIds is not null) complete = complete.Where(r => documentIds.Contains(r.DocumentId));
+        var runs = await complete.Select(r => new { r.DocumentId, r.Model, r.FinishedUtc }).ToListAsync(ct);
+        return runs.GroupBy(r => r.DocumentId).ToDictionary(g => g.Key, g => g.MaxBy(r => r.FinishedUtc)!.Model);
+    }
+
+    /// <summary>
     /// Documents classified by <paramref name="model"/> with this prompt version, and documents classified only by
     /// another model or an earlier prompt: the count "Reclassify N documents" offers.
     /// </summary>

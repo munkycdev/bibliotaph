@@ -1,9 +1,7 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
-using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -24,20 +22,15 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
     partial void OnSendChanged(bool value) => _ = changed(this);
 }
 
-/// <summary>One line of a Test result: a value the model gave and the page that backs it, or one the check threw out.</summary>
-public sealed record AiTestLine(string Text, string Detail);
-
 /// <summary>
 /// Settings > AI (choice 10): the model server and model, a key if the server needs one, Test, which library folders
 /// are sent, and how far classification has got, with Reclassify. AI is off until an endpoint and model are saved and
 /// switched on; an endpoint off this computer and network needs the user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
-    AiService ai, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, ILogger<AiSettingsViewModel> log) : PageViewModel
+    AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, ILogger<AiSettingsViewModel> log)
+    : PageViewModel
 {
-    /// <summary>Stops a Test still waiting on the model, when the page closes.</summary>
-    Action? _stopTest;
-
     public override Route Route => Route.Ai;
     public override string Title => "AI";
     public override string Section => "Settings";
@@ -108,6 +101,17 @@ public sealed partial class AiSettingsViewModel(
     [ObservableProperty]
     public partial bool IsOn { get; private set; }
 
+    /// <summary>What the switch just did, under it.</summary>
+    [ObservableProperty]
+    public partial string? SwitchNote { get; private set; }
+
+    /// <summary>Why the switch can't turn on yet, under it.</summary>
+    [ObservableProperty]
+    public partial string? SwitchProblem { get; private set; }
+
+    /// <summary>Asks the page to put the cursor in the address box: where setting up starts.</summary>
+    public event EventHandler? FocusEndpointRequested;
+
     public ObservableCollection<AiFolderItem> Folders { get; } = [];
 
     [ObservableProperty]
@@ -134,22 +138,6 @@ public sealed partial class AiSettingsViewModel(
 
     public string ReclassifyLabel => Earlier > 0 ? $"Reclassify {Earlier + Failed:N0}" : "Try again";
 
-    [ObservableProperty]
-    public partial bool IsTesting { get; private set; }
-
-    [ObservableProperty]
-    public partial string? TestSummary { get; private set; }
-
-    [ObservableProperty]
-    public partial string? TestProblem { get; private set; }
-
-    public ObservableCollection<AiTestLine> TestKept { get; } = [];
-
-    public ObservableCollection<AiTestLine> TestDropped { get; } = [];
-
-    [ObservableProperty]
-    public partial bool HasTestDropped { get; private set; }
-
     public override async Task LoadAsync()
     {
         var setup = ai.Setup;
@@ -174,11 +162,7 @@ public sealed partial class AiSettingsViewModel(
         if (setup.Endpoint is not null) _ = ConnectAsync();
     }
 
-    public override void Unload()
-    {
-        Activity.Refreshed -= OnActivityRefreshed;
-        _stopTest?.Invoke();
-    }
+    public override void Unload() => Activity.Refreshed -= OnActivityRefreshed;
 
     void OnActivityRefreshed(object? sender, EventArgs e) => _ = RefreshProgressAsync();
 
@@ -278,6 +262,7 @@ public sealed partial class AiSettingsViewModel(
         await ai.SaveAsync(was with { Endpoint = endpoint, Model = Model.Trim(), Provider = _provider ?? "", Enabled = enabled, RemoteAllowed = RemoteAllowed });
         Endpoint = endpoint;
         IsOn = enabled;
+        SwitchProblem = null;
         Dirty = false;
         SaveNote = was.Model is { } old && old != Model.Trim()
             ? "Saved. Books already classified keep their values; Reclassify reads them again with this model."
@@ -316,13 +301,18 @@ public sealed partial class AiSettingsViewModel(
     {
         if (on && (ai.Setup.Endpoint is null || ai.Setup.Model is null))
         {
-            SaveNote = "Connect to a model server and save a model first.";
-            OnIsOnChanged(IsOn); // puts the switch back
+            // The radio button has already checked itself; putting it back has to wait until its click is over.
+            await Task.Yield();
+            OnIsOnChanged(IsOn);
+            SwitchNote = null;
+            SwitchProblem = "Connect to a model server and pick a model first. Saving turns AI on.";
+            FocusEndpointRequested?.Invoke(this, EventArgs.Empty);
             return;
         }
         IsOn = on;
+        SwitchProblem = null;
         await ai.SaveAsync(ai.Setup with { Enabled = on });
-        SaveNote = on ? "On. Books are classified in the background, one at a time." : "Off. Nothing is sent; your setup is kept.";
+        SwitchNote = on ? "On. Books are classified in the background, one at a time." : "Off. Nothing is sent; your setup is kept.";
     }
 
     async Task OnFolderChangedAsync(AiFolderItem folder)
@@ -333,63 +323,23 @@ public sealed partial class AiSettingsViewModel(
         await ai.SaveAsync(ai.Setup with { SkippedRoots = skipped });
     }
 
-    bool CanTest() => HasEndpoint() && Model.Trim().Length > 0 && !IsTesting;
+    bool CanTest() => HasEndpoint() && Model.Trim().Length > 0;
 
-    /// <summary>Classifies one book with what is on screen, saved or not, and shows what it kept and threw out. Stores nothing.</summary>
+    /// <summary>Opens Test with a book for what is on screen, saved or not. The test stores nothing.</summary>
     [RelayCommand(CanExecute = nameof(CanTest))]
-    async Task TestAsync()
+    void Test()
     {
-        if (LocalModelClient.Tidy(Endpoint) is not { } endpoint) return;
-        if (IsRemote && !RemoteAllowed)
+        if (LocalModelClient.Tidy(Endpoint) is not { } endpoint)
         {
-            TestProblem = "Tick “Send excerpts to this server” first: the test sends a book's excerpt too.";
+            ConnectionProblem = "An endpoint is an address like http://localhost:11434.";
             return;
         }
-        using var work = new CancellationTokenSource();
-        _stopTest = work.Cancel;
-        IsTesting = true;
-        TestCommand.NotifyCanExecuteChanged();
-        TestSummary = "Reading a book from your library. A model that isn't loaded yet can take a minute…";
-        TestProblem = null;
-        TestKept.Clear();
-        TestDropped.Clear();
-        HasTestDropped = false;
-        try
+        if (IsRemote && !RemoteAllowed)
         {
-            var test = await ai.TestAsync(endpoint, Model.Trim(), work.Token);
-            var seconds = test.Took.TotalSeconds.ToString("0", CultureInfo.CurrentCulture);
-            if (test.Result is not { } result)
-            {
-                TestSummary = test.Title.Length > 0 ? $"Tried {test.Title}." : null;
-                TestProblem = test.Problem;
-                return;
-            }
-            TestSummary = result.Accepted.Count == 0
-                ? $"Read {test.Title} in {seconds} s, and found nothing it could back up with a quote."
-                : $"Read {test.Title} in {seconds} s. Every value below quotes the page it came from.";
-            var vocabulary = await ai.VocabularyAsync();
-            foreach (var claim in result.Accepted)
-            {
-                var value = claim.Field.Kind == FieldKind.Term && !claim.IsNewTerm
-                    ? vocabulary.Label(claim.Field.Vocabulary!, claim.Value)
-                    : claim.IsNewTerm ? $"{claim.Value} (new)" : claim.Value;
-                TestKept.Add(new AiTestLine($"{claim.Field.Label}: {value}",
-                    $"Page {ClassifierPrompt.Marker(claim.PdfPage).ToString(CultureInfo.CurrentCulture)}{(claim.FromSampling ? ", from sampled pages" : "")}: “{claim.Quote}”"));
-            }
-            foreach (var dropped in result.Dropped)
-                TestDropped.Add(new AiTestLine($"{MetadataFields.Find(dropped.Claim.Field)?.Label ?? dropped.Claim.Field}: {dropped.Claim.Value}", dropped.Reason));
-            HasTestDropped = TestDropped.Count > 0;
+            SaveNote = "Tick “Send excerpts to this server” first: the test sends a book's excerpt too.";
+            return;
         }
-        catch (OperationCanceledException)
-        {
-            TestSummary = null;
-        }
-        finally
-        {
-            _stopTest = null;
-            IsTesting = false;
-            TestCommand.NotifyCanExecuteChanged();
-        }
+        tester.Show(endpoint, Model.Trim());
     }
 
     [RelayCommand]

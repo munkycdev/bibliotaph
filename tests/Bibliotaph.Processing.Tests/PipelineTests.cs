@@ -67,14 +67,14 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
-        var projector = _projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries, _settings);
+        _runs = new ClassificationStore(contexts);
+        var projector = _projector = new MetadataProjector(_metadataStore, vocabulary, index, _queries, _settings, runs: _runs);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var hints = new MetadataHints(library, _queries, _metadataStore, vocabulary, projector);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
-        _runs = new ClassificationStore(contexts);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
             new ClassificationResults(_runs, _metadataStore, vocabulary, projector));
         _service = new IndexingService(_roots, library, queue,
