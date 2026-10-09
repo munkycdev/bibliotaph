@@ -292,6 +292,7 @@ static class SmokeTest
         page.ShowFilters = true;
         await Settle(window);
         await EditMetadataAsync(window, page, books);
+        await BulkEditAsync(window, page, search, books);
 
         search.Search("dragon");
         await WaitUntilAsync(window, () => page.IsSearching && page.Items.Count > 0 && !page.IsEmpty, () => "Searching for dragon found no documents.");
@@ -374,6 +375,73 @@ static class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == "Haunted Inn"), () => "Resetting the title didn't bring back the suggestion.");
         page.CloseDetailsCommand.Execute(null);
         await Settle(window);
+    }
+
+    /// <summary>
+    /// Select mode and bulk editing (slice 4e): Ctrl+A and Clear, then two made-up books ticked by clicking them in the
+    /// list, drawn ticked in the covers too, and still ticked through a search that doesn't show them. Edit metadata
+    /// files a name the vocabulary doesn't know as a new type (dropped again), adds a tag to both and shows the summary;
+    /// applying finds both by tag:, and Undo finds neither.
+    /// </summary>
+    static async Task BulkEditAsync(Window window, LibraryViewModel page, SearchState search, int books)
+    {
+        var gazetteer = page.Items.First(i => i.Title == "Gazetteer of the Marches");
+        var lairs = page.Items.First(i => i.Title == "Dragon Lairs");
+        page.StartSelectingCommand.Execute(null);
+        await Settle(window);
+        page.SelectAllCommand.Execute(null);
+        if (!page.Selection.IsActive || page.Selection.Count != books) throw new InvalidOperationException($"Ctrl+A ticked {page.Selection.Count} books, not {books}.");
+        page.ClearSelectionCommand.Execute(null);
+        await page.ActivateCommand.ExecuteAsync(gazetteer);
+        await page.ActivateCommand.ExecuteAsync(lairs);
+        if (page.Inspector is not null || page.Selection.Count != 2 || !gazetteer.IsSelected || !lairs.IsSelected)
+            throw new InvalidOperationException($"Clicking two books in Select mode ticked {page.Selection.Count} (details open: {page.Inspector is not null}).");
+        page.Layout = LibraryLayout.Grid;
+        await Settle(window);
+        page.Layout = LibraryLayout.List;
+        await Settle(window);
+
+        // Gathered across searches: the ticks stay while the results don't show them.
+        search.Search("system:5e type:adventure");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.Selection is { Count: 2, NotShown: 2 },
+            () => $"Searching while two books were ticked left {page.Selection.Summary}.");
+
+        await page.EditSelectedCommand.ExecuteAsync(null);
+        var bulk = page.BulkEdit ?? throw new InvalidOperationException("Edit metadata didn't open the bulk editor.");
+        await Settle(window);
+        if (bulk.BookCount != 2 || bulk.Fields.Any(f => f.Field == MetadataFields.Title))
+            throw new InvalidOperationException($"The bulk editor edits {bulk.BookCount} books, or offers the title.");
+        var types = bulk.Fields.OfType<BulkChipsFieldViewModel>().Single(f => f.Field == MetadataFields.Types);
+        types.AddText = "Heist almanac";
+        types.AddTypedCommand.Execute(null);
+        var fresh = types.Chips.SingleOrDefault(c => c.IsNew) ?? throw new InvalidOperationException("A type the vocabulary doesn't know wasn't shown as new.");
+        if (fresh is not { NewNote: "new type", IsAdding: true }) throw new InvalidOperationException($"The new type's chip says {fresh.NewNote}, {fresh.CountText}.");
+        await Settle(window);
+        fresh.RemoveCommand.Execute(null);
+        if (types.HasChange) throw new InvalidOperationException("Dropping the new type left a change to Type.");
+        var tags = bulk.Fields.OfType<BulkChipsFieldViewModel>().Single(f => f.Field == MetadataFields.Tags);
+        tags.AddText = "Shelved";
+        tags.AddTypedCommand.Execute(null);
+        if (!bulk.ReviewCommand.CanExecute(null)) throw new InvalidOperationException("Adding a tag didn't let the edit be reviewed.");
+        bulk.ReviewCommand.Execute(null);
+        await Settle(window);
+        if (bulk.Summary is not [{ Field: "Your tags", HasWarning: false } line] || !line.Text.Contains("2 books", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The summary says {string.Join("; ", bulk.Summary.Select(l => $"{l.Field}: {l.Text}"))}.");
+
+        await bulk.ApplyCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.BulkEdit is null && page.HasBulkUndo, () => $"Applying the bulk edit didn't finish ({page.BulkMessage}).");
+        if (page.BulkMessage != "Edited 2 books.") throw new InvalidOperationException($"The bulk edit says {page.BulkMessage}");
+        search.Search("tag:shelved");
+        await WaitUntilAsync(window, () => page.Items.Select(i => i.Title).Order(StringComparer.Ordinal).SequenceEqual(["Dragon Lairs", "Gazetteer of the Marches"]),
+            () => $"Searching by the new tag found {string.Join(", ", page.Items.Select(i => i.Title))}.");
+
+        await page.UndoBulkEditCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.BulkMessage is null && !page.HasBulkUndo && page.IsEmpty,
+            () => $"After Undo, the tag still finds {page.Items.Count} books ({page.BulkMessage}).");
+        search.Search("");
+        page.StopSelectingCommand.Execute(null);
+        await WaitUntilAsync(window, () => !page.Selection.IsActive && !gazetteer.IsSelected && page.Items.Count == books,
+            () => $"Done didn't leave Select mode with all {books} books showing.");
     }
 
     /// <summary>

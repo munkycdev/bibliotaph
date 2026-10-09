@@ -5,11 +5,13 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
              xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibraryViewModel}">
   <UserControl.InputBindings>
-    <KeyBinding Key="Escape" Command="{Binding CloseDetailsCommand}" />
+    <KeyBinding Key="Escape" Command="{Binding EscapeCommand}" />
+    <KeyBinding Gesture="Ctrl+A" Command="{Binding SelectAllCommand}" />
   </UserControl.InputBindings>
 
   <UserControl.Resources>
@@ -100,7 +102,28 @@
           </ControlTemplate>
         </Setter.Value>
       </Setter>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+          <Setter Property="AutomationProperties.ItemStatus" Value="Selected" />
+        </DataTrigger>
+      </Style.Triggers>
     </Style>
+
+    <!-- A book's checkbox in Select mode. It only shows the tick: a click on the book ticks it. -->
+    <DataTemplate x:Key="Tick" DataType="{x:Type vm:LibraryItemViewModel}">
+      <Border x:Name="Box" Width="22" Height="22" CornerRadius="5" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Muted}"
+              BorderThickness="1.5" SnapsToDevicePixels="True">
+        <c:LucideIcon x:Name="Mark" Data="{StaticResource Icon.Check}" Size="14" StrokeThickness="2.4" Foreground="{DynamicResource Bt.AccentText}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
+      </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+          <Setter TargetName="Box" Property="Background" Value="{DynamicResource Bt.Accent}" />
+          <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+          <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
+        </DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
   </UserControl.Resources>
 
   <Grid>
@@ -126,6 +149,11 @@
             Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <DockPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Border Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button Content="Select" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding StartSelectingCommand}" Margin="0,0,8,0"
+                    ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
+                    Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+          </Border>
           <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,0" />
           <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
                     AutomationProperties.Name="Sort" Margin="0,0,8,0" />
@@ -190,6 +218,28 @@
 
     <!-- .bt-sectionline -->
     <StackPanel Grid.Row="3" Margin="0,23,42,17">
+      <!-- Select mode: how many are ticked, Edit metadata, Clear and Done. -->
+      <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14" AutomationProperties.Name="Selection"
+              Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button Style="{StaticResource Bt.Button.Primary}" Content="Edit metadata" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                    Command="{Binding EditSelectedCommand}" Margin="0,0,8,0" ToolTip="Change fields on every selected book at once" />
+            <Button Content="Clear" Command="{Binding ClearSelectionCommand}" Margin="0,0,8,0" AutomationProperties.Name="Clear the selection" />
+            <Button Content="Done" Command="{Binding StopSelectingCommand}" ToolTip="Leave Select mode (Esc)" AutomationProperties.Name="Done selecting" />
+          </StackPanel>
+          <TextBlock Text="{Binding Selection.Summary}" FontSize="12" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" TextWrapping="Wrap"
+                     Margin="0,0,12,0" />
+        </DockPanel>
+      </Border>
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+              Visibility="{Binding BulkMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoBulkEditCommand}"
+                  Padding="12,0,0,0" AutomationProperties.Name="Undo the edit" Visibility="{Binding HasBulkUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock Text="{Binding BulkMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
       <DockPanel Visibility="{Binding IsEmpty, Converter={StaticResource Bt.CollapsedWhenTrue}}">
         <TextBlock DockPanel.Dock="Right" Text="{Binding Coverage}" Style="{StaticResource Text.Small}" Margin="15,0,0,0"
                    Visibility="{Binding Coverage, Converter={StaticResource Bt.VisibleWhenSet}}" />
@@ -206,7 +256,8 @@
     <Grid Grid.Row="4">
       <!-- .bt-books: the cover grid. Only the covers in view are created. -->
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
-               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding OpenDetailsCommand}"
+               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
+               c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemsPanel>
@@ -218,11 +269,16 @@
           <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
             <StackPanel Width="150" HorizontalAlignment="Left" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}"
                         AutomationProperties.Name="{Binding Title}">
-              <ContentControl x:Name="CoverBox" Height="208" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False">
-                <ContentControl.Effect>
-                  <DropShadowEffect BlurRadius="7" ShadowDepth="3" Direction="270" Opacity="0.15" />
-                </ContentControl.Effect>
-              </ContentControl>
+              <Grid>
+                <ContentControl x:Name="CoverBox" Height="208" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False">
+                  <ContentControl.Effect>
+                    <DropShadowEffect BlurRadius="7" ShadowDepth="3" Direction="270" Opacity="0.15" />
+                  </ContentControl.Effect>
+                </ContentControl>
+                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource Tick}" Focusable="False" Margin="8"
+                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                Visibility="{Binding DataContext.Selection.IsActive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </Grid>
               <TextBlock Text="{Binding Title}" Margin="0,12,0,0" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
                          TextTrimming="CharacterEllipsis" MaxHeight="34" LineHeight="17" LineStackingStrategy="BlockLineHeight" />
               <TextBlock Text="{Binding Meta}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -242,7 +298,8 @@
 
       <!-- .bt-listrow: the detail list. -->
       <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
-               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding OpenDetailsCommand}"
+               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
+               c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemTemplate>
@@ -251,7 +308,7 @@
                     Cursor="Hand" AutomationProperties.Name="{Binding Title}">
               <Grid>
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="46" />
+                  <ColumnDefinition Width="Auto" />
                   <ColumnDefinition Width="*" MinWidth="160" />
                   <ColumnDefinition Width="130" />
                   <ColumnDefinition Width="110" />
@@ -259,7 +316,11 @@
                   <ColumnDefinition Width="72" />
                   <ColumnDefinition Width="27" />
                 </Grid.ColumnDefinitions>
-                <ContentControl Height="64" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal">
+                  <ContentControl Content="{Binding}" ContentTemplate="{StaticResource Tick}" Focusable="False" VerticalAlignment="Center" Margin="0,0,14,0"
+                                  Visibility="{Binding DataContext.Selection.IsActive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <ContentControl Width="46" Height="64" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False" VerticalAlignment="Center" />
+                </StackPanel>
                 <StackPanel Grid.Column="1" Margin="15,0" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding Byline}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -637,6 +698,12 @@
           </StackPanel>
         </ScrollViewer>
       </Border>
+    </Grid>
+
+    <!-- The bulk editor, a dialog over the page. Esc or Cancel closes it; nothing behind it can be clicked meanwhile. -->
+    <Grid Grid.RowSpan="5" Visibility="{Binding BulkEdit, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
+      <v:BulkEditView x:Name="BulkDialog" DataContext="{Binding BulkEdit}" MaxWidth="660" Margin="0,24,42,24" VerticalAlignment="Center" />
     </Grid>
   </Grid>
 </UserControl>
