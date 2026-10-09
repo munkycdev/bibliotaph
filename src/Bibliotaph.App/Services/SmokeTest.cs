@@ -67,6 +67,7 @@ static class SmokeTest
                 await BrowseLibraryAsync(services, window, books);
                 Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
                 await ShowFolderProgressAsync(services, window);
+                await ShowAboutAsync(services, window);
                 if (real is not { } files) continue;
                 await ReadBookAsync(services, window, files.Pdf);
                 await ViewImageAsync(services, window, files.Image);
@@ -380,6 +381,54 @@ static class SmokeTest
         await WaitUntilAsync(window, () => viewer.Mode == ViewerMode.Problem, () => $"A missing file didn't show a problem (it shows {viewer.Mode}).");
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// The About popup from the Settings link: the version with its commit, the PDFium build, and the licence reader
+    /// showing the GPL and the third-party notices from the licenses folder.
+    /// </summary>
+    static async Task ShowAboutAsync(IServiceProvider services, Window window)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.NavigateTo(Route.Settings);
+        await Settle(window);
+        var settings = services.GetRequiredService<ShellViewModel>().CurrentPage as SettingsViewModel
+            ?? throw new InvalidOperationException("Settings didn't open.");
+        var link = Descendants<Button>(window).FirstOrDefault(b => b.Command == settings.ShowAboutCommand)
+            ?? throw new InvalidOperationException("Settings has no About Bibliotaph link.");
+        // ShowDialog returns only when the popup closes, so click from the queue and go on inside the popup's loop.
+        _ = window.Dispatcher.BeginInvoke(() => ((IInvokeProvider)new ButtonAutomationPeer(link).GetPattern(PatternInterface.Invoke)).Invoke());
+        Views.AboutDialog? about = null;
+        await WaitUntilAsync(window, () => (about = Application.Current.Windows.OfType<Views.AboutDialog>().FirstOrDefault()) is { IsLoaded: true },
+            () => "The About popup didn't open.");
+        var info = about!.Info;
+        if (!info.Version.StartsWith("0.", StringComparison.Ordinal) || info.Commit is not { Length: 7 })
+            throw new InvalidOperationException($"About shows version {info.VersionText}, not 0.N.0 with a commit.");
+        if (info.Pdfium is null) throw new InvalidOperationException("About couldn't find the PDFium build.");
+
+        about.ShowLicence(Views.AboutDialog.LicenceFile);
+        await Settle(about);
+        if (!about.ShowingLicences || !about.LicenceTextShown.Contains("GNU GENERAL PUBLIC LICENSE", StringComparison.Ordinal))
+            throw new InvalidOperationException("The licence reader didn't show the GPL.");
+        about.ShowLicence(Views.AboutDialog.NoticesFile);
+        await Settle(about);
+        if (!about.LicenceTextShown.StartsWith("# Third-party notices", StringComparison.Ordinal))
+            throw new InvalidOperationException("The licence reader didn't show the third-party notices.");
+
+        about.Close();
+        await WaitUntilAsync(window, () => !Application.Current.Windows.OfType<Views.AboutDialog>().Any(), () => "The About popup didn't close.");
+        navigation.GoBack();
+        await Settle(window);
+    }
+
+    static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) yield return match;
+            foreach (var deeper in Descendants<T>(child)) yield return deeper;
+        }
     }
 
     static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
