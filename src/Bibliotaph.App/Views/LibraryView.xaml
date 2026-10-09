@@ -533,9 +533,30 @@
                       <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" />
                       <TextBlock Text="{Binding State}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
                                  Visibility="{Binding HasState, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                      <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,10,0,0"
-                              Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                              CommandParameter="{Binding}" />
+                      <WrapPanel Margin="0,10,0,0">
+                        <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,0"
+                                Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                        <!-- Reprocess, with a small menu for OCR on every page. Disabled, reading Reprocessing…, while a stage waits or runs. -->
+                        <Border Visibility="{Binding ShowsReprocess, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                          <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                            <Button x:Name="Reprocess" Content="{Binding ReprocessLabel}" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
+                                    Command="{Binding ReprocessCommand}" AutomationProperties.Name="{Binding ReprocessLabel}"
+                                    ToolTip="Read the file again: pages, text, cover and hints from names. What you added stays." />
+                            <Button x:Name="ReprocessMenu" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Padding="7,8" Margin="4,0,0,0"
+                                    IsEnabled="{Binding CanReprocess}" Click="ReprocessMenu_Click"
+                                    ToolTip="More ways to reprocess" AutomationProperties.Name="More ways to reprocess"
+                                    Visibility="{Binding CanOcrEveryPage, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource Bt.Menu}">
+                                  <MenuItem Style="{StaticResource Bt.MenuItem}" Header="Reprocess with OCR on every page…"
+                                            AutomationProperties.Name="Reprocess with OCR on every page" Command="{Binding ReprocessWithOcrCommand}" />
+                                </ContextMenu>
+                              </Button.ContextMenu>
+                            </Button>
+                          </StackPanel>
+                        </Border>
+                      </WrapPanel>
                     </StackPanel>
                   </Border>
                 </DataTemplate>

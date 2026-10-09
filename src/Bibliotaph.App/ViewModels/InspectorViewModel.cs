@@ -12,8 +12,11 @@ namespace Bibliotaph.App.ViewModels;
 
 public sealed record InspectorFact(string Label, string Value);
 
-/// <summary>Where a document's file is, and whether it can be read now.</summary>
-public sealed record InspectorLocation(string Path, string State)
+/// <summary>
+/// Where a document's file is, and whether it can be read now. The first place carries the book's Reprocess button
+/// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all.
+/// </summary>
+public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false)
 {
     public bool HasState => State.Length > 0;
 }
@@ -22,7 +25,8 @@ public sealed record InspectorStage(string Name, string Status);
 
 /// <summary>
 /// The inspector: a document's metadata, with where each value came from and the user's corrections (Details), then
-/// what Bibliotaph knows from its file (pages, capabilities, where it is, how far indexing got).
+/// what Bibliotaph knows from its file (pages, capabilities, where it is, how far indexing got). Reprocess reads the
+/// file again; the processing list follows its stages as they run.
 /// </summary>
 public sealed partial class InspectorViewModel : ObservableObject, IMetadataEditor
 {
@@ -31,14 +35,20 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         [MetadataFields.Title, MetadataFields.System, MetadataFields.Edition, MetadataFields.Types, MetadataFields.Levels, MetadataFields.Publisher];
 
     readonly MetadataService _metadata;
+    readonly LibraryQueries _queries;
+    readonly IndexingService _indexing;
+    bool _refreshing;
+    bool _refreshAgain;
 
-    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations, MetadataService metadata)
+    InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<DocumentLocation> locations, MetadataService metadata,
+        LibraryQueries queries, IndexingService indexing)
     {
         Item = item;
         _metadata = metadata;
-        Facts = BuildFacts(item.Entry, details);
-        Locations = [.. locations.Select(l => new InspectorLocation(l.FullPath, LocationState(l)))];
-        Stages = details is null ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
+        _queries = queries;
+        _indexing = indexing;
+        Locations = [.. locations.Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0))];
+        ShowProcessing(details?.Entry ?? item.Entry, details);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
@@ -110,21 +120,107 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public string Eyebrow => Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
-    public IReadOnlyList<InspectorFact> Facts { get; }
+    [ObservableProperty]
+    public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
 
     public IReadOnlyList<InspectorLocation> Locations { get; }
 
-    public IReadOnlyList<InspectorStage> Stages { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStages))]
+    public partial IReadOnlyList<InspectorStage> Stages { get; private set; } = [];
 
     public bool HasStages => Stages.Count > 0;
 
-    public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata)
+    /// <summary>
+    /// True while any of the book's stages is waiting or running, as after Reprocess: the button reads
+    /// "Reprocessing…" and is disabled until every stage has finished, failed or been blocked.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReprocessLabel), nameof(CanReprocess))]
+    [NotifyCanExecuteChangedFor(nameof(ReprocessCommand), nameof(ReprocessWithOcrCommand))]
+    public partial bool IsReprocessing { get; private set; }
+
+    public bool CanReprocess => !IsReprocessing;
+
+    public string ReprocessLabel => IsReprocessing ? "Reprocessing…" : "Reprocess";
+
+    /// <summary>The PDF's page count, for Reprocess with OCR on every page; 0 for an image or a PDF not yet opened.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOcrEveryPage))]
+    public partial int PageCount { get; private set; }
+
+    public bool CanOcrEveryPage => PageCount > 0;
+
+    public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
+        IndexingService indexing)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.DocumentId));
         var locations = await library.GetLocationsAsync(item.DocumentId);
-        var inspector = new InspectorViewModel(item, details, locations, metadata);
+        var inspector = new InspectorViewModel(item, details, locations, metadata, queries, indexing);
         await inspector.ReloadMetadataAsync(changed: false);
         return inspector;
+    }
+
+    /// <summary>
+    /// Reads the file again: pages, text, cover and hints from names, and OCR of the pages that need it. Everything
+    /// the user added stays. It also serves as a retry for a stage that failed or is blocked.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanReprocess))]
+    Task Reprocess() => StartReprocessAsync(ocrEveryPage: false);
+
+    /// <summary>Reprocess, with every page read by OCR, for a weak text layer that passes the garbage check. Asks first.</summary>
+    [RelayCommand(CanExecute = nameof(CanReprocess))]
+    async Task ReprocessWithOcr()
+    {
+        if (PageCount == 0 || !Services.ReprocessPrompt.ConfirmOcrEveryPage(Title, PageCount)) return;
+        await StartReprocessAsync(ocrEveryPage: true);
+    }
+
+    async Task StartReprocessAsync(bool ocrEveryPage)
+    {
+        if (await Task.Run(() => _indexing.ReprocessAsync(Item.DocumentId, ocrEveryPage))) IsReprocessing = true;
+        await RefreshAsync();
+    }
+
+    /// <summary>
+    /// Reads again how far the book's processing has got, as each indexing refresh does, so the processing list and
+    /// the Reprocess button follow its stages. A call made while one is reading runs again once it is done.
+    /// </summary>
+    public async Task RefreshAsync()
+    {
+        if (_refreshing)
+        {
+            _refreshAgain = true;
+            return;
+        }
+        _refreshing = true;
+        try
+        {
+            do
+            {
+                _refreshAgain = false;
+                var wasProcessing = IsReprocessing;
+                var details = await Task.Run(() => _queries.GetDetailsAsync(Item.DocumentId));
+                ShowProcessing(details?.Entry ?? Item.Entry, details);
+                // Hints from names may have changed; a field being edited is left alone.
+                if (wasProcessing && !IsReprocessing && !Fields.Any(f => f.IsEditing)) await ReloadMetadataAsync(changed: false);
+            }
+            while (_refreshAgain);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    void ShowProcessing(LibraryEntry entry, DocumentDetails? details)
+    {
+        var facts = BuildFacts(entry, details);
+        if (!facts.SequenceEqual(Facts)) Facts = facts;
+        IReadOnlyList<InspectorStage> stages = details is null ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
+        if (!stages.SequenceEqual(Stages)) Stages = stages;
+        IsReprocessing = details?.Stages.Any(s => s.Status is StageStatus.Pending or StageStatus.Running) == true;
+        PageCount = entry.Format == SourceFormats.Pdf ? entry.PageCount ?? 0 : 0;
     }
 
     /// <summary>Opens File Explorer with the file selected. Explorer only shows it; nothing is changed.</summary>
@@ -189,7 +285,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         StageStatus.Complete => "Done",
         StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
         StageStatus.Skipped => "Not needed",
-        StageStatus.Pending or StageStatus.Running => "Waiting",
+        StageStatus.Pending => "Waiting",
+        StageStatus.Running => "Working on it…",
         _ => stage.Reason ?? stage.Status.ToString(),
     };
 }
