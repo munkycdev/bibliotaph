@@ -4,7 +4,9 @@ using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -67,6 +69,8 @@ static class SmokeTest
                 await theme.SetPreferenceAsync(preference);
                 await BrowseLibraryAsync(services, window, books);
                 Log.Information("Smoke test: library browsed and searched in {Theme}", preference);
+                await UseSearchGuideAsync(services, window, books);
+                Log.Information("Smoke test: a search built from the search guide in {Theme}", preference);
                 await ReviewAsync(services, window, decide: preference == ThemePreference.Light);
                 Log.Information("Smoke test: Needs review and the vocabulary worked through in {Theme}", preference);
                 await ShowFolderProgressAsync(services, window);
@@ -431,10 +435,10 @@ static class SmokeTest
 
         // Zoom in and out step from the fitted size, as the + and - buttons and Ctrl+plus and Ctrl+minus do; Ctrl+0 fits again.
         await Settle(window);
-        System.Windows.Input.NavigationCommands.IncreaseZoom.Execute(null, pages);
+        NavigationCommands.IncreaseZoom.Execute(null, pages);
         var zoomedIn = viewer.Zoom;
         if (zoomedIn <= 0) throw new InvalidOperationException($"Zoom in from Fit width left the zoom at {zoomedIn}.");
-        System.Windows.Input.NavigationCommands.DecreaseZoom.Execute(null, pages);
+        NavigationCommands.DecreaseZoom.Execute(null, pages);
         if (viewer.Zoom <= 0 || viewer.Zoom >= zoomedIn) throw new InvalidOperationException($"Zoom out from {zoomedIn:P0} gave {viewer.Zoom}.");
         viewer.ResetZoomCommand.Execute(null);
         if (viewer.Zoom != Bibliotaph.Viewer.PdfPagesView.FitWidth) throw new InvalidOperationException($"Ctrl+0 left the zoom at {viewer.Zoom}.");
@@ -661,5 +665,104 @@ static class SmokeTest
         {
             if (message is not null) Errors.Add(message);
         }
+    }
+
+    /// <summary>
+    /// The search box's field guide, by keyboard alone: Ctrl+K's command focuses the empty box and the guide lists
+    /// every field in the theme's text colour; Down and Enter pick system:, which lists the library's systems, and a
+    /// value; Down reopens it, and Tab and Enter add type:adventure. The search finds the Haunted Inn. Then Esc closes
+    /// the guide and a second Esc clears the search.
+    /// </summary>
+    static async Task UseSearchGuideAsync(IServiceProvider services, Window window, int books)
+    {
+        var guide = services.GetRequiredService<SearchGuideViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The search guide check expects to start in the Library.");
+        var box = (TextBox)window.FindName("Search");
+        var popup = (System.Windows.Controls.Primitives.Popup)window.FindName("SearchGuide");
+        if (box.Text.Length > 0 || guide.IsOpen) throw new InvalidOperationException($"The search box isn't empty and closed before the guide check: \"{box.Text}\".");
+
+        // Focus must arrive, not already be there, for the box to open the guide.
+        if (box.IsKeyboardFocused) Keyboard.ClearFocus();
+        window.Activate();
+        ShellCommands.FocusSearch.Execute(null, window);
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 5;
+        while (!box.IsKeyboardFocused && Stopwatch.GetTimestamp() < deadline)
+        {
+            await Settle(window);
+            await Task.Delay(50);
+        }
+        var focused = box.IsKeyboardFocused;
+        if (!focused)
+        {
+            // A window that isn't in the foreground may not get keyboard focus; drive the same handler focus would.
+            Log.Warning("Smoke test: the search box didn't get keyboard focus, so the guide is opened as focus would open it");
+            guide.Focused(box.Text, box.CaretIndex);
+        }
+        var rows = (DependencyObject)window.FindName("SearchGuideRows");
+        TextBlock? row = null;
+        await WaitUntilAsync(window, () => popup.IsOpen && guide.Suggestions.Count == SearchFields.All.Count && popup.Child is { IsVisible: true }
+            && (row = FindChild<TextBlock>(rows)) is not null,
+            () => $"Focusing the empty search box didn't show the guide's rows for every field ({guide.Suggestions.Count} rows, open {popup.IsOpen}).");
+
+        // A popup doesn't take the window's text colour, so the guide sets the theme's own.
+        var text = ((System.Windows.Media.SolidColorBrush)window.FindResource("Bt.Text")).Color;
+        if (popup.Child is not Border panel || System.Windows.Documents.TextElement.GetForeground(panel) is not System.Windows.Media.SolidColorBrush { } brush
+            || brush.Color != text || row?.Foreground is not System.Windows.Media.SolidColorBrush { } rowBrush || rowBrush.Color != text)
+            throw new InvalidOperationException("The search guide's text isn't in the theme's text colour.");
+
+        await HighlightAsync(window, box, guide, s => s is FieldSuggestionViewModel { Field.Field: SearchField.System }, "system:");
+        Press(box, Key.Enter);
+        await WaitUntilAsync(window, () => box.Text == "system:" && box.CaretIndex == 7 && guide.Suggestions.Any(s => s is ValueSuggestionViewModel { Value.Value: "dnd" }),
+            () => $"Picking system: left \"{box.Text}\" with {guide.Suggestions.Count} rows, not the library's systems.");
+        if (focused && !box.IsKeyboardFocused) throw new InvalidOperationException("Picking a field took focus out of the search box.");
+
+        await HighlightAsync(window, box, guide, s => s is ValueSuggestionViewModel { Value.Value: "dnd" }, "system:dnd");
+        Press(box, Key.Enter);
+        await WaitUntilAsync(window, () => box.Text == "system:dnd " && !guide.IsOpen, () => $"Picking D&D left \"{box.Text}\" (guide open {guide.IsOpen}).");
+
+        // Down opens the guide again after a finished value; Tab picks like Enter.
+        Press(box, Key.Down);
+        await WaitUntilAsync(window, () => guide.IsOpen && guide.Suggestions.Count == SearchFields.All.Count, () => "Down didn't reopen the search guide.");
+        await HighlightAsync(window, box, guide, s => s is FieldSuggestionViewModel { Field.Field: SearchField.Type }, "type:");
+        Press(box, Key.Tab);
+        await WaitUntilAsync(window, () => box.Text == "system:dnd type:" && guide.Suggestions.Any(s => s is ValueSuggestionViewModel { Value.Value: "adventure" }),
+            () => $"Picking type: left \"{box.Text}\" with {guide.Suggestions.Count} rows, not the library's types.");
+        await HighlightAsync(window, box, guide, s => s is ValueSuggestionViewModel { Value.Value: "adventure" }, "type:adventure");
+        Press(box, Key.Enter);
+        await WaitUntilAsync(window, () => box.Text == "system:dnd type:adventure " && search.Text == "system:dnd type:adventure" && page.Items is [{ Title: "Haunted Inn" }],
+            () => $"The search built from the guide, \"{box.Text}\", didn't find just the Haunted Inn ({page.Items.Count} found).");
+
+        // Esc closes the guide and keeps the search; a second Esc clears it, as before the guide.
+        Press(box, Key.Down);
+        await WaitUntilAsync(window, () => guide.IsOpen, () => "Down didn't open the search guide.");
+        Press(box, Key.Escape);
+        await WaitUntilAsync(window, () => !guide.IsOpen && !popup.IsOpen && box.Text.Length > 0, () => "Esc didn't just close the search guide.");
+        Press(box, Key.Escape);
+        await WaitUntilAsync(window, () => box.Text.Length == 0 && !search.IsSearching && !guide.IsOpen && page.Items.Count == books,
+            () => "A second Esc didn't clear the search.");
+    }
+
+    /// <summary>Presses Down until the guide highlights the row <paramref name="wanted"/> picks, and the box names it for screen readers.</summary>
+    static async Task HighlightAsync(Window window, TextBox box, SearchGuideViewModel guide, Func<GuideSuggestionViewModel, bool> wanted, string name)
+    {
+        for (var presses = 0; guide.Highlighted is not { } row || !wanted(row); presses++)
+        {
+            if (presses > guide.Suggestions.Count) throw new InvalidOperationException($"Down never reached {name} in the search guide.");
+            Press(box, Key.Down);
+            await Settle(window);
+        }
+        if (System.Windows.Automation.AutomationProperties.GetHelpText(box) != guide.Highlighted.Spoken || !guide.Highlighted.Spoken.Contains(name, StringComparison.Ordinal))
+            throw new InvalidOperationException($"The search box doesn't tell screen readers that {name} is highlighted.");
+    }
+
+    /// <summary>A key press as the search box sees it first. Each key the guide uses must be handled there.</summary>
+    static void Press(TextBox box, Key key)
+    {
+        var source = PresentationSource.FromVisual(box) ?? throw new InvalidOperationException("The search box isn't on screen.");
+        var args = new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        box.RaiseEvent(args);
+        if (!args.Handled) throw new InvalidOperationException($"The search box didn't handle {key}.");
     }
 }
