@@ -216,6 +216,16 @@ public partial class PdfPagesView
         if (_pages.Count > 0) Zoom = ZoomSteps.Next(_dipPerPoint * 72.0 / 96.0, up);
     }
 
+    /// <summary>
+    /// The window moved to a monitor with another scale. The pages keep their size in DIPs, so nothing else would
+    /// notice, but their pixels were drawn for the old scale: draw them again, sharp, where the reader was.
+    /// </summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (_laidOut && oldDpi.PixelsPerDip != newDpi.PixelsPerDip) ApplyZoom(keepPosition: true);
+    }
+
     // ---------- Rendering what is on screen ----------
 
     void Pages_ScrollChanged(object sender, ScrollChangedEventArgs e)

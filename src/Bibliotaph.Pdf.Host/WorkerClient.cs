@@ -51,6 +51,7 @@ public sealed class WorkerClient : IAsyncDisposable
     NamedPipeServerStream? _pipe;
     JobObject? _job;
     int _nextId;
+    bool _disposed;
 
     public WorkerClient(WorkerOptions? options = null, PoisonTracker? poison = null, ILogger<WorkerClient>? log = null)
     {
@@ -123,6 +124,8 @@ public sealed class WorkerClient : IAsyncDisposable
         await _gate.WaitAsync(ct);
         try
         {
+            // A request that queued behind DisposeAsync finds the worker gone, rather than starting a new one.
+            if (_disposed) throw new WorkerException($"The PDF {Options.Name} has shut down.");
             var page = PageFor(request);
             if (page is not null && _poison.IsPoisoned(page)) throw new PagePoisonedException(page);
 
@@ -292,6 +295,8 @@ public sealed class WorkerClient : IAsyncDisposable
         await _gate.WaitAsync();
         try
         {
+            if (_disposed) return;
+            _disposed = true;
             if (_process is not null) Restarts--; // a clean shutdown is not a restart
             Kill();
             _view.SafeMemoryMappedViewHandle.ReleasePointer();
@@ -300,8 +305,9 @@ public sealed class WorkerClient : IAsyncDisposable
         }
         finally
         {
+            // Not disposed: a viewer worker stops when its last reader closes, and a request still queued behind
+            // this must be able to take the gate, see the worker is gone and give the gate back.
             _gate.Release();
-            _gate.Dispose();
         }
     }
 }

@@ -116,7 +116,7 @@ static class StageHelpers
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return (null, new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable));
 
-        var session = new PdfSession(s.Workers[WorkerSlot.Index], source.FullPath, s.Passwords.Find(job.ContentHash));
+        var session = new PdfSession(s.Workers.Index, source.FullPath, s.Passwords.Find(job.ContentHash));
         var error = await session.OpenAsync(ct);
         if (error is null) return (session, null);
         await session.DisposeAsync();
