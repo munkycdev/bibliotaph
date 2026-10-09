@@ -64,6 +64,43 @@ public sealed class JobBoardTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_deferred_job_waits_without_spending_an_attempt_and_wakes_when_another_stage_of_its_book_ends()
+    {
+        await _queue.EnqueueAsync(1, "aa", Stage.Ocr, ct: Ct);
+        await _queue.EnqueueAsync(1, "aa", Stage.Classify, ct: Ct);
+        var classify = (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))!;
+
+        await _queue.DeferAsync(classify, TimeSpan.FromMinutes(5), "Waiting for its scanned pages to be read.", Ct);
+
+        Assert.Null(await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct));
+        Assert.Equal(0, Connection.ExecuteScalar<long>("SELECT attempts FROM job WHERE id = @Id", new { classify.Id }));
+        Assert.Equal("Pending", StatusOf(1, Stage.Classify));
+
+        var ocr = (await _queue.LeaseAsync([Stage.Ocr], "test", Lease, Ct))!;
+        await _queue.CompleteAsync(ocr, ct: Ct);
+
+        Assert.Equal(classify.Id, (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))?.Id);
+    }
+
+    [Fact]
+    public async Task A_stage_blocked_on_the_user_wakes_a_deferred_job_too_and_a_retry_waiting_after_a_failure_keeps_its_wait()
+    {
+        await _queue.EnqueueAsync(1, "aa", Stage.Ocr, ct: Ct);
+        await _queue.EnqueueAsync(1, "aa", Stage.Classify, ct: Ct);
+        await _queue.EnqueueAsync(1, "aa", Stage.Covers, ct: Ct);
+        var covers = (await _queue.LeaseAsync([Stage.Covers], "test", Lease, Ct))!;
+        await _queue.FailAsync(covers, "The PDF engine stopped.", ct: Ct);
+        var classify = (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))!;
+        await _queue.DeferAsync(classify, TimeSpan.FromMinutes(5), ct: Ct);
+
+        var ocr = (await _queue.LeaseAsync([Stage.Ocr], "test", Lease, Ct))!;
+        await _queue.BlockAsync(ocr, "OCR is not available.", Ct);
+
+        Assert.Equal(classify.Id, (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))?.Id);
+        Assert.Null(await _queue.LeaseAsync([Stage.Covers], "test", Lease, Ct));
+    }
+
+    [Fact]
     public async Task A_failure_waits_and_retries_then_fails_for_good_after_the_last_attempt()
     {
         await _queue.EnqueueAsync(1, "aa", Stage.Text, ct: Ct);

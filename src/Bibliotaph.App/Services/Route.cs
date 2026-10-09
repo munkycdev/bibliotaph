@@ -11,5 +11,6 @@ public enum Route
     Settings,
     LibraryFolders,
     Vocabulary,
+    Ai,
     Viewer,
 }

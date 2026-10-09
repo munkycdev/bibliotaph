@@ -112,6 +112,9 @@
         <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
                    Visibility="{Binding Activity.WaitingForDiskSpace, Converter={StaticResource Bt.VisibleWhenTrue}}"
                    Text="Online-only files are waiting: downloading more would leave less than 2 GB free on that drive." />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding Activity.IsAiWaiting, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                   Text="{Binding Activity.AiWaiting, StringFormat='Cataloguing with AI is waiting: {0}'}" />
         <WrapPanel Margin="0,12,0,0">
           <Button Style="{StaticResource PauseToggle}" Tag="{Binding Activity.IndexPaused}" Command="{Binding ToggleIndexingCommand}" Margin="0,0,8,0"
                   Visibility="{Binding Activity.ShowIndexPause, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -140,6 +143,23 @@
                     <Style.Triggers>
                       <DataTrigger Binding="{Binding Activity.OcrPaused}" Value="True">
                         <Setter Property="Text" Value="Resume reading scans" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Button.Content>
+          </Button>
+          <Button Style="{StaticResource PauseToggle}" Tag="{Binding Activity.AiPaused}" Command="{Binding ToggleAiCommand}" Margin="0,0,8,0"
+                  Visibility="{Binding Activity.ShowAiPause, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button.Content>
+              <TextBlock>
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Text" Value="Pause AI" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Activity.AiPaused}" Value="True">
+                        <Setter Property="Text" Value="Resume AI" />
                       </DataTrigger>
                     </Style.Triggers>
                   </Style>

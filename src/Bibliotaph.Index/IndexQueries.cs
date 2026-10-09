@@ -16,10 +16,13 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// still processing (any stage waiting or running), needing attention (a stage failed or is blocked), scanned
 /// pages still waiting for OCR (not counting books whose OCR is blocked or failed), and documents with index-lane
 /// work (any stage but OCR) waiting or running. For progress bars: documents queued for any stage (known before
-/// Probe adds them to the index), and scanned pages already read by OCR.
+/// Probe adds them to the index), and scanned pages already read by OCR. Classification by AI is counted on its own
+/// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>) and nowhere else, since it is
+/// optional and may wait for an endpoint for as long as the user likes.
 /// </summary>
 public sealed record IndexProgress(
-    long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0)
+    long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
+    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0)
 {
     /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
     public long Indexed => Math.Max(0, Queued - Indexing);
@@ -32,6 +35,9 @@ public sealed record AttentionItem(long DocumentId, string Title, Stage Stage, S
 
 /// <summary>A page the OCR stage still has to read.</summary>
 public sealed record OcrPage(int PdfPage, double WidthPt, double HeightPt);
+
+/// <summary>A page's indexed text, from the PDF or from OCR.</summary>
+public sealed record PageTextEntry(int PdfPage, string Text);
 
 /// <summary>The PDF's own document information, as Probe read it.</summary>
 public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords);
@@ -48,6 +54,7 @@ public sealed class IndexQueries(IndexDatabase database)
                 count(*) FILTER (WHERE status IN ('pending', 'leased')) AS Pending,
                 count(*) FILTER (WHERE status = 'failed')              AS Failed
             FROM job
+            WHERE stage <> 'Classify'
             """, cancellationToken: ct));
     }
 
@@ -59,13 +66,16 @@ public sealed class IndexQueries(IndexDatabase database)
             SELECT
                 (SELECT count(*) FROM doc) AS Documents,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped')) AS Searchable,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased')) AS Processing,
-                (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Classify') AS Processing,
+                (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked') AND stage <> 'Classify') AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
                     (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Ocr') AS Indexing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify')) AS Indexing,
                 (SELECT count(DISTINCT document_id) FROM stage_status) AS Queued,
-                (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone
+                (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone,
+                (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Pending', 'Running')) AS ToClassify,
+                (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Complete', 'Partial', 'Skipped')) AS Classified,
+                (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status = 'Failed') AS ClassifyFailed
             """, cancellationToken: ct));
     }
 
@@ -77,7 +87,7 @@ public sealed class IndexQueries(IndexDatabase database)
             """
             SELECT s.document_id, d.display_title, s.stage, s.status, s.reason, s.updated_utc
             FROM stage_status s LEFT JOIN doc d ON d.document_id = s.document_id
-            WHERE s.status IN ('Failed', 'Blocked')
+            WHERE s.status IN ('Failed', 'Blocked') AND s.stage <> 'Classify'
             ORDER BY s.updated_utc DESC
             """, cancellationToken: ct));
         return [.. rows.Select(r => new AttentionItem(r.DocumentId, r.Title ?? $"Document {r.DocumentId}", Enum.Parse<Stage>(r.Stage),
@@ -150,6 +160,62 @@ public sealed class IndexQueries(IndexDatabase database)
         return await connection.QuerySingleOrDefaultAsync<EmbeddedInfo>(new CommandDefinition(
             "SELECT meta_title AS Title, meta_author AS Author, meta_subject AS Subject, meta_keywords AS Keywords FROM doc WHERE document_id = @documentId",
             new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>A document's pages that have text, in order: what the classifier reads, and checks quotes against.</summary>
+    public async Task<IReadOnlyList<PageTextEntry>> GetPageTextsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long PdfPage, string Text)>(new CommandDefinition(
+            "SELECT pdf_page, text FROM page WHERE document_id = @documentId AND text <> '' ORDER BY pdf_page",
+            new { documentId }, cancellationToken: ct));
+        return [.. rows.Select(r => new PageTextEntry((int)r.PdfPage, r.Text))];
+    }
+
+    /// <summary>A document's page count, or null before Probe has counted its pages.</summary>
+    public async Task<int?> GetPageCountAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<int?>(new CommandDefinition(
+            "SELECT page_count FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>A document's outline (bookmarks), in order.</summary>
+    public async Task<IReadOnlyList<OutlineRow>> GetOutlineAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string Title, long PdfPage, long Depth)>(new CommandDefinition(
+            "SELECT title, pdf_page, depth FROM outline WHERE document_id = @documentId ORDER BY ord",
+            new { documentId }, cancellationToken: ct));
+        return [.. rows.Select(r => new OutlineRow(r.Title, (int)r.PdfPage, (int)r.Depth))];
+    }
+
+    /// <summary>Where one of a document's stages stands, or null when it was never queued.</summary>
+    public async Task<StageStatus?> GetStageStatusAsync(long documentId, Stage stage, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var status = await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT status FROM stage_status WHERE document_id = @documentId AND stage = @stage",
+            new { documentId, stage = stage.ToString() }, cancellationToken: ct));
+        return status is null ? null : Enum.Parse<StageStatus>(status);
+    }
+
+    /// <summary>
+    /// A document whose text the classifier could read, for Settings > AI's Test button: the first by title with text
+    /// on at least <paramref name="minPages"/> pages, skipping <paramref name="excluded"/>.
+    /// </summary>
+    public async Task<long?> FindSampleAsync(IReadOnlyCollection<long> excluded, int minPages = 3, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+            """
+            SELECT d.document_id FROM doc d
+            WHERE d.format = 'pdf' AND d.document_id NOT IN (SELECT value FROM json_each(@excluded))
+              AND (SELECT count(*) FROM page p WHERE p.document_id = d.document_id AND length(p.text) > 200) >= @minPages
+            ORDER BY d.display_title COLLATE NOCASE
+            LIMIT 1
+            """,
+            new { excluded = JsonSerializer.Serialize(excluded), minPages }, cancellationToken: ct));
     }
 
     /// <summary>Every document Probe has added, and those with projected metadata.</summary>

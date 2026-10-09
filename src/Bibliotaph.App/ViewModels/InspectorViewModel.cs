@@ -219,7 +219,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (!facts.SequenceEqual(Facts)) Facts = facts;
         IReadOnlyList<InspectorStage> stages = details is null ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
         if (!stages.SequenceEqual(Stages)) Stages = stages;
-        IsReprocessing = details?.Stages.Any(s => s.Status is StageStatus.Pending or StageStatus.Running) == true;
+        // AI cataloguing isn't part of Reprocess and can wait for hours (AI off, a model server down), so only the
+        // stages that read the file count.
+        IsReprocessing = details?.Stages.Any(s => Pipeline.FileStages.Contains(s.Stage) && s.Status is StageStatus.Pending or StageStatus.Running) == true;
         PageCount = entry.Format == SourceFormats.Pdf ? entry.PageCount ?? 0 : 0;
     }
 
@@ -277,6 +279,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         Stage.Covers => "Cover",
         Stage.RuleHints => "Hints from names",
         Stage.Ocr => "Reading scanned pages",
+        Stage.Classify => "Cataloguing with AI",
         _ => stage.ToString(),
     };
 
@@ -284,7 +287,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         StageStatus.Complete => "Done",
         StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
-        StageStatus.Skipped => "Not needed",
+        StageStatus.Skipped => stage.Stage == Stage.Classify && stage.Reason is { } why ? why : "Not needed",
         StageStatus.Pending => "Waiting",
         StageStatus.Running => "Working on it…",
         _ => stage.Reason ?? stage.Status.ToString(),

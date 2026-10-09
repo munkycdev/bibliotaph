@@ -44,6 +44,11 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string FormatLabel => Entry.Format.ToUpperInvariant();
 
+    /// <summary>A model has read this book: its cover carries a spark.</summary>
+    public bool IsAiRead => Entry.AiModel is not null;
+
+    public string? AiTip => Entry.AiModel is { } model ? $"Catalogued with AI ({model})" : null;
+
     public string PagesLabel => Entry.PageCount is { } pages ? $"{pages.ToString("N0", CultureInfo.CurrentCulture)} pp." : "";
 
     /// <summary>The first letter of the title, for the placeholder cover.</summary>
@@ -99,6 +104,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(Byline));
         OnPropertyChanged(nameof(SizeLabel));
         OnPropertyChanged(nameof(Initial));
+        OnPropertyChanged(nameof(IsAiRead));
+        OnPropertyChanged(nameof(AiTip));
     }
 
     public static string Describe(LibraryEntry entry) =>

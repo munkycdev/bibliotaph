@@ -27,6 +27,9 @@ public sealed record IndexingOptions
     public TimeSpan RescanDelay { get; init; } = TimeSpan.FromSeconds(3);
 
     public bool WatchFolders { get; init; } = true;
+
+    /// <summary>How long a lane whose work can't be done right now (a model endpoint that isn't running) waits before trying again.</summary>
+    public TimeSpan UnavailableRetry { get; init; } = TimeSpan.FromMinutes(1);
 }
 
 /// <summary>The last scan of a root: what it holds, what changed, or that it couldn't be reached.</summary>
@@ -37,7 +40,8 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 
 /// <summary>
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
-/// documents, and works the job queue in two lanes, Index (Probe, Text, Covers, RuleHints) and OCR, each pausable on its own.
+/// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
+/// pausable on its own. Classify works only while AI is ready, and waits with a notice while its endpoint can't be used.
 /// Leases left by a previous run go back to pending before anything else starts (A11).
 /// </summary>
 public sealed class IndexingService(
@@ -56,11 +60,12 @@ public sealed class IndexingService(
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly Dictionary<Stage, IStage> _stages = stages.ToDictionary(s => s.Stage);
     readonly Lock _lock = new();
+    bool _gatesWatched;
 
     readonly Signal _scanSignal = new();
     readonly Signal _hashSignal = new();
-    readonly Dictionary<Lane, Signal> _laneSignals = new() { [Lane.Index] = new(), [Lane.Ocr] = new() };
-    readonly Dictionary<Lane, LaneControl> _lanes = new() { [Lane.Index] = new(), [Lane.Ocr] = new() };
+    readonly Dictionary<Lane, Signal> _laneSignals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
+    readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
     HashSet<long>? _pendingScans; // null: every root
     bool _scanAll = true;
@@ -71,6 +76,24 @@ public sealed class IndexingService(
 
     /// <summary>Something changed that a progress display would show. Raised on a background thread, often; throttle.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Wakes a lane whose gate may have opened, as when AI is switched on, and clears what it was waiting for.</summary>
+    void OnGateChanged(Lane lane)
+    {
+        lock (_lock) _lanes[lane].Unavailable = null;
+        _laneSignals[lane].Set();
+        RaiseChanged();
+    }
+
+    /// <summary>Whether a lane may work: every gated stage in it is ready. A lane with no gated stage always may.</summary>
+    public bool IsOpen(Lane lane) =>
+        _stages.Values.Where(s => Pipeline.LaneOf(s.Stage) == lane).OfType<IGatedStage>().All(s => s.IsReady);
+
+    /// <summary>Why a lane is waiting even though it has work, such as a model endpoint that isn't answering; null otherwise.</summary>
+    public string? Unavailable(Lane lane)
+    {
+        lock (_lock) return _lanes[lane].Unavailable;
+    }
 
     public bool IsScanning { get; private set; }
 
@@ -190,6 +213,13 @@ public sealed class IndexingService(
             var backfilled = await queue.EnqueueMissingAsync(Stage.RuleHints, after: Stage.Probe, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued hints from names for {Count} documents", backfilled);
         }
+        // Likewise classification, for books read before it existed; they wait in the queue until AI is set up.
+        if (_stages.ContainsKey(Stage.Classify))
+        {
+            var backfilled = await queue.EnqueueMissingAsync(Stage.Classify, after: Stage.Text, stoppingToken);
+            if (backfilled > 0) _log.LogInformation("Queued classification for {Count} documents", backfilled);
+        }
+        WatchGates();
 
         _scanSignal.Set();
         // Each loop on the thread pool: none of this may run on the UI thread that started the host.
@@ -197,7 +227,22 @@ public sealed class IndexingService(
             Task.Run(() => LoopAsync("scanner", ScanLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("hasher", HashLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("index lane", ct => LaneLoopAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("OCR lane", ct => LaneLoopAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None));
+            Task.Run(() => LoopAsync("OCR lane", ct => LaneLoopAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("Classify lane", ct => LaneLoopAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None));
+    }
+
+    void WatchGates()
+    {
+        lock (_lock)
+        {
+            if (_gatesWatched) return;
+            _gatesWatched = true;
+        }
+        foreach (var gated in _stages.Values.OfType<IGatedStage>())
+        {
+            var lane = Pipeline.LaneOf(gated.Stage);
+            gated.ReadyChanged += (_, _) => OnGateChanged(lane);
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -450,12 +495,20 @@ public sealed class IndexingService(
         while (true)
         {
             CancellationToken laneToken;
-            lock (_lock) laneToken = _lanes[lane].Paused ? default : _lanes[lane].Cancel.Token;
+            string? unavailable;
+            lock (_lock) (laneToken, unavailable) = (_lanes[lane].Paused ? default : _lanes[lane].Cancel.Token, _lanes[lane].Unavailable);
             if (laneToken == default)
             {
                 await _laneSignals[lane].WaitAsync(Timeout.InfiniteTimeSpan, stoppingToken);
                 continue;
             }
+            if (!IsOpen(lane))
+            {
+                // Its gate opening (AI switched on) wakes it; nothing else needs to.
+                await _laneSignals[lane].WaitAsync(Timeout.InfiniteTimeSpan, stoppingToken);
+                continue;
+            }
+            if (unavailable is not null && !await WaitOutAsync(lane, stoppingToken)) continue;
 
             var job = await queue.LeaseAsync(names, owner, _options.Lease, stoppingToken);
             if (job is null)
@@ -480,6 +533,20 @@ public sealed class IndexingService(
             }
             RaiseChanged();
         }
+    }
+
+    /// <summary>
+    /// A lane that couldn't work waits before trying again, unless woken first. Returns whether to try now; the next job
+    /// that gets through clears the notice.
+    /// </summary>
+    async Task<bool> WaitOutAsync(Lane lane, CancellationToken ct)
+    {
+        DateTimeOffset until;
+        lock (_lock) until = _lanes[lane].RetryAt;
+        var wait = until - _clock.GetUtcNow();
+        if (wait <= TimeSpan.Zero) return true;
+        await _laneSignals[lane].WaitAsync(wait, ct);
+        return false;
     }
 
     async Task RunJobAsync(JobRecord job, CancellationToken ct)
@@ -513,8 +580,20 @@ public sealed class IndexingService(
             outcome = new StageOutcome.Failed($"Unexpected error: {ex.Message}", Retry: true);
         }
 
-        if (outcome is not StageOutcome.Done { Status: StageStatus.Complete })
+        if (outcome is not StageOutcome.Done { Status: StageStatus.Complete } and not StageOutcome.Later)
             _log.LogInformation("{Stage} for document {DocumentId}: {Outcome}", job.Stage, job.DocumentId, outcome);
+
+        var lane = Pipeline.LaneOf(job.Stage);
+        lock (_lock)
+        {
+            var control = _lanes[lane];
+            if (outcome is StageOutcome.Unavailable unavailable)
+            {
+                control.Unavailable = unavailable.Reason;
+                control.RetryAt = _clock.GetUtcNow() + _options.UnavailableRetry;
+            }
+            else control.Unavailable = null;
+        }
 
         // Recorded even while closing, so a finished job isn't redone next time.
         await TryAsync(() => outcome switch
@@ -522,10 +601,12 @@ public sealed class IndexingService(
             StageOutcome.Done done => queue.CompleteAsync(job, done.Status, done.Reason, done.Next, CancellationToken.None),
             StageOutcome.Blocked blocked => queue.BlockAsync(job, blocked.Reason, CancellationToken.None),
             StageOutcome.Failed failed => queue.FailAsync(job, failed.Reason, failed.Retry, CancellationToken.None),
+            StageOutcome.Later later => queue.DeferAsync(job, later.Wait, later.Reason, CancellationToken.None),
+            StageOutcome.Unavailable => queue.ReleaseAsync(job, CancellationToken.None),
             _ => throw new InvalidOperationException($"Unknown outcome {outcome}"),
         });
         if (outcome is StageOutcome.Done { Next: var next })
-            foreach (var lane in next.Select(Pipeline.LaneOf).Distinct()) _laneSignals[lane].Set();
+            foreach (var other in next.Select(Pipeline.LaneOf).Distinct()) _laneSignals[other].Set();
     }
 
     /// <summary>A queue write at shutdown can find the index writer already stopped; the lease is recovered next start.</summary>
@@ -556,6 +637,8 @@ public sealed class IndexingService(
         public bool Paused;
         public CancellationTokenSource Cancel = new();
         public JobRecord? Running;
+        public string? Unavailable;
+        public DateTimeOffset RetryAt;
 
         public void Dispose() => Cancel.Dispose();
     }

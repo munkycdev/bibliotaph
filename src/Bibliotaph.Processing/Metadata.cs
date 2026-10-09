@@ -10,11 +10,11 @@ namespace Bibliotaph.Processing;
 
 /// <summary>
 /// Copies effective metadata from catalog.db into index.db (doc_meta, doc_facet, doc_fts, term_alias), where the
-/// library lists, filters and searches it. index.db holds only this projection, never the assertions, so rebuilding it
+/// library lists, filters and searches it, and which documents a model has read (doc_ai), for the AI badge and filter. index.db holds only this projection, never the assertions, so rebuilding it
 /// loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
-    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null)
+    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null)
 {
     const int Batch = 200;
 
@@ -31,6 +31,7 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
         var all = await metadata.GetManyAsync(documentIds, ct);
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. documentIds.Where(id => !all.ContainsKey(id))], ct);
+        if (runs is not null) await index.SetAiReadAsync(documentIds, await runs.GetReadByAsync(documentIds, ct), ct);
         Projected?.Invoke(this, documentIds);
     }
 
@@ -52,6 +53,7 @@ public sealed class MetadataProjector(MetadataStore metadata, VocabularyStore vo
         foreach (var chunk in all.Values.Chunk(Batch))
             await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. withMetadata.Where(id => !all.ContainsKey(id))], ct);
+        if (runs is not null) await index.SetAiReadAsync(null, await runs.GetReadByAsync(ct: ct), ct);
         _log.LogInformation("Projected metadata for {Count} documents", all.Count);
         Projected?.Invoke(this, [.. all.Keys]);
     }

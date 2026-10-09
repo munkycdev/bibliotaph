@@ -243,13 +243,26 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability))];
     }
 
-    /// <summary>The library folders a document has a file in, for scanning them when it is reprocessed.</summary>
+    /// <summary>
+    /// The library folders a document has a file in, for scanning them when it is reprocessed and for "Don't send this
+    /// folder to AI". A file since gone from a folder still counts, so a book once kept from AI stays kept.
+    /// </summary>
     public async Task<IReadOnlyList<long>> GetRootIdsAsync(long documentId, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         return await db.FileLocations
             .Where(f => f.DocumentId == documentId && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
             .Select(f => f.SourceRootId).Distinct().ToListAsync(ct);
+    }
+
+    /// <summary>The documents with a file in any of <paramref name="rootIds"/>.</summary>
+    public async Task<IReadOnlyList<long>> GetDocumentIdsInRootsAsync(IReadOnlyCollection<long> rootIds, CancellationToken ct = default)
+    {
+        if (rootIds.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations
+            .Where(f => f.DocumentId != null && rootIds.Contains(f.SourceRootId) && f.State != FileLocationState.Missing)
+            .Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
     }
 
     public async Task<LibraryCounts> GetCountsAsync(CancellationToken ct = default)
