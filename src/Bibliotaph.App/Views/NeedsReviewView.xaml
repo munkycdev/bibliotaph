@@ -83,7 +83,7 @@
               </Grid.ColumnDefinitions>
               <Border Background="{DynamicResource Bt.Side}" CornerRadius="5" Padding="12">
                 <StackPanel>
-                  <TextBlock Text="Current" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="{Binding CurrentLabel}" Style="{StaticResource FieldLabel}" />
                   <TextBlock Text="{Binding CurrentText}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
                   <TextBlock Text="{Binding CurrentSource}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,5,0,0"
                              Visibility="{Binding CurrentSource, Converter={StaticResource Bt.VisibleWhenSet}}" />
@@ -95,7 +95,7 @@
               <Border Grid.Column="2" Background="{DynamicResource Bt.Soft}" CornerRadius="5" Padding="12"
                       Visibility="{Binding HasSuggestion, Converter={StaticResource Bt.VisibleWhenTrue}}">
                 <StackPanel>
-                  <TextBlock Text="Suggested" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="{Binding SuggestedLabel}" Style="{StaticResource FieldLabel}" />
                   <TextBlock Text="{Binding SuggestedText}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
@@ -180,6 +180,47 @@
                           ToolTip="Another name for an existing term" Margin="0,0,8,0" />
                 <Button Content="File under it" Command="{Binding MapCommand}" />
               </StackPanel>
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
+    <!-- A file that looks like a new version of a book (F2): make it current, keep it as a copy, or a separate book. -->
+    <DataTemplate DataType="{x:Type vm:VersionCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="New version?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this file"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" Visibility="{Binding Path, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <DockPanel Margin="0,14,0,0">
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="13" Foreground="{DynamicResource Bt.Muted}"
+                            VerticalAlignment="Top" Margin="0,1,8,0" />
+              <StackPanel>
+                <TextBlock Text="{Binding Evidence}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <Button Style="{StaticResource Bt.Link}" Content="Open the book" Command="{Binding OpenBookCommand}" HorizontalAlignment="Left"
+                        Margin="0,6,0,0" ToolTip="{Binding BookPath}" />
+              </StackPanel>
+            </DockPanel>
+            <WrapPanel Margin="0,16,0,0">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="Make it current" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding MakeCurrentCommand}" Margin="0,0,8,8"
+                      ToolTip="One card for both files, opening this one. Your work on both cards is kept." />
+              <Button Content="Keep as another copy" Command="{Binding KeepAsCopyCommand}" Margin="0,0,8,8"
+                      ToolTip="One card for both files; the book keeps opening the file it opens now." />
+              <Button Content="Separate book" Command="{Binding SeparateBookCommand}" Margin="0,0,8,8"
+                      ToolTip="Two cards, as now. Bibliotaph won't ask about these two files again." />
             </WrapPanel>
           </StackPanel>
         </Grid>

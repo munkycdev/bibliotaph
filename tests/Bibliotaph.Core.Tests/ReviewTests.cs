@@ -46,6 +46,34 @@ public class MetadataReviewTests
         Assert.Equal("map-pack", Assert.Single(issue.Proposed).Value);
     }
 
+    [Fact]
+    public void A_value_set_on_another_copy_that_disagrees_is_a_copies_disagree_card()
+    {
+        var mine = Claim(MetadataFields.Title, "The Drowned Abbey", AssertionOrigin.User, AssertionState.Confirmed);
+        var theirs = Claim(MetadataFields.Title, "Abbey backup", AssertionOrigin.User, AssertionState.SetAside);
+
+        var effective = EffectiveMetadata.Compute([mine, theirs], []);
+        var issue = Assert.Single(MetadataReview.Find(effective, reviewAll: false));
+
+        // The set-aside value never shows or competes; it is only offered.
+        Assert.Equal("The Drowned Abbey", Assert.Single(effective[MetadataFields.Title].Values).Value);
+        Assert.Empty(effective[MetadataFields.Title].Alternatives);
+        Assert.Equal(ReviewKind.CopiesDisagree, issue.Kind);
+        Assert.Equal("The Drowned Abbey", Assert.Single(issue.Current).Value);
+        Assert.Equal("Abbey backup", Assert.Single(issue.Proposed).Value);
+    }
+
+    [Fact]
+    public void A_set_aside_value_that_agrees_or_was_rejected_needs_no_card()
+    {
+        var mine = Claim(MetadataFields.Title, "The Drowned Abbey", AssertionOrigin.User, AssertionState.Confirmed);
+        var same = Claim(MetadataFields.Title, "the drowned abbey", AssertionOrigin.User, AssertionState.SetAside);
+        var other = Claim(MetadataFields.Title, "Abbey backup", AssertionOrigin.User, AssertionState.SetAside);
+
+        Assert.Empty(Find([mine, same]));
+        Assert.Empty(MetadataReview.Find(EffectiveMetadata.Compute([mine, other], [(MetadataFields.Title.Key, "abbey backup")]), reviewAll: false));
+    }
+
     [Theory]
     [InlineData("IMG_0042")]
     [InlineData("Scan 12")]

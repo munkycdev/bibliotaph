@@ -43,7 +43,7 @@ public sealed partial class NeedsReviewViewModel(
     public override Route Route => Route.NeedsReview;
     public override string Title => "Needs review";
 
-    /// <summary>New-term cards first, since each covers many books; then a page of field cards.</summary>
+    /// <summary>New-term cards first, since each covers many books; then "new version?" cards; then a page of field cards.</summary>
     public ObservableCollection<DecidedCardViewModel> Cards { get; } = [];
 
     /// <summary>Files needing attention: a password to enter, a damaged download, a folder that can't be read.</summary>
@@ -138,6 +138,7 @@ public sealed partial class NeedsReviewViewModel(
             BulkMessage = null;
             Cards.Clear();
             foreach (var term in list.Terms) Cards.Add(new TermCardViewModel(term, _vocabulary, this));
+            foreach (var version in list.Versions) Cards.Add(new VersionCardViewModel(version, this));
             Hidden = _items.Count;
             ShowMore();
             Remaining = list.Count;
@@ -292,6 +293,15 @@ public sealed partial class NeedsReviewViewModel(
         var decision = await review.RejectTermAsync(term);
         return () => review.UndoTermAsync(decision);
     }
+
+    /// <summary>A card that isn't waiting any more (its files joined meanwhile) is done, with nothing to undo.</summary>
+    public async Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer)
+    {
+        var decision = await review.AnswerVersionAsync(item.Version, answer);
+        return decision is null ? () => Task.CompletedTask : () => review.UndoVersionAsync(decision);
+    }
+
+    public void OpenDocument(long documentId, string title) => readers.OpenInMainWindow(new ViewerRequest(documentId, title, 0));
 
     public void Open(ReviewItem item) =>
         readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title, item.Issue.Evidence is { Pages.Count: > 0 } claim ? claim.Pages[0] : 0));

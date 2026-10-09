@@ -224,8 +224,9 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     /// The user's own values for a field, in stored form (term keys, "1-5"): what the inspector's editor saves.
     /// Each value becomes confirmed, by confirming a suggestion that already has it (keeping its evidence) or by adding
     /// the user's own assertion. In a multi-value field, a value that was showing and isn't in the list any more is
-    /// rejected. In a single-value field the new value supersedes the old confirmation; an empty list rejects the
-    /// current value, so the next suggestion (if any) shows.
+    /// rejected. In a single-value field the new value supersedes the old confirmation and any value set aside from
+    /// another copy, which settles a "Copies disagree" card; an empty list rejects the current value, so the next
+    /// suggestion (if any) shows.
     /// </summary>
     public async Task SetValuesAsync(EntryId entryId, MetadataField field, IReadOnlyList<string> values, CancellationToken ct = default)
     {
@@ -426,7 +427,8 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         }
 
         if (!field.Multiple && wanted.Count == 1)
-            foreach (var old in rows.Where(r => r.State == AssertionState.Confirmed && r.NormalizedValue != wanted[0].Normalized))
+            foreach (var old in rows.Where(r => r.State == AssertionState.SetAside
+                || r.State == AssertionState.Confirmed && r.NormalizedValue != wanted[0].Normalized))
             {
                 old.State = AssertionState.Superseded;
                 old.DecidedUtc = now;
@@ -441,9 +443,9 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         var changed = rejections.Count > 0;
         db.Rejections.RemoveRange(rejections);
         rejections.Clear();
-        foreach (var row in rows.Where(r => r.State is AssertionState.Confirmed or AssertionState.Rejected or AssertionState.Superseded))
+        foreach (var row in rows.Where(r => r.State is AssertionState.Confirmed or AssertionState.Rejected or AssertionState.Superseded or AssertionState.SetAside))
         {
-            if (row.Origin == AssertionOrigin.User)
+            if (row.Origin == AssertionOrigin.User || row.State == AssertionState.SetAside)
             {
                 if (row.State == AssertionState.Superseded) continue;
                 row.State = AssertionState.Superseded;

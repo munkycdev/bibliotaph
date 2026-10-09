@@ -39,6 +39,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     readonly FakeModel _model = new();
     AiSettings _ai = null!;
     ClassificationStore _runs = null!;
+    CopiesService _copies = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -73,6 +74,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
+        var versions = new VersionStore(contexts, entries);
+        _copies = new CopiesService(entries, versions, library, _queries, projector);
         var hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
@@ -82,7 +85,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
-                new MatchStage(entries, index, _queries, projector),
+                new MatchStage(entries, versions, index, _queries, projector),
             ],
             new FileHasher(reader), new DiskSpace(),
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
@@ -363,7 +366,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await _service.StartAsync(Ct);
         await SettleAsync();
         var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-            new VocabularyService(_vocabulary, _projector, _service));
+            new VocabularyService(_vocabulary, _projector, _service), _copies);
         Assert.Equal(0, await review.CountAsync(Ct));
 
         // Reviewing everything: the title and the type nobody has confirmed are cards now.

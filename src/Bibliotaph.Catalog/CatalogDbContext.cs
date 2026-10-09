@@ -13,6 +13,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<EntrySource> EntrySources => Set<EntrySource>();
     public DbSet<EntryJoin> EntryJoins => Set<EntryJoin>();
     public DbSet<CopyDecision> CopyDecisions => Set<CopyDecision>();
+    public DbSet<VersionProposal> VersionProposals => Set<VersionProposal>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Setting> Settings => Set<Setting>();
@@ -64,6 +65,14 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<CopyDecision>(e => e.HasIndex(d => new { d.FirstHash, d.SecondHash }).IsUnique());
+
+        modelBuilder.Entity<VersionProposal>(e =>
+        {
+            e.HasIndex(p => p.DocumentId).IsUnique();
+            e.HasIndex(p => p.MatchedDocumentId);
+            e.HasOne<Document>().WithMany().HasForeignKey(p => p.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Document>().WithMany().HasForeignKey(p => p.MatchedDocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<EntrySource>(e =>
         {

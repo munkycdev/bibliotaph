@@ -14,9 +14,9 @@ namespace Bibliotaph.Processing;
 public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, ReviewIssue Issue, int GroupSize);
 
 /// <summary>Everything in Needs review's Metadata suggestions tab, and the vocabulary to label it with.</summary>
-public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary)
+public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions)
 {
-    public int Count => Items.Count + Terms.Count;
+    public int Count => Items.Count + Terms.Count + Versions.Count;
 }
 
 /// <summary>
@@ -31,7 +31,8 @@ public sealed class ReviewService(
     MetadataProjector projector,
     IndexQueries queries,
     SettingsStore settings,
-    VocabularyService vocabulary)
+    VocabularyService vocabulary,
+    CopiesService copies)
 {
     public async Task<bool> GetReviewAllAsync(CancellationToken ct = default) =>
         await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
@@ -44,9 +45,9 @@ public sealed class ReviewService(
         await projector.ProjectAllAsync(ct);
     }
 
-    /// <summary>How many cards there are, for the sidebar: as last projected, plus the new terms.</summary>
+    /// <summary>How many cards there are, for the sidebar: as last projected, plus the new terms and the "new version?" cards.</summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
-        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count;
+        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct);
 
     /// <summary>
     /// The cards: sources that disagree first, then missing titles, then other suggestions, each by title. The cards
@@ -66,8 +67,14 @@ public sealed class ReviewService(
             .OrderBy(f => f.Issue.Kind)
             .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
-        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct));
+        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct));
     }
+
+    /// <summary>Answers a "new version?" card. Returns what undoes it, or null when it isn't waiting any more.</summary>
+    public Task<VersionDecision?> AnswerVersionAsync(PendingVersion version, VersionAnswer answer, CancellationToken ct = default) =>
+        copies.AnswerVersionAsync(version, answer, ct);
+
+    public Task UndoVersionAsync(VersionDecision decision, CancellationToken ct = default) => copies.UndoVersionAsync(decision, ct);
 
     /// <summary>Makes the card's suggestion the field's value, confirmed. Returns what undoes it.</summary>
     public async Task<FieldSnapshot> AcceptAsync(ReviewItem item, CancellationToken ct = default)

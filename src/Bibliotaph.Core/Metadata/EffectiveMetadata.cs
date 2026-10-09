@@ -36,10 +36,14 @@ public sealed record EffectiveValue(string Value, string Normalized, bool Confir
 /// <summary>
 /// A field's values and the suggestions that lost to them. <see cref="NeedsReview"/> is set when sources disagree
 /// about a closed field (system, edition, type, levels) and nobody has settled it: there are alternatives the user
-/// hasn't seen since they last decided the field (<paramref name="DecidedUtc"/>).
+/// hasn't seen since they last decided the field (<paramref name="DecidedUtc"/>). <see cref="Disputed"/> are values
+/// the user set on another copy's card that disagree with what the field shows (<see cref="AssertionState.SetAside"/>).
 /// </summary>
-public sealed record EffectiveField(MetadataField Field, IReadOnlyList<EffectiveValue> Values, IReadOnlyList<EffectiveValue> Alternatives, DateTime? DecidedUtc = null)
+public sealed record EffectiveField(MetadataField Field, IReadOnlyList<EffectiveValue> Values, IReadOnlyList<EffectiveValue> Alternatives, DateTime? DecidedUtc = null,
+    IReadOnlyList<EffectiveValue>? DisputedValues = null)
 {
+    public IReadOnlyList<EffectiveValue> Disputed => DisputedValues ?? [];
+
     public bool NeedsReview => Field.IsClosed && Alternatives.Any(a => DecidedUtc is not { } decided || a.Source.CreatedUtc > decided);
 
     public bool IsKnown => Values.Count > 0;
@@ -95,12 +99,18 @@ public sealed class EffectiveMetadata
     public static EffectiveMetadata Compute(IEnumerable<MetadataClaim> claims, IEnumerable<(string Field, string Normalized)> rejections)
     {
         var rejected = rejections.ToHashSet();
-        var live = claims
-            .Where(c => c.State is AssertionState.Provisional or AssertionState.Confirmed && !rejected.Contains((c.Field, c.Normalized)))
-            .ToLookup(c => c.Field);
+        var kept = claims.Where(c => !rejected.Contains((c.Field, c.Normalized))).ToList();
+        var live = kept.Where(c => c.State is AssertionState.Provisional or AssertionState.Confirmed).ToLookup(c => c.Field);
+        var setAside = kept.Where(c => c.State == AssertionState.SetAside).ToLookup(c => c.Field);
         var fields = new Dictionary<string, EffectiveField>(StringComparer.Ordinal);
         foreach (var field in MetadataFields.All)
-            fields[field.Key] = Decide(field, [.. live[field.Key]]);
+        {
+            var decided = Decide(field, [.. live[field.Key]]);
+            List<MetadataClaim> aside = [.. setAside[field.Key]];
+            if (aside.Count > 0)
+                decided = decided with { DisputedValues = [.. Group(aside, confirmed: false, aside).Where(v => decided.Values.All(c => c.Normalized != v.Normalized))] };
+            fields[field.Key] = decided;
+        }
         return new EffectiveMetadata(fields);
     }
 

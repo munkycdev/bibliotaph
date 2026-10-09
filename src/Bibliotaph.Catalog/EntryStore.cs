@@ -118,7 +118,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// Joins two documents found to hold the same book (choice 5). The newer document's entry joins the older one's:
     /// its copies become copies there, without becoming current; its suggestions and runs move across; its rejections
     /// move unless the other card has them; and a value the user set that disagrees with one set on the other card,
-    /// for a field with one value, is kept as a suggestion (choice 7). Returns null when they are already one card, or
+    /// for a field with one value, is set aside for a "Copies disagree" card (choice 7). Returns null when they are already one card, or
     /// the user said they are not the same book.
     /// </summary>
     public async Task<CopyJoin?> JoinAsCopyAsync(long documentId, long matchedDocumentId, CancellationToken ct = default)
@@ -155,7 +155,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             if (assertion.State == AssertionState.Confirmed && MetadataFields.Find(assertion.Field) is { Multiple: false }
                 && settled.Any(s => s.Field == assertion.Field && s.NormalizedValue != assertion.NormalizedValue))
             {
-                assertion.State = AssertionState.Provisional;
+                assertion.State = AssertionState.SetAside;
                 moved.SetAside.Add(assertion.Id);
             }
             assertion.EntryId = target;
@@ -196,9 +196,10 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// "Not the same book": takes <paramref name="documentId"/> out of <paramref name="entryId"/> onto a card of its own,
     /// and remembers that it isn't the same book as the copies it leaves. A copy that joined automatically goes back to
     /// the card it had, with what it brought (choice 8); any other copy gets a new card. Returns the copy's card, or
-    /// null if it isn't a copy of that entry or is its only one.
+    /// null if it isn't a copy of that entry or is its only one. Without <paramref name="remember"/>, as when a
+    /// "new version?" answer is undone, nothing is remembered.
     /// </summary>
-    public async Task<EntryId?> SplitCopyAsync(EntryId entryId, long documentId, CancellationToken ct = default)
+    public async Task<EntryId?> SplitCopyAsync(EntryId entryId, long documentId, bool remember = true, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var sources = await db.EntrySources.Include(s => s.Document)
@@ -224,7 +225,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             foreach (var assertion in await db.Assertions.Where(a => a.EntryId == entryId.Value && moved.Assertions.Contains(a.Id)).ToListAsync(ct))
             {
                 assertion.EntryId = card;
-                if (moved.SetAside.Contains(assertion.Id) && assertion.State == AssertionState.Provisional) assertion.State = AssertionState.Confirmed;
+                // Back to what it was on its own card, even after the user settled the disagreement on this one.
+                if (moved.SetAside.Contains(assertion.Id) && assertion.State is AssertionState.SetAside or AssertionState.Superseded)
+                    assertion.State = AssertionState.Confirmed;
             }
             foreach (var rejection in await db.Rejections.Where(r => r.EntryId == entryId.Value && moved.Rejections.Contains(r.Id)).ToListAsync(ct))
                 rejection.EntryId = card;
@@ -246,16 +249,10 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         await db.SaveChangesAsync(ct);
         var staying = sources.Where(s => s.EntryId == entryId.Value).ToList();
         if (!staying.Any(s => s.IsCurrent)) staying.MaxBy(s => s.DocumentId)!.IsCurrent = true;
-        var now = _clock.GetUtcNow().UtcDateTime;
-        foreach (var other in staying)
-        {
-            foreach (var mine in sources.Where(s => s.EntryId == card))
-            {
-                var (a, b) = Pair(mine.Document.ContentHash, other.Document.ContentHash);
-                if (!await db.CopyDecisions.AnyAsync(d => d.FirstHash == a && d.SecondHash == b, ct) && !db.CopyDecisions.Local.Any(d => d.FirstHash == a && d.SecondHash == b))
-                    db.CopyDecisions.Add(new CopyDecision { FirstHash = a, SecondHash = b, Answer = CopyAnswer.NotSameBook, CreatedUtc = now });
-            }
-        }
+        if (remember)
+            foreach (var other in staying)
+                foreach (var mine in sources.Where(s => s.EntryId == card))
+                    await AddNotSameBookAsync(db, mine.Document.ContentHash, other.Document.ContentHash, ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return new EntryId(card);
@@ -276,6 +273,29 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         await db.SaveChangesAsync(ct); // the unique index allows one current source per entry at any moment
         db.EntrySources.Add(new EntrySource { EntryId = entryId.Value, Document = document, IsCurrent = true });
         return entryId;
+    }
+
+    /// <summary>Remembers that two files are not the same book, so Match never joins them or asks about them again.</summary>
+    public async Task RememberNotSameBookAsync(string firstHash, string secondHash, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await AddNotSameBookAsync(db, firstHash, secondHash, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Forgets <see cref="RememberNotSameBookAsync"/>, as Undo does.</summary>
+    public async Task ForgetNotSameBookAsync(string firstHash, string secondHash, CancellationToken ct = default)
+    {
+        var (a, b) = Pair(firstHash, secondHash);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.CopyDecisions.Where(d => d.FirstHash == a && d.SecondHash == b).ExecuteDeleteAsync(ct);
+    }
+
+    async Task AddNotSameBookAsync(CatalogDbContext db, string firstHash, string secondHash, CancellationToken ct)
+    {
+        var (a, b) = Pair(firstHash, secondHash);
+        if (await db.CopyDecisions.AnyAsync(d => d.FirstHash == a && d.SecondHash == b, ct) || db.CopyDecisions.Local.Any(d => d.FirstHash == a && d.SecondHash == b)) return;
+        db.CopyDecisions.Add(new CopyDecision { FirstHash = a, SecondHash = b, Answer = CopyAnswer.NotSameBook, CreatedUtc = _clock.GetUtcNow().UtcDateTime });
     }
 
     static async Task SetCurrentAsync(CatalogDbContext db, List<EntrySource> sources, long documentId, CancellationToken ct)

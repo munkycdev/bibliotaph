@@ -8,6 +8,12 @@ public enum ReviewKind
     /// <summary>Sources disagree about a closed field (system, edition, type, levels) and nobody has settled it.</summary>
     Conflict,
 
+    /// <summary>
+    /// Two cards joined as copies of one book had different values the user set for a field with one value (F2): the
+    /// card offers the other copy's.
+    /// </summary>
+    CopiesDisagree,
+
     /// <summary>No usable title from any source: none at all, or only one like "IMG 0042".</summary>
     MissingTitle,
 
@@ -42,7 +48,8 @@ public sealed record ReviewIssue(MetadataField Field, ReviewKind Kind, IReadOnly
 
 /// <summary>
 /// What goes to Needs review (slice 2 plan, choice 4). By default only what a person has to look at: sources that
-/// disagree about a closed field, and a document without a usable title. New vocabulary terms are reviewed once per
+/// disagree about a closed field, values the user set on two copies of a book that disagree, and a document without
+/// a usable title. New vocabulary terms are reviewed once per
 /// term, not per document, so they aren't here. With <c>reviewAll</c>, every value nobody has confirmed is too.
 /// </summary>
 public static class MetadataReview
@@ -53,6 +60,7 @@ public static class MetadataReview
         foreach (var field in metadata.Fields)
         {
             if (field.NeedsReview) issues.Add(Conflict(field));
+            else if (field.Disputed.Count > 0) issues.Add(new ReviewIssue(field.Field, ReviewKind.CopiesDisagree, field.Values, [field.Disputed[0]]));
             else if (field.Field == MetadataFields.Title && !field.HasConfirmed && !(field.First is { } title && TitleQuality.IsUsable(title.Value)))
                 issues.Add(new ReviewIssue(field.Field, ReviewKind.MissingTitle, field.Values, field.Values));
             else if (reviewAll && field.Values.Any(v => !v.Confirmed))

@@ -124,21 +124,61 @@ public sealed class IndexQueries(IndexDatabase database)
 
     /// <summary>
     /// The other documents with a page whose fingerprint one of <paramref name="documentId"/>'s pages has, with how many
-    /// of its distinct fingerprints each shares, most first.
+    /// of its distinct fingerprints each shares, most first, and how many distinct fingerprints each has in all.
     /// </summary>
-    public async Task<IReadOnlyList<(long DocumentId, int Shared)>> GetSharingPagesAsync(long documentId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<(long DocumentId, int Shared, int Fingerprinted)>> GetSharingPagesAsync(long documentId, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
-        var rows = await connection.QueryAsync<(long DocumentId, long Shared)>(new CommandDefinition(
+        var rows = await connection.QueryAsync<(long DocumentId, long Shared, long Fingerprinted)>(new CommandDefinition(
             """
-            SELECT other.document_id, count(DISTINCT other.fingerprint) AS shared
-            FROM page mine JOIN page other ON other.fingerprint = mine.fingerprint AND other.document_id <> mine.document_id
-            WHERE mine.document_id = @documentId AND mine.fingerprint IS NOT NULL
-            GROUP BY other.document_id
-            ORDER BY shared DESC, other.document_id
+            WITH sharing AS (
+                SELECT other.document_id, count(DISTINCT other.fingerprint) AS shared
+                FROM page mine JOIN page other ON other.fingerprint = mine.fingerprint AND other.document_id <> mine.document_id
+                WHERE mine.document_id = @documentId AND mine.fingerprint IS NOT NULL
+                GROUP BY other.document_id
+            )
+            SELECT s.document_id, s.shared,
+                   (SELECT count(DISTINCT p.fingerprint) FROM page p WHERE p.document_id = s.document_id AND p.fingerprint IS NOT NULL)
+            FROM sharing s
+            ORDER BY s.shared DESC, s.document_id
             """,
             new { documentId }, cancellationToken: ct));
-        return [.. rows.Select(r => (r.DocumentId, (int)r.Shared))];
+        return [.. rows.Select(r => (r.DocumentId, (int)r.Shared, (int)r.Fingerprinted))];
+    }
+
+    /// <summary>
+    /// The documents other entries' cards show when they have <paramref name="entryId"/>'s title and publisher, ignoring
+    /// case; none when it lacks either.
+    /// </summary>
+    public async Task<IReadOnlyList<long>> GetSameTitleAndPublisherAsync(EntryId entryId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<long>(new CommandDefinition(
+            """
+            SELECT e.document_id
+            FROM entry_meta mine
+            JOIN entry_meta other ON other.entry_id <> mine.entry_id
+                AND lower(other.title) = lower(mine.title) AND lower(other.publisher) = lower(mine.publisher)
+            JOIN entry_doc e ON e.entry_id = other.entry_id
+            WHERE mine.entry_id = @entryId AND mine.title IS NOT NULL AND mine.publisher IS NOT NULL
+            ORDER BY e.document_id
+            """,
+            new { entryId = entryId.Value }, cancellationToken: ct))];
+    }
+
+    /// <summary>The title each of <paramref name="entryIds"/>' cards shows: its effective title, or its document's.</summary>
+    public async Task<IReadOnlyDictionary<EntryId, string>> GetEntryTitlesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return new Dictionary<EntryId, string>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, string? Title)>(new CommandDefinition(
+            """
+            SELECT e.entry_id, coalesce(m.title, d.display_title)
+            FROM entry_doc e LEFT JOIN entry_meta m ON m.entry_id = e.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE e.entry_id IN @ids
+            """,
+            new { ids = entryIds.Select(e => e.Value).Distinct().ToArray() }, cancellationToken: ct));
+        return rows.Where(r => r.Title is not null).ToDictionary(r => new EntryId(r.EntryId), r => r.Title!);
     }
 
     /// <summary>A document's cover file name in the cover cache, or null when it has none.</summary>

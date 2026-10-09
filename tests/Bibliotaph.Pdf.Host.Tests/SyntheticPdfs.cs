@@ -34,6 +34,7 @@ public sealed class SyntheticPdfs : IDisposable
         Injected = Write("injected-instructions.pdf", BuildPages(InjectedPages));
         WatermarkedForAna = Write("watermarked-ana.pdf", BuildPages(Watermark(BookPages, "Ana Example", 1234)));
         WatermarkedForDale = Write("watermarked-dale.pdf", BuildPages(Watermark(BookPages, "Dale Example", 98765)));
+        RevisedForAna = Write("revised-ana.pdf", BuildPages(Watermark(RevisedPages, "Ana Example", 5678)));
     }
 
     /// <summary>Characters outside Windows' ANSI code page, as bundle file names often have.</summary>
@@ -93,6 +94,12 @@ public sealed class SyntheticPdfs : IDisposable
     /// <summary><see cref="WatermarkedForAna"/>'s book, watermarked for another buyer.</summary>
     public string WatermarkedForDale { get; }
 
+    /// <summary>
+    /// A second printing of <see cref="WatermarkedForAna"/>'s book: one page corrected and an errata page added, so
+    /// four of its pages are the first printing's, page for page.
+    /// </summary>
+    public string RevisedForAna { get; }
+
     /// <summary>A short book, a line at a time, page by page.</summary>
     public static readonly string[][] BookPages =
     [
@@ -101,6 +108,15 @@ public sealed class SyntheticPdfs : IDisposable
         ["Area 1: The Bell Tower", "A rope ladder leads down to a flooded nave where eels circle the pews."],
         ["Area 2: The Crypt", "The abbot's tomb is empty; his ghost waits in the scriptorium above."],
         ["Appendix: New Monsters", "Bell wraith, marsh eel swarm and the drowned abbot, with their statistics."],
+    ];
+
+    /// <summary><see cref="BookPages"/> with the crypt corrected and an errata page at the end.</summary>
+    public static readonly string[][] RevisedPages =
+    [
+        .. BookPages[..3],
+        ["Area 2: The Crypt", "The abbot's tomb is sealed; his ghost waits in the chapter house below."],
+        BookPages[4],
+        ["Errata", "Second printing: the crypt now leads down to the chapter house."],
     ];
 
     static string[][] Watermark(string[][] pages, string buyer, int order) =>

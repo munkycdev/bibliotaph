@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,7 +18,9 @@ public interface IReviewActions
     Task<Func<Task>> AddTermAsync(PendingTerm term);
     Task<Func<Task>> MapTermAsync(PendingTerm term, Term target);
     Task<Func<Task>> RejectTermAsync(PendingTerm term);
+    Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer);
     void Open(ReviewItem item);
+    void OpenDocument(long documentId, string title);
     void Decided(int change);
 }
 
@@ -94,7 +97,8 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
         CurrentText = Describe(issue.Current, "Not set");
         SuggestedText = Describe(issue.Suggested, "");
         ProposedText = Describe(issue.Proposed, "");
-        Evidence = issue.Evidence is { } claim ? MetadataValueViewModel.Describe(claim, pages: false) + "." : "";
+        Evidence = issue.Kind == ReviewKind.CopiesDisagree ? "You set this on the other copy's card before the two were joined."
+            : issue.Evidence is { } claim ? MetadataValueViewModel.Describe(claim, pages: false) + "." : "";
         // Sources that disagree: where the value showing now came from, too.
         CurrentSource = issue.Kind == ReviewKind.Conflict && issue.Current.Count > 0 ? MetadataValueViewModel.Describe(issue.Current[0].Source) + "." : "";
         PageText = issue.Evidence is { Pages.Count: > 0 } withPages
@@ -116,11 +120,16 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
     public string Reason => Kind switch
     {
         ReviewKind.Conflict => "Sources disagree.",
+        ReviewKind.CopiesDisagree => "You set different values on two copies of this book.",
         ReviewKind.MissingTitle => "This looks like a file's name rather than the book's title.",
         _ => "Suggested; nobody has confirmed it.",
     };
 
     public string CurrentText { get; }
+
+    public string CurrentLabel => Kind == ReviewKind.CopiesDisagree ? "This card" : "Current";
+
+    public string SuggestedLabel => Kind == ReviewKind.CopiesDisagree ? "The other copy" : "Suggested";
 
     /// <summary>For a conflict, where the current value came from; empty otherwise.</summary>
     public string CurrentSource { get; }
@@ -149,12 +158,17 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
     /// <summary>Reject keeps what the field shows; a missing title has nothing to turn down, so it just keeps it.</summary>
     public bool CanReject => Kind != ReviewKind.MissingTitle || Item.Issue.Current.Count > 0;
 
-    public string RejectLabel => Kind == ReviewKind.MissingTitle ? "Keep as is" : "Reject";
+    public string RejectLabel => Kind switch
+    {
+        ReviewKind.MissingTitle => "Keep as is",
+        ReviewKind.CopiesDisagree => "Keep this card's",
+        _ => "Reject",
+    };
 
     public string RejectHint => Kind switch
     {
         ReviewKind.MissingTitle => "Keep this title; it won't be asked about again",
-        ReviewKind.Conflict => $"Keep {CurrentText}; {ProposedText} won't be suggested again",
+        ReviewKind.Conflict or ReviewKind.CopiesDisagree => $"Keep {CurrentText}; {ProposedText} won't be suggested again",
         _ => $"{ProposedText} won't be suggested again",
     };
 
@@ -214,7 +228,7 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
     Task Reject() => DecideAsync(() => Actions.RejectAsync(Item), Kind switch
     {
         ReviewKind.MissingTitle => "Kept the title.",
-        ReviewKind.Conflict => $"Kept {CurrentText}.",
+        ReviewKind.Conflict or ReviewKind.CopiesDisagree => $"Kept {CurrentText}.",
         _ => $"Rejected {ProposedText}.",
     });
 
@@ -292,4 +306,52 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
 
     [RelayCommand]
     Task Reject() => DecideAsync(() => Actions.RejectTermAsync(Term), $"Rejected {Label}.");
+}
+
+/// <summary>
+/// "Looks like a new version of" a book (F2 plan, choice 4): a file that shares most of its pages with a book in the
+/// library, or its title and publisher, but isn't the same text page for page. Make it current, keep it as another
+/// copy, or say it's a separate book.
+/// </summary>
+public sealed partial class VersionCardViewModel(VersionItem item, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public VersionItem Item { get; } = item;
+
+    PendingVersion Version => Item.Version;
+
+    public string Title => Item.Title;
+
+    public string Heading => $"Looks like a new version of {Item.BookTitle}";
+
+    public string Evidence => Version.Evidence == VersionEvidence.SharedPages
+        ? $"{Version.SharedPages.ToString("N0", CultureInfo.CurrentCulture)} of {Version.ComparedPages.ToString("N0", CultureInfo.CurrentCulture)} pages are the same as the book's; the rest differ."
+        : "It has the book's title and publisher.";
+
+    public string Detail => $"This file: {Pages(Version.PageCount)}. The book: {Pages(Version.MatchedPageCount)}.";
+
+    public string Path => Item.Path ?? "";
+
+    public string BookPath => Item.BookPath ?? "";
+
+    static string Pages(int? count) => count switch
+    {
+        null => "pages unknown",
+        1 => "1 page",
+        _ => $"{count.Value.ToString("N0", CultureInfo.CurrentCulture)} pages",
+    };
+
+    [RelayCommand]
+    Task MakeCurrent() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.MakeCurrent), $"{Title} is now the copy {Item.BookTitle} opens.");
+
+    [RelayCommand]
+    Task KeepAsCopy() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.KeepAsCopy), $"{Title} is now another copy of {Item.BookTitle}.");
+
+    [RelayCommand]
+    Task SeparateBook() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.SeparateBook), $"Kept {Title} as a separate book.");
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Version.DocumentId, Title);
+
+    [RelayCommand]
+    void OpenBook() => Actions.OpenDocument(Version.MatchedDocumentId, Item.BookTitle);
 }
