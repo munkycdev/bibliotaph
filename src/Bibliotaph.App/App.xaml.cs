@@ -171,6 +171,7 @@ public partial class App : Application
         builder.Services.AddSingleton<CoverImages>();
         builder.Services.AddSingleton<ViewerRequests>();
         builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
+        builder.Services.AddSingleton<AboutBox>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();

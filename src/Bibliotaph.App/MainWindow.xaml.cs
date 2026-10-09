@@ -5,6 +5,7 @@ using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Bibliotaph.App.Controls;
+using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core.Search;
 
@@ -13,17 +14,19 @@ namespace Bibliotaph.App;
 public partial class MainWindow : Window
 {
     readonly SearchGuideViewModel _guide;
+    readonly AboutBox _about;
 
     /// <summary>Set while a pick rewrites the box, so the box's own change events don't steer the guide halfway through.</summary>
     bool _applyingGuide;
 
-    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide)
+    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about)
     {
         InitializeComponent();
         // Before the window's DataContext, so the guide's bindings never look for its properties on the shell.
         _guide = guide;
         SearchGuide.DataContext = guide;
         DataContext = shell;
+        _about = about;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
         HookUpSearchGuide();
     }

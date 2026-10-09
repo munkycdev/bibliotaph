@@ -33,7 +33,11 @@
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
     <Resource Include="Assets\Bibliotaph.ico" />
-    <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="licenses\fonts" />
+    <!-- Link, not LinkBase: LinkBase applies only to files outside the project folder, so these landed in Fonts\. -->
+    <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\fonts\%(Filename)%(Extension)" />
     <None Include="Icons\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-lucide.txt" />
+    <!-- Bibliotaph's own licence and notices, which the About popup reads (as .txt so Notepad opens the licence too). -->
+    <None Include="$(RepoRoot)LICENSE" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE.txt" Visible="false" />
+    <None Include="$(RepoRoot)THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" Link="licenses\THIRD-PARTY-NOTICES.md" Visible="false" />
   </ItemGroup>
 </Project>
