@@ -147,6 +147,19 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Pending, null, Now());
         }, ct);
 
+    /// <summary>
+    /// Puts a leased job back to wait at least <paramref name="wait"/>, without counting the attempt: for a stage that
+    /// has to wait for another, as Classify waits for a book's OCR. <paramref name="reason"/> shows as its status.
+    /// </summary>
+    public Task DeferAsync(JobRecord job, TimeSpan wait, string? reason = null, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            c.Execute(
+                "UPDATE job SET status = 'pending', lease_owner = NULL, lease_expires_utc = NULL, attempts = attempts - 1, not_before_utc = @notBefore WHERE id = @Id",
+                new { job.Id, notBefore = Timestamp(_clock.GetUtcNow() + wait) }, t);
+            SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Pending, reason, Now());
+        }, ct);
+
     /// <summary>Returns every leased job to pending. Run once at startup, before any lane leases work (A11).</summary>
     public Task<int> RecoverLeasesAsync(CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>

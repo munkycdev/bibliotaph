@@ -14,10 +14,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     readonly INavigationService _navigation;
     readonly ReviewService _review;
     readonly AboutBox _about;
+    readonly AiService _ai;
     bool _reviewAll;
 
-    public SettingsViewModel(ThemeService theme, SourceRootStore roots, INavigationService navigation, ReviewService review, AboutBox about)
+    public SettingsViewModel(ThemeService theme, SourceRootStore roots, INavigationService navigation, ReviewService review, AboutBox about,
+        AiService ai)
     {
+        _ai = ai;
         _theme = theme;
         _roots = roots;
         _navigation = navigation;
@@ -49,6 +52,10 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     [ObservableProperty]
     public partial string FolderSummary { get; set; } = "";
+
+    /// <summary>"Off", or the model and where it runs.</summary>
+    [ObservableProperty]
+    public partial string AiSummary { get; set; } = "Off";
 
     /// <summary>Needs review gets only what sources disagree about, and missing titles (the default).</summary>
     public bool ReviewWhenUnsure
@@ -84,6 +91,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         _reviewAll = await _review.GetReviewAllAsync();
         OnPropertyChanged(nameof(ReviewWhenUnsure));
         OnPropertyChanged(nameof(ReviewEverything));
+        AiSummary = DescribeAi(_ai.Setup);
         var count = (await _roots.ListAsync()).Count;
         FolderSummary = count switch
         {
@@ -98,6 +106,16 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     [RelayCommand]
     void ManageVocabulary() => _navigation.NavigateTo(Route.Vocabulary);
+
+    [RelayCommand]
+    void ManageAi() => _navigation.NavigateTo(Route.Ai);
+
+    internal static string DescribeAi(AiSetup setup) => setup switch
+    {
+        { Endpoint: null } => "Off. Bibliotaph works fully without it.",
+        { IsReady: false } => $"Off · {setup.Model ?? "no model chosen"}",
+        _ => $"On · {setup.Model} on {(setup.IsLocal ? "this computer" : Uri.TryCreate(setup.Endpoint, UriKind.Absolute, out var uri) ? uri.Host : setup.Endpoint)}",
+    };
 
     void OnAppearanceChanged()
     {

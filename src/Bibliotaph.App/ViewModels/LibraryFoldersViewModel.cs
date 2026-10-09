@@ -245,6 +245,9 @@ public sealed partial class LibraryFoldersViewModel(
     void ToggleOcr() => Activity.SetPaused(Lane.Ocr, !Activity.OcrPaused);
 
     [RelayCommand]
+    void ToggleAi() => Activity.SetPaused(Lane.Classify, !Activity.AiPaused);
+
+    [RelayCommand]
     void Rescan() => indexing.RequestScan();
 
     /// <summary>Deletes everything Bibliotaph stores and restarts, after asking. A development aid until 1.0.</summary>

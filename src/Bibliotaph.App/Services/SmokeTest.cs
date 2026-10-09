@@ -70,6 +70,7 @@ static class SmokeTest
                 Log.Information("Smoke test: Needs review and the vocabulary worked through in {Theme}", preference);
                 await ShowFolderProgressAsync(services, window);
                 await ShowAboutAsync(services, window);
+                await ShowAiSettingsAsync(services, window);
                 if (real is not { } files) continue;
                 await ReadBookAsync(services, window, files.Pdf);
                 await ViewImageAsync(services, window, files.Image);
@@ -506,6 +507,29 @@ static class SmokeTest
         await Settle(window);
     }
 
+    /// <summary>
+    /// Settings > AI with no model server: AI is off, the library's folders are listed, and an endpoint nothing
+    /// answers at says so rather than hanging or switching AI on.
+    /// </summary>
+    static async Task ShowAiSettingsAsync(IServiceProvider services, Window window)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        navigation.NavigateTo(Route.Ai);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as AiSettingsViewModel
+            ?? throw new InvalidOperationException("The AI route didn't open Settings > AI.");
+        await WaitUntilAsync(window, () => page.HasFolders, () => "Settings > AI doesn't list the library's folders.");
+        if (page.IsOn || page.Activity.AiOn) throw new InvalidOperationException("AI is on before anything was set up.");
+        if (!page.Activity.Phases[^1].Status.StartsWith("Off", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The AI step says {page.Activity.Phases[^1].Status}, not that AI is off.");
+        // Port 9 is discard: nothing listens on it, so connecting fails at once.
+        page.Endpoint = "http://127.0.0.1:9";
+        await page.ConnectCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.ConnectionProblem is not null, () => "Connecting to nothing didn't say so.");
+        if (page.IsOn) throw new InvalidOperationException("A failed connection switched AI on.");
+        navigation.GoBack();
+        await Settle(window);
+    }
+
     static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
     {
         for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
@@ -536,7 +560,7 @@ static class SmokeTest
             ?? throw new InvalidOperationException("The Library folders route didn't open Library folders.");
         await WaitUntilAsync(window, () => page.Folders.Count > 0 && page.Folders.All(f => f.Detail.Length > 0),
             () => "Library folders didn't describe its folders.");
-        if (page.Activity.Phases.Count != 4 || page.Activity.Phases.Any(p => p.Status.Length == 0))
+        if (page.Activity.Phases.Count != 5 || page.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
         await WaitUntilAsync(window, () => page.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
             () => "Library folders doesn't list the Adventures folder name.");

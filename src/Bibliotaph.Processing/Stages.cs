@@ -23,6 +23,15 @@ public abstract record StageOutcome
     /// <summary>Failed. With <see cref="Retry"/>, the queue tries again later, up to its attempt limit.</summary>
     public sealed record Failed(string Reason, bool Retry) : StageOutcome;
 
+    /// <summary>Not yet: the job waits at least <see cref="Wait"/> without using an attempt, as Classify waits for OCR.</summary>
+    public sealed record Later(TimeSpan Wait, string? Reason = null) : StageOutcome;
+
+    /// <summary>
+    /// The lane can't work right now for a reason that isn't this job's, such as a model endpoint that isn't running. The
+    /// job goes back without using an attempt, and the lane waits and says why until a job gets through.
+    /// </summary>
+    public sealed record Unavailable(string Reason) : StageOutcome;
+
     public static Done Complete(params Stage[] next) => new(StageStatus.Complete, next);
 }
 
@@ -52,6 +61,15 @@ public interface IStage
 {
     Stage Stage { get; }
     Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct);
+}
+
+/// <summary>A stage that runs only while something outside the queue allows it, as Classify runs only while AI is set up.</summary>
+public interface IGatedStage : IStage
+{
+    bool IsReady { get; }
+
+    /// <summary>Raised when <see cref="IsReady"/> may have changed, from any thread.</summary>
+    event EventHandler? ReadyChanged;
 }
 
 /// <summary>
@@ -229,7 +247,8 @@ public sealed class TextStage(StageServices s) : IStage
                 await s.Index.SetPageTextAsync(job.DocumentId, rows, ct);
             }
 
-            var next = ocrPages > 0 ? new[] { Stage.Ocr } : [];
+            // Classify waits for OCR by itself, so it can be queued now either way.
+            var next = ocrPages > 0 ? new[] { Stage.Ocr, Stage.Classify } : [Stage.Classify];
             return failedPages == 0
                 ? new StageOutcome.Done(StageStatus.Complete, next)
                 : new StageOutcome.Done(StageStatus.Partial, next, $"{failedPages} page(s) could not be read.");

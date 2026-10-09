@@ -125,6 +125,7 @@ public partial class App : Application
         builder.Services.AddSingleton<SourceRootStore>();
         builder.Services.AddSingleton(sp => new VocabularyStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new MetadataStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new ClassificationStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
 
         // index.db: derived, rebuildable. One writer; reads on their own connections.
         builder.Services.AddSingleton(sp => IndexDatabase.ForFile(paths.IndexDatabase, sp.GetRequiredService<ILogger<IndexDatabase>>()));
@@ -147,6 +148,11 @@ public partial class App : Application
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
         builder.Services.AddSingleton<PasswordVault>();
         builder.Services.AddSingleton<IPasswordStore>(sp => sp.GetRequiredService<PasswordVault>());
+        builder.Services.AddSingleton<ApiKeyVault>();
+        builder.Services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
+        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>()));
+        builder.Services.AddSingleton<ClassifierInputs>();
+        builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
         builder.Services.AddSingleton<FileHasher>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
@@ -156,11 +162,13 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, CoversStage>();
         builder.Services.AddSingleton<IStage, RuleHintsStage>();
         builder.Services.AddSingleton<IStage, OcrStage>();
+        builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<MetadataService>();
         builder.Services.AddSingleton<VocabularyService>();
         builder.Services.AddSingleton<ReviewService>();
+        builder.Services.AddSingleton<AiService>();
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
@@ -184,6 +192,7 @@ public partial class App : Application
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibraryFoldersViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
+        builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<ViewerViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();
@@ -199,6 +208,7 @@ public partial class App : Application
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.LibraryFolders => services.GetRequiredService<LibraryFoldersViewModel>(),
         Route.Vocabulary => services.GetRequiredService<VocabularyViewModel>(),
+        Route.Ai => services.GetRequiredService<AiSettingsViewModel>(),
         Route.Viewer => services.GetRequiredService<ViewerViewModel>(),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };
@@ -210,6 +220,11 @@ public partial class App : Application
 
         var added = await services.GetRequiredService<VocabularyStore>().SeedAsync();
         if (added > 0) Log.Information("Added {Count} starter vocabulary terms", added);
+
+        // Before the Classify lane looks at whether it may send anything.
+        var ai = services.GetRequiredService<AiSettings>();
+        await ai.LoadAsync();
+        Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.Provider} model {ai.Setup.Model}" : "off");
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
