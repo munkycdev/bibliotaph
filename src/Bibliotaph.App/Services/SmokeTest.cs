@@ -359,8 +359,10 @@ static class SmokeTest
         if (viewer.Image is not { Width: > 0 }) throw new InvalidOperationException($"The image didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
         viewer.Zoom = 2;
         await Settle(window);
-        navigation.GoBack();
+        // The breadcrumb's Library goes back to the Library as it was, not a new one.
+        shell.OpenSectionCommand.Execute(null);
         await Settle(window);
+        if (!ReferenceEquals(shell.CurrentPage, library)) throw new InvalidOperationException("The Library breadcrumb didn't return to the Library.");
 
         // The made-up books' folder doesn't exist, so opening one shows why it can't be read.
         library.OpenBookCommand.Execute(library.Items.First(i => i.Title == "Tavern Map"));
@@ -394,6 +396,13 @@ static class SmokeTest
             throw new InvalidOperationException("The indexing steps aren't all described.");
         await WaitUntilAsync(window, () => page.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
             () => "Library folders doesn't list the Adventures folder name.");
+        // Library folders came from the Library, so the Settings breadcrumb opens a new Settings page.
+        var shell = services.GetRequiredService<ShellViewModel>();
+        shell.OpenSectionCommand.Execute(null);
+        await Settle(window);
+        if (shell.CurrentPage is not SettingsViewModel) throw new InvalidOperationException("The Settings breadcrumb didn't open Settings.");
+        navigation.GoBack();
+        await Settle(window);
         navigation.GoBack();
         await Settle(window);
     }
