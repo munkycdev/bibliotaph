@@ -183,6 +183,7 @@ public partial class App : Application
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibraryFoldersViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
+        builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
         builder.Services.AddSingleton<UnlockedPasswords>();
