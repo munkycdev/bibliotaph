@@ -342,10 +342,11 @@ static class SmokeTest
 
         await WaitUntilAsync(window, () => page.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
             () => "The book a model read isn't marked, or the filters don't offer the AI choice.");
-        if (!Descendants<Border>(window).Any(b => b.Name == "AiBadge" && b.IsVisible))
-            throw new InvalidOperationException("No cover shows the AI spark.");
         page.AiChoice = page.AiChoices.First(c => c.Value == AiFilter.Read);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs" }], () => $"Filtering by Read by AI shows {page.Items.Count} books, not 1.");
+        // Alone in the list, its row is surely drawn (a long list draws only the rows in view), so its spark should show.
+        await WaitUntilAsync(window, () => Descendants<Border>(window).Any(b => b.Name == "AiBadge" && b.IsVisible),
+            () => $"The book read by AI has no spark on its cover ({Descendants<Border>(window).Count(b => b.Name == "AiBadge")} badges drawn, none visible).");
         page.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the AI filter didn't bring back all {books} books.");
 
