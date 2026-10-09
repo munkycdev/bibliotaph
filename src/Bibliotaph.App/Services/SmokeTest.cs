@@ -9,6 +9,7 @@ using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,6 +76,11 @@ static class SmokeTest
                 await PopOutAsync(services, window, files.Pdf);
                 await ViewImageAsync(services, window, files.Image);
                 Log.Information("Smoke test: a PDF read and an image viewed in {Theme}", preference);
+            }
+            if (real is { } reprocessed)
+            {
+                await ReprocessBookAsync(services, window, reprocessed.Pdf);
+                Log.Information("Smoke test: a PDF reprocessed from its file and found throughout");
             }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
@@ -539,6 +545,67 @@ static class SmokeTest
         await WaitUntilAsync(window, () => readers.Windows.Count == 0 && Application.Current.Windows.Count == 1 && workers.ViewerWorkerCount == 1,
             () => $"Closing every pop-out left {Application.Current.Windows.Count - 1} windows and {workers.ViewerWorkerCount} viewer workers.");
         Log.Information("Smoke test: a PDF popped out, returned, and opened in two new windows");
+    }
+
+    /// <summary>
+    /// Reprocess from the inspector, on the smoke PDF whose index rows were written by hand: indexing resumes and runs
+    /// it through every stage from the real file. It must stay findable by "dragon" all along, and afterwards also by
+    /// "midnight", which only the file's text has.
+    /// </summary>
+    static async Task ReprocessBookAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var libraryStore = services.GetRequiredService<LibraryStore>();
+        async Task<bool> FoundAsync(string words)
+        {
+            var filter = new LibraryFilter(await libraryStore.GetVisibleDocumentIdsAsync());
+            var hits = await Task.Run(() => queries.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter));
+            return hits.Documents.Any(d => d.Document.DocumentId == documentId);
+        }
+        if (await FoundAsync("midnight")) throw new InvalidOperationException("The smoke PDF was found by a word only its file has before it was reprocessed.");
+
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+        await Settle(window);
+        var inspector = library.Inspector ?? throw new InvalidOperationException("The inspector didn't open.");
+        if (!inspector.ReprocessCommand.CanExecute(null) || !inspector.CanOcrEveryPage || inspector.ReprocessLabel != "Reprocess")
+            throw new InvalidOperationException($"Reprocess isn't offered (it says {inspector.ReprocessLabel}).");
+
+        var indexing = services.GetRequiredService<IndexingService>();
+        indexing.Resume(Lane.Index);
+        indexing.Resume(Lane.Ocr);
+        await inspector.ReprocessCommand.ExecuteAsync(null);
+
+        // Polled, not waited for: the PDF worker starts and every stage runs, which can take a while on a slow machine.
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        while (inspector.IsReprocessing || inspector.Stages.Count < 4)
+        {
+            if (!await FoundAsync("dragon")) throw new InvalidOperationException("The smoke PDF dropped out of search while it was reprocessed.");
+            if (Stopwatch.GetTimestamp() > deadline)
+                throw new InvalidOperationException($"Reprocessing didn't finish: {string.Join("; ", inspector.Stages.Select(s => $"{s.Name} {s.Status}"))}.");
+            await Settle(window);
+            await Task.Delay(100);
+        }
+        if (inspector.Stages.FirstOrDefault(s => s.Name is "Opening" or "Reading text" && s.Status != "Done") is { } stuck)
+            throw new InvalidOperationException($"Reprocessing ended with {stuck.Name}: {stuck.Status}.");
+        if (!inspector.ReprocessCommand.CanExecute(null)) throw new InvalidOperationException("Reprocess stayed disabled after every stage finished.");
+        if (!await FoundAsync("dragon") || !await FoundAsync("midnight"))
+            throw new InvalidOperationException("After reprocessing, the smoke PDF isn't found by the words on its page.");
+
+        // And through the search box, as a person would look.
+        library.CloseDetailsCommand.Execute(null);
+        search.Search("midnight");
+        library.Tab = ResultsTab.Pages;
+        await WaitUntilAsync(window, () => library.Hits.Any(h => h.Item.DocumentId == documentId),
+            () => "Searching for midnight didn't find the reprocessed PDF's page.");
+        search.Search("");
+        library.Tab = ResultsTab.Documents;
+        await Settle(window);
     }
 
     /// <summary>
