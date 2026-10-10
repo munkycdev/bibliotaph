@@ -153,7 +153,13 @@ public sealed partial class ViewerViewModel : PageViewModel
             OnPropertyChanged(nameof(Title));
             Sessions.Close();
             ShowSessionBanner();
-            GoTo(Math.Clamp(request.PageIndex, 0, Math.Max(0, PageCount - 1)), null);
+            // The pages are laid out again at the item's first page, on the renderer already open: as quick as a
+            // scroll, and the pages view goes to the page the way it does for any open, even mid-layout.
+            var target = Math.Clamp(request.PageIndex, 0, Math.Max(0, PageCount - 1));
+            CurrentPageIndex = target;
+            OnCurrentPageIndexChanged(target);
+            if (Pdf is { } pdf && pdf with { PageIndex = target, PdfTop = null } is var again && again != pdf) Pdf = again;
+            else GoTo(target, null);
             return;
         }
         Unload();
