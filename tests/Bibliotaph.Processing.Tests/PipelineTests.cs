@@ -38,6 +38,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     MetadataHints _hints = null!;
     VocabularyStore _vocabulary = null!;
     SettingsStore _settings = null!;
+    readonly AiReadingFeed _aiReading = new();
     readonly FakeModel _model = new();
     readonly FakeIdentity _identity = new();
     AiSettings _ai = null!;
@@ -109,7 +110,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
-            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector));
+            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading);
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,

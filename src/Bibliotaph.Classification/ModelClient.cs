@@ -32,9 +32,27 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
 
 /// <summary>
 /// One classification request: the model, the two messages, the answer's schema and the context it needs, and at most how
-/// many tokens to answer with when that should be capped.
+/// many tokens to answer with when that should be capped. With <paramref name="Progress"/>, the answer is streamed and
+/// reported as it comes (Built-in AI plan, choice 12).
 /// </summary>
-public sealed record ModelRequest(string Model, string System, string User, string SchemaJson, int ContextTokens, int? MaxTokens = null);
+public sealed record ModelRequest(string Model, string System, string User, string SchemaJson, int ContextTokens, int? MaxTokens = null,
+    IProgress<ModelProgress>? Progress = null);
+
+/// <summary>Where a streamed request has got to.</summary>
+public enum ModelStep
+{
+    /// <summary>Sent, and nothing back yet: the server is loading the model or reading the excerpt.</summary>
+    Waiting,
+
+    /// <summary>Reading the excerpt, with how far it has got (llama.cpp's server says; Ollama doesn't).</summary>
+    Reading,
+
+    /// <summary>Writing the answer, which has come this far.</summary>
+    Writing,
+}
+
+/// <summary>A streamed request's progress: the step, the answer so far, and how much of the excerpt has been read (0 to 1) when known.</summary>
+public sealed record ModelProgress(ModelStep Step, string Answer, double? Read = null);
 
 /// <summary>
 /// The endpoint couldn't be used: it isn't running, it refused the request, or it doesn't have the model. This is about
@@ -206,6 +224,7 @@ public sealed class LocalModelClient : IModelClient
     public async Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
     {
         _kind ??= (await ConnectAsync(ct)).Kind;
+        var stream = request.Progress is not null;
         var schema = JsonNode.Parse(request.SchemaJson)!;
         var messages = new JsonArray
         {
@@ -219,11 +238,12 @@ public sealed class LocalModelClient : IModelClient
             {
                 ["model"] = request.Model,
                 ["messages"] = messages,
-                ["stream"] = false,
+                ["stream"] = stream,
                 ["format"] = schema,
                 ["options"] = new JsonObject { ["temperature"] = 0, ["num_ctx"] = request.ContextTokens },
             };
             if (request.MaxTokens is { } ollamaMax) body["options"]!["num_predict"] = ollamaMax;
+            if (stream) return await StreamAsync(new Uri(Root, "api/chat"), body, request.Progress!, ollama: true, ct);
             using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), body, ct);
             var json = await ReadJsonAsync(response, ct);
             return json?["message"]?["content"]?.GetValue<string>()
@@ -235,7 +255,7 @@ public sealed class LocalModelClient : IModelClient
             ["model"] = request.Model,
             ["messages"] = messages,
             ["temperature"] = 0,
-            ["stream"] = false,
+            ["stream"] = stream,
             ["response_format"] = new JsonObject
             {
                 ["type"] = "json_schema",
@@ -244,6 +264,19 @@ public sealed class LocalModelClient : IModelClient
         };
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
+        if (stream)
+        {
+            try
+            {
+                return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
+            }
+            catch (ModelEndpointException ex) when (ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+            {
+                request1 = (JsonObject)request1.DeepClone();
+                request1["response_format"] = new JsonObject { ["type"] = "json_object" };
+                return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
+            }
+        }
         HttpResponseMessage completion;
         try
         {
@@ -265,7 +298,71 @@ public sealed class LocalModelClient : IModelClient
         }
     }
 
-    async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, JsonObject? body, CancellationToken ct)
+    /// <summary>
+    /// Sends a streamed chat request and puts the answer together as it comes, reporting it. Ollama sends a JSON object
+    /// per line; OpenAI-compatible servers send server-sent events ("data: {...}", then "data: [DONE]"), and llama.cpp's
+    /// server adds how far it has read the prompt. The whole answer has the client's usual time to arrive.
+    /// </summary>
+    async Task<string> StreamAsync(Uri uri, JsonObject body, IProgress<ModelProgress> progress, bool ollama, CancellationToken ct)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (_http.Timeout != Timeout.InfiniteTimeSpan) limit.CancelAfter(_http.Timeout);
+        progress.Report(new ModelProgress(ModelStep.Waiting, ""));
+        var answer = new StringBuilder();
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Post, uri, body, limit.Token, HttpCompletionOption.ResponseHeadersRead);
+            using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(limit.Token), Encoding.UTF8);
+            while (await reader.ReadLineAsync(limit.Token) is { } line)
+            {
+                if (!ollama)
+                {
+                    if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+                    line = line[5..].Trim();
+                    if (line == "[DONE]") break;
+                }
+                if (line.Length == 0) continue;
+                JsonNode? chunk;
+                try
+                {
+                    chunk = JsonNode.Parse(line);
+                }
+                catch (JsonException ex)
+                {
+                    throw new ModelEndpointException("The endpoint streamed something that isn't JSON.", ex);
+                }
+                if (chunk?["error"] is { } error)
+                {
+                    var detail = error is JsonObject o ? o["message"]?.GetValue<string>() : error.GetValue<string>();
+                    throw new ModelRequestException($"The model server failed while answering. It said: {detail}");
+                }
+                if (chunk?["prompt_progress"] is JsonObject read && read["total"]?.GetValue<double>() is > 0 and var total)
+                {
+                    progress.Report(new ModelProgress(ModelStep.Reading, "", (read["processed"]?.GetValue<double>() ?? 0) / total));
+                    continue;
+                }
+                var piece = ollama ? chunk?["message"]?["content"]?.GetValue<string>() : chunk?["choices"]?[0]?["delta"]?["content"]?.GetValue<string>();
+                if (piece is { Length: > 0 })
+                {
+                    answer.Append(piece);
+                    progress.Report(new ModelProgress(ModelStep.Writing, answer.ToString()));
+                }
+                if (ollama && chunk?["done"]?.GetValue<bool>() == true) break;
+            }
+        }
+        catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
+        {
+            throw new ModelRequestException("The model didn't answer in the time allowed.", ex);
+        }
+        catch (Exception ex) when (ex is IOException or HttpRequestException)
+        {
+            throw new ModelRequestException("The model server stopped part way through its answer.", ex);
+        }
+        return answer.Length > 0 ? answer.ToString() : throw new ClassifierAnswerException("The model's answer was empty.");
+    }
+
+    async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, JsonObject? body, CancellationToken ct,
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
         using var message = new HttpRequestMessage(method, uri);
         if (body is not null) message.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
@@ -273,7 +370,7 @@ public sealed class LocalModelClient : IModelClient
         HttpResponseMessage response;
         try
         {
-            response = await _http.SendAsync(message, ct);
+            response = await _http.SendAsync(message, completion, ct);
         }
         catch (TaskCanceledException ex) when (body is not null && !ct.IsCancellationRequested)
         {

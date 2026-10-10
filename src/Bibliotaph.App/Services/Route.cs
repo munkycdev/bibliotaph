@@ -16,4 +16,6 @@ public enum Route
     PilotReview,
     Viewer,
     DownloadCheck,
+    /// <summary>What the AI is reading now, and the last books it read (Built-in AI plan, choice 13).</summary>
+    AiReading,
 }

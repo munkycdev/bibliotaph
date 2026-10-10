@@ -74,6 +74,9 @@
           <TextBlock Text="{Binding SwitchNote}" Style="{StaticResource Note}" Visibility="{Binding SwitchNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
           <TextBlock Text="{Binding SwitchProblem}" Style="{StaticResource Problem}"
                      Visibility="{Binding SwitchProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          <TextBlock Style="{StaticResource Note}">
+            <Hyperlink Command="{Binding OpenAiReadingCommand}" Foreground="{DynamicResource Bt.Accent}">See what the AI is reading</Hyperlink>
+          </TextBlock>
         </StackPanel>
       </DockPanel>
     </Border>

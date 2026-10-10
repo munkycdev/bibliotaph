@@ -205,7 +205,7 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// </summary>
 public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
-    TimeProvider? clock = null, ILogger<ClassifyStage>? log = null) : IGatedStage
+    TimeProvider? clock = null, ILogger<ClassifyStage>? log = null, AiReadingFeed? feed = null) : IGatedStage
 {
     /// <summary>
     /// How long a book whose scanned pages are still being read waits before Classify looks again. It looks sooner when
@@ -240,20 +240,30 @@ public sealed class ClassifyStage(
         if (input is null) return new StageOutcome.Done(StageStatus.Skipped, [], why);
 
         var started = _clock.GetUtcNow().UtcDateTime;
+        // The AI reading page follows the answer as it streams (Built-in AI plan, choice 12).
+        var progress = feed?.Start(job.DocumentId, await queries.GetTitleAsync(job.DocumentId, ct) ?? input.FileName, classifier.Model);
         ClassifierResult result;
         try
         {
-            result = await classifier.ClassifyAsync(input, ct);
+            result = await classifier.ClassifyAsync(input, progress, ct);
         }
         catch (ModelEndpointException ex)
         {
+            feed?.Abandon(job.DocumentId);
             return new StageOutcome.Unavailable(ex.Message);
         }
         catch (ClassifierAnswerException ex)
         {
+            feed?.Fail(job.DocumentId, ex.Message);
             await results.RecordFailedAsync(job.DocumentId, job.ContentHash, classifier.Provider, classifier.Model, input, started, ex.Message, CancellationToken.None);
             return new StageOutcome.Failed(ex.Message, Retry: true);
         }
+        catch (OperationCanceledException)
+        {
+            feed?.Abandon(job.DocumentId);
+            throw;
+        }
+        feed?.Finish(job.DocumentId, result);
 
         // Quotes are book text, so only counts and reasons go to the log.
         _log.LogInformation("Classified document {DocumentId} with {Model} in {Seconds:0.0} s: {Accepted} values kept, {Dropped} dropped ({Reasons})",
@@ -353,7 +363,7 @@ public sealed class AiService(
         try
         {
             var info = await client.ConnectAsync(ct);
-            var result = await new ModelClassifier(client, info.Provider, model).ClassifyAsync(input, ct);
+            var result = await new ModelClassifier(client, info.Provider, model).ClassifyAsync(input, ct: ct);
             return new AiTestResult(title, _clock.GetElapsedTime(started), result, null);
         }
         catch (Exception ex) when (ex is ModelEndpointException or ClassifierAnswerException)

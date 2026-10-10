@@ -101,6 +101,7 @@ static partial class SmokeTest
                 await Check($"Settings worked through with a library in {preference}", () => ShowSettingsAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
                 await Check($"Settings > AI, built in and with no model server, in {preference}", () => ShowAiSettingsAsync(services, window));
+                await Check($"the AI reading page during a stand-in reading in {preference}", () => ShowAiReadingAsync(services, window));
                 if (real is not { } files) continue;
                 await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
@@ -2254,6 +2255,45 @@ static partial class SmokeTest
         var ai = services.GetRequiredService<AiService>();
         await WaitUntilAsync(window, () => page.ShowBuiltIn && ai.Setup.BuiltIn, () => "Choosing Built in again didn't switch to it.");
         if (page.IsOn || ai.Setup.IsReady) throw new InvalidOperationException("Switching to Built in, with no model downloaded, switched AI on.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// AI reading (Built-in AI plan, choices 12 and 13), reached from Settings > AI: with AI off it says so; during a
+    /// stand-in reading it shows the book, the reading progress bar and the answer's fields as they are written; once
+    /// the book is done it is first in Last read, with what was kept.
+    /// </summary>
+    static async Task ShowAiReadingAsync(IServiceProvider services, Window window)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var settingsPage = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
+        settingsPage.OpenAiReadingCommand.Execute(null);
+        await Settle(window);
+        var page = shell.CurrentPage as AiReadingViewModel ?? throw new InvalidOperationException("See what the AI is reading didn't open AI reading.");
+        await WaitUntilAsync(window, () => !page.HasCurrent && page.IdleText.StartsWith("AI is off", StringComparison.Ordinal),
+            () => $"With AI off, AI reading says “{page.IdleText}”.");
+
+        // Book text only ever reaches the page, so a made-up reading shows the page as it would be.
+        var feed = services.GetRequiredService<AiReadingFeed>();
+        const long Book = -42;
+        var progress = feed.Start(Book, "Smoke Test Reading", "smoke-model");
+        progress.Report(new ModelProgress(ModelStep.Reading, "", 0.4));
+        await WaitUntilAsync(window, () => page.HasCurrent && page.ShowReadProgress && page.ReadPercent is > 39 and < 41,
+            () => "AI reading doesn't show the book and how much of the excerpt has been read.");
+        progress.Report(new ModelProgress(ModelStep.Writing, """{"title":[{"value":"Smoke Test Reading","page":1,"quote":"SMOKE"},{"value":"Sec"""));
+        await WaitUntilAsync(window, () => page.Fields.Any(f => f.Text == "Title" && f.Detail == "Smoke Test Reading"),
+            () => "AI reading doesn't show the answer's title as it is written.");
+        await AuditAsync(window, "AI reading during a reading");
+
+        feed.Finish(Book, new ClassifierResult("smoke", "smoke-model",
+            [new CheckedClaim(MetadataFields.Title, "Smoke Test Reading", "SMOKE TEST READING", 0, false)], []));
+        await WaitUntilAsync(window, () => !page.HasCurrent && page.Recent.FirstOrDefault() is { Title: "Smoke Test Reading" } done
+                && done.Kept.Any(k => k.Text == "Title: Smoke Test Reading"),
+            () => "The finished book isn't first in Last read with what was kept.");
+        await AuditAsync(window, "AI reading after a reading");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
     }

@@ -18,11 +18,12 @@ public interface IClassifier
 
     string Model { get; }
 
+    /// <summary>Classifies <paramref name="input"/>, reporting the answer as it is written when <paramref name="progress"/> is given.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
     /// <exception cref="ClassifierAnswerException">
     /// The model answered, but not in the schema, or couldn't answer for this book while it still answers others.
     /// </exception>
-    Task<ClassifierResult> ClassifyAsync(ClassifierInput input, CancellationToken ct = default);
+    Task<ClassifierResult> ClassifyAsync(ClassifierInput input, IProgress<ModelProgress>? progress = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -35,11 +36,11 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
 
     public string Model { get; } = model;
 
-    public async Task<ClassifierResult> ClassifyAsync(ClassifierInput input, CancellationToken ct = default)
+    public async Task<ClassifierResult> ClassifyAsync(ClassifierInput input, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
     {
         var system = ClassifierPrompt.SystemMessage(input.Vocabulary);
         var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName);
-        var request = new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user));
+        var request = new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user), Progress: progress);
         string answer;
         try
         {

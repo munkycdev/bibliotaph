@@ -156,6 +156,14 @@ public sealed partial class PipelineTests
         Assert.Equal((AssertionOrigin.Ai, AssertionState.Provisional), (shadowrun.Origin, shadowrun.State));
         Assert.Equal([1], shadowrun.Pages);
         Assert.False(metadata[MetadataFields.System].HasConfirmed);
+
+        // The AI reading page has the book, done, with what was kept and dropped; the request asked for a streamed answer.
+        Assert.NotNull(request.Progress);
+        Assert.Null(_aiReading.Current);
+        var read = Assert.Single(_aiReading.Recent);
+        Assert.Equal((AiReadingStep.Done, "fake-8b"), (read.Step, read.Model));
+        Assert.Contains(read.Result!.Accepted, c => c.Value == "The Sunken Lantern");
+        Assert.Contains(read.Result.Dropped, d => d.Claim.Field == "publisher");
     }
 
     [Fact]
