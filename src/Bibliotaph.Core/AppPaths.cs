@@ -35,6 +35,12 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string Models => Path.Combine(Root, "models");
 
+    /// <summary>
+    /// The built-in AI's engine, downloaded at startup by a copy of Bibliotaph that wasn't installed with one (a
+    /// developer's build). An installed copy has it in aiworker\ beside Bibliotaph.exe and never uses this folder.
+    /// </summary>
+    public string Engine => Path.Combine(Root, "engine");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

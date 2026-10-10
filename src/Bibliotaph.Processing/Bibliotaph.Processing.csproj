@@ -12,4 +12,8 @@
     <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The engine's pin, which build/fetch-engine.ps1 also reads: a build without the engine downloads the same one. -->
+    <EmbeddedResource Include="$(RepoRoot)build\engine.json" LogicalName="Bibliotaph.Processing.engine.json" />
+  </ItemGroup>
 </Project>

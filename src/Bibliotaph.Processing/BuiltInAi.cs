@@ -19,6 +19,13 @@ public sealed record BuiltInEngineOptions
     /// <summary>llama.cpp's server, which the build puts in aiworker\ beside Bibliotaph.exe (build/fetch-engine.ps1).</summary>
     public string ServerPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "aiworker", "llama-server.exe");
 
+    /// <summary>
+    /// Where the engine is downloaded at startup when this copy of Bibliotaph doesn't have one beside it (a build made
+    /// without build/fetch-engine.ps1): %LOCALAPPDATA%\Bibliotaph\engine (<see cref="AppPaths.Engine"/>). None by default,
+    /// so a test's engine is only ever the one it names.
+    /// </summary>
+    public string? DownloadFolder { get; init; }
+
     /// <summary>Where downloaded models are kept: %LOCALAPPDATA%\Bibliotaph\models (<see cref="AppPaths.Models"/>).</summary>
     public string ModelsFolder { get; init; } = AppPaths.ForCurrentUser().Models;
 
@@ -137,8 +144,9 @@ public sealed class EngineProcess : IEngineProcess
 /// </summary>
 public sealed class BuiltInEngine : IAsyncDisposable
 {
-    public const string NotInstalled = "The built-in AI engine isn't installed with this copy of Bibliotaph.";
+    public const string NotInstalled = "The built-in AI engine isn't on this computer yet. Bibliotaph downloads it when it starts.";
     public const string NoModel = "The built-in AI's model isn't downloaded yet.";
+    public const string ServerFile = "llama-server.exe";
 
     readonly HttpClient _http;
     readonly Func<EngineStart, IEngineProcess> _start;
@@ -167,14 +175,24 @@ public sealed class BuiltInEngine : IAsyncDisposable
 
     public BuiltInEngineOptions Options { get; }
 
-    public bool IsInstalled => File.Exists(Options.ServerPath);
+    /// <summary>The server beside Bibliotaph.exe if there is one, as an installed copy has; otherwise the downloaded one.</summary>
+    public string ServerPath =>
+        !File.Exists(Options.ServerPath) && DownloadedServerPath is { } downloaded && File.Exists(downloaded) ? downloaded : Options.ServerPath;
 
-    /// <summary>"llama.cpp b1234", from the note the build leaves beside the server, or null when there isn't one.</summary>
+    /// <summary>Where the downloaded server goes, or null when this engine is never downloaded.</summary>
+    public string? DownloadedServerPath => Options.DownloadFolder is { } folder ? Path.Combine(folder, ServerFile) : null;
+
+    /// <summary>The server came with this copy of Bibliotaph, so nothing needs downloading.</summary>
+    public bool IsBundled => File.Exists(Options.ServerPath);
+
+    public bool IsInstalled => File.Exists(ServerPath);
+
+    /// <summary>"llama.cpp b1234", from the note left beside the server, or null when there isn't one.</summary>
     public string? Version
     {
         get
         {
-            var note = Path.Combine(Path.GetDirectoryName(Options.ServerPath) ?? "", "engine.txt");
+            var note = Path.Combine(Path.GetDirectoryName(ServerPath) ?? "", "engine.txt");
             return File.Exists(note) ? File.ReadAllText(note).Trim() : null;
         }
     }
@@ -263,7 +281,7 @@ public sealed class BuiltInEngine : IAsyncDisposable
         // Never smaller than it was for this model, so books that needed more don't start it again each time.
         var context = Math.Max(Math.Max(contextTokens, Options.MinContextTokens), _running?.ModelPath == modelPath ? _running.ContextTokens : 0);
         Stop(_running?.ModelPath == modelPath ? "a book needs more room" : "another model was chosen");
-        var start = new EngineStart(Options.ServerPath, modelPath, context, FreePort(), Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
+        var start = new EngineStart(ServerPath, modelPath, context, FreePort(), Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
         var started = _clock.GetTimestamp();
         IEngineProcess process;
         try

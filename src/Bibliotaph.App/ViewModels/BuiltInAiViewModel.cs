@@ -41,7 +41,8 @@ public sealed partial class BuiltInModelItem(BuiltInModel model, bool suggested)
 /// Pressing Download sets the built-in AI to that model, so books are read as soon as it arrives, even if Settings has
 /// been closed by then; a model already downloaded is used as soon as it is chosen.
 /// </summary>
-public sealed partial class BuiltInAiViewModel(AiService ai, BuiltInEngine engine, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester)
+public sealed partial class BuiltInAiViewModel(
+    AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester)
     : ObservableObject
 {
     public ObservableCollection<BuiltInModelItem> Models { get; } = [];
@@ -51,8 +52,11 @@ public sealed partial class BuiltInAiViewModel(AiService ai, BuiltInEngine engin
     [NotifyCanExecuteChangedFor(nameof(DownloadCommand), nameof(CancelCommand), nameof(DeleteCommand), nameof(TestCommand))]
     public partial BuiltInModelItem? Chosen { get; set; }
 
-    /// <summary>"llama.cpp b11552", or why there is no engine.</summary>
-    public string EngineText => engine.IsInstalled ? $"Runs on {engine.Version ?? "llama.cpp"}, on this computer only." : BuiltInEngine.NotInstalled;
+    /// <summary>"llama.cpp b11552", or why there is no engine yet.</summary>
+    public string EngineText =>
+        engine.IsInstalled ? $"Runs on {engine.Version ?? "llama.cpp"}, on this computer only."
+        : engineDownload.IsDownloading ? "Downloading the built-in AI engine…"
+        : engineDownload.Problem ?? BuiltInEngine.NotInstalled;
 
     public bool IsEngineInstalled => engine.IsInstalled;
 
@@ -104,10 +108,16 @@ public sealed partial class BuiltInAiViewModel(AiService ai, BuiltInEngine engin
             ?? Models.First(m => m.IsSuggested);
         downloads.Changed -= OnDownloadsChanged;
         downloads.Changed += OnDownloadsChanged;
+        engineDownload.Changed -= OnDownloadsChanged;
+        engineDownload.Changed += OnDownloadsChanged;
         Refresh();
     }
 
-    public void Unload() => downloads.Changed -= OnDownloadsChanged;
+    public void Unload()
+    {
+        downloads.Changed -= OnDownloadsChanged;
+        engineDownload.Changed -= OnDownloadsChanged;
+    }
 
     void OnDownloadsChanged(object? sender, EventArgs e) => Application.Current?.Dispatcher.InvokeAsync(Refresh);
 
@@ -122,6 +132,8 @@ public sealed partial class BuiltInAiViewModel(AiService ai, BuiltInEngine engin
             : $"Downloading {current.Model.Name}: {BuiltInModelDownloads.Gb(current.Bytes)} of {BuiltInModelDownloads.Gb(current.Model.Bytes)}";
         if (downloads.Problem is { } problem) Problem = problem;
         OnPropertyChanged(nameof(DownloadLabel));
+        OnPropertyChanged(nameof(EngineText));
+        OnPropertyChanged(nameof(IsEngineInstalled));
         ShowCancel = CanCancel();
         DownloadCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
@@ -170,7 +182,8 @@ public sealed partial class BuiltInAiViewModel(AiService ai, BuiltInEngine engin
         Saved?.Invoke(this, EventArgs.Empty);
     }
 
-    bool CanDownload() => !IsDownloading && engine.IsInstalled && Chosen is { State: not BuiltInModelState.Downloaded };
+    // The model can download while the engine still is: the lane waits for both.
+    bool CanDownload() => !IsDownloading && Chosen is { State: not BuiltInModelState.Downloaded };
 
     /// <summary>Sets the built-in AI to the chosen model and downloads it in the background.</summary>
     [RelayCommand(CanExecute = nameof(CanDownload))]
