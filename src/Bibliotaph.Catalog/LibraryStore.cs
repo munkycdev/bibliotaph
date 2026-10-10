@@ -457,6 +457,30 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
+    /// Marks documents' text as forgotten, for "Forget its text" (slice 4i plan, choice 6), or clears the mark for "Read
+    /// it again". A document already marked keeps the time it was first forgotten.
+    /// </summary>
+    public async Task SetTextForgottenAsync(IReadOnlyCollection<long> documentIds, bool forgotten, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var documents = db.Documents.Where(d => documentIds.Contains(d.Id));
+        if (forgotten)
+        {
+            var now = _clock.GetUtcNow().UtcDateTime;
+            await documents.Where(d => d.TextForgottenUtc == null).ExecuteUpdateAsync(s => s.SetProperty(d => d.TextForgottenUtc, now), ct);
+        }
+        else await documents.ExecuteUpdateAsync(s => s.SetProperty(d => d.TextForgottenUtc, (DateTime?)null), ct);
+    }
+
+    /// <summary>Whether the user chose "Forget its text" for this document, so the pipeline leaves it alone.</summary>
+    public async Task<bool> IsTextForgottenAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Documents.AnyAsync(d => d.Id == documentId && d.TextForgottenUtc != null, ct);
+    }
+
+    /// <summary>
     /// A readable location for a document: a present file first, then an online-only one, then a file inside a ZIP,
     /// which has to be extracted to be read. Null when every location is missing or its root is offline.
     /// </summary>

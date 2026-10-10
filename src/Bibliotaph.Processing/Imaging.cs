@@ -44,4 +44,11 @@ public sealed class CoverCache(AppPaths paths)
         File.Move(temp, target, overwrite: true);
         return name;
     }
+
+    /// <summary>Deletes a book's cover, as "Forget its text" does. One that isn't there is no error.</summary>
+    public void Delete(string contentHash)
+    {
+        var target = PathFor(FileName(contentHash));
+        if (File.Exists(target)) File.Delete(target);
+    }
 }

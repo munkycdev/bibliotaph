@@ -18,5 +18,7 @@
     <Using Include="Xunit" />
     <!-- Synthetic PDFs embed the app's own OFL font, so text extraction has a real font program to read. -->
     <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
+    <!-- The smoke test's hand-made locked and protected PDFs (slice 4i), checked here against the real PDFium. -->
+    <Compile Include="..\..\src\Bibliotaph.App\Services\SmokePdfs.cs" Link="SmokePdfs.cs" />
   </ItemGroup>
 </Project>

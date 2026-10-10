@@ -69,6 +69,12 @@ public sealed class Document
     /// <summary>Capabilities with reasons, as JSON (searchable, copyable, needs OCR, ...).</summary>
     public string? CapabilitiesJson { get; set; }
     public ProtectionType Protection { get; set; }
+    /// <summary>
+    /// When the user chose "Forget its text" (slice 4i plan, choice 6): its pages, search text, cover and AI results
+    /// were removed, and the pipeline leaves it alone until "Read it again" clears this. Kept here, not in index.db,
+    /// because it is the user's decision and must survive index.db being rebuilt.
+    /// </summary>
+    public DateTime? TextForgottenUtc { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<FileLocation> Locations { get; set; } = [];
     public List<EntrySource> Sources { get; set; } = [];

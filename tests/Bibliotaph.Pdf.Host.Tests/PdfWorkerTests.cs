@@ -140,6 +140,30 @@ public sealed class PdfWorkerTests(SyntheticPdfs pdfs) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_locked_file_that_forbids_copying_opens_with_its_password_and_still_gives_its_text()
+    {
+        var withoutPassword = await _worker.SendAsync(new Request { Op = Op.Open, Path = pdfs.LockedNoCopying }, Timeout);
+        Assert.Equal(ErrorKind.Password, withoutPassword.Error);
+
+        var doc = await OpenAsync(pdfs.LockedNoCopying, Bibliotaph.App.Services.SmokePdfs.Password);
+        Assert.True(doc.IsEncrypted);
+        Assert.False(doc.CanCopy);
+        var text = await _worker.SendAsync(new Request { Op = Op.ExtractText, DocId = doc.DocId, PageIndex = 0 }, Timeout);
+        Assert.Contains(Bibliotaph.App.Services.SmokePdfs.LockedPhrase, text.Text!.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_file_under_a_protection_scheme_pdfium_lacks_is_a_security_error_password_or_not()
+    {
+        var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = pdfs.Protected }, Timeout);
+        var withPassword = await _worker.SendAsync(new Request { Op = Op.Open, Path = pdfs.Protected, Password = "anything" }, Timeout);
+
+        Assert.Equal(ErrorKind.Security, response.Error);
+        Assert.Equal(ErrorKind.Security, withPassword.Error);
+        Assert.True((await _worker.SendAsync(new Request { Op = Op.Ping }, Timeout)).Ok);
+    }
+
+    [Fact]
     public async Task A_truncated_file_is_reported_as_damaged_without_crashing_the_worker()
     {
         var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = pdfs.Truncated }, Timeout);

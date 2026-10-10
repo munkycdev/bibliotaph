@@ -219,6 +219,26 @@ public sealed class IndexingService(
     }
 
     /// <summary>
+    /// Stops the stages running for these documents now, as "Forget its text" does before it removes what they made
+    /// (slice 4i plan, choice 6). Each goes back to the queue as a paused job does; the lanes carry on with other work.
+    /// </summary>
+    public void Interrupt(IReadOnlyCollection<long> documentIds)
+    {
+        lock (_lock)
+        {
+            foreach (var control in _lanes.Values)
+            {
+                if (control.Paused || control.Running is not { } job || !documentIds.Contains(job.DocumentId)) continue;
+                // Not disposed: the lane's loop still holds the old token, and drops it with this job.
+                var interrupted = control.Cancel;
+                control.Cancel = new CancellationTokenSource();
+                interrupted.Cancel();
+            }
+        }
+        RaiseChanged();
+    }
+
+    /// <summary>
     /// Looks again at every library folder that is offline, and at those on <paramref name="drives"/> (drive letters),
     /// as when a disk is plugged in or taken out (slice 4g plan, choice 4). One that can be reached again comes back
     /// with its books without Look for changes; one whose disk went reads as offline at once.
@@ -787,7 +807,11 @@ public sealed class IndexingService(
         StageOutcome outcome;
         try
         {
-            outcome = await _stages[job.Stage].RunAsync(job, ct);
+            // A book whose text the user chose to forget isn't read again until "Read it again" (slice 4i plan, choice 6),
+            // whatever queued the job.
+            outcome = await library.IsTextForgottenAsync(job.DocumentId, ct)
+                ? new StageOutcome.Done(StageStatus.Skipped, [], TextAccessReasons.Forgotten)
+                : await _stages[job.Stage].RunAsync(job, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

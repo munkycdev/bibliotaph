@@ -36,7 +36,18 @@ public sealed class SyntheticPdfs : IDisposable
         WatermarkedForDale = Write("watermarked-dale.pdf", BuildPages(Watermark(BookPages, "Dale Example", 98765)));
         RevisedForAna = Write("revised-ana.pdf", BuildPages(Watermark(RevisedPages, "Ana Example", 5678)));
         ExpandedForAna = Write("expanded-ana.pdf", BuildPages(Watermark(ExpandedPages, "Ana Example", 1234)));
+        LockedNoCopying = Write("locked-no-copying.pdf", Bibliotaph.App.Services.SmokePdfs.Locked());
+        Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
     }
+
+    /// <summary>
+    /// One page saying <see cref="Bibliotaph.App.Services.SmokePdfs.LockedPhrase"/>, locked with
+    /// <see cref="Bibliotaph.App.Services.SmokePdfs.Password"/> (40-bit RC4) and forbidding copying: the smoke test's.
+    /// </summary>
+    public string LockedNoCopying { get; }
+
+    /// <summary>One page under a security handler PDFium doesn't have, as a DRM-protected file is: the smoke test's.</summary>
+    public string Protected { get; }
 
     /// <summary>Characters outside Windows' ANSI code page, as bundle file names often have.</summary>
     public const string NonAsciiFileName = "Ryoko\u2019s Guide \u2014 \u00e9t\u00e9 \u5996\u602a.pdf";
