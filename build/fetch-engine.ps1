@@ -52,18 +52,34 @@ function Write-Pin([string] $what) {
 # The engine: llama.cpp's Windows Vulkan build. Vulkan runs on Nvidia, AMD and Intel cards, and on the processor
 # when there's no usable card (Built-in AI plan, choice 2).
 if (-not $pin.engine.sha256) {
-    $headers = @{ 'User-Agent' = 'bibliotaph-build' }
-    if ($env:GH_TOKEN) { $headers.Authorization = "Bearer $env:GH_TOKEN" }
-    # The newest release with a Windows Vulkan build: not every release carries binaries.
-    $releases = Invoke-RestMethod 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30' -Headers $headers
-    $release = $releases | Where-Object { -not $_.prerelease -and ($_.assets.name -match 'win-vulkan-x64\.zip$') } | Select-Object -First 1
-    if (-not $release) {
-        throw "No recent llama.cpp release has a Windows Vulkan build. The newest have: $(($releases | Select-Object -First 3 | ForEach-Object { "$($_.tag_name): $($_.assets.name -join ', ')" }) -join '; ')"
+    if ($pin.engine.release -and $pin.engine.asset) {
+        # Release and asset chosen by hand: only the fingerprint is missing.
+        $url = "https://github.com/ggml-org/llama.cpp/releases/download/$($pin.engine.release)/$($pin.engine.asset)"
+        $release = $pin.engine.release
+        $name = $pin.engine.asset
     }
-    $asset = $release.assets | Where-Object { $_.name -match 'win-vulkan-x64\.zip$' } | Select-Object -First 1
-    $file = Join-Path $cache $asset.name
-    Invoke-WebRequest $asset.browser_download_url -OutFile $file
-    Write-Pin "engine: release=$($release.tag_name) asset=$($asset.name) sha256=$(Get-Sha256 $file) size=$($asset.size)"
+    else {
+        $headers = @{ 'User-Agent' = 'bibliotaph-build' }
+        if ($env:GH_TOKEN) { $headers.Authorization = "Bearer $env:GH_TOKEN" }
+        # The newest release with a Windows Vulkan build: not every release carries binaries.
+        $releases = @(Invoke-RestMethod 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30' -Headers $headers)
+        $found = foreach ($r in $releases) {
+            $a = @($r.assets | Where-Object { $_.name -like '*-bin-win-vulkan-x64.zip' })
+            if ($a.Count -gt 0) { [pscustomobject]@{ Release = $r; Asset = $a[0] }; break }
+        }
+        if (-not $found) {
+            throw "No recent llama.cpp release has a Windows Vulkan build. The newest is $($releases[0].tag_name)."
+        }
+        $url = $found.Asset.browser_download_url
+        $release = $found.Release.tag_name
+        $name = $found.Asset.name
+    }
+    $file = Join-Path $cache $name
+    Invoke-WebRequest $url -OutFile $file
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($file)
+    try { $files = ($archive.Entries | Where-Object Name | ForEach-Object Name) -join ', ' } finally { $archive.Dispose() }
+    Write-Pin "engine: release=$release asset=$name sha256=$(Get-Sha256 $file) files=$files"
 }
 $zip = Join-Path $cache $pin.engine.asset
 Save-Pinned "https://github.com/ggml-org/llama.cpp/releases/download/$($pin.engine.release)/$($pin.engine.asset)" $pin.engine.sha256 $zip
@@ -76,6 +92,7 @@ if (-not $server) { throw "$($pin.engine.asset) has no llama-server.exe." }
 if ($server.DirectoryName -ne (Resolve-Path $engine).Path) {
     Get-ChildItem $server.DirectoryName | Move-Item -Destination $engine
 }
+if ($inCi) { Write-Host "::notice title=Engine files::$((Get-ChildItem $engine -File).Name -join ', ')" }
 Set-Content (Join-Path $engine 'engine.txt') "llama.cpp $($pin.engine.release)" -Encoding utf8NoBOM
 Write-Host "llama-server from llama.cpp $($pin.engine.release) is in $engine."
 
