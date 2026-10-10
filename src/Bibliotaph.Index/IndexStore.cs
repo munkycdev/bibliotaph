@@ -238,6 +238,30 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
     /// <summary>
+    /// "Forget its text" (slice 4i plan, choice 6), the purge of derived content: a document's pages with their search
+    /// text and OCR words, its bookmarks and its cover go in one transaction, and so do its jobs and stage statuses, in
+    /// place of which a skipped Probe says why. Its doc row stays, so the card keeps its title, page count and the
+    /// file's own information. Returns false, changing nothing, while one of its stages is running.
+    /// </summary>
+    public Task<bool> ForgetTextAsync(long documentId, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var args = new { documentId };
+            if (c.ExecuteScalar<long>("SELECT count(*) FROM job WHERE document_id = @documentId AND status = 'leased'", args, t) > 0) return false;
+            c.Execute(
+                """
+                DELETE FROM ocr_word WHERE page_id IN (SELECT id FROM page WHERE document_id = @documentId);
+                DELETE FROM page WHERE document_id = @documentId;
+                DELETE FROM outline WHERE document_id = @documentId;
+                UPDATE doc SET cover = NULL WHERE document_id = @documentId;
+                DELETE FROM job WHERE document_id = @documentId;
+                DELETE FROM stage_status WHERE document_id = @documentId;
+                """, args, t);
+            JobBoard.SetStatus(c, t, documentId, Pipeline.First, StageStatus.Skipped, TextAccessReasons.Forgotten, JobBoard.Timestamp(_clock.GetUtcNow()));
+            return true;
+        }, ct);
+
+    /// <summary>
     /// Records which document each of these entries shows, and refreshes their entry_fts rows, which take the
     /// document's file name, PDF information and folders. A pack's images and their names (member_fts) are replaced.
     /// </summary>

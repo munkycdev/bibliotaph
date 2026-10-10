@@ -34,6 +34,9 @@ public partial class LibraryView
         AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
         AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
         AddBookCommand(BookCommands.ToggleFavorite, m => m.ToggleFavoriteCommand);
+        AddBookCommand(BookCommands.OpenElsewhere, m => m.OpenElsewhereCommand);
+        AddBookCommand(BookCommands.ForgetText, m => m.ForgetTextCommand);
+        AddBookCommand(BookCommands.ReadTextAgain, m => m.ReadTextAgainCommand);
         CommandBindings.Add(new CommandBinding(BookCommands.AddToCollection,
             (_, e) =>
             {

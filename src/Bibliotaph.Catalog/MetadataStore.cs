@@ -104,6 +104,28 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
+    /// "Forget its text" (slice 4i plan, choice 6): the AI's suggestions read from these copies of an entry's book go,
+    /// with the quotes from its pages they carried. What the user decided about one (kept, rejected, replaced) stays,
+    /// without its quote. Returns whether anything changed.
+    /// </summary>
+    public async Task<bool> ForgetAiAsync(EntryId entryId, IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var id = entryId.Value;
+        var rows = await db.Assertions
+            .Where(a => a.EntryId == id && a.Origin == AssertionOrigin.Ai && a.ContentHash != null && contentHashes.Contains(a.ContentHash))
+            .ToListAsync(ct);
+        foreach (var row in rows)
+        {
+            if (row.State is AssertionState.Provisional or AssertionState.AwaitingTerm) db.Assertions.Remove(row);
+            else row.EvidenceQuote = null;
+        }
+        if (rows.Count == 0) return false;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    /// <summary>
     /// Adds suggestions from a source that doesn't replace its earlier ones (a classifier run). A value already
     /// suggested by the same origin, in any state, is skipped, so a rejected one isn't proposed again. A term value
     /// whose term is still pending is held (<see cref="AssertionState.AwaitingTerm"/>) until the user decides the

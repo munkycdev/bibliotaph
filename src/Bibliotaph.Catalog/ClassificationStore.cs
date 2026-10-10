@@ -57,6 +57,17 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     }
 
     /// <summary>
+    /// Forgets the runs that read these copies, for "Forget its text" (slice 4i plan, choice 6): the book no longer
+    /// counts as read by a model, and "Read it again" sends it to the model again while AI is on. Returns how many went.
+    /// </summary>
+    public async Task<int> ForgetAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
+    {
+        if (contentHashes.Count == 0) return 0;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.ClassificationRuns.Where(r => contentHashes.Contains(r.ContentHash)).ExecuteDeleteAsync(ct);
+    }
+
+    /// <summary>
     /// The model of each entry's latest finished run, for the entries a model has read: all of them, or those of
     /// <paramref name="entryIds"/>.
     /// </summary>

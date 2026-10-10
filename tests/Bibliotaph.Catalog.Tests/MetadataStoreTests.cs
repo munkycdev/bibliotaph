@@ -275,6 +275,28 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Forgetting_a_books_text_drops_the_ais_undecided_suggestions_and_its_runs_and_keeps_decisions_without_quotes()
+    {
+        var runs = new ClassificationStore(_contexts, _clock);
+        await runs.RecordAsync(new RunRecord(_document, Hash, "ollama", "model-a", 1, 1, [0, 1, 2], _clock.GetUtcNow().UtcDateTime, ClassificationStore.Complete), Ct);
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e", quote: "D&D 5e")], Ct);
+        await _metadata.ApplyRunAsync(_document, Hash, "run1", AssertionOrigin.Ai,
+            [Ai(MetadataFields.Title, "The Sunken Lantern"), Ai(MetadataFields.Authors, "Ana Ruiz", "Written by Ana Ruiz")], Ct);
+        await _metadata.ConfirmAsync(_document, MetadataFields.Authors, Ct);
+
+        Assert.True(await _metadata.ForgetAiAsync(_document, [Hash], Ct));
+        Assert.Equal(1, await runs.ForgetAsync([Hash], Ct));
+
+        var rows = await RowsAsync();
+        Assert.DoesNotContain(rows, r => r.Field == "title");
+        var authors = Assert.Single(rows, r => r.Field == "authors");
+        Assert.Equal((AssertionState.Confirmed, null), (authors.State, authors.EvidenceQuote));
+        Assert.Equal("D&D 5e", Assert.Single(rows, r => r.Field == "edition").EvidenceQuote); // from the folder's name, not the text
+        Assert.False(await runs.HasRunAsync(Hash, "model-a", 1, Ct));
+        Assert.False(await _metadata.ForgetAiAsync(_document, [new string('b', 64)], Ct));
+    }
+
+    [Fact]
     public async Task A_run_never_writes_hints_or_user_values()
     {
         await Assert.ThrowsAsync<ArgumentException>(() =>

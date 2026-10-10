@@ -20,7 +20,7 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    SmartViewDirectory views, ILogger<HomeViewModel> log)
+    SmartViewDirectory views, BookTextActions text, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
@@ -190,6 +190,31 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     }
 
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
+
+    /// <summary>Open in another app, from the menu of a cover whose file Bibliotaph can't read (slice 4i plan, choice 4).</summary>
+    [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenElsewhere))]
+    Task OpenElsewhere(LibraryItemViewModel item) => text.OpenElsewhereAsync(item.DocumentId);
+
+    static bool CanOpenElsewhere(LibraryItemViewModel? item) => BookTextActions.HasFile(item);
+
+    /// <summary>Forget its text, from a cover's menu (slice 4i plan, choice 6).</summary>
+    [RelayCommand(CanExecute = nameof(CanForgetText))]
+    async Task ForgetText(LibraryItemViewModel item)
+    {
+        await text.ForgetAsync(item.EntryId);
+        await RefreshAsync();
+    }
+
+    static bool CanForgetText(LibraryItemViewModel? item) => item is { CanForgetText: true };
+
+    [RelayCommand(CanExecute = nameof(CanReadTextAgain))]
+    async Task ReadTextAgain(LibraryItemViewModel item)
+    {
+        await text.ReadAgainAsync(item.EntryId);
+        await RefreshAsync();
+    }
+
+    static bool CanReadTextAgain(LibraryItemViewModel? item) => item is { CanReadAgain: true };
 
     /// <summary>A book at the page it was left at; a pack at its first image, with the rest to step through.</summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item)

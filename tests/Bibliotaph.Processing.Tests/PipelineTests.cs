@@ -53,6 +53,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     PageRefStore _pageRefs = null!;
     PagePlaces _places = null!;
     readonly HeldStage.Gate _matchGate = new();
+    readonly TestPasswords _passwords = new();
+    IndexStore _indexStore = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -77,7 +79,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var entries = _entries = new EntryStore(contexts);
         var queue = new JobBoard(_writer, _index);
         var reader = new SourceFileReader();
-        var index = new IndexStore(_writer);
+        var index = _indexStore = new IndexStore(_writer);
         var archives = new ArchiveReader(reader);
         _sources = new SourceFiles(_paths, archives, new DiskSpace());
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
@@ -92,7 +94,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _notes = new NoteStore(contexts);
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
             favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes);
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources, projector);
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);

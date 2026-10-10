@@ -425,6 +425,16 @@
                         AutomationProperties.Name="{Binding Title, StringFormat='Try {0} again'}"
                         Command="{Binding DataContext.RetryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         CommandParameter="{Binding}" />
+                <Button DockPanel.Dock="Right" Content="Open to unlock" c:Ui.Icon="{StaticResource Icon.Lock}" VerticalAlignment="Top"
+                        Visibility="{Binding CanUnlock, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                        AutomationProperties.Name="{Binding Title, StringFormat='Open {0} to unlock'}"
+                        Command="{Binding DataContext.UnlockCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}" />
+                <Button DockPanel.Dock="Right" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" VerticalAlignment="Top"
+                        Visibility="{Binding CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                        AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in another app'}"
+                        Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}" />
                 <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TriangleAlert}" Margin="0,0,10,0" VerticalAlignment="Top" />
                 <StackPanel Margin="0,0,12,0">
                   <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />

@@ -54,22 +54,37 @@ public sealed record PackStep(long DocumentId, string Title);
 
 /// <summary>
 /// Passwords that opened a book in this sitting, by content hash, so the same book opening in another window (or
-/// again in this one) isn't asked for twice, even when the reader didn't tick Remember. Held in memory only and never
-/// written anywhere; they go when the app exits.
+/// again in this one) isn't asked for twice, even when the reader didn't tick Remember. Those entered with "Make its
+/// text searchable" ticked are lent to indexing too (slice 4i plan, choice 1), so the book is read for search while
+/// the app runs. Held in memory only and never written anywhere; they go when the app exits.
 /// </summary>
 public sealed class UnlockedPasswords
 {
     readonly Lock _lock = new();
-    readonly Dictionary<string, string> _passwords = [];
+    readonly Dictionary<string, (string Password, bool ForIndexing)> _passwords = [];
 
     public string? Find(string contentHash)
     {
-        lock (_lock) return _passwords.GetValueOrDefault(contentHash);
+        lock (_lock) return _passwords.TryGetValue(contentHash, out var entry) ? entry.Password : null;
     }
 
-    public void Add(string contentHash, string password)
+    /// <summary>The password, if the reader let indexing use it.</summary>
+    public string? FindForIndexing(string contentHash)
     {
-        lock (_lock) _passwords[contentHash] = password;
+        lock (_lock) return _passwords.TryGetValue(contentHash, out var entry) && entry.ForIndexing ? entry.Password : null;
+    }
+
+    /// <summary>
+    /// Keeps a password that opened the book. Opening it again with the same password never takes back the loan to
+    /// indexing; a new password replaces the old one, and its loan with it.
+    /// </summary>
+    public void Add(string contentHash, string password, bool forIndexing = false)
+    {
+        lock (_lock)
+        {
+            var kept = _passwords.TryGetValue(contentHash, out var entry) && entry.Password == password && entry.ForIndexing;
+            _passwords[contentHash] = (password, forIndexing || kept);
+        }
     }
 
     public void Forget(string contentHash)

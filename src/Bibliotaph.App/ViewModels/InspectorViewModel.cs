@@ -406,8 +406,22 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (details is null) return facts;
 
         facts.Add(new("Search", SearchText(entry, details)));
-        if (details.Encrypted) facts.Add(new("Password", "Needs a password to open"));
-        if (entry.Format == SourceFormats.Pdf) facts.Add(new("Copying text", details.CanCopy ? "Allowed" : "Not allowed by the file"));
+        // From how its stages stopped, not the file's encryption flag: that is set on any PDF with a security handler,
+        // most of which open without a password (only restricting copying or printing), and never on a locked one,
+        // which can't be opened to read it (slice 4i plan, choice 3).
+        switch (entry.TextAccess)
+        {
+            case TextAccess.Locked:
+                facts.Add(new("Password", "Needs a password to open. Open it to enter it; its text becomes searchable once it's unlocked."));
+                break;
+            case TextAccess.Protected:
+                facts.Add(new("Protection", "A scheme Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default PDF app."));
+                break;
+        }
+        // A file that forbids copying is still read for search; only copying text out stays off (slice 4i plan, choice 5).
+        if (entry.Format == SourceFormats.Pdf && entry.TextAccess is TextAccess.Readable or TextAccess.Forgotten)
+            facts.Add(new("Copying text", details.CanCopy ? "Allowed"
+                : "Not allowed by the file. Search still finds its pages; copying text out of the reader stays off, as the file asks."));
         // The PDF's own information is often wrong ("Microsoft Word - final2.doc"), so it is labelled as the file's.
         if (!string.IsNullOrWhiteSpace(details.MetaTitle)) facts.Add(new("Title in the file", details.MetaTitle));
         if (!string.IsNullOrWhiteSpace(details.MetaAuthor)) facts.Add(new("Author in the file", details.MetaAuthor));
@@ -418,6 +432,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     static string SearchText(LibraryEntry entry, DocumentDetails details)
     {
         if (entry.IsPack || SourceFormats.IsImage(entry.Format)) return "Found by its name";
+        switch (entry.TextAccess)
+        {
+            case TextAccess.Locked: return "Locked: open it to unlock, and its text becomes searchable";
+            case TextAccess.Protected: return "Can't be read here, so it's found by its name and details only";
+            case TextAccess.Forgotten: return "Its text was forgotten. Read it again, from its card's menu, to search it";
+        }
         if (!entry.Searchable) return "Its text is still being read";
         var text = details.OcrPages > 0
             ? $"Text searchable, {details.OcrPages.ToString("N0", CultureInfo.CurrentCulture)} scanned {(details.OcrPages == 1 ? "page" : "pages")} read"

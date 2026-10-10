@@ -114,6 +114,69 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task Forgetting_a_documents_text_waits_for_its_running_stage_then_removes_its_pages_and_cover()
+    {
+        await _store.UpsertDocumentAsync(Doc(), Pages(2), [new OutlineRow("Chapter one", 1, 0)], Ct);
+        await AddEntriesAsync(_store, 1);
+        await _store.SetPageTextAsync(1, [new PageTextRow(0, "the owlbear sleeps", "pdf", 1, false)], Ct);
+        await _store.SetCoverAsync(1, "hash1.jpg", Ct);
+        await _queue.EnqueueAsync(1, "hash1", Stage.Covers, ct: Ct);
+        var running = (await _queue.LeaseAsync([Stage.Covers], "t", TimeSpan.FromMinutes(1), Ct))!;
+
+        Assert.False(await _store.ForgetTextAsync(1, Ct));
+        Assert.Equal([0L], PageSearch("owlbear"));
+
+        await _queue.ReleaseAsync(running, Ct);
+        Assert.True(await _store.ForgetTextAsync(1, Ct));
+
+        Assert.Empty(PageSearch("owlbear"));
+        Assert.Equal(0, Connection.ExecuteScalar<long>("SELECT count(*) FROM page WHERE document_id = 1"));
+        Assert.Equal(0, Connection.ExecuteScalar<long>("SELECT count(*) FROM outline WHERE document_id = 1"));
+        Assert.Equal(0, Connection.ExecuteScalar<long>("SELECT count(*) FROM job WHERE document_id = 1"));
+        Assert.Null(Connection.ExecuteScalar<string?>("SELECT cover FROM doc WHERE document_id = 1"));
+        // The card stays, by its title, saying why it has no text.
+        var entry = Assert.Single(await new LibraryQueries(Database).ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal(("Gazetteer of the Marches", TextAccess.Forgotten, false), (entry.Title, entry.TextAccess, entry.Searchable));
+        Assert.Equal(1, (await _queries.GetProgressAsync(Ct)).Withheld);
+        Assert.Empty(await _queries.GetAttentionAsync(Ct));
+    }
+
+    [Fact]
+    public async Task A_locked_or_protected_file_is_withheld_from_what_is_still_being_read()
+    {
+        await _store.UpsertDocumentAsync(Doc(1) with { DisplayTitle = "Locked" }, [], [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2) with { DisplayTitle = "Protected" }, [], [], Ct);
+        await _store.UpsertDocumentAsync(Doc(3) with { DisplayTitle = "Damaged" }, [], [], Ct);
+        await AddEntriesAsync(_store, 1, 2, 3);
+        foreach (var id in new long[] { 1, 2, 3 }) await _queue.EnqueueAsync(id, $"hash{id}", Stage.Probe, ct: Ct);
+        var lane = new[] { Stage.Probe };
+        await _queue.BlockAsync((await _queue.LeaseAsync(lane, "t", TimeSpan.FromMinutes(1), Ct))!, TextAccessReasons.Locked, Ct);
+        await _queue.FailAsync((await _queue.LeaseAsync(lane, "t", TimeSpan.FromMinutes(1), Ct))!, TextAccessReasons.Protected, retry: false, Ct);
+        await _queue.FailAsync((await _queue.LeaseAsync(lane, "t", TimeSpan.FromMinutes(1), Ct))!, "This file isn't a readable PDF.", retry: false, Ct);
+
+        var entries = (await new LibraryQueries(Database).ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.Title, e => e.TextAccess);
+
+        Assert.Equal(TextAccess.Locked, entries["Locked"]);
+        Assert.Equal(TextAccess.Protected, entries["Protected"]);
+        Assert.Equal(TextAccess.Readable, entries["Damaged"]);
+        Assert.Equal(2, (await _queries.GetProgressAsync(Ct)).Withheld);
+    }
+
+    [Fact]
+    public async Task Titles_by_content_hash_are_the_cards_or_the_files()
+    {
+        await _store.UpsertDocumentAsync(Doc(1), [], [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2) with { DisplayTitle = "Uncarded copy" }, [], [], Ct);
+        await AddEntriesAsync(_store, 1);
+
+        var titles = await _queries.GetTitlesByHashAsync(["hash1", "hash2", "hash9"], Ct);
+
+        Assert.Equal(2, titles.Count);
+        Assert.Equal("Gazetteer of the Marches", titles["hash1"]);
+        Assert.Equal("Uncarded copy", titles["hash2"]);
+    }
+
+    [Fact]
     public async Task Progress_tells_index_work_from_ocr_work()
     {
         await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
