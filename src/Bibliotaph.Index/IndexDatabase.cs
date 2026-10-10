@@ -167,19 +167,41 @@ public sealed class IndexDatabase
     {
         if (FilePath is null) return;
         // Pooled connections keep the file open, and Windows will not delete an open file.
-        SqliteConnection.ClearAllPools();
+        ClearPools();
 #pragma warning disable RS0030 // index.db is Bibliotaph's own derived file in %LOCALAPPDATA%, never a source file.
         foreach (var path in new[] { FilePath, FilePath + "-wal", FilePath + "-shm" })
             File.Delete(path);
 #pragma warning restore RS0030
     }
 
+    string ReadConnectionString
+    {
+        get
+        {
+            var builder = new SqliteConnectionStringBuilder(ConnectionString);
+            if (FilePath is not null) builder.Mode = SqliteOpenMode.ReadOnly;
+            return builder.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Closes this file's pooled connections, for reading and writing, so it can be deleted or moved. Unlike
+    /// SqliteConnection.ClearAllPools, it leaves other files' pools alone: clearing a pool while another thread opens a
+    /// connection from it fails that open with ObjectDisposedException.
+    /// </summary>
+    public void ClearPools()
+    {
+        foreach (var connectionString in new[] { ConnectionString, ReadConnectionString })
+        {
+            using var connection = new SqliteConnection(connectionString);
+            SqliteConnection.ClearPool(connection);
+        }
+    }
+
     /// <summary>A read-only connection for queries. Callers dispose it.</summary>
     public SqliteConnection OpenRead()
     {
-        var builder = new SqliteConnectionStringBuilder(ConnectionString);
-        if (FilePath is not null) builder.Mode = SqliteOpenMode.ReadOnly;
-        var connection = new SqliteConnection(builder.ToString());
+        var connection = new SqliteConnection(ReadConnectionString);
         connection.Open();
         if (FilePath is null)
         {

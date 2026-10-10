@@ -37,6 +37,17 @@ public sealed class CatalogDatabase(string path, string backupsDirectory, TimePr
 
     public CatalogDbContext CreateContext() => new(Options);
 
+    /// <summary>
+    /// Closes this file's pooled connections, so it can be moved or deleted. Unlike SqliteConnection.ClearAllPools, it
+    /// leaves other files' pools alone: clearing a pool while another thread opens a connection from it fails that
+    /// open with ObjectDisposedException.
+    /// </summary>
+    public void ClearPool()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        SqliteConnection.ClearPool(connection);
+    }
+
     public async Task<CatalogMigrationResult> MigrateAsync(CancellationToken ct = default)
     {
         var existed = File.Exists(path);

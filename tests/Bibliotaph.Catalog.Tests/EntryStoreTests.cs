@@ -1,7 +1,6 @@
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
@@ -33,7 +32,7 @@ public sealed class EntryStoreTests : IAsyncLifetime
 
     public ValueTask DisposeAsync()
     {
-        SqliteConnection.ClearAllPools();
+        _database.ClearPool();
         Directory.Delete(_dir, recursive: true);
         return ValueTask.CompletedTask;
     }

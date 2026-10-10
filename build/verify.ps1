@@ -33,6 +33,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell 5.1 has no $IsWindows, so the Windows-only steps (Engine, Smoke) would quietly skip themselves.
+# Run in PowerShell 7 instead.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+    if (-not $pwsh) { throw 'verify.ps1 needs PowerShell 7. Install it with: winget install Microsoft.PowerShell' }
+    $command = "& '$($PSCommandPath.Replace("'", "''"))'"
+    if ($PSBoundParameters.ContainsKey('Step')) { $command += " -Step $($Step -join ',')" }
+    if ($SkipSmoke) { $command += ' -SkipSmoke' }
+    Write-Host 'Running in PowerShell 7 (pwsh), since this is Windows PowerShell.' -ForegroundColor Yellow
+    & $pwsh.Source -NoProfile -Command $command
+    exit $LASTEXITCODE
+}
+
 $root = Split-Path $PSScriptRoot -Parent
 $solution = Join-Path $root 'Bibliotaph.slnx'
 $inCi = $env:GITHUB_ACTIONS -eq 'true'

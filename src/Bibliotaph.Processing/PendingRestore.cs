@@ -63,6 +63,7 @@ public static class PendingRestore
         string? kept = null;
         var previous = Path.Combine(staging, PreviousName);
         var movedAside = false;
+        CatalogDatabase? current = null;
         try
         {
             request = JsonSerializer.Deserialize<RestoreRequest>(await File.ReadAllTextAsync(Marker(paths), ct), BackupManifest.Json)
@@ -74,9 +75,10 @@ public static class PendingRestore
             DeleteDatabase(paths.IndexDatabase);
             if (File.Exists(paths.CatalogDatabase))
             {
-                kept = await new CatalogDatabase(paths.CatalogDatabase, paths.Backups, clock).BackupAsync("before-restore", ct);
+                current = new CatalogDatabase(paths.CatalogDatabase, paths.Backups, clock);
+                kept = await current.BackupAsync("before-restore", ct);
                 // The copy's connection closes the file, which folds its write-ahead log in, before it is moved.
-                SqliteConnection.ClearAllPools();
+                current.ClearPool();
                 MoveDatabase(paths.CatalogDatabase, previous);
                 movedAside = true;
             }
@@ -88,7 +90,7 @@ public static class PendingRestore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or JsonException or InvalidDataException or NotSupportedException)
         {
-            SqliteConnection.ClearAllPools();
+            current?.ClearPool();
             if (movedAside)
             {
                 DeleteDatabase(paths.CatalogDatabase);

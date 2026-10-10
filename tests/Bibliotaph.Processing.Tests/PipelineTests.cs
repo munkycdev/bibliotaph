@@ -15,6 +15,7 @@ namespace Bibliotaph.Processing.Tests;
 /// A library folder of synthetic files through the real pipeline: scan, hash, Probe, Text, Covers and OCR, with
 /// the real PDF worker, catalog.db and index.db on disk. Only image encoding is faked.
 /// </summary>
+[Collection(SqlitePools.Name)]
 public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
 {
     static readonly TimeSpan Patience = TimeSpan.FromSeconds(90);

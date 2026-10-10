@@ -1,5 +1,4 @@
 using Bibliotaph.Core;
-using Microsoft.Data.Sqlite;
 
 namespace Bibliotaph.Catalog.Tests;
 
@@ -31,7 +30,7 @@ public sealed class NoteStoreTests : IAsyncLifetime
 
     public ValueTask DisposeAsync()
     {
-        SqliteConnection.ClearAllPools();
+        _database.ClearPool();
         Directory.Delete(_dir, recursive: true);
         return ValueTask.CompletedTask;
     }
