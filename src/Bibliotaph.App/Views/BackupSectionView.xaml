@@ -1,0 +1,106 @@
+<UserControl x:Class="Bibliotaph.App.Views.BackupSectionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:BackupSectionViewModel}">
+  <StackPanel>
+    <TextBlock Text="Backup" Style="{StaticResource Text.H2}" />
+    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
+               Text="A backup holds your catalog: folders, corrections, collections, sessions and notes. Your books aren't in it; they stay where they are." />
+
+    <!-- Back up now (slice 4j plan, choice 2): a ZIP saved where the user picks; the weekly ones go to the backups folder. -->
+    <WrapPanel Margin="0,12,0,0">
+      <Button x:Name="BackUpNow" Style="{StaticResource Bt.Button.Primary}" Content="Back up now…" c:Ui.Icon="{StaticResource Icon.HardDrive}"
+              Margin="0,0,8,0" Command="{Binding BackUpNowCommand}" AutomationProperties.Name="Back up now" />
+      <Button Content="Open backups folder" c:Ui.Icon="{StaticResource Icon.Folder}" Command="{Binding OpenBackupsFolderCommand}"
+              AutomationProperties.Name="Open backups folder" />
+    </WrapPanel>
+    <TextBlock Text="{Binding BackupNote}" Style="{StaticResource Text.Small}" Margin="0,10,0,0" TextWrapping="Wrap"
+               Visibility="{Binding BackupNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+    <TextBlock Text="{Binding LastBackup}" Style="{StaticResource Text.Small}" Margin="0,10,0,0" TextWrapping="Wrap" />
+    <CheckBox Margin="0,14,0,0" IsChecked="{Binding IncludeIndex}" VerticalContentAlignment="Top" Foreground="{DynamicResource Bt.Text}"
+              AutomationProperties.Name="Include the search index">
+      <StackPanel Margin="4,0,0,0">
+        <TextBlock Text="Include the search index" FontSize="12" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                   Text="Backups get much larger, but a restored library is searchable straight away instead of after your books are read again." />
+      </StackPanel>
+    </CheckBox>
+
+    <!-- Restore (choice 4): pick a backup, see each of its folders found or not, point the missing ones, then restart. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Restore" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
+                   Text="Puts your catalog back as it was when a backup was made, on this computer or a new one. Your current catalog is backed up first." />
+        <Button x:Name="ChooseBackup" Content="Choose a backup…" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Left"
+                Command="{Binding ChooseBackupCommand}" AutomationProperties.Name="Choose a backup to restore" />
+        <TextBlock Text="{Binding RestoreSummary}" Style="{StaticResource Text.Small}" Margin="0,12,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding RestoreSummary, Converter={StaticResource Bt.VisibleWhenSet}}" />
+        <TextBlock Text="{Binding RestoreProblem}" Style="{StaticResource Text.Small}" Margin="0,12,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding RestoreProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+        <StackPanel Visibility="{Binding HasPreview, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <ItemsControl ItemsSource="{Binding RestoreFolders}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:RestoreFolderItem}">
+                <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
+                  <DockPanel>
+                    <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Folder}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                    <StackPanel>
+                      <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap">
+                        <Run Text="{Binding Files, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Status, Mode=OneWay}" />
+                      </TextBlock>
+                      <WrapPanel Margin="0,10,0,0" Visibility="{Binding Found, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+                        <Button x:Name="PointRestoredFolder" Content="Point to its new place" c:Ui.Icon="{StaticResource Icon.FolderInput}" Margin="0,0,8,0"
+                                AutomationProperties.Name="{Binding Path, StringFormat='Point {0} to its new place'}"
+                                Command="{Binding DataContext.PointRestoredFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button Style="{StaticResource Bt.Link}" Content="Leave it offline" VerticalAlignment="Center"
+                                AutomationProperties.Name="{Binding Path, StringFormat='Leave {0} offline'}"
+                                Command="{Binding DataContext.LeaveOfflineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" Visibility="{Binding IsPointed, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      </WrapPanel>
+                      <TextBlock Text="{Binding Problem}" Style="{StaticResource Text.Small}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                 Visibility="{Binding HasProblem, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <!-- Choice 3: what a backup never holds, said before restoring rather than discovered after. -->
+          <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0" TextWrapping="Wrap"
+                     Text="Passwords for protected PDFs and AI keys aren't in backups. Bibliotaph asks for them again when it needs them." />
+          <WrapPanel Margin="0,16,0,0">
+            <Button x:Name="RestoreAndRestart" Style="{StaticResource Bt.Button.Primary}" Content="Restore and restart…" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
+                    Margin="0,0,8,0" Command="{Binding RestoreCommand}" AutomationProperties.Name="Restore and restart" />
+            <Button x:Name="CancelRestore" Content="Cancel" Command="{Binding CancelRestoreCommand}" AutomationProperties.Name="Cancel restoring" />
+          </WrapPanel>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Export (choice 7): the library for a spreadsheet, or everything for whatever comes next. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Export" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
+                   Text="CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalog, for other programs." />
+        <WrapPanel>
+          <Button Content="Export CSV…" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,0" Command="{Binding ExportCsvCommand}"
+                  AutomationProperties.Name="Export the library as CSV" />
+          <Button Content="Export JSON…" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Command="{Binding ExportJsonCommand}"
+                  AutomationProperties.Name="Export everything as JSON" />
+        </WrapPanel>
+        <TextBlock Text="{Binding ExportNote}" Style="{StaticResource Text.Small}" Margin="0,10,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding ExportNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

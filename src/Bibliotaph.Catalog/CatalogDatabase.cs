@@ -66,13 +66,22 @@ public sealed class CatalogDatabase(string path, string backupsDirectory, TimePr
         for (var n = 2; File.Exists(target); n++)
             target = Path.Combine(backupsDirectory, $"catalog-{stamp}-{reason}-{n}.db");
 
+        await CopyToAsync(target, ct);
+        return target;
+    }
+
+    /// <summary>
+    /// Writes a consistent copy of catalog.db to <paramref name="target"/>, a file that doesn't exist yet. VACUUM INTO
+    /// reads in one transaction, so the copy is whole even while the app goes on writing (slice 4j plan, choice 1).
+    /// </summary>
+    public async Task CopyToAsync(string target, CancellationToken ct = default)
+    {
         await using var connection = new SqliteConnection(ConnectionString);
         await connection.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = "VACUUM INTO $target";
         command.Parameters.AddWithValue("$target", target);
         await command.ExecuteNonQueryAsync(ct);
-        return target;
     }
 
     async Task ExecuteAsync(string sql, CancellationToken ct)
