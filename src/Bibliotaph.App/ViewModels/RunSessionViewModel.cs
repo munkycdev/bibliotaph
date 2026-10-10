@@ -55,11 +55,11 @@ public sealed partial class RunSessionViewModel : PageViewModel
 
     public override Route NavRoute => Route.Sessions;
 
-    public override string Section => "Sessions";
+    public override string Section => "Binders";
 
     public override Route? SectionRoute => Route.Sessions;
 
-    public override string Title => Pack?.Title ?? "Session";
+    public override string Title => Pack?.Title ?? "Binder";
 
     public override bool ScrollsItself => true;
 
@@ -169,7 +169,7 @@ public sealed partial class RunSessionViewModel : PageViewModel
                 Rows.Clear();
                 HasItems = false;
                 IsLoaded = true;
-                Viewer.ShowUnavailable("This session isn't there any more.", "It was deleted. Go back to Sessions to pick another.");
+                Viewer.ShowUnavailable("This binder isn't there any more.", "It was deleted. Go back to Binders to pick another.");
                 return;
             }
             var rows = await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
@@ -194,7 +194,7 @@ public sealed partial class RunSessionViewModel : PageViewModel
                 else await OpenAsync(again);
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
-            else Viewer.ShowUnavailable("This session has nothing in it yet.", "Add books and pages to it from your library, then begin again.");
+            else Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, then begin again.");
         }
         catch (Exception ex)
         {

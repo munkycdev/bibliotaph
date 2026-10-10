@@ -67,10 +67,10 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
                 _ = AddToAsync(id, what, () => add(id));
                 break;
             case SessionMenuKind.New:
-                NewThen("Add to a new session", "Create and add", pack => AddToAsync(pack.Id, what, () => add(pack.Id)));
+                NewThen("Add to a new binder", "Create and add", pack => AddToAsync(pack.Id, what, () => add(pack.Id)));
                 break;
             case SessionMenuKind.Choose:
-                Open(SessionDialogViewModel.Picking($"Add {what} to a session", Directory.All), async result =>
+                Open(SessionDialogViewModel.Picking($"Add {what} to a binder", Directory.All), async result =>
                 {
                     if (result.PackId is { } picked) await AddToAsync(picked, what, () => add(picked));
                 });
@@ -86,7 +86,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     {
         if (Directory.Current is null)
         {
-            NewThen("Add to a new session", "Create", _ => AddPagesAsync(documentId, from, to, firstPage, findPage));
+            NewThen("Add to a new binder", "Create", _ => AddPagesAsync(documentId, from, to, firstPage, findPage));
             return;
         }
         var label = await Run(() => sessions.SuggestLabelAsync(documentId, firstPage), "Finding the page's bookmark failed") ?? "";
@@ -104,13 +104,13 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     {
         var added = await Run(add, "Adding to a session failed");
         if (added is null) return;
-        var name = Directory.Find(packId)?.Title ?? "the session";
+        var name = Directory.Find(packId)?.Title ?? "the binder";
         await FinishAsync(added.Count == 0 ? "That couldn't be added." : $"Added {what} to {name}.",
             added.Count == 0 ? null : async () => await sessions.RemoveItemsAsync(added));
     }
 
     /// <summary>New session: a title and a date, then the pack opens (<see cref="Created"/>).</summary>
-    public void Create() => NewThen("New session", "Create", pack =>
+    public void Create() => NewThen("New binder", "Create", pack =>
     {
         Created?.Invoke(this, pack);
         return Task.CompletedTask;
@@ -127,7 +127,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
 
     /// <summary>Edit: a pack's title and date.</summary>
     public void Edit(SessionPackInfo pack) =>
-        Open(SessionDialogViewModel.Naming("Edit session", "Save", pack.Title, pack.Date), async result =>
+        Open(SessionDialogViewModel.Naming("Edit binder", "Save", pack.Title, pack.Date), async result =>
         {
             if (await Run(async () => { await sessions.UpdateAsync(pack.Id, result.Title, result.Date); return true; }, "Saving the session failed"))
                 await FinishAsync(null, null);

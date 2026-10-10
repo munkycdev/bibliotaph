@@ -10,7 +10,7 @@
   <StackPanel>
     <TextBlock Text="Backup" Style="{StaticResource Text.H2}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
-               Text="A backup holds your catalog: folders, corrections, collections, sessions and notes. Your books aren't in it; they stay where they are." />
+               Text="A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay where they are." />
 
     <!-- Back up now (slice 4j plan, choice 2): a ZIP saved where the user picks; the weekly ones go to the backups folder. -->
     <WrapPanel Margin="0,12,0,0">

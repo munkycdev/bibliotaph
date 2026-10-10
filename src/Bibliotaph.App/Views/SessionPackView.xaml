@@ -125,7 +125,7 @@
                     Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     c:NewWindowGesture.Command="{Binding DataContext.OpenItemInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}" />
-            <Button x:Name="RemoveItem" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" ToolTip="Remove from session (Delete)"
+            <Button x:Name="RemoveItem" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" ToolTip="Remove from binder (Delete)"
                     AutomationProperties.Name="{Binding Heading, StringFormat='Remove {0}'}"
                     Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
           </StackPanel>
@@ -156,7 +156,7 @@
           <Button x:Name="DuplicateSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Copy}" ToolTip="Duplicate"
                   AutomationProperties.Name="Duplicate" Command="{Binding DuplicateCommand}" />
           <Button x:Name="DeleteSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Delete (the books stay)"
-                  AutomationProperties.Name="Delete session" Command="{Binding DeleteCommand}" />
+                  AutomationProperties.Name="Delete binder" Command="{Binding DeleteCommand}" />
         </StackPanel>
         <StackPanel>
           <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
@@ -212,10 +212,10 @@
         <!-- .bt-sectionline and the session sequence. -->
         <StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBlock Text="Session sequence" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+            <TextBlock Text="Binder sequence" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
             <TextBlock Text="Books and pages, ready at hand" Style="{StaticResource Text.Small}" Margin="12,0,0,0" VerticalAlignment="Bottom" />
           </StackPanel>
-          <ItemsControl x:Name="SessionItems" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Session sequence"
+          <ItemsControl x:Name="SessionItems" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Binder sequence"
                         KeyboardNavigation.TabNavigation="Continue" Visibility="{Binding HasItems, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsLoaded, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <c:EmptyState Title="An empty notebook." Message="Add a book or page from your library to get started: right-click a book, or use Add page in the reader."
@@ -226,9 +226,9 @@
 
         <!-- Session notes, saved as you type. -->
         <StackPanel Grid.Column="2">
-          <TextBlock Text="Session notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
+          <TextBlock Text="Binder notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
           <TextBox x:Name="SessionNotes" Style="{StaticResource Bt.TextBox}" Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
-                   TextWrapping="Wrap" MinHeight="260" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Session notes"
+                   TextWrapping="Wrap" MinHeight="260" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Binder notes"
                    ToolTip="Saved as you type" />
         </StackPanel>
       </Grid>

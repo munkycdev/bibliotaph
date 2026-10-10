@@ -52,8 +52,8 @@ public sealed class SessionDirectory
             SessionMenu.Choices =
             [
                 .. Current is { } current ? [new SessionMenuChoice(SessionMenuKind.Session, current.Id, $"Add to {current.Title}")] : Array.Empty<SessionMenuChoice>(),
-                .. All.Count > 1 ? [new SessionMenuChoice(SessionMenuKind.Choose, null, "Add to another session…")] : Array.Empty<SessionMenuChoice>(),
-                new(SessionMenuKind.New, null, "Add to a new session…"),
+                .. All.Count > 1 ? [new SessionMenuChoice(SessionMenuKind.Choose, null, "Add to another binder…")] : Array.Empty<SessionMenuChoice>(),
+                new(SessionMenuKind.New, null, "Add to a new binder…"),
             ];
             Changed?.Invoke(this, EventArgs.Empty);
         }
@@ -84,6 +84,6 @@ public sealed class SessionDirectory
 
     /// <summary>The Library limited to a pack's books.</summary>
     public static LibraryScope ScopeFor(SessionPackInfo pack) => new(ScopeKeys.Session(pack.Id), pack.Title,
-        "The books in this session, whole or for some of their pages.", "Nothing in this session yet.",
+        "The books in this binder, whole or for some of their pages.", "Nothing in this binder yet.",
         "Add books from the Library, or pages from the reader.");
 }

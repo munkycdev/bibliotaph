@@ -73,7 +73,7 @@
         </StackPanel>
       </DockPanel>
 
-      <!-- New session and Edit: a title and an optional date. A section: a name. -->
+      <!-- New binder and Edit: a title and an optional date. A section: a name. -->
       <StackPanel Visibility="{Binding IsNaming, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <TextBlock Text="{Binding TitleLabel}" Style="{StaticResource FieldLabel}" />
         <TextBox x:Name="TitleBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
@@ -85,7 +85,7 @@
         <StackPanel Visibility="{Binding ShowsDate, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <TextBlock Text="Date played (optional)" Style="{StaticResource FieldLabel}" />
           <TextBox x:Name="DateBox" Style="{StaticResource Bt.TextBox}" Text="{Binding DateText, UpdateSourceTrigger=PropertyChanged}"
-                   AutomationProperties.Name="Date played" ToolTip="The date in your usual format. Upcoming sessions list by it.">
+                   AutomationProperties.Name="Date played" ToolTip="The date in your usual format. Upcoming binders list by it.">
             <TextBox.InputBindings>
               <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
             </TextBox.InputBindings>
@@ -98,16 +98,16 @@
         </StackPanel>
       </StackPanel>
 
-      <!-- Add to another session: every pack, narrowed as you type. -->
+      <!-- Add to another binder: every pack, narrowed as you type. -->
       <StackPanel Visibility="{Binding IsPicking, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <TextBox x:Name="FilterBox" Style="{StaticResource Bt.TextBox}" Margin="0,14,0,8" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}"
-                 AutomationProperties.Name="Find a session" ToolTip="Type part of a session's title">
+                 AutomationProperties.Name="Find a binder" ToolTip="Type part of a binder's title">
           <TextBox.InputBindings>
             <KeyBinding Key="Enter" Command="{Binding PickFirstCommand}" />
           </TextBox.InputBindings>
         </TextBox>
         <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" Focusable="False">
-          <ItemsControl x:Name="SessionChoices" ItemsSource="{Binding Shown}" Focusable="False" AutomationProperties.Name="Sessions"
+          <ItemsControl x:Name="SessionChoices" ItemsSource="{Binding Shown}" Focusable="False" AutomationProperties.Name="Binders"
                         KeyboardNavigation.TabNavigation="Continue">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type catalog:SessionPackInfo}">
@@ -122,7 +122,7 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </ScrollViewer>
-        <TextBlock Text="No session has that in its title." Style="{StaticResource Text.Small}" Margin="10,6,0,0"
+        <TextBlock Text="No binder has that in its title." Style="{StaticResource Text.Small}" Margin="10,6,0,0"
                    Visibility="{Binding HasNoMatch, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
           <Button Content="Cancel" Command="{Binding CancelCommand}" />
@@ -169,14 +169,14 @@
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
           <StackPanel>
-            <TextBlock Text="Session" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Binder" Style="{StaticResource FieldLabel}" />
             <ComboBox x:Name="PackChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PackChoices}" SelectedItem="{Binding Pack}"
-                      AutomationProperties.Name="Session" HorizontalAlignment="Stretch" MaxDropDownHeight="320" />
+                      AutomationProperties.Name="Binder" HorizontalAlignment="Stretch" MaxDropDownHeight="320" />
           </StackPanel>
           <StackPanel Grid.Column="2">
             <TextBlock Text="Where" Style="{StaticResource FieldLabel}" />
             <ComboBox x:Name="SectionChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding SectionChoices}" SelectedItem="{Binding Section}"
-                      AutomationProperties.Name="Where in the session" HorizontalAlignment="Stretch" MaxDropDownHeight="320" />
+                      AutomationProperties.Name="Where in the binder" HorizontalAlignment="Stretch" MaxDropDownHeight="320" />
           </StackPanel>
         </Grid>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">

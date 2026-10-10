@@ -74,7 +74,7 @@ public partial class SessionPackView
         menu.Items.Add(Item("Move up", page.MoveUpCommand, row, "Alt+Up"));
         menu.Items.Add(Item("Move down", page.MoveDownCommand, row, "Alt+Down"));
         foreach (var move in row.MoveTargets) menu.Items.Add(Item(move.Label, page.MoveToSectionCommand, move));
-        menu.Items.Add(Item("Remove from session", page.RemoveItemCommand, row, "Delete"));
+        menu.Items.Add(Item("Remove from binder", page.RemoveItemCommand, row, "Delete"));
     }
 
     void Grip_MouseDown(object sender, MouseButtonEventArgs e) => _dragStart = e.GetPosition(this);

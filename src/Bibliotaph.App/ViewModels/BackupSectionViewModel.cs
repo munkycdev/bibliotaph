@@ -223,7 +223,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
         var version = AboutInfo.ParseVersion(manifest.App).Version;
         static string Count(int count, string one, string many) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {LibraryActivity.Plural(count, one, many)}";
         var holds = string.Join(", ", Count(counts.Books, "book", "books"), Count(counts.Collections, "collection", "collections"),
-            Count(counts.SessionPacks, "session", "sessions"), Count(counts.Notes, "note", "notes"));
+            Count(counts.SessionPacks, "binder", "binders"), Count(counts.Notes, "note", "notes"));
         var index = preview.IncludesIndex ? "It includes the search index."
             : "The search index isn't in it, so your books are read again for search after restoring, in the background.";
         return $"Made {made}{(manifest.Automatic ? " (an automatic backup)" : "")} by Bibliotaph {version}: {holds}. {index}";

@@ -59,7 +59,7 @@ public static class KeyboardShortcuts
             new("Esc", "Clear find"),
             new("Ctrl+K", "Search in the main window"),
         ]),
-        new("A session's page",
+        new("A binder's page",
         [
             new("Alt+Up, Alt+Down", "Move the item in focus up or down"),
             new("Enter", "Open the item in focus; in its label or note, save it"),

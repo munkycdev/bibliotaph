@@ -16,7 +16,7 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
     : PageViewModel
 {
     public override Route Route => Route.Sessions;
-    public override string Title => "Sessions";
+    public override string Title => "Binders";
 
     public SessionActions Actions { get; } = actions;
 
@@ -49,7 +49,7 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
     [NotifyPropertyChangedFor(nameof(EarlierLabel))]
     public partial bool ShowEarlier { get; set; }
 
-    public string EarlierLabel => $"{(ShowEarlier ? "Hide" : "Show")} earlier sessions ({Earlier.Count})";
+    public string EarlierLabel => $"{(ShowEarlier ? "Hide" : "Show")} earlier binders ({Earlier.Count})";
 
     int _version;
 

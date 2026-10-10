@@ -9,10 +9,10 @@ public enum SessionMenuKind
     /// <summary>"Add to The midnight bell": the current session pack, or another listed one.</summary>
     Session,
 
-    /// <summary>"Add to a new session…": names one, then adds to it.</summary>
+    /// <summary>"Add to a new binder…": names one, then adds to it.</summary>
     New,
 
-    /// <summary>"Add to another session…": picks one from all of them.</summary>
+    /// <summary>"Add to another binder…": picks one from all of them.</summary>
     Choose,
 }
 

@@ -46,7 +46,7 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.Home, "Home", Icon("Icon.House")),
             new(Route.Library, "Library", Icon("Icon.LibraryBig")),
             new(Route.Collections, "Collections", Icon("Icon.Folders")),
-            new(Route.Sessions, "Sessions", Icon("Icon.NotebookTabs")),
+            new(Route.Sessions, "Binders", Icon("Icon.NotebookTabs")),
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
         ];
         // Smart Views (slice 3 plan, choices 5 and 17): Favorites first, then the saved views by name.
