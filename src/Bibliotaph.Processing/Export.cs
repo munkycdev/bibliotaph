@@ -8,7 +8,9 @@ namespace Bibliotaph.Processing;
 
 /// <summary>
 /// RFC 4180 CSV for spreadsheets: UTF-8 with a byte order mark, so Excel reads accents and dashes right; CRLF between
-/// rows; a field holding a comma, quote or line break in double quotes, with its quotes doubled.
+/// rows; a field holding a comma, quote or line break in double quotes, with its quotes doubled. A field starting with
+/// = + - @ or a tab gets a leading apostrophe, so a spreadsheet shows it as text instead of running it as a formula:
+/// titles and tags can come from a downloaded PDF's own metadata.
 /// </summary>
 public static class Csv
 {
@@ -18,6 +20,7 @@ public static class Csv
     public static string Field(string? value)
     {
         if (string.IsNullOrEmpty(value)) return "";
+        if (value[0] is '=' or '+' or '-' or '@' or '\t' or '\r') value = "'" + value;
         return value.AsSpan().IndexOfAny(",\"\r\n") < 0 ? value : "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 

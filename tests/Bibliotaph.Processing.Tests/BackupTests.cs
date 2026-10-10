@@ -280,6 +280,10 @@ public sealed class BackupTests : IAsyncLifetime
         Assert.Equal("\"two\r\nlines\"", Csv.Field("two\r\nlines"));
         Assert.Equal("\"line\nfeed\"", Csv.Field("line\nfeed"));
         Assert.Equal("Levels 1–5", Csv.Field("Levels 1–5"));
+        Assert.Equal("'=HYPERLINK(1)", Csv.Field("=HYPERLINK(1)"));
+        Assert.Equal("\"'@SUM(1,2)\"", Csv.Field("@SUM(1,2)"));
+        Assert.Equal("'-5", Csv.Field("-5"));
+        Assert.Equal("1-5", Csv.Field("1-5"));
 
         var path = Path.Combine(_dir, "books.csv");
         await File.WriteAllTextAsync(path, "an older export", Ct);

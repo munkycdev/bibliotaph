@@ -156,7 +156,7 @@ public sealed partial class PipelineTests
         Assert.Equal([collection.Id], await _collections.GetForEntryAsync(book.EntryId, Ct));
         Assert.Equal("The owlbear is a red herring.", await _notes.GetEntryNoteAsync(book.EntryId, Ct));
         var item = Assert.Single((await _sessions.GetAsync(pack.Id, Ct))!.Items);
-        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
         Assert.Equal(SessionItemState.Ready, (await sessions.ResolveAsync([item], Ct))[item.Id].State);
         Assert.Equal(["Friday game"], (await _metadataStore.GetAsync(book.EntryId, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
 
