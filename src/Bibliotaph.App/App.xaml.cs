@@ -63,6 +63,7 @@ public partial class App : Application
             var services = _host.Services;
             ProjectMetadataInBackground(services);
             if (!_smokeTest && !measureSearch && !measureViewer) BackUpWeeklyInBackground(services);
+            if (!_smokeTest && !measureSearch && !measureViewer) DownloadEngineInBackground(services);
             if (measureSearch)
             {
                 Shutdown(await SearchMeasurement.RunAsync(services));
@@ -184,10 +185,13 @@ public partial class App : Application
         builder.Services.AddSingleton<ApiKeyVault>();
         builder.Services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
         // The built-in AI's engine (llama.cpp's server, in aiworker\); nothing starts until there is a book to read.
-        builder.Services.AddSingleton(new BuiltInEngineOptions { ModelsFolder = paths.Models });
+        builder.Services.AddSingleton(new BuiltInEngineOptions { ModelsFolder = paths.Models, DownloadFolder = paths.Engine });
         builder.Services.AddSingleton(sp => new BuiltInEngine(sp.GetRequiredService<BuiltInEngineOptions>(),
             new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
+        // The engine itself, downloaded at startup when this copy has none beside it.
+        builder.Services.AddSingleton(sp => new BuiltInEngineDownload(sp.GetRequiredService<BuiltInEngine>(),
+            new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(10) }, null, sp.GetRequiredService<ILogger<BuiltInEngineDownload>>()));
         // Its models, downloaded only when Download is pressed. Pause and Cancel stop a download; nothing else times it out.
         builder.Services.AddSingleton(sp => new BuiltInModelDownloads(sp.GetRequiredService<BuiltInEngineOptions>(),
             new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan }, null,
@@ -332,6 +336,7 @@ public partial class App : Application
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
         services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
+        services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
@@ -370,6 +375,23 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Error(ex, "The weekly backup failed");
+            }
+        });
+
+    /// <summary>
+    /// The built-in AI's engine, when this copy has none beside it (a build made without build/fetch-engine.ps1): at
+    /// every start until it's here, whether or not the built-in AI is used.
+    /// </summary>
+    static void DownloadEngineInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await services.GetRequiredService<BuiltInEngineDownload>().EnsureAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Downloading the built-in AI engine failed");
             }
         });
 
