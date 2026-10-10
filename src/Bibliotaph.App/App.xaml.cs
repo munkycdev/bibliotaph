@@ -152,6 +152,8 @@ public partial class App : Application
         builder.Services.AddSingleton<FavoriteStore>();
         builder.Services.AddSingleton<ReadingStore>();
         builder.Services.AddSingleton<FavoritesService>();
+        builder.Services.AddSingleton<CollectionStore>();
+        builder.Services.AddSingleton<CollectionsService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
@@ -207,6 +209,8 @@ public partial class App : Application
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
         builder.Services.AddSingleton<Func<LibraryViewModel>>(sp => () => sp.GetRequiredService<LibraryViewModel>());
         builder.Services.AddSingleton<LibraryPages>();
+        builder.Services.AddSingleton<CollectionDirectory>();
+        builder.Services.AddTransient<CollectionActions>();
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();
         builder.Services.AddTransient<LibraryViewModel>();

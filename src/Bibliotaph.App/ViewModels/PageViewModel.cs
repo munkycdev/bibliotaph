@@ -21,6 +21,12 @@ public abstract class PageViewModel : ObservableObject
     /// </summary>
     public virtual string? NavScope => null;
 
+    /// <summary>
+    /// The route whose sidebar item the page marks: its own, except where it sits under another, as a collection's
+    /// Library page sits under Collections. Raises PropertyChanged when it changes.
+    /// </summary>
+    public virtual Route NavRoute => Route;
+
     /// <summary>True for a page with its own scrolling list (a virtualized grid), which the shell must not wrap in a scroll viewer.</summary>
     public virtual bool ScrollsItself => false;
 

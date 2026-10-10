@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -62,6 +63,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
     readonly FavoritesService _favorites;
+    readonly LibraryPages _pages;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -73,9 +75,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        ILogger<LibraryViewModel> log)
+        CollectionActions collections, LibraryPages pages, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        Collections = collections;
+        _pages = pages;
         _favorites = favorites;
         _elsewhere = elsewhere;
         _indexing = indexing;
@@ -111,12 +115,19 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public override string Title => Scope?.Name ?? "Library";
     public override bool ScrollsItself => true;
 
+    /// <summary>A collection's page sits under Collections, in the breadcrumb and the sidebar.</summary>
+    public override string Section => IsCollection ? "Collections" : base.Section;
+
+    public override Route? SectionRoute => IsCollection ? Route.Collections : null;
+
+    public override Route NavRoute => IsCollection ? Route.Collections : Route;
+
     /// <summary>The part of the library shown, such as Favorites, or null for all of it (slice 3 plan, choice 3).</summary>
     public LibraryScope? Scope { get; private set; }
 
     public bool HasScope => Scope is not null;
 
-    public override string? NavScope => Scope?.Key;
+    public override string? NavScope => IsCollection ? null : Scope?.Key;
 
     /// <summary>Shows only a part of the library, or all of it. Set before the page is shown, or by the scope chip's ×.</summary>
     public void ShowScope(LibraryScope? scope)
@@ -130,10 +141,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         OnPropertyChanged(nameof(Heading));
         OnPropertyChanged(nameof(Subtitle));
         OnPropertyChanged(nameof(ScopeChip));
+        OnPropertyChanged(nameof(IsCollection));
+        OnPropertyChanged(nameof(IsWholeLibrary));
+        OnPropertyChanged(nameof(Section));
+        OnPropertyChanged(nameof(SectionRoute));
+        OnPropertyChanged(nameof(NavRoute));
+        OnPropertyChanged(nameof(PinLabel));
+        RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>"In Favorites", on the chip whose × shows the whole library again.</summary>
-    public string ScopeChip => Scope is { } scope ? $"In {scope.Name}" : "";
+    /// <summary>"In Favorites" or "In Campaign › Maps", on the chip whose × shows the whole library again.</summary>
+    public string ScopeChip => Scope is { } scope ? $"In {scope.Path ?? scope.Name}" : "";
 
     /// <summary>The scope chip's ×: the whole library, with the same search and filters.</summary>
     [RelayCommand]
@@ -317,7 +335,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Activity.Refreshed += OnActivityRefreshed;
         Search.PropertyChanged -= OnSearchChanged;
         Search.PropertyChanged += OnSearchChanged;
+        Collections.Directory.Changed -= OnCollectionsChanged;
+        await Collections.Directory.LoadAsync();
+        Collections.Directory.Changed += OnCollectionsChanged;
         _staleTimer.Start();
+        if (IsCollection) await ShowCollectionAsync();
         await LoadFolderChoicesAsync();
         await RefreshAsync();
         if (SavedScrollOffset is not null) RestoreScroll?.Invoke(this, EventArgs.Empty);
@@ -332,6 +354,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public override void Unload()
     {
         Activity.Refreshed -= OnActivityRefreshed;
+        Collections.Directory.Changed -= OnCollectionsChanged;
+        Collections.Close();
         Search.PropertyChanged -= OnSearchChanged;
         _staleTimer.Stop();
         // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
@@ -488,7 +512,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Scope?.Key);
+                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             if (version == _version)
@@ -722,6 +746,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
             inspector.PackSplit += async (_, images) => await ShowPackSplitAsync(item, images);
             Inspector = inspector;
+            await ShowInspectorCollectionsAsync();
         }
         catch (Exception ex)
         {
@@ -972,6 +997,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     void OnSelectionChanged()
     {
+        RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
         EditSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
         ClearSelectionCommand.NotifyCanExecuteChanged();
@@ -1063,13 +1089,168 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
-    /// <summary>Esc closes the topmost thing: the bulk editor (or its summary), the details, then Select mode.</summary>
+    /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>
     [RelayCommand]
     void Escape()
     {
-        if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
+        if (Collections.Dialog is { } naming) naming.CancelCommand.Execute(null);
+        else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
         else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
         else if (Inspector is not null) Inspector = null;
         else Selection.Stop();
+    }
+
+    // Collections (slice 3b).
+
+    /// <summary>Adding books to collections and changing the collection shown, with the dialog and the note they show.</summary>
+    public CollectionActions Collections { get; }
+
+    /// <summary>The Library scoped to a collection: its sub-collections above the books, and its actions in the header.</summary>
+    public bool IsCollection => Scope?.CollectionId is not null;
+
+    /// <summary>The whole Library or Favorites: Add folder and the other library actions show in the header.</summary>
+    public bool IsWholeLibrary => !IsCollection;
+
+    CollectionInfo? Collection => Scope?.CollectionId is { } id ? Collections.Directory.Find(id) : null;
+
+    /// <summary>The group the books shown are in: the scope's, or for "Only books added here" the collection's own.</summary>
+    string? Group => Scope is { CollectionId: { } id } && OnlyAddedHere ? ScopeKeys.CollectionOwn(id) : Scope?.Key;
+
+    /// <summary>"Only books added here" (choice 9): leaves out the books that are only in its sub-collections.</summary>
+    [ObservableProperty]
+    public partial bool OnlyAddedHere { get; set; }
+
+    partial void OnOnlyAddedHereChanged(bool value) => Refresh();
+
+    /// <summary>The collections inside the one shown, as cards above its books.</summary>
+    public ObservableCollection<CollectionCardViewModel> SubCollections { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasSubCollections { get; private set; }
+
+    public string PinLabel => Collection?.Pinned == true ? "Unpin" : "Pin";
+
+    int _collectionVersion;
+
+    async void OnCollectionsChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (IsCollection) await ShowCollectionAsync();
+            await ShowInspectorCollectionsAsync();
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Showing the changed collections failed");
+        }
+    }
+
+    /// <summary>The collection's name and description as they are now, and its sub-collections' cards.</summary>
+    async Task ShowCollectionAsync()
+    {
+        if (Collection is not { } collection) return;
+        ShowScope(Collections.Directory.ScopeFor(collection));
+        var version = ++_collectionVersion;
+        var cards = await Collections.Directory.CardsAsync(Collections.Directory.ChildrenOf(collection.Id));
+        if (version != _collectionVersion) return;
+        SubCollections.Clear();
+        foreach (var card in cards) SubCollections.Add(card);
+        HasSubCollections = SubCollections.Count > 0;
+        if (!HasSubCollections && OnlyAddedHere) OnlyAddedHere = false;
+        OnPropertyChanged(nameof(PinLabel));
+    }
+
+    /// <summary>The collections the open book was added to, as chips in its details.</summary>
+    async Task ShowInspectorCollectionsAsync()
+    {
+        if (Inspector is not { } inspector) return;
+        var ids = await Task.Run(() => Collections.Directory.CollectionsOfAsync(inspector.Item.EntryId));
+        if (!ReferenceEquals(inspector, Inspector)) return;
+        inspector.ShowCollections([.. ids.Select(Collections.Directory.Find).OfType<CollectionInfo>()
+            .Select(c => new CollectionChip(c.Id, c.Name, Collections.Directory.PathOf(c.Id)))
+            .OrderBy(c => c.Path, StringComparer.CurrentCultureIgnoreCase)]);
+    }
+
+    [RelayCommand]
+    void OpenCollection(CollectionCardViewModel card) => _pages.Open(Collections.Directory.ScopeFor(card.Collection));
+
+    /// <summary>A collection's chip in the details: the Library scoped to it.</summary>
+    [RelayCommand]
+    void OpenInspectorCollection(CollectionChip chip)
+    {
+        if (Collections.Directory.Find(chip.Id) is { } collection) _pages.Open(Collections.Directory.ScopeFor(collection));
+    }
+
+    /// <summary>New collection, inside the one shown.</summary>
+    [RelayCommand]
+    void NewSubCollection()
+    {
+        if (Scope?.CollectionId is { } id) Collections.Create(id);
+    }
+
+    [RelayCommand]
+    void RenameCollection()
+    {
+        if (Collection is { } collection) Collections.Rename(collection);
+    }
+
+    [RelayCommand]
+    void MoveCollection()
+    {
+        if (Collection is { } collection) Collections.Move(collection);
+    }
+
+    [RelayCommand]
+    async Task TogglePin()
+    {
+        if (Collection is { } collection) await Collections.SetPinnedAsync(collection, !collection.Pinned);
+    }
+
+    /// <summary>
+    /// Deletes the collection shown, never its books (choice 8), and goes to Collections, where a note says so with
+    /// Undo.
+    /// </summary>
+    [RelayCommand]
+    async Task DeleteCollection()
+    {
+        if (Collection is not { } collection || await Collections.DeleteAsync(collection) is not { } deleted) return;
+        _navigation.NavigateUp(Route.Collections);
+        if (_navigation.Current is CollectionsViewModel page) page.ShowDeleted(deleted);
+    }
+
+    /// <summary>A card's menu or the details' Add to collection: the book they are for.</summary>
+    public void AddToCollection(CollectionRequest request)
+    {
+        var item = request.Target switch
+        {
+            LibraryItemViewModel book => book,
+            InspectorViewModel details => details.Item,
+            _ => null,
+        };
+        if (item is not null) Collections.Add([item.EntryId], item.Title, request.Choice);
+    }
+
+    /// <summary>Select mode's Add to collection: every ticked book, shown or not.</summary>
+    [RelayCommand]
+    void AddSelectedToCollection(CollectionRequest request) =>
+        Collections.Add(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), request.Choice);
+
+    bool CanRemoveSelected => IsCollection && Selection.HasAny;
+
+    /// <summary>Select mode's Remove from collection, while a collection is shown: the ticked books leave it.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveSelected))]
+    async Task RemoveSelectedFromCollection()
+    {
+        if (Scope?.CollectionId is not { } id) return;
+        await Collections.RemoveAsync(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), id);
+        Selection.Clear();
+    }
+
+    /// <summary>A collection chip's × in the details: the book leaves that collection.</summary>
+    [RelayCommand]
+    async Task RemoveFromInspectorCollection(CollectionChip chip)
+    {
+        if (Inspector is { } inspector) await Collections.RemoveAsync([inspector.Item.EntryId], inspector.Item.Title, chip.Id);
     }
 }

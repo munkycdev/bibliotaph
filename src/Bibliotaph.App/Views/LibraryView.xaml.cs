@@ -34,6 +34,12 @@ public partial class LibraryView
         AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
         AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
         AddBookCommand(BookCommands.ToggleFavorite, m => m.ToggleFavoriteCommand);
+        CommandBindings.Add(new CommandBinding(BookCommands.AddToCollection,
+            (_, e) =>
+            {
+                if (DataContext is LibraryViewModel model && e.Parameter is CollectionRequest request) model.AddToCollection(request);
+            },
+            (_, e) => e.CanExecute = DataContext is LibraryViewModel && e.Parameter is CollectionRequest));
     }
 
     /// <summary>A card menu's command, run with the card's book on the Library's own command.</summary>
@@ -80,8 +86,11 @@ public partial class LibraryView
         return null;
     }
 
-    /// <summary>The arrow beside Reprocess opens its menu below it, by click or by keyboard, as a split button's does.</summary>
-    void ReprocessMenu_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// A button with a menu (the arrow beside Reprocess, Add to collection) opens it below itself, by click or by
+    /// keyboard, as a split button's does.
+    /// </summary>
+    void DropDown_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { ContextMenu: { } menu } button) return;
         menu.PlacementTarget = button;

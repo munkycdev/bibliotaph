@@ -225,6 +225,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public string Title => Item.Title;
 
+    /// <summary>The collections the book was added to (slice 3 plan, choice 10), as chips with ×.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCollections))]
+    public partial IReadOnlyList<CollectionChip> Collections { get; private set; } = [];
+
+    public bool HasCollections => Collections.Count > 0;
+
+    public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
+
     public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
@@ -422,3 +431,6 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _ => stage.Reason ?? stage.Status.ToString(),
     };
 }
+
+/// <summary>A collection the book in the details was added to: its chip opens it, and its × takes the book out.</summary>
+public sealed record CollectionChip(long Id, string Name, string Path);

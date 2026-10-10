@@ -52,6 +52,9 @@ public enum SearchField
 
     /// <summary><c>favorite:</c> yes or no: the books marked with a heart (slice 3 plan, choice 5).</summary>
     Favorite,
+
+    /// <summary><c>collection:</c> a collection's name: its books and its sub-collections' books (slice 3 plan, choice 10).</summary>
+    Collection,
 }
 
 /// <summary>

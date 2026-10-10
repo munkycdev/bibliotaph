@@ -99,6 +99,8 @@ static class SmokeTest
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
+            await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
+                () => UseCollectionsAsync(services, window, books));
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
@@ -1075,6 +1077,128 @@ static class SmokeTest
         shell.NavigateCommand.Execute(Route.Library);
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: null } whole && whole.Items.Count == books && whole.Items.All(i => !i.IsFavorite),
             () => "The library didn't go back to how it was.");
+    }
+
+    /// <summary>
+    /// Slice 3b: a collection made on Collections, with a Maps collection inside it; books added from Select mode and
+    /// from a card's menu, with Undo; the collection's page showing its books and its sub-collection's, and only its
+    /// own with the switch; collection:"name"; the details' chips; Pin (on Home) and Rename; and Delete with Undo.
+    /// </summary>
+    static async Task UseCollectionsAsync(IServiceProvider services, Window window, int books)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var collections = services.GetRequiredService<CollectionsService>();
+        shell.NavigateCommand.Execute(Route.Collections);
+        var page = shell.CurrentPage as CollectionsViewModel ?? throw new InvalidOperationException("The Collections route didn't open Collections.");
+        await WaitUntilAsync(window, () => page.IsLoaded && !page.HasCollections, () => "Collections didn't open empty.");
+
+        // New collection: named in the dialog, then opened, empty.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NewCollection"), "New collection");
+        await WaitUntilAsync(window, () => page.Actions.Dialog is { IsNaming: true }, () => "New collection didn't ask for a name.");
+        page.Actions.Dialog!.Name = "Winter campaign";
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveButton" && b.IsVisible), "Create");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, IsEmpty: true },
+            () => "Create didn't open the new collection, empty.");
+        var campaign = (LibraryViewModel)shell.CurrentPage!;
+        if (campaign.Heading != "Winter campaign" || !shell.NavItems.Single(n => n.Route == Route.Collections).IsActive || shell.Section != "Collections")
+            throw new InvalidOperationException($"The collection reads “{campaign.Heading}” under {shell.Section}, and the sidebar doesn't mark Collections.");
+        var campaignId = campaign.Scope!.CollectionId!.Value;
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NewSubCollection"), "the collection's New collection");
+        await WaitUntilAsync(window, () => campaign.Collections.Dialog is { IsNaming: true }, () => "New collection in a collection didn't ask for a name.");
+        campaign.Collections.Dialog!.Name = "Maps";
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveButton" && b.IsVisible), "Create");
+        await WaitUntilAsync(window, () => campaign.SubCollections is [{ Name: "Maps" }], () => "The new collection didn't show inside the first.");
+        var mapsId = campaign.SubCollections[0].Id;
+
+        // Select mode in the whole library: two books into Maps, through the selection's own menu.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ClearScope"), "scope chip's ×");
+        await WaitUntilAsync(window, () => !campaign.HasScope && campaign.Items.Count == books, () => "The scope chip's × didn't show the whole library.");
+        campaign.StartSelectingCommand.Execute(null);
+        campaign.Selection.Toggle(campaign.Items[0]);
+        campaign.Selection.Toggle(campaign.Items[1]);
+        await Settle(window);
+        var addSelected = Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddSelectedToCollection");
+        Click(addSelected, "Select mode's Add to collection");
+        await WaitUntilAsync(window, () => addSelected!.ContextMenu is { IsOpen: true, Items.Count: >= 2 }, () => "Add to collection didn't open its menu of collections.");
+        addSelected!.ContextMenu!.IsOpen = false;
+        var toMaps = CollectionMenu.Choices.Single(c => c.CollectionId == mapsId);
+        campaign.AddSelectedToCollectionCommand.Execute(new CollectionRequest(campaign, toMaps));
+        await WaitUntilAsync(window, () => campaign.Collections.Message == "Added 2 books to Maps.", () => $"Adding the selection said “{campaign.Collections.Message}”.");
+        campaign.StopSelectingCommand.Execute(null);
+
+        // A card's menu: a third book into the campaign itself, undone and done again.
+        var third = campaign.Items[2];
+        var toCampaign = CollectionMenu.Choices.Single(c => c.CollectionId == campaignId);
+        BookCommands.AddToCollection.Execute(new CollectionRequest(third, toCampaign), FindChild<Views.LibraryView>(window));
+        // The selection's "Added 2 books to Maps." is still shown with its Undo, so wait for this add's own note.
+        await WaitUntilAsync(window, () => campaign.Collections is { HasUndo: true, Message: { } note } && note.StartsWith("Added ", StringComparison.Ordinal)
+                && note.EndsWith(" to Winter campaign.", StringComparison.Ordinal),
+            () => $"The card menu's Add to collection said “{campaign.Collections.Message}”.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
+        // Undo has finished once its note is gone and the collections have reloaded.
+        await WaitUntilAsync(window, () => campaign.Collections is { Message: null, UndoCommand.IsRunning: false }, () => "Undo didn't finish.");
+        campaign.AddToCollection(new CollectionRequest(third, toCampaign));
+        await WaitUntilAsync(window, () => campaign.Collections.HasUndo, () => $"Adding the third book again said “{campaign.Collections.Message}”.");
+
+        search.Search("collection:\"winter campaign\"");
+        await WaitUntilAsync(window, () => campaign.IsSearching && campaign.Items.Count == 3, () => $"collection:\"winter campaign\" found {campaign.Items.Count} books, not 3.");
+        search.Search("");
+        await WaitUntilAsync(window, () => !campaign.IsSearching && campaign.Items.Count == books, () => "Clearing the search didn't bring the library back.");
+
+        // The collection's card on Collections opens its page: its books and Maps', or only its own.
+        shell.NavigateCommand.Execute(Route.Collections);
+        page = shell.CurrentPage as CollectionsViewModel ?? throw new InvalidOperationException("Collections didn't open.");
+        await WaitUntilAsync(window, () => page.Cards is [{ CountLabel: "3 books · 1 collection" }], () => "Collections doesn't show the campaign's card with its count.");
+        var cards = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "CollectionCards");
+        Click(cards is null ? null : Descendants<Button>(cards).FirstOrDefault(b => b.Name == "Card"), "the campaign's card");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Items.Count: 3, HasSubCollections: true },
+            () => "The campaign's card didn't open its three books with Maps above them.");
+        var opened = (LibraryViewModel)shell.CurrentPage!;
+        opened.OnlyAddedHere = true;
+        await WaitUntilAsync(window, () => opened.Items is [var own] && own.EntryId == third.EntryId, () => "Only books added here didn't leave just the third book.");
+        opened.OnlyAddedHere = false;
+        await WaitUntilAsync(window, () => opened.Items.Count == 3, () => "Turning the switch off didn't bring Maps' books back.");
+
+        // The details list the collections the book was added to; a chip's × takes it out.
+        await opened.OpenDetailsCommand.ExecuteAsync(opened.Items.Single(i => i.EntryId == third.EntryId));
+        await WaitUntilAsync(window, () => opened.Inspector is { Collections: [{ Name: "Winter campaign" }] }, () => "The details don't list the book's collection.");
+        var chips = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "BookCollections");
+        Click(chips is null ? null : Descendants<Button>(chips).LastOrDefault(), "the chip's ×");
+        await WaitUntilAsync(window, () => opened.Inspector is { HasCollections: false } && opened.Items.Count == 2, () => "The chip's × didn't take the book out.");
+        opened.CloseDetailsCommand.Execute(null);
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinCollection"), "Pin");
+        await WaitUntilAsync(window, () => opened.PinLabel == "Unpin", () => "Pin didn't pin the collection.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RenameCollection"), "Rename");
+        await WaitUntilAsync(window, () => opened.Collections.Dialog is { IsNaming: true, Name: "Winter campaign" }, () => "Rename didn't ask for the new name.");
+        opened.Collections.Dialog!.Name = "Spring campaign";
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveButton" && b.IsVisible), "Save");
+        await WaitUntilAsync(window, () => opened.Heading == "Spring campaign" && shell.Title == "Spring campaign", () => $"Rename left the heading “{opened.Heading}”.");
+
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
+        await WaitUntilAsync(window, () => home.PinnedCollections is [{ Name: "Spring campaign" }], () => "Home doesn't show the pinned collection.");
+        var pinned = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "PinnedCollections");
+        Click(pinned is null ? null : Descendants<Button>(pinned).FirstOrDefault(b => b.Name == "Card"), "the pinned collection on Home");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Heading: "Spring campaign" }, () => "The pinned card didn't open the collection.");
+
+        // Delete: Collections again, with Maps moved up and Undo bringing the campaign back around it.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteCollection"), "Delete");
+        await WaitUntilAsync(window, () => shell.CurrentPage is CollectionsViewModel { Actions.HasUndo: true } c && c.Cards is [{ Name: "Maps" }],
+            () => "Delete didn't go to Collections with Maps moved up and an Undo.");
+        page = (CollectionsViewModel)shell.CurrentPage!;
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
+        await WaitUntilAsync(window, () => page.Cards is [{ Name: "Spring campaign", CountLabel: "2 books · 1 collection" }], () => "Undo didn't bring the campaign back around Maps.");
+
+        // Leave the library as it was for the checks after this one.
+        await collections.DeleteAsync(mapsId);
+        await collections.DeleteAsync(campaignId);
+        await WaitUntilAsync(window, () => !page.HasCollections, () => "The smoke test's collections didn't go.");
     }
 
     /// <summary>

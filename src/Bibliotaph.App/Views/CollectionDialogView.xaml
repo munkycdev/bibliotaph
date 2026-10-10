@@ -1,0 +1,113 @@
+<UserControl x:Class="Bibliotaph.App.Views.CollectionDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:CollectionDialogViewModel}"
+             KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="{Binding Heading}">
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+  </UserControl.InputBindings>
+
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Margin" Value="0,14,0,5" />
+    </Style>
+
+    <!-- A collection in the picker: a row that adds to it, or moves into it, when clicked or on Enter. -->
+    <Style x:Key="ChoiceRow" TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="10,7">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Side}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Side}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+
+  <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />
+    </Border.Effect>
+    <StackPanel Margin="28,22,28,22">
+      <DockPanel Margin="0,0,0,4">
+        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
+                ToolTip="Close (Esc)" AutomationProperties.Name="Close" Command="{Binding CancelCommand}" />
+        <StackPanel>
+          <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+          <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" />
+        </StackPanel>
+      </DockPanel>
+
+      <!-- New collection and Rename: a name and an optional description. -->
+      <StackPanel Visibility="{Binding IsNaming, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="Name" Style="{StaticResource FieldLabel}" />
+        <TextBox x:Name="NameBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Name">
+          <TextBox.InputBindings>
+            <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+          </TextBox.InputBindings>
+        </TextBox>
+        <TextBlock Text="Description (optional)" Style="{StaticResource FieldLabel}" />
+        <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Description">
+          <TextBox.InputBindings>
+            <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+          </TextBox.InputBindings>
+        </TextBox>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+          <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+          <Button x:Name="SaveButton" Style="{StaticResource Bt.Button.Primary}" Content="{Binding ActionText}" Command="{Binding SaveCommand}" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Add to another collection and Move to: every collection, narrowed as you type. -->
+      <StackPanel Visibility="{Binding IsPicking, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBox x:Name="FilterBox" Style="{StaticResource Bt.TextBox}" Margin="0,14,0,8" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.Name="Find a collection" ToolTip="Type part of a collection's name">
+          <TextBox.InputBindings>
+            <KeyBinding Key="Enter" Command="{Binding PickFirstCommand}" />
+          </TextBox.InputBindings>
+        </TextBox>
+        <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" Focusable="False">
+          <ItemsControl x:Name="Choices" ItemsSource="{Binding Shown}" Focusable="False" AutomationProperties.Name="Collections"
+                        KeyboardNavigation.TabNavigation="Continue">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:CollectionChoice}">
+                <Button Style="{StaticResource ChoiceRow}" AutomationProperties.Name="{Binding Path}" ToolTip="{Binding Path}"
+                        Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                  <StackPanel Orientation="Horizontal" Margin="{Binding Indent}">
+                    <c:LucideIcon Data="{StaticResource Icon.Folder}" Size="14" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <TextBlock Text="No collection has that in its name." Style="{StaticResource Text.Small}" Margin="10,6,0,0"
+                   Visibility="{Binding HasNoMatch, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+          <Button Content="Cancel" Command="{Binding CancelCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

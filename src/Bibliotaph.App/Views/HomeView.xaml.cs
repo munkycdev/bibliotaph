@@ -13,6 +13,12 @@ public partial class HomeView
         AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
         AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
         AddBookCommand(BookCommands.ToggleFavorite, m => m.ToggleFavoriteCommand);
+        CommandBindings.Add(new CommandBinding(BookCommands.AddToCollection,
+            (_, e) =>
+            {
+                if (DataContext is HomeViewModel model && e.Parameter is CollectionRequest request) model.AddToCollection(request);
+            },
+            (_, e) => e.CanExecute = DataContext is HomeViewModel && e.Parameter is CollectionRequest));
     }
 
     /// <summary>A cover menu's command, run with the cover's book on Home's own command.</summary>

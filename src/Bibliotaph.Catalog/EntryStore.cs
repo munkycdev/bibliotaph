@@ -42,7 +42,7 @@ public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
 /// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
 /// </summary>
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
-    bool Favorite = false);
+    bool Favorite = false, IReadOnlyList<long>? Collections = null);
 
 /// <summary>
 /// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
@@ -161,7 +161,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         if (entry is null) return null;
         var removed = new RemovedEntry(entryId, entry.CreatedUtc,
             [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })],
-            await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct));
+            await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
+            await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct));
         db.Entries.Remove(entry);
         await db.SaveChangesAsync(ct);
         return removed;
@@ -176,11 +177,14 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         entry.Rejections.AddRange(removed.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc }));
         db.Entries.Add(entry);
         await db.SaveChangesAsync(ct);
-        if (removed.Favorite)
+        var now = _clock.GetUtcNow().UtcDateTime;
+        if (removed.Favorite) db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = now });
+        if (removed.Collections is { Count: > 0 } collections)
         {
-            db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = _clock.GetUtcNow().UtcDateTime });
-            await db.SaveChangesAsync(ct);
+            var still = await db.Collections.Where(c => collections.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
+            db.CollectionItems.AddRange(still.Select(id => new CollectionItem { CollectionId = id, EntryId = entry.Id, AddedUtc = now }));
         }
+        await db.SaveChangesAsync(ct);
         return new EntryId(entry.Id);
     }
 
@@ -392,6 +396,14 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             db.ReadingStates.Add(new ReadingState { EntryId = target, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
             moved.Reading = true;
         }
+        // Memberships move to every collection the card isn't in already; those it is in stay behind with the card.
+        var targetCollections = await db.CollectionItems.Where(i => i.EntryId == target).Select(i => i.CollectionId).ToListAsync(ct);
+        foreach (var item in await db.CollectionItems.Where(i => i.EntryId == joining && !targetCollections.Contains(i.CollectionId)).ToListAsync(ct))
+        {
+            db.CollectionItems.Remove(item);
+            db.CollectionItems.Add(new CollectionItem { CollectionId = item.CollectionId, EntryId = target, AddedUtc = item.AddedUtc });
+            moved.Collections.Add(item.CollectionId);
+        }
 
         (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
         return moved;
@@ -448,6 +460,11 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         {
             db.ReadingStates.Remove(reading);
             db.ReadingStates.Add(new ReadingState { EntryId = card, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
+        }
+        foreach (var item in await db.CollectionItems.Where(i => i.EntryId == entryId && moved.Collections.Contains(i.CollectionId)).ToListAsync(ct))
+        {
+            db.CollectionItems.Remove(item);
+            db.CollectionItems.Add(new CollectionItem { CollectionId = item.CollectionId, EntryId = card, AddedUtc = item.AddedUtc });
         }
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
@@ -577,6 +594,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public bool Favorite { get; set; }
         /// <summary>The card that joined brought its reading position (slice 3).</summary>
         public bool Reading { get; set; }
+        /// <summary>The collections the card that joined brought its membership of (slice 3b).</summary>
+        public List<long> Collections { get; set; } = [];
     }
 
     sealed record MovedSource(long Id, bool WasCurrent);

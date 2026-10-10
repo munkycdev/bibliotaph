@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -11,22 +12,32 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, and ways into the library such
-/// as Favorites. Before any folder is added it explains what Bibliotaph does. Continue preparing joins it with
-/// session packs (3c).
+/// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, the pinned collections, and ways
+/// into the library such as Favorites. Before any folder is added it explains what Bibliotaph does. Continue preparing
+/// joins it with session packs (3c).
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
-    ReaderWindows readers, FavoritesService favorites, ILogger<HomeViewModel> log)
+    ReaderWindows readers, FavoritesService favorites, CollectionActions collections, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
     public const int RowLength = 8;
 
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
+    int _version;
 
     public override Route Route => Route.Home;
     public override string Title => "Home";
+
+    /// <summary>Add to collection from a cover's menu, with its dialog and note.</summary>
+    public CollectionActions Collections { get; } = collections;
+
+    /// <summary>The pinned collections (choice 7), as cards.</summary>
+    public ObservableCollection<CollectionCardViewModel> PinnedCollections { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasPinnedCollections { get; private set; }
 
     /// <summary>The first-run "AI now or later" step (choice 10): folders added, no endpoint, and not yet answered.</summary>
     [ObservableProperty]
@@ -55,10 +66,18 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         ShowAiStep = HasFolders && ai.Setup.Endpoint is null && await settings.GetAsync(SettingKeys.AiAsked) is null;
         Activity.Refreshed -= OnActivityRefreshed;
         Activity.Refreshed += OnActivityRefreshed;
+        Collections.Directory.Changed -= OnActivityRefreshed;
+        Collections.Directory.Changed += OnActivityRefreshed;
+        await Collections.Directory.LoadAsync();
         await RefreshAsync();
     }
 
-    public override void Unload() => Activity.Refreshed -= OnActivityRefreshed;
+    public override void Unload()
+    {
+        Activity.Refreshed -= OnActivityRefreshed;
+        Collections.Directory.Changed -= OnActivityRefreshed;
+        Collections.Close();
+    }
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
@@ -69,6 +88,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     /// <summary>Fills the rows from the index, keeping the covers already shown.</summary>
     public async Task RefreshAsync()
     {
+        var version = ++_version;
         try
         {
             var scope = await library.GetVisibleEntryIdsAsync();
@@ -78,6 +98,11 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
                 await queries.ListAsync(new LibraryFilter(scope, Group: ScopeKeys.Favorites), limit: 1)));
             Show(RecentlyOpened, opened);
             Show(RecentlyAdded, added);
+            var pinned = await Collections.Directory.CardsAsync(Collections.Directory.Pinned);
+            if (version != _version) return;
+            PinnedCollections.Clear();
+            foreach (var card in pinned) PinnedCollections.Add(card);
+            HasPinnedCollections = PinnedCollections.Count > 0;
             HasRecentlyOpened = opened.Count > 0;
             HasBooks = added.Count > 0;
             HasFavorites = favorite.Count > 0;
@@ -159,6 +184,21 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     [RelayCommand]
     void OpenFavorites() => pages.Open(LibraryScope.Favorites);
+
+    [RelayCommand]
+    void OpenCollection(CollectionCardViewModel card) => pages.Open(Collections.Directory.ScopeFor(card.Collection));
+
+    [RelayCommand]
+    void BrowseCollections() => pages.OpenCollections();
+
+    /// <summary>A cover menu's Add to collection.</summary>
+    public void AddToCollection(CollectionRequest request)
+    {
+        if (request.Target is LibraryItemViewModel item) Collections.Add([item.EntryId], item.Title, request.Choice);
+    }
+
+    [RelayCommand]
+    void Escape() => Collections.Dialog?.CancelCommand.Execute(null);
 
     [RelayCommand]
     void SetUpAi() => links.Open(SettingsSection.Ai);

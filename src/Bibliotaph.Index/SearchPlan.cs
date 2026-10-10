@@ -13,8 +13,12 @@ public sealed record FacetCondition(IReadOnlyList<string> Fields, string Value, 
     public bool IsUnknown => !Prefix && Value == SearchQuery.Unknown;
 }
 
-/// <summary><c>favorite:yes</c>: entries in a group (entry_scope), or with <see cref="Negated"/> those not in it.</summary>
-public sealed record ScopeCondition(string Scope, bool Negated = false);
+/// <summary>
+/// <c>favorite:yes</c>: entries in a group (entry_scope), or with <see cref="Negated"/> those not in it. With
+/// <see cref="ByName"/>, <see cref="Scope"/> is a group's name instead, as <c>collection:"name"</c> gives (scope_name),
+/// and with <see cref="Prefix"/> the start of one.
+/// </summary>
+public sealed record ScopeCondition(string Scope, bool Negated = false, bool ByName = false, bool Prefix = false);
 
 /// <summary><c>level:</c> a stored level value ("3", "1-5", "n/a") or unknown.</summary>
 public sealed record LevelCondition(string Value, bool Negated = false);
@@ -140,6 +144,9 @@ public sealed record SearchPlan
                         break;
                     case SearchField.Favorite:
                         scopes.Add(new ScopeCondition(ScopeKeys.Favorites, negated == (value == SearchQuery.Yes)));
+                        break;
+                    case SearchField.Collection:
+                        scopes.Add(new ScopeCondition(value, negated, ByName: true, Prefix: field.Value is TermNode { Prefix: true }));
                         break;
                 }
             }

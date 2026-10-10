@@ -89,6 +89,8 @@ public class SearchQueryTests
     [InlineData("favourite:Y dragon", "AND(favorite:yes, dragon)")]
     [InlineData("fav:false", "favorite:no")]
     [InlineData("-favorite:yes", "-favorite:yes")]
+    [InlineData("collection:\"Winter campaign\" maps", "AND(collection:\"Winter campaign\", maps)")]
+    [InlineData("collections:wint*", "collection:wint*")]
     public void Parses_metadata_fields(string text, string expected) => Assert.Equal(expected, Tree(text));
 
     [Theory]
