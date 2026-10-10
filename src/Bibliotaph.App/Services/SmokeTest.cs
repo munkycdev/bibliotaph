@@ -1104,7 +1104,7 @@ static class SmokeTest
         page.KindChoice = page.KindChoices.Single(c => c.Value == KindFilter.Books);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.CanSaveView, () => "The search and filter didn't offer Save view.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveView"), "Save view");
-        await WaitUntilAsync(window, () => page.ViewDialog is not null, () => "Save view didn't ask for a name.");
+        await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Save view didn't ask for a name.");
         page.ViewDialog!.Name = "Haunted places";
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
         await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.SmartViews is [_, { Label: "Haunted places", IsActive: true }]
@@ -1116,9 +1116,10 @@ static class SmokeTest
 
         // A changed filter offers Update view; its Undo puts the view back as it was.
         page.KindChoice = page.KindChoices[0];
-        await WaitUntilAsync(window, () => page.IsViewChanged, () => "Changing the filter didn't offer Update view.");
+        await WaitUntilAsync(window, () => page.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UpdateView"), "Update view");
-        await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.HasViewUndo,
+        await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.HasViewUndo
+                && Shown(window, "UndoView"),
             () => "Update view didn't keep the change in the view.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the update");
         await WaitUntilAsync(window, () => SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.Books && page.IsViewChanged,
@@ -1136,6 +1137,7 @@ static class SmokeTest
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.HasThreads && home.SmartViews.Count == 1, () => "Home doesn't offer the Smart View.");
+        await Settle(window);
         var homeViews = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "HomeSmartViews");
         Click(homeViews is null ? null : Descendants<Button>(homeViews).FirstOrDefault(), "the view on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView.Name: "Haunted places", IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
@@ -1145,15 +1147,15 @@ static class SmokeTest
 
         // The sidebar's right-click Rename… asks on the view's page.
         shell.RenameViewCommand.Execute(shell.SmartViews[1]);
-        await WaitUntilAsync(window, () => page.ViewDialog is not null, () => "Rename… didn't ask for a name.");
+        await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Rename… didn't ask for a name.");
         page.ViewDialog!.Name = "Haunted inns";
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
-        await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.Heading == "Haunted inns",
+        await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.Heading == "Haunted inns" && Shown(window, "DeleteView"),
             () => "Rename didn't rename the view in the sidebar and on its page.");
 
         // Delete takes the view away, never a book; Undo brings it back.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteView"), "Delete the Smart View");
-        await WaitUntilAsync(window, () => shell.SmartViews.Count == 1 && !page.IsView && page.HasViewUndo && page.Items.Count == 1,
+        await WaitUntilAsync(window, () => shell.SmartViews.Count == 1 && !page.IsView && page.HasViewUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
             () => "Delete didn't take the view out of the sidebar and leave its books shown.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the delete");
         await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.IsView, () => "Undo didn't bring the view back.");
@@ -1800,6 +1802,9 @@ static class SmokeTest
             mode.IsOn = false;
         }
     }
+
+    /// <summary>Whether a button with this name is laid out and showing, so a click can follow.</summary>
+    static bool Shown(Window window, string name) => Descendants<Button>(window).Any(b => b.Name == name && b.IsVisible);
 
     /// <summary>Clicks <paramref name="button"/> the way a person would, failing clearly if they couldn't.</summary>
     static void Click(Button? button, string name) => Clickable(button, name).Invoke();
