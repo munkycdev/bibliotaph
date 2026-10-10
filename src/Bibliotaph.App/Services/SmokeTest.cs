@@ -1700,12 +1700,15 @@ static partial class SmokeTest
         await Settle(window);
         if (await reading.GetPositionAsync(documentId) != kept) throw new InvalidOperationException("Opening a session item moved the book's kept place.");
 
-        // Done goes back to the reader, which shows the new order: the first item, then Next to the second at its first page.
+        // Done goes back to the reader, still at the item in hand, which the move made the second; Previous and Next
+        // follow the new order, each opening its item at its first page.
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Back didn't return to the binder's list.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DoneEditing"), "Done");
-        await WaitUntilAsync(window, () => shell.CurrentPage == reader && reader.Counter == "p. 1 · 1 of 2" && reader.Viewer.IsPdf,
-            () => $"Done didn't go back to the binder's reader at its first item ({reader.Counter}).");
-        if (reader.PreviousItemCommand.CanExecute(null)) throw new InvalidOperationException("Previous is offered at the binder's first item.");
+        await WaitUntilAsync(window, () => shell.CurrentPage == reader && reader is { Current.Heading: "Warehouse ambush", Counter: "p. i–1 · 2 of 2", Viewer.IsPdf: true },
+            () => $"Done didn't go back to the binder's reader at Warehouse ambush ({reader.Counter}).");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PreviousItem"), "Previous");
+        await WaitUntilAsync(window, () => reader.Counter == "p. 1 · 1 of 2" && !reader.PreviousItemCommand.CanExecute(null),
+            () => $"Previous didn't open the binder's first item ({reader.Counter}).");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NextItem"), "Next");
         await WaitUntilAsync(window, () => reader is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
                 && !reader.NextItemCommand.CanExecute(null),
