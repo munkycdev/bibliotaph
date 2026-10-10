@@ -917,9 +917,13 @@ static class SmokeTest
         var navigation = services.GetRequiredService<INavigationService>();
         navigation.NavigateTo(Route.Library);
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
-        await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == pack.EntryId), () => "The pack isn't in the Library.");
+        // The Library may already have been open, listed before the covers were all made: list it again.
+        await library.RefreshAsync();
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == pack.EntryId && i is { IsPack: true, SizeLabel: "20 images", Mosaic.Count: 4 }),
+            () => library.Items.FirstOrDefault(i => i.EntryId == pack.EntryId) is { } shown
+                ? $"The pack's card shows {shown.SizeLabel} and {shown.Mosaic.Count} covers."
+                : "The pack isn't in the Library.");
         var card = library.Items.First(i => i.EntryId == pack.EntryId);
-        if (card is not { IsPack: true, SizeLabel: "20 images", Mosaic.Count: 4 }) throw new InvalidOperationException($"The pack's card shows {card.SizeLabel} and {card.Mosaic.Count} covers.");
         if (library.Items.Any(i => i.Folder.Contains(Name, StringComparison.Ordinal) && !i.IsPack)) throw new InvalidOperationException("A packed image still has a card of its own.");
 
         await library.OpenDetailsCommand.ExecuteAsync(card);
