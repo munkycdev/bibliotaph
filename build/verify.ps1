@@ -139,22 +139,30 @@ function Invoke-BannedApi {
 }
 
 $order = 'Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
-foreach ($name in $order | Where-Object { $_ -in $Step }) {
-    Write-Host "== $name" -ForegroundColor Cyan
-    switch ($name) {
-        'Restore' { Invoke-Dotnet restore $solution }
-        'Engine' { Invoke-Engine }
-        # Debug builds contain the worker's fault-injection requests that the isolation tests use.
-        'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
-        'Licenses' { Invoke-Licenses }
-        'Test' {
-            Invoke-Dotnet test --solution $solution --configuration Debug --no-build --report-xunit-trx `
-                --results-directory (Join-Path $root 'TestResults')
+# From the repository root wherever it's started: dotnet finds global.json, which picks the SDK and the test runner,
+# by looking up from the current folder.
+Push-Location $root
+try {
+    foreach ($name in $order | Where-Object { $_ -in $Step }) {
+        Write-Host "== $name" -ForegroundColor Cyan
+        switch ($name) {
+            'Restore' { Invoke-Dotnet restore $solution }
+            'Engine' { Invoke-Engine }
+            # Debug builds contain the worker's fault-injection requests that the isolation tests use.
+            'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
+            'Licenses' { Invoke-Licenses }
+            'Test' {
+                Invoke-Dotnet test --solution $solution --configuration Debug --no-build --report-xunit-trx `
+                    --results-directory (Join-Path $root 'TestResults')
+            }
+            'Smoke' { Invoke-Smoke }
+            'BannedApi' { Invoke-BannedApi }
+            'Release' { Invoke-Dotnet build $solution --configuration Release --no-restore }
         }
-        'Smoke' { Invoke-Smoke }
-        'BannedApi' { Invoke-BannedApi }
-        'Release' { Invoke-Dotnet build $solution --configuration Release --no-restore }
     }
+}
+finally {
+    Pop-Location
 }
 $passed = $order | Where-Object { $_ -in $Step -and $_ -notin $skipped }
 Write-Host "Passed: $($passed -join ', ')." -ForegroundColor Green
