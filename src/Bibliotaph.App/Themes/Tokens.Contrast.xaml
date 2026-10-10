@@ -1,0 +1,35 @@
+<!--
+  Bibliotaph under a Windows contrast theme: the same keys as Tokens.Light.xaml and Tokens.Dark.xaml, taken from the
+  system's colours so text and controls look as the person chose. Surfaces are the window colour and everything drawn
+  on them the window text colour; the accent is the highlight pair, so primary buttons, links and focus rings stand out.
+  Hover and selected backgrounds stay the window colour, because the text on them is the window text colour.
+  ThemeService loads this afresh whenever the system colours change.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Static x:Key="Bt.BgColor" Member="SystemColors.WindowColor" />
+  <SolidColorBrush x:Key="Bt.Bg" Color="{x:Static SystemColors.WindowColor}" />
+  <x:Static x:Key="Bt.PanelColor" Member="SystemColors.WindowColor" />
+  <SolidColorBrush x:Key="Bt.Panel" Color="{x:Static SystemColors.WindowColor}" />
+  <x:Static x:Key="Bt.SideColor" Member="SystemColors.WindowColor" />
+  <SolidColorBrush x:Key="Bt.Side" Color="{x:Static SystemColors.WindowColor}" />
+  <!-- Borders and rules in full strength: a contrast theme shows where each control ends. -->
+  <x:Static x:Key="Bt.LineColor" Member="SystemColors.WindowTextColor" />
+  <SolidColorBrush x:Key="Bt.Line" Color="{x:Static SystemColors.WindowTextColor}" />
+  <x:Static x:Key="Bt.TextColor" Member="SystemColors.WindowTextColor" />
+  <SolidColorBrush x:Key="Bt.Text" Color="{x:Static SystemColors.WindowTextColor}" />
+  <!-- Secondary text is still text to read, so not the disabled grey. -->
+  <x:Static x:Key="Bt.MutedColor" Member="SystemColors.WindowTextColor" />
+  <SolidColorBrush x:Key="Bt.Muted" Color="{x:Static SystemColors.WindowTextColor}" />
+  <x:Static x:Key="Bt.AccentColor" Member="SystemColors.HighlightColor" />
+  <SolidColorBrush x:Key="Bt.Accent" Color="{x:Static SystemColors.HighlightColor}" />
+  <x:Static x:Key="Bt.AccentTextColor" Member="SystemColors.HighlightTextColor" />
+  <SolidColorBrush x:Key="Bt.AccentText" Color="{x:Static SystemColors.HighlightTextColor}" />
+  <x:Static x:Key="Bt.SoftColor" Member="SystemColors.WindowColor" />
+  <SolidColorBrush x:Key="Bt.Soft" Color="{x:Static SystemColors.WindowColor}" />
+  <x:Static x:Key="Bt.WarmColor" Member="SystemColors.WindowColor" />
+  <SolidColorBrush x:Key="Bt.Warm" Color="{x:Static SystemColors.WindowColor}" />
+  <SolidColorBrush x:Key="Bt.StatusOk" Color="{x:Static SystemColors.WindowTextColor}" />
+  <!-- No dimming behind an in-page dialog: its border marks it instead. -->
+  <SolidColorBrush x:Key="Bt.Shadow" Color="Transparent" />
+</ResourceDictionary>

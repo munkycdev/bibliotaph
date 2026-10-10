@@ -83,9 +83,12 @@
                 <RadioButton Style="{StaticResource Bt.Segment}" GroupName="Appearance" Content="Dark" IsChecked="{Binding UseDark}" />
               </StackPanel>
             </Border>
-            <StackPanel VerticalAlignment="Center">
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
               <TextBlock Text="Light or dark" Style="{StaticResource Text.Row}" />
               <TextBlock Text="Use system follows Windows." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+              <TextBlock Text="A Windows contrast theme is on, so Bibliotaph uses its colours. This choice comes back when it's off."
+                         Style="{StaticResource Text.Small}" Margin="0,4,0,0"
+                         Visibility="{Binding IsHighContrast, Converter={StaticResource Bt.VisibleWhenTrue}}" />
             </StackPanel>
           </DockPanel>
         </Border>
@@ -171,20 +174,26 @@
 
     <TextBlock Grid.ColumnSpan="2" Text="Make yourself at home." Style="{StaticResource Text.H1}" Margin="0,0,42,24" />
 
-    <StackPanel Grid.Row="1">
-      <ItemsControl ItemsSource="{Binding Sections}" Focusable="False" AutomationProperties.Name="Settings sections">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
-            <RadioButton Style="{StaticResource SectionEntry}" GroupName="SettingsSection" Content="{Binding Label}"
-                         IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding Label}" />
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-      <Border Style="{StaticResource Bt.Rule}" Margin="10,12" />
-      <!-- Also in the window's system menu (Alt+Space). -->
-      <Button Style="{StaticResource SectionAction}" Content="About Bibliotaph" Command="{Binding ShowAboutCommand}"
-              AutomationProperties.Name="About Bibliotaph" />
-    </StackPanel>
+    <!-- The list scrolls too: on a short window, or at 200% scaling, it is taller than the page. -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+      <StackPanel Margin="0,0,0,35">
+        <ItemsControl ItemsSource="{Binding Sections}" Focusable="False" AutomationProperties.Name="Settings sections">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
+              <RadioButton Style="{StaticResource SectionEntry}" GroupName="SettingsSection" Content="{Binding Label}"
+                           IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding Label}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border Style="{StaticResource Bt.Rule}" Margin="10,12" />
+        <!-- Also in the window's system menu (Alt+Space). -->
+        <Button Style="{StaticResource SectionAction}" Content="About Bibliotaph" Command="{Binding ShowAboutCommand}"
+                AutomationProperties.Name="About Bibliotaph" />
+        <!-- Also Ctrl+/ anywhere. -->
+        <Button x:Name="ShowShortcuts" Style="{StaticResource SectionAction}" Content="Keyboard shortcuts"
+                Command="{Binding ShowShortcutsCommand}" AutomationProperties.Name="Keyboard shortcuts" ToolTip="Ctrl+/" />
+      </StackPanel>
+    </ScrollViewer>
 
     <ScrollViewer x:Name="SectionScroller" Grid.Row="1" Grid.Column="1" HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto" Focusable="False">

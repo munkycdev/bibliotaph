@@ -230,6 +230,7 @@ JPG, PNG and WebP open in an image surface with zoom and pan, decoded at a cappe
 - **Type and icons.** DM Sans for the interface, Libre Caslon Display for display headings only, both embedded (SIL OFL). Lucide icons as `Geometry` resources (ISC).
 - **Cover grid.** The MIT-licensed `VirtualizingWrapPanel` package; covers decoded off the UI thread at display size and frozen.
 - **Accessibility.** Per-monitor DPI v2, automation names on every control, keyboard paths for every action, and a 200% scaling pass in slice 0 (A17).
+- **Accessibility in CI (slice 4k).** The smoke test checks every page and dialog it visits for automation names, controls cut off at the minimum window size, and a Tab order that reaches every control. A Windows contrast theme swaps in a third palette from the system colours, live; every animation is off when Windows' animation effects are; Ctrl+/ lists every shortcut.
 - **Shortcuts.** Ctrl+K global search, Ctrl+F in-book search, Enter open, Esc close.
 
 ## Safety, secrets, packaging and updates

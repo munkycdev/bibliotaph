@@ -46,23 +46,25 @@
       <Setter Property="Margin" Value="0,28,0,10" />
     </Style>
 
-    <!-- A book in the covers or the list: Bt.PlainList's item, with Books.xaml's BookMenu on right-click (or the Menu key, or Shift+F10). -->
-    <Style x:Key="BookItem" TargetType="ListBoxItem">
-      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <!--
+      A book in the covers or the list: Bt.PlainList's item, with Books.xaml's BookMenu on right-click (or the Menu key, or Shift+F10).
+      The item is what keyboard focus lands on, so it carries the book's name for screen readers.
+    -->
+    <Style x:Key="BookItem" TargetType="ListBoxItem" BasedOn="{StaticResource Bt.PlainItem}">
       <Setter Property="ContextMenu" Value="{DynamicResource BookMenu}" />
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="ListBoxItem">
-            <ContentPresenter />
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
+      <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+      <Setter Property="AutomationProperties.ItemStatus" Value="{Binding AvailabilityLabel}" />
       <Style.Triggers>
         <DataTrigger Binding="{Binding IsSelected}" Value="True">
           <Setter Property="AutomationProperties.ItemStatus" Value="Selected" />
         </DataTrigger>
       </Style.Triggers>
+    </Style>
+
+    <!-- A cover: the item hugs its card rather than filling the grid's cell, so the focus ring goes round the card. -->
+    <Style x:Key="CoverItem" TargetType="ListBoxItem" BasedOn="{StaticResource BookItem}">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Top" />
     </Style>
 
     <!-- A book's checkbox in Select mode. It only shows the tick: a click on the book ticks it. -->
@@ -86,236 +88,263 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <DockPanel Margin="0,0,42,24">
-      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
-                  Visibility="{Binding ShowsLibraryActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <Button x:Name="AddElsewhere" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
-                Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
-        <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
-                Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
-        <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
-      </StackPanel>
-      <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->
-      <StackPanel x:Name="CollectionActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
-                  Visibility="{Binding ShowsCollectionActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <Button x:Name="NewSubCollection" Content="New collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
-                Command="{Binding NewSubCollectionCommand}" ToolTip="Make a collection inside this one" />
-        <Button x:Name="RenameCollection" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameCollectionCommand}"
-                ToolTip="Change its name or description" AutomationProperties.Name="Rename the collection" />
-        <Button x:Name="MoveCollection" Content="Move to…" c:Ui.Icon="{StaticResource Icon.FolderInput}" Margin="0,0,8,0" Command="{Binding MoveCollectionCommand}"
-                ToolTip="Put it inside another collection, or at the top" AutomationProperties.Name="Move the collection" />
-        <Button x:Name="PinCollection" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" Margin="0,0,8,0" Command="{Binding TogglePinCommand}"
-                ToolTip="Pinned collections show first on Collections, and on Home" />
-        <Button x:Name="DeleteCollection" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteCollectionCommand}"
-                ToolTip="Delete the collection. Its books stay in your library, and Undo brings it back." AutomationProperties.Name="Delete the collection" />
-      </StackPanel>
-      <!-- A Smart View's own actions (slice 3 plan, choice 17). Deleting it never deletes a book. -->
-      <StackPanel x:Name="ViewActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
-                  Visibility="{Binding IsView, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <Button x:Name="RenameView" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameViewCommand}"
-                AutomationProperties.Name="Rename the Smart View" />
-        <Button x:Name="DeleteView" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteViewCommand}"
-                ToolTip="Delete the Smart View. Your books stay as they are, and Undo brings it back." AutomationProperties.Name="Delete the Smart View" />
-      </StackPanel>
-      <StackPanel>
-        <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H1}" />
-        <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Subtitle}" />
-      </StackPanel>
-    </DockPanel>
+    <!--
+      The page's head: its title, toolbar, filters and notices. On a short window (at 200% scaling, say) it scrolls,
+      so the selection bar below it and the books keep their room; LibraryView.FitPageHead sets how tall it may be.
+    -->
+    <ScrollViewer x:Name="PageHead" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-    <!-- .bt-toolbar: results tabs while searching; filters, sort and layout always. -->
-    <Border Grid.Row="1" Margin="0,0,42,0" Padding="0,0,0,15" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1"
-            Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-          <Border Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <Button Content="Select" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding StartSelectingCommand}" Margin="0,0,8,0"
-                    ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
-                    Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-          </Border>
-          <Button x:Name="SaveView" Content="Save view" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding SaveViewCommand}" Margin="0,0,8,0"
-                  ToolTip="Keep this search, its filters and order as a Smart View in the sidebar"
-                  Visibility="{Binding CanSaveView, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,0" />
-          <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
-                    AutomationProperties.Name="Sort" Margin="0,0,8,0" />
-          <Border Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center"
-                  Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <DockPanel Margin="0,0,42,24">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
+                      Visibility="{Binding ShowsLibraryActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="AddElsewhere" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
+                    Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
+            <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
+                    Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
+            <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+          </StackPanel>
+          <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->
+          <StackPanel x:Name="CollectionActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
+                      Visibility="{Binding ShowsCollectionActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="NewSubCollection" Content="New collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
+                    Command="{Binding NewSubCollectionCommand}" ToolTip="Make a collection inside this one" />
+            <Button x:Name="RenameCollection" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameCollectionCommand}"
+                    ToolTip="Change its name or description" AutomationProperties.Name="Rename the collection" />
+            <Button x:Name="MoveCollection" Content="Move to…" c:Ui.Icon="{StaticResource Icon.FolderInput}" Margin="0,0,8,0" Command="{Binding MoveCollectionCommand}"
+                    ToolTip="Put it inside another collection, or at the top" AutomationProperties.Name="Move the collection" />
+            <Button x:Name="PinCollection" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" Margin="0,0,8,0" Command="{Binding TogglePinCommand}"
+                    ToolTip="Pinned collections show first on Collections, and on Home" />
+            <Button x:Name="DeleteCollection" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteCollectionCommand}"
+                    ToolTip="Delete the collection. Its books stay in your library, and Undo brings it back." AutomationProperties.Name="Delete the collection" />
+          </StackPanel>
+          <!-- A Smart View's own actions (slice 3 plan, choice 17). Deleting it never deletes a book. -->
+          <StackPanel x:Name="ViewActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
+                      Visibility="{Binding IsView, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="RenameView" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameViewCommand}"
+                    AutomationProperties.Name="Rename the Smart View" />
+            <Button x:Name="DeleteView" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteViewCommand}"
+                    ToolTip="Delete the Smart View. Your books stay as they are, and Undo brings it back." AutomationProperties.Name="Delete the Smart View" />
+          </StackPanel>
+          <StackPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H1}" />
+            <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Subtitle}" />
+          </StackPanel>
+        </DockPanel>
+
+        <!-- .bt-toolbar: results tabs while searching; filters, sort and layout always. -->
+        <Border Grid.Row="1" Margin="0,0,42,0" Padding="0,0,0,15" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1"
+                Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <!-- The tabs keep their width; the buttons wrap onto another row on a narrow window (at 200% scaling, say). -->
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <WrapPanel Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,0,-8">
+              <Border Margin="0,0,0,8" Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <Button Content="Select" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding StartSelectingCommand}" Margin="0,0,8,0"
+                        ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
+                        Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              </Border>
+              <Button x:Name="SaveView" Content="Save view" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding SaveViewCommand}" Margin="0,0,8,8"
+                      ToolTip="Keep this search, its filters and order as a Smart View in the sidebar"
+                      Visibility="{Binding CanSaveView, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,8" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
+                        AutomationProperties.Name="Sort" Margin="0,0,8,8" />
+              <Border Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center" Margin="0,0,0,8"
+                      Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsGridLayout}" ToolTip="Covers" AutomationProperties.Name="Show covers">
+                    <c:LucideIcon Data="{StaticResource Icon.LayoutGrid}" Size="15" />
+                  </RadioButton>
+                  <RadioButton Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsListLayout}" ToolTip="List" AutomationProperties.Name="Show a list">
+                    <c:LucideIcon Data="{StaticResource Icon.List}" Size="15" />
+                  </RadioButton>
+                </StackPanel>
+              </Border>
+            </WrapPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0" AutomationProperties.Name="Results"
+                        Visibility="{Binding IsSearching, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding DocumentsTabLabel}" IsChecked="{Binding IsDocumentsTab}" />
+              <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding PagesTabLabel}" IsChecked="{Binding IsPagesTab}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- Two rows of filters at most before they scroll, so a short window (or 200% scaling) still has room for the books. -->
+        <ScrollViewer Grid.Row="2" Margin="0,15,42,-12" MaxHeight="140" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      Focusable="False" Visibility="{Binding ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <WrapPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Kind" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding KindChoices}" SelectedItem="{Binding KindChoice}"
+                        AutomationProperties.Name="Kind" MinWidth="150" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FolderChoices}" SelectedItem="{Binding FolderChoice}"
+                        AutomationProperties.Name="Source folder" MinWidth="200" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Game system" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SystemChoices}" SelectedItem="{Binding SystemChoice}"
+                        AutomationProperties.Name="Game system" MinWidth="180" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Type" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding TypeChoices}" SelectedItem="{Binding TypeChoice}"
+                        AutomationProperties.Name="Type" MinWidth="160" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Character level" Style="{StaticResource FieldLabel}" />
+              <StackPanel Orientation="Horizontal">
+                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding LevelChoices}" SelectedItem="{Binding LevelChoice}"
+                          AutomationProperties.Name="Character level" MinWidth="110" MaxDropDownHeight="320" />
+                <CheckBox Content="Include unknown levels" IsChecked="{Binding IncludeUnknownLevels}" Margin="10,0,0,0" VerticalAlignment="Center"
+                          FontSize="11" Foreground="{DynamicResource Bt.Text}"
+                          Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
+                        AutomationProperties.Name="Read by AI" MinWidth="150" ToolTip="Books a model has read and catalogued" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCopiesChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
+                        AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding OwnChoices}" SelectedItem="{Binding OwnChoice}"
+                        AutomationProperties.Name="Also own" MinWidth="150" ToolTip="Books you also own in print or on a virtual tabletop" />
+            </StackPanel>
+            <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
+          </WrapPanel>
+        </ScrollViewer>
+
+        <!-- .bt-sectionline -->
+        <StackPanel Grid.Row="3" Margin="0,23,42,0">
+          <!-- The part of the library shown, such as Favorites (slice 3 plan, choice 3); its × shows the whole library. -->
+          <Border x:Name="ScopeChip" Style="{StaticResource Bt.Chip}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="10,2,2,2"
+                  Visibility="{Binding HasScope, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <StackPanel Orientation="Horizontal">
-              <RadioButton Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsGridLayout}" ToolTip="Covers" AutomationProperties.Name="Show covers">
-                <c:LucideIcon Data="{StaticResource Icon.LayoutGrid}" Size="15" />
-              </RadioButton>
-              <RadioButton Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsListLayout}" ToolTip="List" AutomationProperties.Name="Show a list">
-                <c:LucideIcon Data="{StaticResource Icon.List}" Size="15" />
-              </RadioButton>
+              <TextBlock Text="{Binding ScopeChip}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+              <Button x:Name="ClearScope" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22"
+                      Margin="4,0,0,0" Padding="2" ToolTip="Show your whole library" AutomationProperties.Name="Show your whole library"
+                      Command="{Binding ClearScopeCommand}" />
             </StackPanel>
           </Border>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" AutomationProperties.Name="Results"
-                    Visibility="{Binding IsSearching, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding DocumentsTabLabel}" IsChecked="{Binding IsDocumentsTab}" />
-          <RadioButton Style="{StaticResource Bt.Tab}" Content="{Binding PagesTabLabel}" IsChecked="{Binding IsPagesTab}" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <WrapPanel Grid.Row="2" Margin="0,15,42,-12" Visibility="{Binding ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
-      <StackPanel Margin="0,0,12,12">
-        <TextBlock Text="Kind" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding KindChoices}" SelectedItem="{Binding KindChoice}"
-                  AutomationProperties.Name="Kind" MinWidth="150" />
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12">
-        <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FolderChoices}" SelectedItem="{Binding FolderChoice}"
-                  AutomationProperties.Name="Source folder" MinWidth="200" />
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12">
-        <TextBlock Text="Game system" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SystemChoices}" SelectedItem="{Binding SystemChoice}"
-                  AutomationProperties.Name="Game system" MinWidth="180" />
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12">
-        <TextBlock Text="Type" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding TypeChoices}" SelectedItem="{Binding TypeChoice}"
-                  AutomationProperties.Name="Type" MinWidth="160" />
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12">
-        <TextBlock Text="Character level" Style="{StaticResource FieldLabel}" />
-        <StackPanel Orientation="Horizontal">
-          <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding LevelChoices}" SelectedItem="{Binding LevelChoice}"
-                    AutomationProperties.Name="Character level" MinWidth="110" MaxDropDownHeight="320" />
-          <CheckBox Content="Include unknown levels" IsChecked="{Binding IncludeUnknownLevels}" Margin="10,0,0,0" VerticalAlignment="Center"
-                    FontSize="11" Foreground="{DynamicResource Bt.Text}"
-                    Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        </StackPanel>
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
-                  AutomationProperties.Name="Read by AI" MinWidth="150" ToolTip="Books a model has read and catalogued" />
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCopiesChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
-                  AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
-      </StackPanel>
-      <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />
-        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding OwnChoices}" SelectedItem="{Binding OwnChoice}"
-                  AutomationProperties.Name="Also own" MinWidth="150" ToolTip="Books you also own in print or on a virtual tabletop" />
-      </StackPanel>
-      <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
-    </WrapPanel>
-
-    <!-- .bt-sectionline -->
-    <StackPanel Grid.Row="3" Margin="0,23,42,17">
-      <!-- The part of the library shown, such as Favorites (slice 3 plan, choice 3); its × shows the whole library. -->
-      <Border x:Name="ScopeChip" Style="{StaticResource Bt.Chip}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="10,2,2,2"
-              Visibility="{Binding HasScope, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="{Binding ScopeChip}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
-          <Button x:Name="ClearScope" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22"
-                  Margin="4,0,0,0" Padding="2" ToolTip="Show your whole library" AutomationProperties.Name="Show your whole library"
-                  Command="{Binding ClearScopeCommand}" />
-        </StackPanel>
-      </Border>
-      <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out (choice 9). -->
-      <StackPanel Visibility="{Binding HasSubCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <ItemsControl x:Name="SubCollections" ItemsSource="{Binding SubCollections}" ItemTemplate="{StaticResource CollectionCard}"
-                      Focusable="False" AutomationProperties.Name="Collections inside this one" KeyboardNavigation.TabNavigation="Continue">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-        </ItemsControl>
-        <CheckBox x:Name="OnlyAddedHere" Content="Only books added here" IsChecked="{Binding OnlyAddedHere}" Margin="0,0,0,14" FontSize="11"
-                  Foreground="{DynamicResource Bt.Text}" ToolTip="Leave out the books that are only in the collections inside this one" />
-      </StackPanel>
-      <!-- A Smart View whose search, filters or order were changed: keep the change in it, or as a new view. -->
-      <Border x:Name="ViewChanged" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14"
-              Visibility="{Binding IsViewChanged, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-            <Button x:Name="UpdateView" Style="{StaticResource Bt.Button.Primary}" Content="Update view" Command="{Binding UpdateViewCommand}" Margin="0,0,8,0"
-                    ToolTip="The Smart View keeps the search, filters and order shown now" />
-            <Button x:Name="SaveViewAsNew" Content="Save as new" Command="{Binding SaveViewAsNewCommand}" ToolTip="Keep both: a new Smart View, and this one as it was" />
+          <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out (choice 9). -->
+          <StackPanel Visibility="{Binding HasSubCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <ItemsControl x:Name="SubCollections" ItemsSource="{Binding SubCollections}" ItemTemplate="{StaticResource CollectionCard}"
+                          Focusable="False" AutomationProperties.Name="Collections inside this one" KeyboardNavigation.TabNavigation="Continue">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+            <CheckBox x:Name="OnlyAddedHere" Content="Only books added here" IsChecked="{Binding OnlyAddedHere}" Margin="0,0,0,14" FontSize="11"
+                      Foreground="{DynamicResource Bt.Text}" ToolTip="Leave out the books that are only in the collections inside this one" />
           </StackPanel>
-          <TextBlock Text="You've changed this view." FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
-        </DockPanel>
-      </Border>
-      <TextBlock x:Name="ViewNote" Text="{Binding ViewNote}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,14"
-                 Visibility="{Binding ViewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
-      <!-- What the last Smart View change did, with Undo. -->
-      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-              Visibility="{Binding ViewMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
-        <DockPanel>
-          <Button x:Name="UndoView" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                  Command="{Binding UndoViewCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the Smart View change"
-                  Visibility="{Binding HasViewUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock x:Name="ViewMessage" Text="{Binding ViewMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
-                     VerticalAlignment="Center" />
-        </DockPanel>
-      </Border>
-      <!-- What the last collection change did, with Undo. -->
-      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-              Visibility="{Binding Collections.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
-        <DockPanel>
-          <Button x:Name="UndoCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                  Command="{Binding Collections.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the collection change"
-                  Visibility="{Binding Collections.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock x:Name="CollectionMessage" Text="{Binding Collections.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
-                     VerticalAlignment="Center" />
-        </DockPanel>
-      </Border>
-      <!-- What the last Add to session did, with Undo. -->
-      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-              Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
-        <DockPanel>
-          <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                  Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the session change"
-                  Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
-                     VerticalAlignment="Center" />
-        </DockPanel>
-      </Border>
-      <!-- Select mode: how many are ticked, Edit metadata, Clear and Done. -->
-      <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14" AutomationProperties.Name="Selection"
+          <!-- A Smart View whose search, filters or order were changed: keep the change in it, or as a new view. -->
+          <Border x:Name="ViewChanged" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14"
+                  Visibility="{Binding IsViewChanged, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="UpdateView" Style="{StaticResource Bt.Button.Primary}" Content="Update view" Command="{Binding UpdateViewCommand}" Margin="0,0,8,0"
+                        ToolTip="The Smart View keeps the search, filters and order shown now" />
+                <Button x:Name="SaveViewAsNew" Content="Save as new" Command="{Binding SaveViewAsNewCommand}" ToolTip="Keep both: a new Smart View, and this one as it was" />
+              </StackPanel>
+              <TextBlock Text="You've changed this view." FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+            </DockPanel>
+          </Border>
+          <TextBlock x:Name="ViewNote" Text="{Binding ViewNote}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,14"
+                     Visibility="{Binding ViewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          <!-- What the last Smart View change did, with Undo. -->
+          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+                  Visibility="{Binding ViewMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <DockPanel>
+              <Button x:Name="UndoView" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                      Command="{Binding UndoViewCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the Smart View change"
+                      Visibility="{Binding HasViewUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="ViewMessage" Text="{Binding ViewMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+            </DockPanel>
+          </Border>
+          <!-- What the last collection change did, with Undo. -->
+          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+                  Visibility="{Binding Collections.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <DockPanel>
+              <Button x:Name="UndoCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                      Command="{Binding Collections.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the collection change"
+                      Visibility="{Binding Collections.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="CollectionMessage" Text="{Binding Collections.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+            </DockPanel>
+          </Border>
+          <!-- What the last Add to session did, with Undo. -->
+          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+                  Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <DockPanel>
+              <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                      Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the session change"
+                      Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+            </DockPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+
+    <!-- Select mode's bar and the count stay in view while the head scrolls. -->
+    <StackPanel x:Name="PageFoot" Grid.Row="1" Margin="0,0,42,17">
+      <!--
+        Select mode: how many are ticked, Edit metadata, Clear and Done. The buttons wrap onto another row on a narrow
+        window (at 200% scaling, say) rather than run off its edge.
+      -->
+      <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,4" Margin="0,0,0,14" AutomationProperties.Name="Selection"
               Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.VisibleWhenTrue}}">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-            <Button Style="{StaticResource Bt.Button.Primary}" Content="Edit metadata" c:Ui.Icon="{StaticResource Icon.Pencil}"
-                    Command="{Binding EditSelectedCommand}" Margin="0,0,8,0" ToolTip="Change fields on every selected book at once" />
-            <Button x:Name="AddSelectedToCollection" Content="Add to collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
-                    Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a collection">
-              <Button.ContextMenu>
-                <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{Binding AddSelectedToCollectionCommand}" />
-              </Button.ContextMenu>
-            </Button>
-            <Button x:Name="AddSelectedToSession" Content="Add to session" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="0,0,8,0"
-                    Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a session">
-              <Button.ContextMenu>
-                <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddSelectedToSessionCommand}" />
-              </Button.ContextMenu>
-            </Button>
-            <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,0,8,0" Command="{Binding RemoveSelectedFromCollectionCommand}"
-                    ToolTip="Take the selected books out of this collection. They stay in your library."
-                    Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-            <Button x:Name="ExportSelected" Content="Export these" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,0"
-                    Command="{Binding ExportSelectedCommand}" ToolTip="Save the selected books as a CSV file, for a spreadsheet"
-                    AutomationProperties.Name="Export the selected books" />
-            <Button Content="Clear" Command="{Binding ClearSelectionCommand}" Margin="0,0,8,0" AutomationProperties.Name="Clear the selection" />
-            <Button Content="Done" Command="{Binding StopSelectingCommand}" ToolTip="Leave Select mode (Esc)" AutomationProperties.Name="Done selecting" />
-          </StackPanel>
-          <TextBlock Text="{Binding Selection.Summary}" FontSize="12" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" TextWrapping="Wrap"
-                     Margin="0,0,12,0" />
-        </DockPanel>
+        <WrapPanel>
+          <TextBlock Text="{Binding Selection.Summary}" FontSize="12" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center"
+                     Margin="0,4,16,4" />
+          <Button Style="{StaticResource Bt.Button.Primary}" Content="Edit metadata" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                  Command="{Binding EditSelectedCommand}" Margin="0,4,8,4" ToolTip="Change fields on every selected book at once" />
+          <Button x:Name="AddSelectedToCollection" Content="Add to collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,4,8,4"
+                  Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a collection">
+            <Button.ContextMenu>
+              <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{Binding AddSelectedToCollectionCommand}" />
+            </Button.ContextMenu>
+          </Button>
+          <Button x:Name="AddSelectedToSession" Content="Add to session" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="0,4,8,4"
+                  Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a session">
+            <Button.ContextMenu>
+              <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddSelectedToSessionCommand}" />
+            </Button.ContextMenu>
+          </Button>
+          <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,4,8,4" Command="{Binding RemoveSelectedFromCollectionCommand}"
+                  ToolTip="Take the selected books out of this collection. They stay in your library."
+                  Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="ExportSelected" Content="Export these" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,4,8,4"
+                  Command="{Binding ExportSelectedCommand}" ToolTip="Save the selected books as a CSV file, for a spreadsheet"
+                  AutomationProperties.Name="Export the selected books" />
+          <Button Content="Clear" Command="{Binding ClearSelectionCommand}" Margin="0,4,8,4" AutomationProperties.Name="Clear the selection" />
+          <Button Content="Done" Command="{Binding StopSelectingCommand}" Margin="0,4,0,4" ToolTip="Leave Select mode (Esc)" AutomationProperties.Name="Done selecting" />
+        </WrapPanel>
       </Border>
       <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
               Visibility="{Binding BulkMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
@@ -342,12 +371,12 @@
       </Border>
     </StackPanel>
 
-    <Grid Grid.Row="4">
+    <Grid Grid.Row="2">
       <!-- .bt-books: the cover grid. Only the covers in view are created. -->
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
-               ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
+               ItemContainerStyle="{StaticResource CoverItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemsPanel>
           <ItemsPanelTemplate>
@@ -400,13 +429,17 @@
           <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
             <Border x:Name="Row" Padding="0,14" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Background="Transparent"
                     Cursor="Hand" AutomationProperties.Name="{Binding Title}" AutomationProperties.ItemStatus="{Binding AvailabilityLabel}">
+              <!--
+                System, type and levels share the row with the title, up to their own widths: on a narrow window (at 200%
+                scaling, say) they trim before the heart and the chevron at the end are pushed out of the row.
+              -->
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="*" MinWidth="160" />
-                  <ColumnDefinition Width="130" />
-                  <ColumnDefinition Width="110" />
-                  <ColumnDefinition Width="90" />
+                  <ColumnDefinition Width="3*" MinWidth="110" />
+                  <ColumnDefinition Width="1.3*" MaxWidth="130" />
+                  <ColumnDefinition Width="1.1*" MaxWidth="110" />
+                  <ColumnDefinition Width="0.9*" MaxWidth="90" />
                   <ColumnDefinition Width="72" />
                   <ColumnDefinition Width="34" />
                   <ColumnDefinition Width="27" />
@@ -528,7 +561,7 @@
     </Grid>
 
     <!-- .bt-drawer: the inspector, over the page. Esc, the close button or a click outside closes it. -->
-    <Grid Grid.RowSpan="5" Visibility="{Binding Inspector, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="3" Visibility="{Binding Inspector, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}">
         <Border.InputBindings>
           <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDetailsCommand}" />
@@ -699,7 +732,7 @@
                         Command="{Binding SplitPackCommand}" />
                 <TextBlock Text="{Binding PackImagesHeading}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
               </DockPanel>
-              <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" AutomationProperties.Name="Images in the pack"
+              <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="Images in the pack"
                             KeyboardNavigation.TabNavigation="Continue">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -995,31 +1028,43 @@
     </Grid>
 
     <!-- Add a book I own elsewhere (F5a), a dialog over the page. Esc or Cancel closes it. -->
-    <Grid Grid.RowSpan="5" Visibility="{Binding AddElsewhereDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="3" Visibility="{Binding AddElsewhereDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
-      <v:AddElsewhereView x:Name="ElsewhereDialog" DataContext="{Binding AddElsewhereDialog}" MaxWidth="520" Margin="0,24,42,24" VerticalAlignment="Center" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:AddElsewhereView x:Name="ElsewhereDialog" DataContext="{Binding AddElsewhereDialog}" MaxWidth="520" Margin="0,24,42,24" VerticalAlignment="Center" />
+      </ScrollViewer>
     </Grid>
 
     <!-- Naming or picking a collection (slice 3b), a dialog over the page. Esc or Cancel closes it. -->
-    <Grid Grid.RowSpan="5" Visibility="{Binding Collections.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="3" Visibility="{Binding Collections.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
-      <v:CollectionDialogView x:Name="CollectionDialog" DataContext="{Binding Collections.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:CollectionDialogView x:Name="CollectionDialog" DataContext="{Binding Collections.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
+      </ScrollViewer>
     </Grid>
 
     <!-- Naming or picking a session (slice 3c), a dialog over the page. Esc or Cancel closes it. -->
-    <Grid Grid.RowSpan="5" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="3" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
-      <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
+      </ScrollViewer>
     </Grid>
 
     <!-- Naming a Smart View (slice 3e), a dialog over the page. Esc or Cancel closes it. -->
-    <Grid Grid.RowSpan="5" Visibility="{Binding ViewDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="3" Visibility="{Binding ViewDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
-      <v:SmartViewDialogView x:Name="SmartViewDialog" DataContext="{Binding ViewDialog}" MaxWidth="440" Margin="0,24,42,24" VerticalAlignment="Center" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:SmartViewDialogView x:Name="SmartViewDialog" DataContext="{Binding ViewDialog}" MaxWidth="440" Margin="0,24,42,24" VerticalAlignment="Center" />
+      </ScrollViewer>
     </Grid>
 
     <!-- The bulk editor, a dialog over the page. Esc or Cancel closes it; nothing behind it can be clicked meanwhile. -->
-    <Grid Grid.RowSpan="5" Visibility="{Binding BulkEdit, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="3" Visibility="{Binding BulkEdit, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <v:BulkEditView x:Name="BulkDialog" DataContext="{Binding BulkEdit}" MaxWidth="660" Margin="0,24,42,24" VerticalAlignment="Center" />
     </Grid>

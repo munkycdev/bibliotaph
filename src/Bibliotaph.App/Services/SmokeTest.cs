@@ -66,11 +66,14 @@ static partial class SmokeTest
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
             {
                 await theme.SetPreferenceAsync(preference);
+                // Accessibility is audited in the first theme only: names, sizes and Tab order don't change with colour.
+                var audit = preference == ThemePreference.Light;
                 foreach (var route in Enum.GetValues<Route>())
                 {
                     navigation.NavigateTo(route);
                     await Settle(window);
-                    if (navigation.Current is SettingsViewModel settings) await ShowEachSectionAsync(window, settings);
+                    if (navigation.Current is SettingsViewModel settings) await ShowEachSectionAsync(window, settings, audit ? "with no books" : null);
+                    else if (audit) await AuditAsync(window, $"{route} with no books");
                     Log.Information("Smoke test: {Route} rendered in {Theme}", route, preference);
                 }
                 while (navigation.GoBack()) await Settle(window);
@@ -99,6 +102,8 @@ static partial class SmokeTest
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
+            await Check("every route drawn in the Windows contrast theme's colours", () => ShowContrastAsync(services, window));
+            await Check("the Keyboard shortcuts popup, from Ctrl+/ and from the Settings link", () => ShowShortcutsAsync(services, window));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
                 () => UseCollectionsAsync(services, window, books));
@@ -130,6 +135,8 @@ static partial class SmokeTest
             // Last: the made-up library's books can't be read once its folder is found offline.
             await Check("a library folder that can't be reached: its books marked Offline, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));
+            await Check("every page and dialog visited names its controls, keeps them whole at the minimum window size and reaches them with Tab",
+                ReportAccessibilityAsync);
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
             if (Application.Current.Windows.Count != 1 || services.GetRequiredService<ReaderWindows>().Windows.Count > 0)
@@ -284,6 +291,7 @@ static partial class SmokeTest
         navigation.NavigateTo(Route.NeedsReview);
         var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
         await WaitUntilAsync(window, () => !page.IsLoading && page.Cards.Count > 0, () => "Needs review shows no cards.");
+        await AuditAsync(window, "Needs review with cards");
         if (decide)
         {
             var nav = shell.NavItems.Single(n => n.Route == Route.NeedsReview);
@@ -339,6 +347,7 @@ static partial class SmokeTest
         }
         page.IsFilesTab = true;
         await Settle(window);
+        await AuditAsync(window, "Needs review's Files tab");
         page.IsSuggestionsTab = true;
         await Settle(window);
 
@@ -358,6 +367,7 @@ static partial class SmokeTest
         }
         vocabulary.Terms.First().EditCommand.Execute(null);
         await Settle(window);
+        await AuditAsync(window, "Settings > Vocabulary with a term open");
         while (shell.CurrentPage is not LibraryViewModel && navigation.GoBack()) await Settle(window);
     }
 
@@ -374,13 +384,16 @@ static partial class SmokeTest
         page.Layout = LibraryLayout.List;
         page.ShowFilters = true;
         await Settle(window);
+        await AuditAsync(window, "the Library as a list, with its filters");
         await EditMetadataAsync(window, page, books);
         await BulkEditAsync(window, page, search, books);
 
         search.Search("dragon");
         await WaitUntilAsync(window, () => page.IsSearching && page.Items.Count > 0 && !page.IsEmpty, () => "Searching for dragon found no documents.");
+        await AuditAsync(window, "a search's books");
         page.Tab = ResultsTab.Pages;
         await WaitUntilAsync(window, () => page.Hits.Count > 0, () => "Searching for dragon found no pages.");
+        await AuditAsync(window, "a search's pages");
 
         await page.OpenDetailsCommand.ExecuteAsync(page.Hits[0].Item);
         await Settle(window);
@@ -397,6 +410,7 @@ static partial class SmokeTest
 
         search.Search("nothing-matches-this");
         await WaitUntilAsync(window, () => page.IsEmpty, () => "A search with no results didn't show the empty state.");
+        await AuditAsync(window, "a search that finds nothing");
 
         // The search box's × ends the search; the box gets the text through SearchState like any search.
         var box = (TextBox)window.FindName("Search");
@@ -409,6 +423,7 @@ static partial class SmokeTest
         page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books, () => $"Clearing the search didn't bring back all {books} books.");
+        await AuditAsync(window, "the Library's covers");
     }
 
     /// <summary>
@@ -443,6 +458,7 @@ static partial class SmokeTest
                 () => $"Make current didn't make {expected} the copy that opens.");
         }
         if (page.Inspector!.Copies.Single(c => c.IsCurrent).DocumentId != first) throw new InvalidOperationException("The lairs don't open their first copy again.");
+        await AuditAsync(window, "a book's details with two copies");
 
         page.CloseDetailsCommand.Execute(null);
         page.CopiesChoice = page.CopiesChoices[0];
@@ -484,6 +500,7 @@ static partial class SmokeTest
         Field(MetadataFields.System).ShowEvidence = true;
         inspector.ShowAllFields = true;
         await Settle(window);
+        await AuditAsync(window, "a book's details, every field and its evidence showing");
 
         var title = Field(MetadataFields.Title);
         title.EditCommand.Execute(null);
@@ -521,6 +538,7 @@ static partial class SmokeTest
             throw new InvalidOperationException($"Clicking two books in Select mode ticked {page.Selection.Count} (details open: {page.Inspector is not null}).");
         page.Layout = LibraryLayout.Grid;
         await Settle(window);
+        await AuditAsync(window, "Select mode in the covers, two books ticked");
         page.Layout = LibraryLayout.List;
         await Settle(window);
 
@@ -534,6 +552,7 @@ static partial class SmokeTest
         await Settle(window);
         if (bulk.BookCount != 2 || bulk.Fields.Any(f => f.Field == MetadataFields.Title))
             throw new InvalidOperationException($"The bulk editor edits {bulk.BookCount} books, or offers the title.");
+        await AuditAsync(window, "the bulk editor");
         var types = bulk.Fields.OfType<BulkChipsFieldViewModel>().Single(f => f.Field == MetadataFields.Types);
         types.AddText = "Heist almanac";
         types.AddTypedCommand.Execute(null);
@@ -548,6 +567,7 @@ static partial class SmokeTest
         if (!bulk.ReviewCommand.CanExecute(null)) throw new InvalidOperationException("Adding a tag didn't let the edit be reviewed.");
         bulk.ReviewCommand.Execute(null);
         await Settle(window);
+        await AuditAsync(window, "the bulk editor's summary");
         if (bulk.Summary is not [{ Field: "Your tags", HasWarning: false } line] || !line.Text.Contains("2 books", StringComparison.Ordinal))
             throw new InvalidOperationException($"The summary says {string.Join("; ", bulk.Summary.Select(l => $"{l.Field}: {l.Text}"))}.");
 
@@ -681,6 +701,8 @@ static partial class SmokeTest
         if (viewer.Zoom <= 0 || viewer.Zoom >= zoomedIn) throw new InvalidOperationException($"Zoom out from {zoomedIn:P0} gave {viewer.Zoom}.");
         viewer.ResetZoomCommand.Execute(null);
         if (viewer.Zoom != Bibliotaph.Viewer.PdfPagesView.FitWidth) throw new InvalidOperationException($"Ctrl+0 left the zoom at {viewer.Zoom}.");
+        // Last, as the window's size moves the pages: a PDF with its contents panel and a word found.
+        await AuditAsync(window, "a PDF in the reader");
 
         navigation.GoBack();
         await Settle(window);
@@ -704,6 +726,7 @@ static partial class SmokeTest
         if (viewer.Image is not { Width: > 0 }) throw new InvalidOperationException($"The image didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
         viewer.Zoom = 2;
         await Settle(window);
+        await AuditAsync(window, "an image in the reader");
         // The breadcrumb's Library goes back to the Library as it was, not a new one.
         shell.OpenSectionCommand.Execute(null);
         await Settle(window);
@@ -713,6 +736,7 @@ static partial class SmokeTest
         library.OpenBookCommand.Execute(library.Items.First(i => i.Title == "Tavern Map"));
         viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
         await WaitUntilAsync(window, () => viewer.Mode == ViewerMode.Problem, () => $"A missing file didn't show a problem (it shows {viewer.Mode}).");
+        await AuditAsync(window, "the reader with a book it can't open");
         navigation.GoBack();
         await Settle(window);
     }
@@ -776,6 +800,7 @@ static partial class SmokeTest
         await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
         if (readers.Windows is not [var first, var second]) throw new InvalidOperationException($"{readers.Windows.Count} windows opened, not two.");
         await WaitUntilAsync(second, () => first.Model.IsPdf && second.Model.IsPdf, () => "The book didn't open in both new windows.");
+        await AuditAsync(second, "a pop-out reader");
         if (workers.ViewerWorkerCount != 3) throw new InvalidOperationException($"{workers.ViewerWorkerCount} viewer workers run with two pop-outs, not 3.");
         System.Windows.Input.ApplicationCommands.Close.Execute(null, first);
         await WaitUntilAsync(window, () => readers.Windows is [var left] && ReferenceEquals(left, second), () => "Ctrl+W's command didn't close the pop-out.");
@@ -1025,6 +1050,7 @@ static partial class SmokeTest
             throw new InvalidOperationException($"The made-up library's folder, which isn't on disk, reads \"{missing.Status}\".");
         await WaitUntilAsync(window, () => Shown(window, "PointRestoredFolder") && Shown(window, "RestoreAndRestart"),
             () => "The backup's missing folder has no Point to its new place, or there is no Restore and restart.");
+        await AuditAsync(window, "Settings > Backup with a backup read for restoring");
 
         Click(Descendants<Button>(window).SingleOrDefault(b => b.Name == "CancelRestore"), "Cancel restoring");
         await WaitUntilAsync(window, () => !section.HasPreview && section.RestoreFolders.Count == 0 && !Shown(window, "RestoreAndRestart")
@@ -1248,6 +1274,7 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveView"), "Save view");
         await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Save view didn't ask for a name.");
         page.ViewDialog!.Name = "Haunted places";
+        await AuditAsync(window, "the Save view dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
         await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.SmartViews is [_, { Label: "Haunted places", IsActive: true }]
                 && page.ViewMessage is not null && !page.IsViewChanged,
@@ -1259,6 +1286,7 @@ static partial class SmokeTest
         // A changed filter offers Update view; its Undo puts the view back as it was.
         page.KindChoice = page.KindChoices[0];
         await WaitUntilAsync(window, () => page.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
+        await AuditAsync(window, "a Smart View that was changed");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UpdateView"), "Update view");
         await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.HasViewUndo
                 && Shown(window, "UndoView"),
@@ -1329,6 +1357,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Actions.Dialog is { IsNaming: true }, () => "New collection didn't ask for a name.");
         page.Actions.Dialog!.Name = "Winter campaign";
         await Settle(window);
+        await AuditAsync(window, "the New collection dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveButton" && b.IsVisible), "Create");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, IsEmpty: true },
             () => "Create didn't open the new collection, empty.");
@@ -1344,6 +1373,7 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveButton" && b.IsVisible), "Create");
         await WaitUntilAsync(window, () => campaign.SubCollections is [{ Name: "Maps" }], () => "The new collection didn't show inside the first.");
         var mapsId = campaign.SubCollections[0].Id;
+        await AuditAsync(window, "a collection's page, with a collection inside");
 
         // Select mode in the whole library: two books into Maps, through the selection's own menu.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ClearScope"), "scope chip's ×");
@@ -1384,6 +1414,7 @@ static partial class SmokeTest
         shell.NavigateCommand.Execute(Route.Collections);
         page = shell.CurrentPage as CollectionsViewModel ?? throw new InvalidOperationException("Collections didn't open.");
         await WaitUntilAsync(window, () => page.Cards is [{ CountLabel: "3 books · 1 collection" }], () => "Collections doesn't show the campaign's card with its count.");
+        await AuditAsync(window, "Collections with a collection");
         var cards = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "CollectionCards");
         Click(cards is null ? null : Descendants<Button>(cards).FirstOrDefault(b => b.Name == "Card"), "the campaign's card");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Items.Count: 3, HasSubCollections: true },
@@ -1414,6 +1445,7 @@ static partial class SmokeTest
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.PinnedCollections is [{ Name: "Spring campaign" }], () => "Home doesn't show the pinned collection.");
+        await AuditAsync(window, "Home with a pinned collection");
         var pinned = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "PinnedCollections");
         Click(pinned is null ? null : Descendants<Button>(pinned).FirstOrDefault(b => b.Name == "Card"), "the pinned collection on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Heading: "Spring campaign" }, () => "The pinned card didn't open the collection.");
@@ -1462,6 +1494,7 @@ static partial class SmokeTest
         tab.IsChecked = true;
         await WaitUntilAsync(window, () => inspector.IsNotesTab && Descendants<TextBox>(window).Any(t => t.Name == "EntryNote" && t.IsVisible),
             () => "The Notes tab didn't show the book's note.");
+        await AuditAsync(window, "a book's details, Notes tab");
         Descendants<TextBox>(window).First(t => t.Name == "EntryNote").Text = $"Ask the {Word} gargoyle about the bell.";
         search.Search(Word);
         await WaitUntilAsync(window, () => library.Items is [{ } found] && found.DocumentId == documentId, () => $"Searching “{Word}” didn't find the book by its note.");
@@ -1475,6 +1508,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => viewer.NoteDialog is not null && Shown(window, "SaveNoteButton"), () => "Note didn't ask for the note.");
         viewer.NoteDialog!.Text = "The bell rings at midnight.";
         await Settle(window);
+        await AuditAsync(window, "the reader's page note dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveNoteButton"), "the dialog's Save note");
         await WaitUntilAsync(window, () => viewer.NoteDialog is null && viewer.PageNotes is [{ Text: "The bell rings at midnight." }] && viewer.NotesVisible
                 && Descendants<ItemsControl>(window).Any(i => i.Name == "ReaderPageNotes" && i.IsVisible && i.Items.Count == 1),
@@ -1484,6 +1518,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.HasNoteUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoNote"), "Undo the delete");
         await WaitUntilAsync(window, () => viewer.PageNotes.Count == 1, () => "Undo didn't bring the note back.");
+        await AuditAsync(window, "the reader with its notes panel");
         navigation.GoBack();
         await Settle(window);
 
@@ -1549,6 +1584,7 @@ static partial class SmokeTest
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.HasRecentlyOpened && home.RecentlyOpened[0].DocumentId == documentId,
             () => "Home doesn't list the book first under Recently opened.");
+        await AuditAsync(window, "Home with a book opened lately");
         var cover = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "RecentlyOpened") is { } row ? Descendants<Button>(row).FirstOrDefault(b => b.Name == "Card") : null;
         Click(cover, "Recently opened cover");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Inspector.Item: var item } && item.DocumentId == documentId,
@@ -1582,6 +1618,7 @@ static partial class SmokeTest
         list.Actions.Dialog!.Title = "The midnight bell";
         list.Actions.Dialog.DateText = DateOnly.FromDateTime(DateTime.Today.AddDays(7)).ToString("d", CultureInfo.CurrentCulture);
         await Settle(window);
+        await AuditAsync(window, "the New session dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveSession" && b.IsVisible), "Create");
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: false, Pack.Title: "The midnight bell" },
             () => "Create didn't open the new session, empty.");
@@ -1606,6 +1643,7 @@ static partial class SmokeTest
         dialog.To = "1";
         dialog.Label = "Warehouse ambush";
         await Settle(window);
+        await AuditAsync(window, "the reader's Add pages dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPagesButton" && b.IsVisible), "Add");
         await WaitUntilAsync(window, () => viewer.Sessions is { Dialog: null, HasUndo: true, Message: "Added Warehouse ambush to The midnight bell." },
             () => $"Add pages… said “{viewer.Sessions.Message}”.");
@@ -1633,6 +1671,7 @@ static partial class SmokeTest
         Click(rows.Count > 0 ? Descendants<Button>(rows[0]).FirstOrDefault(b => b.Name == "MoveItemDown") : null, "Move down");
         await WaitUntilAsync(window, () => Items(pack) is [{ Number: "01" } moved, { Heading: "Warehouse ambush", Number: "02" }] && moved.Heading != "Warehouse ambush",
             () => "Move down didn't swap the two items, keeping their labels.");
+        await AuditAsync(window, "a session's page with two items");
 
         // Opening an item: its first page, and the book's kept place stays where it was.
         rows = [.. Descendants<Border>(window).Where(b => b.Name == "ItemRow")];
@@ -1655,6 +1694,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => run is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
                 && !run.NextItemCommand.CanExecute(null),
             () => $"Next didn't open Warehouse ambush at page i ({run.Counter}, page index {run.Viewer.CurrentPageIndex}).");
+        await AuditAsync(window, "run mode");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "FullScreen"), "Full screen");
         await WaitUntilAsync(window, () => window.WindowStyle == WindowStyle.None, () => "Full screen didn't take the window's frame away.");
         run.EscapeCommand.Execute(null);
@@ -1672,6 +1712,7 @@ static partial class SmokeTest
         list = (SessionsViewModel)shell.CurrentPage!;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoSession" && b.IsVisible), "Undo");
         await WaitUntilAsync(window, () => list.Upcoming is [{ Title: "The midnight bell", CountLabel: "2 items" }], () => "Undo didn't bring the session back.");
+        await AuditAsync(window, "Sessions with a session");
 
         // Leave the library as it was for the checks after this one.
         foreach (var left in await sessions.ListAsync()) await sessions.DeleteAsync(left.Id);
@@ -1694,6 +1735,7 @@ static partial class SmokeTest
         dialog.System = dialog.Systems.FirstOrDefault(s => s.Label == "D&D 5e") ?? throw new InvalidOperationException("The dialog doesn't offer D&D 5e.");
         (dialog.Owns.FirstOrDefault(o => o.Term.Key == "print") ?? throw new InvalidOperationException("The dialog doesn't offer Print.")).IsChecked = true;
         await Settle(window);
+        await AuditAsync(window, "the Add a book I own elsewhere dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.SaveCommand), "Add to library");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is null && page.Inspector is { IsElsewhere: true },
             () => "Saving the book didn't open its inspector.");
@@ -1708,6 +1750,7 @@ static partial class SmokeTest
         if (!card.IsElsewhere || card.SizeLabel != "Print" || card.SystemLabel != "D&D 5e")
             throw new InvalidOperationException($"The card reads “{card.SizeLabel}”, “{card.SystemLabel}”.");
         if (page.OpenBookCommand.CanExecute(card)) throw new InvalidOperationException("A book with no file can be opened.");
+        await AuditAsync(window, "the details of a book owned elsewhere");
 
         page.CloseDetailsCommand.Execute(null);
         search.Search("own:print");
@@ -1768,6 +1811,7 @@ static partial class SmokeTest
             throw new InvalidOperationException($"The groups are {string.Join(", ", page.Groups.Select(g => g.Heading))}.");
         if (fresh.Items.Count != expected - 1) throw new InvalidOperationException($"{fresh.Heading}: the new map and download aren't both new.");
         if (!Descendants<TextBlock>(window).Any(t => t.Text == "Smoke New Map.png" && t.IsVisible)) throw new InvalidOperationException("The new map isn't listed.");
+        await AuditAsync(window, "a download checked");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CopyList"), "Copy list");
         await WaitUntilAsync(window, () => page.Copied is not null, () => "Copy list said nothing.");
@@ -1820,9 +1864,11 @@ static partial class SmokeTest
         if (!info.Version.StartsWith("0.", StringComparison.Ordinal) || info.Commit is not { Length: 7 })
             throw new InvalidOperationException($"About shows version {info.VersionText}, not 0.N.0 with a commit.");
         if (info.Pdfium is null) throw new InvalidOperationException("About couldn't find the PDFium build.");
+        await AuditAsync(about, "the About popup");
 
         about.ShowLicence(Views.AboutDialog.LicenceFile);
         await Settle(about);
+        await AuditAsync(about, "the About popup's licence reader");
         if (!about.ShowingLicences || !about.LicenceTextShown.Contains("GNU GENERAL PUBLIC LICENSE", StringComparison.Ordinal))
             throw new InvalidOperationException("The licence reader didn't show the GPL.");
         about.ShowLicence(Views.AboutDialog.NoticesFile);
@@ -1860,6 +1906,7 @@ static partial class SmokeTest
         await page.ConnectCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => page.ConnectionProblem is not null, () => "Connecting to nothing didn't say so.");
         if (page.IsOn) throw new InvalidOperationException("A failed connection switched AI on.");
+        await AuditAsync(window, "Settings > AI after a failed connection");
 
         // Test with a book opens its popup, which runs the test and says what went wrong.
         page.Model = "smoke-model";
@@ -1874,6 +1921,7 @@ static partial class SmokeTest
             () => "Test with a book didn't open its popup.");
         await WaitUntilAsync(window, () => dialog!.Test is { IsRunning: false, Problem: not null },
             () => "Testing with nothing at the address didn't finish and say why.");
+        await AuditAsync(dialog!, "the Test with a book popup");
         dialog!.Close();
         await WaitUntilAsync(window, () => !Application.Current.Windows.OfType<Views.AiTestDialog>().Any(), () => "The test popup didn't close.");
         services.GetRequiredService<INavigationService>().GoBack();
@@ -1910,11 +1958,13 @@ static partial class SmokeTest
             await Settle(window);
             page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
             await WaitUntilAsync(window, () => page.Pilot.Books == 1, () => "Settings > AI doesn't count the book on the pilot list.");
+            await AuditAsync(window, "Settings > AI with the model pilot");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Pilot.ReviewCommand), "Review answers");
             await Settle(window);
             var review = shell.CurrentPage as PilotReviewViewModel ?? throw new InvalidOperationException("Review answers didn't open the review page.");
             await WaitUntilAsync(window, () => review.Book is not null && review.Fields.Count == PilotFields.Core.Count,
                 () => "The review page doesn't show the book and its fields.");
+            await AuditAsync(window, "the model pilot's review page");
 
             var title = review.Fields.Single(f => f.Field == MetadataFields.Title);
             var offered = title.Options.FirstOrDefault(o => o.Text == "The Haunted Inn")
@@ -1989,8 +2039,11 @@ static partial class SmokeTest
         return null;
     }
 
-    /// <summary>Chooses each section of Settings in turn from its list, as a click does, and checks the list marks it.</summary>
-    static async Task ShowEachSectionAsync(Window window, SettingsViewModel settings)
+    /// <summary>
+    /// Chooses each section of Settings in turn from its list, as a click does, and checks the list marks it; with
+    /// <paramref name="audit"/>, audits each section too, named for it.
+    /// </summary>
+    static async Task ShowEachSectionAsync(Window window, SettingsViewModel settings, string? audit = null)
     {
         foreach (var section in settings.Sections)
         {
@@ -1999,6 +2052,7 @@ static partial class SmokeTest
             var entry = Descendants<RadioButton>(window).SingleOrDefault(r => r.GroupName == "SettingsSection" && r.IsChecked == true);
             if (!ReferenceEquals(settings.Selected, section) || !ReferenceEquals(entry?.DataContext, section))
                 throw new InvalidOperationException($"Choosing {section.Label} in the section list didn't show it.");
+            if (audit is not null) await AuditAsync(window, $"Settings > {section.Label} {audit}");
         }
     }
 
@@ -2042,7 +2096,7 @@ static partial class SmokeTest
             () => "Settings > Library didn't describe its folders.");
         await WaitUntilAsync(window, () => library.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
             () => "Settings > Library doesn't list the Adventures folder name.");
-        await ShowEachSectionAsync(window, settings);
+        await ShowEachSectionAsync(window, settings, "with a library");
 
         settings.Show(SettingsSection.Processing);
         var processing = (ProcessingSectionViewModel)settings.Selected;

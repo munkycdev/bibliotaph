@@ -57,8 +57,9 @@
                    Visibility="{Binding StepDetail, Converter={StaticResource Bt.VisibleWhenSet}}" />
       </StackPanel>
 
-      <!-- Done: what it read, what it kept and what the check threw away. -->
-      <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"
+      <!-- Done: what it read, what it kept and what the check threw away. A Tab stop, so the keys scroll a long result. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="True" IsTabStop="True" FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+                    AutomationProperties.Name="Test results"
                     Visibility="{Binding IsRunning, Converter={StaticResource Bt.CollapsedWhenTrue}}">
         <StackPanel>
           <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Row}" TextWrapping="Wrap"

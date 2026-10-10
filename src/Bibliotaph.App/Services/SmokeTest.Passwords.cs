@@ -29,6 +29,7 @@ static partial class SmokeTest
         {
             dialog.Show();
             await Settle(window);
+            await AuditAsync(dialog, "the password dialog");
             if (!dialog.MakeSearchable || dialog.RememberPassword) throw new InvalidOperationException("The password dialog doesn't start with only Make its text searchable ticked.");
             dialog.Searchable.IsChecked = false;
             if (dialog.MakeSearchable) throw new InvalidOperationException("Unticking Make its text searchable didn't take.");
@@ -197,6 +198,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => (row = page.Rows.FirstOrDefault(r => r.ContentHash == hash)) is { Title: LockedTitle }
             && Descendants<Button>(window).Any(b => b.Command == page.ForgetCommand && ReferenceEquals(b.CommandParameter, row) && b.IsVisible),
             () => $"Settings > Passwords lists {string.Join(", ", page.Rows.Select(r => r.Title))}.");
+        await AuditAsync(window, "Settings > Passwords with a password");
         Click(Descendants<Button>(window).First(b => b.Command == page.ForgetCommand && ReferenceEquals(b.CommandParameter, row) && b.IsVisible),
             $"Forget the password of {LockedTitle}");
         await WaitUntilAsync(window, () => page.Rows.Count == 0 && Descendants<TextBlock>(window).Any(t => t is { Text: "No passwords are remembered.", IsVisible: true }),

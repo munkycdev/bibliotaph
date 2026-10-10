@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
@@ -17,8 +18,8 @@ namespace Bibliotaph.App.Services;
 /// settings table, in pixels), pulled back onto a screen if that monitor is gone. Closing the main window closes
 /// every pop-out; none is reopened at the next launch.
 /// </summary>
-public sealed class ReaderWindows(ViewerServices viewer, INavigationService navigation, ThemeService theme, SettingsStore settings,
-    ILogger<ReaderWindows> log)
+public sealed class ReaderWindows(ViewerServices viewer, INavigationService navigation, ThemeService theme, ShortcutsBox shortcuts,
+    SettingsStore settings, ILogger<ReaderWindows> log)
 {
     const int CascadeStep = 32;
     const int MaxCascade = 10;
@@ -61,6 +62,7 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
         var model = Create(request, poppedOut: true);
         var window = new ReaderWindow(model, placement);
         theme.Track(window);
+        window.CommandBindings.Add(new CommandBinding(ShellCommands.ShowShortcuts, (_, _) => shortcuts.Show(window)));
         window.Activated += (_, _) => _lastActive = window;
         window.Closed += async (_, _) => await OnClosedAsync(window);
         _windows.Add(window);

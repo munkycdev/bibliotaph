@@ -51,7 +51,8 @@
           <TextBlock Text="{Binding Placeholder}" Foreground="#9A9A92" FontSize="14"
                      HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="12" />
           <Image Source="{Binding Image}" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality" />
-          <ItemsControl ItemsSource="{Binding Tiles}" IsHitTestVisible="False" ItemsPanel="{StaticResource Canvas}"
+          <!-- The tile, highlight and selection layers are only drawn: the mouse and Tab both pass through them. -->
+          <ItemsControl ItemsSource="{Binding Tiles}" IsHitTestVisible="False" Focusable="False" ItemsPanel="{StaticResource Canvas}"
                         ItemContainerStyle="{StaticResource OnCanvas}">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type local:PlacedImage}">
@@ -59,7 +60,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <ItemsControl ItemsSource="{Binding Highlights}" IsHitTestVisible="False" ItemsPanel="{StaticResource Canvas}"
+          <ItemsControl ItemsSource="{Binding Highlights}" IsHitTestVisible="False" Focusable="False" ItemsPanel="{StaticResource Canvas}"
                         ItemContainerStyle="{StaticResource OnCanvas}">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type local:PageBox}">
@@ -72,7 +73,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <ItemsControl ItemsSource="{Binding Selection}" IsHitTestVisible="False" ItemsPanel="{StaticResource Canvas}"
+          <ItemsControl ItemsSource="{Binding Selection}" IsHitTestVisible="False" Focusable="False" ItemsPanel="{StaticResource Canvas}"
                         ItemContainerStyle="{StaticResource OnCanvas}">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type local:PageBox}">
