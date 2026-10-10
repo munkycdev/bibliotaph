@@ -35,6 +35,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     MetadataStore _metadataStore = null!;
     MetadataProjector _projector = null!;
     PackService _packs = null!;
+    MetadataHints _hints = null!;
     VocabularyStore _vocabulary = null!;
     SettingsStore _settings = null!;
     readonly FakeModel _model = new();
@@ -80,7 +81,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
         _copies = new CopiesService(entries, versions, library, _queries, projector);
-        var hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector);
+        var packStore = new PackStore(contexts);
+        var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
@@ -93,7 +95,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             ],
             new FileHasher(reader), new DiskSpace(), archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
-            packs: _packs = new PackService(new PackStore(contexts), projector));
+            packs: _packs = new PackService(packStore, projector, hints));
     }
 
     public async ValueTask DisposeAsync()
@@ -354,7 +356,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.Equal("Adventure", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
 
         // Settings > Vocabulary: One-shot becomes a type of its own, taking "one shot" and "one shots" from Adventure.
-        var vocabulary = new VocabularyService(_vocabulary, _projector, _service);
+        var vocabulary = new VocabularyService(_vocabulary, _projector, _service, _hints);
         var added = await vocabulary.AddTermAsync("type", "One-shot", Ct);
         Assert.Null((await vocabulary.AddAliasAsync(added.TermId!.Value, "one shots", Ct)).Problem);
         await vocabulary.RefreshAsync(Ct);
@@ -371,7 +373,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await _service.StartAsync(Ct);
         await SettleAsync();
         var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-            new VocabularyService(_vocabulary, _projector, _service), _copies);
+            new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs);
         Assert.Equal(0, await review.CountAsync(Ct));
 
         // Reviewing everything: the title and the type nobody has confirmed are cards now.

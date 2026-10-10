@@ -14,9 +14,10 @@ namespace Bibliotaph.Processing;
 public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, ReviewIssue Issue, int GroupSize);
 
 /// <summary>Everything in Needs review's Metadata suggestions tab, and the vocabulary to label it with.</summary>
-public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions)
+public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions,
+    IReadOnlyList<PackProposal> Packs)
 {
-    public int Count => Items.Count + Terms.Count + Versions.Count;
+    public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count;
 }
 
 /// <summary>
@@ -32,7 +33,8 @@ public sealed class ReviewService(
     IndexQueries queries,
     SettingsStore settings,
     VocabularyService vocabulary,
-    CopiesService copies)
+    CopiesService copies,
+    PackService packs)
 {
     public async Task<bool> GetReviewAllAsync(CancellationToken ct = default) =>
         await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
@@ -45,9 +47,13 @@ public sealed class ReviewService(
         await projector.ProjectAllAsync(ct);
     }
 
-    /// <summary>How many cards there are, for the sidebar: as last projected, plus the new terms and the "new version?" cards.</summary>
+    /// <summary>
+    /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards and
+    /// the folders proposed as packs.
+    /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
-        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct);
+        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct)
+            + (await packs.GetProposalsAsync(ct)).Count;
 
     /// <summary>
     /// The cards: sources that disagree first, then missing titles, then other suggestions, each by title. The cards
@@ -67,7 +73,18 @@ public sealed class ReviewService(
             .OrderBy(f => f.Issue.Kind)
             .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
-        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct));
+        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct),
+            await packs.GetProposalsAsync(ct));
+    }
+
+    /// <summary>
+    /// Answers "Make these images one card?": <see cref="PackAnswer.Packed"/> or <see cref="PackAnswer.Split"/> (Keep
+    /// separate). Returns what undoes it, or null when the folder is no longer a proposal.
+    /// </summary>
+    public async Task<Func<Task>?> AnswerPackAsync(PackProposal proposal, PackAnswer answer, CancellationToken ct = default)
+    {
+        var previous = await packs.AnswerAsync(proposal.PackId, answer, ct);
+        return previous is { } p ? () => packs.UndoAsync(proposal.PackId, p) : null;
     }
 
     /// <summary>Answers a "new version?" card. Returns what undoes it, or null when it isn't waiting any more.</summary>
@@ -153,7 +170,7 @@ public sealed class ReviewService(
 /// names, labels, and the hints from folder and file names, which match through the vocabulary) follows in the
 /// background, once a run of edits pauses.
 /// </summary>
-public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IndexingService indexing,
+public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IndexingService indexing, MetadataHints hints,
     ILogger<VocabularyService>? log = null, TimeSpan? settle = null)
 {
     readonly ILogger _log = log ?? NullLogger<VocabularyService>.Instance;
@@ -208,13 +225,14 @@ public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProj
     }
 
     /// <summary>
-    /// Copies the names to index.db, relabels every document, then reads every document's names again. In that order,
-    /// so a document's fresh hints are never overwritten by the relabelling.
+    /// Copies the names to index.db, relabels every document, then reads every document's names again, and every
+    /// pack's folder names. In that order, so fresh hints are never overwritten by the relabelling.
     /// </summary>
     public async Task RefreshAsync(CancellationToken ct = default)
     {
         await projector.ProjectAllAsync(ct);
         var queued = await indexing.RerunAsync(Stage.RuleHints, ct);
+        await projector.ProjectAsync(await hints.StorePacksAsync(ct: ct), ct);
         _log.LogInformation("Vocabulary changed; reading names again for {Count} documents", queued);
     }
 }

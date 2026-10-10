@@ -127,7 +127,7 @@ public sealed record SearchPlan
                         levels.Add(new LevelCondition(value, negated));
                         break;
                     case SearchField.Format:
-                        (negated ? excludedFormats : formats).AddRange(value == "image" ? [SourceFormats.Jpeg, SourceFormats.Png] : [value]);
+                        (negated ? excludedFormats : formats).AddRange(value == "image" ? SourceFormats.Images : [value]);
                         break;
                     case SearchField.Folder:
                         (negated ? excludedFolders : folders).Add(value);

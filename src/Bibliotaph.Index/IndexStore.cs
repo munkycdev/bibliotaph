@@ -236,7 +236,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
 
     /// <summary>
     /// Records which document each of these entries shows, and refreshes their entry_fts rows, which take the
-    /// document's file name, PDF information and folders.
+    /// document's file name, PDF information and folders. A pack's images and their names (member_fts) are replaced.
     /// </summary>
     public Task SetEntriesAsync(IReadOnlyList<EntryDocRow> entries, CancellationToken ct = default) =>
         entries.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
@@ -252,9 +252,11 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         name = excluded.name, members = excluded.members
                     """,
                     new { entryId, documentId = entry.DocumentId, kind = entry.Kind.ToString(), copies = entry.Copies, name = entry.Name, members = entry.Members.Count }, t);
-                c.Execute("DELETE FROM entry_member WHERE entry_id = @entryId", new { entryId }, t);
+                RemoveMembers(c, t, entryId);
                 c.Execute("INSERT INTO entry_member (entry_id, ord, document_id, member_entry_id, name) VALUES (@entryId, @ord, @DocumentId, @member, @Name)",
                     entry.Members.Select((m, ord) => new { entryId, ord, m.DocumentId, member = m.MemberEntryId.Value, m.Name }), t);
+                c.Execute("DELETE FROM member_fts WHERE rowid = @member; INSERT INTO member_fts (rowid, name) VALUES (@member, @name)",
+                    entry.Members.Select(m => new { member = m.MemberEntryId.Value, name = Path.GetFileNameWithoutExtension(m.Name) }), t);
                 RefreshEntrySearch(c, t, entryId);
             }
         }, ct);
@@ -330,10 +332,10 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         {
             foreach (var id in entryIds.Select(e => e.Value))
             {
+                RemoveMembers(c, t, id);
                 c.Execute(
                     """
                     DELETE FROM entry_doc WHERE entry_id = @id;
-                    DELETE FROM entry_member WHERE entry_id = @id;
                     DELETE FROM entry_meta WHERE entry_id = @id;
                     DELETE FROM entry_facet WHERE entry_id = @id;
                     DELETE FROM entry_ai WHERE entry_id = @id;
@@ -342,6 +344,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     new { id }, t);
             }
         }, ct);
+
+    /// <summary>Takes a pack's images, and their names in search, off it.</summary>
+    static void RemoveMembers(SqliteConnection c, SqliteTransaction t, long entryId) =>
+        c.Execute(
+            """
+            DELETE FROM member_fts WHERE rowid IN (SELECT member_entry_id FROM entry_member WHERE entry_id = @entryId);
+            DELETE FROM entry_member WHERE entry_id = @entryId;
+            """,
+            new { entryId }, t);
 
     /// <summary>Stores a document's page fingerprints (<see cref="PageFingerprints"/>), in page order.</summary>
     public Task SetFingerprintsAsync(long documentId, IReadOnlyList<string?> fingerprints, CancellationToken ct = default) =>

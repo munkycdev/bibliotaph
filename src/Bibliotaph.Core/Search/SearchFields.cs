@@ -82,7 +82,7 @@ public static class SearchFields
         "one of your tags", "tag:prep", MetadataFields.Tags);
 
     public static readonly SearchFieldInfo Format = new(SearchField.Format, "format", [], SearchFieldKind.Format,
-        "pdf, jpg, png, or image for either picture format", "format:pdf");
+        "pdf, jpg, png, webp, or image for any picture format", "format:pdf");
 
     public static readonly SearchFieldInfo Folder = new(SearchField.Folder, "folder", [], SearchFieldKind.Text,
         "part of a folder's name", "folder:maps");

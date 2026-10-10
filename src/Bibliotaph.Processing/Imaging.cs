@@ -11,7 +11,7 @@ public interface IImageCodec
     /// <summary>JPEG-encodes a BGRA, top-down bitmap.</summary>
     byte[] EncodeJpeg(ReadOnlySpan<byte> bgra, int width, int height, int stride);
 
-    /// <summary>The pixel size of a JPG or PNG, read from its header, or null when it isn't a readable image.</summary>
+    /// <summary>The pixel size of a JPG, PNG or WebP, read from its header, or null when it isn't a readable image.</summary>
     (int Width, int Height)? ReadSize(Stream image);
 
     /// <summary>A JPEG of the image scaled to at most <paramref name="maxWidth"/> pixels wide, or null when it can't be decoded.</summary>

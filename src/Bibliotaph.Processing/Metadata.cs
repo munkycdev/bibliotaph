@@ -196,11 +196,37 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
 
 /// <summary>
 /// Rule hints for documents: reads where the file is and what the PDF says about itself, stores the suggestions in
-/// catalog.db on the document's entry and projects the result. Also lists and switches the folder labels Settings shows.
+/// catalog.db on the document's entry and projects the result. Packs get theirs from their folder's names. Also lists
+/// and switches the folder labels Settings shows.
 /// </summary>
 public sealed class MetadataHints(LibraryStore library, EntryStore entries, IndexQueries queries, MetadataStore metadata, VocabularyStore vocabularies,
-    MetadataProjector projector)
+    MetadataProjector projector, PackStore packs)
 {
+    /// <summary>
+    /// Stores packs' hints from their folder's names (F4 plan, choice 9): every folder down to the pack's own, or its
+    /// ZIP, counts through the vocabulary as it does for a file, and the pack's name is its title. Every pack's, or
+    /// only those among <paramref name="entryIds"/>. Returns the packs whose hints were stored, to project.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> StorePacksAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
+    {
+        var places = await packs.GetPlacesAsync(entryIds, ct);
+        if (places.Count == 0) return [];
+        var vocabulary = await vocabularies.GetAsync(ct);
+        var ignored = await vocabularies.GetIgnoredFolderLabelsAsync(ct);
+        foreach (var (packId, place) in places)
+            await metadata.ReplaceHintsAsync(packId, null, PackHints(place, vocabulary, ignored), ct);
+        return [.. places.Keys];
+    }
+
+    /// <summary>A pack's hints: read as if an image sat directly in its folder or ZIP, with the pack's name as the title.</summary>
+    internal static IReadOnlyList<MetadataProposal> PackHints(PackPlace place, Vocabulary vocabulary, IReadOnlySet<(string Folder, string Vocabulary, string Key)>? ignored = null)
+    {
+        var fromFolders = RuleHints.Propose(new HintSource(Path.Combine(place.FolderPath, "pack.png")), vocabulary, ignored)
+            .Where(p => p.Field != MetadataFields.Title);
+        return [.. fromFolders, new MetadataProposal(MetadataFields.Title, PackStore.Name(place.FolderPath, place.IsArchive), AssertionOrigin.Filename,
+            PackStore.FileName(place.FolderPath))];
+    }
+
     /// <summary>Re-reads a document's names and replaces the rule-hint suggestions it gave its entry. False when it has no file location left.</summary>
     public async Task<bool> ApplyAsync(long documentId, CancellationToken ct = default)
     {
@@ -253,6 +279,7 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
         var stored = new List<EntryId>();
         foreach (var documentId in affected)
             if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry);
+        stored.AddRange(await StorePacksAsync(ct: ct));
         await projector.ProjectAsync([.. stored.Distinct()], ct);
     }
 }

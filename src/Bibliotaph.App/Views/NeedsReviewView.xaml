@@ -226,6 +226,55 @@
         </Grid>
       </Border>
     </DataTemplate>
+
+    <!-- A smaller or mixed folder of images (F4): make it one card, or keep its images separate. -->
+    <DataTemplate DataType="{x:Type vm:PackCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Image pack?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding ShowFolderCommand}" ToolTip="Show in File Explorer"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Show {0} in File Explorer'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" />
+            <ItemsControl ItemsSource="{Binding Tiles}" Focusable="False" IsHitTestVisible="False" Margin="0,12,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:CoverTile}">
+                  <Border Width="56" Height="56" Margin="0,0,6,0" CornerRadius="4" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+                          ClipToBounds="True" Background="{DynamicResource Bt.Side}">
+                    <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <DockPanel Margin="0,14,0,0">
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.LayoutGrid}" Size="13" Foreground="{DynamicResource Bt.Muted}"
+                            VerticalAlignment="Top" Margin="0,1,8,0" />
+              <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" />
+            </DockPanel>
+            <WrapPanel Margin="0,16,0,0">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="Make a pack" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding MakePackCommand}" Margin="0,0,8,8"
+                      ToolTip="One card for these images. Anything set on an image is kept, and Split gives them back." />
+              <Button Content="Keep separate" Command="{Binding KeepSeparateCommand}" Margin="0,0,8,8"
+                      ToolTip="Each image keeps its own card. Bibliotaph won't ask about this folder again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
   </UserControl.Resources>
 
   <StackPanel>

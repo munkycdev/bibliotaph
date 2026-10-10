@@ -56,6 +56,7 @@ public class SourceFormatsTests
     [InlineData("map.jpeg", "jpg")]
     [InlineData("map.JPG", "jpg")]
     [InlineData("handout.png", "png")]
+    [InlineData("Harbor.WebP", "webp")]
     [InlineData("notes.docx", null)]
     [InlineData("README", null)]
     public void Recognises_the_indexed_types(string name, string? expected) =>

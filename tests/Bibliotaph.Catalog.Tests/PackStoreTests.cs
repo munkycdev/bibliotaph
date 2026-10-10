@@ -142,6 +142,52 @@ public sealed class PackStoreTests : IAsyncLifetime
         Assert.True((await _packs.GetPlaceAsync(pack.EntryId, Ct))!.IsArchive);
     }
 
+    [Fact]
+    public async Task Smaller_folders_and_images_beside_PDFs_are_proposed_and_each_answer_can_be_undone()
+    {
+        await AddAsync([.. Images("Handouts", 12), .. Images("Adventure", 6), "Adventure/Adventure.pdf", .. Images("Few", 4)]);
+
+        // Proposing changes no card.
+        Assert.Empty(await _packs.PlanAsync(Ct));
+        var proposals = await _packs.GetProposalsAsync(Ct);
+        Assert.Equal([("Adventure", 6, true), ("Handouts", 12, false)], proposals.Select(p => (p.Name, p.Images.Count, p.BesidePdfs)));
+        Assert.DoesNotContain(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack);
+        Assert.Empty(await _packs.PlanAsync(Ct));
+
+        // Make a pack: the images become one card, and the question is answered.
+        var handouts = proposals[1].PackId;
+        var made = (await _packs.AnswerAsync(handouts, PackAnswer.Packed, PackAnswer.Proposed, Ct))!;
+        Assert.Equal((PackAnswer.Proposed, 13), (made.Previous, made.Changed.Count));
+        Assert.Equal(12, Assert.Single(await _entries.GetCurrentAsync([handouts], Ct)).Members!.Count);
+        Assert.Null(await _packs.AnswerAsync(handouts, PackAnswer.Split, PackAnswer.Proposed, Ct));
+        Assert.Single(await _packs.GetProposalsAsync(Ct));
+
+        // Undo asks again, with every image on its own card.
+        await _packs.AnswerAsync(handouts, made.Previous, ct: Ct);
+        Assert.Empty(await _entries.GetCurrentAsync([handouts], Ct));
+        Assert.Equal(2, (await _packs.GetProposalsAsync(Ct)).Count);
+
+        // Keep separate is remembered.
+        Assert.Equal(PackAnswer.Proposed, (await _packs.AnswerAsync(proposals[0].PackId, PackAnswer.Split, PackAnswer.Proposed, Ct))!.Previous);
+        Assert.Empty(await _packs.PlanAsync(Ct));
+        Assert.Equal([handouts], (await _packs.GetProposalsAsync(Ct)).Select(p => p.PackId));
+    }
+
+    [Fact]
+    public async Task A_proposed_folder_that_grows_to_twenty_images_is_packed_by_itself()
+    {
+        await AddAsync(Images("Tokens/Undead", 8));
+        await _packs.PlanAsync(Ct);
+        var proposal = Assert.Single(await _packs.GetProposalsAsync(Ct));
+
+        await AddAsync(Images("Tokens/Undead", 12, from: 9));
+
+        Assert.Equal(21, (await _packs.PlanAsync(Ct)).Count);
+        Assert.Empty(await _packs.GetProposalsAsync(Ct));
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct));
+        Assert.Equal((proposal.PackId, 20), (pack.EntryId, pack.Members!.Count));
+    }
+
     /// <summary>Packs compare by value, members included.</summary>
     sealed class PackComparer : IEqualityComparer<EntryDocument>
     {

@@ -121,6 +121,8 @@ public sealed class IndexDatabaseTests : IDisposable
         // Version 7: packs have a name and their images.
         Assert.Equal((null, 0L), read.QuerySingle<(string?, long)>("SELECT name, members FROM entry_doc"));
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_member"));
+        // Version 8: the names of a pack's images are searchable.
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM member_fts"));
     }
 
     [Fact]

@@ -110,8 +110,16 @@ public enum PackAnswer
 {
     /// <summary>Its images are one pack card, and images added later join it.</summary>
     Packed,
-    /// <summary>"Split into separate images": each image has its own card, and the folder isn't packed again.</summary>
+    /// <summary>
+    /// "Split into separate images", or "Keep separate" on a proposal: each image has its own card, and the folder
+    /// isn't packed or proposed again.
+    /// </summary>
     Split,
+    /// <summary>
+    /// A smaller or mixed folder waiting in Needs review: "Make these 12 images one card?" (choice 3). Its images keep
+    /// their own cards until the user answers.
+    /// </summary>
+    Proposed,
 }
 
 /// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>
