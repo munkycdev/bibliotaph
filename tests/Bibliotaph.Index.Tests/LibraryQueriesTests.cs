@@ -107,6 +107,49 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_pack_is_found_by_its_images_names_and_says_which_one_matched()
+    {
+        var store = new IndexStore(Writer, Clock);
+        (long Id, string Name)[] images = [(10, "Kraken"), (11, "Sea Serpent"), (12, "Krakenling Swarm")];
+        foreach (var (id, name) in images) await AddAsync(store, id, name, "png", "Tokens / Sea");
+        await store.RemoveEntriesAsync([.. images.Select(i => EntryOf(i.Id))], Ct);
+        var pack = new EntryId(50);
+        await store.SetEntriesAsync([new EntryDocRow(pack, 10, EntryKind.Pack)
+        {
+            Name = "Sea",
+            Members = [.. images.Select(i => new EntryMemberRow(i.Id, EntryOf(i.Id), $"{i.Name}.png"))],
+        }], Ct);
+
+        // The pack is the result, with the image that matched best; opening it opens that image.
+        var hit = Assert.Single(await _library.SearchDocumentsAsync(Plan("serpent"), new LibraryFilter(), ct: Ct));
+        Assert.Equal((pack, "Sea Serpent.png", 11L), (hit.EntryId, hit.MatchedMember, hit.MatchedDocumentId));
+        Assert.Equal("Kraken.png", Assert.Single(await _library.SearchDocumentsAsync(Plan("\"kraken\""), new LibraryFilter(), ct: Ct)).MatchedMember);
+        // Found by its own name, it shows no image in particular; title: is about the card, not its images.
+        Assert.Null(Assert.Single(await _library.SearchDocumentsAsync(Plan("sea -serpent"), new LibraryFilter(), ct: Ct)).MatchedMember);
+        Assert.Empty(await DocumentsAsync("title:kraken"));
+        // The extension isn't a word to find, and the filter panel counts the pack among the results.
+        Assert.Empty(await DocumentsAsync("png"));
+        Assert.Contains(new FacetCount(SearchQuery.Unknown, "Unknown", 1), await _library.GetFacetCountsAsync("type", new LibraryFilter(), Plan("serpent"), Ct));
+
+        // Split: the images are their own cards again, found by their own titles.
+        await store.RemoveEntriesAsync([pack], Ct);
+        await AddEntriesAsync(store, 11);
+        hit = Assert.Single(await _library.SearchDocumentsAsync(Plan("serpent"), new LibraryFilter(), ct: Ct));
+        Assert.Equal((EntryOf(11), null), (hit.EntryId, hit.MatchedMember));
+    }
+
+    [Fact]
+    public async Task WebP_images_are_images()
+    {
+        await AddAsync(new IndexStore(Writer, Clock), 20, "Harbor", "webp", "Maps");
+
+        Assert.Equal([20, TavernMap], (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Images), ct: Ct)).Select(e => e.DocumentId));
+        var images = await DocumentsAsync("format:image");
+        Assert.Equal([20, TavernMap], images);
+        Assert.Equal(20, Assert.Single(await DocumentsAsync("format:webp")));
+    }
+
+    [Fact]
     public async Task The_library_marks_and_filters_books_a_model_has_read()
     {
         var store = new IndexStore(Writer, Clock);

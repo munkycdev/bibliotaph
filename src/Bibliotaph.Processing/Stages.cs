@@ -211,7 +211,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             if (file is null) return unreadable!;
             await using (file)
             await using (var stream = s.Reader.OpenRead(file.Path)) size = s.Images.ReadSize(stream);
-            if (size is null) return new StageOutcome.Failed("This image could not be read; it may be damaged.", Retry: false);
+            if (size is null) return new StageOutcome.Failed(Unreadable(source.Format), Retry: false);
             await StageHelpers.UpsertDocumentAsync(s, new DocRow
             {
                 DocumentId = job.DocumentId,
@@ -260,6 +260,14 @@ public sealed class ProbeStage(StageServices s) : IStage
         }
         return StageOutcome.Complete(Stage.Text, Stage.Covers, Stage.RuleHints);
     }
+
+    /// <summary>
+    /// Why an image couldn't be read. Windows reads WebP only with Microsoft's free WebP Image Extensions, which most
+    /// installs have; without them every WebP lands here, so the reason says what to install (F4 plan, choice 11).
+    /// </summary>
+    internal static string Unreadable(string format) => format == SourceFormats.Webp
+        ? "Windows couldn't read this WebP image. If Microsoft's free WebP Image Extensions aren't installed, get them from the Microsoft Store, then retry."
+        : "This image could not be read; it may be damaged.";
 }
 
 /// <summary>

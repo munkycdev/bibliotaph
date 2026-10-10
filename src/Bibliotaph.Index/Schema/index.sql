@@ -117,6 +117,14 @@ CREATE TABLE entry_member (
 ) WITHOUT ROWID;
 
 CREATE INDEX entry_member_document ON entry_member (document_id);
+CREATE INDEX entry_member_member ON entry_member (member_entry_id);
+
+-- The file names of the images in packs, for search (F4 plan, choice 8): "kraken" finds the pack with Kraken.png in
+-- it. rowid = the image's own entry (entry_member.member_entry_id); the name is without its extension.
+CREATE VIRTUAL TABLE member_fts USING fts5(
+    name,
+    tokenize = 'unicode61 remove_diacritics 2'
+);
 
 -- Effective metadata (Bibliotaph.Core.Metadata.EffectiveMetadata), projected from catalog.db's assertions whenever they
 -- change. An entry without a row has no metadata beyond its document's file name. Labels are as cards show them.
@@ -218,4 +226,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 7;
+PRAGMA user_version = 8;

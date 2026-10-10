@@ -10,16 +10,23 @@ public static class SourceFormats
     public const string Jpeg = "jpg";
     public const string Png = "png";
 
+    /// <summary>Read through Windows' own decoder, which needs Microsoft's free WebP Image Extensions (F4 plan, choice 11).</summary>
+    public const string Webp = "webp";
+
+    /// <summary>Every image format, for "format:image" and the Images kind.</summary>
+    public static IReadOnlyList<string> Images { get; } = [Jpeg, Png, Webp];
+
     /// <summary>The format for a file name, or null when Bibliotaph doesn't index that type.</summary>
     public static string? FromFileName(string name) => Path.GetExtension(name).ToLowerInvariant() switch
     {
         ".pdf" => Pdf,
         ".jpg" or ".jpeg" => Jpeg,
         ".png" => Png,
+        ".webp" => Webp,
         _ => null,
     };
 
-    public static bool IsImage(string format) => format is Jpeg or Png;
+    public static bool IsImage(string format) => format is Jpeg or Png or Webp;
 
     /// <summary>Whether a file is a ZIP, whose PDFs and images Bibliotaph reads in place.</summary>
     public static bool IsArchive(string name) => Path.GetExtension(name).Equals(".zip", StringComparison.OrdinalIgnoreCase);

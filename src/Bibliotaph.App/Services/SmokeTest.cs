@@ -103,7 +103,8 @@ static class SmokeTest
             {
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
-                await Check("a ZIP of images packed, stepped through, split and packed again", () => UsePackAsync(services, window));
+                await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
+                await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
             }
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
@@ -879,7 +880,8 @@ static class SmokeTest
 
     /// <summary>
     /// Image packs (F4a): twenty token images in a ZIP become one card with a mosaic; its inspector lists them,
-    /// one opens in the viewer, which steps to the next; Split gives them their cards back and Undo packs them again.
+    /// one opens in the viewer, which steps to the next; Split gives them their cards back and Undo packs them again;
+    /// searching for one image's name finds the pack, which opens at that image (F4b).
     /// </summary>
     static async Task UsePackAsync(IServiceProvider services, Window window)
     {
@@ -942,6 +944,68 @@ static class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.UndoSplitCommand), "Undo the split");
         await WaitUntilAsync(window, () => !library.HasSplitUndo && library.Items.Any(i => i.EntryId == pack.EntryId)
             && !library.Items.Any(i => i.Folder.Contains(Name, StringComparison.Ordinal) && !i.IsPack), () => "Undo didn't pack the images again.");
+
+        var search = services.GetRequiredService<SearchState>();
+        search.Search("\"Token 7\"");
+        await WaitUntilAsync(window, () => library.IsSearching && library.Items.Any(i => i.EntryId == pack.EntryId && i.Meta == "Token 7.png"),
+            () => $"Searching for Token 7 found {string.Join(", ", library.Items.Select(i => $"{i.Title} ({i.Meta})"))}.");
+        await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
+        await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { IsImage: true, PackPosition: "7 of 20" },
+            () => "Opening the pack found by Token 7 didn't open that image.");
+        navigation.GoBack();
+        await Settle(window);
+        search.Search("");
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// Pack proposals (F4b): six images in a ZIP are too few to pack by themselves, so Needs review asks. Make a pack
+    /// makes them one card, Undo asks again, and Keep separate answers for good.
+    /// </summary>
+    static async Task ProposePackAsync(IServiceProvider services, Window window)
+    {
+        const string Name = "Smoke Handouts";
+        // Left for the system's temp cleaning, as the tokens' ZIP is.
+        var folder = System.IO.Directory.CreateTempSubdirectory("bibliotaph-smoke-proposal-").FullName;
+        using (var zip = System.IO.Compression.ZipFile.Open(System.IO.Path.Combine(folder, $"{Name}.zip"), System.IO.Compression.ZipArchiveMode.Create))
+            for (var i = 1; i <= 6; i++)
+            {
+                await using var member = zip.CreateEntry($"Handout {i}.png").Open();
+                await member.WriteAsync(TokenPng(PackStore.AutomaticMinimum + i));
+            }
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+
+        var packs = services.GetRequiredService<PackService>();
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        while (!(await packs.GetProposalsAsync()).Any(p => p.Name == Name))
+        {
+            if (Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException("The ZIP of six images wasn't proposed as a pack.");
+            await Settle(window);
+            await Task.Delay(200);
+        }
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
+        var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        await page.ReloadCommand.ExecuteAsync(null);
+        var card = page.Cards.OfType<PackCardViewModel>().FirstOrDefault(c => c.Title == Name)
+            ?? throw new InvalidOperationException("The proposal isn't a card in Needs review.");
+        if (card.Heading != "Make these 6 images one card?") throw new InvalidOperationException($"The proposal asks \"{card.Heading}\".");
+        await Settle(window);
+
+        var queries = services.GetRequiredService<LibraryQueries>();
+        async Task<LibraryEntry?> PackAsync() =>
+            (await Task.Run(() => queries.ListAsync(new LibraryFilter(Kind: KindFilter.Packs)))).FirstOrDefault(e => e.Title == Name);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == card.MakePackCommand), "Make a pack");
+        await WaitUntilAsync(window, () => card.IsDone, () => "Make a pack didn't decide the card.");
+        if (await PackAsync() is not { Members: 6 }) throw new InvalidOperationException("Make a pack didn't make the six images one card.");
+        await card.UndoCommand.ExecuteAsync(null);
+        if (card.IsDone || await PackAsync() is not null) throw new InvalidOperationException("Undo didn't take the pack apart and ask again.");
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == card.KeepSeparateCommand), "Keep separate");
+        await WaitUntilAsync(window, () => card.IsDone, () => "Keep separate didn't decide the card.");
+        if ((await packs.GetProposalsAsync()).Any(p => p.Name == Name)) throw new InvalidOperationException("Keep separate left the proposal waiting.");
     }
 
     /// <summary>A small PNG of its own colour, so each token is different content.</summary>

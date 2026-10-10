@@ -6,7 +6,7 @@ namespace Bibliotaph.Processing;
 /// <summary>What a folder holds, for the Add folder preview and the processing summary.</summary>
 public sealed record ScanSummary
 {
-    /// <summary>Indexable files by format (pdf, jpg, png).</summary>
+    /// <summary>Indexable files by format (pdf, jpg, png, webp).</summary>
     public required IReadOnlyDictionary<string, int> ByFormat { get; init; }
     public int Unsupported { get; init; }
 

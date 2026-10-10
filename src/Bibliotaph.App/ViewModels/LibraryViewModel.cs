@@ -701,10 +701,14 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (Inspector is { } inspector && await RequestAsync(inspector.Item, image.Image.DocumentId) is { } request) _readers.OpenInMainWindow(request);
     }
 
-    /// <summary>What opens a card: its document, or for a pack one of its images (the first by default) with all of them to step through.</summary>
+    /// <summary>
+    /// What opens a card: its document, or for a pack one of its images with all of them to step through. The image is
+    /// <paramref name="documentId"/>, else the one a search found the pack by, else the first.
+    /// </summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
     {
         if (!item.Entry.IsPack) return new ViewerRequest(item.DocumentId, item.Title);
+        documentId ??= item.Entry.MatchedDocumentId;
         var images = await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId));
         if (images.Count == 0) return null;
         var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();

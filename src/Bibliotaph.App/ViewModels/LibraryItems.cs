@@ -23,9 +23,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     /// <summary>
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
-    /// read" until its text is searchable.
+    /// read" until its text is searchable. A pack a search found by one of its images names that image (F4 plan, choice 8).
     /// </summary>
-    public string Meta => (Catalogued ?? Describe(Entry)) + (Entry.Searchable ? "" : " · still being read");
+    public string Meta => Entry.MatchedMember ?? (Catalogued ?? Describe(Entry)) + (Entry.Searchable ? "" : " · still being read");
 
     string? Catalogued => Entry.System is null && Entry.Kind is null ? null : string.Join(" · ", new[] { Entry.System, Entry.Kind }.OfType<string>());
 
@@ -37,8 +37,11 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string PublisherLabel => Entry.Publisher ?? "";
 
-    /// <summary>The publisher, or the folders when there isn't one, under the title in the list.</summary>
-    public string Byline => Entry.Publisher ?? Entry.FolderHint ?? "";
+    /// <summary>
+    /// The publisher, or the folders when there isn't one, under the title in the list; for a pack a search found by an
+    /// image, that image's name.
+    /// </summary>
+    public string Byline => Entry.MatchedMember ?? Entry.Publisher ?? Entry.FolderHint ?? "";
 
     /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack.</summary>
     public string SizeLabel => IsPack ? ImagesLabel : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;

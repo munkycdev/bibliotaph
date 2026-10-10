@@ -1,9 +1,10 @@
 using Bibliotaph.Catalog;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Image packs (F4a): a folder of many images is one card once it has been read, and splits back into images.</summary>
+/// <summary>Image packs (F4): a folder of many images is one card once it has been read, and splits back into images.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]
@@ -33,5 +34,23 @@ public sealed partial class PipelineTests
         Assert.Equal(21, cards.Count);
         Assert.DoesNotContain(cards, c => c.IsPack);
         Assert.Equal(20, cards.Count(c => c.FolderHint == "Tokens / Undead"));
+    }
+
+    [Fact]
+    public async Task A_pack_takes_hints_from_its_folder_names_and_is_found_by_an_image_name()
+    {
+        var sea = Path.Combine(_library, "D&D 5e", "Sea");
+        Directory.CreateDirectory(sea);
+        for (var i = 1; i <= PackStore.AutomaticMinimum; i++)
+            File.WriteAllBytes(Path.Combine(sea, i == 7 ? "Kraken.png" : $"Shark {i}.png"), FakeCodec.Png(100 + i, 100));
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        var search = new LibraryQueries(_index);
+        var pack = Assert.Single(await search.ListAsync(new LibraryFilter(Kind: KindFilter.Packs), ct: Ct));
+        Assert.Equal(("Sea", "D&D 5e"), (pack.Title, pack.System));
+        var hit = Assert.Single(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("kraken")), new LibraryFilter(), ct: Ct));
+        Assert.Equal((pack.EntryId, "Kraken.png"), (hit.EntryId, hit.MatchedMember));
     }
 }

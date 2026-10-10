@@ -14,12 +14,14 @@ namespace Bibliotaph.Index;
 /// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/>
 /// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack
 /// (<see cref="EntryKind"/>) shows its first image, counts its <see cref="Members"/>, and has the covers of its first
-/// four images for its mosaic (<see cref="MemberCovers"/>).
+/// four images for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that
+/// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
     string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
-    string? AiModel = null, int Copies = 1, EntryKind EntryKind = EntryKind.Whole, int Members = 0, string? MemberCovers = null)
+    string? AiModel = null, int Copies = 1, EntryKind EntryKind = EntryKind.Whole, int Members = 0, string? MemberCovers = null,
+    string? MatchedMember = null, long? MatchedDocumentId = null)
 {
     public bool IsPack => EntryKind == EntryKind.Pack;
 
@@ -116,6 +118,9 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// <summary>Column weights for entry_fts, in schema order: title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional.</summary>
     const string DocRank = "bm25(entry_fts, 10.0, 5.0, 2.0, 3.0, 2.0, 3.0, 1.0, 4.0, 1.0)";
 
+    /// <summary>An image's name in a pack weighs as a title does: you look for "kraken", not for the pack's name.</summary>
+    const string MemberRank = "bm25(member_fts, 10.0)";
+
     const string EntryColumns = """
         e.entry_id AS EntryId, d.document_id AS DocumentId, coalesce(m.title, e.name, d.display_title) AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,
         d.folder_hint AS FolderHint, d.added_utc AS AddedUtc,
@@ -152,7 +157,10 @@ public sealed class LibraryQueries(IndexDatabase database)
         return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
     }
 
-    /// <summary>The Documents tab: titles and metadata. With no words or title: to find, this is the filtered library.</summary>
+    /// <summary>
+    /// The Documents tab: titles and metadata, and the names of the images in packs. A pack found by an image's name
+    /// says which (the best match). With no words or title: to find, this is the filtered library.
+    /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> SearchDocumentsAsync(SearchPlan plan, LibraryFilter filter, int limit = 1000, CancellationToken ct = default)
     {
         if (plan.DocumentMatch is not { } match) return [.. (await ListAsync(filter, plan, ct)).Take(limit)];
@@ -160,11 +168,24 @@ public sealed class LibraryQueries(IndexDatabase database)
         var where = new Where(filter, plan, titleAsFilter: false);
         where.Parameters.Add("match", match);
         where.Parameters.Add("limit", limit);
+        // Image names answer plain words only; title: and the other fields are about the card.
+        var members = plan.FieldMatch is null ? $"""
+            UNION ALL
+            SELECT em.entry_id, {MemberRank}, em.name, em.document_id
+            FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid
+            WHERE member_fts MATCH @match
+            """ : "";
+        // One row per card, its best hit: SQLite takes the bare columns from the row min() picks. The hits are
+        // materialized, since bm25() can't run once flattened into the grouping.
         var sql = $"""
-            SELECT {EntryColumns}
-            FROM entry_fts JOIN entry_doc e ON e.entry_id = entry_fts.rowid JOIN doc d ON d.document_id = e.document_id {EntryJoin}
-            WHERE entry_fts MATCH @match AND {where.Sql}
-            ORDER BY {Order(filter.Sort, relevance: DocRank)}
+            WITH hit AS MATERIALIZED (
+                SELECT rowid AS entry_id, {DocRank} AS rank, NULL AS member, NULL AS member_document FROM entry_fts WHERE entry_fts MATCH @match
+                {members})
+            SELECT {EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId
+            FROM (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
+            JOIN entry_doc e ON e.entry_id = h.entry_id JOIN doc d ON d.document_id = e.document_id {EntryJoin}
+            WHERE {where.Sql}
+            ORDER BY {Order(filter.Sort, relevance: "h.rank")}
             LIMIT @limit
             """;
         await using var connection = database.OpenRead();
@@ -180,7 +201,12 @@ public sealed class LibraryQueries(IndexDatabase database)
     {
         plan ??= new SearchPlan();
         var where = new Where(filter, plan, titleAsFilter: true);
-        if (plan.TextMatch is { } match) where.Also("e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch)", "countMatch", match);
+        // As the Documents tab finds them: packs by their images' names too.
+        if (plan.TextMatch is { } match)
+            where.Also("""
+                e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
+                    UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
+                """, "countMatch", match);
         where.Parameters.Add("countField", field);
         await using var connection = database.OpenRead();
         var counts = (await connection.QueryAsync<(string Value, string Label, long Count)>(new CommandDefinition(
@@ -201,7 +227,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// How many entries have each format (pdf, jpg, png), most first, among those in <paramref name="filter"/>'s
+    /// How many entries have each format (pdf, jpg, png, webp), most first, among those in <paramref name="filter"/>'s
     /// scope: the values the search box's field guide offers after <c>format:</c>. <see cref="FacetCount.Label"/> is the
     /// format in capitals.
     /// </summary>
@@ -397,7 +423,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
-            r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers))];
+            r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
+            r.MatchedMember, r.MatchedDocumentId))];
 
     static string? DescribeLevels(string state, long? min, long? max) => state switch
     {
@@ -442,6 +469,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string EntryKind { get; init; } = nameof(Core.EntryKind.Whole);
         public long Members { get; init; }
         public string? MemberCovers { get; init; }
+        public string? MatchedMember { get; init; }
+        public long? MatchedDocumentId { get; init; }
     }
 
     sealed class HitRow
@@ -481,8 +510,7 @@ public sealed class LibraryQueries(IndexDatabase database)
                     Add("e.kind <> 'Pack' AND d.format = @formatPdf", "formatPdf", SourceFormats.Pdf);
                     break;
                 case KindFilter.Images:
-                    Add("e.kind <> 'Pack' AND d.format IN (@formatJpeg, @formatPng)", "formatJpeg", SourceFormats.Jpeg);
-                    Parameters.Add("formatPng", SourceFormats.Png);
+                    Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@imageFormats))", "imageFormats", JsonSerializer.Serialize(SourceFormats.Images));
                     break;
                 case KindFilter.Packs:
                     _sql.Append(" AND e.kind = 'Pack'");

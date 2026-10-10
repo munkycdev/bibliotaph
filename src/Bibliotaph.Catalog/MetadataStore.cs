@@ -60,9 +60,10 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     /// Replaces the rule-hint suggestions that one copy of an entry (<paramref name="contentHash"/>) gave it with
     /// <paramref name="proposals"/>. Only provisional hint rows from that copy change: confirmed, rejected and
     /// superseded rows, other copies' and every other origin's, stay as they are. A suggestion that is still proposed
-    /// keeps its row and its age, so rerunning the stage changes nothing the user has seen. Returns whether anything changed.
+    /// keeps its row and its age, so rerunning the stage changes nothing the user has seen. A pack's hints come from its
+    /// folder's names, not from a copy, so it passes no hash. Returns whether anything changed.
     /// </summary>
-    public async Task<bool> ReplaceHintsAsync(EntryId entryId, string contentHash, IReadOnlyList<MetadataProposal> proposals, CancellationToken ct = default)
+    public async Task<bool> ReplaceHintsAsync(EntryId entryId, string? contentHash, IReadOnlyList<MetadataProposal> proposals, CancellationToken ct = default)
     {
         if (proposals.Any(p => !HintOrigins.Contains(p.Origin)))
             throw new ArgumentException("Only rule-hint origins can be replaced.", nameof(proposals));

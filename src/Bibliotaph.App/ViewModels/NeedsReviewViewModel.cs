@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
@@ -31,6 +32,7 @@ public sealed partial class NeedsReviewViewModel(
     LibraryActivity activity,
     INavigationService navigation,
     ReaderWindows readers,
+    CoverImages covers,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
@@ -44,7 +46,10 @@ public sealed partial class NeedsReviewViewModel(
     public override Route Route => Route.NeedsReview;
     public override string Title => "Needs review";
 
-    /// <summary>New-term cards first, since each covers many books; then "new version?" cards; then a page of field cards.</summary>
+    /// <summary>
+    /// New-term cards first, since each covers many books; then "new version?" cards and folders proposed as packs;
+    /// then a page of field cards.
+    /// </summary>
     public ObservableCollection<DecidedCardViewModel> Cards { get; } = [];
 
     /// <summary>Files needing attention: a password to enter, a damaged download, a folder that can't be read, a file inside a ZIP that isn't read.</summary>
@@ -140,6 +145,7 @@ public sealed partial class NeedsReviewViewModel(
             Cards.Clear();
             foreach (var term in list.Terms) Cards.Add(new TermCardViewModel(term, _vocabulary, this));
             foreach (var version in list.Versions) Cards.Add(new VersionCardViewModel(version, this));
+            foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             Hidden = _items.Count;
             ShowMore();
             Remaining = list.Count;
@@ -301,6 +307,24 @@ public sealed partial class NeedsReviewViewModel(
     {
         var decision = await review.AnswerVersionAsync(item.Version, answer);
         return decision is null ? () => Task.CompletedTask : () => review.UndoVersionAsync(decision);
+    }
+
+    public async Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer) =>
+        await review.AnswerPackAsync(proposal, answer) ?? (() => Task.CompletedTask);
+
+    public void ShowFolder(string path) =>
+        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
+
+    /// <summary>The covers of a proposal's first four images that have one.</summary>
+    async Task<IReadOnlyList<CoverTile>> TilesAsync(PackProposal proposal)
+    {
+        var tiles = new List<CoverTile>();
+        foreach (var documentId in proposal.Images)
+        {
+            if (tiles.Count == 4) break;
+            if (await queries.GetCoverAsync(documentId) is { } cover) tiles.Add(new CoverTile(cover, covers));
+        }
+        return tiles;
     }
 
     public void OpenDocument(long documentId, string title) => readers.OpenInMainWindow(new ViewerRequest(documentId, title, 0));

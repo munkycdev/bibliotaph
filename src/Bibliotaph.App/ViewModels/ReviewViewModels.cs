@@ -19,6 +19,8 @@ public interface IReviewActions
     Task<Func<Task>> MapTermAsync(PendingTerm term, Term target);
     Task<Func<Task>> RejectTermAsync(PendingTerm term);
     Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer);
+    Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
+    void ShowFolder(string path);
     void Open(ReviewItem item);
     void OpenDocument(long documentId, string title);
     void Decided(int change);
@@ -354,4 +356,35 @@ public sealed partial class VersionCardViewModel(VersionItem item, IReviewAction
 
     [RelayCommand]
     void OpenBook() => Actions.OpenDocument(Version.MatchedDocumentId, Item.BookTitle);
+}
+
+/// <summary>
+/// A smaller or mixed folder or ZIP of images (F4 plan, choice 3): "Make these 12 images one card?", with the first
+/// few images to show what they are.
+/// </summary>
+public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyList<CoverTile> tiles, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public PackProposal Proposal { get; } = proposal;
+
+    public string Title => Proposal.Name;
+
+    public string Heading => $"Make these {LibraryItemViewModel.Images(Proposal.Images.Count)} one card?";
+
+    public string Detail => Proposal.BesidePdfs
+        ? "They sit beside PDFs, so they may be a book's handouts rather than a set of their own."
+        : "A pack shows as one card, with its images a click away. Nothing on disk changes.";
+
+    public string Path => Proposal.Place.FullPath;
+
+    /// <summary>The first images' covers, in file name order.</summary>
+    public IReadOnlyList<CoverTile> Tiles { get; } = tiles;
+
+    [RelayCommand]
+    Task MakePack() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Packed), $"{Title} is now one card.");
+
+    [RelayCommand]
+    Task KeepSeparate() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Split), $"Kept the images in {Title} as separate cards.");
+
+    [RelayCommand]
+    void ShowFolder() => Actions.ShowFolder(Path);
 }
