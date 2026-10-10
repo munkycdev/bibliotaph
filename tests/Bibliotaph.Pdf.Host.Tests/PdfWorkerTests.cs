@@ -55,6 +55,28 @@ public sealed class PdfWorkerTests(SyntheticPdfs pdfs) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Reports_a_pages_links_to_its_own_pages_and_the_web()
+    {
+        var doc = await OpenAsync(pdfs.Linked);
+
+        var index = await _worker.SendAsync(new Request { Op = Op.Links, DocId = doc.DocId, PageIndex = 0 }, Timeout);
+        var plain = await _worker.SendAsync(new Request { Op = Op.Links, DocId = doc.DocId, PageIndex = 1 }, Timeout);
+
+        Assert.True(index.Ok, index.Message);
+        var links = index.Links!;
+        Assert.Equal(2, links.Count);
+        var inBook = Assert.Single(links, l => l.Uri is null);
+        Assert.Equal(2, inBook.PageIndex);
+        Assert.True(inBook.Box.Right > inBook.Box.Left && inBook.Box.Top > inBook.Box.Bottom, $"Link box {inBook.Box}");
+        var web = Assert.Single(links, l => l.Uri is not null);
+        Assert.Equal(SyntheticPdfs.LinkedWebAddress, web.Uri);
+        Assert.Equal(-1, web.PageIndex);
+        // The in-book link sits above the web link, as drawn.
+        Assert.True(inBook.Box.Bottom > web.Box.Bottom);
+        Assert.Empty(plain.Links!);
+    }
+
+    [Fact]
     public async Task Opens_a_file_whose_name_is_outside_the_ansi_code_page()
     {
         var doc = await OpenAsync(pdfs.NonAsciiName);

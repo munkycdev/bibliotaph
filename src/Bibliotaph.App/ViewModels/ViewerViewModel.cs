@@ -897,6 +897,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             _renderer = renderer;
             _file = file;
             _labels = doc.PageLabels;
+            LinkBackPage = null;
             Outline = [.. doc.Outline
                 .Where(o => o.PageIndex >= 0 && o.PageIndex < doc.PageCount && !string.IsNullOrWhiteSpace(o.Title))
                 .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels)))];
@@ -1155,6 +1156,58 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>Tries again after a problem: the folder is back, or the reader will now enter the password.</summary>
     [RelayCommand]
     Task Retry() => LoadAsync();
+
+    /// <summary>The page a followed link left from, so the reader can go back to it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLinkBack), nameof(LinkBackLabel))]
+    public partial int? LinkBackPage { get; private set; }
+
+    public bool HasLinkBack => LinkBackPage is not null;
+
+    /// <summary>"Back to page 12", as the book numbers its pages.</summary>
+    public string LinkBackLabel => LinkBackPage is { } page ? $"Back to page {PageNumbers.Display(page, _labels)}" : "";
+
+    /// <summary>
+    /// A link on a page, as in an index or a table of contents: one to a page of this book goes there and offers the
+    /// way back; a web link opens in the browser once the reader says yes.
+    /// </summary>
+    public void FollowLink(PageLink link)
+    {
+        if (link.Uri is { } uri)
+        {
+            OpenWebLink(uri);
+            return;
+        }
+        if (link.PageIndex < 0 || link.PageIndex >= PageCount) return;
+        LinkBackPage = CurrentPageIndex;
+        GoTo(link.PageIndex, link.Top);
+    }
+
+    [RelayCommand]
+    void BackFromLink()
+    {
+        if (LinkBackPage is not { } page) return;
+        LinkBackPage = null;
+        GoTo(page, null);
+    }
+
+    void OpenWebLink(string uri)
+    {
+        var owner = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>().FirstOrDefault(w => w.IsActive)
+            ?? System.Windows.Application.Current.MainWindow;
+        var answer = System.Windows.MessageBox.Show(owner, $"This link goes to a web page:\n\n{uri}\n\nOpen it in your browser?", "Open a web link?",
+            System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.Cancel);
+        if (answer != System.Windows.MessageBoxResult.OK) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            _log.LogWarning(ex, "Opening a web link failed");
+            ShowNotice("Windows couldn't open that link.");
+        }
+    }
 
     public void ShowNotice(string text)
     {

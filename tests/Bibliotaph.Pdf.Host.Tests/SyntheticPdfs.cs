@@ -38,6 +38,41 @@ public sealed class SyntheticPdfs : IDisposable
         ExpandedForAna = Write("expanded-ana.pdf", BuildPages(Watermark(ExpandedPages, "Ana Example", 1234)));
         LockedNoCopying = Write("locked-no-copying.pdf", Bibliotaph.App.Services.SmokePdfs.Locked());
         Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
+        Linked = Write("linked.pdf", BuildLinked());
+    }
+
+    /// <summary>
+    /// Three pages: page 0 an index whose <see cref="LinkedEntry"/> line links to page 2 and whose second line links to
+    /// <see cref="LinkedWebAddress"/>; pages 1 and 2 have no links.
+    /// </summary>
+    public string Linked { get; }
+
+    public const string LinkedEntry = "Owlbear, page 3";
+    public const string LinkedWebAddress = "https://example.com/errata";
+
+    static byte[] BuildLinked()
+    {
+        using var document = new PdfDocument();
+        var font = new XFont(EmbeddedFontResolver.Family, 12);
+        var index = document.AddPage();
+        using (var gfx = XGraphics.FromPdfPage(index))
+        {
+            gfx.DrawString(LinkedEntry, font, XBrushes.Black, new XPoint(72, 100));
+            gfx.DrawString("Errata online", font, XBrushes.Black, new XPoint(72, 130));
+        }
+        for (var i = 1; i < 3; i++)
+        {
+            var page = document.AddPage();
+            using var gfx = XGraphics.FromPdfPage(page);
+            gfx.DrawString($"Page {i + 1}", font, XBrushes.Black, new XPoint(72, 100));
+        }
+        // Link areas are in PDF space, from the bottom of the page; the destination page counts from 1.
+        var height = index.Height.Point;
+        index.AddDocumentLink(new PdfRectangle(new XPoint(70, height - 104), new XPoint(220, height - 88)), 3);
+        index.AddWebLink(new PdfRectangle(new XPoint(70, height - 134), new XPoint(220, height - 118)), LinkedWebAddress);
+        using var output = new MemoryStream();
+        document.Save(output);
+        return output.ToArray();
     }
 
     /// <summary>
