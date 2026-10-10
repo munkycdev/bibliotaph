@@ -99,6 +99,7 @@ static class SmokeTest
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
+            await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             if (real is { } reprocessed)
             {
@@ -1063,6 +1064,54 @@ static class SmokeTest
             throw new InvalidOperationException("The book owned elsewhere couldn't be removed again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was.");
+    }
+
+    /// <summary>
+    /// Check a download from the Library's button: a ZIP with a new map, a ZIP inside it, and the smoke PDF when there
+    /// is one, which the index worker reads from a temporary copy. The results are grouped, the list copies, and the library is as it was.
+    /// </summary>
+    static async Task CheckDownloadAsync(IServiceProvider services, Window window, int books, string? smokeFiles)
+    {
+        // A ZIP, as the app may write no other file. Left for the system's temp cleaning: the app may not delete folders.
+        var download = System.IO.Path.Combine(System.IO.Directory.CreateTempSubdirectory("bibliotaph-smoke-check-").FullName, "Smoke Download.zip");
+        using (var zip = System.IO.Compression.ZipFile.Open(download, System.IO.Compression.ZipArchiveMode.Create))
+        {
+            await using (var map = zip.CreateEntry("Maps/Smoke New Map.png").Open()) await map.WriteAsync(TokenPng(42));
+            zip.CreateEntry("Inner.zip").Open().Dispose();
+            if (smokeFiles is not null)
+            {
+                await using var book = zip.CreateEntry("Smoke Download.pdf").Open();
+                await book.WriteAsync(await System.IO.File.ReadAllBytesAsync(System.IO.Path.Combine(smokeFiles, "smoke-book.pdf")));
+                await book.WriteAsync("\n% a downloaded copy\n"u8.ToArray());
+            }
+        }
+
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CheckDownload"), "Check a download");
+        await WaitUntilAsync(window, () => services.GetRequiredService<ShellViewModel>().CurrentPage is DownloadCheckViewModel,
+            () => "Check a download didn't open its page.");
+        var page = (DownloadCheckViewModel)services.GetRequiredService<ShellViewModel>().CurrentPage!;
+        if (Descendants<Button>(window).FirstOrDefault(b => b.Name == "CheckFolder") is not { IsVisible: true, IsEnabled: true })
+            throw new InvalidOperationException("Check a folder isn't offered.");
+
+        // The file picker can't be driven here, so the check starts as the picker would start it.
+        await page.StartAsync(download);
+        await Settle(window);
+        var expected = smokeFiles is null ? 2 : 3;
+        if (!page.Progress.StartsWith($"Checked {expected} files", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The check reads “{page.Progress}”.");
+        if (page.Groups is not [{ Verdict: CheckVerdict.New } fresh, .., { Verdict: CheckVerdict.Unreadable }])
+            throw new InvalidOperationException($"The groups are {string.Join(", ", page.Groups.Select(g => g.Heading))}.");
+        if (fresh.Items.Count != expected - 1) throw new InvalidOperationException($"{fresh.Heading}: the new map and download aren't both new.");
+        if (!Descendants<TextBlock>(window).Any(t => t.Text == "Smoke New Map.png" && t.IsVisible)) throw new InvalidOperationException("The new map isn't listed.");
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CopyList"), "Copy list");
+        await WaitUntilAsync(window, () => page.Copied is not null, () => "Copy list said nothing.");
+        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter())) is var cards && cards.Count != books)
+            throw new InvalidOperationException($"The library has {cards.Count} cards after a check, not {books}.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
     }
 
     /// <summary>A small PNG of its own colour, so each token is different content.</summary>

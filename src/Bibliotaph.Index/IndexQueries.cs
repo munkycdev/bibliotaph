@@ -45,6 +45,9 @@ public sealed record PilotCandidate(long DocumentId, string Folder, string? Syst
 /// <summary>The PDF's own document information, as Probe read it.</summary>
 public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords);
 
+/// <summary>A card with a given title: its kind, the document it shows (none when owned elsewhere) and its publisher.</summary>
+public sealed record TitleMatch(EntryId EntryId, EntryKind Kind, long? DocumentId, string? Publisher);
+
 /// <summary>Read-side queries over index.db. Every value is a bound parameter.</summary>
 public sealed class IndexQueries(IndexDatabase database)
 {
@@ -144,6 +147,58 @@ public sealed class IndexQueries(IndexDatabase database)
             """,
             new { documentId }, cancellationToken: ct));
         return [.. rows.Select(r => (r.DocumentId, (int)r.Shared, (int)r.Fingerprinted))];
+    }
+
+    /// <summary>
+    /// The documents with a page whose fingerprint is one of <paramref name="fingerprints"/>, for a file that isn't in the
+    /// library (Check a download, F5 plan, choice 10): how many of them each shares, most first, and how many distinct
+    /// fingerprints each has in all.
+    /// </summary>
+    public async Task<IReadOnlyList<(long DocumentId, int Shared, int Fingerprinted)>> GetSharingPagesAsync(IReadOnlyCollection<string> fingerprints,
+        CancellationToken ct = default)
+    {
+        if (fingerprints.Count == 0) return [];
+        await using var connection = database.OpenRead();
+        var shared = new Dictionary<long, int>();
+        // In batches, under SQLite's limit on bound values. Each batch holds different fingerprints, so counts add up.
+        foreach (var batch in fingerprints.Distinct(StringComparer.Ordinal).Chunk(500))
+        {
+            var rows = await connection.QueryAsync<(long DocumentId, long Shared)>(new CommandDefinition(
+                """
+                SELECT document_id, count(DISTINCT fingerprint)
+                FROM page WHERE fingerprint IN @batch
+                GROUP BY document_id
+                """,
+                new { batch }, cancellationToken: ct));
+            foreach (var (documentId, count) in rows) shared[documentId] = shared.GetValueOrDefault(documentId) + (int)count;
+        }
+        if (shared.Count == 0) return [];
+        var totals = (await connection.QueryAsync<(long DocumentId, long Fingerprinted)>(new CommandDefinition(
+            """
+            SELECT document_id, count(DISTINCT fingerprint)
+            FROM page WHERE document_id IN @ids AND fingerprint IS NOT NULL
+            GROUP BY document_id
+            """,
+            new { ids = shared.Keys.ToArray() }, cancellationToken: ct))).ToDictionary(r => r.DocumentId, r => (int)r.Fingerprinted);
+        return [.. shared.OrderByDescending(s => s.Value).ThenBy(s => s.Key).Select(s => (s.Key, s.Value, totals.GetValueOrDefault(s.Key)))];
+    }
+
+    /// <summary>
+    /// The cards with this title, ignoring case, with their kind, the document each shows (none for a book owned
+    /// elsewhere) and their publisher, for Check a download (F5 plan, choice 11).
+    /// </summary>
+    public async Task<IReadOnlyList<TitleMatch>> GetTitleMatchesAsync(string title, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, string Kind, long? DocumentId, string? Publisher)>(new CommandDefinition(
+            """
+            SELECT e.entry_id, e.kind, e.document_id, m.publisher
+            FROM entry_meta m JOIN entry_doc e ON e.entry_id = m.entry_id
+            WHERE lower(m.title) = lower(@title)
+            ORDER BY e.entry_id
+            """,
+            new { title }, cancellationToken: ct));
+        return [.. rows.Select(r => new TitleMatch(new EntryId(r.EntryId), Enum.Parse<EntryKind>(r.Kind), r.DocumentId, r.Publisher))];
     }
 
     /// <summary>

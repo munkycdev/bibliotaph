@@ -11,4 +11,5 @@ public enum Route
     Settings,
     PilotReview,
     Viewer,
+    DownloadCheck,
 }
