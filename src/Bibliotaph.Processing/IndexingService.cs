@@ -30,10 +30,40 @@ public sealed record IndexingOptions
 
     /// <summary>How long a lane whose work can't be done right now (a model endpoint that isn't running) waits before trying again.</summary>
     public TimeSpan UnavailableRetry { get; init; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// How often offline folders are looked at again (slice 4g plan, choice 4), for a network share coming back, which
+    /// Windows doesn't announce as it does a disk being plugged in.
+    /// </summary>
+    public TimeSpan OfflineRecheck { get; init; } = TimeSpan.FromMinutes(5);
 }
 
-/// <summary>The last scan of a root: what it holds, what changed, or that it couldn't be reached.</summary>
-public sealed record RootScan(long RootId, string Path, bool Reachable, ScanSummary? Summary, ReconcileResult? Changes, DateTime ScannedUtc);
+/// <summary>Why a library folder reads as offline (slice 4g plan, choice 3). Its files are never marked missing for it.</summary>
+public enum OfflineReason
+{
+    /// <summary>The folder, or its drive or share, can't be opened.</summary>
+    Unreachable,
+    /// <summary>The drive holds another disk than it did when the folder was first scanned: its volume serial differs.</summary>
+    DifferentDisk,
+    /// <summary>It lists as empty though it held files, as a disk that hasn't finished mounting or a share showing nothing.</summary>
+    LooksEmpty,
+}
+
+/// <summary>The last scan of a root: what it holds, what changed, or that it couldn't be reached and why.</summary>
+public sealed record RootScan(long RootId, string Path, bool Reachable, ScanSummary? Summary, ReconcileResult? Changes, DateTime ScannedUtc,
+    OfflineReason? Offline = null);
+
+/// <summary>What "Point to its new place" did with a folder (slice 4g plan, choice 6).</summary>
+public enum RootRelocation
+{
+    Relocated,
+    /// <summary>The folder picked doesn't exist or can't be opened.</summary>
+    NotFound,
+    /// <summary>It is another library folder, inside one, or holds one.</summary>
+    Overlaps,
+    /// <summary>It was a library folder of its own before it was removed; adding it again brings that one back.</summary>
+    WasRemoved,
+}
 
 /// <summary>A file the hasher could not read. It is tried again after the next scan of its folder.</summary>
 public sealed record UnreadableFile(long LocationId, string Path, string Reason);
@@ -55,9 +85,11 @@ public sealed class IndexingService(
     IndexingOptions? options = null,
     ILogger<IndexingService>? log = null,
     TimeProvider? clock = null,
-    PackService? packs = null) : BackgroundService
+    PackService? packs = null,
+    IFileIdentity? identity = null) : BackgroundService
 {
     readonly IndexingOptions _options = options ?? new IndexingOptions();
+    readonly IFileIdentity _identity = identity ?? new FileIdentity();
     readonly ILogger _log = log ?? NullLogger<IndexingService>.Instance;
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly Dictionary<Stage, IStage> _stages = stages.ToDictionary(s => s.Stage);
@@ -76,6 +108,8 @@ public sealed class IndexingService(
     readonly Dictionary<long, RootScan> _scans = [];
     readonly Dictionary<long, UnreadableFile> _unreadable = [];
     readonly Dictionary<long, (FileSystemWatcher Watcher, ITimer Debounce)> _watchers = [];
+    /// <summary>Roots whose watcher stopped (its drive went away) or that came back online: watched afresh at the next sync.</summary>
+    readonly HashSet<long> _staleWatchers = [];
     CancellationToken _stopping;
 
     /// <summary>Something changed that a progress display would show. Raised on a background thread, often; throttle.</summary>
@@ -184,6 +218,45 @@ public sealed class IndexingService(
         RaiseChanged();
     }
 
+    /// <summary>
+    /// Looks again at every library folder that is offline, and at those on <paramref name="drives"/> (drive letters),
+    /// as when a disk is plugged in or taken out (slice 4g plan, choice 4). One that can be reached again comes back
+    /// with its books without Look for changes; one whose disk went reads as offline at once.
+    /// </summary>
+    public async Task RescanOfflineAsync(IReadOnlyCollection<char>? drives = null, CancellationToken ct = default)
+    {
+        foreach (var root in await roots.ListAsync(ct))
+            if (root.Availability == SourceRootAvailability.Offline || drives?.Any(d => OnDrive(root.Path, d)) == true) RequestScan(root.Id);
+    }
+
+    static bool OnDrive(string path, char drive) =>
+        Path.GetPathRoot(path) is { Length: >= 2 } root && root[1] == ':' && char.ToUpperInvariant(root[0]) == char.ToUpperInvariant(drive);
+
+    /// <summary>
+    /// "Point to its new place" (slice 4g plan, choice 6), for a library folder that moved for good, as to a new disk:
+    /// checked as a folder to add would be (it exists, and isn't another library folder, inside one or holding one),
+    /// then the folder takes the new path and is scanned there. Its files are matched by their paths under it, so
+    /// every book keeps its hash, card and everything done with it, and nothing is read again unless it changed. Slice
+    /// 4j's restore points folders at their new places through this too.
+    /// </summary>
+    public async Task<RootRelocation> RelocateRootAsync(long rootId, string path, CancellationToken ct = default)
+    {
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        if (!Directory.Exists(full)) return RootRelocation.NotFound;
+        var others = (await roots.ListAsync(ct)).Where(r => r.Id != rootId).Select(r => r.Path);
+        if (others.Any(other => SourceScanner.IsUnder(full, other) || SourceScanner.IsUnder(other, full))) return RootRelocation.Overlaps;
+        if (!await roots.RelocateAsync(rootId, full, ct)) return RootRelocation.WasRemoved;
+        _log.LogInformation("Library folder {RootId} pointed to its new place", rootId);
+        lock (_lock)
+        {
+            _scans.Remove(rootId);
+            _staleWatchers.Add(rootId);
+        }
+        RequestScan(rootId);
+        RaiseChanged();
+        return RootRelocation.Relocated;
+    }
+
     /// <summary>Lists a folder for the Add folder preview, without adding it or opening any file.</summary>
     public async Task<ScanResult?> PreviewAsync(string folder, CancellationToken ct = default)
     {
@@ -235,6 +308,7 @@ public sealed class IndexingService(
         // Each loop on the thread pool: none of this may run on the UI thread that started the host.
         await Task.WhenAll(
             Task.Run(() => LoopAsync("scanner", ScanLoopAsync, stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("offline check", OfflineLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("hasher", HashLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("index lane", ct => LaneLoopAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("OCR lane", ct => LaneLoopAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
@@ -313,40 +387,79 @@ public sealed class IndexingService(
             }
 
             var current = await roots.ListAsync(ct);
-            if (_options.WatchFolders) SyncWatchers(current);
+            // A folder that was offline and can be watched again is scanned now: a watcher only reports changes from then on.
+            if (_options.WatchFolders) foreach (var rootId in SyncWatchers(current)) (some ??= []).Add(rootId);
             IsScanning = true;
             RaiseChanged();
             try
             {
-                foreach (var root in current.Where(r => all || some?.Contains(r.Id) == true))
-                    await ScanRootAsync(root, current, ct);
+                // A folder a file may have moved from is scanned in the same pass, before the file is read at its new place.
+                var pass = current.Where(r => all || some?.Contains(r.Id) == true).ToList();
+                for (var i = 0; i < pass.Count; i++)
+                    foreach (var from in await ScanRootAsync(pass[i], current, ct))
+                        if (pass.All(r => r.Id != from) && current.FirstOrDefault(r => r.Id == from) is { } source) pass.Add(source);
             }
             finally
             {
                 IsScanning = false;
                 RaiseChanged();
             }
+            // A folder back online is watched again now rather than at the next scan.
+            if (_options.WatchFolders) foreach (var rootId in SyncWatchers(await roots.ListAsync(ct))) RequestScan(rootId);
             await ReleaseReachableAsync(ct);
             _packsDue = true;
             _hashSignal.Set();
         }
     }
 
-    async Task ScanRootAsync(SourceRoot root, IReadOnlyList<SourceRoot> all, CancellationToken ct)
+    /// <summary>Every few minutes, offline folders are looked at again, for a network share that has come back.</summary>
+    async Task OfflineLoopAsync(CancellationToken ct)
+    {
+        while (true)
+        {
+            await Task.Delay(_options.OfflineRecheck, _clock, ct);
+            await RescanOfflineAsync(ct: ct);
+        }
+    }
+
+    /// <summary>
+    /// Scans a root, unless it reads as offline (A07, slice 4g plan, choice 3): it can't be listed, its drive holds
+    /// another disk than at its first scan, or it lists as empty though the catalog has files in it. Then nothing is
+    /// marked missing. File IDs are read only where its disk keeps them, so a moved file is followed rather than read.
+    /// </summary>
+    /// <returns>The other folders a file new here may have moved from (<see cref="ReconcileResult.MovedFrom"/>).</returns>
+    async Task<IReadOnlyList<long>> ScanRootAsync(SourceRoot root, IReadOnlyList<SourceRoot> all, CancellationToken ct)
     {
         var others = all.Where(r => r.Id != root.Id).Select(r => r.Path).ToList();
         var result = await Task.Run(() => SourceScanner.Scan(root.Path, others, ct), ct);
         var now = _clock.GetUtcNow().UtcDateTime;
-        if (result is null)
+        // A folder whose own listing fails is as good as unreachable.
+        if (result is null || result.Summary.Inaccessible.Contains("."))
         {
-            _log.LogInformation("Library folder {RootId} is offline", root.Id);
-            await library.SetRootAvailabilityAsync(root.Id, SourceRootAvailability.Offline, ct);
-            lock (_lock) _scans[root.Id] = new RootScan(root.Id, root.Path, false, null, null, now);
-            return;
+            await MarkOfflineAsync(root, OfflineReason.Unreachable, now, ct);
+            return [];
+        }
+        var volume = await Task.Run(() => _identity.Volume(root.Path), ct);
+        if (root.VolumeSerial is { } serial && volume is not null && !string.Equals(volume.Serial, serial, StringComparison.OrdinalIgnoreCase))
+        {
+            await MarkOfflineAsync(root, OfflineReason.DifferentDisk, now, ct);
+            return [];
+        }
+        if (result.Files.Count == 0 && await library.HasFilesAsync(root.Id, ct))
+        {
+            await MarkOfflineAsync(root, OfflineReason.LooksEmpty, now, ct);
+            return [];
         }
 
-        var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, ct);
+        Func<string, string?>? fileId = volume is { HasFileIds: true } ? relative => _identity.FileId(Path.Combine(root.Path, relative)) : null;
+        var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, fileId, volume?.Serial, ct);
         _log.LogInformation("Scanned library folder {RootId}: {Files} files, {Changes}", root.Id, result.Files.Count, changes);
+        if (root.Availability == SourceRootAvailability.Offline)
+        {
+            _log.LogInformation("Library folder {RootId} is back online", root.Id);
+            // Its watcher, if it had one, watched a drive that went away.
+            lock (_lock) _staleWatchers.Add(root.Id);
+        }
         lock (_lock)
         {
             _scans[root.Id] = new RootScan(root.Id, root.Path, true, result.Summary, changes, now);
@@ -354,18 +467,32 @@ public sealed class IndexingService(
             foreach (var stale in _unreadable.Values.Where(u => u.Path.StartsWith(root.Path, StringComparison.OrdinalIgnoreCase)).ToList())
                 _unreadable.Remove(stale.LocationId);
         }
+        return changes.MovedFrom ?? [];
     }
 
-    void SyncWatchers(IReadOnlyList<SourceRoot> current)
+    async Task MarkOfflineAsync(SourceRoot root, OfflineReason reason, DateTime now, CancellationToken ct)
     {
+        _log.LogInformation("Library folder {RootId} is offline: {Reason}", root.Id, reason);
+        await library.SetRootAvailabilityAsync(root.Id, SourceRootAvailability.Offline, ct);
+        lock (_lock) _scans[root.Id] = new RootScan(root.Id, root.Path, false, null, null, now, reason);
+    }
+
+    /// <summary>
+    /// One watcher per root. One that stopped, or whose folder came back online, is made again. Returns the offline
+    /// folders that could be watched again, which want a scan.
+    /// </summary>
+    List<long> SyncWatchers(IReadOnlyList<SourceRoot> current)
+    {
+        var reachable = new List<long>();
         lock (_lock)
         {
-            foreach (var gone in _watchers.Keys.Where(id => current.All(r => r.Id != id)).ToList())
+            foreach (var gone in _watchers.Keys.Where(id => current.All(r => r.Id != id) || _staleWatchers.Contains(id)).ToList())
             {
                 _watchers[gone].Watcher.Dispose();
                 _watchers[gone].Debounce.Dispose();
                 _watchers.Remove(gone);
             }
+            _staleWatchers.Clear();
             foreach (var root in current.Where(r => !_watchers.ContainsKey(r.Id)))
             {
                 var rootId = root.Id;
@@ -383,10 +510,18 @@ public sealed class IndexingService(
                     watcher.Changed += Changed;
                     watcher.Deleted += Changed;
                     watcher.Renamed += Changed;
-                    // A buffer overflow loses events; a rescan catches up with whatever they were.
-                    watcher.Error += Changed;
+                    // A buffer overflow loses events; a rescan catches up with whatever they were. Any other error, as
+                    // when its drive goes away, stops the watcher for good: the rescan finds the folder offline, and
+                    // the watcher is made again once it can be.
+                    watcher.Error += (sender, e) =>
+                    {
+                        if (e.GetException() is not InternalBufferOverflowException)
+                            lock (_lock) _staleWatchers.Add(rootId);
+                        Changed(sender, e);
+                    };
                     watcher.EnableRaisingEvents = true;
                     _watchers[rootId] = (watcher, debounce);
+                    if (root.Availability == SourceRootAvailability.Offline) reachable.Add(rootId);
                 }
                 catch (Exception ex) when (ex is ArgumentException or IOException or PlatformNotSupportedException)
                 {
@@ -395,6 +530,7 @@ public sealed class IndexingService(
                 }
             }
         }
+        return reachable;
     }
 
     // ---- Hashing --------------------------------------------------------------------------------------------------

@@ -27,6 +27,8 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     public const int RowLength = 8;
 
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
+    /// <summary>The books whose files are offline or missing as of the last refresh, so their covers are marked.</summary>
+    IReadOnlyDictionary<EntryId, EntryAvailability> _away = new Dictionary<EntryId, EntryAvailability>();
     int _version;
 
     public override Route Route => Route.Home;
@@ -130,6 +132,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         try
         {
             var scope = await library.GetVisibleEntryIdsAsync();
+            _away = await library.GetUnavailableAsync();
             var (opened, added, favorite) = await Task.Run(async () => (
                 await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: RowLength),
                 await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: RowLength),
@@ -163,12 +166,10 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     LibraryItemViewModel Item(LibraryEntry entry)
     {
-        if (_known.TryGetValue(entry.EntryId, out var item))
-        {
-            item.Update(entry);
-            return item;
-        }
-        return _known[entry.EntryId] = new LibraryItemViewModel(entry, covers);
+        if (_known.TryGetValue(entry.EntryId, out var item)) item.Update(entry);
+        else item = _known[entry.EntryId] = new LibraryItemViewModel(entry, covers);
+        item.ShowAvailability(_away.GetValueOrDefault(entry.EntryId));
+        return item;
     }
 
     /// <summary>A cover: the Library with that book's details open.</summary>

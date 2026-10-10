@@ -120,7 +120,8 @@ public static class SourceScanner
         });
     }
 
-    static bool IsUnder(string path, string root) =>
+    /// <summary>Whether <paramref name="path"/> is <paramref name="root"/> or a folder or file inside it, as Windows compares paths.</summary>
+    internal static bool IsUnder(string path, string root) =>
         path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
         && (path.Length == root.Length || path[root.Length] == Path.DirectorySeparatorChar || path[root.Length] == Path.AltDirectorySeparatorChar);
 }

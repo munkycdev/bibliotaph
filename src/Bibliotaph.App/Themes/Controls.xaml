@@ -745,6 +745,13 @@
                 Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" Visibility="Collapsed">
           <TextBlock Text="Elsewhere" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
         </Border>
+        <!-- A book whose folder is offline or whose file is missing (4g): the cover dims, and a mark says which. -->
+        <Viewbox x:Name="AwayMark" StretchDirection="DownOnly" Margin="4,0,4,8" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                 Visibility="Collapsed" ToolTip="{Binding AvailabilityTip}">
+          <Border Padding="7,2" CornerRadius="3" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1">
+            <TextBlock Text="{Binding AvailabilityLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+          </Border>
+        </Viewbox>
         <!-- A model has read this book (2c). -->
         <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
                 Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
@@ -763,6 +770,12 @@
       </DataTrigger>
       <DataTrigger Binding="{Binding IsElsewhere}" Value="True">
         <Setter TargetName="ElsewhereMark" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsAway}" Value="True">
+        <Setter TargetName="AwayMark" Property="Visibility" Value="Visible" />
+        <Setter TargetName="Placeholder" Property="Opacity" Value="0.4" />
+        <Setter TargetName="SingleCover" Property="Opacity" Value="0.4" />
+        <Setter TargetName="Mosaic" Property="Opacity" Value="0.4" />
       </DataTrigger>
       <DataTrigger Binding="{Binding IsPack}" Value="True">
         <Setter TargetName="Mosaic" Property="Visibility" Value="Visible" />

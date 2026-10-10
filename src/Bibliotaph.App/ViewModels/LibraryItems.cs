@@ -110,6 +110,40 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(FavoriteAction));
     }
 
+    /// <summary>
+    /// Whether the card's file can be opened now (slice 4g plan, choices 1 and 5). An offline or missing book stays in
+    /// the library with its cover dimmed and marked. The page that lists it sets it from the catalog.
+    /// </summary>
+    public EntryAvailability Availability { get; private set; }
+
+    /// <summary>The cover is dimmed and marked: the file is offline or missing.</summary>
+    public bool IsAway => Availability != EntryAvailability.Present;
+
+    /// <summary>"Offline" or "File missing", for the mark on the cover and the list row; empty while the file is here.</summary>
+    public string AvailabilityLabel => Availability switch
+    {
+        EntryAvailability.Offline => "Offline",
+        EntryAvailability.Missing => "File missing",
+        _ => "",
+    };
+
+    public string? AvailabilityTip => Availability switch
+    {
+        EntryAvailability.Offline => "Its folder can't be reached right now. It comes back with the folder.",
+        EntryAvailability.Missing => "Its file isn't where it was. The details show where it was last; the card stays until the file turns up.",
+        _ => null,
+    };
+
+    public void ShowAvailability(EntryAvailability availability)
+    {
+        if (availability == Availability) return;
+        Availability = availability;
+        OnPropertyChanged(nameof(Availability));
+        OnPropertyChanged(nameof(IsAway));
+        OnPropertyChanged(nameof(AvailabilityLabel));
+        OnPropertyChanged(nameof(AvailabilityTip));
+    }
+
     /// <summary>When this book was last opened, for Home; null if never.</summary>
     public DateTime? OpenedUtc => Entry.OpenedUtc;
 

@@ -1,6 +1,9 @@
 namespace Bibliotaph.Core;
 
-/// <summary>Whether a source root can be read right now. An offline root never marks its files missing.</summary>
+/// <summary>
+/// Whether a source root can be read right now. An offline root never marks its files missing: one that can't be
+/// reached, holds a different disk than it did (another volume serial), or lists as empty when it held files.
+/// </summary>
 public enum SourceRootAvailability
 {
     Online,
@@ -14,6 +17,19 @@ public enum FileLocationState
     Missing,
     /// <summary>A cloud placeholder (OneDrive recall-on-data-access); reading it downloads it.</summary>
     OnlineOnly,
+}
+
+/// <summary>
+/// Whether a library card's file can be opened now (slice 4g plan, choices 1 and 5). A card whose files are all offline
+/// or missing stays in the library, dimmed and marked, rather than dropping out.
+/// </summary>
+public enum EntryAvailability
+{
+    Present,
+    /// <summary>Its files are in folders that can't be reached right now.</summary>
+    Offline,
+    /// <summary>Every file of it is gone from where it was, until the same content turns up elsewhere.</summary>
+    Missing,
 }
 
 public enum ProtectionType

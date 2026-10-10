@@ -110,7 +110,7 @@
           <!-- Opens Settings > Processing, where the details and pause buttons are. -->
           <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding OpenProcessingCommand}"
-                  AutomationProperties.Name="{Binding Activity.Summary, StringFormat='{}{0}. Open processing in Settings'}"
+                  AutomationProperties.Name="{Binding Activity.StatusName, StringFormat='{}{0}. Open processing in Settings'}"
                   ToolTip="Open processing in Settings">
             <Button.Template>
               <ControlTemplate TargetType="Button">
@@ -125,7 +125,8 @@
               </ControlTemplate>
             </Button.Template>
             <StackPanel Orientation="Horizontal">
-              <Ellipse Width="6" Height="6" VerticalAlignment="Center">
+              <!-- Beside the first line, which a second one (folders offline) may follow. -->
+              <Ellipse Width="6" Height="6" VerticalAlignment="Top" Margin="0,5,0,0">
                 <Ellipse.Style>
                   <Style TargetType="Ellipse">
                     <Setter Property="Fill" Value="{DynamicResource Bt.StatusOk}" />
@@ -138,8 +139,12 @@
                   </Style>
                 </Ellipse.Style>
               </Ellipse>
-              <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="8,0,0,0"
-                         TextTrimming="CharacterEllipsis" />
+              <StackPanel Margin="8,0,0,0">
+                <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" />
+                <!-- Folders that can't be reached (4g): their books stay, dimmed and marked Offline. -->
+                <TextBlock x:Name="OfflineFolders" Text="{Binding Activity.OfflineText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis" Visibility="{Binding Activity.HasOfflineFolders, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </StackPanel>
             </StackPanel>
           </Button>
           <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
