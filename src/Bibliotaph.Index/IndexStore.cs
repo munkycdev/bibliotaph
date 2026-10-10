@@ -35,7 +35,17 @@ public sealed record PageTextRow(int PdfPage, string Text, string Source, double
 public sealed record OcrWordRow(string Text, double Left, double Top, double Right, double Bottom);
 
 /// <summary>A library card: an entry and the document it shows.</summary>
-public sealed record EntryDocRow(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1);
+public sealed record EntryDocRow(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1)
+{
+    /// <summary>A pack's name, from its folder or ZIP.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>A pack's images, in file name order.</summary>
+    public IReadOnlyList<EntryMemberRow> Members { get; init; } = [];
+}
+
+/// <summary>An image in a pack: the document it shows, its own entry and its file name.</summary>
+public sealed record EntryMemberRow(long DocumentId, EntryId MemberEntryId, string Name);
 
 /// <summary>One value of a vocabulary field: a term key and its label.</summary>
 public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed);
@@ -233,13 +243,19 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         {
             foreach (var entry in entries)
             {
+                var entryId = entry.EntryId.Value;
                 c.Execute(
                     """
-                    INSERT INTO entry_doc (entry_id, document_id, kind, copies) VALUES (@entryId, @documentId, @kind, @copies)
-                    ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies
+                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members)
+                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members)
+                    ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies,
+                        name = excluded.name, members = excluded.members
                     """,
-                    new { entryId = entry.EntryId.Value, documentId = entry.DocumentId, kind = entry.Kind.ToString(), copies = entry.Copies }, t);
-                RefreshEntrySearch(c, t, entry.EntryId.Value);
+                    new { entryId, documentId = entry.DocumentId, kind = entry.Kind.ToString(), copies = entry.Copies, name = entry.Name, members = entry.Members.Count }, t);
+                c.Execute("DELETE FROM entry_member WHERE entry_id = @entryId", new { entryId }, t);
+                c.Execute("INSERT INTO entry_member (entry_id, ord, document_id, member_entry_id, name) VALUES (@entryId, @ord, @DocumentId, @member, @Name)",
+                    entry.Members.Select((m, ord) => new { entryId, ord, m.DocumentId, member = m.MemberEntryId.Value, m.Name }), t);
+                RefreshEntrySearch(c, t, entryId);
             }
         }, ct);
 
@@ -317,6 +333,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 c.Execute(
                     """
                     DELETE FROM entry_doc WHERE entry_id = @id;
+                    DELETE FROM entry_member WHERE entry_id = @id;
                     DELETE FROM entry_meta WHERE entry_id = @id;
                     DELETE FROM entry_facet WHERE entry_id = @id;
                     DELETE FROM entry_ai WHERE entry_id = @id;
@@ -368,8 +385,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
 
     /// <summary>
     /// Rebuilds an entry's entry_fts row from its document's doc row and its projected metadata. The effective title
-    /// is the title; the file name's title, the PDF's own information and the folder names are provisional text. An
-    /// entry whose document Probe hasn't reached has no row yet.
+    /// (or a pack's name) is the title; the file name's title, the PDF's own information and the folder names are
+    /// provisional text. An entry whose document Probe hasn't reached has no row yet.
     /// </summary>
     static void RefreshEntrySearch(SqliteConnection c, SqliteTransaction t, long entryId)
     {
@@ -377,11 +394,12 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         c.Execute(
             """
             INSERT INTO entry_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
-            SELECT e.entry_id, coalesce(m.title, d.display_title), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
+            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
                    coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), '', coalesce(m.confirmed_text, ''),
                    coalesce(m.provisional_text, '') || ' · ' || coalesce(d.meta_title, '') || ' · ' || coalesce(d.meta_author, '') || ' · '
                        || coalesce(d.meta_keywords, '') || ' · ' || coalesce(d.folder_hint, '')
-                       || CASE WHEN m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
+                       || CASE WHEN e.kind <> 'Pack' AND m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
+                       || CASE WHEN m.title IS NOT NULL AND e.name IS NOT NULL AND m.title <> e.name THEN ' · ' || e.name ELSE '' END
             FROM entry_doc e JOIN doc d ON d.document_id = e.document_id LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
             WHERE e.entry_id = @entryId
             """,

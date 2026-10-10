@@ -40,7 +40,7 @@ static class ViewerMeasurement
         try
         {
             var visible = await library.GetVisibleEntryIdsAsync();
-            var pdfs = await Task.Run(() => queries.ListAsync(new LibraryFilter(visible, FormatFilter.Pdf, LibrarySort.RecentlyAdded)));
+            var pdfs = await Task.Run(() => queries.ListAsync(new LibraryFilter(visible, KindFilter.Books, LibrarySort.RecentlyAdded)));
             Log.Information("Measuring the viewer on up to {Documents} of {Pdfs} PDFs, {Pages} pages each", MaxDocuments, pdfs.Count, PagesPerDocument);
 
             await using var renderer = new PdfRenderer(worker, Dispatcher.CurrentDispatcher);

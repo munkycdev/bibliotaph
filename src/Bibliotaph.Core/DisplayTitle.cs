@@ -25,9 +25,13 @@ public static partial class DisplayTitle
     [GeneratedRegex(@"^(v?\d+([.\-]\d+)*|\d{6,})$", RegexOptions.IgnoreCase)]
     private static partial Regex VersionOrDate();
 
-    public static string FromFileName(string fileName)
+    public static string FromFileName(string fileName) => FromStem(Path.GetFileNameWithoutExtension(fileName));
+
+    /// <summary>A pack's title from its folder's name, which has no extension to drop ("Tokens.v2" keeps its dot).</summary>
+    public static string FromFolderName(string folderName) => FromStem(folderName);
+
+    static string FromStem(string stem)
     {
-        var stem = Path.GetFileNameWithoutExtension(fileName);
         var words = Separators().IsMatch(stem)
             ? Separators().Split(stem)
             : HyphenatedResolution().Replace(stem, "$1res").Split('-');

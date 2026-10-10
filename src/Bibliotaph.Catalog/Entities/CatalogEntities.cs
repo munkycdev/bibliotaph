@@ -84,7 +84,10 @@ public sealed class Entry
 {
     public long Id { get; set; }
     public EntryKind Kind { get; set; }
-    /// <summary>For a part, the compilation's entry.</summary>
+    /// <summary>
+    /// For a part, the compilation's entry. For an image in a pack, the pack: the image keeps its own entry, with its
+    /// sources and anything set on it, but shows only inside the pack until the pack is split (F4 plan, choice 5).
+    /// </summary>
     public long? ParentEntryId { get; set; }
     public Entry? ParentEntry { get; set; }
     /// <summary>
@@ -132,6 +135,24 @@ public sealed class EntryJoin
     public long MatchedDocumentId { get; set; }
     /// <summary>The ids of the assertions, rejections and runs that moved, and of the values set aside, as JSON.</summary>
     public required string MovedJson { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// A folder or ZIP whose images were made one pack card, or split again (F4 plan, choices 2 to 5). A ZIP counts as a
+/// whole, subfolders included; a folder only for the images directly in it. Remembered by path, so a rescan neither
+/// packs a split folder again nor loses the pack's card.
+/// </summary>
+public sealed class PackDecision
+{
+    public long Id { get; set; }
+    public long SourceRootId { get; set; }
+    /// <summary>The folder's path in its root, or the ZIP's ("Tokens\Undead", "Maps\Harbor Set.zip").</summary>
+    public required string FolderPath { get; set; }
+    public bool IsArchive { get; set; }
+    public PackAnswer Answer { get; set; }
+    /// <summary>The pack's entry. A split pack keeps it, with anything set on it, in case the folder is packed again.</summary>
+    public long EntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
 }
 

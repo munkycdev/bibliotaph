@@ -134,6 +134,30 @@
                     AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
+          <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
+          <StackPanel x:Name="PackSteps" Orientation="Horizontal">
+            <StackPanel.Style>
+              <Style TargetType="StackPanel">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                      <Condition Binding="{Binding IsImage}" Value="True" />
+                      <Condition Binding="{Binding IsInPack}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible" />
+                  </MultiDataTrigger>
+                </Style.Triggers>
+              </Style>
+            </StackPanel.Style>
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous image (Left arrow)"
+                    AutomationProperties.Name="Previous image" Command="{Binding PreviousImageCommand}" />
+            <TextBlock Text="{Binding PackPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0"
+                       AutomationProperties.Name="Image in pack" />
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next image (Right arrow)"
+                    AutomationProperties.Name="Next image" Command="{Binding NextImageCommand}" />
+            <Border Style="{StaticResource Divider}" />
+          </StackPanel>
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Minus}" ToolTip="Zoom out (Ctrl+minus)"
                   AutomationProperties.Name="Zoom out" Command="NavigationCommands.DecreaseZoom" Margin="0,0,4,0" />
           <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ZoomChoices}" SelectedValuePath="Value" SelectedValue="{Binding Zoom}"

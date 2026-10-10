@@ -105,6 +105,15 @@ public enum CopyAnswer
     NotSameBook,
 }
 
+/// <summary>What happens to the images in a folder or ZIP (F4 plan, choices 2 to 4).</summary>
+public enum PackAnswer
+{
+    /// <summary>Its images are one pack card, and images added later join it.</summary>
+    Packed,
+    /// <summary>"Split into separate images": each image has its own card, and the folder isn't packed again.</summary>
+    Split,
+}
+
 /// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>
 public enum VersionEvidence
 {

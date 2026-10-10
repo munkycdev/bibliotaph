@@ -92,6 +92,14 @@ public partial class ViewerView
             FindBox.SelectAll();
             e.Handled = true;
         }
+        // In a pack, the arrow keys step through its images (F4 plan, choice 7), ahead of the image's scroll bars.
+        else if (e.Key is Key.Left or Key.Right && Keyboard.Modifiers == ModifierKeys.None && _model is { IsImage: true, IsInPack: true }
+            && e.OriginalSource is not System.Windows.Controls.Primitives.TextBoxBase)
+        {
+            var command = e.Key == Key.Left ? _model.PreviousImageCommand : _model.NextImageCommand;
+            if (command.CanExecute(null)) command.Execute(null);
+            e.Handled = true;
+        }
     }
 
     // The step starts from the size on screen, which only the surface knows when the pages are fitted.

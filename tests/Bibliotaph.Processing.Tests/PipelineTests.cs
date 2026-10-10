@@ -34,6 +34,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     MetadataService _metadata = null!;
     MetadataStore _metadataStore = null!;
     MetadataProjector _projector = null!;
+    PackService _packs = null!;
     VocabularyStore _vocabulary = null!;
     SettingsStore _settings = null!;
     readonly FakeModel _model = new();
@@ -68,13 +69,13 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var index = new IndexStore(_writer);
         var archives = new ArchiveReader(reader);
         _sources = new SourceFiles(_paths, archives, new DiskSpace());
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources);
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
         _runs = new ClassificationStore(contexts);
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs);
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources, projector);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
@@ -91,7 +92,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
                 new MatchStage(entries, versions, index, _queries, projector),
             ],
             new FileHasher(reader), new DiskSpace(), archives,
-            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
+            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
+            packs: _packs = new PackService(new PackStore(contexts), projector));
     }
 
     public async ValueTask DisposeAsync()

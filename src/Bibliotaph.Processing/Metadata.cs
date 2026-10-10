@@ -15,11 +15,19 @@ namespace Bibliotaph.Processing;
 /// never the assertions, so rebuilding it loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
-    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null)
+    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null) : IDisposable
 {
     const int Batch = 200;
 
     readonly ILogger _log = log ?? NullLogger<MetadataProjector>.Instance;
+
+    /// <summary>
+    /// One projection at a time. Each reads catalog.db then writes index.db, so two interleaved could write back what
+    /// the other had just taken away: a stage projecting an image as its own card after the image joined a pack.
+    /// </summary>
+    readonly SemaphoreSlim _gate = new(1, 1);
+
+    public void Dispose() => _gate.Dispose();
 
     /// <summary>Raised after entries' metadata changed in index.db, on a background thread.</summary>
     public event EventHandler<IReadOnlyCollection<EntryId>>? Projected;
@@ -27,6 +35,37 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     public async Task ProjectAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         if (entryIds.Count == 0) return;
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await WriteAsync(entryIds, ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        Projected?.Invoke(this, entryIds);
+    }
+
+    /// <summary>
+    /// Records which cards show a document that has just been read, so it appears in the library. Taken with the other
+    /// projections, so it can't put back a card that one has just removed.
+    /// </summary>
+    public async Task ProjectShownByAsync(long documentId, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await index.SetEntriesAsync([.. (await entries.GetShownByAsync(documentId, ct)).Select(ToRow)], ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    async Task WriteAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct)
+    {
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
         var current = await entries.GetCurrentAsync(entryIds, ct);
@@ -38,10 +77,13 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. shown.Where(id => !all.ContainsKey(id))], ct);
         if (runs is not null) await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
-        Projected?.Invoke(this, entryIds);
     }
 
-    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies);
+    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
+    {
+        Name = entry.Name,
+        Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
+    };
 
     /// <summary>Copies every name of every term into index.db, for field search. Run when a term is added.</summary>
     public async Task ProjectVocabularyAsync(CancellationToken ct = default)
@@ -54,6 +96,21 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     public async Task ProjectAllAsync(CancellationToken ct = default)
     {
         await ProjectVocabularyAsync(ct);
+        IReadOnlyCollection<EntryId> projected;
+        await _gate.WaitAsync(ct);
+        try
+        {
+            projected = await WriteAllAsync(ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        Projected?.Invoke(this, projected);
+    }
+
+    async Task<IReadOnlyCollection<EntryId>> WriteAllAsync(CancellationToken ct)
+    {
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
         var current = await entries.GetCurrentAsync(ct: ct);
@@ -68,7 +125,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.ClearMetadataAsync([.. withMetadata.Where(id => shown.Contains(id) && !all.ContainsKey(id))], ct);
         if (runs is not null) await index.SetAiReadAsync(null, (await runs.GetReadByAsync(ct: ct)).Where(r => shown.Contains(r.Key)).ToDictionary(), ct);
         _log.LogInformation("Projected metadata for {Count} entries", all.Count);
-        Projected?.Invoke(this, [.. all.Keys]);
+        return [.. all.Keys];
     }
 
     /// <summary>Whether every suggestion goes to Needs review, not only those a person has to look at (choice 4).</summary>

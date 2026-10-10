@@ -11,7 +11,16 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
 {
     /// <summary>The zoom to open at, as the reader's Zoom; null fits the width.</summary>
     public double? Zoom { get; init; }
+
+    /// <summary>For an image in a pack, every image in it in order, for Previous and Next (F4 plan, choice 7).</summary>
+    public IReadOnlyList<PackStep>? Pack { get; init; }
+
+    /// <summary>The pack's title, under the image's.</summary>
+    public string? PackTitle { get; init; }
 }
+
+/// <summary>An image of a pack the viewer can step to.</summary>
+public sealed record PackStep(long DocumentId, string Title);
 
 /// <summary>
 /// Passwords that opened a book in this sitting, by content hash, so the same book opening in another window (or

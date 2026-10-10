@@ -118,6 +118,9 @@ public sealed class IndexDatabaseTests : IDisposable
         // Version 6: cards count their copies, and Match looks pages up by fingerprint.
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT copies FROM entry_doc"));
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = 'page_fingerprint'"));
+        // Version 7: packs have a name and their images.
+        Assert.Equal((null, 0L), read.QuerySingle<(string?, long)>("SELECT name, members FROM entry_doc"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_member"));
     }
 
     [Fact]
