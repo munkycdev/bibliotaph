@@ -9,13 +9,17 @@ namespace Bibliotaph.Catalog;
 /// <summary>
 /// An entry and the document its card shows: the current source, which opens and supplies cover and pages, and how
 /// many copies (whole-document sources) the entry has. A pack shows its first image, and has a
-/// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> in file name order.
+/// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> in file name order. A book owned elsewhere
+/// has no document and no copies.
 /// </summary>
-public sealed record EntryDocument(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1)
+public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind Kind, int Copies = 1)
 {
     public string? Name { get; init; }
 
     public IReadOnlyList<PackMember>? Members { get; init; }
+
+    /// <summary>When a book owned elsewhere was added; a file's card goes by its document's.</summary>
+    public DateTime? AddedUtc { get; init; }
 }
 
 /// <summary>An image in a pack: its own entry, the document it shows, and its file name.</summary>
@@ -32,6 +36,12 @@ public sealed record EntryCopy(long DocumentId, string ContentHash, int? PageCou
 
 /// <summary>A copy that joined another entry: the entry it joined and the one it left, which Undo brings back.</summary>
 public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
+
+/// <summary>
+/// A book owned elsewhere that the user removed, with what was set on it, so Undo can put it back
+/// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
+/// </summary>
+public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections);
 
 /// <summary>
 /// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
@@ -75,11 +85,19 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     public async Task<long?> GetCurrentDocumentAsync(EntryId entryId, CancellationToken ct = default) =>
         (await GetCurrentAsync([entryId], ct)) is [var current, ..] ? current.DocumentId : null;
 
+    /// <summary>The kind of <paramref name="entryId"/>, or null for an entry the catalog doesn't have.</summary>
+    public async Task<EntryKind?> GetKindAsync(EntryId entryId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Entries.AsNoTracking().Where(e => e.Id == entryId.Value).Select(e => (EntryKind?)e.Kind).SingleOrDefaultAsync(ct);
+    }
+
     /// <summary>
     /// The document each entry's card shows, for <paramref name="entryIds"/> or, when it is null, every entry with
     /// one. That is the current copy, unless none of its files is left and another copy's is (choice 6): then the
     /// newest copy with a file. An entry with no file (owned elsewhere, or joined to another) isn't listed, nor is an
-    /// image in a pack: the pack is, showing its first image that has a file, with all of them as its members.
+    /// image in a pack: the pack is, showing its first image that has a file, with all of them as its members. A book
+    /// owned elsewhere is listed with no document (F5 plan, choice 2).
     /// </summary>
     public async Task<IReadOnlyList<EntryDocument>> GetCurrentAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
@@ -99,7 +117,110 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         if (ids is not null) packs = packs.Where(e => ids.Contains(e.Id));
         var packIds = await packs.Select(e => e.Id).ToListAsync(ct);
         if (packIds.Count > 0) current.AddRange(await GetPacksAsync(db, packIds, ct));
+
+        var elsewhere = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any());
+        if (ids is not null) elsewhere = elsewhere.Where(e => ids.Contains(e.Id));
+        current.AddRange((await elsewhere.Select(e => new { e.Id, e.CreatedUtc }).ToListAsync(ct))
+            .Select(e => new EntryDocument(new EntryId(e.Id), null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = e.CreatedUtc }));
         return current;
+    }
+
+    /// <summary>Makes a card for a book the user owns elsewhere (F5 plan, choice 2): an entry with no sources, for their own values.</summary>
+    public async Task<EntryId> AddElsewhereAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var entry = db.Entries.Add(new Entry { Kind = EntryKind.Elsewhere, CreatedUtc = _clock.GetUtcNow().UtcDateTime }).Entity;
+        await db.SaveChangesAsync(ct);
+        return new EntryId(entry.Id);
+    }
+
+    /// <summary>
+    /// "Remove from library" (choice 5): deletes a book owned elsewhere and everything set on it, returning that for
+    /// Undo. Null for any other card: a file's card goes when its file does.
+    /// </summary>
+    public async Task<RemovedEntry?> RemoveElsewhereAsync(EntryId entryId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var entry = await db.Entries.Include(e => e.Assertions).Include(e => e.Rejections)
+            .SingleOrDefaultAsync(e => e.Id == entryId.Value && e.Kind == EntryKind.Elsewhere && !e.Sources.Any(), ct);
+        if (entry is null) return null;
+        var removed = new RemovedEntry(entryId, entry.CreatedUtc,
+            [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })]);
+        db.Entries.Remove(entry);
+        await db.SaveChangesAsync(ct);
+        return removed;
+    }
+
+    /// <summary>Undoes <see cref="RemoveElsewhereAsync"/>: the book comes back, with what was set on it, as a new card.</summary>
+    public async Task<EntryId> RestoreElsewhereAsync(RemovedEntry removed, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var entry = new Entry { Kind = EntryKind.Elsewhere, CreatedUtc = removed.CreatedUtc };
+        entry.Assertions.AddRange(removed.Assertions.Select(Detached));
+        entry.Rejections.AddRange(removed.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc }));
+        db.Entries.Add(entry);
+        await db.SaveChangesAsync(ct);
+        return new EntryId(entry.Id);
+    }
+
+    static Assertion Detached(Assertion a) => new()
+    {
+        Field = a.Field,
+        ValueJson = a.ValueJson,
+        NormalizedValue = a.NormalizedValue,
+        Origin = a.Origin,
+        ContentHash = a.ContentHash,
+        EvidencePagesJson = a.EvidencePagesJson,
+        EvidenceQuote = a.EvidenceQuote,
+        FromSampling = a.FromSampling,
+        RunId = a.RunId,
+        State = a.State,
+        CreatedUtc = a.CreatedUtc,
+        DecidedUtc = a.DecidedUtc,
+    };
+
+    /// <summary>
+    /// "Same book" on an owned-elsewhere card (F5 plan, choice 6): the file's card joins the book owned elsewhere,
+    /// which keeps everything set on it and becomes a whole entry that opens the file. What the file's card brings
+    /// moves across as a copy's does (<see cref="JoinAsCopyAsync"/>). Null when either has gone or they are one card.
+    /// </summary>
+    public async Task<CopyJoin?> JoinElsewhereAsync(EntryId elsewhereId, long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var entry = await db.Entries.SingleOrDefaultAsync(e => e.Id == elsewhereId.Value && e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null, ct);
+        var joining = await db.EntrySources.Where(s => s.DocumentId == documentId && s.FirstPdfPage == null).Select(s => (long?)s.EntryId).FirstOrDefaultAsync(ct);
+        if (entry is null || joining is null || joining == entry.Id) return null;
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var moved = await MoveAsync(db, joining.Value, entry.Id, ct);
+        foreach (var source in db.EntrySources.Local.Where(s => s.EntryId == entry.Id && s.FirstPdfPage == null))
+            source.IsCurrent = source.DocumentId == documentId;
+        entry.Kind = EntryKind.Whole;
+        // The join records the file as matching itself: there was no copy on the book's card to match.
+        AddJoin(db, entry.Id, joining.Value, documentId, documentId, moved);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new CopyJoin(elsewhereId, new EntryId(joining.Value));
+    }
+
+    /// <summary>
+    /// Undoes <see cref="JoinElsewhereAsync"/>: the file goes back to its own card with what it brought, and the book is
+    /// owned elsewhere again. Returns the file's card, or null when the file didn't join that book this way.
+    /// </summary>
+    public async Task<EntryId?> UndoJoinElsewhereAsync(EntryId entryId, long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var join = await db.EntryJoins.Where(j => j.EntryId == entryId.Value && j.DocumentId == documentId && j.MatchedDocumentId == documentId)
+            .OrderByDescending(j => j.Id).FirstOrDefaultAsync(ct);
+        if (join is null) return null;
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var sources = await db.EntrySources.Where(s => s.EntryId == entryId.Value).ToListAsync(ct);
+        await RestoreAsync(db, entryId.Value, join, sources, ct);
+        await db.SaveChangesAsync(ct);
+        if (!await db.EntrySources.AnyAsync(s => s.EntryId == entryId.Value, ct))
+            (await db.Entries.SingleAsync(e => e.Id == entryId.Value, ct)).Kind = EntryKind.Elsewhere;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new EntryId(join.JoinedEntryId);
     }
 
     /// <summary>Each pack with an image that has a file: its first image, its name, and its images in file name order.</summary>
@@ -183,14 +304,26 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var target = older.EntryId;
         var joining = newer.EntryId;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var moved = await MoveAsync(db, joining, target, ct);
+        foreach (var source in db.EntrySources.Local.Where(s => s.EntryId == target && moved.Sources.Any(m => m.Id == s.Id)))
+            source.IsCurrent = false;
+        AddJoin(db, target, joining, newer.DocumentId, older.DocumentId, moved);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new CopyJoin(new EntryId(target), new EntryId(joining));
+    }
 
+    /// <summary>
+    /// Moves one card onto another: its sources, its suggestions and runs, its rejections unless the other card has
+    /// them, and a value the user set that disagrees with one set on the other card, for a field with one value, set
+    /// aside for a "Copies disagree" card (choice 7). The card that joined keeps its id, marked as merged. Returns what
+    /// moved, which the caller records; the caller saves.
+    /// </summary>
+    static async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
+    {
         var sources = await db.EntrySources.Where(s => s.EntryId == joining).ToListAsync(ct);
         var moved = new MovedRows { Sources = [.. sources.Select(s => new MovedSource(s.Id, s.IsCurrent))] };
-        foreach (var source in sources)
-        {
-            source.EntryId = target;
-            source.IsCurrent = false;
-        }
+        foreach (var source in sources) source.EntryId = target;
 
         var settled = await db.Assertions.AsNoTracking()
             .Where(a => a.EntryId == target && a.State == AssertionState.Confirmed)
@@ -222,20 +355,53 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             moved.Runs.Add(run.Id);
         }
 
-        var entry = await db.Entries.SingleAsync(e => e.Id == joining, ct);
-        entry.MergedIntoEntryId = target;
+        (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
+        return moved;
+    }
+
+    void AddJoin(CatalogDbContext db, long target, long joining, long documentId, long matchedDocumentId, MovedRows moved) =>
         db.EntryJoins.Add(new EntryJoin
         {
             EntryId = target,
             JoinedEntryId = joining,
-            DocumentId = newer.DocumentId,
-            MatchedDocumentId = older.DocumentId,
+            DocumentId = documentId,
+            MatchedDocumentId = matchedDocumentId,
             MovedJson = JsonSerializer.Serialize(moved),
             CreatedUtc = _clock.GetUtcNow().UtcDateTime,
         });
+
+    /// <summary>
+    /// Puts back what a join moved: the sources go back to the card that joined, as current as they were, with the
+    /// assertions, rejections and runs they brought, and that card shows again. The caller saves.
+    /// </summary>
+    static async Task RestoreAsync(CatalogDbContext db, long entryId, EntryJoin join, List<EntrySource> sources, CancellationToken ct)
+    {
+        var card = join.JoinedEntryId;
+        var moved = JsonSerializer.Deserialize<MovedRows>(join.MovedJson) ?? new MovedRows();
+        var sourceIds = moved.Sources.Select(s => s.Id).ToList();
+        // Cleared first and saved: the unique index allows one current source per entry at any moment.
+        foreach (var source in sources.Where(s => sourceIds.Contains(s.Id))) source.IsCurrent = false;
         await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return new CopyJoin(new EntryId(target), new EntryId(joining));
+        foreach (var source in sources.Where(s => sourceIds.Contains(s.Id)))
+        {
+            source.EntryId = card;
+            source.IsCurrent = moved.Sources.Single(s => s.Id == source.Id).WasCurrent;
+        }
+        if (!sources.Any(s => s.EntryId == card && s.IsCurrent) && sources.FirstOrDefault(s => s.DocumentId == join.DocumentId && s.FirstPdfPage == null) is { } leaving)
+            leaving.IsCurrent = true;
+        foreach (var assertion in await db.Assertions.Where(a => a.EntryId == entryId && moved.Assertions.Contains(a.Id)).ToListAsync(ct))
+        {
+            assertion.EntryId = card;
+            // Back to what it was on its own card, even after the user settled the disagreement on this one.
+            if (moved.SetAside.Contains(assertion.Id) && assertion.State is AssertionState.SetAside or AssertionState.Superseded)
+                assertion.State = AssertionState.Confirmed;
+        }
+        foreach (var rejection in await db.Rejections.Where(r => r.EntryId == entryId && moved.Rejections.Contains(r.Id)).ToListAsync(ct))
+            rejection.EntryId = card;
+        foreach (var run in await db.ClassificationRuns.Where(r => r.EntryId == entryId && moved.Runs.Contains(r.Id)).ToListAsync(ct))
+            run.EntryId = card;
+        (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
+        db.EntryJoins.Remove(join);
     }
 
     /// <summary>
@@ -260,27 +426,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         if (join is not null)
         {
             card = join.JoinedEntryId;
-            var moved = JsonSerializer.Deserialize<MovedRows>(join.MovedJson) ?? new MovedRows();
-            var sourceIds = moved.Sources.Select(s => s.Id).ToList();
-            foreach (var source in sources.Where(s => sourceIds.Contains(s.Id)))
-            {
-                source.EntryId = card;
-                source.IsCurrent = moved.Sources.Single(s => s.Id == source.Id).WasCurrent;
-            }
-            if (!sources.Any(s => s.EntryId == card && s.IsCurrent)) leaving.IsCurrent = true;
-            foreach (var assertion in await db.Assertions.Where(a => a.EntryId == entryId.Value && moved.Assertions.Contains(a.Id)).ToListAsync(ct))
-            {
-                assertion.EntryId = card;
-                // Back to what it was on its own card, even after the user settled the disagreement on this one.
-                if (moved.SetAside.Contains(assertion.Id) && assertion.State is AssertionState.SetAside or AssertionState.Superseded)
-                    assertion.State = AssertionState.Confirmed;
-            }
-            foreach (var rejection in await db.Rejections.Where(r => r.EntryId == entryId.Value && moved.Rejections.Contains(r.Id)).ToListAsync(ct))
-                rejection.EntryId = card;
-            foreach (var run in await db.ClassificationRuns.Where(r => r.EntryId == entryId.Value && moved.Runs.Contains(r.Id)).ToListAsync(ct))
-                run.EntryId = card;
-            (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
-            db.EntryJoins.Remove(join);
+            await RestoreAsync(db, entryId.Value, join, sources, ct);
         }
         else
         {

@@ -71,6 +71,45 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_book_owned_elsewhere_is_listed_found_by_title_and_where_it_is_owned_but_never_inside_documents()
+    {
+        var store = new IndexStore(Writer, Clock);
+        var printed = new EntryId(70);
+        Clock.Advance(TimeSpan.FromHours(1));
+        await store.SetEntriesAsync([new EntryDocRow(printed, null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = Clock.GetUtcNow().UtcDateTime }], Ct);
+        await store.SetMetadataAsync([new EntryMetaRow
+        {
+            EntryId = printed,
+            Title = "Red Dragon Atlas",
+            Publisher = "Kobold Works",
+            Facets = [new("own", "print", "Print", true), new("own", "foundry", "Foundry VTT", true)],
+        }], Ct);
+
+        var all = await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyAdded), ct: Ct);
+        var card = all[0];
+        Assert.Equal((printed, 0L, "Red Dragon Atlas", "", true), (card.EntryId, card.DocumentId, card.Title, card.Format, card.IsElsewhere));
+        Assert.Equal("Foundry VTT · Print", card.AlsoOwn);
+        Assert.Equal(5, all.Count);
+        Assert.Equal([printed], (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).Select(e => e.EntryId));
+        Assert.DoesNotContain(printed, (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Books), ct: Ct)).Select(e => e.EntryId));
+
+        // The Documents tab finds it by its title and by where it is owned; Inside documents never does.
+        Assert.Contains(printed, (await _library.SearchDocumentsAsync(Plan("dragon"), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId));
+        Assert.DoesNotContain(printed, (await _library.SearchPagesAsync(Plan("dragon"), new LibraryFilter(), ct: Ct)).Entries.Select(e => e.Entry.EntryId));
+        Assert.Equal([printed], (await _library.ListAsync(new LibraryFilter(), Plan("own:foundry"), Ct)).Select(e => e.EntryId));
+        Assert.Equal([printed], (await _library.ListAsync(new LibraryFilter(Owns: ["print"]), ct: Ct)).Select(e => e.EntryId));
+        Assert.Contains(printed, (await _library.ListAsync(new LibraryFilter(), Plan("-format:png"), Ct)).Select(e => e.EntryId));
+        Assert.DoesNotContain(printed, (await _library.ListAsync(new LibraryFilter(), Plan("format:pdf"), Ct)).Select(e => e.EntryId));
+        Assert.Equal([("foundry", 1L), ("print", 1L), (SearchQuery.Unknown, 4L)],
+            (await _library.GetFacetCountsAsync("own", new LibraryFilter(), ct: Ct)).Select(c => (c.Value, c.Count)).Order());
+        Assert.DoesNotContain(await _library.GetFormatCountsAsync(new LibraryFilter(), Ct), c => c.Value.Length == 0);
+
+        var details = await _library.GetDetailsAsync(printed, Ct);
+        Assert.NotNull(details);
+        Assert.Empty(details.Stages);
+    }
+
+    [Fact]
     public async Task A_pack_shows_its_name_its_image_count_and_a_mosaic_and_has_a_kind_of_its_own()
     {
         var store = new IndexStore(Writer, Clock);

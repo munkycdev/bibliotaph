@@ -44,6 +44,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     static readonly Choice<string?> AllSystems = new(null, "All systems");
     static readonly Choice<string?> AllTypes = new(null, "All types");
     static readonly Choice<int?> AnyLevel = new(null, "Any level");
+    static readonly Choice<string?> AnyOwn = new(null, "Also own: any");
     static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, TitleOrder, PublisherOrder];
     static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, TitleOrder, PublisherOrder];
 
@@ -58,6 +59,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly IndexingService _indexing;
     readonly CopiesService _copies;
     readonly PackService _packs;
+    readonly ElsewhereService _elsewhere;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -68,9 +70,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
-        IndexingService indexing, CopiesService copies, PackService packs, ILogger<LibraryViewModel> log)
+        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _elsewhere = elsewhere;
         _indexing = indexing;
         _copies = copies;
         _packs = packs;
@@ -92,6 +95,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
         LevelChoice = AnyLevel;
+        OwnChoice = AnyOwn;
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
         _staleTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RefreshIfStaleAsync(),
             Dispatcher.CurrentDispatcher);
@@ -119,9 +123,22 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
 
-    /// <summary>Books, single images or image packs (F4 plan, choice 10).</summary>
+    /// <summary>Books, single images, image packs (F4 plan, choice 10) or books owned elsewhere (F5 plan, choice 8).</summary>
     public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
-        [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs")];
+        [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs"),
+            new(KindFilter.Elsewhere, "Owned elsewhere")];
+
+    /// <summary>
+    /// Where else books are owned (F5 plan, choice 8): "Also own: any", then Print, Foundry VTT and so on with how many
+    /// books each has. Shown once some book has a value, or while one is chosen.
+    /// </summary>
+    public ObservableCollection<Choice<string?>> OwnChoices { get; } = [AnyOwn];
+
+    [ObservableProperty]
+    public partial Choice<string?> OwnChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowOwnChoice { get; private set; }
 
     /// <summary>Books a model has read (2c): shown once there are some, or while a choice is made.</summary>
     public IReadOnlyList<Choice<AiFilter>> AiChoices { get; } =
@@ -272,7 +289,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
         BulkUndo = null;
         SplitUndo = null;
+        RemoveUndo = null;
         BulkMessage = null;
+        AddElsewhereDialog = null;
         if (BulkEdit is { IsApplyingStep: false }) BulkEdit = null;
     }
 
@@ -378,6 +397,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Refresh();
     }
 
+    partial void OnOwnChoiceChanged(Choice<string?> value)
+    {
+        if (value is null) OwnChoice = AnyOwn;
+        else Refresh();
+    }
+
     partial void OnLevelChoiceChanged(Choice<int?> value)
     {
         if (value is null) LevelChoice = AnyLevel;
@@ -415,7 +440,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value);
+                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice));
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             if (version == _version)
@@ -456,15 +481,19 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// How many books each system and type would show. Each menu is counted without its own choice, so picking a
     /// system still shows how many books the other systems have.
     /// </summary>
-    Task<(IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types)> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan) => Task.Run(async () =>
-        (await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
-            await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan)));
+    Task<(IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns)> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan) =>
+        Task.Run(async () =>
+            (await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
+                await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan),
+                await _queries.GetFacetCountsAsync("own", filter with { Owns = null }, plan)));
 
-    void ShowFacets((IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types) facets)
+    void ShowFacets((IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns) facets)
     {
         _holdRefresh = true;
         SystemChoice = ShowChoices(SystemChoices, AllSystems, facets.Systems, SystemChoice);
         TypeChoice = ShowChoices(TypeChoices, AllTypes, facets.Types, TypeChoice);
+        OwnChoice = ShowChoices(OwnChoices, AnyOwn, facets.Owns, OwnChoice);
+        ShowOwnChoice = facets.Owns.Any(c => c.Value != SearchQuery.Unknown) || OwnChoice.Value is not null;
         _holdRefresh = false;
     }
 
@@ -489,7 +518,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
         var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
-            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value;
+            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -617,6 +646,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
         LevelChoice = AnyLevel;
+        OwnChoice = AnyOwn;
         IncludeUnknownLevels = false;
         _holdRefresh = false;
         Refresh();
@@ -637,7 +667,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _covers);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers);
+            inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
             inspector.PackSplit += async (_, images) => await ShowPackSplitAsync(item, images);
@@ -681,14 +712,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanOpenBook))]
     async Task OpenBook(LibraryItemViewModel item)
     {
         if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
     }
 
+    /// <summary>A book owned elsewhere has no file to open.</summary>
+    static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
+
     /// <summary>Opens a book in a window of its own, from a card's menu, the inspector, Shift+Enter or middle-click.</summary>
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenBook))]
     async Task OpenBookInNewWindow(LibraryItemViewModel item)
     {
         if (await RequestAsync(item) is { } request) await _readers.OpenInNewWindowAsync(request);
@@ -716,11 +750,87 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         return new ViewerRequest(pack[at].DocumentId, pack[at].Title) { Pack = pack, PackTitle = item.Title };
     }
 
+    // Books owned elsewhere (F5a).
+
+    /// <summary>The "Add a book I own elsewhere" dialog, while it is open over the Library.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddElsewhereCommand))]
+    public partial AddElsewhereViewModel? AddElsewhereDialog { get; private set; }
+
+    bool CanAddElsewhere => AddElsewhereDialog is null;
+
+    /// <summary>"Add a book I own elsewhere" (choice 1): a dialog for its title and the few fields most books need.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddElsewhere))]
+    async Task AddElsewhere()
+    {
+        try
+        {
+            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere);
+            dialog.Closed += async (_, entryId) => await AddElsewhereClosedAsync(entryId);
+            Inspector = null;
+            AddElsewhereDialog = dialog;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Opening Add a book I own elsewhere failed");
+        }
+    }
+
+    /// <summary>After Save, the new card's inspector opens, where every other field can be filled in.</summary>
+    async Task AddElsewhereClosedAsync(EntryId? entryId)
+    {
+        AddElsewhereDialog = null;
+        if (entryId is not { } added) return;
+        await RefreshAsync();
+        var item = _known.GetValueOrDefault(added) ?? (await Task.Run(() => _queries.GetEntriesAsync([added]))).Select(Item).FirstOrDefault();
+        if (item is not null) await OpenDetails(item);
+    }
+
+    /// <summary>After "Remove from library": the library without it, and Undo beside a note saying so.</summary>
+    async Task ShowRemovedAsync(LibraryItemViewModel item, RemovedEntry removed)
+    {
+        Inspector = null;
+        BulkUndo = null;
+        SplitUndo = null;
+        RemoveUndo = removed;
+        BulkMessage = $"Removed {item.Title} from your library.";
+        await RefreshAsync();
+    }
+
+    /// <summary>The book owned elsewhere the last Remove took away, until the next edit or until the Library is left.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRemoveUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoRemoveCommand))]
+    public partial RemovedEntry? RemoveUndo { get; private set; }
+
+    public bool HasRemoveUndo => RemoveUndo is not null;
+
+    /// <summary>Brings the removed book back, with everything that was set on it.</summary>
+    [RelayCommand(CanExecute = nameof(HasRemoveUndo))]
+    async Task UndoRemove()
+    {
+        if (RemoveUndo is not { } removed) return;
+        RemoveUndo = null;
+        BulkMessage = "Undoing…";
+        try
+        {
+            await Task.Run(() => _elsewhere.UndoRemoveAsync(removed));
+            BulkMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing the removal of entry {EntryId} failed", removed.EntryId);
+            BulkMessage = "The book couldn't be brought back.";
+        }
+        await RefreshAsync();
+    }
+
     /// <summary>After "Split into separate images": the library with the images back, and Undo beside a note saying so.</summary>
     async Task ShowPackSplitAsync(LibraryItemViewModel pack, int images)
     {
         Inspector = null;
         BulkUndo = null;
+        RemoveUndo = null;
         SplitUndo = pack.EntryId;
         BulkMessage = $"Split {pack.Title} into {images.ToString("N0", CultureInfo.CurrentCulture)} {(images == 1 ? "image" : "images")}.";
         await RefreshAsync();
@@ -851,6 +961,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (result is null) return;
         // Leaving the Library while it applied ends the Undo, as leaving afterwards would.
         SplitUndo = null;
+        RemoveUndo = null;
         BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
         BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
             : $"Edited {BulkEditViewModel.Books(result.Books)}.";
@@ -881,7 +992,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void Escape()
     {
-        if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
+        if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
+        else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
         else if (Inspector is not null) Inspector = null;
         else Selection.Stop();
     }

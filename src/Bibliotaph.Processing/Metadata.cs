@@ -82,6 +82,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
     {
         Name = entry.Name,
+        AddedUtc = entry.AddedUtc,
         Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
     };
 

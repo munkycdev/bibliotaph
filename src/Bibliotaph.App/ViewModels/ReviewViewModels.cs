@@ -20,6 +20,7 @@ public interface IReviewActions
     Task<Func<Task>> RejectTermAsync(PendingTerm term);
     Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer);
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
+    Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
     void ShowFolder(string path);
     void Open(ReviewItem item);
     void OpenDocument(long documentId, string title);
@@ -387,4 +388,32 @@ public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyLi
 
     [RelayCommand]
     void ShowFolder() => Actions.ShowFolder(Path);
+}
+
+/// <summary>
+/// A new file with the title of a book owned elsewhere (F5 plan, choice 6): "You own X elsewhere. Is this its file?".
+/// Same book joins the file to the book's card, which keeps everything set on it.
+/// </summary>
+public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public ElsewhereItem Item { get; } = item;
+
+    public string Title => Item.FileTitle;
+
+    public string Heading => Item.AlsoOwn is { } owned
+        ? $"You own {Item.BookTitle} elsewhere ({owned}). Is this its file?"
+        : $"You own {Item.BookTitle} elsewhere. Is this its file?";
+
+    public string Detail => $"Same book puts this file on the card for {Item.BookTitle}, keeping everything you set on it. Nothing on disk changes.";
+
+    public string Path => Item.Path ?? "";
+
+    [RelayCommand]
+    Task SameBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SameBook), $"{Item.BookTitle} now opens {Title}.");
+
+    [RelayCommand]
+    Task SeparateBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SeparateBook), $"Kept {Title} as a separate book.");
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
 }

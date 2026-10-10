@@ -11,10 +11,11 @@ namespace Bibliotaph.Processing;
 /// page for page, joins the two as copies on one card (foundation slice F2, choices 1 to 3 of the F2 plan). Otherwise
 /// a file that shares most of its pages with a book, or has its title and publisher, is proposed in Needs review as a
 /// new version of it (choice 4). Runs after Text, and after OCR for a book with scanned pages and its hints from
-/// names, so it never reads the file.
+/// names, so it never reads the file. A file with the title of a book the user owns elsewhere is offered as its file
+/// (F5 plan, choice 6).
 /// </summary>
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
-    ILogger<MatchStage>? log = null) : IStage
+    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null) : IStage
 {
     /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
     static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
@@ -48,7 +49,20 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
         }
 
         await ProposeVersionAsync(job.DocumentId, fingerprints, sharing, ct);
+        await ProposeElsewhereAsync(job.DocumentId, ct);
         return enoughText ? StageOutcome.Complete() : new StageOutcome.Done(StageStatus.Skipped, [], "Too little text to compare with other files.");
+    }
+
+    /// <summary>
+    /// Offers the file as the file of each book owned elsewhere with its title and no publisher that says otherwise.
+    /// It doesn't need text of its own: the title is enough to ask.
+    /// </summary>
+    async Task ProposeElsewhereAsync(long documentId, CancellationToken ct)
+    {
+        if (elsewhere is null || await entries.GetEntryAsync(documentId, ct) is not { } entry) return;
+        foreach (var book in await queries.GetElsewhereMatchesAsync(entry.EntryId, ct))
+            if (await elsewhere.ProposeAsync(book, documentId, ct))
+                _log.LogInformation("Document {Document} has the title of entry {Entry}, owned elsewhere; proposed as its file", documentId, book);
     }
 
     /// <summary>

@@ -369,7 +369,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// The entries the library shows: those backed by a document with a file that isn't missing, in a folder the user
-    /// hasn't removed (an offline folder's books stay). With <paramref name="rootId"/>, only that folder's.
+    /// hasn't removed (an offline folder's books stay), and books owned elsewhere. With <paramref name="rootId"/>, only
+    /// that folder's.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> GetVisibleEntryIdsAsync(long? rootId = null, CancellationToken ct = default)
     {
@@ -383,7 +384,11 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         var packs = await db.Entries
             .Where(e => entries.Contains(e.Id) && e.ParentEntryId != null && e.ParentEntry!.Kind == EntryKind.Pack)
             .Select(e => e.ParentEntryId!.Value).Distinct().ToListAsync(ct);
-        return [.. entries.Concat(packs).Select(e => new EntryId(e))];
+        // A book owned elsewhere has no file, so no folder decides whether it shows; it isn't in any one folder.
+        List<long> elsewhere = rootId is null
+            ? await db.Entries.Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any()).Select(e => e.Id).ToListAsync(ct)
+            : [];
+        return [.. entries.Concat(packs).Concat(elsewhere).Select(e => new EntryId(e))];
     }
 
     /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>

@@ -106,6 +106,7 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
             new("setting", "Settings", OnSelected),
             new("theme", "Themes", OnSelected),
             new("environment", "Environments", OnSelected),
+            new("own", "Also own", OnSelected),
             new("publisher", "Publishers", OnSelected),
         ];
         Selected = Vocabularies[2];

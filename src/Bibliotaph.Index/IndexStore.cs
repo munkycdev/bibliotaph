@@ -34,9 +34,12 @@ public sealed record PageTextRow(int PdfPage, string Text, string Source, double
 /// <summary>An OCR'd word with its box in PDF points, origin bottom-left.</summary>
 public sealed record OcrWordRow(string Text, double Left, double Top, double Right, double Bottom);
 
-/// <summary>A library card: an entry and the document it shows.</summary>
-public sealed record EntryDocRow(EntryId EntryId, long DocumentId, EntryKind Kind, int Copies = 1)
+/// <summary>A library card: an entry and the document it shows, or none for a book owned elsewhere.</summary>
+public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Kind, int Copies = 1)
 {
+    /// <summary>When a book owned elsewhere was added. A file's card takes its document's.</summary>
+    public DateTime? AddedUtc { get; init; }
+
     /// <summary>A pack's name, from its folder or ZIP.</summary>
     public string? Name { get; init; }
 
@@ -246,12 +249,21 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 var entryId = entry.EntryId.Value;
                 c.Execute(
                     """
-                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members)
-                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members)
+                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc)
+                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added)
                     ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies,
-                        name = excluded.name, members = excluded.members
+                        name = excluded.name, members = excluded.members, added_utc = excluded.added_utc
                     """,
-                    new { entryId, documentId = entry.DocumentId, kind = entry.Kind.ToString(), copies = entry.Copies, name = entry.Name, members = entry.Members.Count }, t);
+                    new
+                    {
+                        entryId,
+                        documentId = entry.DocumentId,
+                        kind = entry.Kind.ToString(),
+                        copies = entry.Copies,
+                        name = entry.Name,
+                        members = entry.Members.Count,
+                        added = entry.AddedUtc is { } addedUtc ? JobBoard.Timestamp(new DateTimeOffset(DateTime.SpecifyKind(addedUtc, DateTimeKind.Utc))) : null,
+                    }, t);
                 RemoveMembers(c, t, entryId);
                 c.Execute("INSERT INTO entry_member (entry_id, ord, document_id, member_entry_id, name) VALUES (@entryId, @ord, @DocumentId, @member, @Name)",
                     entry.Members.Select((m, ord) => new { entryId, ord, m.DocumentId, member = m.MemberEntryId.Value, m.Name }), t);
@@ -397,7 +409,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     /// <summary>
     /// Rebuilds an entry's entry_fts row from its document's doc row and its projected metadata. The effective title
     /// (or a pack's name) is the title; the file name's title, the PDF's own information and the folder names are
-    /// provisional text. An entry whose document Probe hasn't reached has no row yet.
+    /// provisional text. An entry whose document Probe hasn't reached has no row yet; a book owned elsewhere has one
+    /// from its metadata alone.
     /// </summary>
     static void RefreshEntrySearch(SqliteConnection c, SqliteTransaction t, long entryId)
     {
@@ -405,14 +418,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         c.Execute(
             """
             INSERT INTO entry_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
-            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
+            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title, ''), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
                    coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), '', coalesce(m.confirmed_text, ''),
                    coalesce(m.provisional_text, '') || ' · ' || coalesce(d.meta_title, '') || ' · ' || coalesce(d.meta_author, '') || ' · '
                        || coalesce(d.meta_keywords, '') || ' · ' || coalesce(d.folder_hint, '')
                        || CASE WHEN e.kind <> 'Pack' AND m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
                        || CASE WHEN m.title IS NOT NULL AND e.name IS NOT NULL AND m.title <> e.name THEN ' · ' || e.name ELSE '' END
-            FROM entry_doc e JOIN doc d ON d.document_id = e.document_id LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
-            WHERE e.entry_id = @entryId
+            FROM entry_doc e LEFT JOIN doc d ON d.document_id = e.document_id LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
+            WHERE e.entry_id = @entryId AND (d.document_id IS NOT NULL OR e.document_id IS NULL)
             """,
             new { entryId }, t);
     }

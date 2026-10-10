@@ -15,6 +15,7 @@ public class RuleHintsTests
             new Term("type", "map-pack", "Map pack"),
             new Term("theme", "horror", "Horror"),
             new Term("publisher", "kobold-press", "Kobold Press"),
+            new Term("own", "roll20", "Roll20"),
         ],
         [
             ("edition", "dnd-5e", "D&D 5e"), ("type", "adventure", "adventures"), ("type", "adventure", "one shots"),
@@ -53,6 +54,14 @@ public class RuleHintsTests
         var proposals = RuleHints.Propose(new HintSource(Sep("Kobold Press", "Tome.pdf")), Vocabulary);
 
         Assert.Equal("Kobold Press", Assert.Single(proposals, p => p.Field == MetadataFields.Publisher).Value);
+    }
+
+    [Fact]
+    public void Where_else_a_book_is_owned_is_the_users_to_say_not_a_folders()
+    {
+        // A folder of Roll20 exports holds files, not a claim that the books are owned on Roll20.
+        Assert.DoesNotContain(RuleHints.Propose(new HintSource(Sep("Roll20", "Tome.pdf")), Vocabulary), p => p.Field == MetadataFields.AlsoOwn);
+        Assert.Empty(RuleHints.Labels("Roll20", Vocabulary));
     }
 
     [Fact]

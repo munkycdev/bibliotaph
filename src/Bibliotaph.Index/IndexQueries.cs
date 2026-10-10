@@ -160,10 +160,31 @@ public sealed class IndexQueries(IndexDatabase database)
             JOIN entry_meta other ON other.entry_id <> mine.entry_id
                 AND lower(other.title) = lower(mine.title) AND lower(other.publisher) = lower(mine.publisher)
             JOIN entry_doc e ON e.entry_id = other.entry_id
-            WHERE mine.entry_id = @entryId AND mine.title IS NOT NULL AND mine.publisher IS NOT NULL
+            WHERE mine.entry_id = @entryId AND mine.title IS NOT NULL AND mine.publisher IS NOT NULL AND e.document_id IS NOT NULL
             ORDER BY e.document_id
             """,
             new { entryId = entryId.Value }, cancellationToken: ct))];
+    }
+
+    /// <summary>
+    /// The books owned elsewhere that could be <paramref name="entryId"/>'s (F5 plan, choice 6): the same title,
+    /// ignoring case, and no publisher that says otherwise. A file's publisher often arrives later than its title, so
+    /// one missing on either side doesn't rule a book out; the user answers the card anyway.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> GetElsewhereMatchesAsync(EntryId entryId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<long>(new CommandDefinition(
+            """
+            SELECT other.entry_id
+            FROM entry_meta mine
+            JOIN entry_meta other ON other.entry_id <> mine.entry_id AND lower(other.title) = lower(mine.title)
+                AND (other.publisher IS NULL OR mine.publisher IS NULL OR lower(other.publisher) = lower(mine.publisher))
+            JOIN entry_doc e ON e.entry_id = other.entry_id
+            WHERE mine.entry_id = @entryId AND mine.title IS NOT NULL AND e.kind = 'Elsewhere'
+            ORDER BY other.entry_id
+            """,
+            new { entryId = entryId.Value }, cancellationToken: ct))).Select(id => new EntryId(id))];
     }
 
     /// <summary>The title each of <paramref name="entryIds"/>' cards shows: its effective title, or its document's.</summary>
@@ -173,7 +194,7 @@ public sealed class IndexQueries(IndexDatabase database)
         await using var connection = database.OpenRead();
         var rows = await connection.QueryAsync<(long EntryId, string? Title)>(new CommandDefinition(
             """
-            SELECT e.entry_id, coalesce(m.title, d.display_title)
+            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title)
             FROM entry_doc e LEFT JOIN entry_meta m ON m.entry_id = e.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
             WHERE e.entry_id IN @ids
             """,

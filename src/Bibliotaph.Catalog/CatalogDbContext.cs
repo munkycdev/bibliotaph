@@ -15,6 +15,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<CopyDecision> CopyDecisions => Set<CopyDecision>();
     public DbSet<VersionProposal> VersionProposals => Set<VersionProposal>();
     public DbSet<PackDecision> PackDecisions => Set<PackDecision>();
+    public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Setting> Settings => Set<Setting>();
@@ -74,6 +75,14 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(p => p.MatchedDocumentId);
             e.HasOne<Document>().WithMany().HasForeignKey(p => p.DocumentId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Document>().WithMany().HasForeignKey(p => p.MatchedDocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ElsewhereMatch>(e =>
+        {
+            e.HasIndex(m => new { m.EntryId, m.DocumentId }).IsUnique();
+            e.HasIndex(m => m.DocumentId);
+            e.HasOne<Entry>().WithMany().HasForeignKey(m => m.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Document>().WithMany().HasForeignKey(m => m.DocumentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PackDecision>(e =>

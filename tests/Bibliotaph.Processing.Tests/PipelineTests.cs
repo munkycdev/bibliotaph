@@ -42,6 +42,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     AiSettings _ai = null!;
     ClassificationStore _runs = null!;
     CopiesService _copies = null!;
+    ElsewhereService _elsewhere = null!;
     SourceFiles _sources = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -81,6 +82,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
         _copies = new CopiesService(entries, versions, library, _queries, projector);
+        var elsewhere = new ElsewhereStore(contexts, entries);
+        _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
         var packStore = new PackStore(contexts);
         var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
@@ -91,7 +94,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
-                new MatchStage(entries, versions, index, _queries, projector),
+                new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere),
             ],
             new FileHasher(reader), new DiskSpace(), archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },

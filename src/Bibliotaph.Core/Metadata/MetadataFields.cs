@@ -49,9 +49,15 @@ public static class MetadataFields
     public static readonly MetadataField Environments = new("environment", "Environments", FieldKind.Term, Multiple: true, Vocabulary: "environment");
     public static readonly MetadataField Tags = new("tags", "Your tags", FieldKind.Text, Multiple: true);
 
+    /// <summary>
+    /// Where else the user owns the book: in print, on a VTT (F5 plan, choice 3). Only the user sets it; no hint or
+    /// model suggests it. An entry owned elsewhere, with no file here, says so first.
+    /// </summary>
+    public static readonly MetadataField AlsoOwn = new("own", "Also own", FieldKind.Term, Multiple: true, Vocabulary: "own");
+
     /// <summary>Every field, in the order the inspector shows them.</summary>
     public static IReadOnlyList<MetadataField> All { get; } =
-        [Title, System, Edition, Types, Levels, Publisher, Authors, Series, Year, Settings, Themes, Environments, Tags];
+        [Title, System, Edition, Types, Levels, Publisher, Authors, Series, Year, Settings, Themes, Environments, AlsoOwn, Tags];
 
     static readonly Dictionary<string, MetadataField> ByKey = All.ToDictionary(f => f.Key, StringComparer.Ordinal);
 
