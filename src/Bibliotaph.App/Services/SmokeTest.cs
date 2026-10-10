@@ -1134,7 +1134,9 @@ static class SmokeTest
         var third = campaign.Items[2];
         var toCampaign = CollectionMenu.Choices.Single(c => c.CollectionId == campaignId);
         BookCommands.AddToCollection.Execute(new CollectionRequest(third, toCampaign), FindChild<Views.LibraryView>(window));
-        await WaitUntilAsync(window, () => campaign.Collections.HasUndo && campaign.Collections.Message!.StartsWith("Added ", StringComparison.Ordinal),
+        // The selection's "Added 2 books to Maps." is still shown with its Undo, so wait for this add's own note.
+        await WaitUntilAsync(window, () => campaign.Collections is { HasUndo: true, Message: { } note } && note.StartsWith("Added ", StringComparison.Ordinal)
+                && note.EndsWith(" to Winter campaign.", StringComparison.Ordinal),
             () => $"The card menu's Add to collection said “{campaign.Collections.Message}”.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
         // Undo has finished once its note is gone and the collections have reloaded.
