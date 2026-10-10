@@ -633,6 +633,21 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .OrderBy(f => f.DocumentId).Select(f => f.DocumentId).FirstOrDefaultAsync(ct);
     }
 
+    /// <summary>
+    /// Every document with a file in a folder the user hasn't removed, with its content hash: what index.db should know
+    /// about, so a new index.db can have them all read again (slice 4j plan, choice 6).
+    /// </summary>
+    public async Task<IReadOnlyList<(long DocumentId, string ContentHash)>> GetDocumentHashesAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.Documents.AsNoTracking()
+            .Where(d => d.Locations.Any(l => l.SourceRoot.Availability != SourceRootAvailability.RemovedByUser))
+            .OrderBy(d => d.Id)
+            .Select(d => new { d.Id, d.ContentHash })
+            .ToListAsync(ct);
+        return [.. rows.Select(r => (r.Id, r.ContentHash))];
+    }
+
     /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>
     public async Task<IReadOnlyList<DocumentLocation>> GetLocationsAsync(long documentId, CancellationToken ct = default)
     {

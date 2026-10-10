@@ -204,7 +204,11 @@ public sealed class ProbeStage(StageServices s) : IStage
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
-        if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
+        if (source is null)
+        {
+            await RecordUnreachableAsync(job, ct);
+            return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
+        }
         var title = DisplayTitle.FromFileName(source.FullPath);
 
         if (SourceFormats.IsImage(source.Format))
@@ -262,6 +266,25 @@ public sealed class ProbeStage(StageServices s) : IStage
             await s.Library.SetProbeResultAsync(job.DocumentId, doc.PageCount, protection, capabilities, ct);
         }
         return StageOutcome.Complete(Stage.Text, Stage.Covers, Stage.RuleHints);
+    }
+
+    /// <summary>
+    /// A document new to the index whose files can't be read now, as when index.db is rebuilt after a restore while a
+    /// library folder is offline (slice 4j plan, choice 4): recorded by its file name, so its card stays in the library,
+    /// marked offline, until its folder is back and it is read.
+    /// </summary>
+    async Task RecordUnreachableAsync(JobRecord job, CancellationToken ct)
+    {
+        if (await s.Queries.GetTitleAsync(job.DocumentId, ct) is not null) return;
+        if (await s.Library.GetLocationsAsync(job.DocumentId, ct) is not [var location, ..]
+            || SourceFormats.FromFileName(location.FullPath) is not { } format) return;
+        await StageHelpers.UpsertDocumentAsync(s, new DocRow
+        {
+            DocumentId = job.DocumentId,
+            ContentHash = job.ContentHash,
+            Format = format,
+            DisplayTitle = DisplayTitle.FromFileName(location.FullPath),
+        }, [], [], ct);
     }
 
     /// <summary>

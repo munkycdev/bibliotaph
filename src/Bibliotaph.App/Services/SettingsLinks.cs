@@ -12,6 +12,7 @@ public enum SettingsSection
     Vocabulary,
     Ai,
     Passwords,
+    Backup,
     StartOver,
 }
 

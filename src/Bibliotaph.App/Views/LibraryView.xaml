@@ -307,6 +307,9 @@
             <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,0,8,0" Command="{Binding RemoveSelectedFromCollectionCommand}"
                     ToolTip="Take the selected books out of this collection. They stay in your library."
                     Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+            <Button x:Name="ExportSelected" Content="Export these" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,0"
+                    Command="{Binding ExportSelectedCommand}" ToolTip="Save the selected books as a CSV file, for a spreadsheet"
+                    AutomationProperties.Name="Export the selected books" />
             <Button Content="Clear" Command="{Binding ClearSelectionCommand}" Margin="0,0,8,0" AutomationProperties.Name="Clear the selection" />
             <Button Content="Done" Command="{Binding StopSelectingCommand}" ToolTip="Leave Select mode (Esc)" AutomationProperties.Name="Done selecting" />
           </StackPanel>

@@ -14,6 +14,9 @@ public static class SettingKeys
     /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
     public const string ReviewAll = "review.all";
 
+    /// <summary>"True" when backups take the search index (index.db) too (slice 4j plan, choice 1).</summary>
+    public const string BackupIncludeIndex = "backup.include-index";
+
     /// <summary>The model server's address, as "http://localhost:11434". No AI runs until there is one.</summary>
     public const string AiEndpoint = "ai.endpoint";
 

@@ -34,6 +34,23 @@ public sealed class JobBoardTests : IndexFixture
     }
 
     [Fact]
+    public async Task Documents_with_no_job_at_all_are_queued_and_the_rest_left_alone()
+    {
+        // Document 1 has been read; 2 and 3 are in the catalog only, as after a restore without index.db.
+        await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
+        var job = (await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!;
+        await _queue.CompleteAsync(job, next: [Stage.Text], ct: Ct);
+
+        Assert.Equal(2, await _queue.EnqueueUnqueuedAsync([(1, "aa"), (2, "bb"), (3, "cc")], Stage.Probe, Ct));
+        Assert.Equal(0, await _queue.EnqueueUnqueuedAsync([(1, "aa"), (2, "bb"), (3, "cc")], Stage.Probe, Ct));
+
+        Assert.Equal("Complete", StatusOf(1, Stage.Probe));
+        Assert.Equal("Pending", StatusOf(2, Stage.Probe));
+        Assert.Equal("Pending", StatusOf(3, Stage.Probe));
+        Assert.Equal(1, Connection.ExecuteScalar<long>("SELECT count(*) FROM job WHERE document_id = 1 AND stage = 'Probe'"));
+    }
+
+    [Fact]
     public async Task A_lease_takes_the_most_urgent_job_in_the_lane_and_marks_it_running()
     {
         await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
