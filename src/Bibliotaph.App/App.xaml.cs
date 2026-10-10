@@ -243,6 +243,7 @@ public partial class App : Application
         builder.Services.AddSingleton<OtherApps>();
         builder.Services.AddSingleton<BookTextActions>();
         builder.Services.AddSingleton<AboutBox>();
+        builder.Services.AddSingleton<ShortcutsBox>();
         builder.Services.AddSingleton<AiTestBox>();
         builder.Services.AddSingleton<AppRestart>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));

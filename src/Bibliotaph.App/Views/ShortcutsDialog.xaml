@@ -1,0 +1,50 @@
+<Window x:Class="Bibliotaph.App.Views.ShortcutsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:Bibliotaph.App.Services"
+        Title="Keyboard shortcuts"
+        Width="600" Height="640" MinWidth="420" MinHeight="280" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bt.Panel}" Foreground="{DynamicResource Bt.Text}"
+        FontFamily="{StaticResource Font.Sans}" FontSize="12" UseLayoutRounding="True">
+  <DockPanel Margin="24">
+    <TextBlock DockPanel.Dock="Top" Text="Keyboard shortcuts" Style="{StaticResource Text.H2}" />
+    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Text.Copy}" Margin="0,8,0,12"
+               Text="Tab and Shift+Tab move between controls, the arrow keys move within a list, and Space or Enter presses what has focus. These work too:" />
+    <Button x:Name="CloseShortcuts" DockPanel.Dock="Bottom" Content="Close" AutomationProperties.Name="Close" IsDefault="True" IsCancel="True" Style="{StaticResource Bt.Button.Primary}"
+            HorizontalAlignment="Right" Margin="0,16,0,0" />
+
+    <!--
+      A Tab stop, so the arrow keys and Page Down scroll the list without a mouse. A scroll viewer isn't one unless told:
+      without it, Close would be the popup's only stop.
+    -->
+    <ScrollViewer x:Name="ShortcutList" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="True" IsTabStop="True"
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}" AutomationProperties.Name="Keyboard shortcuts">
+      <ItemsControl ItemsSource="{x:Static s:KeyboardShortcuts.All}" Focusable="False" Margin="0,0,12,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type s:KeyboardShortcutArea}">
+            <StackPanel Margin="0,12,0,0">
+              <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Row}" FontWeight="SemiBold" Margin="0,0,0,4" />
+              <ItemsControl ItemsSource="{Binding Shortcuts}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type s:KeyboardShortcut}">
+                    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,7">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="2*" />
+                          <ColumnDefinition Width="3*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Keys}" FontWeight="Medium" TextWrapping="Wrap" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding Action}" Style="{StaticResource Text.Row}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

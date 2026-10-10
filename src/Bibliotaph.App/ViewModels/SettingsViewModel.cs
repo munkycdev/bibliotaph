@@ -8,23 +8,25 @@ namespace Bibliotaph.App.ViewModels;
 /// <summary>
 /// Settings, one page with a section list down its left and the chosen section filling the rest. Links into it open
 /// a section (<see cref="SettingsLinks"/>), and Back returns to the section that was showing. About sits at the foot
-/// of the list and opens the About popup rather than a section.
+/// of the list and opens the About popup rather than a section, and Keyboard shortcuts under it opens that popup.
 /// </summary>
 public sealed partial class SettingsViewModel : PageViewModel
 {
     readonly SettingsLinks _links;
     readonly AboutBox _about;
+    readonly ShortcutsBox _shortcuts;
     readonly ILogger<SettingsViewModel> _log;
     bool _showing;
 
     public SettingsViewModel(
-        SettingsLinks links, AboutBox about, LibrarySectionViewModel library, ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance,
+        SettingsLinks links, AboutBox about, ShortcutsBox shortcuts, LibrarySectionViewModel library, ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance,
         ReviewSectionViewModel review, VocabularyViewModel vocabulary, AiSettingsViewModel ai, PasswordsSectionViewModel passwords,
         BackupSectionViewModel backup, StartOverSectionViewModel startOver, DevMode dev,
         ILogger<SettingsViewModel> log)
     {
         _links = links;
         _about = about;
+        _shortcuts = shortcuts;
         _log = log;
         SettingsSectionViewModel[] sections = [library, processing, appearance, review, vocabulary, ai, passwords, backup];
         // Start over only with --dev (slice 4l plan, choice 7).
@@ -101,4 +103,11 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     [RelayCommand]
     void ShowAbout() => _about.Show();
+
+    /// <summary>
+    /// The Keyboard shortcuts link. A view-model command rather than Ctrl+/'s routed command, which the window handles:
+    /// a button bound to that stays disabled until the command manager happens to look again.
+    /// </summary>
+    [RelayCommand]
+    void ShowShortcuts() => _shortcuts.Show();
 }

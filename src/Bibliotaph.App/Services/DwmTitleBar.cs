@@ -28,6 +28,20 @@ static class DwmTitleBar
         _ = DwmSetWindowAttribute(hwnd, BorderColor, ref borderValue, sizeof(int));
     }
 
+    /// <summary>Gives the title bar back to Windows, as under a contrast theme.</summary>
+    public static void Reset(IntPtr hwnd)
+    {
+        var light = 0;
+        _ = DwmSetWindowAttribute(hwnd, UseImmersiveDarkMode, ref light, sizeof(int));
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
+
+        // DWMWA_COLOR_DEFAULT
+        var standard = unchecked((int)0xFFFFFFFF);
+        _ = DwmSetWindowAttribute(hwnd, CaptionColor, ref standard, sizeof(int));
+        _ = DwmSetWindowAttribute(hwnd, TextColor, ref standard, sizeof(int));
+        _ = DwmSetWindowAttribute(hwnd, BorderColor, ref standard, sizeof(int));
+    }
+
     /// <summary>COLORREF is 0x00BBGGRR.</summary>
     static int ColorRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
 

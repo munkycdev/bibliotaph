@@ -23,7 +23,8 @@ public partial class MainWindow : Window
     /// <summary>Set while a pick rewrites the box, so the box's own change events don't steer the guide halfway through.</summary>
     bool _applyingGuide;
 
-    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, IndexingService indexing, ILogger<MainWindow> log)
+    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, ShortcutsBox shortcuts, IndexingService indexing,
+        ILogger<MainWindow> log)
     {
         InitializeComponent();
         _indexing = indexing;
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
         DataContext = shell;
         _about = about;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
+        CommandBindings.Add(new CommandBinding(ShellCommands.ShowShortcuts, (_, _) => shortcuts.Show(this)));
         HookUpSearchGuide();
     }
 

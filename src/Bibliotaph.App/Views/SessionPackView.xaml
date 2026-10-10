@@ -26,7 +26,7 @@
               <Grid>
                 <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}" Foreground="{DynamicResource Bt.Muted}" FontSize="{TemplateBinding FontSize}"
                            Margin="2,0,0,0" Visibility="Collapsed" IsHitTestVisible="False" />
-                <ScrollViewer x:Name="PART_ContentHost" />
+                <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
               </Grid>
             </Border>
             <ControlTemplate.Triggers>
@@ -201,11 +201,12 @@
         </DockPanel>
       </Border>
 
+      <!-- The notes give way on a narrow window (at 200% scaling, say), so each item keeps room for its label and buttons. -->
       <Grid Margin="0,24,42,0">
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="3*" />
           <ColumnDefinition Width="36" />
-          <ColumnDefinition Width="280" />
+          <ColumnDefinition Width="2*" MaxWidth="280" />
         </Grid.ColumnDefinitions>
 
         <!-- .bt-sectionline and the session sequence. -->

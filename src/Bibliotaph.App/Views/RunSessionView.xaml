@@ -62,9 +62,13 @@
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
+    <!--
+      The items' list gives way first on a narrow window (at 200% scaling, say): the reader keeps the width its toolbar
+      needs to stay on a few rows, and so the height its page needs.
+    -->
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="250" />
-      <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="*" MinWidth="150" MaxWidth="250" />
+      <ColumnDefinition Width="3*" />
       <ColumnDefinition Width="Auto" />
     </Grid.ColumnDefinitions>
 

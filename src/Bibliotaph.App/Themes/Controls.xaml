@@ -241,7 +241,7 @@
               <c:LucideIcon Size="15" Data="{StaticResource Icon.Search}" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" />
               <TextBlock x:Name="Placeholder" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
                          Text="{TemplateBinding Tag}" Foreground="{DynamicResource Bt.Muted}" IsHitTestVisible="False" Visibility="Collapsed" />
-              <ScrollViewer x:Name="PART_ContentHost" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" />
+              <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" />
               <Border x:Name="Shortcut" Grid.Column="2" Margin="8,0,0,0" Padding="4,0" CornerRadius="3" BorderThickness="1"
                       BorderBrush="{DynamicResource Bt.Line}" VerticalAlignment="Center" Visibility="Collapsed">
                 <TextBlock Text="Ctrl K" FontSize="9" Foreground="{DynamicResource Bt.Muted}" />
@@ -299,7 +299,7 @@
         <ControlTemplate TargetType="TextBox">
           <Border x:Name="Chrome" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
                   BorderThickness="1" CornerRadius="6" Padding="9,6" SnapsToDevicePixels="True">
-            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocused" Value="True">
@@ -372,18 +372,34 @@
             <Trigger Property="IsIndeterminate" Value="True">
               <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed" />
               <Setter TargetName="Sweep" Property="Visibility" Value="Visible" />
-              <Trigger.EnterActions>
+            </Trigger>
+            <!-- The sweep moves only with Windows' animation effects on (c:Motion); off, a still half-tone bar says "working". -->
+            <MultiDataTrigger>
+              <MultiDataTrigger.Conditions>
+                <Condition Binding="{Binding IsIndeterminate, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                <Condition Binding="{Binding IsOn, Source={x:Static c:Motion.Current}}" Value="True" />
+              </MultiDataTrigger.Conditions>
+              <MultiDataTrigger.EnterActions>
                 <BeginStoryboard x:Name="SweepAnimation">
                   <Storyboard RepeatBehavior="Forever">
                     <DoubleAnimation Storyboard.TargetName="Sweep" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
                                      From="-60" To="640" Duration="0:0:1.8" />
                   </Storyboard>
                 </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
+              </MultiDataTrigger.EnterActions>
+              <MultiDataTrigger.ExitActions>
                 <StopStoryboard BeginStoryboardName="SweepAnimation" />
-              </Trigger.ExitActions>
-            </Trigger>
+              </MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+              <MultiDataTrigger.Conditions>
+                <Condition Binding="{Binding IsIndeterminate, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                <Condition Binding="{Binding IsOn, Source={x:Static c:Motion.Current}}" Value="False" />
+              </MultiDataTrigger.Conditions>
+              <Setter TargetName="Sweep" Property="Width" Value="Auto" />
+              <Setter TargetName="Sweep" Property="HorizontalAlignment" Value="Stretch" />
+              <Setter TargetName="Sweep" Property="Opacity" Value="0.5" />
+            </MultiDataTrigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
@@ -482,7 +498,7 @@
             </ToggleButton>
             <ContentPresenter Margin="10,7,28,7" IsHitTestVisible="False" VerticalAlignment="Center"
                               Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
-            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"
+            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="{Binding PopupAnimation, Source={x:Static c:Motion.Current}}"
                    IsOpen="{TemplateBinding IsDropDownOpen}">
               <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="5"
                       Margin="0,4,0,0" Padding="3" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
@@ -528,7 +544,27 @@
   </Style>
 
   <!--
-    A list with no chrome of its own: the items draw everything, and keyboard focus shows on the item.
+    An item of Bt.PlainList: the item draws everything, and the ring shows where keyboard focus is. A list whose items
+    are view models names them with AutomationProperties.Name in a style based on this one, or a screen reader reads
+    the view model's type name.
+  -->
+  <Style x:Key="Bt.PlainItem" TargetType="ListBoxItem">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <!-- Room for the ring, which draws 3px outside the item and would be cut off at the list's edges. -->
+    <Setter Property="Margin" Value="3,3,3,0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <ContentPresenter />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    A list with no chrome of its own. Keyboard focus shows as the ring, on the list when Tab reaches it and on the item
+    once an arrow key moves into it; a click shows none, as everywhere in WPF.
     Foreground is set because ListBox's system style uses the Windows control-text colour (black), not the window's.
   -->
   <Style x:Key="Bt.PlainList" TargetType="ListBox">
@@ -536,28 +572,14 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
     <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
     <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
     <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
     <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
     <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
-    <Setter Property="ItemContainerStyle">
-      <Setter.Value>
-        <Style TargetType="ListBoxItem">
-          <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
-          <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-          <Setter Property="Template">
-            <Setter.Value>
-              <ControlTemplate TargetType="ListBoxItem">
-                <ContentPresenter />
-              </ControlTemplate>
-            </Setter.Value>
-          </Setter>
-        </Style>
-      </Setter.Value>
-    </Setter>
+    <Setter Property="ItemContainerStyle" Value="{StaticResource Bt.PlainItem}" />
   </Style>
 
   <!-- .bt-chip -->

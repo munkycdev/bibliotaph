@@ -89,6 +89,9 @@ public sealed class AppearanceSectionViewModel(ThemeService theme) : SettingsSec
         set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.Dark); }
     }
 
+    /// <summary>While a Windows contrast theme is on, the system's colours show whatever is chosen here.</summary>
+    public bool IsHighContrast => theme.IsHighContrast;
+
     /// <summary>The top bar's toggle changes the preference too, so the choice follows it while it shows.</summary>
     public override Task LoadAsync()
     {
@@ -105,6 +108,7 @@ public sealed class AppearanceSectionViewModel(ThemeService theme) : SettingsSec
         OnPropertyChanged(nameof(UseSystem));
         OnPropertyChanged(nameof(UseLight));
         OnPropertyChanged(nameof(UseDark));
+        OnPropertyChanged(nameof(IsHighContrast));
     }
 }
 

@@ -39,7 +39,7 @@
           <ControlTemplate TargetType="PasswordBox">
             <Border x:Name="Chrome" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
                     BorderThickness="1" CornerRadius="6" Padding="9,6" SnapsToDevicePixels="True">
-              <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+              <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsKeyboardFocused" Value="True">

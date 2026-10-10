@@ -70,6 +70,8 @@ Library Q&A with page citations; optional detected sections such as encounters o
 
 Cloud sync, multi-user accounts, player portals, VTT integration, campaign authoring, character sheets, ebook conversion, source-file renaming or deletion, DRM removal, a plugin marketplace, and running a background server. No built-in storefront or recommendation engine for buying more books.
 
+Bibliotaph is a Windows desktop app. Phone and tablet apps, a web version and macOS or Linux builds are out of scope (decided by Dave on 10 October 2026); the core, data and PDFium layers stay portable in case that changes. Using one library on a second Windows PC is served by a library sync file: the user-work export of §10, written to a folder the user picks (such as OneDrive) and merged on the other PC by content hash, newest change per field winning. The SQLite files themselves never go in a synced folder. The sync file is planned, not built.
+
 ## 3. Information architecture
 
 Permanent navigation: **Home · Library · Collections · Sessions · Needs Review**. User-created saved searches appear under **Smart Views**. Settings and processing status remain available at the bottom of the navigation rail.
@@ -254,7 +256,7 @@ Use inexpensive file facts to detect candidates for hashing, then content hashes
 
 When a file moves, reconcile by identity/hash and preserve annotations and memberships. If a path’s content changes, record a new content version of the same book, make it the one that opens, and rebuild affected derived data. Metadata overrides persist but may be flagged for review; page anchors are marked stale where their validity is uncertain.
 
-Distinguish an unavailable drive/root from a missing file. Never mass-mark files deleted because a removable drive is unplugged. Network shares are best-effort sources in Release A. Cloud placeholder (online-only) files are always indexed, which downloads them as the queue reaches them: local files are processed first, first run shows how much will download, and downloading pauses when free disk space runs low. Decided by Dave on 8 October 2026.
+Distinguish an unavailable drive/root from a missing file. Never mass-mark files deleted because a removable drive is unplugged. Network shares are best-effort sources in Release A. Cloud placeholder (online-only) files are always indexed, which downloads them as the queue reaches them: local files are processed first, first run shows how much will download, and downloading pauses when free disk space runs low. Decided by Dave on 8 October 2026. Once indexed, a file that was online-only before Bibliotaph read it is returned to online-only, so a cloud library larger than the disk can be indexed; a setting, on by default, controls this. Only the local copy goes: the file's content, path and timestamps are unchanged, and files the user downloaded themselves are left alone. Decided by Dave on 10 October 2026; not built yet.
 
 Each processing stage has independent status: pending, running, complete, partial, blocked, failed, or skipped. Jobs are durable, idempotent, cancellable, and retryable. A corrupt PDF cannot halt the batch. Retries have limits; disk-full or credential failures stop affected work and expose a clear recovery action.
 

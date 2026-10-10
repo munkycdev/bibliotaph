@@ -36,6 +36,8 @@ public sealed class ImageView : ContentControl
             Focusable = true,
         };
         AutomationProperties.SetName(_scroll, "Image");
+        // The scroll viewer takes focus, for the arrow keys; the control around it would be a second, empty tab stop.
+        Focusable = false;
         Content = _scroll;
         SizeChanged += (_, _) => Relayout();
         _scroll.PreviewMouseWheel += OnWheel;

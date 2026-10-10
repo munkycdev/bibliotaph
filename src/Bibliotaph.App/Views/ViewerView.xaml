@@ -40,7 +40,7 @@
               <Grid>
                 <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}" Foreground="{DynamicResource Bt.Muted}" IsHitTestVisible="False"
                            VerticalAlignment="Center" Margin="2,0,0,0" Visibility="Collapsed" />
-                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
               </Grid>
             </Border>
             <ControlTemplate.Triggers>
@@ -114,73 +114,62 @@
     <!-- .bt-reader-toolbar -->
     <Border Grid.Row="1" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6,6,0,0"
             Padding="9" Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-      <DockPanel>
-        <!-- Find in book -->
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <TextBlock Text="{Binding FindStatus}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,8,0" />
-          <TextBox x:Name="FindBox" Style="{StaticResource ToolBox}" Width="180" Tag="Find in this book (Ctrl+F)"
-                   Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find in this book">
+      <!--
+        Groups that wrap onto another row when the window is narrow (at 200% scaling, say), so nothing is cut off.
+        Find comes last: on a wide window it sits at the end of the one row.
+      -->
+      <WrapPanel Margin="0,0,0,-4">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <StackPanel Orientation="Horizontal" Visibility="{Binding HasOutline, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.List}" ToolTip="Show or hide the contents"
+                    AutomationProperties.Name="Contents" Command="{Binding ToggleOutlineCommand}" />
+            <Border Style="{StaticResource Divider}" />
+          </StackPanel>
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
+                  AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
+          <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
+          <TextBox x:Name="PageBox" Style="{StaticResource ToolBox}" Width="54" HorizontalContentAlignment="Center"
+                   Text="{Binding PageEntry, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Page"
+                   ToolTip="A printed page number, or a PDF page number" GotKeyboardFocus="PageBox_GotKeyboardFocus">
             <TextBox.InputBindings>
-              <KeyBinding Key="Enter" Command="{Binding FindCommand}" />
-              <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
-              <KeyBinding Key="Escape" Command="{Binding ClearFindCommand}" />
+              <KeyBinding Key="Enter" Command="{Binding GoToPageCommand}" />
             </TextBox.InputBindings>
           </TextBox>
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" Margin="4,0,0,0"
-                  ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding FindPreviousCommand}" />
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
-                  ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding FindNextCommand}" />
+          <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
+                  AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
+          <Border Style="{StaticResource Divider}" />
         </StackPanel>
-
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-          <StackPanel Orientation="Horizontal" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <StackPanel Orientation="Horizontal" Visibility="{Binding HasOutline, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.List}" ToolTip="Show or hide the contents"
-                      AutomationProperties.Name="Contents" Command="{Binding ToggleOutlineCommand}" />
-              <Border Style="{StaticResource Divider}" />
-            </StackPanel>
-            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
-                    AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
-            <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
-            <TextBox x:Name="PageBox" Style="{StaticResource ToolBox}" Width="54" HorizontalContentAlignment="Center"
-                     Text="{Binding PageEntry, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Page"
-                     ToolTip="A printed page number, or a PDF page number" GotKeyboardFocus="PageBox_GotKeyboardFocus">
-              <TextBox.InputBindings>
-                <KeyBinding Key="Enter" Command="{Binding GoToPageCommand}" />
-              </TextBox.InputBindings>
-            </TextBox>
-            <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
-            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
-                    AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
-            <Border Style="{StaticResource Divider}" />
-            <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding NotesLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
-                    Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
-            <Border Style="{StaticResource Divider}" />
-          </StackPanel>
-          <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
-          <StackPanel x:Name="PackSteps" Orientation="Horizontal">
-            <StackPanel.Style>
-              <Style TargetType="StackPanel">
-                <Setter Property="Visibility" Value="Collapsed" />
-                <Style.Triggers>
-                  <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                      <Condition Binding="{Binding IsImage}" Value="True" />
-                      <Condition Binding="{Binding IsInPack}" Value="True" />
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="Visibility" Value="Visible" />
-                  </MultiDataTrigger>
-                </Style.Triggers>
-              </Style>
-            </StackPanel.Style>
-            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous image (Left arrow)"
-                    AutomationProperties.Name="Previous image" Command="{Binding PreviousImageCommand}" />
-            <TextBlock Text="{Binding PackPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0"
-                       AutomationProperties.Name="Image in pack" />
-            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next image (Right arrow)"
-                    AutomationProperties.Name="Next image" Command="{Binding NextImageCommand}" />
-            <Border Style="{StaticResource Divider}" />
-          </StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding NotesLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
+                  Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
+          <Border Style="{StaticResource Divider}" />
+        </StackPanel>
+        <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
+        <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
+          <StackPanel.Style>
+            <Style TargetType="StackPanel">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsImage}" Value="True" />
+                    <Condition Binding="{Binding IsInPack}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+              </Style.Triggers>
+            </Style>
+          </StackPanel.Style>
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous image (Left arrow)"
+                  AutomationProperties.Name="Previous image" Command="{Binding PreviousImageCommand}" />
+          <TextBlock Text="{Binding PackPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0"
+                     AutomationProperties.Name="Image in pack" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next image (Right arrow)"
+                  AutomationProperties.Name="Next image" Command="{Binding NextImageCommand}" />
+          <Border Style="{StaticResource Divider}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Minus}" ToolTip="Zoom out (Ctrl+minus)"
                   AutomationProperties.Name="Zoom out" Command="NavigationCommands.DecreaseZoom" Margin="0,0,4,0" />
           <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ZoomChoices}" SelectedValuePath="Value" SelectedValue="{Binding Zoom}"
@@ -201,7 +190,24 @@
                   Command="{Binding ReturnToMainWindowCommand}"
                   Visibility="{Binding IsPoppedOut, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
-      </DockPanel>
+        <!-- Find in book; what it found follows, and wraps on its own. -->
+        <StackPanel Orientation="Horizontal" Margin="6,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <TextBox x:Name="FindBox" Style="{StaticResource ToolBox}" Width="180" Tag="Find in this book (Ctrl+F)"
+                   Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find in this book">
+            <TextBox.InputBindings>
+              <KeyBinding Key="Enter" Command="{Binding FindCommand}" />
+              <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
+              <KeyBinding Key="Escape" Command="{Binding ClearFindCommand}" />
+            </TextBox.InputBindings>
+          </TextBox>
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" Margin="4,0,0,0"
+                  ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding FindPreviousCommand}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
+                  ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding FindNextCommand}" />
+        </StackPanel>
+        <TextBlock Text="{Binding FindStatus}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="8,0,0,4"
+                   Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+      </WrapPanel>
     </Border>
 
     <!-- .bt-reader-stage -->
@@ -216,6 +222,11 @@
             <ListBox Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Outline}" AutomationProperties.Name="Contents"
                      c:ItemActivation.Command="{Binding OpenOutlineEntryCommand}" Padding="6,0,6,10"
                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+              <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource Bt.PlainItem}">
+                  <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                </Style>
+              </ListBox.ItemContainerStyle>
               <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:OutlineEntry}">
                   <DockPanel x:Name="Row" Margin="{Binding Indent}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
@@ -362,13 +373,19 @@
     <!-- Add pages… and naming a new session, as a dialog over the reader. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="4" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Background="{DynamicResource Bt.Shadow}" />
-      <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+      </ScrollViewer>
     </Grid>
 
     <!-- A note on pages (slice 3f), as a dialog over the reader. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="4" Visibility="{Binding NoteDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Background="{DynamicResource Bt.Shadow}" />
-      <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding NoteDialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding NoteDialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+      </ScrollViewer>
     </Grid>
   </Grid>
 </UserControl>

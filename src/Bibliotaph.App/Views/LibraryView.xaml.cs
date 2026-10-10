@@ -22,6 +22,8 @@ public partial class LibraryView
         // in a second compile pass the code-style analyzers don't see, so they report the handler as unused.
         BulkDialog.IsVisibleChanged += BulkDialog_IsVisibleChanged;
         ElsewhereDialog.IsVisibleChanged += ElsewhereDialog_IsVisibleChanged;
+        SizeChanged += (_, _) => FitPageHead();
+        PageFoot.SizeChanged += (_, _) => FitPageHead();
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
         Unloaded += (_, _) =>
         {
@@ -50,6 +52,20 @@ public partial class LibraryView
             },
             (_, e) => e.CanExecute = DataContext is LibraryViewModel && e.Parameter is SessionRequest));
     }
+
+    /// <summary>
+    /// How tall the page's head (title, toolbar, filters, notices) may grow before it scrolls: all it needs on a tall
+    /// window, and on a short one (at 200% scaling, say) never so much that it pushes the books, or the dialogs laid
+    /// over the whole page, past the bottom. The books keep <see cref="BooksRoom"/>, or half the room when there's less.
+    /// </summary>
+    void FitPageHead()
+    {
+        var room = Math.Max(0, ActualHeight - PageFoot.ActualHeight - PageFoot.Margin.Top - PageFoot.Margin.Bottom);
+        PageHead.MaxHeight = Math.Max(room / 2, room - BooksRoom);
+    }
+
+    /// <summary>About one row of covers.</summary>
+    const double BooksRoom = 320;
 
     /// <summary>A card menu's command, run with the card's book on the Library's own command.</summary>
     void AddBookCommand(RoutedUICommand command, Func<LibraryViewModel, ICommand> target) =>
