@@ -1710,6 +1710,10 @@ static partial class SmokeTest
         pack = (SessionPackViewModel)shell.CurrentPage!;
         await pack.AddSuggestedSectionCommand.ExecuteAsync("Maps");
         await WaitUntilAsync(window, () => pack.Rows.OfType<SessionSectionRow>().Any(r => r.Name == "Maps"), () => "Add section didn't show the Maps heading.");
+        // A change made somewhere else, as from another window, shows on the open page without leaving it.
+        var elsewhere = Items(pack).First(i => i.Heading == "Warehouse ambush");
+        await sessions.UpdateItemAsync(elsewhere.Id, "Docks ambush", elsewhere.Note);
+        await WaitUntilAsync(window, () => Items(pack).Any(i => i.Heading == "Docks ambush"), () => "The open session didn't show a label changed elsewhere.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteSession"), "Delete");
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionsViewModel { Actions.HasUndo: true, HasSessions: false }, () => "Delete didn't go to Sessions with an Undo.");
         list = (SessionsViewModel)shell.CurrentPage!;
