@@ -16,11 +16,14 @@ public sealed record InspectorFact(string Label, string Value);
 /// <summary>
 /// Where a document's file is, and whether it can be read now. The first place carries the book's Reprocess button
 /// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all. For a file inside a ZIP,
-/// File Explorer selects the ZIP (<see cref="ExplorerPath"/>).
+/// File Explorer selects the ZIP (<see cref="ExplorerPath"/>). A file that has gone missing offers its last location
+/// instead (slice 4g plan, choice 1): the folder it was in, or the nearest one above it that is still there.
 /// </summary>
-public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null)
+public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null, bool IsMissing = false)
 {
     public bool HasState => State.Length > 0;
+
+    public string ShowLabel => IsMissing ? "Show last location" : "Show in File Explorer";
 }
 
 public sealed record InspectorStage(string Name, string Status);
@@ -296,7 +299,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         else
         {
             locations = [.. (await library.GetLocationsAsync(item.DocumentId))
-                .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath))];
+                .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath,
+                    IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online))];
             copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere);
@@ -369,10 +373,23 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         PageCount = entry.Format == SourceFormats.Pdf ? entry.PageCount ?? 0 : 0;
     }
 
-    /// <summary>Opens File Explorer with the file, or the ZIP it is in, selected. Explorer only shows it; nothing is changed.</summary>
+    /// <summary>
+    /// Opens File Explorer with the file, or the ZIP it is in, selected; for a missing file, the folder it was last in,
+    /// or the nearest one above it still there. Explorer only shows it; nothing is changed.
+    /// </summary>
     [RelayCommand]
-    static void ShowInExplorer(InspectorLocation location) =>
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{location.ExplorerPath ?? location.Path}\"") { UseShellExecute = false });
+    static void ShowInExplorer(InspectorLocation location)
+    {
+        var path = location.ExplorerPath ?? location.Path;
+        if (!location.IsMissing)
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+            return;
+        }
+        var folder = System.IO.Path.GetDirectoryName(path);
+        while (folder is not null && !System.IO.Directory.Exists(folder)) folder = System.IO.Path.GetDirectoryName(folder);
+        if (folder is not null) Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false });
+    }
 
     static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details)
     {

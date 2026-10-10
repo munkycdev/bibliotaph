@@ -118,6 +118,9 @@ static class SmokeTest
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
             }
+            // Last: the made-up library's books can't be read once its folder is found offline.
+            await Check("a library folder that can't be reached: its books marked Offline, the sidebar and its Settings card saying so",
+                () => ShowOfflineFolderAsync(services, window));
             await theme.SetPreferenceAsync(ThemePreference.System);
             await Settle(window);
             if (Application.Current.Windows.Count != 1 || services.GetRequiredService<ReaderWindows>().Windows.Count > 0)
@@ -971,6 +974,42 @@ static class SmokeTest
         navigation.GoBack();
         await Settle(window);
         search.Search("");
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// Offline folders (4g): the made-up library's folder was never on disk, so a scan finds it offline. Its books stay
+    /// in the Library, marked Offline; the sidebar says one folder is offline; and its card in Settings says it can't be
+    /// reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
+    /// </summary>
+    static async Task ShowOfflineFolderAsync(IServiceProvider services, Window window)
+    {
+        var smoke = (await services.GetRequiredService<SourceRootStore>().ListAsync())
+            .Single(r => System.IO.Path.GetFileName(r.Path) == "smoke-library");
+        var inFolder = (await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync(smoke.Id)).ToHashSet();
+        var activity = services.GetRequiredService<LibraryActivity>();
+        services.GetRequiredService<IndexingService>().RequestScan(smoke.Id);
+        await WaitUntilAsync(window, () => activity.OfflineText == "1 folder offline" && window.FindName("OfflineFolders") is TextBlock { IsVisible: true },
+            () => $"The sidebar says \"{activity.OfflineText}\", not that one folder is offline.");
+
+        services.GetRequiredService<SearchState>().Search("");
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        navigation.NavigateTo(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await library.RefreshAsync();
+        await WaitUntilAsync(window, () => library.Items.Any(i => inFolder.Contains(i.EntryId) && i is { IsAway: true, AvailabilityLabel: "Offline" }),
+            () => "The offline folder's books aren't marked Offline in the Library.");
+
+        library.ManageFoldersCommand.Execute(null);
+        var settings = await ExpectSettingsAsync(window, shell, SettingsSection.Library, "The Library's Manage folders");
+        var section = (LibrarySectionViewModel)settings.Selected;
+        await WaitUntilAsync(window, () => section.Folders.Any(f => f.Id == smoke.Id && f.IsOffline && f.Detail.Contains("Can't be reached right now", StringComparison.Ordinal)),
+            () => $"Settings says of the offline folder: {section.Folders.FirstOrDefault(f => f.Id == smoke.Id)?.Detail}");
+        await WaitUntilAsync(window, () => Shown(window, "PointToNewPlace"), () => "The offline folder's card has no Point to its new place.");
+        var offered = Descendants<Button>(window).Count(b => b.Name == "PointToNewPlace" && b.IsVisible);
+        if (offered != 1) throw new InvalidOperationException($"{offered} folder cards offer Point to its new place, not just the offline one.");
+        navigation.GoBack();
         await Settle(window);
     }
 

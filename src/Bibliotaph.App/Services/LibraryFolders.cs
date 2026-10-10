@@ -22,6 +22,13 @@ public sealed class LibraryFolders(SettingsLinks settings)
         return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FolderNames : [];
     }
 
+    /// <summary>The native folder picker for one folder, as for a folder's new place; null when cancelled.</summary>
+    public static string? PickOne(string title)
+    {
+        var dialog = new OpenFolderDialog { Title = title };
+        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FolderName : null;
+    }
+
     /// <summary>Opens Settings > Library and shows the picker there.</summary>
     public void RequestPick()
     {

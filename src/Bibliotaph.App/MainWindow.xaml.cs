@@ -8,6 +8,8 @@ using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core.Search;
+using Bibliotaph.Processing;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App;
 
@@ -15,13 +17,18 @@ public partial class MainWindow : Window
 {
     readonly SearchGuideViewModel _guide;
     readonly AboutBox _about;
+    readonly IndexingService _indexing;
+    readonly ILogger<MainWindow> _log;
 
     /// <summary>Set while a pick rewrites the box, so the box's own change events don't steer the guide halfway through.</summary>
     bool _applyingGuide;
 
-    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about)
+    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, IndexingService indexing, ILogger<MainWindow> log)
     {
         InitializeComponent();
+        _indexing = indexing;
+        _log = log;
+        SourceInitialized += (_, _) => WatchDrives();
         // Before the window's DataContext, so the guide's bindings never look for its properties on the shell.
         _guide = guide;
         SearchGuide.DataContext = guide;

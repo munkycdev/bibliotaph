@@ -17,7 +17,20 @@ public sealed partial class LibraryFolderItem(long id, string path) : Observable
 {
     public long Id { get; } = id;
 
-    public string Path { get; } = path;
+    /// <summary>Where the folder is; it changes when the folder is pointed to its new place.</summary>
+    [ObservableProperty]
+    public partial string Path { get; set; } = path;
+
+    /// <summary>The folder can't be read right now, so it offers Point to its new place (slice 4g plan, choice 6).</summary>
+    [ObservableProperty]
+    public partial bool IsOffline { get; set; }
+
+    /// <summary>Why the folder picked as its new place wasn't taken; empty otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProblem))]
+    public partial string Problem { get; set; } = "";
+
+    public bool HasProblem => Problem.Length > 0;
 
     [ObservableProperty]
     public partial string Detail { get; set; } = "";
@@ -175,7 +188,10 @@ public sealed partial class LibrarySectionViewModel(
                 if (item is null) Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, root.Path));
                 var ids = await library.GetVisibleEntryIdsAsync(root.Id);
                 var searchable = await queries.CountSearchableAsync(ids);
-                item.Detail = Describe(root.AddedUtc, scans.GetValueOrDefault(root.Id), searchable, ids.Count);
+                item.Path = root.Path;
+                // Availability is kept in the catalog, so a folder offline before a restart says so before it is scanned again.
+                item.IsOffline = root.Availability == SourceRootAvailability.Offline;
+                item.Detail = Describe(root.AddedUtc, item.IsOffline, scans.GetValueOrDefault(root.Id), searchable, ids.Count);
                 item.Percent = ids.Count == 0 ? 0 : 100.0 * searchable / ids.Count;
                 item.ShowProgress = searchable < ids.Count;
             }
@@ -187,11 +203,20 @@ public sealed partial class LibrarySectionViewModel(
         }
     }
 
-    static string Describe(DateTime addedUtc, RootScan? scan, long searchable, int documents)
+    static string Describe(DateTime addedUtc, bool offline, RootScan? scan, long searchable, int documents)
     {
         var added = addedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture);
+        if (offline || scan is { Reachable: false })
+        {
+            var why = scan?.Offline switch
+            {
+                OfflineReason.DifferentDisk => "Its drive holds a different disk right now.",
+                OfflineReason.LooksEmpty => "It looks empty right now, so nothing in it is marked missing.",
+                _ => "Can't be reached right now.",
+            };
+            return $"Added {added} · {why} Its books stay in your library.";
+        }
         if (scan is null) return $"Added {added} · Waiting to be looked at";
-        if (!scan.Reachable) return $"Added {added} · Can't be reached right now. Its books stay in your library.";
         var state = documents == 0 ? "" : searchable >= documents ? "Up to date · " : $"{searchable:N0} of {documents:N0} searchable · ";
         return $"Added {added} · {state}{DescribeContents(scan.Summary!)}";
     }
@@ -241,6 +266,32 @@ public sealed partial class LibrarySectionViewModel(
         Pending.Remove(pending);
         var root = await roots.AddAsync(pending.Path);
         indexing.RequestScan(root.Id);
+        await RefreshFoldersAsync();
+    }
+
+    /// <summary>
+    /// Point to its new place (slice 4g plan, choice 6), for a folder that moved for good: picked with the folder picker,
+    /// then every book in it, and everything done with them, follows without its files being read again.
+    /// </summary>
+    [RelayCommand]
+    async Task PointToNewPlace(LibraryFolderItem folder)
+    {
+        if (LibraryFolders.PickOne($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
+        try
+        {
+            folder.Problem = await indexing.RelocateRootAsync(folder.Id, path) switch
+            {
+                RootRelocation.NotFound => "That folder can't be opened.",
+                RootRelocation.Overlaps => "That folder is another library folder, is inside one, or holds one.",
+                RootRelocation.WasRemoved => "That folder was a library folder of its own before. Add a folder brings it back.",
+                _ => "",
+            };
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Pointing library folder {RootId} to its new place failed", folder.Id);
+            folder.Problem = "That didn't work. Try again.";
+        }
         await RefreshFoldersAsync();
     }
 

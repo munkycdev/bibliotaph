@@ -126,7 +126,18 @@ public sealed partial class LibraryActivity : ObservableObject
     public LibraryCounts Counts { get; private set; } = new(0, 0, 0, 0, 0);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusName))]
     public partial string Summary { get; private set; } = "Nothing to process";
+
+    /// <summary>"1 folder offline", under the status in the sidebar (slice 4g plan, choice 5); empty while every folder can be reached.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOfflineFolders), nameof(StatusName))]
+    public partial string OfflineText { get; private set; } = "";
+
+    public bool HasOfflineFolders => OfflineText.Length > 0;
+
+    /// <summary>What the sidebar status says, for screen readers.</summary>
+    public string StatusName => HasOfflineFolders ? $"{Summary}. {OfflineText}" : Summary;
 
     /// <summary>Indexing step by step: finding files, reading them, making them searchable, reading scans, asking the AI.</summary>
     public IReadOnlyList<PhaseProgress> Phases { get; }
@@ -247,6 +258,7 @@ public sealed partial class LibraryActivity : ObservableObject
             HasOcrWork = Progress.PagesAwaitingOcr > 0;
             HasAiWork = AiOn && Progress.ToClassify > 0;
             Summary = Describe();
+            OfflineText = Counts.OfflineFolders == 0 ? "" : $"{Counts.OfflineFolders:N0} {Plural(Counts.OfflineFolders, "folder", "folders")} offline";
             UpdatePhases(DateTimeOffset.UtcNow);
             var lines = await DescribeNowAsync();
             if (!lines.SequenceEqual(Now)) Now = lines;

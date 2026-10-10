@@ -178,6 +178,7 @@ public partial class App : Application
         builder.Services.AddSingleton<ArchiveReader>();
         builder.Services.AddSingleton<SourceFiles>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
+        builder.Services.AddSingleton<IFileIdentity, FileIdentity>();
         builder.Services.AddSingleton<StageServices>();
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();

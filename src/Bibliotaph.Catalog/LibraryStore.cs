@@ -7,7 +7,15 @@ namespace Bibliotaph.Catalog;
 /// <summary>A file the scanner saw: its path under the root and the cheap facts that say whether it changed.</summary>
 public sealed record ScannedFile(string RelativePath, long SizeBytes, DateTime ModifiedUtc, bool OnlineOnly);
 
-public sealed record ReconcileResult(int Added, int Changed, int Unchanged, int Missing);
+/// <summary>
+/// What a scan changed. <see cref="Moved"/> are files found at a new path by their file ID, which keep their hash.
+/// <see cref="MovedFrom"/> are other folders that still list a file with the ID of one new here, which may have moved
+/// from there: scanned before the new file is read, it moves rather than being hashed again.
+/// </summary>
+public sealed record ReconcileResult(int Added, int Changed, int Unchanged, int Missing, int Moved = 0, IReadOnlyList<long>? MovedFrom = null)
+{
+    public override string ToString() => $"{Added} added, {Changed} changed, {Unchanged} unchanged, {Missing} missing, {Moved} moved";
+}
 
 /// <summary>
 /// A location the hasher still has to read. A ZIP (<see cref="IsArchive"/>) is read for its members; a member of one has
@@ -36,10 +44,10 @@ public sealed record DocumentSource(long DocumentId, string ContentHash, string 
 
 /// <summary>
 /// File and document counts. The unhashed online-only files are those still to download; <see cref="Problems"/> are
-/// files inside ZIPs that can't be read.
+/// files inside ZIPs that can't be read; <see cref="OfflineFolders"/> are library folders that can't be reached.
 /// </summary>
 public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int Unhashed, int Documents, int UnhashedOnlineOnly = 0, long UnhashedOnlineOnlyBytes = 0,
-    int Problems = 0);
+    int Problems = 0, int OfflineFolders = 0);
 
 /// <summary>One place a document's file is, for the inspector. A file inside a ZIP has the ZIP's path as <see cref="ArchivePath"/>.</summary>
 public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability, string? ArchivePath = null)
@@ -62,66 +70,199 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// with a full listing of a reachable root: an offline root must never mark its files missing (A07). Files under
     /// <paramref name="unreadFolders"/>, folders the scan couldn't list ("." for the root), keep their state for the same reason.
     /// Files inside a ZIP follow it: missing with it, and listed again when it changes or comes back.
+    /// <para>
+    /// A new path whose file ID, size and modified time match a location not seen at its own path, in this folder or
+    /// missing from another, is that file moved or renamed (A06, slice 4g plan, choice 2). The location moves with it and
+    /// keeps its id, hash and document, so nothing is read again and the card never leaves the library.
+    /// <paramref name="fileId"/> reads a file's ID by its relative path; it is asked only for new and changed paths and
+    /// for locations that don't have one yet, and is null where the volume has no lasting IDs. Missing locations of a
+    /// document whose content has turned up elsewhere are deleted. <paramref name="volumeSerial"/> is kept as the
+    /// root's the first time it is given, so a different disk in its drive later reads as offline.
+    /// </para>
     /// </summary>
     public async Task<ReconcileResult> ReconcileRootAsync(
-        long rootId, IReadOnlyCollection<ScannedFile> files, IReadOnlyCollection<string>? unreadFolders = null, CancellationToken ct = default)
+        long rootId, IReadOnlyCollection<ScannedFile> files, IReadOnlyCollection<string>? unreadFolders = null,
+        Func<string, string?>? fileId = null, string? volumeSerial = null, CancellationToken ct = default)
     {
         var now = _clock.GetUtcNow().UtcDateTime;
         await using var db = await contexts.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var existing = await db.FileLocations.Where(f => f.SourceRootId == rootId && f.ContainerId == null).ToListAsync(ct);
         var wasMissing = existing.Where(f => f.State == FileLocationState.Missing).Select(f => f.Id).ToHashSet();
         var byPath = existing.ToDictionary(f => f.RelativePath, StringComparer.OrdinalIgnoreCase);
-        int added = 0, changed = 0, unchanged = 0;
+        int changed = 0, unchanged = 0, moved = 0;
 
+        var unmatched = new List<ScannedFile>();
         foreach (var file in files)
         {
-            var state = file.OnlineOnly ? FileLocationState.OnlineOnly : FileLocationState.Present;
-            if (byPath.Remove(file.RelativePath, out var location))
+            if (!byPath.Remove(file.RelativePath, out var location))
             {
-                if (location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc)
-                {
-                    // New content at a known path. The old document keeps its other locations; the new content joins
-                    // its card as a new version once it is hashed (A08).
-                    location.SizeBytes = file.SizeBytes;
-                    location.ModifiedUtc = file.ModifiedUtc;
-                    location.ContentHash = null;
-                    location.PreviousDocumentId = location.DocumentId ?? location.PreviousDocumentId;
-                    location.DocumentId = null;
-                    changed++;
-                }
-                else unchanged++;
-                location.RelativePath = file.RelativePath;
-                location.State = state;
-                location.LastSeenUtc = now;
+                unmatched.Add(file);
+                continue;
+            }
+            if (location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc)
+            {
+                // New content at a known path. The old document keeps its other locations; the new content joins
+                // its card as a new version once it is hashed (A08). An app that saves by replacing the file gives it
+                // a new ID, so it is read again.
+                location.SizeBytes = file.SizeBytes;
+                location.ModifiedUtc = file.ModifiedUtc;
+                location.ContentHash = null;
+                location.PreviousDocumentId = location.DocumentId ?? location.PreviousDocumentId;
+                location.DocumentId = null;
+                location.NtfsFileId = fileId?.Invoke(file.RelativePath);
+                changed++;
             }
             else
             {
-                db.FileLocations.Add(new FileLocation
-                {
-                    SourceRootId = rootId,
-                    RelativePath = file.RelativePath,
-                    SizeBytes = file.SizeBytes,
-                    ModifiedUtc = file.ModifiedUtc,
-                    State = state,
-                    LastSeenUtc = now,
-                });
-                added++;
+                // Once for a location from before file IDs were kept.
+                if (location.NtfsFileId is null && fileId is not null) location.NtfsFileId = fileId(file.RelativePath);
+                unchanged++;
             }
+            location.RelativePath = file.RelativePath;
+            location.State = file.OnlineOnly ? FileLocationState.OnlineOnly : FileLocationState.Present;
+            location.LastSeenUtc = now;
+        }
+
+        // What is left wasn't seen at its path: moved, or gone. Files under a folder the scan couldn't list are neither.
+        var gone = byPath.Values.Where(f => !IsUnder(f.RelativePath, unreadFolders)).ToList();
+        var fresh = new List<FileLocation>();
+        foreach (var file in unmatched)
+        {
+            var state = file.OnlineOnly ? FileLocationState.OnlineOnly : FileLocationState.Present;
+            var id = fileId?.Invoke(file.RelativePath);
+            var location = id is null ? null : gone.FirstOrDefault(f => SameFile(f, id, file.RelativePath, file.SizeBytes, file.ModifiedUtc));
+            if (location is not null)
+            {
+                gone.Remove(location);
+                await MoveAsync(db, location, rootId, file.RelativePath, ct);
+                location.State = state;
+                location.LastSeenUtc = now;
+                moved++;
+                continue;
+            }
+            fresh.Add(db.FileLocations.Add(new FileLocation
+            {
+                SourceRootId = rootId,
+                RelativePath = file.RelativePath,
+                SizeBytes = file.SizeBytes,
+                ModifiedUtc = file.ModifiedUtc,
+                NtfsFileId = id,
+                State = state,
+                LastSeenUtc = now,
+            }).Entity);
         }
 
         var missing = 0;
-        foreach (var gone in byPath.Values.Where(f => f.State != FileLocationState.Missing && !IsUnder(f.RelativePath, unreadFolders)))
+        foreach (var location in gone.Where(f => f.State != FileLocationState.Missing))
         {
-            gone.State = FileLocationState.Missing;
+            location.State = FileLocationState.Missing;
             missing++;
         }
 
         await FollowArchivesAsync(db, existing, wasMissing, ct);
 
         var root = await db.SourceRoots.FindAsync([rootId], ct);
-        if (root is not null && root.Availability == SourceRootAvailability.Offline) root.Availability = SourceRootAvailability.Online;
+        if (root is not null)
+        {
+            if (root.Availability == SourceRootAvailability.Offline) root.Availability = SourceRootAvailability.Online;
+            root.VolumeSerial ??= volumeSerial;
+        }
         await db.SaveChangesAsync(ct);
-        return new ReconcileResult(added, changed, unchanged, missing);
+        var adopted = await AdoptMovesAsync(db, ct);
+        await ForgetReplacedAsync(db, null, ct);
+        // A file new here with the ID of one another folder still lists may have moved from there: that folder's scan says.
+        var ids = fresh.Where(f => !adopted.Contains(f) && f.NtfsFileId is not null).Select(f => f.NtfsFileId!).Distinct().ToList();
+        List<long> movedFrom = ids.Count == 0 ? [] : await db.FileLocations
+            .Where(f => f.SourceRootId != rootId && f.ContainerId == null && f.State != FileLocationState.Missing && f.NtfsFileId != null
+                && ids.Contains(f.NtfsFileId) && f.SourceRoot.Availability == SourceRootAvailability.Online)
+            .Select(f => f.SourceRootId).Distinct().ToListAsync(ct);
+        await transaction.CommitAsync(ct);
+        // A path new here that turned out to be a file moved from another folder wasn't added after all.
+        var added = fresh.Count(f => !adopted.Contains(f));
+        return new ReconcileResult(added, changed, unchanged, missing, moved + adopted.Count, movedFrom.Count == 0 ? null : movedFrom);
+    }
+
+    /// <summary>
+    /// Whether a location not seen at its path is the file at a new one: the same file ID, size and modified time,
+    /// and the same kind of file, so a ZIP renamed to a PDF is read as what it now is.
+    /// </summary>
+    static bool SameFile(FileLocation location, string fileId, string relativePath, long sizeBytes, DateTime modifiedUtc) =>
+        location.NtfsFileId == fileId && location.SizeBytes == sizeBytes && location.ModifiedUtc == modifiedUtc
+        && SourceFormats.IsArchive(location.RelativePath) == SourceFormats.IsArchive(relativePath)
+        && SourceFormats.FromFileName(location.RelativePath) == SourceFormats.FromFileName(relativePath);
+
+    /// <summary>
+    /// Files moved into this folder from another, or that went missing in an earlier scan before turning up here: a
+    /// location not hashed yet whose file ID, size and modified time match a missing location's is that location's
+    /// file. The missing location takes its path and the new one goes, so the file keeps its hash and document and
+    /// isn't read again (an online-only one isn't downloaded again). A copy has an ID of its own, so it is hashed as usual.
+    /// </summary>
+    /// <returns>The new locations that turned out to be moved files, and are gone.</returns>
+    static async Task<IReadOnlyCollection<FileLocation>> AdoptMovesAsync(CatalogDbContext db, CancellationToken ct)
+    {
+        var missing = await db.FileLocations
+            .Where(f => f.State == FileLocationState.Missing && f.ContainerId == null && f.NtfsFileId != null && f.ContentHash != null
+                && f.SourceRoot.Availability == SourceRootAvailability.Online)
+            .ToListAsync(ct);
+        if (missing.Count == 0) return [];
+        var ids = missing.Select(f => f.NtfsFileId!).Distinct().ToList();
+        var found = await db.FileLocations
+            .Where(f => f.ContentHash == null && f.ContainerId == null && f.State != FileLocationState.Missing && f.NtfsFileId != null
+                && ids.Contains(f.NtfsFileId) && f.SourceRoot.Availability == SourceRootAvailability.Online)
+            .OrderBy(f => f.Id)
+            .ToListAsync(ct);
+        var pairs = new List<(FileLocation Old, FileLocation New)>();
+        foreach (var location in found)
+        {
+            var old = missing.FirstOrDefault(m => SameFile(m, location.NtfsFileId!, location.RelativePath, location.SizeBytes, location.ModifiedUtc));
+            if (old is null) continue;
+            missing.Remove(old);
+            pairs.Add((old, location));
+        }
+        if (pairs.Count == 0) return [];
+
+        // The new locations go first: the old ones take their paths, which are unique within a folder.
+        db.FileLocations.RemoveRange(pairs.Select(p => p.New));
+        await db.SaveChangesAsync(ct);
+        foreach (var (old, location) in pairs)
+        {
+            await MoveAsync(db, old, location.SourceRootId, location.RelativePath, ct);
+            old.State = location.State;
+            old.LastSeenUtc = location.LastSeenUtc;
+            // Its files went missing with it, so a ZIP is listed again; those with the same name, size and CRC keep their hashes.
+            if (SourceFormats.IsArchive(old.RelativePath)) old.ContentHash = null;
+        }
+        await db.SaveChangesAsync(ct);
+        return [.. pairs.Select(p => p.New)];
+    }
+
+    /// <summary>Gives a location a new place. The files inside a ZIP move with it, their paths still reading as File Explorer shows them.</summary>
+    static async Task MoveAsync(CatalogDbContext db, FileLocation location, long rootId, string relativePath, CancellationToken ct)
+    {
+        if (SourceFormats.IsArchive(location.RelativePath) || SourceFormats.IsArchive(relativePath))
+            foreach (var member in await db.FileLocations.Where(f => f.ContainerId == location.Id).ToListAsync(ct))
+            {
+                member.SourceRootId = rootId;
+                member.RelativePath = ArchivePaths.MemberPath(relativePath, member.EntryPath!);
+            }
+        location.SourceRootId = rootId;
+        location.RelativePath = relativePath;
+    }
+
+    /// <summary>
+    /// Deletes the missing locations of documents whose content has turned up elsewhere (slice 4g plan, choice 1), as a
+    /// file moved to another drive is found again by its hash. Only those of <paramref name="documentId"/> when given.
+    /// Never one in a folder that is offline, and never a file inside a ZIP, which goes with its ZIP.
+    /// </summary>
+    static Task<int> ForgetReplacedAsync(CatalogDbContext db, long? documentId, CancellationToken ct)
+    {
+        var replaced = db.FileLocations.Where(f => f.State == FileLocationState.Missing && f.ContainerId == null && f.DocumentId != null
+            && f.SourceRoot.Availability == SourceRootAvailability.Online
+            && db.FileLocations.Any(o => o.DocumentId == f.DocumentId && o.State != FileLocationState.Missing
+                && o.SourceRoot.Availability != SourceRootAvailability.RemovedByUser));
+        if (documentId is { } id) replaced = replaced.Where(f => f.DocumentId == id);
+        return replaced.ExecuteDeleteAsync(ct);
     }
 
     /// <summary>
@@ -266,8 +407,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// <summary>
     /// Records a location's hash and links it to the document with that content, creating the document when the
     /// content is new. A new document gets a whole-document entry for its library card or, when its path held another
-    /// book's file before, becomes that book's current version. Returns null when the file changed while it was being
-    /// hashed (the next scan picks it up).
+    /// book's file before, becomes that book's current version. A known document's missing locations are deleted, since
+    /// its file has turned up here. Returns null when the file changed while it was being hashed (the next scan picks it up).
     /// </summary>
     public async Task<(long DocumentId, bool IsNew)?> AttachHashAsync(UnhashedFile file, ContentHash hash, CancellationToken ct = default)
     {
@@ -290,6 +431,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         location.Document = document;
         location.PreviousDocumentId = null;
         await db.SaveChangesAsync(ct);
+        // A file moved where its ID couldn't follow it, as to another drive, is found again here.
+        await ForgetReplacedAsync(db, document.Id, ct);
         await transaction.CommitAsync(ct);
         return (document.Id, isNew);
     }
@@ -368,15 +511,15 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// The entries the library shows: those backed by a document with a file that isn't missing, in a folder the user
-    /// hasn't removed (an offline folder's books stay), and books owned elsewhere. With <paramref name="rootId"/>, only
-    /// that folder's.
+    /// The entries the library shows: those backed by a document with a file in a folder the user hasn't removed, and
+    /// books owned elsewhere. An offline folder's books stay, and so does a book whose file has gone missing, marked as
+    /// such (<see cref="GetUnavailableAsync"/>), until its file turns up again (slice 4g plan, choice 1). With
+    /// <paramref name="rootId"/>, only that folder's.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> GetVisibleEntryIdsAsync(long? rootId = null, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var locations = db.FileLocations.Where(f =>
-            f.DocumentId != null && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
+        var locations = db.FileLocations.Where(f => f.DocumentId != null && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
         if (rootId is { } id) locations = locations.Where(f => f.SourceRootId == id);
         var documents = locations.Select(f => f.DocumentId!.Value);
         var entries = await db.EntrySources.Where(s => documents.Contains(s.DocumentId)).Select(s => s.EntryId).Distinct().ToListAsync(ct);
@@ -389,6 +532,50 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             ? await db.Entries.Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any()).Select(e => e.Id).ToListAsync(ct)
             : [];
         return [.. entries.Concat(packs).Concat(elsewhere).Select(e => new EntryId(e))];
+    }
+
+    /// <summary>
+    /// The cards the library shows that can't be opened now, and why (slice 4g plan, choices 1 and 5): Offline while a
+    /// file of one is in a folder that can't be reached, otherwise Missing, every file it had being gone. A card with a
+    /// file it can open isn't listed, nor is a book owned elsewhere. A pack is unavailable when all its images are.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<EntryId, EntryAvailability>> GetUnavailableAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var sources = db.EntrySources.Where(s => s.Document.Locations.Any(l => l.SourceRoot.Availability != SourceRootAvailability.RemovedByUser));
+        var present = sources
+            .Where(s => s.Document.Locations.Any(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability == SourceRootAvailability.Online))
+            .Select(s => s.EntryId);
+        var rows = await sources.Where(s => !present.Contains(s.EntryId))
+            .Select(s => new
+            {
+                s.EntryId,
+                s.Entry.ParentEntryId,
+                Offline = s.Document.Locations.Any(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability == SourceRootAvailability.Offline),
+            })
+            .ToListAsync(ct);
+        if (rows.Count == 0) return new Dictionary<EntryId, EntryAvailability>();
+        var result = rows.GroupBy(r => r.EntryId)
+            .ToDictionary(g => new EntryId(g.Key), g => g.Any(r => r.Offline) ? EntryAvailability.Offline : EntryAvailability.Missing);
+
+        var packIds = rows.Where(r => r.ParentEntryId is not null).Select(r => r.ParentEntryId!.Value).Distinct().ToList();
+        if (packIds.Count == 0) return result;
+        var shownPacks = await db.Entries
+            .Where(e => e.ParentEntryId != null && packIds.Contains(e.ParentEntryId.Value) && present.Contains(e.Id))
+            .Select(e => e.ParentEntryId!.Value).Distinct().ToListAsync(ct);
+        foreach (var pack in packIds.Except(shownPacks))
+            result[new EntryId(pack)] = rows.Any(r => r.ParentEntryId == pack && r.Offline) ? EntryAvailability.Offline : EntryAvailability.Missing;
+        return result;
+    }
+
+    /// <summary>
+    /// Whether the catalog knows a file in this folder that isn't missing, so a listing that comes back empty reads as a
+    /// disk that isn't there rather than every file deleted (slice 4g plan, choice 3).
+    /// </summary>
+    public async Task<bool> HasFilesAsync(long rootId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations.AnyAsync(f => f.SourceRootId == rootId && f.ContainerId == null && f.State != FileLocationState.Missing, ct);
     }
 
     /// <summary>
@@ -453,6 +640,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             await db.Documents.CountAsync(ct),
             await toDownload.CountAsync(ct),
             await toDownload.SumAsync(f => (long?)f.SizeBytes, ct) ?? 0,
-            await active.CountAsync(f => f.State != FileLocationState.Missing && f.Problem != null, ct));
+            await active.CountAsync(f => f.State != FileLocationState.Missing && f.Problem != null, ct),
+            await db.SourceRoots.CountAsync(r => r.Availability == SourceRootAvailability.Offline, ct));
     }
 }

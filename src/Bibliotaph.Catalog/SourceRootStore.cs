@@ -51,5 +51,30 @@ public sealed class SourceRootStore(IDbContextFactory<CatalogDbContext> contexts
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Points a folder at the place it moved to for good (slice 4g plan, choice 6). Its files keep their rows, matched
+    /// by their paths under it at its next scan, so each keeps its hash and document while its size and modified time
+    /// are the same, and every card, collection, session and note on it stays. It stays offline until that scan, and its
+    /// volume serial and its files' IDs are read again there, since it may be on another disk now. False when the folder is gone or removed, or another
+    /// folder, even one removed from the library, has that path.
+    /// </summary>
+    public async Task<bool> RelocateAsync(long id, string path, CancellationToken ct = default)
+    {
+        var normalized = Normalize(path);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var all = await db.SourceRoots.ToListAsync(ct);
+        var root = all.FirstOrDefault(r => r.Id == id);
+        if (root is null || root.Availability == SourceRootAvailability.RemovedByUser) return false;
+        if (all.Any(r => r.Id != id && string.Equals(r.Path, normalized, StringComparison.OrdinalIgnoreCase))) return false;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        root.Path = normalized;
+        root.VolumeSerial = null;
+        await db.SaveChangesAsync(ct);
+        await db.FileLocations.Where(f => f.SourceRootId == id).ExecuteUpdateAsync(u => u.SetProperty(f => f.NtfsFileId, (string?)null), ct);
+        await transaction.CommitAsync(ct);
+        return true;
+    }
+
     static string Normalize(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 }

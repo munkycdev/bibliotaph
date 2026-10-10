@@ -66,6 +66,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly LibraryPages _pages;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
+    /// <summary>The books whose files are offline or missing as of the last refresh, so their covers are marked.</summary>
+    IReadOnlyDictionary<EntryId, EntryAvailability> _away = new Dictionary<EntryId, EntryAvailability>();
     readonly DispatcherTimer _staleTimer;
     readonly NotesService _notes;
     int _version;
@@ -541,6 +543,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         try
         {
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
+            var away = await _library.GetUnavailableAsync();
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
@@ -555,6 +558,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
                 var entries = await Task.Run(() => _queries.ListAsync(filter));
                 var browseFacets = await CountFacetsAsync(filter, null);
                 if (version != _version) return;
+                _away = away;
                 ShowFacets(browseFacets);
                 ShowResults(entries, null, null, SearchQuery.Parse(""));
                 NotifyViewState();
@@ -569,6 +573,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var pageResults = await pages;
             var facets = await CountFacetsAsync(filter, plan);
             if (version != _version) return;
+            _away = away;
             ShowFacets(facets);
             ShowResults(found, pageResults, plan, query);
             NotifyViewState();
@@ -698,12 +703,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     LibraryItemViewModel Item(LibraryEntry entry)
     {
-        if (_known.TryGetValue(entry.EntryId, out var item))
-        {
-            item.Update(entry);
-            return item;
-        }
-        return _known[entry.EntryId] = new LibraryItemViewModel(entry, _covers);
+        if (_known.TryGetValue(entry.EntryId, out var item)) item.Update(entry);
+        else item = _known[entry.EntryId] = new LibraryItemViewModel(entry, _covers);
+        item.ShowAvailability(_away.GetValueOrDefault(entry.EntryId));
+        return item;
     }
 
     /// <summary>

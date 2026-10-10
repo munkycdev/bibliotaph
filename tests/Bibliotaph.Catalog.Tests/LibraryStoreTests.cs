@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-public sealed class LibraryStoreTests : IAsyncLifetime
+public sealed partial class LibraryStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-library-").FullName;
@@ -158,12 +158,12 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         var locked = Path.Combine("Locked", "Sub");
         await _library.ReconcileRootAsync(root, [File("a.pdf"), File(Path.Combine(locked, "b.pdf")), File(Path.Combine("Locked Out", "c.pdf"))], ct: Ct);
 
-        var result = await _library.ReconcileRootAsync(root, [File("a.pdf")], [locked], Ct);
+        var result = await _library.ReconcileRootAsync(root, [File("a.pdf")], [locked], ct: Ct);
 
         Assert.Equal(1, result.Missing); // only the folder next to it, whose name merely starts the same
         var missing = Assert.Single(await LocationsAsync(), l => l.State == FileLocationState.Missing);
         Assert.Equal(Path.Combine("Locked Out", "c.pdf"), missing.RelativePath);
-        Assert.Equal(0, (await _library.ReconcileRootAsync(root, [], ["."], Ct)).Missing);
+        Assert.Equal(0, (await _library.ReconcileRootAsync(root, [], ["."], ct: Ct)).Missing);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public sealed class LibraryStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_library_shows_entries_with_documents_in_folders_still_in_use()
+    public async Task The_library_shows_entries_with_documents_in_folders_still_in_use_and_keeps_those_whose_file_went_missing()
     {
         var kept = await RootAsync("Kept");
         var removed = await RootAsync("Removed");
@@ -202,10 +202,14 @@ public sealed class LibraryStoreTests : IAsyncLifetime
         await _library.ReconcileRootAsync(kept, [File("shared.pdf"), File("unhashed.pdf")], ct: Ct); // gone.pdf goes missing
         await _roots.RemoveAsync(removed, Ct);
 
-        var shared = (await new EntryStore(_contexts).GetEntryAsync(ids["shared.pdf"], Ct))!.EntryId;
-        Assert.Equal([shared], await _library.GetVisibleEntryIdsAsync(ct: Ct));
-        Assert.Equal([shared], await _library.GetVisibleEntryIdsAsync(kept, Ct));
+        var entries = new EntryStore(_contexts);
+        var shared = (await entries.GetEntryAsync(ids["shared.pdf"], Ct))!.EntryId;
+        var gone = (await entries.GetEntryAsync(ids["gone.pdf"], Ct))!.EntryId;
+        // The book whose file went stays, marked missing (slice 4g plan, choice 1); the one only in the removed folder goes.
+        Assert.Equal([shared, gone], (await _library.GetVisibleEntryIdsAsync(ct: Ct)).OrderBy(e => e.Value));
+        Assert.Equal([shared, gone], (await _library.GetVisibleEntryIdsAsync(kept, Ct)).OrderBy(e => e.Value));
         Assert.Empty(await _library.GetVisibleEntryIdsAsync(removed, Ct));
+        Assert.Equal(new Dictionary<EntryId, EntryAvailability> { [gone] = EntryAvailability.Missing }, await _library.GetUnavailableAsync(Ct));
 
         var locations = await _library.GetLocationsAsync(ids["shared.pdf"], Ct);
         Assert.Equal([Path.Combine(_dir, "Kept", "shared.pdf")], locations.Select(l => l.FullPath));
