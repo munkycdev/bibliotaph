@@ -25,21 +25,32 @@ public sealed class FavoritesService(FavoriteStore favorites, EntryStore entries
 
 /// <summary>
 /// What the reader leaves behind (choice 6): when each book was opened, for Home and the Recently opened order, and
-/// the page it was left at after an ordinary open, where it opens next time.
+/// the page it was left at after an ordinary open, where it opens next time. Left in one copy, the book opens another
+/// at the matching page (slice 4h plan, choice 5).
 /// </summary>
-public sealed class ReadingService(ReadingStore reading, MetadataProjector projector)
+public sealed class ReadingService(ReadingStore reading, MetadataProjector projector, PagePlaces places)
 {
     /// <summary>Records that a document was opened and projects it. Returns the card it shows under.</summary>
     public async Task<EntryId?> RecordOpenAsync(long documentId, CancellationToken ct = default)
     {
-        if (await reading.RecordOpenAsync(documentId, ct) is not { } card) return null;
+        if (await reading.RecordOpenAsync(documentId, await CarriedPageAsync(documentId, ct), ct) is not { } card) return null;
         await projector.ProjectMarksAsync([card], ct);
         return card;
     }
 
     public Task SavePositionAsync(long documentId, int pageIndex, CancellationToken ct = default) => reading.SavePositionAsync(documentId, pageIndex, ct);
 
-    public Task<int> GetPositionAsync(long documentId, CancellationToken ct = default) => reading.GetPositionAsync(documentId, ct);
+    /// <summary>The page a reader left this document at, or the matching page when another copy was read last; 0 when the book hasn't been read.</summary>
+    public async Task<int> GetPositionAsync(long documentId, CancellationToken ct = default) =>
+        await reading.GetPlaceAsync(documentId, ct) is not { } place ? 0
+        : place.DocumentId == documentId ? place.PageIndex
+        : await places.MapPageAsync(place.DocumentId, place.PageIndex, documentId, ct);
+
+    /// <summary>The page of this document that matches where another copy was left, which an open of it carries over.</summary>
+    async Task<int> CarriedPageAsync(long documentId, CancellationToken ct) =>
+        await reading.GetPlaceAsync(documentId, ct) is { } place && place.DocumentId != documentId
+            ? await places.MapPageAsync(place.DocumentId, place.PageIndex, documentId, ct)
+            : 0;
 }
 
 /// <summary>

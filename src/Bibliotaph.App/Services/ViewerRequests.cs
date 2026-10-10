@@ -32,6 +32,9 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
 
     /// <summary>A session item opened from its pack: it opens at its first page and, like a search hit, keeps no reading position.</summary>
     public SessionItemOpen? SessionItem { get; init; }
+
+    /// <summary>A page note opened at its pages, which may have moved or changed in the book as it is now (slice 4h plan, choice 2).</summary>
+    public PageNoteOpen? PageNote { get; init; }
 }
 
 /// <summary>
@@ -39,6 +42,12 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
 /// reader can say when they are in the original file or changed, and re-point the item with Use this page.
 /// </summary>
 public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.Processing.SessionItemState State, string? Reason, int FirstPage, int LastPage);
+
+/// <summary>
+/// A page note being opened (slice 4h plan, choice 2): which, and how its pages were found, so the reader can say when
+/// they changed or a new version is still being read, and re-point the note with Use this page.
+/// </summary>
+public sealed record PageNoteOpen(long NoteId, Bibliotaph.Processing.PagePlaceState State, string? Reason, int FirstPage, int LastPage);
 
 /// <summary>An image of a pack the viewer can step to.</summary>
 public sealed record PackStep(long DocumentId, string Title);

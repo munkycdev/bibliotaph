@@ -15,9 +15,9 @@ public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, 
 
 /// <summary>Everything in Needs review's Metadata suggestions tab, and the vocabulary to label it with.</summary>
 public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions,
-    IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null)
+    IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null)
 {
-    public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0);
+    public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0);
 }
 
 /// <summary>
@@ -35,7 +35,8 @@ public sealed class ReviewService(
     VocabularyService vocabulary,
     CopiesService copies,
     PackService packs,
-    ElsewhereService? elsewhere = null)
+    ElsewhereService? elsewhere = null,
+    PagePlaces? places = null)
 {
     public async Task<bool> GetReviewAllAsync(CancellationToken ct = default) =>
         await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
@@ -50,11 +51,13 @@ public sealed class ReviewService(
 
     /// <summary>
     /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards, the
-    /// folders proposed as packs and the files that may be those of books owned elsewhere.
+    /// folders proposed as packs, the files that may be those of books owned elsewhere, and the new versions with places
+    /// that need a look.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
         await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct)
-            + (await packs.GetProposalsAsync(ct)).Count + (elsewhere is null ? 0 : await elsewhere.CountPendingAsync(ct));
+            + (await packs.GetProposalsAsync(ct)).Count + (elsewhere is null ? 0 : await elsewhere.CountPendingAsync(ct))
+            + (places is null ? 0 : await places.CountRevisionsAsync(ct));
 
     /// <summary>
     /// The cards: sources that disagree first, then missing titles, then other suggestions, each by title. The cards
@@ -75,8 +78,15 @@ public sealed class ReviewService(
             .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
         return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct),
-            await packs.GetProposalsAsync(ct), elsewhere is null ? [] : await elsewhere.GetPendingAsync(ct));
+            await packs.GetProposalsAsync(ct), elsewhere is null ? [] : await elsewhere.GetPendingAsync(ct), places is null ? [] : await places.GetRevisionsAsync(ct));
     }
+
+    /// <summary>
+    /// Use this page on a "new version" card (slice 4h plan, choice 3): the place points at the page suggested for it
+    /// in the new version from now on, checked. Returns what undoes it, or null when the place is gone.
+    /// </summary>
+    public async Task<Func<Task>?> UsePlaceAsync(RevisionPlace place, CancellationToken ct = default) =>
+        places is null ? null : await places.UseAsync(place.Place, place.Check.DocumentId, place.Check.FirstPdfPage, place.Check.LastPdfPage, ct);
 
     /// <summary>Answers "You own X elsewhere. Is this its file?". Returns what undoes it, or null when it isn't waiting any more.</summary>
     public async Task<Func<Task>?> AnswerElsewhereAsync(PendingElsewhere match, ElsewhereAnswer answer, CancellationToken ct = default)

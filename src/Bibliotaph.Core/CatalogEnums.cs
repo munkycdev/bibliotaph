@@ -171,6 +171,23 @@ public enum VersionAnswer
     SeparateBook,
 }
 
+/// <summary>
+/// What was found when a session item's or a page note's pages were looked for in a new version of their book (slice
+/// 4h plan, choice 4). Kept on the page reference, so a session or a note shows it without looking again, and Needs
+/// review can count the places that need a look.
+/// </summary>
+public enum PageCheck
+{
+    /// <summary>The pages are in the new version, found by their fingerprints, maybe at other page numbers.</summary>
+    Found,
+
+    /// <summary>They aren't: the place opens at the same printed page, marked "This page changed: check it".</summary>
+    NeedsLook,
+
+    /// <summary>The user chose its page in the new version (Use this page), so it points there now.</summary>
+    Checked,
+}
+
 public enum StageStatus
 {
     Pending,

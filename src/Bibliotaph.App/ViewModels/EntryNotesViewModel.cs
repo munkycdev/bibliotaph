@@ -8,10 +8,16 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>A page note as the reader, run mode and the details list it: which pages, and the text.</summary>
-public sealed class PageNoteRow(PageNoteInfo note)
+/// <summary>
+/// A page note as the reader, run mode and the details list it: which pages, and the text, and where it opens in the
+/// book as it is now (slice 4h plan, choice 2), with why when that isn't simply its pages.
+/// </summary>
+public sealed class PageNoteRow(PageNoteInfo note, PagePlace? place = null)
 {
     public PageNoteInfo Note { get; } = note;
+
+    /// <summary>Where the note opens now: in the book's current copy when it is on another, found as a session item's pages are.</summary>
+    public PagePlace? Place { get; } = place;
 
     public long Id => Note.Id;
 
@@ -20,11 +26,31 @@ public sealed class PageNoteRow(PageNoteInfo note)
 
     public string Text => Note.Text;
 
-    public string AccessibleName => $"{Pages}: {Text}";
+    /// <summary>"This page changed: check it.", or that a new version is still being read; null when the note opens at its pages.</summary>
+    public string? Reason => Place is { State: not (PagePlaceState.Ready or PagePlaceState.OtherCopy) } place ? place.Reason : null;
 
-    /// <summary>Whether the note is on any of these pages of this document.</summary>
-    public bool Overlaps(long documentId, int firstPage, int lastPage) =>
-        Note.Range.DocumentId == documentId && Note.Range.FirstPdfPage <= lastPage && Note.Range.LastPdfPage >= firstPage;
+    public bool HasReason => Reason is not null;
+
+    public bool IsChanged => Place?.State == PagePlaceState.Changed;
+
+    public string AccessibleName => $"{Pages}: {Text}{(Reason is null ? "" : ". " + Reason)}";
+
+    /// <summary>
+    /// The note's pages in this document: where it was found there, or its own pages, which in another copy are the
+    /// same page numbers.
+    /// </summary>
+    public (int FirstPage, int LastPage) PagesIn(long documentId) =>
+        Place is { DocumentId: { } found } place && found == documentId && found != Note.Range.DocumentId
+            ? (place.FirstPage, place.LastPage)
+            : (Note.Range.FirstPdfPage, Note.Range.LastPdfPage);
+
+    /// <summary>Whether the note is on any of these pages of this document, where it was made or where it was found.</summary>
+    public bool Overlaps(long documentId, int firstPage, int lastPage)
+    {
+        if (Note.Range.DocumentId != documentId && Place?.DocumentId != documentId) return false;
+        var (first, last) = PagesIn(documentId);
+        return first <= lastPage && last >= firstPage;
+    }
 }
 
 /// <summary>
@@ -73,7 +99,11 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     {
         try
         {
-            var (text, pages) = await Task.Run(async () => (await _notes.GetEntryNoteAsync(EntryId), await _notes.GetPageNotesAsync(EntryId)));
+            var (text, pages, places) = await Task.Run(async () =>
+            {
+                var pages = await _notes.GetPageNotesAsync(EntryId);
+                return (await _notes.GetEntryNoteAsync(EntryId), pages, await _notes.ResolveAsync(pages));
+            });
             if (!_dirty)
             {
                 _loading = true;
@@ -81,7 +111,7 @@ public sealed partial class EntryNotesViewModel : ObservableObject
                 _loading = false;
             }
             PageNotes.Clear();
-            foreach (var note in pages) PageNotes.Add(new PageNoteRow(note));
+            foreach (var note in pages) PageNotes.Add(new PageNoteRow(note, places.GetValueOrDefault(note.Id)));
             HasPageNotes = PageNotes.Count > 0;
             OnPropertyChanged(nameof(TabLabel));
         }

@@ -18,12 +18,13 @@ public sealed partial class PipelineTests
     {
         readonly Lock _lock = new();
         readonly Dictionary<string, string> _ids = [];
-        readonly Dictionary<string, string> _disks = [];
+        readonly Dictionary<string, (string Serial, bool IsLocal)> _disks = [];
         int _next;
 
-        public void Disk(string folder, string serial)
+        /// <summary>Puts a library folder on a disk; <paramref name="network"/> makes it a network share's.</summary>
+        public void Disk(string folder, string serial, bool network = false)
         {
-            lock (_lock) _disks[Path.TrimEndingDirectorySeparator(folder)] = serial;
+            lock (_lock) _disks[Path.TrimEndingDirectorySeparator(folder)] = (serial, !network);
         }
 
         /// <summary>Moves a file as Explorer would: same file, same ID, new path.</summary>
@@ -35,9 +36,19 @@ public sealed partial class PipelineTests
                 if (_ids.Remove(from, out var id)) _ids[to] = id;
         }
 
+        /// <summary>
+        /// Another file now at this path, as when an app saves by writing a new file and renaming it over the old one:
+        /// a new ID, whatever its size and date.
+        /// </summary>
+        public void Renew(string path)
+        {
+            lock (_lock) _ids.Remove(path);
+        }
+
         public VolumeIdentity? Volume(string folder)
         {
-            lock (_lock) return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var serial) ? new VolumeIdentity(serial, HasFileIds: true) : null;
+            lock (_lock)
+                return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var disk) ? new VolumeIdentity(disk.Serial, HasFileIds: true, disk.IsLocal) : null;
         }
 
         public string? FileId(string path)
@@ -92,7 +103,7 @@ public sealed partial class PipelineTests
         var pack = await _sessions.CreateAsync("Session 1", ct: Ct);
         await _sessions.AddItemsAsync(pack.Id, [new NewSessionItem(card.EntryId, new PageRange(card.DocumentId, 0, 0))], ct: Ct);
         await _notes.SetEntryNoteAsync(card.EntryId, "The owlbear is a red herring.", Ct);
-        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
         var original = (await FileLocationsAsync()).Single(l => l.DocumentId == card.DocumentId);
         var cards = await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct);
 

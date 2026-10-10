@@ -12,10 +12,11 @@ namespace Bibliotaph.Processing;
 /// a file that shares most of its pages with a book, or has its title and publisher, is proposed in Needs review as a
 /// new version of it (choice 4). Runs after Text, and after OCR for a book with scanned pages and its hints from
 /// names, so it never reads the file. A file with the title of a book the user owns elsewhere is offered as its file
-/// (F5 plan, choice 6).
+/// (F5 plan, choice 6). A new version that is already the one its book opens, as a file replaced in place is, has its
+/// book's session items and page notes looked for in it now that its pages have fingerprints (slice 4h plan, choice 1).
 /// </summary>
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
-    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null) : IStage
+    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null) : IStage
 {
     /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
     static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
@@ -35,6 +36,7 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
         var texts = await queries.GetAllPageTextsAsync(job.DocumentId, ct);
         var fingerprints = PageFingerprints.Compute(texts);
         await index.SetFingerprintsAsync(job.DocumentId, fingerprints, ct);
+        if (places is not null) await places.CheckAsync(job.DocumentId, fingerprinted: true, ct);
         var enoughText = fingerprints.Count(f => f is not null) >= PageFingerprints.MinimumMatchingPages;
         var sharing = enoughText ? await queries.GetSharingPagesAsync(job.DocumentId, ct) : [];
 
@@ -106,9 +108,11 @@ public sealed record VersionItem(PendingVersion Version, string Title, string? P
 /// <summary>
 /// The inspector's Copies list (F2 plan, choices 6, 8 and 10): which files hold an entry's book, which one opens, and
 /// "Not the same book"; and Needs review's "new version?" cards (choice 4). Every change is projected at once so the
-/// library shows it.
+/// library shows it. The copy a card opens from now on has the book's session items and page notes looked for in it,
+/// and where the book was left moves to its matching page (slice 4h plan, choices 4 and 5).
 /// </summary>
-public sealed class CopiesService(EntryStore entries, VersionStore versions, LibraryStore library, IndexQueries queries, MetadataProjector projector)
+public sealed class CopiesService(EntryStore entries, VersionStore versions, LibraryStore library, IndexQueries queries, MetadataProjector projector,
+    PagePlaces? places = null)
 {
     public async Task<IReadOnlyList<CopyDetails>> GetAsync(EntryId entryId, CancellationToken ct = default)
     {
@@ -121,7 +125,9 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
     /// <summary>Makes a copy the one the card opens, with its cover, page count and page hits.</summary>
     public async Task MakeCurrentAsync(EntryId entryId, long documentId, CancellationToken ct = default)
     {
-        if (await entries.MakeCurrentAsync(entryId, documentId, ct)) await projector.ProjectAsync([entryId], ct);
+        if (!await entries.MakeCurrentAsync(entryId, documentId, ct)) return;
+        await projector.ProjectAsync([entryId], ct);
+        if (places is not null) await places.CheckAsync(documentId, ct: ct);
     }
 
     /// <summary>Takes a copy onto a card of its own, as it was before it joined; returns that card.</summary>
@@ -158,6 +164,7 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
     {
         var decision = await versions.AnswerAsync(version.Id, answer, ct);
         if (decision is not null && answer != VersionAnswer.SeparateBook) await projector.ProjectAsync([version.MatchedEntryId, version.EntryId], ct);
+        if (decision is not null && answer == VersionAnswer.MakeCurrent && places is not null) await places.CheckAsync(version.DocumentId, ct: ct);
         return decision;
     }
 
@@ -165,5 +172,7 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
     {
         await versions.UndoAsync(decision, ct);
         if (decision.Answer != VersionAnswer.SeparateBook) await projector.ProjectAsync([decision.Version.MatchedEntryId, decision.Version.EntryId], ct);
+        // Where the book was left goes back to the copy it opens again.
+        if (decision is { Answer: VersionAnswer.MakeCurrent, PreviousCurrent: { } previous } && places is not null) await places.CheckAsync(previous, ct: ct);
     }
 }

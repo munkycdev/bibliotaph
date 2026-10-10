@@ -340,6 +340,16 @@ public sealed class PageRef
     /// <summary>Page-text fingerprints (<see cref="Core.PageFingerprints"/>); null for a page with too little text.</summary>
     public string? FirstFingerprint { get; set; }
     public string? LastFingerprint { get; set; }
+
+    /// <summary>
+    /// What was found when the pages were looked for in <see cref="CheckDocumentId"/>, the version of the book that opens
+    /// instead of <see cref="DocumentId"/> (slice 4h plan, choice 4); null until they have been looked for.
+    /// </summary>
+    public PageCheck? Check { get; set; }
+    public long? CheckDocumentId { get; set; }
+    /// <summary>Where the pages are in that version, or the same printed pages there when they weren't found.</summary>
+    public int? CheckFirstPdfPage { get; set; }
+    public int? CheckLastPdfPage { get; set; }
 }
 
 /// <summary>

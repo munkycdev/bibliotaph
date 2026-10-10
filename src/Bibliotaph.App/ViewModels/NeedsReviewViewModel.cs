@@ -47,8 +47,8 @@ public sealed partial class NeedsReviewViewModel(
     public override string Title => "Needs review";
 
     /// <summary>
-    /// New-term cards first, since each covers many books; then "new version?" cards and folders proposed as packs;
-    /// then a page of field cards.
+    /// New-term cards first, since each covers many books; then "new version?" cards, folders proposed as packs, files
+    /// of books owned elsewhere and new versions with places to check; then a page of field cards.
     /// </summary>
     public ObservableCollection<DecidedCardViewModel> Cards { get; } = [];
 
@@ -147,6 +147,7 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var version in list.Versions) Cards.Add(new VersionCardViewModel(version, this));
             foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             foreach (var match in list.Elsewhere ?? []) Cards.Add(new ElsewhereCardViewModel(match, this));
+            foreach (var revision in list.Revisions ?? []) Cards.Add(new RevisionCardViewModel(revision, this));
             Hidden = _items.Count;
             ShowMore();
             Remaining = list.Count;
@@ -315,6 +316,39 @@ public sealed partial class NeedsReviewViewModel(
 
     public async Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer) =>
         await review.AnswerElsewhereAsync(item.Match, answer) ?? (() => Task.CompletedTask);
+
+    public async Task<Func<Task>?> UsePlaceAsync(RevisionPlace place)
+    {
+        var undo = await review.UsePlaceAsync(place);
+        activity.Invalidate();
+        return undo is null ? null : async () =>
+        {
+            await undo();
+            activity.Invalidate();
+        };
+    }
+
+    /// <summary>
+    /// A place on a "new version" card opens at the page suggested for it, as its session item or note would, so the
+    /// reader offers Use this page there too.
+    /// </summary>
+    public void OpenPlace(RevisionItem item, RevisionPlace place)
+    {
+        var check = place.Check;
+        var request = new ViewerRequest(check.DocumentId, item.BookTitle, check.FirstPdfPage);
+        var needsLook = place.Outcome == PageCheck.NeedsLook;
+        readers.OpenInMainWindow(place.Place.Kind == PlaceKind.SessionItem
+            ? request with
+            {
+                SessionItem = new SessionItemOpen(place.Place.OwnerId, place.Place.PackTitle ?? "the session",
+                    needsLook ? SessionItemState.Changed : SessionItemState.Ready, needsLook ? PagePlaces.ChangedReason : null, check.FirstPdfPage, check.LastPdfPage),
+            }
+            : request with
+            {
+                PageNote = new PageNoteOpen(place.Place.OwnerId, needsLook ? PagePlaceState.Changed : PagePlaceState.Ready,
+                    needsLook ? PagePlaces.ChangedReason : null, check.FirstPdfPage, check.LastPdfPage),
+            });
+    }
 
     public void ShowFolder(string path) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();

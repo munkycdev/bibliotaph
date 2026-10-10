@@ -72,10 +72,10 @@ public sealed class PreparationStoreTests : IAsyncLifetime
         var (abbeyDoc, abbey) = await AddBookAsync("abbey.pdf", 'a');
         var (tombDoc, tomb) = await AddBookAsync("tomb.pdf", 'b');
 
-        Assert.Equal(abbey, await _reading.RecordOpenAsync(abbeyDoc, Ct));
+        Assert.Equal(abbey, await _reading.RecordOpenAsync(abbeyDoc, ct: Ct));
         await _reading.SavePositionAsync(abbeyDoc, 41, Ct);
         _clock.Step();
-        Assert.Equal(tomb, await _reading.RecordOpenAsync(tombDoc, Ct));
+        Assert.Equal(tomb, await _reading.RecordOpenAsync(tombDoc, ct: Ct));
 
         Assert.Equal(41, await _reading.GetPositionAsync(abbeyDoc, Ct));
         Assert.Equal(0, await _reading.GetPositionAsync(tombDoc, Ct));
@@ -84,9 +84,9 @@ public sealed class PreparationStoreTests : IAsyncLifetime
         Assert.Equal([abbey], (await _reading.GetOpenedAsync([abbey], Ct)).Keys);
 
         // Reopening keeps the page; a document the catalog doesn't know is no card at all.
-        await _reading.RecordOpenAsync(abbeyDoc, Ct);
+        await _reading.RecordOpenAsync(abbeyDoc, ct: Ct);
         Assert.Equal(41, await _reading.GetPositionAsync(abbeyDoc, Ct));
-        Assert.Null(await _reading.RecordOpenAsync(9999, Ct));
+        Assert.Null(await _reading.RecordOpenAsync(9999, ct: Ct));
         Assert.Equal(0, await _reading.GetPositionAsync(9999, Ct));
     }
 
@@ -96,7 +96,7 @@ public sealed class PreparationStoreTests : IAsyncLifetime
         var (coreDoc, core) = await AddBookAsync("Core/abbey.pdf", 'a');
         var (backupDoc, backup) = await AddBookAsync("Backup/abbey.pdf", 'b');
         await _favorites.SetAsync([backup], favorite: true, Ct);
-        await _reading.RecordOpenAsync(backupDoc, Ct);
+        await _reading.RecordOpenAsync(backupDoc, ct: Ct);
         await _reading.SavePositionAsync(backupDoc, 12, Ct);
 
         Assert.Equal(new CopyJoin(core, backup), await _entries.JoinAsCopyAsync(coreDoc, backupDoc, Ct));
@@ -120,9 +120,9 @@ public sealed class PreparationStoreTests : IAsyncLifetime
         var (coreDoc, core) = await AddBookAsync("Core/abbey.pdf", 'a');
         var (backupDoc, backup) = await AddBookAsync("Backup/abbey.pdf", 'b');
         await _favorites.SetAsync([core, backup], favorite: true, Ct);
-        await _reading.RecordOpenAsync(coreDoc, Ct);
+        await _reading.RecordOpenAsync(coreDoc, ct: Ct);
         await _reading.SavePositionAsync(coreDoc, 5, Ct);
-        await _reading.RecordOpenAsync(backupDoc, Ct);
+        await _reading.RecordOpenAsync(backupDoc, ct: Ct);
 
         await _entries.JoinAsCopyAsync(coreDoc, backupDoc, Ct);
 
