@@ -132,6 +132,15 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
 }
 
 /// <summary>What a binder's reader and its list page both show: its sections and items, each item resolved to where it opens.</summary>
+/// <summary>A binder kept at hand, with its pages, as the At hand menu lists it (Binders plan, choices 10 and 11).</summary>
+public sealed record AtHandBinder(SessionPackInfo Pack, IReadOnlyList<SessionItemRow> Pages);
+
+/// <summary>At hand's binders under one heading: for the systems of the binder in hand, for any system, or for others.</summary>
+public sealed record AtHandGroup(string Heading, IReadOnlyList<AtHandBinder> Binders);
+
+/// <summary>A page picked in the At hand menu: it opens in a reader window of its own.</summary>
+public sealed record AtHandPage(string BinderTitle, SessionItemRow Row);
+
 public static class SessionPackRows
 {
     /// <summary>The pack's rows in order: items before any section, then each section's heading and items, numbered throughout.</summary>

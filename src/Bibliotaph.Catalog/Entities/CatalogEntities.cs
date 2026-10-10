@@ -447,6 +447,10 @@ public sealed class SessionPack
     public DateTime CreatedUtc { get; set; }
     /// <summary>When it was last opened or changed.</summary>
     public DateTime TouchedUtc { get; set; }
+    /// <summary>A binder of rules and references to look up mid-game (Binders plan, choice 9): At hand offers its pages.</summary>
+    public bool KeepAtHand { get; set; }
+    /// <summary>The game system its references are for, as a system vocabulary key; null for any system.</summary>
+    public string? GameSystem { get; set; }
 }
 
 /// <summary>A heading in a pack ("Maps"), in the pack's order. Items without one come first.</summary>

@@ -57,6 +57,10 @@
         <TextBlock Text="UPCOMING" Style="{StaticResource RowHeading}" />
         <ItemsControl x:Name="UpcomingSessions" ItemsSource="{Binding Upcoming}" Style="{StaticResource CardRow}" AutomationProperties.Name="Upcoming binders" />
       </StackPanel>
+      <StackPanel Visibility="{Binding HasAtHand, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="AT HAND" Style="{StaticResource RowHeading}" />
+        <ItemsControl x:Name="AtHandSessions" ItemsSource="{Binding AtHand}" Style="{StaticResource CardRow}" AutomationProperties.Name="Binders kept at hand" />
+      </StackPanel>
       <StackPanel Visibility="{Binding HasUndated, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <TextBlock Text="NO DATE YET" Style="{StaticResource RowHeading}" />
         <ItemsControl x:Name="UndatedSessions" ItemsSource="{Binding Undated}" Style="{StaticResource CardRow}" AutomationProperties.Name="Binders without a date" />

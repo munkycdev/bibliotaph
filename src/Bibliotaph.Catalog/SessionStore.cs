@@ -26,8 +26,13 @@ public sealed record PageRange(long DocumentId, int FirstPdfPage, int LastPdfPag
 /// </summary>
 public sealed record PageRefCheck(PageCheck Outcome, long DocumentId, int FirstPdfPage, int LastPdfPage);
 
-/// <summary>A pack as the Sessions page shows it: how many items it has, and the books of its first two, for covers.</summary>
-public sealed record SessionPackInfo(long Id, string Title, DateOnly? Date, string? Notes, DateTime TouchedUtc, int ItemCount, IReadOnlyList<EntryId> FirstEntries);
+/// <summary>
+/// A pack as the Sessions page shows it: how many items it has, and the books of its first two, for covers. One kept at
+/// hand holds rules to look up mid-game (Binders plan, choice 9), for <see cref="GameSystem"/> (a system vocabulary key)
+/// or any system.
+/// </summary>
+public sealed record SessionPackInfo(long Id, string Title, DateOnly? Date, string? Notes, DateTime TouchedUtc, int ItemCount, IReadOnlyList<EntryId> FirstEntries,
+    bool KeepAtHand = false, string? GameSystem = null);
 
 public sealed record SessionSectionInfo(long Id, string Name, int Position);
 
@@ -41,7 +46,7 @@ public sealed record NewSessionItem(EntryId EntryId, PageRange? Range = null, st
 
 /// <summary>Everything in a pack, for Undo after deleting it: <see cref="SessionStore.RestoreAsync"/> makes it again.</summary>
 public sealed record SessionPackSnapshot(string Title, DateOnly? Date, string? Notes, DateTime CreatedUtc, IReadOnlyList<SessionSectionInfo> Sections,
-    IReadOnlyList<SessionItemInfo> Items);
+    IReadOnlyList<SessionItemInfo> Items, bool KeepAtHand = false, string? GameSystem = null);
 
 /// <summary>
 /// Session packs (slice 3 plan, choices 11 to 15): ordered items, each a book or a page range of one, in optional
@@ -68,7 +73,8 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         {
             var order = SectionOrder(sections.Where(s => s.PackId == p.Id));
             var own = items.Where(i => i.PackId == p.Id).OrderBy(i => order[i.SectionId ?? NoSection]).ThenBy(i => i.Position).ThenBy(i => i.Id).ToList();
-            return new SessionPackInfo(p.Id, p.Title, p.Date, p.Notes, p.TouchedUtc, own.Count, [.. own.Select(i => new EntryId(i.EntryId)).Distinct().Take(2)]);
+            return new SessionPackInfo(p.Id, p.Title, p.Date, p.Notes, p.TouchedUtc, own.Count, [.. own.Select(i => new EntryId(i.EntryId)).Distinct().Take(2)],
+                p.KeepAtHand, p.GameSystem);
         })];
     }
 
@@ -78,24 +84,40 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         return await ContentsAsync(db, packId, ct);
     }
 
-    public async Task<SessionPackInfo> CreateAsync(string title, DateOnly? date = null, CancellationToken ct = default)
+    public Task<SessionPackInfo> CreateAsync(string title, DateOnly? date = null, CancellationToken ct = default) => CreateAsync(title, date, false, null, ct);
+
+    /// <summary>A new pack, kept at hand for <paramref name="gameSystem"/> (or any system) if <paramref name="keepAtHand"/>.</summary>
+    public async Task<SessionPackInfo> CreateAsync(string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var now = Now;
-        var pack = new SessionPack { Title = Title(title), Date = date, CreatedUtc = now, TouchedUtc = now };
+        var pack = new SessionPack
+        {
+            Title = Title(title),
+            Date = date,
+            CreatedUtc = now,
+            TouchedUtc = now,
+            KeepAtHand = keepAtHand,
+            GameSystem = AtHandSystem(keepAtHand, gameSystem),
+        };
         db.SessionPacks.Add(pack);
         await db.SaveChangesAsync(ct);
-        return new SessionPackInfo(pack.Id, pack.Title, pack.Date, null, now, 0, []);
+        return new SessionPackInfo(pack.Id, pack.Title, pack.Date, null, now, 0, [], pack.KeepAtHand, pack.GameSystem);
     }
 
-    /// <summary>Changes a pack's title and date. Returns false if it doesn't exist.</summary>
-    public async Task<bool> UpdateAsync(long packId, string title, DateOnly? date, CancellationToken ct = default)
+    /// <summary>Changes a pack's title and date, and whether it's kept at hand and for which system. Returns false if it doesn't exist.</summary>
+    public async Task<bool> UpdateAsync(long packId, string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
         var name = Title(title);
+        var system = AtHandSystem(keepAtHand, gameSystem);
         await using var db = await contexts.CreateDbContextAsync(ct);
         return await db.SessionPacks.Where(p => p.Id == packId)
-            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Title, name).SetProperty(p => p.Date, date).SetProperty(p => p.TouchedUtc, Now), ct) > 0;
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Title, name).SetProperty(p => p.Date, date).SetProperty(p => p.KeepAtHand, keepAtHand)
+                .SetProperty(p => p.GameSystem, system).SetProperty(p => p.TouchedUtc, Now), ct) > 0;
     }
+
+    /// <summary>A game system only means something for a pack kept at hand.</summary>
+    static string? AtHandSystem(bool keepAtHand, string? gameSystem) => keepAtHand && !string.IsNullOrWhiteSpace(gameSystem) ? gameSystem.Trim() : null;
 
     public async Task<bool> SetNotesAsync(long packId, string? notes, CancellationToken ct = default)
     {
@@ -124,7 +146,7 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         await db.SaveChangesAsync(ct);
         await db.PageRefs.Where(r => pageRefs.Contains(r.Id)).ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
-        return new SessionPackSnapshot(pack.Title, pack.Date, pack.Notes, pack.CreatedUtc, contents.Sections, contents.Items);
+        return new SessionPackSnapshot(pack.Title, pack.Date, pack.Notes, pack.CreatedUtc, contents.Sections, contents.Items, pack.KeepAtHand, pack.GameSystem);
     }
 
     /// <summary>Undoes <see cref="DeleteAsync"/>: the pack comes back with its sections and the items whose books are still in the catalog.</summary>
@@ -137,13 +159,14 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Duplicate (choice 11): a new pack with the same sections, items, labels and notes, each page range a new
-    /// reference to the same pages. It has no date, since it is usually for another session.
+    /// reference to the same pages, kept at hand if the pack is. It has no date, since it is usually for another session.
     /// </summary>
     public async Task<SessionPackInfo?> DuplicateAsync(long packId, string title, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         if (await ContentsAsync(db, packId, ct) is not { } contents) return null;
-        var snapshot = new SessionPackSnapshot(contents.Pack.Title, null, contents.Pack.Notes, Now, contents.Sections, contents.Items);
+        var snapshot = new SessionPackSnapshot(contents.Pack.Title, null, contents.Pack.Notes, Now, contents.Sections, contents.Items, contents.Pack.KeepAtHand,
+            contents.Pack.GameSystem);
         var pack = await CopyAsync(db, snapshot, Title(title), null, Now, ct);
         return (await ContentsAsync(db, pack.Id, ct))!.Pack;
     }
@@ -155,7 +178,16 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         var documentIds = snapshot.Items.Where(i => i.Range is not null).Select(i => i.Range!.DocumentId).Distinct().ToList();
         var documents = (await db.Documents.Where(d => documentIds.Contains(d.Id)).Select(d => d.Id).ToListAsync(ct)).ToHashSet();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var pack = new SessionPack { Title = title, Date = date, Notes = snapshot.Notes, CreatedUtc = created, TouchedUtc = Now };
+        var pack = new SessionPack
+        {
+            Title = title,
+            Date = date,
+            Notes = snapshot.Notes,
+            CreatedUtc = created,
+            TouchedUtc = Now,
+            KeepAtHand = snapshot.KeepAtHand,
+            GameSystem = snapshot.GameSystem,
+        };
         db.SessionPacks.Add(pack);
         await db.SaveChangesAsync(ct);
         var sections = snapshot.Sections.ToDictionary(s => s.Id, s => new SessionSection { PackId = pack.Id, Name = s.Name, Position = s.Position });
@@ -424,7 +456,8 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         var items = (await db.SessionItems.AsNoTracking().Include(i => i.PageRef).Where(i => i.PackId == packId).ToListAsync(ct))
             .OrderBy(i => order.GetValueOrDefault(i.SectionId ?? NoSection)).ThenBy(i => i.Position).ThenBy(i => i.Id)
             .Select(ToInfo).ToList();
-        var info = new SessionPackInfo(pack.Id, pack.Title, pack.Date, pack.Notes, pack.TouchedUtc, items.Count, [.. items.Select(i => i.EntryId).Distinct().Take(2)]);
+        var info = new SessionPackInfo(pack.Id, pack.Title, pack.Date, pack.Notes, pack.TouchedUtc, items.Count, [.. items.Select(i => i.EntryId).Distinct().Take(2)],
+            pack.KeepAtHand, pack.GameSystem);
         return new SessionPackContents(info, [.. sections.Select((s, i) => new SessionSectionInfo(s.Id, s.Name, i))], items);
     }
 
