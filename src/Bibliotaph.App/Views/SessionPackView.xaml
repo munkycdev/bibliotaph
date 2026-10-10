@@ -1,0 +1,239 @@
+<UserControl x:Class="Bibliotaph.App.Views.SessionPackView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SessionPackViewModel}">
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding EscapeCommand}" />
+  </UserControl.InputBindings>
+
+  <UserControl.Resources>
+    <!-- A label or note edited in place: plain text until it has focus. -->
+    <Style x:Key="InlineBox" TargetType="TextBox">
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource Bt.Accent}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border x:Name="Chrome" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="4" Padding="4,2">
+              <Grid>
+                <TextBlock x:Name="Placeholder" Text="{TemplateBinding Tag}" Foreground="{DynamicResource Bt.Muted}" FontSize="{TemplateBinding FontSize}"
+                           Margin="2,0,0,0" Visibility="Collapsed" IsHitTestVisible="False" />
+                <ScrollViewer x:Name="PART_ContentHost" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="Text" Value="">
+                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Bt.Line}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Panel}" />
+                <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- A section's heading: its name, with Rename and Delete. A drop on it puts an item first under it. -->
+    <DataTemplate DataType="{x:Type vm:SessionSectionRow}">
+      <Border x:Name="SectionRow" Padding="0,22,0,8" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Background="Transparent"
+              AllowDrop="True" Drop="Row_Drop" DragOver="Row_DragOver" AutomationProperties.Name="{Binding Name, StringFormat='Section {0}'}">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Delete this heading; its items stay"
+                  AutomationProperties.Name="{Binding Name, StringFormat='Delete the {0} heading'}"
+                  Command="{Binding DataContext.DeleteSectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" ToolTip="Rename"
+                  AutomationProperties.Name="{Binding Name, StringFormat='Rename {0}'}"
+                  Command="{Binding DataContext.RenameSectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+    </DataTemplate>
+
+    <!--
+      An item (choice 12): its number, cover, label and note (edited in place), book and pages, and its actions. Alt+Up and
+      Alt+Down move it, Enter opens it, Delete takes it out; the grip drags it. One that can't open is dimmed and says why.
+    -->
+    <DataTemplate DataType="{x:Type vm:SessionItemRow}">
+      <Border x:Name="ItemRow" Padding="0,14" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Background="Transparent" Focusable="True"
+              FocusVisualStyle="{StaticResource Bt.FocusVisual}" AllowDrop="True" Drop="Row_Drop" DragOver="Row_DragOver"
+              AutomationProperties.Name="{Binding AccessibleName}" ContextMenuOpening="ItemRow_ContextMenuOpening">
+        <Border.InputBindings>
+          <KeyBinding Key="Up" Modifiers="Alt" Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          <KeyBinding Key="Down" Modifiers="Alt" Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          <KeyBinding Key="Enter" Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding DataContext.OpenItemInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}" />
+          <KeyBinding Key="Delete" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+        </Border.InputBindings>
+        <!-- Its menu is filled as it opens: Open, Move up and down, Move to each section, Remove. -->
+        <Border.ContextMenu>
+          <ContextMenu Style="{StaticResource Bt.Menu}" />
+        </Border.ContextMenu>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="22" />
+            <ColumnDefinition Width="30" />
+            <ColumnDefinition Width="44" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Border x:Name="Grip" Background="Transparent" Cursor="SizeAll" ToolTip="Drag to reorder (or Alt+Up and Alt+Down)" VerticalAlignment="Top" Margin="0,4,0,0"
+                  PreviewMouseLeftButtonDown="Grip_MouseDown" PreviewMouseMove="Grip_MouseMove">
+            <c:LucideIcon Data="{StaticResource Icon.GripVertical}" Size="14" Foreground="{DynamicResource Bt.Muted}" />
+          </Border>
+          <TextBlock Grid.Column="1" Text="{Binding Number}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Bt.Muted}" Margin="0,5,0,0" />
+          <ContentControl x:Name="ItemCover" Grid.Column="2" Width="36" Height="50" VerticalAlignment="Top" Content="{Binding Cover}" ContentTemplate="{StaticResource Cover}"
+                          Focusable="False" />
+          <StackPanel x:Name="ItemText" Grid.Column="3" Margin="12,0,12,0">
+            <TextBox x:Name="ItemLabel" Style="{StaticResource InlineBox}" Text="{Binding Label}" Tag="{Binding BookTitle}" FontSize="13" FontWeight="SemiBold" KeyDown="InlineBox_KeyDown"
+                     AutomationProperties.Name="Label" ToolTip="Your name for this item. Blank shows the book's title." />
+            <TextBlock Text="{Binding Where}" Style="{StaticResource Text.Small}" Margin="5,2,0,0" TextTrimming="CharacterEllipsis" />
+            <TextBox x:Name="ItemNote" Style="{StaticResource InlineBox}" Text="{Binding Note}" Tag="Add a note" FontSize="11" Margin="0,2,0,0" KeyDown="InlineBox_KeyDown"
+                     AutomationProperties.Name="Note" />
+            <DockPanel Margin="5,6,0,0" Visibility="{Binding HasReason, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <c:LucideIcon x:Name="ReasonIcon" Data="{StaticResource Icon.TriangleAlert}" Size="12" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,6,0"
+                            VerticalAlignment="Center" />
+              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Show in folder" Margin="10,0,0,0" VerticalAlignment="Center"
+                      Command="{Binding DataContext.ShowInFolderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                      Visibility="{Binding CanShowInFolder, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="ItemReason" Text="{Binding Reason}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+          </StackPanel>
+          <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Top">
+            <Button x:Name="MoveItemUp" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowUp}" ToolTip="Move up (Alt+Up)"
+                    AutomationProperties.Name="{Binding Heading, StringFormat='Move {0} up'}"
+                    Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+            <Button x:Name="MoveItemDown" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowDown}" ToolTip="Move down (Alt+Down)"
+                    AutomationProperties.Name="{Binding Heading, StringFormat='Move {0} down'}"
+                    Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+            <Button x:Name="OpenItem" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" ToolTip="Open (Enter)"
+                    AutomationProperties.Name="{Binding Heading, StringFormat='Open {0}'}"
+                    Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    c:NewWindowGesture.Command="{Binding DataContext.OpenItemInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}" />
+            <Button x:Name="RemoveItem" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" ToolTip="Remove from session (Delete)"
+                    AutomationProperties.Name="{Binding Heading, StringFormat='Remove {0}'}"
+                    Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding IsDimmed}" Value="True">
+          <Setter TargetName="ItemCover" Property="Opacity" Value="0.45" />
+          <Setter TargetName="ItemText" Property="Opacity" Value="0.7" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsChanged}" Value="True">
+          <Setter TargetName="ReasonIcon" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+        </DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <Grid x:Name="Root">
+    <StackPanel>
+      <!-- .bt-heading: the pack's date as the eyebrow, its title, and its actions. -->
+      <DockPanel Margin="0,0,42,24">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+          <Button x:Name="EditSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" ToolTip="Edit title and date"
+                  AutomationProperties.Name="Edit title and date" Command="{Binding EditCommand}" />
+          <Button x:Name="DuplicateSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Copy}" ToolTip="Duplicate"
+                  AutomationProperties.Name="Duplicate" Command="{Binding DuplicateCommand}" />
+          <Button x:Name="DeleteSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Delete (the books stay)"
+                  AutomationProperties.Name="Delete session" Command="{Binding DeleteCommand}" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
+          <TextBlock x:Name="SessionTitle" Text="{Binding Title}" Style="{StaticResource Text.H1}" TextWrapping="Wrap" />
+          <TextBlock Text="Your next session, gathered in one place." Style="{StaticResource Text.Subtitle}" />
+        </StackPanel>
+      </DockPanel>
+
+      <!-- .bt-toolbar -->
+      <DockPanel Margin="0,0,42,0">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button x:Name="ShowBooks" Style="{StaticResource Bt.Link}" Content="Show these books in the Library" Margin="0,0,16,0" VerticalAlignment="Center"
+                  Command="{Binding ShowBooksCommand}" Visibility="{Binding HasItems, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="AddSection" Content="Add section" c:Ui.Icon="{StaticResource Icon.Plus}" Margin="0,0,8,0" Click="DropDown_Click">
+            <Button.ContextMenu>
+              <ContextMenu Style="{StaticResource Bt.Menu}">
+                <MenuItem Header="Adventure" Command="{Binding AddSuggestedSectionCommand}" CommandParameter="Adventure" />
+                <MenuItem Header="Maps" Command="{Binding AddSuggestedSectionCommand}" CommandParameter="Maps" />
+                <MenuItem Header="Encounters" Command="{Binding AddSuggestedSectionCommand}" CommandParameter="Encounters" />
+                <MenuItem Header="Rules" Command="{Binding AddSuggestedSectionCommand}" CommandParameter="Rules" />
+                <MenuItem Header="Another name…" Command="{Binding AddSectionCommand}" />
+              </ContextMenu>
+            </Button.ContextMenu>
+          </Button>
+          <Button x:Name="FindResources" Content="Find resources" c:Ui.Icon="{StaticResource Icon.Search}" Command="{Binding FindResourcesCommand}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <c:LucideIcon Data="{StaticResource Icon.NotebookTabs}" Size="14" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
+          <TextBlock x:Name="ItemCount" Text="{Binding CountLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+        </StackPanel>
+      </DockPanel>
+
+      <!-- What the last change did, with Undo. -->
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,16,42,0"
+              Visibility="{Binding Actions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding Actions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo"
+                  Visibility="{Binding Actions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock x:Name="SessionMessage" Text="{Binding Actions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+
+      <Grid Margin="0,24,42,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="36" />
+          <ColumnDefinition Width="280" />
+        </Grid.ColumnDefinitions>
+
+        <!-- .bt-sectionline and the session sequence. -->
+        <StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+            <TextBlock Text="Session sequence" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+            <TextBlock Text="Books and pages, ready at hand" Style="{StaticResource Text.Small}" Margin="12,0,0,0" VerticalAlignment="Bottom" />
+          </StackPanel>
+          <ItemsControl x:Name="SessionItems" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Session sequence"
+                        KeyboardNavigation.TabNavigation="Continue" Visibility="{Binding HasItems, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsLoaded, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <c:EmptyState Title="An empty notebook." Message="Add a book or page from your library to get started: right-click a book, or use Add page in the reader."
+                          ActionText="Find resources" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding FindResourcesCommand}"
+                          Visibility="{Binding HasItems, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Session notes, saved as you type. -->
+        <StackPanel Grid.Column="2">
+          <TextBlock Text="Session notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
+          <TextBox x:Name="SessionNotes" Style="{StaticResource Bt.TextBox}" Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                   TextWrapping="Wrap" MinHeight="260" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Session notes"
+                   ToolTip="Saved as you type" />
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+
+    <!-- Edit, Add section and the like, as a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Visibility="{Binding Actions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
+      <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Actions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
+    </Grid>
+  </Grid>
+</UserControl>

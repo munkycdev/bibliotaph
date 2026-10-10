@@ -154,6 +154,8 @@ public partial class App : Application
         builder.Services.AddSingleton<FavoritesService>();
         builder.Services.AddSingleton<CollectionStore>();
         builder.Services.AddSingleton<CollectionsService>();
+        builder.Services.AddSingleton<SessionStore>();
+        builder.Services.AddSingleton<SessionsService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
@@ -211,11 +213,17 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryPages>();
         builder.Services.AddSingleton<CollectionDirectory>();
         builder.Services.AddTransient<CollectionActions>();
+        builder.Services.AddSingleton<SessionDirectory>();
+        builder.Services.AddTransient<SessionActions>();
+        builder.Services.AddSingleton<Func<SessionActions>>(sp => () => sp.GetRequiredService<SessionActions>());
+        builder.Services.AddSingleton<Func<SessionPackViewModel>>(sp => () => sp.GetRequiredService<SessionPackViewModel>());
+        builder.Services.AddSingleton<SessionPages>();
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();
         builder.Services.AddTransient<LibraryViewModel>();
         builder.Services.AddTransient<CollectionsViewModel>();
         builder.Services.AddTransient<SessionsViewModel>();
+        builder.Services.AddTransient<SessionPackViewModel>();
         builder.Services.AddTransient<NeedsReviewViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibrarySectionViewModel>();
@@ -243,7 +251,8 @@ public partial class App : Application
         Route.Home => services.GetRequiredService<HomeViewModel>(),
         Route.Library => services.GetRequiredService<LibraryViewModel>(),
         Route.Collections => services.GetRequiredService<CollectionsViewModel>(),
-        Route.Sessions => services.GetRequiredService<SessionsViewModel>(),
+        // A pack's page is opened with its pack (SessionPages); by route alone, the list of them.
+        Route.Sessions or Route.SessionPack => services.GetRequiredService<SessionsViewModel>(),
         Route.NeedsReview => services.GetRequiredService<NeedsReviewViewModel>(),
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),

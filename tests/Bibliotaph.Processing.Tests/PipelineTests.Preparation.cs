@@ -1,10 +1,11 @@
+using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 3a and 3b: hearts, opens and collections reach the Library through index.db, and come back after it is rebuilt.</summary>
+/// <summary>Slice 3a to 3c: hearts, opens, collections and session packs reach the Library through index.db, and come back after it is rebuilt.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]
@@ -99,5 +100,69 @@ public sealed partial class PipelineTests
         Assert.Equal([known.EntryId], await collections.RemoveAsync(campaign.Id, [known.EntryId], Ct));
         Assert.Empty(await InAsync(ScopeKeys.Collection(campaign.Id)));
         Assert.Equal(9, changes);
+    }
+
+    [Fact]
+    public async Task Session_items_find_their_pages_in_a_new_version_and_never_jump_silently()
+    {
+        Copy(pdfs.WatermarkedForAna, "Purchases/Drowned Abbey.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var search = new LibraryQueries(_index);
+        var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector);
+        var pack = await sessions.CreateAsync("The midnight bell", ct: Ct);
+        var appendix = await sessions.AddPagesAsync(pack.Id, book.DocumentId, 4, 4, ct: Ct);
+        var crypt = await sessions.AddPagesAsync(pack.Id, book.DocumentId, 3, 3, "Crypt", ct: Ct);
+        await sessions.AddAsync(pack.Id, [new NewSessionItem(book.EntryId, Label: "The whole book")], ct: Ct);
+        var contents = (await sessions.GetAsync(pack.Id, Ct))!;
+        Assert.Equal([appendix!.Value, crypt!.Value], contents.Items.Take(2).Select(i => i.Id));
+        Assert.NotNull(contents.Items[0].Range!.FirstFingerprint);
+        Assert.Equal([book.EntryId], (await search.ListAsync(new LibraryFilter(Group: ScopeKeys.Session(pack.Id)), ct: Ct)).Select(e => e.EntryId));
+        async Task<SessionItemTarget[]> TargetsAsync()
+        {
+            var items = (await sessions.GetAsync(pack.Id, Ct))!.Items;
+            var targets = await sessions.ResolveAsync(items, Ct);
+            return [.. items.Select(i => targets[i.Id])];
+        }
+
+        Assert.Equal([new(book.DocumentId, 4, 4, SessionItemState.Ready), new(book.DocumentId, 3, 3, SessionItemState.Ready), new SessionItemTarget(book.DocumentId, 0, 0, SessionItemState.Ready)],
+            await TargetsAsync());
+
+        // A second printing becomes the book's current copy: the appendix is found in it; the corrected crypt isn't,
+        // so it opens the first printing it was added from.
+        Copy(pdfs.RevisedForAna, "Purchases/Drowned Abbey, second printing.pdf");
+        _service.RequestScan();
+        await SettleUntilAsync(async () => (await _copies.GetVersionsAsync(Ct)).Count == 1);
+        var version = Assert.Single(await _copies.GetVersionsAsync(Ct)).Version;
+        Assert.NotNull(await _copies.AnswerVersionAsync(version, VersionAnswer.MakeCurrent, Ct));
+        var revised = version.DocumentId;
+        var targets = await TargetsAsync();
+        Assert.Equal(new SessionItemTarget(revised, 4, 4, SessionItemState.OtherCopy), targets[0]);
+        Assert.Equal((book.DocumentId, 3, SessionItemState.Original), (targets[1].DocumentId, targets[1].FirstPage, targets[1].State));
+        Assert.Equal(new SessionItemTarget(revised, 0, 0, SessionItemState.Ready), targets[2]);
+
+        // Once the first printing's file is gone, the crypt opens at its page in the second printing, to be checked.
+        File.Delete(Path.Combine(_library, "Purchases", "Drowned Abbey.pdf"));
+        _service.RequestScan();
+        await SettleUntilAsync(async () => (await _libraryStore.GetReadableAsync([book.DocumentId], Ct)).Count == 0);
+        targets = await TargetsAsync();
+        Assert.Equal((revised, 3, SessionItemState.Changed), (targets[1].DocumentId, targets[1].FirstPage, targets[1].State));
+        Assert.StartsWith("This page changed", targets[1].Reason, StringComparison.Ordinal);
+
+        // Use this page: from now on it is that page of the second printing.
+        await sessions.RepointAsync(crypt.Value, revised, 3, 3, Ct);
+        Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Ready), (await TargetsAsync())[1]);
+
+        // With no file left, every item stays, saying why. (Another book keeps the library from being empty.)
+        Copy(pdfs.KnownText, "Other/Known Text.pdf");
+        File.Delete(Path.Combine(_library, "Purchases", "Drowned Abbey, second printing.pdf"));
+        _service.RequestScan();
+        await SettleUntilAsync(async () => (await _libraryStore.GetReadableAsync([revised], Ct)).Count == 0);
+        targets = await TargetsAsync();
+        Assert.All(targets, t => Assert.Equal(SessionItemState.Unreachable, t.State));
+        Assert.False(targets[0].CanOpen);
+        Assert.EndsWith("second printing.pdf", targets[2].LastPath, StringComparison.Ordinal);
     }
 }

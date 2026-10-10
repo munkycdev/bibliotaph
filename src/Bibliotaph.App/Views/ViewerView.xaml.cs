@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Bibliotaph.App.ViewModels;
@@ -112,4 +115,18 @@ public partial class ViewerView
     void CanZoom(object sender, CanExecuteRoutedEventArgs e) => e.CanExecute = _model is { IsPdf: true } or { IsImage: true };
 
     void PageBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => PageBox.SelectAll();
+
+    /// <summary>The page with selected text on it as the Add page menu opened, before the click takes focus from the pages.</summary>
+    int? _selectionPage;
+
+    void AddPageMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu } button) return;
+        _selectionPage = PagesView.SelectionPageIndex;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    void AddPages_Click(object sender, RoutedEventArgs e) => _model?.AddPagesCommand.Execute(_selectionPage);
 }

@@ -22,6 +22,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<ReadingState> ReadingStates => Set<ReadingState>();
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
+    public DbSet<SessionPack> SessionPacks => Set<SessionPack>();
+    public DbSet<SessionSection> SessionSections => Set<SessionSection>();
+    public DbSet<SessionItem> SessionItems => Set<SessionItem>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<Rejection> Rejections => Set<Rejection>();
     public DbSet<VocabularyTerm> VocabularyTerms => Set<VocabularyTerm>();
@@ -172,6 +175,26 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(i => i.EntryId);
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SessionPack>(e => e.HasIndex(p => p.TouchedUtc));
+
+        modelBuilder.Entity<SessionSection>(e =>
+        {
+            e.HasIndex(s => s.PackId);
+            e.HasOne<SessionPack>().WithMany().HasForeignKey(s => s.PackId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SessionItem>(e =>
+        {
+            e.HasIndex(i => i.PackId);
+            e.HasIndex(i => i.EntryId);
+            e.HasOne<SessionPack>().WithMany().HasForeignKey(i => i.PackId).OnDelete(DeleteBehavior.Cascade);
+            // Deleting a section moves its items to the one above first (choice 11); this only guards the rest.
+            e.HasOne<SessionSection>().WithMany().HasForeignKey(i => i.SectionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
+            // An item's page reference is its own: the store deletes it with the item.
+            e.HasOne(i => i.PageRef).WithMany().HasForeignKey(i => i.PageRefId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));

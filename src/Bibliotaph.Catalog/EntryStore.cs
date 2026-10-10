@@ -42,7 +42,7 @@ public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
 /// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
 /// </summary>
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
-    bool Favorite = false, IReadOnlyList<long>? Collections = null);
+    bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null);
 
 /// <summary>
 /// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
@@ -162,7 +162,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var removed = new RemovedEntry(entryId, entry.CreatedUtc,
             [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })],
             await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
-            await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct));
+            await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
+            [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
+                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))]);
         db.Entries.Remove(entry);
         await db.SaveChangesAsync(ct);
         return removed;
@@ -183,6 +185,24 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         {
             var still = await db.Collections.Where(c => collections.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
             db.CollectionItems.AddRange(still.Select(id => new CollectionItem { CollectionId = id, EntryId = entry.Id, AddedUtc = now }));
+        }
+        // Its session items go back to their places, in packs and sections that are still there.
+        foreach (var item in removed.SessionItems ?? [])
+        {
+            if (!await db.SessionPacks.AnyAsync(p => p.Id == item.PackId, ct)) continue;
+            var section = item.SectionId is { } s && await db.SessionSections.AnyAsync(x => x.Id == s, ct) ? item.SectionId : null;
+            await db.SessionItems.Where(i => i.PackId == item.PackId && i.SectionId == section && i.Position >= item.Position)
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position + 1), ct);
+            db.SessionItems.Add(new SessionItem
+            {
+                PackId = item.PackId,
+                SectionId = section,
+                Position = item.Position,
+                EntryId = entry.Id,
+                Label = item.Label,
+                Note = item.Note,
+                AddedUtc = item.AddedUtc,
+            });
         }
         await db.SaveChangesAsync(ct);
         return new EntryId(entry.Id);
@@ -404,6 +424,12 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             db.CollectionItems.Add(new CollectionItem { CollectionId = item.CollectionId, EntryId = target, AddedUtc = item.AddedUtc });
             moved.Collections.Add(item.CollectionId);
         }
+        // Session items all move, in their places: a pack can hold the same book any number of times.
+        foreach (var item in await db.SessionItems.Where(i => i.EntryId == joining).ToListAsync(ct))
+        {
+            item.EntryId = target;
+            moved.SessionItems.Add(item.Id);
+        }
 
         (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
         return moved;
@@ -466,6 +492,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             db.CollectionItems.Remove(item);
             db.CollectionItems.Add(new CollectionItem { CollectionId = item.CollectionId, EntryId = card, AddedUtc = item.AddedUtc });
         }
+        foreach (var item in await db.SessionItems.Where(i => i.EntryId == entryId && moved.SessionItems.Contains(i.Id)).ToListAsync(ct))
+            item.EntryId = card;
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
     }
@@ -596,6 +624,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public bool Reading { get; set; }
         /// <summary>The collections the card that joined brought its membership of (slice 3b).</summary>
         public List<long> Collections { get; set; } = [];
+        /// <summary>The session items that pointed at the card that joined (slice 3c).</summary>
+        public List<long> SessionItems { get; set; } = [];
     }
 
     sealed record MovedSource(long Id, bool WasCurrent);

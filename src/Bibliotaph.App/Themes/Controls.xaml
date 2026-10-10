@@ -848,8 +848,49 @@
     </Button>
   </DataTemplate>
 
-  <!-- A book's right-click menu, with Add to collection at the end (choice 10), filled as it opens. -->
-  <ContextMenu x:Key="BookMenu" x:Shared="False" Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}">
+  <!-- A session pack's card (slice 3 plan, choice 12): the covers of its first two books, its title, date and item count. -->
+  <DataTemplate x:Key="SessionCard" DataType="{x:Type vm:SessionCardViewModel}">
+    <Button x:Name="Card" Width="196" Margin="0,0,22,22" Cursor="Hand" ToolTip="{Binding Title}" FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+            AutomationProperties.Name="{Binding Title}" AutomationProperties.HelpText="{Binding DateLabel}"
+            Command="{Binding DataContext.OpenSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+      <Button.Template>
+        <ControlTemplate TargetType="Button">
+          <StackPanel Background="Transparent">
+            <Border x:Name="Mosaic" Height="136" CornerRadius="6" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1">
+              <Grid>
+                <c:LucideIcon x:Name="Empty" Data="{StaticResource Icon.NotebookTabs}" Size="30" Foreground="{DynamicResource Bt.Muted}" HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                <StackPanel x:Name="Covers" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                  <ContentControl Width="76" Height="106" Content="{Binding FirstCover}" ContentTemplate="{StaticResource Cover}" Focusable="False" />
+                  <ContentControl x:Name="Second" Width="76" Height="106" Margin="10,0,0,0" Content="{Binding SecondCover}" ContentTemplate="{StaticResource Cover}"
+                                  Focusable="False" Visibility="Collapsed" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <TextBlock Text="{Binding Title}" Margin="0,10,0,0" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Bt.Text}" />
+            <TextBlock Text="{Binding DateLabel}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding CountLabel}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <ControlTemplate.Triggers>
+            <DataTrigger Binding="{Binding HasCovers}" Value="True">
+              <Setter TargetName="Empty" Property="Visibility" Value="Collapsed" />
+              <Setter TargetName="Covers" Property="Visibility" Value="Visible" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding HasSecondCover}" Value="True">
+              <Setter TargetName="Second" Property="Visibility" Value="Visible" />
+            </DataTrigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Mosaic" Property="BorderBrush" Value="{DynamicResource Bt.Muted}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Button.Template>
+    </Button>
+  </DataTemplate>
+
+  <!-- A book's right-click menu, ending with Add to session (3c) and Add to collection (choice 10), filled as it opens. -->
+  <ContextMenu x:Key="BookMenu" x:Shared="False" Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}"
+               c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}">
     <MenuItem Header="Open" Command="{x:Static c:BookCommands.Open}" CommandParameter="{Binding}" />
     <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
               CommandParameter="{Binding}" />

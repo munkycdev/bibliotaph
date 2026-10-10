@@ -99,6 +99,9 @@ public partial class PdfPagesView
 
     public bool HasSelection => _selectionPage is not null && !_selection.IsEmpty;
 
+    /// <summary>The page the selected text is on, or null with nothing selected: Add pages… starts there.</summary>
+    public int? SelectionPageIndex => HasSelection ? _selectionPage!.Index : null;
+
     /// <summary>Something to tell the reader, such as why Copy did nothing.</summary>
     public event EventHandler<string>? Notice;
 

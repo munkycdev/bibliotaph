@@ -321,20 +321,25 @@ public sealed class IgnoredFolderLabel
     public DateTime CreatedUtc { get; set; }
 }
 
-/// <summary>A page or page range that user work (session pack items, page notes) points at.</summary>
+/// <summary>
+/// A page or page range that user work points at (session pack items; page notes in 3f), in one document. The printed
+/// labels and the page-text fingerprints of its first and last pages are kept from when it was made, so it can be
+/// found again in another copy or version of the book, and checked when the book changes (slice 3 plan, choice 14).
+/// </summary>
 public sealed class PageRef
 {
     public long Id { get; set; }
     public long DocumentId { get; set; }
     public Document Document { get; set; } = null!;
+    /// <summary>Zero-based PDF page indexes, inclusive.</summary>
     public int FirstPdfPage { get; set; }
     public int LastPdfPage { get; set; }
-    /// <summary>Printed labels at the time the reference was made, for display if the document changes.</summary>
-    public string? PrintedLabels { get; set; }
-    /// <summary>Page-text fingerprint, to suggest the matching page in a new edition.</summary>
-    public string? TextFingerprint { get; set; }
-    public string? Label { get; set; }
-    public bool IsStale { get; set; }
+    /// <summary>The printed labels of the first and last pages, when the file had its own ("42").</summary>
+    public string? FirstLabel { get; set; }
+    public string? LastLabel { get; set; }
+    /// <summary>Page-text fingerprints (<see cref="Core.PageFingerprints"/>); null for a page with too little text.</summary>
+    public string? FirstFingerprint { get; set; }
+    public string? LastFingerprint { get; set; }
 }
 
 /// <summary>
@@ -381,6 +386,52 @@ public sealed class ReadingState
     /// <summary>The zero-based PDF page in view when the reader last closed the book from an ordinary open.</summary>
     public int PageIndex { get; set; }
     public DateTime OpenedUtc { get; set; }
+}
+
+/// <summary>
+/// A session pack (slice 3 plan, choice 11): what a game master gathers for one session, in their order, with notes.
+/// The pack touched last is the current one, which Add to session adds to.
+/// </summary>
+public sealed class SessionPack
+{
+    public long Id { get; set; }
+    public required string Title { get; set; }
+    /// <summary>When the session is played, if set: the Sessions page lists upcoming ones by it.</summary>
+    public DateOnly? Date { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    /// <summary>When it was last opened or changed.</summary>
+    public DateTime TouchedUtc { get; set; }
+}
+
+/// <summary>A heading in a pack ("Maps"), in the pack's order. Items without one come first.</summary>
+public sealed class SessionSection
+{
+    public long Id { get; set; }
+    public long PackId { get; set; }
+    public required string Name { get; set; }
+    public int Position { get; set; }
+}
+
+/// <summary>
+/// One item in a pack: a whole book, or with <see cref="PageRefId"/> a page range of it, with the game master's own
+/// label and a one-line note. The same book can be in a pack any number of times.
+/// </summary>
+public sealed class SessionItem
+{
+    public long Id { get; set; }
+    public long PackId { get; set; }
+    /// <summary>Its section, or null for the items before the first section.</summary>
+    public long? SectionId { get; set; }
+    /// <summary>Its place among the items of its section.</summary>
+    public int Position { get; set; }
+    public long EntryId { get; set; }
+    public long? PageRefId { get; set; }
+    public PageRef? PageRef { get; set; }
+    /// <summary>"Warehouse ambush"; null shows the book's title.</summary>
+    public string? Label { get; set; }
+    public string? Note { get; set; }
+    public DateTime AddedUtc { get; set; }
 }
 
 public sealed class Setting

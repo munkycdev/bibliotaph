@@ -99,6 +99,17 @@
                       ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
 
         <StackPanel Visibility="{Binding HasBooks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <!-- .bt-sectionline: Continue preparing (3c), the session pack worked on last. -->
+          <StackPanel Visibility="{Binding ContinuePreparing, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <DockPanel Style="{StaticResource SectionLine}">
+              <Button x:Name="BrowseSessions" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="All sessions"
+                      c:Ui.Icon="{StaticResource Icon.ArrowRight}" Command="{Binding BrowseSessionsCommand}" />
+              <TextBlock Text="Continue preparing" Style="{StaticResource Text.Row}" />
+            </DockPanel>
+            <ContentControl x:Name="ContinuePreparing" Content="{Binding ContinuePreparing}" ContentTemplate="{StaticResource SessionCard}" Focusable="False"
+                            HorizontalAlignment="Left" />
+          </StackPanel>
+
           <!-- .bt-sectionline: the books opened last (slice 3 plan, choice 7). -->
           <StackPanel Visibility="{Binding HasRecentlyOpened, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <DockPanel Style="{StaticResource SectionLine}">
@@ -142,6 +153,17 @@
             </DockPanel>
           </Border>
 
+          <!-- What the last Add to session did, with Undo. -->
+          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,24,42,0" HorizontalAlignment="Left" MinWidth="420"
+                  Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                      Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the session change"
+                      Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+          </Border>
+
           <!-- .bt-sectionline: the pinned collections (slice 3 plan, choice 7). -->
           <StackPanel Visibility="{Binding HasPinnedCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <DockPanel Style="{StaticResource SectionLine}">
@@ -177,6 +199,12 @@
     <Grid Visibility="{Binding Collections.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
       <v:CollectionDialogView DataContext="{Binding Collections.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
+    </Grid>
+
+    <!-- Add to a new or another session, from a cover's menu: a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
+      <v:SessionDialogView DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
     </Grid>
   </Grid>
 </UserControl>

@@ -29,7 +29,16 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// read moving to another window.
     /// </summary>
     public bool KeepsPlace { get; init; }
+
+    /// <summary>A session item opened from its pack: it opens at its first page and, like a search hit, keeps no reading position.</summary>
+    public SessionItemOpen? SessionItem { get; init; }
 }
+
+/// <summary>
+/// A session item being opened (slice 3 plan, choice 14): which, from which pack, and how its pages were found, so the
+/// reader can say when they are in the original file or changed, and re-point the item with Use this page.
+/// </summary>
+public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.Processing.SessionItemState State, string? Reason, int FirstPage, int LastPage);
 
 /// <summary>An image of a pack the viewer can step to.</summary>
 public sealed record PackStep(long DocumentId, string Title);

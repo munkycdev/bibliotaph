@@ -22,4 +22,7 @@ public static class BookCommands
     /// or the details it was picked in.
     /// </summary>
     public static RoutedUICommand AddToCollection { get; } = new("Add to collection", nameof(AddToCollection), typeof(BookCommands));
+
+    /// <summary>Add to session (slice 3 plan, choice 13), with a <see cref="SessionRequest"/>: its target is the card's book, or the details.</summary>
+    public static RoutedUICommand AddToSession { get; } = new("Add to session", nameof(AddToSession), typeof(BookCommands));
 }

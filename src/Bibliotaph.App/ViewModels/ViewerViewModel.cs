@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -46,7 +47,8 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, PasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
-    SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, ILogger<ViewerViewModel> Log);
+    SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
+    ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -74,6 +76,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly WpfImageCodec _codec;
     readonly FavoritesService _favorites;
     readonly ReadingService _reading;
+    readonly SessionsService _sessions;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
@@ -111,6 +114,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         _codec = services.Codec;
         _favorites = services.Favorites;
         _reading = services.Reading;
+        _sessions = services.Sessions;
+        Sessions = services.SessionActions();
         _log = services.Log;
         _windows = windows;
         IsPoppedOut = poppedOut;
@@ -162,7 +167,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_request?.Pack is not { } pack) return;
         var next = PackIndex + by;
         if (next < 0 || next >= pack.Count) return;
-        _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0 };
+        _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0, SessionItem = null };
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(PackPosition));
         PreviousImageCommand.NotifyCanExecuteChanged();
@@ -181,7 +186,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible))]
-    [NotifyCanExecuteChangedFor(nameof(PopOutCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -340,6 +345,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
         _placeTimer.Stop();
         _noticeTimer.Stop();
+        Sessions.Close();
         Pdf = null;
         Image = null;
         _findHits = [];
@@ -466,6 +472,110 @@ public sealed partial class ViewerViewModel : PageViewModel
     [RelayCommand]
     void ReturnToMainWindow() => _windows.ReturnToMainWindow(this);
 
+    /// <summary>Add page, Add pages… and Use this page, with their note and Undo, and the dialog over the reader.</summary>
+    public SessionActions Sessions { get; }
+
+    /// <summary>
+    /// Add page (slice 3 plan, choice 13): the page in view, or the whole image, to the current session pack; before
+    /// there is one, it asks for one first.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAddPage))]
+    void AddPage() => AddPageTo(null);
+
+    /// <summary>One of the Add page menu's Add to session items: the page in view to that pack.</summary>
+    [RelayCommand]
+    void AddPageToSession(SessionRequest request) => AddPageTo(request.Choice);
+
+    void AddPageTo(SessionMenuChoice? choice)
+    {
+        if (_request is not { } request) return;
+        if (Mode == ViewerMode.Image) Sessions.AddPage(request.DocumentId, 0, request.Title, choice, wholeFile: true);
+        else if (Mode == ViewerMode.Pdf) Sessions.AddPage(request.DocumentId, CurrentPageIndex, $"page {PageNumbers.Display(CurrentPageIndex, _labels)}", choice);
+    }
+
+    bool CanAddPage() => Mode is ViewerMode.Pdf or ViewerMode.Image;
+
+    /// <summary>
+    /// Add pages… (choice 13): From and To start at the page with selected text on it, or the page in view, and are
+    /// typed as the book numbers its pages.
+    /// </summary>
+    [RelayCommand]
+    async Task AddPages(int? selectionPage)
+    {
+        if (_request is not { } request) return;
+        if (Mode == ViewerMode.Image)
+        {
+            AddPageTo(null);
+            return;
+        }
+        if (Mode != ViewerMode.Pdf) return;
+        var page = Math.Clamp(selectionPage ?? CurrentPageIndex, 0, Math.Max(0, PageCount - 1));
+        var shown = PageNumbers.Display(page, _labels);
+        var labels = _labels;
+        var count = PageCount;
+        await Sessions.AddPagesAsync(request.DocumentId, shown, shown, page, text => PageNumbers.Find(text, labels, count));
+    }
+
+    /// <summary>
+    /// Opened from a session pack's item whose pages weren't where they were (choice 14): why, over the pages. For a
+    /// page that changed, Use this page points the item at the page in view.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? SessionBanner { get; private set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UsePageCommand))]
+    public partial bool CanUsePage { get; private set; }
+
+    void ShowSessionBanner()
+    {
+        if (_request?.SessionItem is not { } item || item.State is not (SessionItemState.Changed or SessionItemState.Original))
+        {
+            SessionBanner = null;
+            CanUsePage = false;
+            return;
+        }
+        SessionBanner = item.State == SessionItemState.Changed
+            ? $"This page changed since it was added to {item.PackTitle}. If this isn't the right page, go to it, then choose Use this page."
+            : item.Reason;
+        CanUsePage = item.State == SessionItemState.Changed && Mode == ViewerMode.Pdf;
+    }
+
+    /// <summary>Points the session item at the page in view, keeping how many pages it spans.</summary>
+    [RelayCommand(CanExecute = nameof(CanUsePage))]
+    async Task UsePage()
+    {
+        if (_request is not { SessionItem: { } item } request) return;
+        var span = item.LastPage - item.FirstPage;
+        var first = CurrentPageIndex;
+        var last = Math.Min(first + span, Math.Max(0, PageCount - 1));
+        try
+        {
+            await _sessions.RepointAsync(item.ItemId, request.DocumentId, first, last);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Pointing session item {ItemId} at a page failed", item.ItemId);
+            Sessions.Say("That didn't work. The log has the details.");
+            return;
+        }
+        _request = request with { SessionItem = item with { State = SessionItemState.Ready, Reason = null, FirstPage = first, LastPage = last } };
+        CanUsePage = false;
+        SessionBanner = null;
+        Sessions.Say($"Saved. In {item.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
+    }
+
+    [RelayCommand]
+    void DismissSessionBanner()
+    {
+        SessionBanner = null;
+        CanUsePage = false;
+    }
+
+    /// <summary>Hides the note from Add page, and closes the dialog if it is open.</summary>
+    [RelayCommand]
+    void DismissSessionMessage() => Sessions.Close();
+
     async Task OpenImageAsync(DocumentSource source, int version)
     {
         await using var file = await _sources.OpenAsync(source);
@@ -483,6 +593,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         Image = image;
         Subtitle = DescribeSource(source, _request?.PackTitle is { } pack ? $"{source.Format.ToUpperInvariant()} image in {pack}" : $"{source.Format.ToUpperInvariant()} image");
         Mode = ViewerMode.Image;
+        ShowSessionBanner();
         await RecordOpenAsync(source.DocumentId);
     }
 
@@ -531,6 +642,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             Pdf = new OpenPdf(renderer, doc, TextAsync, start, top);
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
+            ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
             await RecordOpenAsync(source.DocumentId);
         }
