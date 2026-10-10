@@ -157,7 +157,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var parts = new List<string>();
         if (copy.PageCount is { } pages) parts.Add($"{pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}");
         parts.Add($"added {copy.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture)}");
-        if (copy.Joined) parts.Add("same text, joined automatically");
+        if (copy.Joined) parts.Add("joined from a card of its own");
         if (copy.IsCurrent && !copy.IsShown) parts.Add("its file is missing, so another copy opens");
         return new InspectorCopy(copy.DocumentId, heading, string.Join(" · ", parts), path, copy.IsCurrent, location?.ExplorerPath);
     }

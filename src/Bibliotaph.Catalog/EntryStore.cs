@@ -38,6 +38,14 @@ public sealed record EntryCopy(long DocumentId, string ContentHash, int? PageCou
 public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
 
 /// <summary>
+/// What Same book did (multi-select plan, choices 2 to 7), so Undo can put it back: the card the others joined, the
+/// cards that joined it in order, the copy it opened before (none for a book owned elsewhere), and the "Not the same
+/// book" answers forgotten, as pairs of content hashes.
+/// </summary>
+public sealed record BookJoin(EntryId EntryId, IReadOnlyList<EntryId> Joined, long? PreviousCurrent, bool WasElsewhere,
+    IReadOnlyList<(string FirstHash, string SecondHash)> Forgotten);
+
+/// <summary>
 /// A book owned elsewhere that the user removed, with what was set on it, so Undo can put it back
 /// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
 /// </summary>
@@ -531,7 +539,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
 
     /// <summary>
     /// "Not the same book": takes <paramref name="documentId"/> out of <paramref name="entryId"/> onto a card of its own,
-    /// and remembers that it isn't the same book as the copies it leaves. A copy that joined automatically goes back to
+    /// and remembers that it isn't the same book as the copies it leaves. A copy that joined from a card of its own (by Match or Same book) goes back to
     /// the card it had, with what it brought (choice 8); any other copy gets a new card. Returns the copy's card, or
     /// null if it isn't a copy of that entry or is its only one. Without <paramref name="remember"/>, as when a
     /// "new version?" answer is undone, nothing is remembered.
@@ -590,6 +598,85 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         await db.SaveChangesAsync(ct); // the unique index allows one current source per entry at any moment
         db.EntrySources.Add(new EntrySource { EntryId = entryId.Value, Document = document, IsCurrent = true });
         return entryId;
+    }
+
+    /// <summary>
+    /// Same book (multi-select plan, choices 2 to 7): joins cards the user ticked as one book, each as Match joins a
+    /// copy. Their copies move onto the oldest card, or onto the book owned elsewhere when one is among them (as its file
+    /// would, F5 plan choice 6), with what each card brings, and <paramref name="opensDocumentId"/> becomes the copy that
+    /// opens. A "Not the same book" given for any two of their files is forgotten: the user's latest word wins. Null when
+    /// the cards can't be joined: fewer than two, a pack, a part or an image in a pack, a card that has joined another,
+    /// more than one book owned elsewhere, or an opening file that isn't one of their copies.
+    /// </summary>
+    public async Task<BookJoin?> JoinAsOneBookAsync(IReadOnlyCollection<EntryId> entryIds, long opensDocumentId, CancellationToken ct = default)
+    {
+        var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+        if (ids.Count < 2) return null;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var cards = await db.Entries.Where(e => ids.Contains(e.Id)).ToListAsync(ct);
+        var sources = await db.EntrySources.Include(s => s.Document).Where(s => ids.Contains(s.EntryId)).ToListAsync(ct);
+        if (cards.Count != ids.Count || cards.Any(c => c.ParentEntryId is not null || c.MergedIntoEntryId is not null)) return null;
+        if (sources.Any(s => s.FirstPdfPage is not null) || sources.All(s => s.DocumentId != opensDocumentId)) return null;
+        var elsewhere = cards.Where(c => c.Kind == EntryKind.Elsewhere).ToList();
+        var files = cards.Where(c => c.Kind != EntryKind.Elsewhere).ToList();
+        if (elsewhere.Count > 1 || elsewhere.Any(c => sources.Any(s => s.EntryId == c.Id))) return null;
+        if (files.Any(c => c.Kind != EntryKind.Whole || sources.All(s => s.EntryId != c.Id))) return null;
+
+        long CurrentOf(long entryId)
+        {
+            var own = sources.Where(s => s.EntryId == entryId).ToList();
+            return (own.FirstOrDefault(s => s.IsCurrent) ?? own.MaxBy(s => s.DocumentId)!).DocumentId;
+        }
+        var target = elsewhere.FirstOrDefault() ?? files.MinBy(c => sources.Where(s => s.EntryId == c.Id).Min(s => s.DocumentId))!;
+        long? previous = target.Kind == EntryKind.Elsewhere ? null : CurrentOf(target.Id);
+        var joining = files.Where(c => c.Id != target.Id).OrderBy(c => c.Id).Select(c => (c.Id, Current: CurrentOf(c.Id))).ToList();
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var hashes = sources.Select(s => s.Document.ContentHash).Distinct().ToList();
+        var forgotten = await db.CopyDecisions.Where(d => hashes.Contains(d.FirstHash) && hashes.Contains(d.SecondHash)).ToListAsync(ct);
+        db.CopyDecisions.RemoveRange(forgotten);
+        foreach (var (card, current) in joining)
+        {
+            var moved = await MoveAsync(db, card, target.Id, ct);
+            // Cleared before saving: the unique index allows one current source per entry at any moment.
+            foreach (var source in db.EntrySources.Local.Where(s => s.EntryId == target.Id)) source.IsCurrent = false;
+            // A file joining a book owned elsewhere is recorded as matching itself, as "Is this its file?" records it.
+            AddJoin(db, target.Id, card, current, previous ?? current, moved);
+            // Saved each time, so the next card's values are compared with this one's too.
+            await db.SaveChangesAsync(ct);
+        }
+        target.Kind = EntryKind.Whole;
+        await SetCurrentAsync(db, [.. db.EntrySources.Local.Where(s => s.EntryId == target.Id)], opensDocumentId, ct);
+        await transaction.CommitAsync(ct);
+        return new BookJoin(new EntryId(target.Id), [.. joining.Select(j => new EntryId(j.Id))], previous, elsewhere.Count > 0,
+            [.. forgotten.Select(d => (d.FirstHash, d.SecondHash))]);
+    }
+
+    /// <summary>
+    /// Undoes <see cref="JoinAsOneBookAsync"/>: each card that joined gets its copies back with what it brought, the book
+    /// opens what it opened (or is owned elsewhere again), and the forgotten answers are remembered again. A card
+    /// already taken back out with Not the same book stays as it is.
+    /// </summary>
+    public async Task UndoJoinAsOneBookAsync(BookJoin join, CancellationToken ct = default)
+    {
+        var target = join.EntryId.Value;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        foreach (var joined in join.Joined.Reverse())
+        {
+            var record = await db.EntryJoins.Where(j => j.EntryId == target && j.JoinedEntryId == joined.Value)
+                .OrderByDescending(j => j.Id).FirstOrDefaultAsync(ct);
+            if (record is null) continue;
+            await RestoreAsync(db, target, record, await db.EntrySources.Where(s => s.EntryId == target).ToListAsync(ct), ct);
+            await db.SaveChangesAsync(ct);
+        }
+        var staying = await db.EntrySources.Where(s => s.EntryId == target && s.FirstPdfPage == null).ToListAsync(ct);
+        if (staying.Count == 0 && join.WasElsewhere) (await db.Entries.SingleAsync(e => e.Id == target, ct)).Kind = EntryKind.Elsewhere;
+        else if (join.PreviousCurrent is { } previous && staying.Any(s => s.DocumentId == previous)) await SetCurrentAsync(db, staying, previous, ct);
+        else if (staying.Count > 0 && !staying.Any(s => s.IsCurrent)) staying.MaxBy(s => s.DocumentId)!.IsCurrent = true;
+        foreach (var (first, second) in join.Forgotten) await AddNotSameBookAsync(db, first, second, ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 
     /// <summary>Remembers that two files are not the same book, so Match never joins them or asks about them again.</summary>

@@ -38,6 +38,9 @@ public sealed class BookSelection : ObservableObject
     /// <summary>The ticked books' entries, in the order they were ticked.</summary>
     public IReadOnlyList<EntryId> EntryIds => [.. _ticked.Keys];
 
+    /// <summary>The ticked books, in the order they were ticked, for actions that depend on what kind of card each is.</summary>
+    public IReadOnlyList<LibraryItemViewModel> Items => [.. _ticked.Values];
+
     public void Start()
     {
         if (IsActive) return;

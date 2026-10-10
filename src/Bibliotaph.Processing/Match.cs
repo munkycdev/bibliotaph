@@ -138,6 +138,27 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
         return card;
     }
 
+    /// <summary>
+    /// Same book (multi-select plan, choices 2 to 7): the ticked cards become one book that opens
+    /// <paramref name="opensDocumentId"/>. Returns what undoes it, or null when they can't be joined.
+    /// </summary>
+    public async Task<BookJoin?> JoinAsOneBookAsync(IReadOnlyCollection<EntryId> entryIds, long opensDocumentId, CancellationToken ct = default)
+    {
+        if (await entries.JoinAsOneBookAsync(entryIds, opensDocumentId, ct) is not { } join) return null;
+        await projector.ProjectAsync([join.EntryId, .. join.Joined], ct);
+        if (places is not null && join.PreviousCurrent != opensDocumentId) await places.CheckAsync(opensDocumentId, ct: ct);
+        return join;
+    }
+
+    /// <summary>Undoes <see cref="JoinAsOneBookAsync"/>: the cards are back as they were.</summary>
+    public async Task UndoJoinAsOneBookAsync(BookJoin join, CancellationToken ct = default)
+    {
+        await entries.UndoJoinAsOneBookAsync(join, ct);
+        await projector.ProjectAsync([join.EntryId, .. join.Joined], ct);
+        // Where the book was left goes back to the copy it opens again.
+        if (places is not null && join.PreviousCurrent is { } previous) await places.CheckAsync(previous, ct: ct);
+    }
+
     public async Task<int> CountVersionsAsync(CancellationToken ct = default) => (await versions.GetPendingAsync(ct)).Count;
 
     /// <summary>The "new version?" cards waiting, oldest first.</summary>

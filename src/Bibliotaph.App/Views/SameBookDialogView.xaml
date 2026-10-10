@@ -1,0 +1,65 @@
+<UserControl x:Class="Bibliotaph.App.Views.SameBookDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SameBookDialogViewModel}"
+             KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="Same book">
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+  </UserControl.InputBindings>
+
+  <!-- Multi-select plan, choices 2 to 5: the ticked cards' files, and which one opens once they are one book. -->
+  <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />
+    </Border.Effect>
+    <StackPanel Margin="28,22,28,22">
+      <DockPanel Margin="0,0,0,4">
+        <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
+                ToolTip="Close (Esc)" AutomationProperties.Name="Close without joining" Command="{Binding CancelCommand}" />
+        <StackPanel>
+          <TextBlock Text="SAME BOOK" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+          <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" />
+          <TextBlock Text="Copies and versions of one book share a card. Nothing on disk changes."
+                     Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,6,0,0" />
+          <TextBlock Text="{Binding Elsewhere}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,6,0,0"
+                     Visibility="{Binding Elsewhere, Converter={StaticResource Bt.VisibleWhenSet}}" />
+        </StackPanel>
+      </DockPanel>
+
+      <TextBlock Text="Which file opens" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,14,0,5" />
+      <ItemsControl x:Name="Files" ItemsSource="{Binding Files}" Focusable="False" KeyboardNavigation.TabNavigation="Continue"
+                    AutomationProperties.Name="Which file opens">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:SameBookFile}">
+            <RadioButton GroupName="SameBookOpens" IsChecked="{Binding Opens}" Margin="0,0,0,10" Foreground="{DynamicResource Bt.Text}"
+                         ToolTip="{Binding Path}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}">
+              <StackPanel Margin="4,0,0,0">
+                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource Text.Small}" TextWrapping="Wrap">
+                  <Run Text="{Binding Card, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding Detail, Mode=OneWay}" />
+                </TextBlock>
+              </StackPanel>
+            </RadioButton>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Text="Where the cards set different values, such as two titles, the card keeps one and Needs review asks about the other."
+                 Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+      <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,12,0,0"
+                 Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+        <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+        <Button x:Name="JoinButton" Style="{StaticResource Bt.Button.Primary}" Content="Join as one book" c:Ui.Icon="{StaticResource Icon.Copy}"
+                Command="{Binding JoinCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>
