@@ -191,7 +191,7 @@
                 AutomationProperties.Name="About Bibliotaph" />
         <!-- Also Ctrl+/ anywhere. -->
         <Button x:Name="ShowShortcuts" Style="{StaticResource SectionAction}" Content="Keyboard shortcuts"
-                Command="{x:Static c:ShellCommands.ShowShortcuts}" AutomationProperties.Name="Keyboard shortcuts" ToolTip="Ctrl+/" />
+                Command="{Binding ShowShortcutsCommand}" AutomationProperties.Name="Keyboard shortcuts" ToolTip="Ctrl+/" />
       </StackPanel>
     </ScrollViewer>
 
