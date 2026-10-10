@@ -53,16 +53,16 @@ static class Licences
     ];
 
     /// <summary>
-    /// Parts of the platform that ship beside the app under the platform's own terms. The GPL (section 1) lets a
-    /// covered work use its "System Libraries" whatever their licence: parts of the operating system or the compiler's
-    /// toolchain that serve only to let the program use them.
+    /// Packages that ship under terms the GPL alone wouldn't allow, each covered by an additional permission under
+    /// section 7 that Bibliotaph's licensors grant in LICENSE-EXCEPTION.md. A new one needs its own permission there
+    /// first.
     /// </summary>
-    public static readonly SystemLibrary[] System =
+    public static readonly ExceptedPackage[] Excepted =
     [
         new("Microsoft.Windows.SDK.NET.Ref", "Microsoft Windows SDK licence terms, https://aka.ms/WinSDKLicenseURL",
             "The .NET SDK's projection of Windows' own APIs (Microsoft.Windows.SDK.NET.dll, and WinRT.Runtime.dll from " +
             "C#/WinRT, which is MIT), which the PDF worker uses for Windows' text recognition. It comes with the .NET " +
-            "SDK and serves only to call Windows, so it is a System Library in the GPL's terms."),
+            "SDK and serves only to call Windows. It ships under the additional permission in LICENSE-EXCEPTION.md."),
     ];
 
     /// <summary>
@@ -146,4 +146,4 @@ static class Licences
 sealed record KnownFile(string Id, string Licence, string Says);
 
 /// <summary>A part of the platform that ships beside the app under <see cref="Licence"/>, and why that is allowed.</summary>
-sealed record SystemLibrary(string Id, string Licence, string Why);
+sealed record ExceptedPackage(string Id, string Licence, string Why);

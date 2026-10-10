@@ -124,9 +124,9 @@ string? Describe(string id, string version, string folder)
 
     string licence;
     var texts = new List<(string Title, string Text)>();
-    if (Licences.System.FirstOrDefault(s => s.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) is { } system)
+    if (Licences.Excepted.FirstOrDefault(s => s.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) is { } excepted)
     {
-        licence = $"{system.Licence}. {system.Why}";
+        licence = $"{excepted.Licence}. {excepted.Why}";
     }
     else if (licenseType == "expression")
     {

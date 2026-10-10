@@ -3,7 +3,7 @@
 Bibliotaph is licensed under the GNU General Public License v3.0 or later (see `LICENSE`). It includes or depends
 on the components below, which keep their own licences. All of them are permissive (MIT, Apache-2.0, BSD, ISC,
 FreeType, public domain), and all of them can be combined with GPL-3.0 code, apart from the Windows SDK projection,
-which ships as a System Library (see the table). Apache-2.0 is compatible with GPL version 3, not version 2, which is
+which Bibliotaph may ship under the additional permission in `LICENSE-EXCEPTION.md` (see the table). Apache-2.0 is compatible with GPL version 3, not version 2, which is
 one reason the project is GPL-3.0 rather than GPL-2.0.
 
 The fonts stay under the SIL Open Font License. The OFL allows bundling them with software under any licence; they
@@ -37,7 +37,7 @@ made with the font.
 | SQLite | Public domain | https://sqlite.org |
 | Velopack (installer and updates) | MIT | https://github.com/velopack/velopack |
 | .NET and Windows Desktop runtimes (the installed app is self-contained) | MIT | https://github.com/dotnet |
-| Windows SDK projection for .NET (`Microsoft.Windows.SDK.NET.dll`, with C#/WinRT's `WinRT.Runtime.dll`, MIT), used by the PDF worker for Windows' text recognition | Windows SDK licence terms; it serves only to call Windows, a System Library under section 1 of the GPL | https://aka.ms/WinSDKProjectURL |
+| Windows SDK projection for .NET (`Microsoft.Windows.SDK.NET.dll`, with C#/WinRT's `WinRT.Runtime.dll`, MIT), used by the PDF worker for Windows' text recognition | Windows SDK licence terms; shipped under the GPL section 7 additional permission in `LICENSE-EXCEPTION.md` | https://aka.ms/WinSDKProjectURL |
 
 **PDFium's bundled libraries.** The PDFium binary includes code from libraries such as FreeType, libjpeg-turbo,
 libpng, zlib, OpenJPEG, Little CMS and Abseil. Each pdfium-binaries release ships a `LICENSE` file with all of
