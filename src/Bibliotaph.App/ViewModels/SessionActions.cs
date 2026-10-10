@@ -117,21 +117,27 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     });
 
     void NewThen(string heading, string actionText, Func<SessionPackInfo, Task> then) =>
-        Open(SessionDialogViewModel.Naming(heading, actionText), async result =>
+        Open(SessionDialogViewModel.Naming(heading, actionText, SystemChoices()), async result =>
         {
-            var created = await Run(() => sessions.CreateAsync(result.Title, result.Date), "Making the session failed");
+            var created = await Run(() => sessions.CreateAsync(result.Title, result.Date, result.KeepAtHand, result.GameSystem), "Making the session failed");
             if (created is null) return;
             await Directory.LoadAsync();
             await then(created);
         });
 
-    /// <summary>Edit: a pack's title and date.</summary>
+    /// <summary>Edit: a pack's title and date, or whether it's kept at hand and for which game system.</summary>
     public void Edit(SessionPackInfo pack) =>
-        Open(SessionDialogViewModel.Naming("Edit binder", "Save", pack.Title, pack.Date), async result =>
+        Open(SessionDialogViewModel.Naming("Edit binder", "Save", SystemChoices(), pack.Title, pack.Date, pack.KeepAtHand, pack.GameSystem), async result =>
         {
-            if (await Run(async () => { await sessions.UpdateAsync(pack.Id, result.Title, result.Date); return true; }, "Saving the session failed"))
+            if (await Run(async () =>
+                {
+                    await sessions.UpdateAsync(pack.Id, result.Title, result.Date, result.KeepAtHand, result.GameSystem);
+                    return true;
+                }, "Saving the session failed"))
                 await FinishAsync(null, null);
         });
+
+    IReadOnlyList<Choice<string?>> SystemChoices() => [.. Directory.Systems.Select(s => new Choice<string?>(s.Value, s.Label))];
 
     /// <summary>Add section with a name typed in the dialog ("Other…"); the suggested names add straight away.</summary>
     public void AddSection(long packId) =>

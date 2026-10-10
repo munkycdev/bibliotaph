@@ -6,15 +6,16 @@ using CommunityToolkit.Mvvm.Input;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// What the session dialog closed with: a title and date (New session, Edit), a name (a section), the pack picked, or
-/// the pages to add with their label, pack and section.
+/// What the session dialog closed with: a title and date, and whether it's kept at hand and for which game system (New
+/// binder, Edit), a name (a section), the pack picked, or the pages to add with their label, pack and section.
 /// </summary>
-public sealed record SessionDialogResult(string Title, DateOnly? Date, long? PackId, int FirstPage = 0, int LastPage = 0, string? Label = null, long? SectionId = null);
+public sealed record SessionDialogResult(string Title, DateOnly? Date, long? PackId, int FirstPage = 0, int LastPage = 0, string? Label = null, long? SectionId = null,
+    bool KeepAtHand = false, string? GameSystem = null);
 
 /// <summary>What the session dialog asks for.</summary>
 public enum SessionDialogKind
 {
-    /// <summary>A title and an optional date: New session, Edit.</summary>
+    /// <summary>A title and an optional date, or kept at hand for a game system: New binder, Edit.</summary>
     Naming,
 
     /// <summary>Just a name: a section.</summary>
@@ -50,9 +51,26 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         PackChoices = [.. packs.Select(p => new Choice<long>(p.Id, p.Title))];
     }
 
-    /// <summary>Asks for a title and an optional date, filled in for Edit.</summary>
-    public static SessionDialogViewModel Naming(string heading, string actionText, string title = "", DateOnly? date = null) =>
-        new(SessionDialogKind.Naming, heading, actionText, []) { Title = title, DateText = date?.ToString("d", CultureInfo.CurrentCulture) ?? "" };
+    /// <summary>
+    /// Asks for a title and an optional date, or whether it's kept at hand during games and for which of
+    /// <paramref name="systems"/> (Binders plan, choice 9), filled in for Edit.
+    /// </summary>
+    public static SessionDialogViewModel Naming(string heading, string actionText, IReadOnlyList<Choice<string?>> systems, string title = "", DateOnly? date = null,
+        bool keepAtHand = false, string? gameSystem = null)
+    {
+        IReadOnlyList<Choice<string?>> choices = [AnySystem, .. systems.Where(s => s.Value is not null)];
+        if (gameSystem is not null && choices.All(c => c.Value != gameSystem)) choices = [.. choices, new(gameSystem, gameSystem)];
+        return new(SessionDialogKind.Naming, heading, actionText, [])
+        {
+            Title = title,
+            DateText = date?.ToString("d", CultureInfo.CurrentCulture) ?? "",
+            SystemChoices = choices,
+            GameSystem = choices.First(c => c.Value == gameSystem),
+            KeepAtHand = keepAtHand,
+        };
+    }
+
+    static readonly Choice<string?> AnySystem = new(null, "Any game system");
 
     /// <summary>Asks for a section's name.</summary>
     public static SessionDialogViewModel NamingSection(string heading, string actionText, string name = "") =>
@@ -92,7 +110,22 @@ public sealed partial class SessionDialogViewModel : ObservableObject
 
     public bool IsNaming => Kind is SessionDialogKind.Naming or SessionDialogKind.Section;
 
-    public bool ShowsDate => Kind == SessionDialogKind.Naming;
+    /// <summary>A binder kept at hand has no date: it's for every game, so it never lists as upcoming.</summary>
+    public bool ShowsDate => Kind == SessionDialogKind.Naming && !KeepAtHand;
+
+    public bool ShowsAtHand => Kind == SessionDialogKind.Naming;
+
+    /// <summary>Keep at hand during games: At hand in any binder offers its pages.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsDate), nameof(DateProblem))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    public partial bool KeepAtHand { get; set; }
+
+    /// <summary>Any game system, then the systems in the library.</summary>
+    public IReadOnlyList<Choice<string?>> SystemChoices { get; private init; } = [AnySystem];
+
+    [ObservableProperty]
+    public partial Choice<string?>? GameSystem { get; set; }
 
     public bool IsPicking => Kind == SessionDialogKind.Picking;
 
@@ -195,7 +228,8 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         if (IsPages && Range() is { } range)
             Closed?.Invoke(this, new SessionDialogResult("", null, Pack!.Value, range.First, range.Last, Label.Trim() is { Length: > 0 } l ? l : null, Section?.Value));
         else if (IsNaming)
-            Closed?.Invoke(this, new SessionDialogResult(Title.Trim(), ShowsDate ? ParseDate() : null, null));
+            Closed?.Invoke(this, new SessionDialogResult(Title.Trim(), ShowsDate ? ParseDate() : null, null,
+                KeepAtHand: ShowsAtHand && KeepAtHand, GameSystem: ShowsAtHand && KeepAtHand ? GameSystem?.Value : null));
     }
 
     /// <summary>A click or Enter on a pack in the list.</summary>

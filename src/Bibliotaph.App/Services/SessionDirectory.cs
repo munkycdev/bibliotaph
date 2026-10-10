@@ -4,6 +4,7 @@ using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,8 @@ namespace Bibliotaph.App.Services;
 /// <summary>
 /// Every session pack, kept in memory for the pages and menus (slice 3 plan, choices 12 and 13): the current one (worked
 /// on last), which Add to session adds to, and the cards the Sessions page and Home show. It reloads after any pack
-/// changes, on the UI thread.
+/// changes, on the UI thread, with the game systems in the library that a binder kept at hand can be for (Binders plan,
+/// choice 9).
 /// </summary>
 public sealed class SessionDirectory
 {
@@ -42,6 +44,15 @@ public sealed class SessionDirectory
     /// <summary>The pack worked on last, which Add page and Add to session add to; null before the first.</summary>
     public SessionPackInfo? Current => All.Count > 0 ? All[0] : null;
 
+    /// <summary>The binder worked on last that's for a game rather than kept at hand: Home's Continue preparing.</summary>
+    public SessionPackInfo? Preparing => All.FirstOrDefault(p => !p.KeepAtHand);
+
+    /// <summary>The game systems the library's books are for, by name, with their keys.</summary>
+    public IReadOnlyList<FacetCount> Systems { get; private set; } = [];
+
+    /// <summary>Whether any binder other than <paramref name="packId"/> is kept at hand, for the At hand button.</summary>
+    public bool HasAtHandBesides(long packId) => All.Any(p => p.KeepAtHand && p.Id != packId);
+
     public DateOnly Today => DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
 
     public async Task LoadAsync()
@@ -49,6 +60,7 @@ public sealed class SessionDirectory
         try
         {
             All = await Task.Run(() => _sessions.ListAsync());
+            Systems = await LoadSystemsAsync();
             SessionMenu.Choices =
             [
                 .. Current is { } current ? [new SessionMenuChoice(SessionMenuKind.Session, current.Id, $"Add to {current.Title}")] : Array.Empty<SessionMenuChoice>(),
@@ -63,10 +75,30 @@ public sealed class SessionDirectory
         }
     }
 
+    async Task<IReadOnlyList<FacetCount>> LoadSystemsAsync()
+    {
+        try
+        {
+            return [.. (await Task.Run(() => _queries.GetFacetCountsAsync("system", new LibraryFilter())))
+                .Where(s => s.Value != SearchQuery.Unknown).OrderBy(s => s.Label, StringComparer.CurrentCultureIgnoreCase)];
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Listing the library's game systems failed");
+            return Systems;
+        }
+    }
+
     public SessionPackInfo? Find(long packId) => All.FirstOrDefault(p => p.Id == packId);
 
     /// <summary>"Saturday, 17 October 2026", or null for a pack without a date.</summary>
     public static string? DateLabel(DateOnly? date) => date?.ToString("D", CultureInfo.CurrentCulture);
+
+    /// <summary>A game system's name, or its key when no book in the library is for it any more.</summary>
+    public string SystemLabel(string key) => Systems.FirstOrDefault(s => s.Value == key)?.Label ?? key;
+
+    /// <summary>"At hand · D&amp;D 5e", or "At hand · any system": what a binder kept at hand shows where others show their date.</summary>
+    public string AtHandLabel(SessionPackInfo pack) => $"At hand · {(pack.GameSystem is { } system ? SystemLabel(system) : "any system")}";
 
     /// <summary>"3 items", "No items yet".</summary>
     public static string CountLabel(int items) =>
@@ -78,8 +110,8 @@ public sealed class SessionDirectory
         if (packs.Count == 0) return [];
         var entryIds = packs.SelectMany(p => p.FirstEntries).Distinct().ToList();
         var entries = (await Task.Run(() => _queries.ListAsync(new LibraryFilter(entryIds)))).ToDictionary(e => e.EntryId);
-        return [.. packs.Select(p => new SessionCardViewModel(p, DateLabel(p.Date), CountLabel(p.ItemCount),
-            [.. p.FirstEntries.Where(entries.ContainsKey).Select(e => new LibraryItemViewModel(entries[e], _covers))], p.Date is { } d && d < Today))];
+        return [.. packs.Select(p => new SessionCardViewModel(p, p.KeepAtHand ? AtHandLabel(p) : DateLabel(p.Date), CountLabel(p.ItemCount),
+            [.. p.FirstEntries.Where(entries.ContainsKey).Select(e => new LibraryItemViewModel(entries[e], _covers))], !p.KeepAtHand && p.Date is { } d && d < Today))];
     }
 
     /// <summary>The Library limited to a pack's books.</summary>

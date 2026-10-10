@@ -165,6 +165,35 @@ public sealed class SessionStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_binder_kept_at_hand_keeps_its_system_through_edits_duplicates_and_undo()
+    {
+        var (doc, abbey) = await AddBookAsync("abbey.pdf", 'a');
+        var rules = await _sessions.CreateAsync("Corruption", null, keepAtHand: true, gameSystem: " dnd5e ", Ct);
+        Assert.True(rules.KeepAtHand);
+        Assert.Equal("dnd5e", rules.GameSystem);
+        await _sessions.AddItemsAsync(rules.Id, [new NewSessionItem(abbey, new PageRange(doc, 9, 9), "Corruption table")], ct: Ct);
+        var session = await _sessions.CreateAsync("Session 4", new DateOnly(2026, 10, 17), Ct);
+        Assert.False(session.KeepAtHand);
+
+        var listed = (await _sessions.ListAsync(Ct)).Single(p => p.Id == rules.Id);
+        Assert.Equal((true, "dnd5e"), (listed.KeepAtHand, listed.GameSystem));
+        var copy = (await _sessions.DuplicateAsync(rules.Id, "Corruption (copy)", Ct))!;
+        Assert.Equal((true, "dnd5e"), (copy.KeepAtHand, copy.GameSystem));
+
+        // Any system, then no longer at hand: a system means nothing without it, so it isn't kept.
+        Assert.True(await _sessions.UpdateAsync(rules.Id, "Corruption", null, keepAtHand: true, gameSystem: "", Ct));
+        Assert.Null((await _sessions.GetAsync(rules.Id, Ct))!.Pack.GameSystem);
+        Assert.True(await _sessions.UpdateAsync(rules.Id, "Corruption", null, keepAtHand: false, gameSystem: "pf2e", Ct));
+        Assert.Equal((false, null), ((await _sessions.GetAsync(rules.Id, Ct))!.Pack.KeepAtHand, (await _sessions.GetAsync(rules.Id, Ct))!.Pack.GameSystem));
+
+        await _sessions.UpdateAsync(rules.Id, "Corruption", null, keepAtHand: true, gameSystem: "pf2e", Ct);
+        var deleted = (await _sessions.DeleteAsync(rules.Id, Ct))!;
+        var restored = await _sessions.RestoreAsync(deleted, Ct);
+        Assert.Equal((true, "pf2e"), (restored.KeepAtHand, restored.GameSystem));
+        Assert.Equal(["Corruption table"], (await _sessions.GetAsync(restored.Id, Ct))!.Items.Select(i => i.Label));
+    }
+
+    [Fact]
     public async Task A_joined_copy_brings_its_items_to_the_card_and_a_split_takes_them_back()
     {
         var (coreDoc, core) = await AddBookAsync("Core/abbey.pdf", 'a');

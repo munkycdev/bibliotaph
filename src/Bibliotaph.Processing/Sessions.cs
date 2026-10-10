@@ -67,16 +67,19 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
         return await sessions.GetAsync(packId, ct);
     }
 
-    public async Task<SessionPackInfo> CreateAsync(string title, DateOnly? date = null, CancellationToken ct = default)
+    public Task<SessionPackInfo> CreateAsync(string title, DateOnly? date = null, CancellationToken ct = default) => CreateAsync(title, date, false, null, ct);
+
+    /// <summary>A new pack, kept at hand during games for <paramref name="gameSystem"/> (or any system) if <paramref name="keepAtHand"/>.</summary>
+    public async Task<SessionPackInfo> CreateAsync(string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
-        var created = await sessions.CreateAsync(title, date, ct);
+        var created = await sessions.CreateAsync(title, date, keepAtHand, gameSystem, ct);
         Changed?.Invoke(this, EventArgs.Empty);
         return created;
     }
 
-    public async Task UpdateAsync(long packId, string title, DateOnly? date, CancellationToken ct = default)
+    public async Task UpdateAsync(long packId, string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
-        if (await sessions.UpdateAsync(packId, title, date, ct)) Changed?.Invoke(this, EventArgs.Empty);
+        if (await sessions.UpdateAsync(packId, title, date, keepAtHand, gameSystem, ct)) Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>The pack's notes, saved as they are typed. Raises no <see cref="Changed"/>: nothing else shows them.</summary>

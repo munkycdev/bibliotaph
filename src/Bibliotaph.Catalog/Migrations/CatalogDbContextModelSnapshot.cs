@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261010162053_CatalogForgetText";
+    public override string LastMigrationId => "20261010195831_CatalogBinderAtHand";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -848,6 +848,14 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Property<DateOnly?>("Date")
                     .HasColumnType("TEXT")
                     .HasColumnName("date");
+
+                b.Property<string>("GameSystem")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("game_system");
+
+                b.Property<bool>("KeepAtHand")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("keep_at_hand");
 
                 b.Property<string>("Notes")
                     .HasColumnType("TEXT")

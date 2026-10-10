@@ -124,6 +124,8 @@ static partial class SmokeTest
                     () => UseNotesAsync(services, window, reprocessed.Pdf));
                 await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, run, and deleted with Undo",
                     () => UseSessionPacksAsync(services, window, reprocessed.Pdf));
+                await Check("a binder kept at hand listed under At hand, and one of its pages opened in a window from another binder's At hand",
+                    () => UseAtHandBinderAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
@@ -1786,6 +1788,77 @@ static partial class SmokeTest
         // Leave the library as it was for the checks after this one.
         foreach (var left in await sessions.ListAsync()) await sessions.DeleteAsync(left.Id);
         await WaitUntilAsync(window, () => list.ShowEmpty, () => "The smoke test's session didn't go.");
+    }
+
+    /// <summary>
+    /// A binder kept at hand (Binders plan, choices 9 to 13): made from New binder with the box ticked and no date, listed
+    /// under At hand, offered by At hand in another binder, whose pick opens in a reader window while the binder in hand
+    /// stays put. Home keeps offering the game's binder to continue.
+    /// </summary>
+    static async Task UseAtHandBinderAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var sessions = services.GetRequiredService<SessionsService>();
+        var sessionPages = services.GetRequiredService<SessionPages>();
+        var windows = services.GetRequiredService<ReaderWindows>();
+
+        shell.NavigateCommand.Execute(Route.Sessions);
+        var list = shell.CurrentPage as SessionsViewModel ?? throw new InvalidOperationException("The Sessions route didn't open Binders.");
+        await WaitUntilAsync(window, () => list.IsLoaded, () => "Binders didn't load.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NewSession" && b.IsVisible), "New binder");
+        await WaitUntilAsync(window, () => list.Actions.Dialog is { IsNaming: true, ShowsAtHand: true }, () => "New binder didn't offer Keep at hand.");
+        var dialog = list.Actions.Dialog!;
+        dialog.Title = "House rules";
+        dialog.KeepAtHand = true;
+        await Settle(window);
+        if (dialog.ShowsDate || Descendants<ComboBox>(window).FirstOrDefault(c => c.Name == "GameSystemChoice") is not { IsVisible: true })
+            throw new InvalidOperationException("Keep at hand didn't swap the date for a game system.");
+        await AuditAsync(window, "the New binder dialog, kept at hand");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveSession" && b.IsVisible), "Create");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, Pack: { Title: "House rules", KeepAtHand: true, Date: null } },
+            () => "Create didn't open the binder kept at hand.");
+        var rules = (SessionReaderViewModel)shell.CurrentPage!;
+        await sessions.AddPagesAsync(rules.PackId, documentId, 0, 0, "Resting");
+        await WaitUntilAsync(window, () => rules.Current is { Heading: "Resting" }, () => "The binder kept at hand didn't show its page.");
+
+        shell.NavigateCommand.Execute(Route.Sessions);
+        list = shell.CurrentPage as SessionsViewModel ?? throw new InvalidOperationException("Binders didn't open again.");
+        await WaitUntilAsync(window, () => list.AtHand is [{ Title: "House rules" } card] && card.DateLabel == "At hand · any system" && !list.HasUndated && !list.HasUpcoming,
+            () => $"Binders lists {string.Join(", ", list.AtHand.Select(c => c.DateLabel))} at hand.");
+        await AuditAsync(window, "Binders with one kept at hand");
+
+        // Another binder's At hand lists it with its page; the pick opens in a window of its own, and the binder stays.
+        var game = await sessions.CreateAsync("Session one");
+        sessionPages.Open(game.Id);
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, HasAtHand: true } page && page.PackId == game.Id,
+            () => "The game's binder doesn't offer At hand.");
+        var reader = (SessionReaderViewModel)shell.CurrentPage!;
+        var atHand = Descendants<Button>(window).FirstOrDefault(b => b.Name == "AtHand");
+        Click(atHand, "At hand");
+        await WaitUntilAsync(window, () => atHand!.ContextMenu is { IsOpen: true } menu && menu.Items.OfType<MenuItem>().Any(i => i.CommandParameter is AtHandPage),
+            () => "At hand didn't list the binder's pages.");
+        var menu = atHand!.ContextMenu!;
+        var pick = menu.Items.OfType<MenuItem>().First(i => i.CommandParameter is AtHandPage { BinderTitle: "House rules", Row.Heading: "Resting" });
+        menu.IsOpen = false;
+        pick.Command.Execute(pick.CommandParameter);
+        await WaitUntilAsync(window, () => windows.Windows.Any(w => w.Model is ViewerViewModel { IsPdf: true, CurrentPageIndex: 0 }),
+            () => "The page kept at hand didn't open in a reader window.");
+        if (shell.CurrentPage != reader) throw new InvalidOperationException("Opening a page kept at hand moved the main window off the binder.");
+        foreach (var opened in windows.Windows.Where(w => w.Model is ViewerViewModel).ToList()) opened.Close();
+        await WaitUntilAsync(window, () => windows.Windows.Count == 0, () => "The page kept at hand's window didn't close.");
+
+        // Opening the rules last still leaves the game's binder as the one to continue on Home.
+        sessionPages.Open(rules.PackId);
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true } page && page.PackId == rules.PackId,
+            () => "The binder kept at hand didn't open again.");
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
+        await WaitUntilAsync(window, () => home.ContinuePreparing is { Title: "Session one" },
+            () => $"Home offers {home.ContinuePreparing?.Title ?? "nothing"} to continue, not the game's binder.");
+
+        foreach (var left in await sessions.ListAsync()) await sessions.DeleteAsync(left.Id);
+        var directory = services.GetRequiredService<SessionDirectory>();
+        await WaitUntilAsync(window, () => directory.All.Count == 0, () => "The smoke test's binders didn't go.");
     }
 
     static async Task AddElsewhereAsync(IServiceProvider services, Window window, int books)

@@ -92,6 +92,17 @@
           </TextBox>
           <TextBlock Text="{Binding DateProblem}" Style="{StaticResource Problem}" />
         </StackPanel>
+        <!-- Rules and references to look up mid-game: At hand in any binder offers their pages. -->
+        <StackPanel Visibility="{Binding ShowsAtHand, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <CheckBox x:Name="KeepAtHand" IsChecked="{Binding KeepAtHand}" Foreground="{DynamicResource Bt.Text}" FontSize="12" Margin="0,16,0,0"
+                    Content="Keep at hand during games" ToolTip="For rules and references you look up mid-game. At hand in any binder opens its pages in a window of their own." />
+          <StackPanel Visibility="{Binding KeepAtHand, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <TextBlock Text="For game system" Style="{StaticResource FieldLabel}" />
+            <ComboBox x:Name="GameSystemChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding SystemChoices}" SelectedItem="{Binding GameSystem}"
+                      AutomationProperties.Name="For game system" HorizontalAlignment="Stretch" MaxDropDownHeight="320"
+                      ToolTip="Binders for the systems of the books you're running are offered first" />
+          </StackPanel>
+        </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
           <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
           <Button x:Name="SaveSession" Style="{StaticResource Bt.Button.Primary}" Content="{Binding ActionText}" Command="{Binding SaveCommand}" />

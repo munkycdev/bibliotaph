@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Sessions (slice 3 plan, choice 12): every session pack as a card, the upcoming ones by date, then those without a
-/// date by when they were worked on, then Earlier ones (date passed), folded. A card opens the pack's page; New session
-/// makes one and opens it.
+/// Sessions (slice 3 plan, choice 12): every session pack as a card, the upcoming ones by date, then those kept at hand
+/// during games by title (Binders plan, choice 13), then those without a date by when they were worked on, then Earlier
+/// ones (date passed), folded. A card opens the pack's page; New session makes one and opens it.
 /// </summary>
 public sealed partial class SessionsViewModel(SessionActions actions, SessionPages sessionPages, LibraryPages pages, ILogger<SessionsViewModel> log)
     : PageViewModel
@@ -22,21 +22,26 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
 
     public ObservableCollection<SessionCardViewModel> Upcoming { get; } = [];
 
+    /// <summary>Binders of rules and references, which never list as upcoming.</summary>
+    public ObservableCollection<SessionCardViewModel> AtHand { get; } = [];
+
     public ObservableCollection<SessionCardViewModel> Undated { get; } = [];
 
     public ObservableCollection<SessionCardViewModel> Earlier { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUpcoming), nameof(HasUndated), nameof(HasEarlier), nameof(EarlierLabel), nameof(ShowEmpty))]
+    [NotifyPropertyChangedFor(nameof(HasUpcoming), nameof(HasAtHand), nameof(HasUndated), nameof(HasEarlier), nameof(EarlierLabel), nameof(ShowEmpty))]
     public partial int Version { get; private set; }
 
     public bool HasUpcoming => Upcoming.Count > 0;
+
+    public bool HasAtHand => AtHand.Count > 0;
 
     public bool HasUndated => Undated.Count > 0;
 
     public bool HasEarlier => Earlier.Count > 0;
 
-    public bool HasSessions => HasUpcoming || HasUndated || HasEarlier;
+    public bool HasSessions => HasUpcoming || HasAtHand || HasUndated || HasEarlier;
 
     public bool ShowEmpty => IsLoaded && !HasSessions;
 
@@ -87,9 +92,11 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
             var all = Actions.Directory.All;
             var cards = (await Actions.Directory.CardsAsync(all)).ToDictionary(c => c.Id);
             if (version != _version) return;
-            Fill(Upcoming, all.Where(p => p.Date >= today).OrderBy(p => p.Date).ThenBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
-            Fill(Undated, all.Where(p => p.Date is null).OrderByDescending(p => p.TouchedUtc), cards);
-            Fill(Earlier, all.Where(p => p.Date < today).OrderByDescending(p => p.Date), cards);
+            var dated = all.Where(p => !p.KeepAtHand).ToList();
+            Fill(Upcoming, dated.Where(p => p.Date >= today).OrderBy(p => p.Date).ThenBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
+            Fill(AtHand, all.Where(p => p.KeepAtHand).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
+            Fill(Undated, dated.Where(p => p.Date is null).OrderByDescending(p => p.TouchedUtc), cards);
+            Fill(Earlier, dated.Where(p => p.Date < today).OrderByDescending(p => p.Date), cards);
             IsLoaded = true;
             Version++;
             OnPropertyChanged(nameof(HasSessions));

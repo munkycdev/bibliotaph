@@ -140,7 +140,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
             Show(RecentlyOpened, opened);
             Show(RecentlyAdded, added);
             var pinned = await Collections.Directory.CardsAsync(Collections.Directory.Pinned);
-            var preparing = Sessions.Directory.Current is { } current ? await Sessions.Directory.CardsAsync([current]) : [];
+            var preparing = Sessions.Directory.Preparing is { } current ? await Sessions.Directory.CardsAsync([current]) : [];
             if (version != _version) return;
             ContinuePreparing = preparing.Count > 0 ? preparing[0] : null;
             PinnedCollections.Clear();

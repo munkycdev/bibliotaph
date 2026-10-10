@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,7 +19,8 @@ namespace Bibliotaph.App.ViewModels;
 /// a book's chapters sit in the reader; the reader shows the page in hand, with every other page of the book still
 /// reachable; the binder's notes sit in a panel on the right that folds away. Next and Previous (Ctrl+Right and
 /// Ctrl+Left) step through the pages, which are renamed in the list (F2). Edit binder opens the list page for sections,
-/// order and notes. Pop out moves the whole binder to a window of its own, one window per binder.
+/// order and notes. Pop out moves the whole binder to a window of its own, one window per binder. At hand (choices 10
+/// and 11) opens a page of a binder kept at hand in a reader window, so the page in hand stays put.
 /// </summary>
 public sealed partial class SessionReaderViewModel : PageViewModel
 {
@@ -26,6 +29,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly LibraryQueries _queries;
     readonly CoverImages _covers;
     readonly ReaderWindows _readers;
+    readonly SessionDirectory _directory;
     readonly ILogger<SessionReaderViewModel> _log;
     readonly DispatcherTimer _notesTimer;
     int _version;
@@ -36,8 +40,9 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, ILogger<SessionReaderViewModel> log)
     {
+        _directory = directory;
         _sessions = sessions;
         _sessionPages = sessionPages;
         _queries = queries;
@@ -178,6 +183,9 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         _sessions.Changed -= OnSessionsChanged;
         _sessions.Changed += OnSessionsChanged;
+        _directory.Changed -= OnDirectoryChanged;
+        _directory.Changed += OnDirectoryChanged;
+        HasAtHand = _directory.HasAtHandBesides(PackId);
         var version = ++_version;
         try
         {
@@ -251,6 +259,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     public override void Unload()
     {
         _version++;
+        _directory.Changed -= OnDirectoryChanged;
         // Changes made while the page is away are picked up by the next load, not by a refresh racing it.
         IsLoaded = false;
         _sessions.Changed -= OnSessionsChanged;
@@ -261,6 +270,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     public override async Task CloseWindowAsync()
     {
         _version++;
+        _directory.Changed -= OnDirectoryChanged;
         _sessions.Changed -= OnSessionsChanged;
         if (_notesDirty) await SaveNotesAsync();
         await Viewer.CloseWindowAsync();
@@ -312,6 +322,63 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     /// <summary>A click or Enter on an item in the list.</summary>
     [RelayCommand]
     Task OpenItem(SessionItemRow row) => OpenAsync(row);
+
+    /// <summary>Some other binder is kept at hand during games: At hand shows.</summary>
+    [ObservableProperty]
+    public partial bool HasAtHand { get; private set; }
+
+    void OnDirectoryChanged(object? sender, EventArgs e) => HasAtHand = _directory.HasAtHandBesides(PackId);
+
+    /// <summary>
+    /// At hand's list (choices 10 and 11): the other binders kept at hand with their pages, those for a game system of
+    /// this binder's books first, then those for any system, then the rest, each by title.
+    /// </summary>
+    public async Task<IReadOnlyList<AtHandGroup>> AtHandAsync()
+    {
+        var packs = _directory.All.Where(p => p.KeepAtHand && p.Id != PackId).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+        if (packs.Count == 0) return [];
+        try
+        {
+            List<EntryId> entries = [.. Items.Select(i => i.Item.EntryId).Distinct()];
+            var systems = entries.Count == 0 ? [] : (await Task.Run(() => _queries.GetFacetCountsAsync("system", new LibraryFilter(entries))))
+                .Select(f => f.Value).Where(v => v != SearchQuery.Unknown).ToHashSet();
+            var binders = new List<AtHandBinder>();
+            foreach (var pack in packs)
+            {
+                if (await Task.Run(() => _sessions.GetAsync(pack.Id)) is not { } contents) continue;
+                var rows = await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
+                binders.Add(new AtHandBinder(contents.Pack, [.. rows.OfType<SessionItemRow>()]));
+            }
+            var matching = binders.Where(b => b.Pack.GameSystem is { } system && systems.Contains(system)).ToList();
+            var any = binders.Where(b => b.Pack.GameSystem is null).ToList();
+            AtHandGroup[] groups =
+            [
+                new("For this binder's game systems", matching),
+                new("For any game system", any),
+                new("Other game systems", [.. binders.Except(matching).Except(any)]),
+            ];
+            return [.. groups.Where(g => g.Binders.Count > 0)];
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Listing the binders kept at hand failed");
+            return [];
+        }
+    }
+
+    /// <summary>A page picked in At hand opens in a reader window of its own, keeping no reading position.</summary>
+    [RelayCommand]
+    async Task OpenAtHand(AtHandPage page)
+    {
+        try
+        {
+            if (await SessionPackRows.RequestAsync(page.Row, page.BinderTitle, _queries) is { } request) await _readers.OpenInNewWindowAsync(request);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Opening a page kept at hand failed");
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanGoNext))]
     Task NextItem() => StepAsync(1);

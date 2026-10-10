@@ -124,6 +124,13 @@
                 Command="{Binding NextItemCommand}" ToolTip="Next page in the binder (Ctrl+Right)" Margin="0,0,14,0" />
         <Button x:Name="AddBinderPage" Content="Add this page" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding AddPageCommand}"
                 ToolTip="Add the page in view to this binder, after the one in hand" Margin="0,0,8,0" />
+        <Button x:Name="AtHand" Content="At hand" c:Ui.Icon="{StaticResource Icon.BookOpen}" Click="AtHand_Click" Margin="0,0,8,0"
+                ToolTip="Open a page from a binder kept at hand, in a window of its own" AutomationProperties.Name="At hand"
+                Visibility="{Binding HasAtHand, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <Button.ContextMenu>
+            <ContextMenu x:Name="AtHandMenu" Style="{StaticResource Bt.Menu}" MaxHeight="460" />
+          </Button.ContextMenu>
+        </Button>
         <Button x:Name="EditBinder" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}"
                 ToolTip="Edit binder: sections, order and notes" AutomationProperties.Name="Edit binder" />
         <Button x:Name="ToggleNotes" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelRight}" Command="{Binding ToggleNotesCommand}"
