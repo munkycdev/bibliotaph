@@ -1139,9 +1139,10 @@ static class SmokeTest
         await WaitUntilAsync(window, () => campaign.Collections.HasUndo && campaign.Collections.Message!.StartsWith("Added ", StringComparison.Ordinal),
             () => $"The card menu's Add to collection said “{campaign.Collections.Message}”.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
-        await WaitUntilAsync(window, () => campaign.Collections.Message is null, () => "Undo didn't finish.");
-        BookCommands.AddToCollection.Execute(new CollectionRequest(third, toCampaign), FindChild<Views.LibraryView>(window));
-        await WaitUntilAsync(window, () => campaign.Collections.HasUndo, () => "Adding the third book again didn't work.");
+        // Undo has finished once its note is gone and the collections have reloaded.
+        await WaitUntilAsync(window, () => campaign.Collections is { Message: null, UndoCommand.IsRunning: false }, () => "Undo didn't finish.");
+        campaign.AddToCollection(new CollectionRequest(third, toCampaign));
+        await WaitUntilAsync(window, () => campaign.Collections.HasUndo, () => $"Adding the third book again said “{campaign.Collections.Message}”.");
 
         search.Search("collection:\"winter campaign\"");
         await WaitUntilAsync(window, () => campaign.IsSearching && campaign.Items.Count == 3, () => $"collection:\"winter campaign\" found {campaign.Items.Count} books, not 3.");
