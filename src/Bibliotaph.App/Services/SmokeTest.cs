@@ -1326,9 +1326,9 @@ static class SmokeTest
         // A page note, added in the reader on the page in view.
         await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
         var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
-        await WaitUntilAsync(window, () => viewer.IsPdf && !viewer.HasPageNotes, () => "The PDF didn't open, or it already has page notes.");
+        await WaitUntilAsync(window, () => viewer.IsPdf && !viewer.HasPageNotes && Shown(window, "AddNote"), () => "The PDF didn't open, or it already has page notes.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddNote"), "the reader's Note");
-        await WaitUntilAsync(window, () => viewer.NoteDialog is not null, () => "Note didn't ask for the note.");
+        await WaitUntilAsync(window, () => viewer.NoteDialog is not null && Shown(window, "SaveNoteButton"), () => "Note didn't ask for the note.");
         viewer.NoteDialog!.Text = "The bell rings at midnight.";
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveNoteButton"), "the dialog's Save note");
@@ -1337,7 +1337,7 @@ static class SmokeTest
             () => "Saving didn't show the note in the reader's notes panel.");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteNote"), "Delete this note");
-        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.HasNoteUndo, () => "Delete didn't take the note away with Undo.");
+        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.HasNoteUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoNote"), "Undo the delete");
         await WaitUntilAsync(window, () => viewer.PageNotes.Count == 1, () => "Undo didn't bring the note back.");
         navigation.GoBack();
