@@ -19,13 +19,14 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     public SettingsViewModel(
         SettingsLinks links, AboutBox about, LibrarySectionViewModel library, ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance,
-        ReviewSectionViewModel review, VocabularyViewModel vocabulary, AiSettingsViewModel ai, StartOverSectionViewModel startOver,
+        ReviewSectionViewModel review, VocabularyViewModel vocabulary, AiSettingsViewModel ai, PasswordsSectionViewModel passwords,
+        StartOverSectionViewModel startOver,
         ILogger<SettingsViewModel> log)
     {
         _links = links;
         _about = about;
         _log = log;
-        Sections = [library, processing, appearance, review, vocabulary, ai, startOver];
+        Sections = [library, processing, appearance, review, vocabulary, ai, passwords, startOver];
         foreach (var section in Sections) section.PropertyChanged += OnSectionChanged;
         Selected = library;
         library.IsSelected = true;

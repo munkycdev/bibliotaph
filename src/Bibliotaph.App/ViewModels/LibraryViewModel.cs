@@ -65,6 +65,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly FavoritesService _favorites;
     readonly LibraryPages _pages;
     readonly ILogger<LibraryViewModel> _log;
+    readonly BookTextActions _text;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     /// <summary>The books whose files are offline or missing as of the last refresh, so their covers are marked.</summary>
     IReadOnlyDictionary<EntryId, EntryAvailability> _away = new Dictionary<EntryId, EntryAvailability>();
@@ -78,7 +79,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, ILogger<LibraryViewModel> log)
+        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
+        ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         Views = views;
@@ -101,6 +103,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _navigation = navigation;
         _readers = readers;
         _log = log;
+        _text = text;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         KindChoice = KindChoices[0];
         AiChoice = AiChoices[0];
@@ -650,9 +653,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         DocumentsTabLabel = $"Documents · {documents.Count.ToString("N0", CultureInfo.CurrentCulture)}";
         PagesTabLabel = plan.TextMatch is null ? "Inside documents" : $"Inside documents · {pages.MatchingPages.ToString("N0", CultureInfo.CurrentCulture)}";
         var progress = Activity.Progress;
-        Coverage = Tab == ResultsTab.Pages && progress.Searchable < progress.Documents
-            ? $"Searching text in {progress.Searchable.ToString("N0", CultureInfo.CurrentCulture)} of {progress.Documents.ToString("N0", CultureInfo.CurrentCulture)} documents. The rest are still being read."
-            : null;
+        Coverage = Tab == ResultsTab.Pages && progress.Searchable < progress.Documents ? CoverageText(progress) : null;
         var forQuery = $"for “{Search.Text}”";
 
         if (Tab == ResultsTab.Documents)
@@ -873,8 +874,54 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
+    /// <summary>
+    /// How much of the library a text search covers. Locked, protected and forgotten files aren't read by themselves
+    /// (slice 4i plan, choices 3, 4 and 6), so they are counted apart from those still being read.
+    /// </summary>
+    static string CoverageText(IndexProgress progress)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var text = $"Searching text in {progress.Searchable.ToString("N0", culture)} of {progress.Documents.ToString("N0", culture)} documents.";
+        var reading = progress.Documents - progress.Searchable - progress.Withheld;
+        if (reading > 0) text += progress.Withheld == 0 ? " The rest are still being read." : $" {reading.ToString("N0", culture)} still being read.";
+        if (progress.Withheld > 0)
+            text += $" {progress.Withheld.ToString("N0", culture)} {(progress.Withheld == 1 ? "isn't" : "aren't")} read: locked, protected, or with their text forgotten.";
+        return text;
+    }
+
     /// <summary>A book owned elsewhere has no file to open.</summary>
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
+
+    /// <summary>
+    /// Open in another app (slice 4i plan, choice 4), from a card's menu or the details of a PDF whose protection
+    /// Bibliotaph can't open: the user's default PDF app.
+    /// </summary>
+    [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenElsewhere))]
+    Task OpenElsewhere(LibraryItemViewModel item) => _text.OpenElsewhereAsync(item.DocumentId);
+
+    static bool CanOpenElsewhere(LibraryItemViewModel? item) => BookTextActions.HasFile(item);
+
+    /// <summary>Forget its text (slice 4i plan, choice 6), from a card's menu: its pages, cover and AI results go.</summary>
+    [RelayCommand(CanExecute = nameof(CanForgetText))]
+    async Task ForgetText(LibraryItemViewModel item)
+    {
+        await _text.ForgetAsync(item.EntryId);
+        await RefreshAsync();
+        if (Inspector is { } inspector && inspector.Item.EntryId == item.EntryId) await inspector.RefreshAsync();
+    }
+
+    static bool CanForgetText(LibraryItemViewModel? item) => item is { CanForgetText: true };
+
+    /// <summary>Read it again: undoes Forget its text.</summary>
+    [RelayCommand(CanExecute = nameof(CanReadTextAgain))]
+    async Task ReadTextAgain(LibraryItemViewModel item)
+    {
+        await _text.ReadAgainAsync(item.EntryId);
+        await RefreshAsync();
+        if (Inspector is { } inspector && inspector.Item.EntryId == item.EntryId) await inspector.RefreshAsync();
+    }
+
+    static bool CanReadTextAgain(LibraryItemViewModel? item) => item is { CanReadAgain: true };
 
     /// <summary>Opens a book in a window of its own, from a card's menu, the inspector, Shift+Enter or middle-click.</summary>
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenBook))]

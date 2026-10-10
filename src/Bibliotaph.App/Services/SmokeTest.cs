@@ -28,7 +28,7 @@ namespace Bibliotaph.App.Services;
 /// Windows so a broken resource or template fails the build instead of the first launch. It is not a substitute for
 /// looking.
 /// </summary>
-static class SmokeTest
+static partial class SmokeTest
 {
     public static async Task<int> RunAsync(IServiceProvider services, Window window, string? smokeFiles)
     {
@@ -77,6 +77,7 @@ static class SmokeTest
             }
 
             await Check("the sidebar status opened Settings > Processing", () => OpenProcessingFromStatusAsync(services, window));
+            await Check("the password dialog's Make its text searchable tick, on to start with and locked on by Remember", () => ShowPasswordDialogAsync(window));
 
             // Every later check needs the library, so a failure here ends the run.
             await SeedLibraryAsync(services);
@@ -119,6 +120,10 @@ static class SmokeTest
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
+                await Check("a locked PDF and one with DRM marked on their cards, in their details and in Needs review; the protected one opened in another app; the locked one unlocked without Remember, Copy off, and searchable",
+                    () => UseProtectedBooksAsync(services, window));
+                await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
+                await Check("a remembered password listed in Settings > Passwords and forgotten there", () => ForgetPasswordAsync(services, window));
             }
             // Last: the made-up library's books can't be read once its folder is found offline.
             await Check("a library folder that can't be reached: its books marked Offline, the sidebar and its Settings card saying so",

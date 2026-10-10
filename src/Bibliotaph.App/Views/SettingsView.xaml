@@ -116,6 +116,35 @@
       </StackPanel>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type vm:PasswordsSectionViewModel}">
+      <StackPanel>
+        <TextBlock Text="Passwords" Style="{StaticResource Text.H2}" />
+        <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
+                   Text="PDF passwords you chose to remember, kept in Windows Credential Manager on this PC, never in Bibliotaph's own files. Bibliotaph opens these books with them, and reads them for search. Forget one and you'll be asked for it the next time you open the book; text already read stays searchable." />
+        <TextBlock Text="No passwords are remembered." Style="{StaticResource Text.Small}" Margin="0,10,0,0"
+                   Visibility="{Binding HasRows, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+        <ItemsControl x:Name="PasswordRows" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Remembered passwords">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:PasswordRow}">
+              <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,12">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Content="Forget" VerticalAlignment="Center"
+                          AutomationProperties.Name="{Binding Title, StringFormat='Forget the password of {0}'}"
+                          Command="{Binding DataContext.ForgetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                          CommandParameter="{Binding}" />
+                  <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Lock}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                             VerticalAlignment="Center" Margin="0,0,12,0" />
+                </DockPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="Forget all" HorizontalAlignment="Left" Margin="0,16,0,0" AutomationProperties.Name="Forget all passwords"
+                Command="{Binding ForgetAllCommand}" Visibility="{Binding HasRows, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+      </StackPanel>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type vm:StartOverSectionViewModel}">
       <StackPanel>
         <TextBlock Text="DEVELOPMENT AID" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />

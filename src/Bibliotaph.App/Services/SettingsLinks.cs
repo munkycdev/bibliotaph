@@ -11,6 +11,7 @@ public enum SettingsSection
     Review,
     Vocabulary,
     Ai,
+    Passwords,
     StartOver,
 }
 

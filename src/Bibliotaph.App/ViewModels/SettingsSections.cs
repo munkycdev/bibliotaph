@@ -1,9 +1,12 @@
+using System.Collections.ObjectModel;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -161,5 +164,73 @@ public sealed partial class StartOverSectionViewModel(StartOver startOver) : Set
     void StartOver()
     {
         if (Services.StartOver.Confirm()) startOver.Run();
+    }
+}
+
+/// <summary>A book with a remembered password, in Settings, Passwords. Only its hash and title: never the password.</summary>
+public sealed record PasswordRow(string ContentHash, string Title);
+
+/// <summary>
+/// Settings > Passwords (slice 4i plan, choice 2): the books whose password was remembered in Windows Credential
+/// Manager, each with Forget, and Forget all. Forgetting one also forgets the copy kept for this sitting, so the next
+/// open asks again; text already read stays searchable until Forget its text.
+/// </summary>
+public sealed partial class PasswordsSectionViewModel(IPasswordVault vault, UnlockedPasswords unlocked, IndexQueries queries,
+    ILogger<PasswordsSectionViewModel> log) : SettingsSectionViewModel
+{
+    public override SettingsSection Section => SettingsSection.Passwords;
+    public override string Label => "Passwords";
+
+    public ObservableCollection<PasswordRow> Rows { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasRows { get; private set; }
+
+    [ObservableProperty]
+    public partial bool IsLoaded { get; private set; }
+
+    public override async Task LoadAsync()
+    {
+        try
+        {
+            var hashes = await Task.Run(vault.List);
+            var titles = await Task.Run(() => queries.GetTitlesByHashAsync(hashes));
+            Rows.Clear();
+            foreach (var row in hashes
+                .Select(h => new PasswordRow(h, titles.TryGetValue(h, out var title) ? title : "A book not in your library now"))
+                .OrderBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase))
+                Rows.Add(row);
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Listing remembered passwords failed");
+        }
+        HasRows = Rows.Count > 0;
+        IsLoaded = true;
+    }
+
+    [RelayCommand]
+    void Forget(PasswordRow row)
+    {
+        vault.Forget(row.ContentHash);
+        unlocked.Forget(row.ContentHash);
+        Rows.Remove(row);
+        HasRows = Rows.Count > 0;
+    }
+
+    [RelayCommand]
+    void ForgetAll()
+    {
+        if (Rows.Count == 0) return;
+        var confirmed = System.Windows.MessageBox.Show(System.Windows.Application.Current.MainWindow,
+            $"Bibliotaph will forget {(Rows.Count == 1 ? "the remembered password" : $"all {Rows.Count:N0} remembered passwords")} and ask again the next time you open {(Rows.Count == 1 ? "the book" : "each book")}.\n\nYour files are not touched.",
+            "Forget all passwords?", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question,
+            System.Windows.MessageBoxResult.Cancel) == System.Windows.MessageBoxResult.OK;
+        if (!confirmed) return;
+        var count = vault.ForgetAll();
+        foreach (var row in Rows) unlocked.Forget(row.ContentHash);
+        log.LogInformation("Forgot {Count} remembered passwords", count);
+        Rows.Clear();
+        HasRows = false;
     }
 }

@@ -7,12 +7,33 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
+/// PDF passwords the reader chose to remember, by content hash: listed, and forgotten one by one or all together, in
+/// Settings, Passwords (slice 4i plan, choice 2). An interface so the smoke test never touches Credential Manager.
+/// </summary>
+public interface IPasswordVault
+{
+    string? Find(string contentHash);
+
+    /// <summary>Remembers a password that opened the book. Returns false when it couldn't be stored.</summary>
+    bool Remember(string contentHash, string password);
+
+    /// <summary>Forgets a remembered password, as when it no longer opens the book.</summary>
+    void Forget(string contentHash);
+
+    /// <summary>Forgets every remembered password. Returns how many there were.</summary>
+    int ForgetAll();
+
+    /// <summary>The content hashes of the books with a remembered password. Never the passwords.</summary>
+    IReadOnlyList<string> List();
+}
+
+/// <summary>
 /// PDF passwords the reader chose to remember, kept in Windows Credential Manager under this Windows account and
 /// keyed by the book's content hash, so a remembered password follows the book if it moves. Indexing reads them
 /// too, so a locked book is indexed once its password is remembered. Passwords never go to Bibliotaph's databases
 /// or logs.
 /// </summary>
-public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
+public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordVault
 {
     const string TargetPrefix = "Bibliotaph:pdf:";   // the architecture doc's Bibliotaph: prefix for secrets
 
@@ -23,7 +44,6 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
         return secret;
     }
 
-    /// <summary>Remembers a password that opened the book. Returns false when Windows refused to store it.</summary>
     public bool Remember(string contentHash, string password)
     {
         var error = WindowsCredentials.Write(Target(contentHash), password, "A PDF password remembered by Bibliotaph");
@@ -32,13 +52,11 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
         return false;
     }
 
-    /// <summary>Forgets a remembered password, as when it no longer opens the book.</summary>
     public void Forget(string contentHash)
     {
         if (WindowsCredentials.Delete(Target(contentHash)) is { } error) log.LogWarning("Forgetting a PDF password failed: {Error}", error);
     }
 
-    /// <summary>Forgets every password Bibliotaph remembered, for Start over. Returns how many there were.</summary>
     public int ForgetAll()
     {
         var (targets, listError) = WindowsCredentials.List(TargetPrefix);
@@ -48,7 +66,61 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordStore
         return targets.Count;
     }
 
+    public IReadOnlyList<string> List()
+    {
+        var (targets, error) = WindowsCredentials.List(TargetPrefix);
+        if (error is not null) log.LogWarning("Listing remembered passwords failed: {Error}", error);
+        return [.. targets.Where(t => t.StartsWith(TargetPrefix, StringComparison.OrdinalIgnoreCase)).Select(t => t[TargetPrefix.Length..])];
+    }
+
     static string Target(string contentHash) => TargetPrefix + contentHash;
+}
+
+/// <summary>Remembered passwords held in memory, for the smoke test, which must not write to Credential Manager.</summary>
+public sealed class MemoryPasswordVault : IPasswordVault
+{
+    readonly Lock _lock = new();
+    readonly Dictionary<string, string> _passwords = [];
+
+    public string? Find(string contentHash)
+    {
+        lock (_lock) return _passwords.GetValueOrDefault(contentHash);
+    }
+
+    public bool Remember(string contentHash, string password)
+    {
+        lock (_lock) _passwords[contentHash] = password;
+        return true;
+    }
+
+    public void Forget(string contentHash)
+    {
+        lock (_lock) _passwords.Remove(contentHash);
+    }
+
+    public int ForgetAll()
+    {
+        lock (_lock)
+        {
+            var count = _passwords.Count;
+            _passwords.Clear();
+            return count;
+        }
+    }
+
+    public IReadOnlyList<string> List()
+    {
+        lock (_lock) return [.. _passwords.Keys];
+    }
+}
+
+/// <summary>
+/// The passwords indexing may open a book with (slice 4i plan, choice 1): one entered this sitting with "Make its text
+/// searchable" ticked, which is held in memory only, or else a remembered one.
+/// </summary>
+public sealed class IndexPasswords(UnlockedPasswords unlocked, IPasswordVault vault) : IPasswordStore
+{
+    public string? Find(string contentHash) => unlocked.FindForIndexing(contentHash) ?? vault.Find(contentHash);
 }
 
 /// <summary>

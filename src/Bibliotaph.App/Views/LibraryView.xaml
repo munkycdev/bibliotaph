@@ -592,6 +592,11 @@
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
+                <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
+                <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" HorizontalAlignment="Left"
+                        Margin="0,8,0,0" ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
+                        Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- Add to session (slice 3c): the current session, another or a new one. -->
                 <Button x:Name="AddToSession" Content="Add to session" c:Ui.Icon="{StaticResource Icon.NotebookPen}" HorizontalAlignment="Left"
                         Margin="0,8,0,0" Click="DropDown_Click" ToolTip="Add this book to a session">

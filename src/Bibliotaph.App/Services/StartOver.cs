@@ -12,7 +12,7 @@ namespace Bibliotaph.App.Services;
 /// remembered PDF passwords and saved endpoint keys at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
 /// </summary>
-public sealed class StartOver(AppPaths paths, PasswordVault vault, ApiKeyVault keys, ILogger<StartOver> log)
+public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault keys, ILogger<StartOver> log)
 {
     /// <summary><c>--wait-for &lt;process id&gt;</c>: the app that asked to start over, which must exit first.</summary>
     public const string WaitForArgument = "--wait-for";

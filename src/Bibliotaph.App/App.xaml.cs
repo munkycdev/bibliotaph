@@ -52,7 +52,7 @@ public partial class App : Application
         {
             StartOver.FinishIfRequested(paths, e.Args);
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
-            _host = BuildHost(paths, pilot);
+            _host = BuildHost(paths, pilot, _smokeTest);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
 
@@ -105,7 +105,7 @@ public partial class App : Application
         return at >= 0 && at + 1 < args.Length ? System.IO.Path.GetFullPath(args[at + 1]) : null;
     }
 
-    static IHost BuildHost(AppPaths paths, bool pilot)
+    static IHost BuildHost(AppPaths paths, bool pilot, bool smokeTest)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -168,8 +168,11 @@ public partial class App : Application
         builder.Services.AddSingleton<CoverCache>();
         builder.Services.AddSingleton<WpfImageCodec>();
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
-        builder.Services.AddSingleton<PasswordVault>();
-        builder.Services.AddSingleton<IPasswordStore>(sp => sp.GetRequiredService<PasswordVault>());
+        // The smoke test keeps remembered passwords in memory and opens no other app (slice 4i).
+        if (smokeTest) builder.Services.AddSingleton<IPasswordVault, MemoryPasswordVault>();
+        else builder.Services.AddSingleton<IPasswordVault, PasswordVault>();
+        builder.Services.AddSingleton<UnlockedPasswords>();
+        builder.Services.AddSingleton<IPasswordStore, IndexPasswords>();
         builder.Services.AddSingleton<ApiKeyVault>();
         builder.Services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
         builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>()));
@@ -203,6 +206,7 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+        builder.Services.AddSingleton<ForgetText>();
 
         // Shell
         builder.Services.AddSingleton<ThemeService>();
@@ -211,7 +215,18 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
-        builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
+        if (smokeTest)
+        {
+            builder.Services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();
+            builder.Services.AddSingleton<IShellLauncher, SmokeShellLauncher>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
+            builder.Services.AddSingleton<IShellLauncher, ShellLauncher>();
+        }
+        builder.Services.AddSingleton<OtherApps>();
+        builder.Services.AddSingleton<BookTextActions>();
         builder.Services.AddSingleton<AboutBox>();
         builder.Services.AddSingleton<AiTestBox>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
@@ -240,6 +255,7 @@ public partial class App : Application
         builder.Services.AddTransient<AppearanceSectionViewModel>();
         builder.Services.AddTransient<ReviewSectionViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
+        builder.Services.AddTransient<PasswordsSectionViewModel>();
         builder.Services.AddTransient<StartOverSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
@@ -249,7 +265,6 @@ public partial class App : Application
         builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
-        builder.Services.AddSingleton<UnlockedPasswords>();
         builder.Services.AddSingleton<ViewerServices>();
         builder.Services.AddSingleton<ReaderWindows>();
         return builder.Build();
