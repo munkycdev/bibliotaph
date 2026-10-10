@@ -1928,9 +1928,13 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
         var copies = services.GetRequiredService<CopiesService>();
         var versions = await copies.CountVersionsAsync();
-        var inn = page.Items.Single(i => i.Title == "Haunted Inn");
-        var scan = page.Items.Single(i => i.Title == "IMG_0042");
-        var map = page.Items.Single(i => i.Title == "Tavern Map");
+        // By file: earlier checks have given the inn and the scan titles of their own.
+        var paths = await services.GetRequiredService<LibraryStore>().GetRelativePathsAsync();
+        LibraryItemViewModel Card(string file) =>
+            page.Items.Single(i => i.DocumentId == paths.First(p => p.RelativePath.EndsWith(file, StringComparison.Ordinal)).DocumentId);
+        var inn = Card("Haunted Inn.pdf");
+        var scan = Card("IMG_0042.pdf");
+        var map = Card("Tavern Map.png");
 
         page.StartSelectingCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(inn);
@@ -1944,16 +1948,16 @@ static partial class SmokeTest
         var dialog = page.SameBookDialog!;
         if (dialog.Files.Count != 2 || dialog.Files.Count(f => f.Opens) != 1)
             throw new InvalidOperationException($"The dialog lists {dialog.Files.Count} files, {dialog.Files.Count(f => f.Opens)} of them opening.");
-        var innFile = dialog.Files.Single(f => f.Card == "Haunted Inn");
+        var innFile = dialog.Files.Single(f => f.DocumentId == inn.DocumentId);
         innFile.Opens = true;
-        if (dialog.Files.Single(f => f.Card == "IMG_0042").Opens) throw new InvalidOperationException("Choosing the inn's file left the scan's chosen too.");
+        if (dialog.Files.Single(f => f.DocumentId == scan.DocumentId).Opens) throw new InvalidOperationException("Choosing the inn's file left the scan's chosen too.");
         await Settle(window);
         await AuditAsync(window, "the Same book dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.JoinCommand), "Join as one book");
         await WaitUntilAsync(window, () => page.SameBookDialog is null && page.HasJoinUndo && page.Items.Count == books - 1,
             () => $"Joining left {page.Items.Count} books ({page.BulkMessage}).");
-        if (page.BulkMessage != "Joined 2 cards as Haunted Inn.") throw new InvalidOperationException($"Same book says “{page.BulkMessage}”.");
-        var joined = page.Items.Single(i => i.Title == "Haunted Inn");
+        var joined = page.Items.Single(i => i.EntryId == inn.EntryId || i.EntryId == scan.EntryId);
+        if (page.BulkMessage != $"Joined 2 cards as {joined.Title}.") throw new InvalidOperationException($"Same book says “{page.BulkMessage}”.");
         if (joined.CopiesLabel != "2 copies" || joined.DocumentId != innFile.DocumentId)
             throw new InvalidOperationException($"The joined card reads “{joined.CopiesLabel}” and opens document {joined.DocumentId}, not {innFile.DocumentId}.");
         if (await copies.CountVersionsAsync() != versions - 1) throw new InvalidOperationException("The scan's “new version?” card is still waiting.");
