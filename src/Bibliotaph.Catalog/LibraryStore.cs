@@ -391,6 +391,19 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         return [.. entries.Concat(packs).Concat(elsewhere).Select(e => new EntryId(e))];
     }
 
+    /// <summary>
+    /// The document with this content that has a file in a library folder, other than one gone missing; null when there
+    /// is none. Check a download asks it of each file it reads (F5 plan, choice 11).
+    /// </summary>
+    public async Task<long?> FindDocumentAsync(ContentHash hash, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations.AsNoTracking()
+            .Where(f => f.ContentHash == hash.Hex && f.DocumentId != null && f.State != FileLocationState.Missing
+                && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .OrderBy(f => f.DocumentId).Select(f => f.DocumentId).FirstOrDefaultAsync(ct);
+    }
+
     /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>
     public async Task<IReadOnlyList<DocumentLocation>> GetLocationsAsync(long documentId, CancellationToken ct = default)
     {

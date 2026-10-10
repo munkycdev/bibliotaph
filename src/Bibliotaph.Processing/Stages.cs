@@ -321,7 +321,7 @@ public sealed class TextStage(StageServices s) : IStage
     }
 
     /// <summary>The whole run in one request, or null if the worker died on it.</summary>
-    static async Task<List<PageText>?> ExtractRunAsync(PdfSession session, int first, int count, CancellationToken ct)
+    internal static async Task<List<PageText>?> ExtractRunAsync(PdfSession session, int first, int count, CancellationToken ct)
     {
         try
         {
@@ -335,7 +335,7 @@ public sealed class TextStage(StageServices s) : IStage
     }
 
     /// <summary>After a run fails, each page on its own, so one bad page costs only itself.</summary>
-    static async Task<List<PageText>> ExtractOneByOneAsync(PdfSession session, int first, int count, CancellationToken ct)
+    internal static async Task<List<PageText>> ExtractOneByOneAsync(PdfSession session, int first, int count, CancellationToken ct)
     {
         var pages = new List<PageText>(count);
         for (var p = first; p < first + count; p++)

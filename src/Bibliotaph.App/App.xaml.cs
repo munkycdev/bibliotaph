@@ -149,6 +149,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
         builder.Services.AddSingleton<ElsewhereService>();
+        builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
@@ -216,6 +217,8 @@ public partial class App : Application
         builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
         builder.Services.AddTransient<PilotReviewViewModel>();
+        // One check a download page, so a check keeps running while the library is shown.
+        builder.Services.AddSingleton<DownloadCheckViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
@@ -234,6 +237,7 @@ public partial class App : Application
         Route.NeedsReview => services.GetRequiredService<NeedsReviewViewModel>(),
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
+        Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

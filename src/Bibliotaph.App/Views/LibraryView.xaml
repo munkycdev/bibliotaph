@@ -166,6 +166,8 @@
     <DockPanel Margin="0,0,42,24">
       <Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}"
               Command="{Binding AddFolderCommand}" />
+      <Button x:Name="CheckDownload" DockPanel.Dock="Right" VerticalAlignment="Top" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
+              Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
       <Button x:Name="AddElsewhere" DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
               Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
       <StackPanel>

@@ -750,6 +750,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         return new ViewerRequest(pack[at].DocumentId, pack[at].Title) { Pack = pack, PackTitle = item.Title };
     }
 
+    /// <summary>Check a download (F5b): which files in a folder or ZIP the library already has, on a page of its own.</summary>
+    [RelayCommand]
+    void CheckDownload() => _navigation.NavigateTo(Route.DownloadCheck);
+
     // Books owned elsewhere (F5a).
 
     /// <summary>The "Add a book I own elsewhere" dialog, while it is open over the Library.</summary>

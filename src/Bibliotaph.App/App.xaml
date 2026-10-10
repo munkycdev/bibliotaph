@@ -27,6 +27,7 @@
       <DataTemplate DataType="{x:Type vm:NeedsReviewViewModel}"><views:NeedsReviewView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:PilotReviewViewModel}"><views:PilotReviewView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:DownloadCheckViewModel}"><views:DownloadCheckView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:ViewerViewModel}"><views:ViewerView /></DataTemplate>
     </ResourceDictionary>
   </Application.Resources>
