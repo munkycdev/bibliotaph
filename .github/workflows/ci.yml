@@ -50,6 +50,11 @@ jobs:
         shell: pwsh
         run: ./build/verify.ps1 -Step Build
 
+      # Writes the licence of every package that ships beside the build, and fails on one that isn't GPL-3.0-compatible.
+      - name: Licences
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Licenses
+
       - name: Test
         shell: pwsh
         run: ./build/verify.ps1 -Step Test

@@ -117,8 +117,34 @@
           </StackPanel>
         </ScrollViewer>
 
-        <!-- .bt-sidebottom: processing status, then Settings. -->
+        <!-- .bt-sidebottom: an update ready to apply, processing status, then Settings. -->
         <StackPanel Grid.Row="2">
+          <!-- Downloaded in the background (slice 4l); it waits for this click, as a game may be under way. -->
+          <Button x:Name="UpdateReady" Margin="4,0,4,6" Cursor="Hand" HorizontalContentAlignment="Stretch"
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding RestartToUpdateCommand}"
+                  AutomationProperties.Name="Update ready: restart to update" ToolTip="Close Bibliotaph, update it and open it again"
+                  Visibility="{Binding Updates.IsReady, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button.Template>
+              <ControlTemplate TargetType="Button">
+                <Border x:Name="Chrome" Background="{DynamicResource Bt.Soft}" CornerRadius="5" Padding="6">
+                  <ContentPresenter />
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Line}" />
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Button.Template>
+            <!-- A DockPanel, not a StackPanel, so the line wraps in the sidebar's width. -->
+            <DockPanel>
+              <Ellipse DockPanel.Dock="Left" Width="6" Height="6" VerticalAlignment="Top" Margin="0,5,0,0" Fill="{DynamicResource Bt.Accent}" />
+              <StackPanel Margin="8,0,0,0">
+                <TextBlock Text="Update ready: restart to update" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Updates.ReadyText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0" />
+              </StackPanel>
+            </DockPanel>
+          </Button>
           <!-- Opens Settings > Processing, where the details and pause buttons are. -->
           <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding OpenProcessingCommand}"

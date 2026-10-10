@@ -8,7 +8,16 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Settings > Start over, while Bibliotaph is in development (to be removed before 1.0). Forgets
+/// Whether the app started with --dev (slice 4l plan, choice 7), which shows Settings > Start over. Without it nothing
+/// leads there, so nobody else finds a button that deletes everything.
+/// </summary>
+public sealed class DevMode(bool on)
+{
+    public bool IsOn { get; set; } = on;
+}
+
+/// <summary>
+/// Settings > Start over, shown only with --dev while Bibliotaph is in development (to be removed before 1.0). Forgets
 /// remembered PDF passwords and saved endpoint keys at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
 /// </summary>
@@ -37,6 +46,8 @@ public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault 
         restart.ArgumentList.Add(paths.Root);
         restart.ArgumentList.Add(WaitForArgument);
         restart.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+        // Start over is reached only with --dev, so the new start keeps it.
+        restart.ArgumentList.Add("--dev");
         Process.Start(restart);
         Application.Current.Shutdown();
     }

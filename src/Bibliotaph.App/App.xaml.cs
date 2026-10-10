@@ -31,6 +31,7 @@ public partial class App : Application
         var measureSearch = e.Args.Contains("--measure-search");
         var measureViewer = e.Args.Contains("--measure-viewer");
         var pilot = e.Args.Contains("--pilot");
+        var dev = e.Args.Contains("--dev");
         var paths = DataRootArgument(e.Args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
         foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
 
@@ -55,7 +56,7 @@ public partial class App : Application
             var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
             if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
-            _host = BuildHost(paths, pilot, _smokeTest);
+            _host = BuildHost(paths, pilot, dev, _smokeTest);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
 
@@ -81,6 +82,8 @@ public partial class App : Application
             MainWindow = window;
             window.Show();
             await services.GetRequiredService<ShellViewModel>().StartAsync();
+            // Updates (slice 4l): checked once the window shows, in the background.
+            services.GetRequiredService<IUpdateService>().Start();
             if (restored is not null && !_smokeTest) AppRestart.Tell(restored);
 
             if (_smokeTest) Shutdown(await SmokeTest.RunAsync(services, window, Argument(e.Args, "--smoke-files")));
@@ -110,7 +113,7 @@ public partial class App : Application
         return at >= 0 && at + 1 < args.Length ? System.IO.Path.GetFullPath(args[at + 1]) : null;
     }
 
-    static IHost BuildHost(AppPaths paths, bool pilot, bool smokeTest)
+    static IHost BuildHost(AppPaths paths, bool pilot, bool dev, bool smokeTest)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -184,6 +187,8 @@ public partial class App : Application
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
+        // Settings > Start over, shown only with --dev (slice 4l plan, choice 7).
+        builder.Services.AddSingleton(new DevMode(dev));
         builder.Services.AddSingleton<CatalogExport>();
         builder.Services.AddSingleton<BackupService>();
         builder.Services.AddSingleton<ExportService>();
@@ -227,11 +232,13 @@ public partial class App : Application
         {
             builder.Services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();
             builder.Services.AddSingleton<IShellLauncher, SmokeShellLauncher>();
+            builder.Services.AddSingleton<IUpdateService, SmokeUpdateService>();
         }
         else
         {
             builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
             builder.Services.AddSingleton<IShellLauncher, ShellLauncher>();
+            builder.Services.AddSingleton<IUpdateService, UpdateService>();
         }
         builder.Services.AddSingleton<OtherApps>();
         builder.Services.AddSingleton<BookTextActions>();

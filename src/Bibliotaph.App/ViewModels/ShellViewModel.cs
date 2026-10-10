@@ -24,8 +24,9 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly DispatcherTimer _searchDelay;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
-        LibraryPages library, SmartViewDirectory views, SettingsStore store, ILogger<ShellViewModel> log)
+        LibraryPages library, SmartViewDirectory views, SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
     {
+        Updates = updates;
         _library = library;
         _views = views;
         _store = store;
@@ -112,6 +113,13 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Indexing progress for the sidebar status line.</summary>
     public LibraryActivity Activity { get; }
+
+    /// <summary>An update downloaded in the background, which the sidebar offers once it is ready (slice 4l).</summary>
+    public IUpdateService Updates { get; }
+
+    /// <summary>The sidebar's "Update ready: restart to update". Nothing restarts until it is clicked.</summary>
+    [RelayCommand]
+    void RestartToUpdate() => Updates.RestartToUpdate();
 
     public string AppearanceToggleLabel => _theme.IsDark ? "Switch to light appearance" : "Switch to dark appearance";
 

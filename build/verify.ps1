@@ -6,6 +6,7 @@
     Steps, in CI's order:
       Restore    dotnet restore
       Build      Debug build; warnings are errors
+      Licenses   writes licenses\packages beside the Debug build; fails on a licence that isn't GPL-3.0-compatible
       Test       every test project
       Smoke      the app's --smoke-test on the real window (Windows only)
       BannedApi  proves that a write API in Core fails the build with RS0030
@@ -22,8 +23,8 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Restore', 'Build', 'Test', 'Smoke', 'BannedApi', 'Release')]
-    [string[]] $Step = @('Restore', 'Build', 'Test', 'Smoke', 'BannedApi', 'Release'),
+    [ValidateSet('Restore', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release')]
+    [string[]] $Step = @('Restore', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'),
 
     # Leaves out the smoke test, which opens the app's window for about a minute.
     [switch] $SkipSmoke
@@ -84,6 +85,15 @@ function Invoke-Smoke {
     throw "Smoke test failed with exit code $($app.ExitCode). Its data and logs are in $run."
 }
 
+function Invoke-Licenses {
+    # Every package that ships gets licenses\packages\<id>.txt, which the About popup lists (the smoke test looks).
+    # The release workflow runs the same tool on the published app.
+    $app = Join-Path $root 'src/Bibliotaph.App/bin/Debug/net11.0-windows'
+    $tool = Join-Path $root 'tools/LicenseNotices/bin/Debug/net11.0/LicenseNotices.dll'
+    if (-not (Test-Path $tool) -or -not (Test-Path (Join-Path $app 'Bibliotaph.deps.json'))) { throw 'Build the Debug configuration first.' }
+    Invoke-Dotnet $tool $app
+}
+
 function Invoke-BannedApi {
     # Source files are read-only by construction: a write API in Core must fail the build.
     $probe = Join-Path $root 'src/Bibliotaph.Core/BannedApiProbe.cs'
@@ -102,13 +112,14 @@ function Invoke-BannedApi {
     $global:LASTEXITCODE = 0
 }
 
-$order = 'Restore', 'Build', 'Test', 'Smoke', 'BannedApi', 'Release'
+$order = 'Restore', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
 foreach ($name in $order | Where-Object { $_ -in $Step }) {
     Write-Host "== $name" -ForegroundColor Cyan
     switch ($name) {
         'Restore' { Invoke-Dotnet restore $solution }
         # Debug builds contain the worker's fault-injection requests that the isolation tests use.
         'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
+        'Licenses' { Invoke-Licenses }
         'Test' {
             Invoke-Dotnet test --solution $solution --configuration Debug --no-build --report-xunit-trx `
                 --results-directory (Join-Path $root 'TestResults')
