@@ -181,8 +181,18 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         var version = ++_version;
         try
         {
-            // Opening the binder makes it the current one, which Add page adds to.
-            var contents = await Task.Run(() => _sessions.OpenAsync(PackId));
+            // Opening the binder makes it the current one, which Add page adds to. That change is this page's own, so it
+            // doesn't rebuild the list under the load (which would leave the reader empty on coming Back).
+            SessionPackContents? contents;
+            Interlocked.Increment(ref _ownWrites);
+            try
+            {
+                contents = await Task.Run(() => _sessions.OpenAsync(PackId));
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _ownWrites);
+            }
             var rows = contents is null ? null : await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
             if (version != _version) return;
             if (!Show(contents, rows)) return;
@@ -241,6 +251,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     public override void Unload()
     {
         _version++;
+        // Changes made while the page is away are picked up by the next load, not by a refresh racing it.
+        IsLoaded = false;
         _sessions.Changed -= OnSessionsChanged;
         Viewer.Unload();
         if (_notesDirty) _ = SaveNotesAsync();
