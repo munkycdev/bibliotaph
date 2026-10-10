@@ -46,6 +46,18 @@ jobs:
         shell: pwsh
         run: ./build/verify.ps1 -Step Restore
 
+      # llama.cpp's server for the built-in AI, and the tiny model its test runs; both pinned in build/engine.json.
+      - uses: actions/cache@v4
+        with:
+          path: artifacts/cache
+          key: engine-${{ hashFiles('build/engine.json') }}
+
+      - name: Built-in AI engine
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./build/verify.ps1 -Step Engine
+
       - name: Build (Debug, warnings as errors)
         shell: pwsh
         run: ./build/verify.ps1 -Step Build

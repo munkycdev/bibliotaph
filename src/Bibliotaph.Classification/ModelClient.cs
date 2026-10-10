@@ -14,12 +14,20 @@ public enum EndpointKind
 
     /// <summary>Anything that speaks the OpenAI chat completions API: LM Studio, llama.cpp's server, vLLM and the rest.</summary>
     OpenAiCompatible,
+
+    /// <summary>The built-in AI: llama.cpp's server, which Bibliotaph runs itself (Built-in AI plan).</summary>
+    BuiltIn,
 }
 
 /// <summary>An endpoint that answered: what it is, its version when it says, and the models it has.</summary>
 public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyList<string> Models)
 {
-    public string Provider => Kind == EndpointKind.Ollama ? "ollama" : "openai-compatible";
+    public string Provider => Kind switch
+    {
+        EndpointKind.Ollama => "ollama",
+        EndpointKind.BuiltIn => "built-in",
+        _ => "openai-compatible",
+    };
 }
 
 /// <summary>
@@ -79,15 +87,20 @@ public sealed class LocalModelClient : IModelClient
 {
     readonly HttpClient _http;
     readonly Func<string?> _apiKey;
+    readonly JsonObject? _extras;
     EndpointKind? _kind;
 
     /// <param name="http">Shared; its timeout has to allow for a model loading and reading a long excerpt.</param>
     /// <param name="endpoint">As the user typed it: "http://localhost:11434", or ".../v1".</param>
     /// <param name="apiKey">Read when a request is made, so a key is never kept in this object longer than it needs.</param>
-    public LocalModelClient(HttpClient http, string endpoint, Func<string?>? apiKey = null)
+    /// <param name="kind">What the endpoint is, when the caller knows, so it isn't asked first.</param>
+    /// <param name="extras">More fields for every chat completions request, such as llama.cpp's own settings.</param>
+    public LocalModelClient(HttpClient http, string endpoint, Func<string?>? apiKey = null, EndpointKind? kind = null, JsonObject? extras = null)
     {
         _http = http;
         _apiKey = apiKey ?? (() => null);
+        _kind = kind;
+        _extras = extras;
         (Root, OpenAiBase) = Normalize(endpoint);
     }
 
@@ -230,6 +243,7 @@ public sealed class LocalModelClient : IModelClient
             },
         };
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;
+        foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
         HttpResponseMessage completion;
         try
         {

@@ -8,10 +8,11 @@ namespace Bibliotaph.Pdf.Host;
 /// <summary>
 /// A Windows job object that caps a worker's committed memory, kills it if the host goes away
 /// (KILL_ON_JOB_CLOSE), and allows exactly one process, so a runaway or compromised worker can
-/// neither outlive or starve the app nor start anything.
+/// neither outlive or starve the app nor start anything. The built-in AI's engine runs in one too, with no memory
+/// cap, since a model's size decides what it needs.
 /// </summary>
 [SupportedOSPlatform("windows")]
-sealed class JobObject : IDisposable
+public sealed class JobObject : IDisposable
 {
     const int ExtendedLimitInformation = 9;
     const uint LimitActiveProcess = 0x00000008;
@@ -21,7 +22,8 @@ sealed class JobObject : IDisposable
 
     readonly IntPtr _handle;
 
-    public JobObject(long memoryLimitBytes)
+    /// <param name="memoryLimitBytes">The most memory the process may commit, or null for no cap.</param>
+    public JobObject(long? memoryLimitBytes)
     {
         _handle = CreateJobObjectW(IntPtr.Zero, null);
         if (_handle == IntPtr.Zero) throw new Win32Exception();
@@ -30,10 +32,11 @@ sealed class JobObject : IDisposable
         {
             BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION
             {
-                LimitFlags = LimitActiveProcess | LimitProcessMemory | LimitKillOnJobClose | LimitDieOnUnhandledException,
+                LimitFlags = LimitActiveProcess | LimitKillOnJobClose | LimitDieOnUnhandledException
+                    | (memoryLimitBytes is null ? 0 : LimitProcessMemory),
                 ActiveProcessLimit = 1,
             },
-            ProcessMemoryLimit = checked((UIntPtr)(ulong)memoryLimitBytes),
+            ProcessMemoryLimit = checked((UIntPtr)(ulong)(memoryLimitBytes ?? 0)),
         };
         if (!SetInformationJobObject(_handle, ExtendedLimitInformation, ref info, (uint)Marshal.SizeOf<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>()))
             throw new Win32Exception();

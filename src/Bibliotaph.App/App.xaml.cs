@@ -183,7 +183,11 @@ public partial class App : Application
         builder.Services.AddSingleton<IPasswordStore, IndexPasswords>();
         builder.Services.AddSingleton<ApiKeyVault>();
         builder.Services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
-        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>()));
+        // The built-in AI's engine (llama.cpp's server, in aiworker\); nothing starts until there is a book to read.
+        builder.Services.AddSingleton(sp => new BuiltInEngine(new BuiltInEngineOptions(), new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
+        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(), null,
+            sp.GetRequiredService<BuiltInEngine>()));
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
@@ -314,7 +318,8 @@ public partial class App : Application
         // Before the Classify lane looks at whether it may send anything.
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
-        Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.Provider} model {ai.Setup.Model}" : "off");
+        Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
+        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);

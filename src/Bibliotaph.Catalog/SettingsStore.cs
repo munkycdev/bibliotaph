@@ -35,6 +35,12 @@ public static class SettingKeys
     /// <summary>Library folders whose books are never sent to AI, as a JSON array of source root ids.</summary>
     public const string AiSkippedRoots = "ai.skip-roots";
 
+    /// <summary>"True" when Bibliotaph runs the AI itself instead of asking a model server (Built-in AI plan, choice 7).</summary>
+    public const string AiBuiltIn = "ai.built-in";
+
+    /// <summary>The built-in AI's model, by its id in the list of models offered: "qwen3-8b".</summary>
+    public const string AiBuiltInModel = "ai.built-in.model";
+
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
 

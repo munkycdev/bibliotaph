@@ -1,0 +1,13 @@
+{
+  "engine": {
+    "release": "b11552",
+    "asset": "llama-b11552-bin-win-vulkan-x64.zip",
+    "sha256": "83dc16325b532ba603034719e8377e28ca5093c5d4370141a6522f1a0250386c"
+  },
+  "testModel": {
+    "repo": "ggml-org/models",
+    "revision": "499bc8821c6b12b4e53c5bffcb21ec206f212d81",
+    "path": "tinyllamas/stories260K.gguf",
+    "sha256": "270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d"
+  }
+}
