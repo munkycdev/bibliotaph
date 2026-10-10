@@ -292,7 +292,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>Whether the reader wants the Contents panel; it stays hidden for a book without bookmarks.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OutlineVisible))]
-    public partial bool ShowOutline { get; set; } = true;
+    public partial bool ShowOutline { get; set; }
 
     public bool OutlineVisible => ShowOutline && HasOutline && IsPdf;
 
