@@ -54,9 +54,13 @@ function Write-Pin([string] $what) {
 if (-not $pin.engine.sha256) {
     $headers = @{ 'User-Agent' = 'bibliotaph-build' }
     if ($env:GH_TOKEN) { $headers.Authorization = "Bearer $env:GH_TOKEN" }
-    $release = Invoke-RestMethod 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest' -Headers $headers
-    $asset = $release.assets | Where-Object { $_.name -match '-bin-win-vulkan-x64\.zip$' } | Select-Object -First 1
-    if (-not $asset) { throw "llama.cpp $($release.tag_name) has no Windows Vulkan build." }
+    # The newest release with a Windows Vulkan build: not every release carries binaries.
+    $releases = Invoke-RestMethod 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30' -Headers $headers
+    $release = $releases | Where-Object { -not $_.prerelease -and ($_.assets.name -match 'win-vulkan-x64\.zip$') } | Select-Object -First 1
+    if (-not $release) {
+        throw "No recent llama.cpp release has a Windows Vulkan build. The newest have: $(($releases | Select-Object -First 3 | ForEach-Object { "$($_.tag_name): $($_.assets.name -join ', ')" }) -join '; ')"
+    }
+    $asset = $release.assets | Where-Object { $_.name -match 'win-vulkan-x64\.zip$' } | Select-Object -First 1
     $file = Join-Path $cache $asset.name
     Invoke-WebRequest $asset.browser_download_url -OutFile $file
     Write-Pin "engine: release=$($release.tag_name) asset=$($asset.name) sha256=$(Get-Sha256 $file) size=$($asset.size)"
