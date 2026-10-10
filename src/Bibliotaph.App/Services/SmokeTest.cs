@@ -1705,7 +1705,8 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Back didn't return to the binder's list.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DoneEditing"), "Done");
         await WaitUntilAsync(window, () => shell.CurrentPage == reader && reader is { Current.Heading: "Warehouse ambush", Counter: "p. i–1 · 2 of 2", Viewer.IsPdf: true },
-            () => $"Done didn't go back to the binder's reader at Warehouse ambush ({reader.Counter}).");
+            () => $"Done didn't go back to the binder's reader at Warehouse ambush (showing {shell.CurrentPage?.GetType().Name}, at {reader.Current?.Heading}, "
+                + $"{reader.Counter}, reader {reader.Viewer.Mode}).");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PreviousItem"), "Previous");
         await WaitUntilAsync(window, () => reader.Counter == "p. 1 · 1 of 2" && !reader.PreviousItemCommand.CanExecute(null),
             () => $"Previous didn't open the binder's first item ({reader.Counter}).");
