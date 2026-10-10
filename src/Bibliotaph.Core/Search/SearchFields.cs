@@ -84,6 +84,9 @@ public static class SearchFields
     public static readonly SearchFieldInfo Tag = new(SearchField.Tag, "tag", ["tags"], SearchFieldKind.Text,
         "one of your tags", "tag:prep", MetadataFields.Tags);
 
+    public static readonly SearchFieldInfo Favorite = new(SearchField.Favorite, "favorite", ["favourite", "fav"], SearchFieldKind.Text,
+        "yes for the books you marked with a heart, no for the rest", "favorite:yes");
+
     public static readonly SearchFieldInfo Format = new(SearchField.Format, "format", [], SearchFieldKind.Format,
         "pdf, jpg, png, webp, or image for any picture format", "format:pdf");
 
@@ -92,7 +95,7 @@ public static class SearchFields
 
     /// <summary>Every field, in the order the field guide lists them: the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
-        [Title, System, Edition, Type, Level, Publisher, Author, Series, Setting, Theme, Environment, Own, Tag, Format, Folder];
+        [Title, System, Edition, Type, Level, Publisher, Author, Series, Setting, Theme, Environment, Own, Tag, Favorite, Format, Folder];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
     public static IReadOnlyList<string> Coming { get; } = ["length", "duration"];

@@ -164,6 +164,10 @@
                     AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" MinWidth="110" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}" ToolTip="Zoom in (Ctrl+plus)"
                   AutomationProperties.Name="Zoom in" Command="NavigationCommands.IncreaseZoom" Margin="4,0,0,0" />
+          <!-- The heart: the book, or the pack an image is in, as a favorite (slice 3 plan, choice 5). -->
+          <Border Style="{StaticResource Divider}" />
+          <Button x:Name="FavoriteButton" Style="{StaticResource Bt.HeartButton}" c:Ui.IsActive="{Binding IsFavorite}"
+                  ToolTip="{Binding FavoriteAction}" AutomationProperties.Name="{Binding FavoriteAction}" Command="{Binding ToggleFavoriteCommand}" />
           <!-- Pop out: the book moves to a window of its own (one per monitor, say); a pop-out sends it back. -->
           <Border Style="{StaticResource Divider}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"

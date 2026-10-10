@@ -34,6 +34,9 @@ public static class SettingKeys
 
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
+
+    /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
+    public const string StartPage = "start-page";
 }
 
 /// <summary>Key-value settings in catalog.db, so they travel with backups.</summary>

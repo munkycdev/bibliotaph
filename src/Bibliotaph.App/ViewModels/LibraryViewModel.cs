@@ -40,13 +40,14 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     static readonly Choice<LibrarySort> RecentlyAdded = new(LibrarySort.RecentlyAdded, "Recently added");
     static readonly Choice<LibrarySort> TitleOrder = new(LibrarySort.Title, "Title A–Z");
     static readonly Choice<LibrarySort> PublisherOrder = new(LibrarySort.Publisher, "Publisher A–Z");
+    static readonly Choice<LibrarySort> RecentlyOpened = new(LibrarySort.RecentlyOpened, "Recently opened");
     static readonly Choice<long?> AllFolders = new(null, "All folders");
     static readonly Choice<string?> AllSystems = new(null, "All systems");
     static readonly Choice<string?> AllTypes = new(null, "All types");
     static readonly Choice<int?> AnyLevel = new(null, "Any level");
     static readonly Choice<string?> AnyOwn = new(null, "Also own: any");
-    static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, TitleOrder, PublisherOrder];
-    static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, TitleOrder, PublisherOrder];
+    static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
+    static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
 
     readonly SourceRootStore _roots;
     readonly LibraryStore _library;
@@ -60,6 +61,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
+    readonly FavoritesService _favorites;
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
@@ -70,9 +72,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
-        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, ILogger<LibraryViewModel> log)
+        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
+        ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _favorites = favorites;
         _elsewhere = elsewhere;
         _indexing = indexing;
         _copies = copies;
@@ -104,16 +108,54 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     public override Route Route => Route.Library;
-    public override string Title => "Library";
+    public override string Title => Scope?.Name ?? "Library";
     public override bool ScrollsItself => true;
+
+    /// <summary>The part of the library shown, such as Favorites, or null for all of it (slice 3 plan, choice 3).</summary>
+    public LibraryScope? Scope { get; private set; }
+
+    public bool HasScope => Scope is not null;
+
+    public override string? NavScope => Scope?.Key;
+
+    /// <summary>Shows only a part of the library, or all of it. Set before the page is shown, or by the scope chip's ×.</summary>
+    public void ShowScope(LibraryScope? scope)
+    {
+        if (Scope == scope) return;
+        Scope = scope;
+        OnPropertyChanged(nameof(Scope));
+        OnPropertyChanged(nameof(HasScope));
+        OnPropertyChanged(nameof(NavScope));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(Heading));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(ScopeChip));
+    }
+
+    /// <summary>"In Favorites", on the chip whose × shows the whole library again.</summary>
+    public string ScopeChip => Scope is { } scope ? $"In {scope.Name}" : "";
+
+    /// <summary>The scope chip's ×: the whole library, with the same search and filters.</summary>
+    [RelayCommand]
+    async Task ClearScope()
+    {
+        Inspector = null;
+        ShowScope(null);
+        await RefreshAsync();
+    }
+
+    /// <summary>A book whose details open once the page has loaded, as when a cover on Home is clicked.</summary>
+    public EntryId? DetailsOnLoad { get; set; }
 
     public SearchState Search { get; }
 
     public bool IsSearching => Search.IsSearching;
 
-    public string Heading => IsSearching ? "Search results" : "Your library";
+    public string Heading => IsSearching ? "Search results" : Scope?.Name ?? "Your library";
 
-    public string Subtitle => IsSearching ? "Across titles, file details and the pages within." : "Good stories begin with something you already own.";
+    public string Subtitle => IsSearching
+        ? Scope is { } scope ? $"In {scope.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
+        : Scope?.Subtitle ?? "Good stories begin with something you already own.";
 
     [ObservableProperty]
     public partial ObservableCollection<LibraryItemViewModel> Items { get; set; } = [];
@@ -279,6 +321,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await LoadFolderChoicesAsync();
         await RefreshAsync();
         if (SavedScrollOffset is not null) RestoreScroll?.Invoke(this, EventArgs.Empty);
+        if (DetailsOnLoad is { } details)
+        {
+            DetailsOnLoad = null;
+            var item = _known.GetValueOrDefault(details) ?? (await Task.Run(() => _queries.GetEntriesAsync([details]))).Select(Item).FirstOrDefault();
+            if (item is not null) await OpenDetails(item);
+        }
     }
 
     public override void Unload()
@@ -440,7 +488,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice));
+                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Scope?.Key);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             if (version == _version)
@@ -533,6 +581,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             else if (!HasFolders) SetEmpty(("No folders yet.", "Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are.",
                 "Add a folder", AddFolderCommand));
             else if (filtered) SetEmpty(("Nothing here. Yet.", "No books match these filters.", "Clear filters", ClearFiltersCommand));
+            else if (Scope is { } scope) SetEmpty((scope.EmptyTitle, scope.EmptyMessage, "Show your library", ClearScopeCommand));
             else SetEmpty(("Indexing your library.", $"{Activity.Summary}. Books appear here as they are read.", "Manage folders", ManageFoldersCommand));
             return;
         }
@@ -718,6 +767,28 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
     }
 
+    /// <summary>
+    /// The heart on a cover, in a card's menu or in the details (slice 3 plan, choice 5): marks the book as a favorite,
+    /// or unmarks it. The heart changes at once; in Favorites an unmarked book leaves with the next refresh.
+    /// </summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    async Task ToggleFavorite(LibraryItemViewModel item)
+    {
+        var favorite = !item.IsFavorite;
+        item.ShowFavorite(favorite);
+        try
+        {
+            await Task.Run(() => _favorites.SetAsync([item.EntryId], favorite));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Marking entry {EntryId} as a favorite failed", item.EntryId);
+            item.ShowFavorite(!favorite);
+            return;
+        }
+        await RefreshAsync();
+    }
+
     /// <summary>A book owned elsewhere has no file to open.</summary>
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
 
@@ -741,7 +812,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// </summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
     {
-        if (!item.Entry.IsPack) return new ViewerRequest(item.DocumentId, item.Title);
+        if (!item.Entry.IsPack) return new ViewerRequest(item.DocumentId, item.Title) { Resume = true };
         documentId ??= item.Entry.MatchedDocumentId;
         var images = await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId));
         if (images.Count == 0) return null;

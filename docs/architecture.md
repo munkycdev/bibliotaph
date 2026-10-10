@@ -89,7 +89,7 @@ Everything lives in `%LOCALAPPDATA%\Bibliotaph\`, never in a synced folder. Both
 | File | Holds | On schema change | Backed up |
 | --- | --- | --- | --- |
 | `catalog.db` | Source roots, file locations, documents, metadata assertions, vocabulary, ignored folder labels, classification runs, collections, smart views, session packs, notes, rejections, settings | EF Core migration, preceded by an automatic `VACUUM INTO` copy | Always |
-| `index.db` | Pages (text, printed label, size, text quality, fingerprint), OCR word boxes for OCR'd pages, FTS5 tables, per-stage status, job queue, the entries the library lists (`entry_doc`), and a projection of effective metadata (`entry_meta`, `entry_facet`, `term_alias`) and of which entries a model has read (`entry_ai`) | An additive change runs its embedded `upgrade-N.sql` in a transaction; anything else, or a failed upgrade, drops and rebuilds, and documents re-queue from their content hash. Metadata is projected again from `catalog.db` at startup either way | Optional (spec §10) |
+| `index.db` | Pages (text, printed label, size, text quality, fingerprint), OCR word boxes for OCR'd pages, FTS5 tables, per-stage status, job queue, the entries the library lists (`entry_doc`), and a projection of effective metadata (`entry_meta`, `entry_facet`, `term_alias`), of which entries a model has read (`entry_ai`), and of the user's marks (`entry_scope`, `entry_opened`) | An additive change runs its embedded `upgrade-N.sql` in a transaction; anything else, or a failed upgrade, drops and rebuilds, and documents re-queue from their content hash. Metadata is projected again from `catalog.db` at startup either way | Optional (spec §10) |
 | `cache\` | Covers, thumbnails and page previews as WebP files named by content hash and size; `cache\extract\` holds files from inside ZIPs, named by content hash, while they are processed or viewed (least recently used go past 5 GB) | Deleted freely | Never |
 
 Core tables (full schema in slice 0):
@@ -105,11 +105,13 @@ Core tables (full schema in slice 0):
 - `copy_decision`: pairs of content hashes the user said are not the same book, so Match never joins them or proposes them again.
 - `version_proposal`: a "new version?" card in Needs review: the newer file, the file of the book it looks like a new version of, and why (pages in common, or title and publisher). One per file, for its best match; it goes once answered.
 - `assertion`: entry, content hash of the copy a proposal came from (none for the user's own values), field, value as JSON, origin (embedded, folder, filename, rule, AI, user), evidence pages, run ID, state (provisional, confirmed, rejected, superseded, awaiting a pending vocabulary term, or set aside from another copy's card). The effective value is a view over this table, never an overwritten column.
+- `favorite`: one row per entry marked with a heart, with when. A join moves it to the card the copy joined when that card has none, and Not the same book moves it back; a removed book owned elsewhere keeps it for Undo.
+- `reading_state`: one row per entry that has been opened: when, which document, and the page an ordinary open was left at (search hits and session items keep no page). Another copy opening starts again at its first page. Joins move it as they move a heart.
 - `page_ref`: document (pages belong to content, not to entries), first and last PDF page, printed labels at the time, page-text fingerprint, label, stale flag. Session pack items and page notes point here.
 
 The UI reads through separate read connections; all writes to `index.db` go through one writer task that batches pages into transactions.
 
-Classification runs live in `catalog.db` beside the assertions they produce, so a rebuilt index never loses a model's evidence or the record of what has already been classified. `index.db` holds only what search needs from metadata (version 9 of its schema). Pages, OCR, outlines, stage status and jobs stay keyed by document; what the library lists is keyed by entry:
+Classification runs live in `catalog.db` beside the assertions they produce, so a rebuilt index never loses a model's evidence or the record of what has already been classified. `index.db` holds only what search needs from metadata (version 10 of its schema). Pages, OCR, outlines, stage status and jobs stay keyed by document; what the library lists is keyed by entry:
 
 - `entry_doc`: (entry, document, kind, copies, name, members, added) for each entry, the document it currently shows and how many files of the book it has. Probe writes it as soon as a document is added, and the metadata projection refreshes it. A pack shows its first image, and has its folder's or ZIP's name, the title until one is set, and how many images it has. A book owned elsewhere has no document and keeps when it was added; library queries join `doc` optionally, so it lists, sorts and is found by its metadata, is always in scope whichever folders are online, and never appears in Inside documents.
 - `entry_member`: a pack's images in file name order (numbers as numbers), with each image's document, own entry and file name, for the mosaic of its first four covers, its inspector grid and stepping through it in the viewer.
@@ -119,8 +121,10 @@ Classification runs live in `catalog.db` beside the assertions they produce, so 
 - `term_alias`: every name of every vocabulary term, so `type:module` finds adventures.
 - `entry_fts` (rowid = entry id) has an `authors` column; its `confirmed` and `provisional` columns carry the effective values as text.
 - `entry_ai`: (entry, model) for each entry a model has finished reading, from its latest complete run. The library draws a spark on its cover, and the filter panel's AI choice (all, read, not read) uses it. A copy or version joined to an entry brings its runs with it, so the mark stays.
+- `entry_scope`: (scope, entry) for each group an entry is in, keyed by name: `favorite` now, collections and Smart Views later. The Library's scope (`LibraryFilter.Group`) and `favorite:yes` read it.
+- `entry_opened`: (entry, opened) for each entry that has been opened, behind Home's Recently opened and the Recently opened order.
 
-`MetadataProjector` writes these after rule hints, after every user edit, after each classification, after packing and once at startup in the background, one projection at a time, so one never writes back a card another has just taken away.
+`MetadataProjector` writes these after rule hints, after every user edit, after each classification, after packing and once at startup in the background, one projection at a time, so one never writes back a card another has just taken away. A heart or an open projects only the marks (`ProjectMarksAsync`).
 
 ## Files, identity and the processing pipeline
 
@@ -197,7 +201,7 @@ JPG, PNG and WebP open in an image surface with zoom and pan, decoded at a cappe
 
 ## UI shell
 
-- **Routes.** Home, Library, Collections, Sessions, Needs review, Reading, plus first-run source setup, as in the mockup. A back stack restores search, filters, selection and scroll position when leaving the reader.
+- **Routes.** Home, Library, Collections, Sessions, Needs review, Reading, plus first-run source setup, as in the mockup. A back stack restores search, filters, selection and scroll position when leaving the reader. The sidebar's Smart Views group (Favorites first) opens the Library scoped to part of it, with a chip whose × shows the whole library; `LibraryPages` makes those pages, and a page's `NavScope` tells the sidebar which item to mark. Settings > Library > Start on picks Home or the Library at launch.
 - **MVVM.** CommunityToolkit.Mvvm source-generated view models; services from the generic host's DI container.
 - **Theme.** The mockup's tokens become brush resources in Light and Dark dictionaries, following the Windows app mode unless overridden.
 
@@ -278,3 +282,14 @@ Features Dave asks for during slice 4 are designed one at a time in the "Slice 4
 - **4f About popup.** Replaces the planned Settings > About page: a small dialog from the window's system menu and Settings with the version (0.N.0 per slice in `Directory.Build.props`, plus the commit), the copyright, the GPL line, links to the licence, notices, source and issues, Copy details (version and builds, never paths), and a reader for the files in `licenses\`.
 
 Tabs for open files are listed in the plan to discuss later, with no design yet.
+
+## Slice 3 build
+
+Planned in the "Slice 3 plan" tab of the planning doc (20 choices; blank Decision cells mean the recommendation stands). Slice 3 comes before query interpretation, keys everything on entries (page ranges through `page_ref`), and ships as six PRs at version 0.4.0:
+
+- **3a Favorites, recently opened and Home.** A heart on covers (shown on a favorite, and on any card under the mouse), in the card menu, in the details and in the reader's toolbar; for an image in a pack it marks the pack. `favorite:yes` and `favorite:no` search by it. An ordinary open (Library, Home) opens where the book was left and keeps the page as reading settles; Back and pop-outs keep their own page. Home shows Recently opened and Recently added (eight covers each; a click opens the details in the Library, the menu opens the book) and a way into Favorites. Recently opened is also a Library order.
+- **3b Collections**, nested, holding entries only, pinnable to Home.
+- **3c Session packs** with sections, labels, page ranges and the current pack; Home's Continue preparing; A13.
+- **3d Run mode** in the main window.
+- **3e Smart Views**, saved as the search text, filters, scope, order, layout and tab.
+- **3f Notes** on entries and pages.

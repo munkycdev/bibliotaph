@@ -76,6 +76,22 @@
     <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0"
                Text="Removing a folder keeps your notes, collections and corrections. Files are never deleted." />
 
+    <!-- Start on (slice 3 plan, choice 7): Home or the Library when Bibliotaph opens. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <DockPanel>
+        <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle" AutomationProperties.Name="Start on">
+            <RadioButton x:Name="StartOnHome" Style="{StaticResource Bt.Segment}" GroupName="StartOn" Content="Home" IsChecked="{Binding StartOnHome}" />
+            <RadioButton x:Name="StartOnLibrary" Style="{StaticResource Bt.Segment}" GroupName="StartOn" Content="Library" IsChecked="{Binding StartOnLibrary}" />
+          </StackPanel>
+        </Border>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="Start on" Style="{StaticResource Text.Row}" />
+          <TextBlock Text="What Bibliotaph shows when it opens." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
     <!-- Folder names read as labels, each of which can be switched off. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
       <StackPanel>

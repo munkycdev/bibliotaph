@@ -13,6 +13,9 @@ public sealed record FacetCondition(IReadOnlyList<string> Fields, string Value, 
     public bool IsUnknown => !Prefix && Value == SearchQuery.Unknown;
 }
 
+/// <summary><c>favorite:yes</c>: entries in a group (entry_scope), or with <see cref="Negated"/> those not in it.</summary>
+public sealed record ScopeCondition(string Scope, bool Negated = false);
+
 /// <summary><c>level:</c> a stored level value ("3", "1-5", "n/a") or unknown.</summary>
 public sealed record LevelCondition(string Value, bool Negated = false);
 
@@ -51,11 +54,12 @@ public sealed record SearchPlan
     public IReadOnlyList<string> ExcludedFolders { get; init; } = [];
     public IReadOnlyList<FacetCondition> Facets { get; init; } = [];
     public IReadOnlyList<LevelCondition> Levels { get; init; } = [];
+    public IReadOnlyList<ScopeCondition> Scopes { get; init; } = [];
 
     /// <summary>True when the query asks for nothing at all, so the library shows everything.</summary>
     public bool IsEmpty => TextMatch is null && TextExclude is null && FieldMatch is null && FieldExclude is null
         && Formats.Count == 0 && ExcludedFormats.Count == 0 && Folders.Count == 0 && ExcludedFolders.Count == 0
-        && Facets.Count == 0 && Levels.Count == 0;
+        && Facets.Count == 0 && Levels.Count == 0 && Scopes.Count == 0;
 
     /// <summary>Documents found by title and metadata: the text and text-field parts together.</summary>
     public string? DocumentMatch => (TextMatch, FieldMatch) switch
@@ -101,6 +105,7 @@ public sealed record SearchPlan
         var excludedFields = new List<string>();
         var facets = new List<FacetCondition>();
         var levels = new List<LevelCondition>();
+        var scopes = new List<ScopeCondition>();
         var formats = new List<string>();
         var excludedFormats = new List<string>();
         var folders = new List<string>();
@@ -133,6 +138,9 @@ public sealed record SearchPlan
                     case SearchField.Folder:
                         (negated ? excludedFolders : folders).Add(value);
                         break;
+                    case SearchField.Favorite:
+                        scopes.Add(new ScopeCondition(ScopeKeys.Favorites, negated == (value == SearchQuery.Yes)));
+                        break;
                 }
             }
             else if (negated) excluded.Add(node);
@@ -155,6 +163,7 @@ public sealed record SearchPlan
             ExcludedFolders = excludedFolders,
             Facets = facets,
             Levels = levels,
+            Scopes = scopes,
         };
     }
 

@@ -13,4 +13,7 @@ public static class BookCommands
     public static RoutedUICommand OpenInNewWindow { get; } = new("Open in new window", nameof(OpenInNewWindow), typeof(BookCommands));
 
     public static RoutedUICommand Details { get; } = new("Details", nameof(Details), typeof(BookCommands));
+
+    /// <summary>Add to favorites, or Remove from favorites (slice 3 plan, choice 5).</summary>
+    public static RoutedUICommand ToggleFavorite { get; } = new("Favorite", nameof(ToggleFavorite), typeof(BookCommands));
 }

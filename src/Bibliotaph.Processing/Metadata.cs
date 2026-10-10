@@ -11,11 +11,13 @@ namespace Bibliotaph.Processing;
 /// <summary>
 /// Copies the library's cards from catalog.db into index.db: which document each entry shows (entry_doc), and its
 /// effective metadata (entry_meta, entry_facet, entry_fts, term_alias), where the library lists, filters and searches
-/// it, and which entries a model has read (entry_ai), for the AI badge and filter. index.db holds only this projection,
-/// never the assertions, so rebuilding it loses nothing: the projection runs again.
+/// it, and which entries a model has read (entry_ai), for the AI badge and filter. It also copies the user's marks: the
+/// groups each entry is in (entry_scope, favourites first) and when it was last opened (entry_opened). index.db holds
+/// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
-    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null) : IDisposable
+    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null, FavoriteStore? favorites = null,
+    ReadingStore? reading = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -48,6 +50,33 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
+    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened), after
+    /// one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
+    /// </summary>
+    public async Task ProjectMarksAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return;
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await WriteMarksAsync(entryIds, ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        Projected?.Invoke(this, entryIds);
+    }
+
+    /// <summary>The marks of these entries, or of every entry when <paramref name="entryIds"/> is null.</summary>
+    async Task WriteMarksAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct)
+    {
+        if (favorites is not null)
+            await index.SetScopesAsync(entryIds, [.. (await favorites.GetAsync(entryIds, ct)).Select(id => (id, ScopeKeys.Favorites))], ct);
+        if (reading is not null) await index.SetOpenedAsync(entryIds, await reading.GetOpenedAsync(entryIds, ct), ct);
+    }
+
+    /// <summary>
     /// Records which cards show a document that has just been read, so it appears in the library. Taken with the other
     /// projections, so it can't put back a card that one has just removed.
     /// </summary>
@@ -77,6 +106,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. shown.Where(id => !all.ContainsKey(id))], ct);
         if (runs is not null) await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
+        await WriteMarksAsync(shown, ct);
     }
 
     internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
@@ -125,6 +155,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. withMetadata.Where(id => shown.Contains(id) && !all.ContainsKey(id))], ct);
         if (runs is not null) await index.SetAiReadAsync(null, (await runs.GetReadByAsync(ct: ct)).Where(r => shown.Contains(r.Key)).ToDictionary(), ct);
+        await WriteMarksAsync(null, ct);
         _log.LogInformation("Projected metadata for {Count} entries", all.Count);
         return [.. all.Keys];
     }

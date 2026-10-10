@@ -41,7 +41,8 @@ public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
 /// A book owned elsewhere that the user removed, with what was set on it, so Undo can put it back
 /// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
 /// </summary>
-public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections);
+public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
+    bool Favorite = false);
 
 /// <summary>
 /// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
@@ -54,6 +55,20 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// <summary>The whole-document entry <paramref name="documentId"/> backs, or null for a document the catalog doesn't know.</summary>
     public async Task<DocumentEntry?> GetEntryAsync(long documentId, CancellationToken ct = default) =>
         (await GetEntriesAsync([documentId], ct)).TryGetValue(documentId, out var entry) ? entry : null;
+
+    /// <summary>
+    /// The library card a document shows under: its whole-document entry, or for an image in a pack, the pack. Null
+    /// for a document the catalog doesn't know.
+    /// </summary>
+    public async Task<EntryId?> GetCardAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var card = await db.EntrySources.AsNoTracking()
+            .Where(s => s.DocumentId == documentId && s.FirstPdfPage == null)
+            .Select(s => new { s.EntryId, s.Entry.ParentEntryId })
+            .FirstOrDefaultAsync(ct);
+        return card is null ? null : new EntryId(card.ParentEntryId ?? card.EntryId);
+    }
 
     /// <summary>The whole-document entry each of <paramref name="documentIds"/> backs.</summary>
     public async Task<IReadOnlyDictionary<long, DocumentEntry>> GetEntriesAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
@@ -145,7 +160,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             .SingleOrDefaultAsync(e => e.Id == entryId.Value && e.Kind == EntryKind.Elsewhere && !e.Sources.Any(), ct);
         if (entry is null) return null;
         var removed = new RemovedEntry(entryId, entry.CreatedUtc,
-            [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })]);
+            [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })],
+            await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct));
         db.Entries.Remove(entry);
         await db.SaveChangesAsync(ct);
         return removed;
@@ -160,6 +176,11 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         entry.Rejections.AddRange(removed.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc }));
         db.Entries.Add(entry);
         await db.SaveChangesAsync(ct);
+        if (removed.Favorite)
+        {
+            db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = _clock.GetUtcNow().UtcDateTime });
+            await db.SaveChangesAsync(ct);
+        }
         return new EntryId(entry.Id);
     }
 
@@ -355,6 +376,23 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             moved.Runs.Add(run.Id);
         }
 
+        // A heart and a reading position move only to a card without one; otherwise they stay behind on the card that
+        // joined, which shows nowhere, until Not the same book brings it back (slice 3 plan, choice 19).
+        if (await db.Favorites.SingleOrDefaultAsync(f => f.EntryId == joining, ct) is { } favorite
+            && !await db.Favorites.AnyAsync(f => f.EntryId == target, ct))
+        {
+            db.Favorites.Remove(favorite);
+            db.Favorites.Add(new Favorite { EntryId = target, CreatedUtc = favorite.CreatedUtc });
+            moved.Favorite = true;
+        }
+        if (await db.ReadingStates.SingleOrDefaultAsync(r => r.EntryId == joining, ct) is { } reading
+            && !await db.ReadingStates.AnyAsync(r => r.EntryId == target, ct))
+        {
+            db.ReadingStates.Remove(reading);
+            db.ReadingStates.Add(new ReadingState { EntryId = target, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
+            moved.Reading = true;
+        }
+
         (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
         return moved;
     }
@@ -400,6 +438,17 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             rejection.EntryId = card;
         foreach (var run in await db.ClassificationRuns.Where(r => r.EntryId == entryId && moved.Runs.Contains(r.Id)).ToListAsync(ct))
             run.EntryId = card;
+        // What the card brought goes back with it, as it is now: unmarked since, it stays unmarked.
+        if (moved.Favorite && await db.Favorites.SingleOrDefaultAsync(f => f.EntryId == entryId, ct) is { } favorite)
+        {
+            db.Favorites.Remove(favorite);
+            db.Favorites.Add(new Favorite { EntryId = card, CreatedUtc = favorite.CreatedUtc });
+        }
+        if (moved.Reading && await db.ReadingStates.SingleOrDefaultAsync(r => r.EntryId == entryId, ct) is { } reading)
+        {
+            db.ReadingStates.Remove(reading);
+            db.ReadingStates.Add(new ReadingState { EntryId = card, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
+        }
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
     }
@@ -524,6 +573,10 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public List<long> SetAside { get; set; } = [];
         public List<long> Rejections { get; set; } = [];
         public List<string> Runs { get; set; } = [];
+        /// <summary>The card that joined brought its heart (slice 3).</summary>
+        public bool Favorite { get; set; }
+        /// <summary>The card that joined brought its reading position (slice 3).</summary>
+        public bool Reading { get; set; }
     }
 
     sealed record MovedSource(long Id, bool WasCurrent);

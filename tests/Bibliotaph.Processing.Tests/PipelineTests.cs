@@ -44,6 +44,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     CopiesService _copies = null!;
     ElsewhereService _elsewhere = null!;
     SourceFiles _sources = null!;
+    FavoriteStore _favorites = null!;
+    ReadingStore _reading = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -76,7 +78,10 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
         _runs = new ClassificationStore(contexts);
-        var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs);
+        _favorites = new FavoriteStore(contexts);
+        _reading = new ReadingStore(contexts, entries);
+        var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
+            favorites: _favorites, reading: _reading);
         var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), new NoPasswords(), _sources, projector);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup

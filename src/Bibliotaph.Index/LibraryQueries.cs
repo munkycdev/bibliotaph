@@ -17,13 +17,14 @@ namespace Bibliotaph.Index;
 /// four images for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that
 /// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned
 /// elsewhere (<see cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/>
-/// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can.
+/// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/>
+/// is a heart on it (slice 3), and <see cref="OpenedUtc"/> when it was last opened, if it has been.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
     string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
     string? AiModel = null, int Copies = 1, EntryKind EntryKind = EntryKind.Whole, int Members = 0, string? MemberCovers = null,
-    string? MatchedMember = null, long? MatchedDocumentId = null, string? AlsoOwn = null)
+    string? MatchedMember = null, long? MatchedDocumentId = null, string? AlsoOwn = null, bool Favorite = false, DateTime? OpenedUtc = null)
 {
     public bool IsPack => EntryKind == EntryKind.Pack;
 
@@ -45,6 +46,8 @@ public enum LibrarySort
     Title,
     /// <summary>By publisher, documents without one last, then by title.</summary>
     Publisher,
+    /// <summary>The last opened first, then those never opened, newest first (slice 3 plan, choice 6).</summary>
+    RecentlyOpened,
 }
 
 /// <summary>Kind choices in the filter panel (F4 plan, choice 10). The format: field gives finer control.</summary>
@@ -74,7 +77,8 @@ public enum AiFilter
 /// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
 /// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12). <see cref="Ai"/> keeps books a model
 /// has or hasn't read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in
-/// any of those places (Also own term keys; unknown is none).
+/// any of those places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of
+/// entry_scope, such as the favourites (slice 3), and <see cref="OnlyOpened"/> those that have been opened.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -86,7 +90,9 @@ public sealed record LibraryFilter(
     bool IncludeUnknownLevel = false,
     AiFilter Ai = AiFilter.All,
     bool OnlyWithCopies = false,
-    IReadOnlyCollection<string>? Owns = null);
+    IReadOnlyCollection<string>? Owns = null,
+    string? Group = null,
+    bool OnlyOpened = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -141,7 +147,8 @@ public sealed class LibraryQueries(IndexDatabase database)
             SELECT json_group_array(cover) FROM (
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
-        (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn
+        (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn,
+        EXISTS (SELECT 1 FROM entry_scope fs WHERE fs.scope = 'favorite' AND fs.entry_id = e.entry_id) AS Favorite, o.opened_utc AS OpenedUtc
         """;
 
     /// <summary>
@@ -154,17 +161,23 @@ public sealed class LibraryQueries(IndexDatabase database)
         LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'
         LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
         LEFT JOIN entry_ai ai ON ai.entry_id = e.entry_id
+        LEFT JOIN entry_opened o ON o.entry_id = e.entry_id
         """;
 
-    /// <summary>The whole library (or the part in scope) with the plan's fields and exclusions applied, in the filter's order.</summary>
-    public async Task<IReadOnlyList<LibraryEntry>> ListAsync(LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
+    /// <summary>
+    /// The whole library (or the part in scope) with the plan's fields and exclusions applied, in the filter's order;
+    /// the first <paramref name="limit"/> of them when there is one, as Home shows.
+    /// </summary>
+    public async Task<IReadOnlyList<LibraryEntry>> ListAsync(LibraryFilter filter, SearchPlan? plan = null, int? limit = null, CancellationToken ct = default)
     {
         var where = new Where(filter, plan ?? new SearchPlan(), titleAsFilter: true);
+        if (limit is { } count) where.Parameters.Add("limit", count);
         var sql = $"""
             SELECT {EntryColumns}
             FROM {Entries} {EntryJoin}
             WHERE {where.Sql}
             ORDER BY {Order(filter.Sort, relevance: null)}
+            {(limit is null ? "" : "LIMIT @limit")}
             """;
         await using var connection = database.OpenRead();
         return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
@@ -176,7 +189,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> SearchDocumentsAsync(SearchPlan plan, LibraryFilter filter, int limit = 1000, CancellationToken ct = default)
     {
-        if (plan.DocumentMatch is not { } match) return [.. (await ListAsync(filter, plan, ct)).Take(limit)];
+        if (plan.DocumentMatch is not { } match) return await ListAsync(filter, plan, limit, ct);
 
         var where = new Where(filter, plan, titleAsFilter: false);
         where.Parameters.Add("match", match);
@@ -429,16 +442,19 @@ public sealed class LibraryQueries(IndexDatabase database)
     {
         LibrarySort.Title => "coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
         LibrarySort.Publisher => "m.publisher IS NULL, m.publisher COLLATE NOCASE, coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
+        LibrarySort.RecentlyOpened => "o.opened_utc IS NULL, o.opened_utc DESC, coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
         LibrarySort.Relevance when relevance is not null => $"{relevance}, e.entry_id",
         _ => "coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
     };
 
     static List<LibraryEntry> ToEntries(IEnumerable<EntryRow> rows) =>
         [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
-            r.AddedUtc.Length == 0 ? DateTime.MinValue : DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
+            r.AddedUtc.Length == 0 ? DateTime.MinValue : Utc(r.AddedUtc),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
-            r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn))];
+            r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn, r.Favorite != 0, r.OpenedUtc is { Length: > 0 } opened ? Utc(opened) : null))];
+
+    static DateTime Utc(string timestamp) => DateTime.Parse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
 
     static string? DescribeLevels(string state, long? min, long? max) => state switch
     {
@@ -486,6 +502,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }
         public string? AlsoOwn { get; init; }
+        public long Favorite { get; init; }
+        public string? OpenedUtc { get; init; }
     }
 
     sealed class HitRow
@@ -519,6 +537,10 @@ public sealed class LibraryQueries(IndexDatabase database)
         public Where(LibraryFilter filter, SearchPlan plan, bool titleAsFilter)
         {
             if (filter.Scope is { } scope) Add("e.entry_id IN (SELECT value FROM json_each(@scope))", "scope", JsonSerializer.Serialize(scope));
+            if (filter.Group is { } group) Add("e.entry_id IN (SELECT entry_id FROM entry_scope WHERE scope = @group)", "group", group);
+            if (filter.OnlyOpened) _sql.Append(" AND e.entry_id IN (SELECT entry_id FROM entry_opened)");
+            for (var i = 0; i < plan.Scopes.Count; i++)
+                Add($"e.entry_id {(plan.Scopes[i].Negated ? "NOT IN" : "IN")} (SELECT entry_id FROM entry_scope WHERE scope = @inScope{i})", $"inScope{i}", plan.Scopes[i].Scope);
 
             switch (filter.Kind)
             {

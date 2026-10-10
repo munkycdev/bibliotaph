@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
+using Bibliotaph.Catalog;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -16,12 +17,16 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly ThemeService _theme;
     readonly SearchState _search;
     readonly SettingsLinks _settings;
+    readonly LibraryPages _library;
+    readonly SettingsStore _store;
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
-        ILogger<ShellViewModel> log)
+        LibraryPages library, SettingsStore store, ILogger<ShellViewModel> log)
     {
+        _library = library;
+        _store = store;
         _navigation = navigation;
         _theme = theme;
         Activity = activity;
@@ -41,6 +46,8 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.Sessions, "Sessions", Icon("Icon.NotebookTabs")),
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
         ];
+        // Smart Views (slice 3 plan, choice 5): Favorites first; saved Smart Views join it in 3e.
+        SmartViews = [new(Route.Library, LibraryScope.Favorites.Name, Icon("Icon.Heart"), LibraryScope.Favorites)];
         Settings = new NavItemViewModel(Route.Settings, "Settings", Icon("Icon.Settings2"));
         var review = NavItems.Single(n => n.Route == Route.NeedsReview);
         Activity.PropertyChanged += (_, e) =>
@@ -52,6 +59,9 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     public ObservableCollection<NavItemViewModel> NavItems { get; }
+
+    /// <summary>The sidebar's Smart Views group: parts of the Library, each opening it scoped.</summary>
+    public ObservableCollection<NavItemViewModel> SmartViews { get; }
 
     public NavItemViewModel Settings { get; }
 
@@ -102,16 +112,43 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public string AppearanceToggleLabel => _theme.IsDark ? "Switch to light appearance" : "Switch to dark appearance";
 
-    public Task StartAsync()
+    public async Task StartAsync()
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
-        _navigation.NavigateTo(Route.Home);
+        // Settings > Library > Start on (slice 3 plan, choice 7): Home unless the Library was chosen.
+        var start = await StartPageAsync();
+        _navigation.NavigateTo(start);
         Activity.Start();
-        return Task.CompletedTask;
+    }
+
+    async Task<Route> StartPageAsync()
+    {
+        try
+        {
+            return await _store.GetAsync(SettingKeys.StartPage) == nameof(Route.Library) ? Route.Library : Route.Home;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Reading the start page failed");
+            return Route.Home;
+        }
     }
 
     [RelayCommand]
-    void Navigate(Route route) => _navigation.NavigateTo(route);
+    void Navigate(Route route)
+    {
+        // The Library from the sidebar is the whole library, even while a part of it is shown.
+        if (route == Route.Library) _library.Open(null);
+        else _navigation.NavigateTo(route);
+    }
+
+    /// <summary>A sidebar item: its page, or for a Smart View the Library scoped to it.</summary>
+    [RelayCommand]
+    void Open(NavItemViewModel item)
+    {
+        if (item.Scope is { } scope) _library.Open(scope);
+        else Navigate(item.Route);
+    }
 
     [RelayCommand]
     void GoBack() => _navigation.GoBack();
@@ -139,10 +176,11 @@ public sealed partial class ShellViewModel : ObservableObject
         if (!ReferenceEquals(_shown, CurrentPage))
         {
             _shown?.Unload();
+            _shown?.PropertyChanged -= OnPagePropertyChanged;
             _shown = CurrentPage;
+            _shown?.PropertyChanged += OnPagePropertyChanged;
         }
-        foreach (var item in NavItems.Append(Settings))
-            item.IsActive = item.Route == CurrentPage?.Route;
+        ShowActiveItem();
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(Section));
         OnPropertyChanged(nameof(Title));
@@ -157,6 +195,22 @@ public sealed partial class ShellViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogError(ex, "Loading {Route} failed", CurrentPage?.Route);
+        }
+    }
+
+    /// <summary>Marks the sidebar item for the page shown: Favorites, not Library, for the Library scoped to favorites.</summary>
+    void ShowActiveItem()
+    {
+        foreach (var item in NavItems.Concat(SmartViews).Append(Settings))
+            item.IsActive = item.Route == CurrentPage?.Route && item.Scope?.Key == CurrentPage?.NavScope;
+    }
+
+    void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PageViewModel.NavScope) or nameof(PageViewModel.Title))
+        {
+            ShowActiveItem();
+            OnPropertyChanged(nameof(Title));
         }
     }
 

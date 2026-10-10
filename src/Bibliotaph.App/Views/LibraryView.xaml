@@ -15,69 +15,6 @@
   </UserControl.InputBindings>
 
   <UserControl.Resources>
-    <!-- .bt-cover: the book's own cover, or a plain one with its initial while there is none. -->
-    <DataTemplate x:Key="Cover" DataType="{x:Type vm:LibraryItemViewModel}">
-      <Border CornerRadius="2,5,5,2" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
-              SnapsToDevicePixels="True">
-        <Grid ClipToBounds="True">
-          <Grid x:Name="Placeholder">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="*" />
-              <RowDefinition Height="2*" />
-              <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Viewbox Grid.Row="1" Stretch="Uniform">
-              <TextBlock Text="{Binding Initial}" FontFamily="{StaticResource Font.Display}" Foreground="{DynamicResource Bt.Muted}" />
-            </Viewbox>
-          </Grid>
-          <Image x:Name="SingleCover" Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-          <!-- A pack (F4): its first four images' covers, two by two. -->
-          <ItemsControl x:Name="Mosaic" ItemsSource="{Binding Mosaic}" Focusable="False" Visibility="Collapsed" IsHitTestVisible="False">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <UniformGrid Rows="2" Columns="2" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="{x:Type vm:CoverTile}">
-                <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0.5" ClipToBounds="True">
-                  <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-          <!-- A book owned elsewhere (F5a): no file here, so a placeholder with a mark saying where it is. -->
-          <Border x:Name="ElsewhereMark" Margin="0,0,0,8" Padding="7,2" CornerRadius="3" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                  Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" Visibility="Collapsed">
-            <TextBlock Text="Elsewhere" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
-          </Border>
-          <!-- A model has read this book (2c). -->
-          <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
-                  Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
-                  AutomationProperties.Name="{Binding AiTip}">
-            <c:LucideIcon Data="{StaticResource Icon.Sparkle}" Size="11" StrokeThickness="2.2" Foreground="{DynamicResource Bt.AccentText}"
-                          HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Border>
-        </Grid>
-      </Border>
-      <DataTemplate.Triggers>
-        <DataTrigger Binding="{Binding HasCover}" Value="True">
-          <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
-        </DataTrigger>
-        <DataTrigger Binding="{Binding IsAiRead}" Value="True">
-          <Setter TargetName="AiBadge" Property="Visibility" Value="Visible" />
-        </DataTrigger>
-        <DataTrigger Binding="{Binding IsElsewhere}" Value="True">
-          <Setter TargetName="ElsewhereMark" Property="Visibility" Value="Visible" />
-        </DataTrigger>
-        <DataTrigger Binding="{Binding IsPack}" Value="True">
-          <Setter TargetName="Mosaic" Property="Visibility" Value="Visible" />
-          <Setter TargetName="SingleCover" Property="Visibility" Value="Collapsed" />
-          <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
-        </DataTrigger>
-      </DataTemplate.Triggers>
-    </DataTemplate>
-
     <!-- A book title that opens its details, in search results. -->
     <Style x:Key="TitleLink" TargetType="Button">
       <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
@@ -109,16 +46,7 @@
       <Setter Property="Margin" Value="0,28,0,10" />
     </Style>
 
-    <!--
-      A book in the covers or the list: Bt.PlainList's item, with a menu on right-click (or the Menu key, or Shift+F10).
-      The menu is a popup outside the page, so its items use routed commands, which reach the page through the item.
-    -->
-    <ContextMenu x:Key="BookMenu" x:Shared="False" Style="{StaticResource Bt.Menu}">
-      <MenuItem Header="Open" Command="{x:Static c:BookCommands.Open}" CommandParameter="{Binding}" />
-      <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
-                CommandParameter="{Binding}" />
-      <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
-    </ContextMenu>
+    <!-- A book in the covers or the list: Bt.PlainList's item, with Books.xaml's BookMenu on right-click (or the Menu key, or Shift+F10). -->
     <Style x:Key="BookItem" TargetType="ListBoxItem">
       <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -260,6 +188,16 @@
 
     <!-- .bt-sectionline -->
     <StackPanel Grid.Row="3" Margin="0,23,42,17">
+      <!-- The part of the library shown, such as Favorites (slice 3 plan, choice 3); its × shows the whole library. -->
+      <Border x:Name="ScopeChip" Style="{StaticResource Bt.Chip}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="10,2,2,2"
+              Visibility="{Binding HasScope, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="{Binding ScopeChip}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+          <Button x:Name="ClearScope" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22"
+                  Margin="4,0,0,0" Padding="2" ToolTip="Show your whole library" AutomationProperties.Name="Show your whole library"
+                  Command="{Binding ClearScopeCommand}" />
+        </StackPanel>
+      </Border>
       <!-- Select mode: how many are ticked, Edit metadata, Clear and Done. -->
       <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14" AutomationProperties.Name="Selection"
               Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -313,14 +251,16 @@
         </ListBox.ItemsPanel>
         <ListBox.ItemTemplate>
           <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
-            <StackPanel Width="150" HorizontalAlignment="Left" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}"
+            <StackPanel x:Name="Card" Width="150" HorizontalAlignment="Left" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}"
                         AutomationProperties.Name="{Binding Title}">
-              <Grid>
+              <Grid x:Name="CoverArea">
                 <ContentControl x:Name="CoverBox" Height="208" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False">
                   <ContentControl.Effect>
                     <DropShadowEffect BlurRadius="7" ShadowDepth="3" Direction="270" Opacity="0.15" />
                   </ContentControl.Effect>
                 </ContentControl>
+                <Button x:Name="Heart" Style="{StaticResource CoverHeart}"
+                        Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource Tick}" Focusable="False" Margin="8"
                                 HorizontalAlignment="Left" VerticalAlignment="Top"
                                 Visibility="{Binding DataContext.Selection.IsActive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -330,8 +270,11 @@
               <TextBlock Text="{Binding Meta}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
             </StackPanel>
             <DataTemplate.Triggers>
-              <Trigger SourceName="CoverBox" Property="IsMouseOver" Value="True">
-                <Setter TargetName="CoverBox" Property="RenderTransform">
+              <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
+                <Setter TargetName="Heart" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger SourceName="CoverArea" Property="IsMouseOver" Value="True">
+                <Setter TargetName="CoverArea" Property="RenderTransform">
                   <Setter.Value>
                     <TranslateTransform Y="-4" />
                   </Setter.Value>
@@ -360,6 +303,7 @@
                   <ColumnDefinition Width="110" />
                   <ColumnDefinition Width="90" />
                   <ColumnDefinition Width="72" />
+                  <ColumnDefinition Width="34" />
                   <ColumnDefinition Width="27" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal">
@@ -382,13 +326,17 @@
                   <TextBlock Text="{Binding CopiesLabel}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" ToolTip="Files of this book in your library"
                              Visibility="{Binding CopiesLabel, Converter={StaticResource Bt.VisibleWhenSet}}" />
                 </StackPanel>
-                <c:LucideIcon Grid.Column="6" Data="{StaticResource Icon.ChevronRight}" Size="15" Foreground="{DynamicResource Bt.Muted}"
+                <Button x:Name="Heart" Grid.Column="6" Style="{StaticResource CoverHeart}" Margin="0" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="Transparent" BorderThickness="0" FontSize="14"
+                        Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <c:LucideIcon Grid.Column="7" Data="{StaticResource Icon.ChevronRight}" Size="15" Foreground="{DynamicResource Bt.Muted}"
                               VerticalAlignment="Center" HorizontalAlignment="Right" />
               </Grid>
             </Border>
             <DataTemplate.Triggers>
               <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
                 <Setter TargetName="Row" Property="Background" Value="{DynamicResource Bt.Side}" />
+                <Setter TargetName="Heart" Property="Visibility" Value="Visible" />
               </Trigger>
             </DataTemplate.Triggers>
           </DataTemplate>
@@ -486,6 +434,10 @@
               <Button x:Name="CloseDrawer" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
                       ToolTip="Close (Esc)" AutomationProperties.Name="Close details"
                       Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+              <Button x:Name="FavoriteBook" DockPanel.Dock="Right" Style="{StaticResource Bt.HeartButton}" Margin="0,0,4,0"
+                      c:Ui.IsActive="{Binding Item.IsFavorite}" ToolTip="{Binding Item.FavoriteAction}" AutomationProperties.Name="{Binding Item.FavoriteAction}"
+                      Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding Item}" />
               <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
             </DockPanel>
 

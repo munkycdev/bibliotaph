@@ -336,6 +336,33 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         }, ct);
 
     /// <summary>
+    /// Replaces which groups these entries are in (entry_scope: favourites now, collections and packs later), or every
+    /// entry's when <paramref name="entryIds"/> is null. <paramref name="scopes"/> lists each entry's groups by name.
+    /// </summary>
+    public Task SetScopesAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyCollection<(EntryId EntryId, string Scope)> scopes, CancellationToken ct = default) =>
+        entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            if (entryIds is null) c.Execute("DELETE FROM entry_scope", transaction: t);
+            else c.Execute("DELETE FROM entry_scope WHERE entry_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(entryIds) }, t);
+            c.Execute("INSERT OR IGNORE INTO entry_scope (scope, entry_id) VALUES (@scope, @entryId)",
+                scopes.Where(s => entryIds is null || entryIds.Contains(s.EntryId)).Select(s => new { scope = s.Scope, entryId = s.EntryId.Value }), t);
+        }, ct);
+
+    /// <summary>Replaces when these entries were last opened, or every entry's when <paramref name="entryIds"/> is null.</summary>
+    public Task SetOpenedAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyDictionary<EntryId, DateTime> opened, CancellationToken ct = default) =>
+        entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            if (entryIds is null) c.Execute("DELETE FROM entry_opened", transaction: t);
+            else c.Execute("DELETE FROM entry_opened WHERE entry_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(entryIds) }, t);
+            c.Execute("INSERT INTO entry_opened (entry_id, opened_utc) VALUES (@entryId, @opened)",
+                opened.Where(o => entryIds is null || entryIds.Contains(o.Key)).Select(o => new
+                {
+                    entryId = o.Key.Value,
+                    opened = JobBoard.Timestamp(new DateTimeOffset(DateTime.SpecifyKind(o.Value, DateTimeKind.Utc))),
+                }), t);
+        }, ct);
+
+    /// <summary>
     /// Takes entries off the library: those with no file left to show, such as a card whose copy joined another. Their
     /// metadata, AI mark and search row go with them.
     /// </summary>
@@ -351,6 +378,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     DELETE FROM entry_meta WHERE entry_id = @id;
                     DELETE FROM entry_facet WHERE entry_id = @id;
                     DELETE FROM entry_ai WHERE entry_id = @id;
+                    DELETE FROM entry_scope WHERE entry_id = @id;
+                    DELETE FROM entry_opened WHERE entry_id = @id;
                     DELETE FROM entry_fts WHERE rowid = @id;
                     """,
                     new { id }, t);
