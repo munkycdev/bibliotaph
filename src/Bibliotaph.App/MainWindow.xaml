@@ -68,16 +68,38 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- .bt-sidegroup: Smart Views, each the Library scoped to part of it (slice 3 plan, choice 5). -->
+        <!-- .bt-sidegroup: Smart Views (slice 3 plan, choices 5 and 17): Favorites, then the saved views. -->
         <StackPanel DockPanel.Dock="Top" Margin="0,22,0,0">
           <TextBlock Text="SMART VIEWS" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
           <ItemsControl x:Name="SmartViews" ItemsSource="{Binding SmartViews}" Focusable="False" AutomationProperties.Name="Smart views">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
-                <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
+                <!-- A saved view renames and deletes from its right-click menu; Tag carries the shell for the menu's commands. -->
+                <Button x:Name="SmartView" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
                         c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
+                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                         Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        CommandParameter="{Binding}" />
+                        CommandParameter="{Binding}">
+                  <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource Bt.NavButton}">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsView}" Value="True">
+                          <Setter Property="ToolTip" Value="Right-click to rename or delete" />
+                          <Setter Property="ContextMenu">
+                            <Setter.Value>
+                              <ContextMenu Style="{StaticResource Bt.Menu}">
+                                <MenuItem Header="Rename…" CommandParameter="{Binding}"
+                                          Command="{Binding PlacementTarget.Tag.RenameViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Delete" CommandParameter="{Binding}"
+                                          Command="{Binding PlacementTarget.Tag.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                              </ContextMenu>
+                            </Setter.Value>
+                          </Setter>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

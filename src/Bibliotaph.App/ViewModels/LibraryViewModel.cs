@@ -75,9 +75,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        CollectionActions collections, SessionActions sessions, LibraryPages pages, ILogger<LibraryViewModel> log)
+        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, LibraryPages pages, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        Views = views;
         Collections = collections;
         Sessions = sessions;
         _pages = pages;
@@ -113,7 +114,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     public override Route Route => Route.Library;
-    public override string Title => Scope?.Name ?? "Library";
+    public override string Title => ActiveView?.Name ?? Scope?.Name ?? "Library";
     public override bool ScrollsItself => true;
 
     /// <summary>A collection's page sits under Collections, in the breadcrumb and the sidebar.</summary>
@@ -121,14 +122,14 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public override Route? SectionRoute => IsCollection ? Route.Collections : null;
 
-    public override Route NavRoute => IsCollection ? Route.Collections : Route;
+    public override Route NavRoute => IsCollection && ActiveView is null ? Route.Collections : Route;
 
     /// <summary>The part of the library shown, such as Favorites, or null for all of it (slice 3 plan, choice 3).</summary>
     public LibraryScope? Scope { get; private set; }
 
     public bool HasScope => Scope is not null;
 
-    public override string? NavScope => IsCollection ? null : Scope?.Key;
+    public override string? NavScope => ActiveView is { } view ? SmartViewKey(view.Id) : IsCollection ? null : Scope?.Key;
 
     /// <summary>Shows only a part of the library, or all of it. Set before the page is shown, or by the scope chip's ×.</summary>
     public void ShowScope(LibraryScope? scope)
@@ -144,6 +145,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         OnPropertyChanged(nameof(ScopeChip));
         OnPropertyChanged(nameof(IsCollection));
         OnPropertyChanged(nameof(IsWholeLibrary));
+        OnPropertyChanged(nameof(ShowsLibraryActions));
+        OnPropertyChanged(nameof(ShowsCollectionActions));
         OnPropertyChanged(nameof(Section));
         OnPropertyChanged(nameof(SectionRoute));
         OnPropertyChanged(nameof(NavRoute));
@@ -170,9 +173,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public bool IsSearching => Search.IsSearching;
 
-    public string Heading => IsSearching ? "Search results" : Scope?.Name ?? "Your library";
+    public string Heading => ActiveView?.Name ?? (IsSearching ? "Search results" : Scope?.Name ?? "Your library");
 
-    public string Subtitle => IsSearching
+    public string Subtitle => ActiveView is not null ? "A Smart View: its search, filters and order, run again each time." : IsSearching
         ? Scope is { } scope ? $"In {scope.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
         : Scope?.Subtitle ?? "Good stories begin with something you already own.";
 
@@ -340,9 +343,21 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await Collections.Directory.LoadAsync();
         Collections.Directory.Changed += OnCollectionsChanged;
         await Sessions.Directory.LoadAsync();
+        if (_viewOnLoad is { } view)
+        {
+            _viewOnLoad = null;
+            ApplyView(view);
+        }
         _staleTimer.Start();
         if (IsCollection) await ShowCollectionAsync();
         await LoadFolderChoicesAsync();
+        if (_folderOnLoad is { } folder)
+        {
+            _folderOnLoad = null;
+            _holdRefresh = true;
+            FolderChoice = FolderChoices.FirstOrDefault(c => c.Value == folder) ?? AllFolders;
+            _holdRefresh = false;
+        }
         await RefreshAsync();
         if (SavedScrollOffset is not null) RestoreScroll?.Invoke(this, EventArgs.Empty);
         if (DetailsOnLoad is { } details)
@@ -359,7 +374,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Collections.Directory.Changed -= OnCollectionsChanged;
         Collections.Close();
         Sessions.Close();
+        ViewDialog?.CancelCommand.Execute(null);
+        ViewMessage = null;
+        ViewUndo = null;
         Search.PropertyChanged -= OnSearchChanged;
+        // A view's search is the view's: it goes when the view is left, and comes back with the page on Back.
+        if (ActiveView is not null)
+        {
+            _viewOnLoad = CurrentView();
+            if (Search.Text.Length > 0) Search.Search("");
+        }
         _staleTimer.Stop();
         // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
         BulkUndo = null;
@@ -530,6 +554,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
                 if (version != _version) return;
                 ShowFacets(browseFacets);
                 ShowResults(entries, null, null, SearchQuery.Parse(""));
+                NotifyViewState();
                 return;
             }
 
@@ -543,6 +568,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             if (version != _version) return;
             ShowFacets(facets);
             ShowResults(found, pageResults, plan, query);
+            NotifyViewState();
         }
         catch (Exception ex)
         {
@@ -1096,8 +1122,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void Escape()
     {
-        if (Sessions.Dialog is { } session) session.CancelCommand.Execute(null);
-        else if (Collections.Dialog is { } naming) naming.CancelCommand.Execute(null);
+        if (ViewDialog is { } naming) naming.CancelCommand.Execute(null);
+        else if (Sessions.Dialog is { } session) session.CancelCommand.Execute(null);
+        else if (Collections.Dialog is { } collection) collection.CancelCommand.Execute(null);
         else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
         else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
         else if (Inspector is not null) Inspector = null;
@@ -1114,6 +1141,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>The whole Library or Favorites: Add folder and the other library actions show in the header.</summary>
     public bool IsWholeLibrary => !IsCollection;
+
+    /// <summary>Add folder and the other library actions, in the header unless a Smart View's own actions are there.</summary>
+    public bool ShowsLibraryActions => IsWholeLibrary && !IsView;
+
+    /// <summary>A collection's actions, in the header unless a Smart View scoped to it is shown.</summary>
+    public bool ShowsCollectionActions => IsCollection && !IsView;
 
     CollectionInfo? Collection => Scope?.CollectionId is { } id ? Collections.Directory.Find(id) : null;
 
@@ -1285,4 +1318,260 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void AddPageToSession(PageHitViewModel page) =>
         Sessions.AddPage(page.Hit.DocumentId, page.Hit.PdfPage,
             $"page {(string.IsNullOrWhiteSpace(page.Hit.Label) ? (page.Hit.PdfPage + 1).ToString(CultureInfo.CurrentCulture) : page.Hit.Label)}");
+
+    // Smart Views (slice 3e).
+
+    SmartViewDefinition? _viewOnLoad;
+    SmartViewDefinition? _viewSaved;
+    long? _folderOnLoad;
+
+    public SmartViewDirectory Views { get; }
+
+    /// <summary>The sidebar key of a Smart View's item, which the Library marks while it shows that view.</summary>
+    public static string SmartViewKey(long viewId) => $"view:{viewId.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>The Smart View shown, if the page was opened from one or saved as one.</summary>
+    public SmartViewInfo? ActiveView { get; private set; }
+
+    public bool IsView => ActiveView is not null;
+
+    /// <summary>The search, filters, order, layout or tab differ from the view's: Update view and Save as new show.</summary>
+    public bool IsViewChanged => ActiveView is not null && _viewSaved is { } saved && saved != CurrentView();
+
+    /// <summary>Save view, while a search, a filter or a scope is in use and no view is shown.</summary>
+    public bool CanSaveView => ActiveView is null && (IsSearching || HasScope || CurrentView() with { Sort = Unfiltered.Sort, Layout = Unfiltered.Layout, Tab = Unfiltered.Tab } != Unfiltered);
+
+    /// <summary>The whole library with no search or filter, which isn't worth saving as a view.</summary>
+    static readonly SmartViewDefinition Unfiltered = new();
+
+    /// <summary>Why the view shows less than it was saved with, as when its collection is gone.</summary>
+    [ObservableProperty]
+    public partial string? ViewNote { get; private set; }
+
+    /// <summary>"Saved Haunted places. It's in the sidebar.", beside its Undo.</summary>
+    [ObservableProperty]
+    public partial string? ViewMessage { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasViewUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoViewCommand))]
+    public partial Func<Task>? ViewUndo { get; private set; }
+
+    public bool HasViewUndo => ViewUndo is not null;
+
+    /// <summary>Naming a view, while the dialog is open over the page.</summary>
+    [ObservableProperty]
+    public partial SmartViewDialogViewModel? ViewDialog { get; private set; }
+
+    /// <summary>Opens the page as a Smart View: its search, filters and scope are put back when the page loads.</summary>
+    public void OpenView(SmartViewInfo view)
+    {
+        _viewOnLoad = SmartViewDefinition.Parse(view.Definition);
+        ShowView(view, _viewOnLoad);
+    }
+
+    /// <summary>What the Library shows now, as a Smart View would keep it.</summary>
+    public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
+        SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
+        OwnChoice.Value, SortChoice.Value, Layout, Tab);
+
+    void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
+    {
+        ActiveView = view;
+        _viewSaved = saved;
+        OnPropertyChanged(nameof(ActiveView));
+        OnPropertyChanged(nameof(IsView));
+        OnPropertyChanged(nameof(ShowsLibraryActions));
+        OnPropertyChanged(nameof(ShowsCollectionActions));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(Heading));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(NavScope));
+        OnPropertyChanged(nameof(NavRoute));
+        NotifyViewState();
+    }
+
+    void NotifyViewState()
+    {
+        OnPropertyChanged(nameof(IsViewChanged));
+        OnPropertyChanged(nameof(CanSaveView));
+    }
+
+    partial void OnLayoutChanged(LibraryLayout value) => NotifyViewState();
+
+    /// <summary>
+    /// Puts a view's search, filters, scope, order, layout and tab back, before the page's first refresh. A collection
+    /// or session that has gone is left out, and the note says so; a query that no longer reads shows its problem as
+    /// any search does, with its text kept.
+    /// </summary>
+    void ApplyView(SmartViewDefinition view)
+    {
+        _holdRefresh = true;
+        try
+        {
+            var scope = ResolveScope(view.Scope);
+            ViewNote = view.Scope is not null && scope is null
+                ? "The collection or session this view was saved in is gone, so it looks through your whole library." : null;
+            ShowScope(scope);
+            OnlyAddedHere = scope?.CollectionId is not null && view.OnlyAddedHere;
+            if (Search.Text != view.Query.Trim())
+            {
+                Search.PropertyChanged -= OnSearchChanged;
+                Search.Search(view.Query);
+                Search.PropertyChanged += OnSearchChanged;
+                OnPropertyChanged(nameof(IsSearching));
+                OnPropertyChanged(nameof(SortChoices));
+            }
+            SortChoice = SortChoices.FirstOrDefault(c => c.Value == view.Sort) ?? (IsSearching ? BestMatch : RecentlyAdded);
+            KindChoice = KindChoices.FirstOrDefault(c => c.Value == view.Kind) ?? KindChoices[0];
+            AiChoice = AiChoices.FirstOrDefault(c => c.Value == view.Ai) ?? AiChoices[0];
+            CopiesChoice = CopiesChoices.FirstOrDefault(c => c.Value == view.Copies) ?? CopiesChoices[0];
+            SystemChoice = Pick(SystemChoices, AllSystems, view.System);
+            TypeChoice = Pick(TypeChoices, AllTypes, view.Type);
+            OwnChoice = Pick(OwnChoices, AnyOwn, view.Own);
+            LevelChoice = LevelChoices.FirstOrDefault(c => c.Value == view.Level) ?? AnyLevel;
+            IncludeUnknownLevels = view.IncludeUnknownLevels;
+            Layout = view.Layout;
+            Tab = view.Tab;
+            _folderOnLoad = view.Folder;
+        }
+        finally
+        {
+            _holdRefresh = false;
+        }
+        OnPropertyChanged(nameof(Heading));
+        OnPropertyChanged(nameof(Subtitle));
+    }
+
+    /// <summary>A counted menu's choice for a saved value, added to the menu until the counts arrive.</summary>
+    static Choice<string?> Pick(ObservableCollection<Choice<string?>> menu, Choice<string?> all, string? value)
+    {
+        if (value is null) return all;
+        if (menu.FirstOrDefault(c => c.Value == value) is { } found) return found;
+        var choice = new Choice<string?>(value, value);
+        menu.Add(choice);
+        return choice;
+    }
+
+    LibraryScope? ResolveScope(string? key)
+    {
+        if (key is null) return null;
+        if (key == LibraryScope.Favorites.Key) return LibraryScope.Favorites;
+        if (Collections.Directory.All.FirstOrDefault(c => ScopeKeys.Collection(c.Id) == key) is { } collection) return Collections.Directory.ScopeFor(collection);
+        if (Sessions.Directory.All.FirstOrDefault(p => ScopeKeys.Session(p.Id) == key) is { } pack) return SessionDirectory.ScopeFor(pack);
+        return null;
+    }
+
+    /// <summary>Save view: names the search, filters and scope in use as a Smart View, listed in the sidebar.</summary>
+    [RelayCommand]
+    void SaveView() => AskName("Save as a Smart View", "Save", "", async name =>
+    {
+        var current = CurrentView();
+        var created = await RunView(() => Views.CreateAsync(name, current));
+        if (created is null) return;
+        ShowView(created, current);
+        SayView($"Saved {created.Name}. It's in the sidebar under Smart Views.", null);
+    });
+
+    /// <summary>Update view: the view now keeps the search and filters as they are.</summary>
+    [RelayCommand]
+    async Task UpdateView()
+    {
+        if (ActiveView is not { } view) return;
+        var current = CurrentView();
+        if (!await RunView(() => Views.UpdateAsync(view.Id, current))) return;
+        var previous = _viewSaved;
+        ShowView(Views.Find(view.Id) ?? view, current);
+        SayView($"Updated {view.Name}.", previous is null ? null : async () =>
+        {
+            await Views.UpdateAsync(view.Id, previous);
+            if (ActiveView?.Id == view.Id) ShowView(Views.Find(view.Id) ?? view, previous);
+        });
+    }
+
+    /// <summary>Save as new: a second view from the changed search and filters, leaving the first as it was.</summary>
+    [RelayCommand]
+    void SaveViewAsNew() => AskName("Save as a new Smart View", "Save", ActiveView is { } view ? $"{view.Name} (2)" : "", async name =>
+    {
+        var current = CurrentView();
+        var created = await RunView(() => Views.CreateAsync(name, current));
+        if (created is null) return;
+        ShowView(created, current);
+        SayView($"Saved {created.Name}. It's in the sidebar under Smart Views.", null);
+    });
+
+    [RelayCommand]
+    void RenameView()
+    {
+        if (ActiveView is not { } view) return;
+        AskName("Rename Smart View", "Save", view.Name, async name =>
+        {
+            if (await RunView(() => Views.RenameAsync(view.Id, name)) && Views.Find(view.Id) is { } renamed) ShowView(renamed, _viewSaved);
+        });
+    }
+
+    /// <summary>Deletes the view, never a book. The page keeps showing the same books, and Undo brings the view back.</summary>
+    [RelayCommand]
+    async Task DeleteView()
+    {
+        if (ActiveView is not { } view) return;
+        var deleted = await RunView(() => Views.DeleteAsync(view.Id));
+        if (deleted is null) return;
+        var saved = _viewSaved;
+        ShowView(null, null);
+        SayView($"Deleted the {deleted.Name} Smart View. Your books are untouched.", async () =>
+        {
+            var back = await Views.RestoreAsync(deleted);
+            ShowView(back, saved ?? SmartViewDefinition.Parse(back.Definition));
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(HasViewUndo))]
+    async Task UndoView()
+    {
+        if (ViewUndo is not { } undo) return;
+        ViewUndo = null;
+        ViewMessage = "Undoing…";
+        try
+        {
+            await undo();
+            ViewMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing a Smart View change failed");
+            ViewMessage = "That couldn't be undone.";
+        }
+    }
+
+    void SayView(string message, Func<Task>? undo)
+    {
+        ViewMessage = message;
+        ViewUndo = undo;
+    }
+
+    void AskName(string heading, string action, string name, Func<string, Task> then)
+    {
+        var dialog = new SmartViewDialogViewModel(heading, action, name);
+        dialog.Closed += async (_, chosen) =>
+        {
+            ViewDialog = null;
+            if (chosen is not null) await then(chosen);
+        };
+        ViewDialog = dialog;
+    }
+
+    async Task<T?> RunView<T>(Func<Task<T>> change)
+    {
+        try
+        {
+            return await change();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Changing a Smart View failed");
+            SayView("That didn't work. The log has the details.", null);
+            return default;
+        }
+    }
 }

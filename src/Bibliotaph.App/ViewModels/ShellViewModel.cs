@@ -18,14 +18,16 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly SearchState _search;
     readonly SettingsLinks _settings;
     readonly LibraryPages _library;
+    readonly SmartViewDirectory _views;
     readonly SettingsStore _store;
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
-        LibraryPages library, SettingsStore store, ILogger<ShellViewModel> log)
+        LibraryPages library, SmartViewDirectory views, SettingsStore store, ILogger<ShellViewModel> log)
     {
         _library = library;
+        _views = views;
         _store = store;
         _navigation = navigation;
         _theme = theme;
@@ -46,8 +48,9 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.Sessions, "Sessions", Icon("Icon.NotebookTabs")),
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
         ];
-        // Smart Views (slice 3 plan, choice 5): Favorites first; saved Smart Views join it in 3e.
+        // Smart Views (slice 3 plan, choices 5 and 17): Favorites first, then the saved views by name.
         SmartViews = [new(Route.Library, LibraryScope.Favorites.Name, Icon("Icon.Heart"), LibraryScope.Favorites)];
+        _views.Changed += (_, _) => ShowSmartViews();
         Settings = new NavItemViewModel(Route.Settings, "Settings", Icon("Icon.Settings2"));
         var review = NavItems.Single(n => n.Route == Route.NeedsReview);
         Activity.PropertyChanged += (_, e) =>
@@ -116,6 +119,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
         // Settings > Library > Start on (slice 3 plan, choice 7): Home unless the Library was chosen.
+        await _views.LoadAsync();
         var start = await StartPageAsync();
         _navigation.NavigateTo(start);
         Activity.Start();
@@ -142,12 +146,45 @@ public sealed partial class ShellViewModel : ObservableObject
         else _navigation.NavigateTo(route);
     }
 
-    /// <summary>A sidebar item: its page, or for a Smart View the Library scoped to it.</summary>
+    /// <summary>A sidebar item: its page, or for a Smart View the Library scoped to it or showing it.</summary>
     [RelayCommand]
     void Open(NavItemViewModel item)
     {
-        if (item.Scope is { } scope) _library.Open(scope);
+        if (item.ViewId is { } id)
+        {
+            if (_views.Find(id) is { } view) _library.OpenView(view);
+        }
+        else if (item.Scope is { } scope) _library.Open(scope);
         else Navigate(item.Route);
+    }
+
+    /// <summary>A saved view's right-click Rename…: the view opens, and the Library asks for the new name.</summary>
+    [RelayCommand]
+    void RenameView(NavItemViewModel item)
+    {
+        if (ShowView(item) is { } page) page.RenameViewCommand.Execute(null);
+    }
+
+    /// <summary>A saved view's right-click Delete: the view opens and is deleted there, where Undo is offered.</summary>
+    [RelayCommand]
+    void DeleteView(NavItemViewModel item)
+    {
+        if (ShowView(item) is { } page) page.DeleteViewCommand.Execute(null);
+    }
+
+    LibraryViewModel? ShowView(NavItemViewModel item)
+    {
+        Open(item);
+        return CurrentPage is LibraryViewModel { ActiveView: { } shown } page && shown.Id == item.ViewId ? page : null;
+    }
+
+    /// <summary>The saved views after Favorites, in the order the directory lists them.</summary>
+    void ShowSmartViews()
+    {
+        while (SmartViews.Count > 1) SmartViews.RemoveAt(SmartViews.Count - 1);
+        foreach (var view in _views.All)
+            SmartViews.Add(new NavItemViewModel(Route.Library, view.Name, Icon("Icon.SlidersHorizontal"), viewId: view.Id));
+        ShowActiveItem();
     }
 
     [RelayCommand]
@@ -205,7 +242,7 @@ public sealed partial class ShellViewModel : ObservableObject
     void ShowActiveItem()
     {
         foreach (var item in NavItems.Concat(SmartViews).Append(Settings))
-            item.IsActive = item.Route == CurrentPage?.NavRoute && item.Scope?.Key == CurrentPage?.NavScope;
+            item.IsActive = item.Route == CurrentPage?.NavRoute && item.ScopeKey == CurrentPage?.NavScope;
     }
 
     void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)

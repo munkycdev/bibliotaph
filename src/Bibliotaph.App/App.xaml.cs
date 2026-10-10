@@ -156,6 +156,7 @@ public partial class App : Application
         builder.Services.AddSingleton<CollectionsService>();
         builder.Services.AddSingleton<SessionStore>();
         builder.Services.AddSingleton<SessionsService>();
+        builder.Services.AddSingleton<SmartViewStore>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
@@ -212,6 +213,7 @@ public partial class App : Application
         builder.Services.AddSingleton<Func<LibraryViewModel>>(sp => () => sp.GetRequiredService<LibraryViewModel>());
         builder.Services.AddSingleton<LibraryPages>();
         builder.Services.AddSingleton<CollectionDirectory>();
+        builder.Services.AddSingleton<SmartViewDirectory>();
         builder.Services.AddTransient<CollectionActions>();
         builder.Services.AddSingleton<SessionDirectory>();
         builder.Services.AddTransient<SessionActions>();
