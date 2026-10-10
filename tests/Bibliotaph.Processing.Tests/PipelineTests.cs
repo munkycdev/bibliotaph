@@ -55,7 +55,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _paths = new AppPaths(Path.Combine(_dir, "data"));
+        _paths = new AppPaths(Path.Combine(_dir, _dataFolder));
         foreach (var directory in _paths.Directories) Directory.CreateDirectory(directory);
         _library = Path.Combine(_dir, "RPG Library");
 

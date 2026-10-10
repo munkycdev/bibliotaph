@@ -284,6 +284,9 @@ public sealed class IndexingService(
         _stopping = stoppingToken;
         var recovered = await queue.RecoverLeasesAsync(stoppingToken);
         if (recovered > 0) _log.LogInformation("Returned {Count} interrupted jobs to the queue", recovered);
+        // A new index.db beside a catalog with books in it, as after a restore without the index: each is read again.
+        var unqueued = await queue.EnqueueUnqueuedAsync(await library.GetDocumentHashesAsync(stoppingToken), Pipeline.First, stoppingToken);
+        if (unqueued > 0) _log.LogInformation("Queued {Count} documents index.db had no record of, to be read again", unqueued);
         // A library indexed before rule hints existed gets them without re-probing anything.
         if (_stages.ContainsKey(Stage.RuleHints))
         {

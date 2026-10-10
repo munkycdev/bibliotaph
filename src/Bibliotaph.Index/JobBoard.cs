@@ -67,6 +67,22 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             return missing.Count;
         }, ct);
 
+    /// <summary>
+    /// Queues <paramref name="stage"/> for each of <paramref name="documents"/> that has no job at all: a catalog whose
+    /// index.db is new, as after a restore without the index or index.db being deleted, has every book read again from
+    /// its file (slice 4j plan, choice 6). Returns the number queued.
+    /// </summary>
+    public Task<int> EnqueueUnqueuedAsync(IReadOnlyCollection<(long DocumentId, string ContentHash)> documents, Stage stage, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            if (documents.Count == 0) return 0;
+            var now = Now();
+            var queued = c.Query<string>("SELECT DISTINCT content_hash FROM job", transaction: t).ToHashSet(StringComparer.Ordinal);
+            var missing = documents.Where(d => !queued.Contains(d.ContentHash)).ToList();
+            foreach (var (documentId, contentHash) in missing) Enqueue(c, t, documentId, contentHash, stage, 0, now);
+            return missing.Count;
+        }, ct);
+
     /// <summary>Leases the most urgent ready job for one of <paramref name="stages"/>, or returns null when there is none.</summary>
     public Task<JobRecord?> LeaseAsync(IReadOnlyCollection<Stage> stages, string owner, TimeSpan leaseFor, CancellationToken ct = default)
     {
