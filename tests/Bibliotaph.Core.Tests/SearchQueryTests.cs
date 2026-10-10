@@ -85,6 +85,10 @@ public class SearchQueryTests
     [InlineData("authors:doe tags:prep series:saltmarsh", "AND(author:doe, tag:prep, series:saltmarsh)")]
     [InlineData("edition:5e setting:eberron theme:horror env:urban", "AND(edition:5e, setting:eberron, theme:horror, environment:urban)")]
     [InlineData("type:adv*", "type:adv*")]
+    [InlineData("favorite:yes", "favorite:yes")]
+    [InlineData("favourite:Y dragon", "AND(favorite:yes, dragon)")]
+    [InlineData("fav:false", "favorite:no")]
+    [InlineData("-favorite:yes", "-favorite:yes")]
     public void Parses_metadata_fields(string text, string expected) => Assert.Equal(expected, Tree(text));
 
     [Theory]
@@ -105,6 +109,12 @@ public class SearchQueryTests
     [InlineData("level:40")]
     public void A_level_that_isnt_one_is_reported(string text) =>
         Assert.Contains("level: can be", OnlyIssue(text).Message, StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("favorite:maybe")]
+    [InlineData("favorite:ye*")]
+    public void A_favorite_that_isnt_yes_or_no_is_reported(string text) =>
+        Assert.Contains("favorite: can be yes or no", OnlyIssue(text).Message, StringComparison.Ordinal);
 
     [Theory]
     [InlineData("title:", "needs a value")]

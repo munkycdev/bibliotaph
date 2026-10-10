@@ -26,7 +26,7 @@ public sealed partial class PipelineTests
 
         var card = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
         Assert.Equal((printed, true, "Drowned Abbey", "D&D 5e", "Foundry VTT · Print"), (card.EntryId, card.IsElsewhere, card.Title, card.System, card.AlsoOwn));
-        Assert.Equal([printed], (await search.ListAsync(new LibraryFilter(), SearchPlan.From(SearchQuery.Parse("own:foundry")), Ct)).Select(e => e.EntryId));
+        Assert.Equal([printed], (await search.ListAsync(new LibraryFilter(), SearchPlan.From(SearchQuery.Parse("own:foundry")), ct: Ct)).Select(e => e.EntryId));
 
         // Its PDF arrives: Match offers it as the book's file.
         Copy(pdfs.WatermarkedForAna, "Purchases/Drowned Abbey.pdf");

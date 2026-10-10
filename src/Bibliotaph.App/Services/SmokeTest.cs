@@ -98,11 +98,13 @@ static class SmokeTest
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
+            await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             if (real is { } reprocessed)
             {
+                await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
@@ -1019,6 +1021,116 @@ static class SmokeTest
     /// inspector opens with Also own first and nothing to open; own:print finds it; Remove takes it away and Undo brings
     /// it back. The book is removed again at the end, so later checks see the library as it was.
     /// </summary>
+    /// <summary>
+    /// Slice 3a: the details' heart marks a book; its cover shows the heart; the sidebar's Favorites opens the Library
+    /// scoped to it, with a chip whose × shows the whole library; favorite:yes finds it; Home offers the way in; and the
+    /// card menu's command unmarks it, leaving Favorites empty.
+    /// </summary>
+    static async Task UseFavoritesAsync(IServiceProvider services, Window window, int books)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        shell.NavigateCommand.Execute(Route.Library);
+        var page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
+        var book = page.Items.First(i => !i.IsFavorite);
+
+        await page.OpenDetailsCommand.ExecuteAsync(book);
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "FavoriteBook"), "details' heart");
+        await WaitUntilAsync(window, () => book.IsFavorite && page.Items.Single(i => i.EntryId == book.EntryId).Entry.Favorite,
+            () => "The details' heart didn't mark the book as a favorite in the index.");
+        page.CloseDetailsCommand.Execute(null);
+        await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "Heart" && b.IsVisible && ReferenceEquals(b.CommandParameter, book)),
+            () => "The favorite's cover doesn't show its heart.");
+
+        var favorites = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "SmartViews");
+        Click(favorites is null ? null : Descendants<Button>(favorites).FirstOrDefault(), "Favorites in the sidebar");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items: [var only] } && only.EntryId == book.EntryId,
+            () => "Favorites in the sidebar didn't open the Library with just the favorite.");
+        var scoped = (LibraryViewModel)shell.CurrentPage!;
+        if (scoped.Heading != "Favorites" || !shell.SmartViews[0].IsActive || shell.NavItems.Single(n => n.Route == Route.Library).IsActive)
+            throw new InvalidOperationException($"Favorites reads “{scoped.Heading}”, and the sidebar doesn't mark Favorites as the page shown.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ClearScope"), "scope chip's ×");
+        await WaitUntilAsync(window, () => !scoped.HasScope && scoped.Items.Count == books && shell.NavItems.Single(n => n.Route == Route.Library).IsActive,
+            () => "The scope chip's × didn't show the whole library.");
+
+        search.Search("favorite:yes");
+        await WaitUntilAsync(window, () => scoped.IsSearching && scoped.Items is [var found] && found.EntryId == book.EntryId,
+            () => "favorite:yes didn't find just the favorite.");
+        search.Search("");
+        await WaitUntilAsync(window, () => !scoped.IsSearching && scoped.Items.Count == books, () => "Clearing the search didn't bring the library back.");
+
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
+        await WaitUntilAsync(window, () => home.HasBooks && home.HasFavorites && home.RecentlyAdded.Count > 0, () => "Home doesn't show the library and Favorites.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OpenFavorites"), "Home's Your favorites");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items.Count: 1 }, () => "Your favorites on Home didn't open Favorites.");
+        var fromHome = (LibraryViewModel)shell.CurrentPage!;
+
+        // The card menu's command, as right-click > Remove from favorites runs it.
+        BookCommands.ToggleFavorite.Execute(fromHome.Items[0], FindChild<Views.LibraryView>(window));
+        await WaitUntilAsync(window, () => fromHome.IsEmpty && fromHome.EmptyTitle == LibraryScope.Favorites.EmptyTitle,
+            () => "Unmarking the only favorite didn't leave Favorites empty.");
+        shell.NavigateCommand.Execute(Route.Library);
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: null } whole && whole.Items.Count == books && whole.Items.All(i => !i.IsFavorite),
+            () => "The library didn't go back to how it was.");
+    }
+
+    /// <summary>
+    /// Slice 3a: a PDF opened from the Library, left on its second page, opens there again next time; Home lists it
+    /// under Recently opened; and a search hit still opens at its own page.
+    /// </summary>
+    static async Task ResumeBookAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var reading = services.GetRequiredService<ReadingService>();
+        shell.NavigateCommand.Execute(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        var book = library.Items.First(i => i.DocumentId == documentId);
+
+        await library.OpenBookCommand.ExecuteAsync(book);
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The PDF didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The PDF didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        viewer.PageEntry = "i";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => viewer.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
+        viewer.PageEntry = "1";
+        viewer.GoToPageCommand.Execute(null);
+        await WaitUntilAsync(window, () => viewer.CurrentPageIndex == 1, () => "Going to page 1 didn't show it.");
+        await WaitUntilAsync(window, () => viewer.ToggleFavoriteCommand.CanExecute(null), () => "The reader's heart isn't ready.");
+        navigation.GoBack();
+        await Settle(window);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (await reading.GetPositionAsync(documentId) != 1)
+        {
+            if (DateTime.UtcNow > deadline) throw new InvalidOperationException("Leaving the book didn't keep its page.");
+            await Task.Delay(100);
+        }
+
+        await library.OpenBookCommand.ExecuteAsync(book);
+        var again = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer again.");
+        await WaitUntilAsync(window, () => again.IsPdf && again.CurrentPageIndex == 1 && again.Notice is { } notice && notice.Contains("where you left off", StringComparison.Ordinal),
+            () => $"The book opened at page index {again.CurrentPageIndex}, not where it was left ({again.Notice}).");
+        navigation.GoBack();
+        await Settle(window);
+
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
+        await WaitUntilAsync(window, () => home.HasRecentlyOpened && home.RecentlyOpened[0].DocumentId == documentId,
+            () => "Home doesn't list the book first under Recently opened.");
+        var cover = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "RecentlyOpened") is { } row ? Descendants<Button>(row).FirstOrDefault(b => b.Name == "Card") : null;
+        Click(cover, "Recently opened cover");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Inspector.Item: var item } && item.DocumentId == documentId,
+            () => "A cover on Home didn't open its details in the Library.");
+        ((LibraryViewModel)shell.CurrentPage!).CloseDetailsCommand.Execute(null);
+        navigation.GoBack();
+        await Settle(window);
+    }
+
     static async Task AddElsewhereAsync(IServiceProvider services, Window window, int books)
     {
         const string Title = "Smoke Atlas of the Marches";

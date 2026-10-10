@@ -4,7 +4,8 @@
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:c="clr-namespace:Bibliotaph.App.Controls">
+                    xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+                    xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels">
 
   <!-- Merged here, not only in App.xaml, so StaticResource references below resolve when this file loads. -->
   <ResourceDictionary.MergedDictionaries>
@@ -133,6 +134,38 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    A heart that marks a book as a favorite (slice 3 plan, choice 5): an outline, filled while c:Ui.IsActive. FontSize
+    is the heart's size, so a cover's smaller heart can share the style.
+  -->
+  <Style x:Key="Bt.HeartButton" TargetType="Button" BasedOn="{StaticResource Bt.IconButton}">
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="Padding" Value="7" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+            <c:LucideIcon x:Name="Heart" Data="{StaticResource Icon.Heart}" Size="{TemplateBinding FontSize}"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+            </Trigger>
+            <Trigger Property="c:Ui.IsActive" Value="True">
+              <Setter TargetName="Heart" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+              <Setter TargetName="Heart" Property="Fill" Value="{DynamicResource Bt.Accent}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.4" />
@@ -671,4 +704,108 @@
       </Style>
     </Style.Resources>
   </Style>
+
+  <!--
+    A book as every page shows it: its cover, the heart that marks it a favorite, and the menu on its card. The menu is
+    a popup outside the page, so its items use routed commands (BookCommands), which reach the page through the card.
+  -->
+  <!-- .bt-cover: the book's own cover, or a plain one with its initial while there is none. -->
+  <DataTemplate x:Key="Cover" DataType="{x:Type vm:LibraryItemViewModel}">
+    <Border CornerRadius="2,5,5,2" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+            SnapsToDevicePixels="True">
+      <Grid ClipToBounds="True">
+        <Grid x:Name="Placeholder">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <Viewbox Grid.Row="1" Stretch="Uniform">
+            <TextBlock Text="{Binding Initial}" FontFamily="{StaticResource Font.Display}" Foreground="{DynamicResource Bt.Muted}" />
+          </Viewbox>
+        </Grid>
+        <Image x:Name="SingleCover" Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+        <!-- A pack (F4): its first four images' covers, two by two. -->
+        <ItemsControl x:Name="Mosaic" ItemsSource="{Binding Mosaic}" Focusable="False" Visibility="Collapsed" IsHitTestVisible="False">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Rows="2" Columns="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:CoverTile}">
+              <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0.5" ClipToBounds="True">
+                <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <!-- A book owned elsewhere (F5a): no file here, so a placeholder with a mark saying where it is. -->
+        <Border x:Name="ElsewhereMark" Margin="0,0,0,8" Padding="7,2" CornerRadius="3" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" Visibility="Collapsed">
+          <TextBlock Text="Elsewhere" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+        </Border>
+        <!-- A model has read this book (2c). -->
+        <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
+                AutomationProperties.Name="{Binding AiTip}">
+          <c:LucideIcon Data="{StaticResource Icon.Sparkle}" Size="11" StrokeThickness="2.2" Foreground="{DynamicResource Bt.AccentText}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </Grid>
+    </Border>
+    <DataTemplate.Triggers>
+      <DataTrigger Binding="{Binding HasCover}" Value="True">
+        <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsAiRead}" Value="True">
+        <Setter TargetName="AiBadge" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsElsewhere}" Value="True">
+        <Setter TargetName="ElsewhereMark" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsPack}" Value="True">
+        <Setter TargetName="Mosaic" Property="Visibility" Value="Visible" />
+        <Setter TargetName="SingleCover" Property="Visibility" Value="Collapsed" />
+        <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
+      </DataTrigger>
+    </DataTemplate.Triggers>
+  </DataTemplate>
+
+  <!--
+    A cover's heart (slice 3 plan, choice 5): always there on a favorite; the card shows it on any other book while the
+    mouse is over it.
+  -->
+  <Style x:Key="CoverHeart" TargetType="Button" BasedOn="{StaticResource Bt.HeartButton}">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Padding" Value="5" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Margin" Value="0,0,6,6" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="Background" Value="{DynamicResource Bt.Panel}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Bt.Line}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <!-- The card's menu and the details have the same action for the keyboard. -->
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="c:Ui.IsActive" Value="{Binding IsFavorite}" />
+    <Setter Property="ToolTip" Value="{Binding FavoriteAction}" />
+    <Setter Property="AutomationProperties.Name" Value="{Binding FavoriteAction}" />
+    <Setter Property="CommandParameter" Value="{Binding}" />
+    <Setter Property="Visibility" Value="Collapsed" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+        <Setter Property="Visibility" Value="Visible" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <ContextMenu x:Key="BookMenu" x:Shared="False" Style="{StaticResource Bt.Menu}">
+    <MenuItem Header="Open" Command="{x:Static c:BookCommands.Open}" CommandParameter="{Binding}" />
+    <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
+              CommandParameter="{Binding}" />
+    <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
+    <MenuItem Header="{Binding FavoriteAction}" Command="{x:Static c:BookCommands.ToggleFavorite}" CommandParameter="{Binding}" />
+  </ContextMenu>
 </ResourceDictionary>

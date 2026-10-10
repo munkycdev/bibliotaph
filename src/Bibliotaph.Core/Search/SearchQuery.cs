@@ -49,6 +49,9 @@ public enum SearchField
 
     /// <summary><c>level:</c> 3, 1-5, none (levels don't apply) or unknown. A range matches books whose levels overlap it.</summary>
     Level,
+
+    /// <summary><c>favorite:</c> yes or no: the books marked with a heart (slice 3 plan, choice 5).</summary>
+    Favorite,
 }
 
 /// <summary>
@@ -112,6 +115,12 @@ public sealed record SearchQuery(string Text, QueryNode? Root, IReadOnlyList<Que
 {
     /// <summary>The field value that finds documents with nothing known for that field: <c>system:unknown</c>, <c>level:unknown</c>.</summary>
     public const string Unknown = "unknown";
+
+    /// <summary>The stored value of <c>favorite:yes</c>.</summary>
+    public const string Yes = "yes";
+
+    /// <summary>The stored value of <c>favorite:no</c>.</summary>
+    public const string No = "no";
 
     public bool IsEmpty => Root is null;
 
@@ -351,6 +360,15 @@ sealed class QueryParser(string text)
             }
             value = new TermNode(level);
         }
+        if (field == SearchField.Favorite)
+        {
+            if (value is not TermNode { Prefix: false } answer || NormalizeYesNo(answer.Text) is not { } yesNo)
+            {
+                Issue("favorite: can be yes or no.", Span(token, valueToken));
+                return null;
+            }
+            value = new TermNode(yesNo);
+        }
         return new FieldNode(field, value);
     }
 
@@ -366,6 +384,14 @@ sealed class QueryParser(string text)
         MetadataText.Normalize(value) is "unknown" or "unknown levels" ? SearchQuery.Unknown
         : LevelRange.TryParse(value, out var range) ? range.ToString()
         : null;
+
+    /// <summary>"yes" or "no", for a field that is one or the other.</summary>
+    static string? NormalizeYesNo(string value) => value.ToLowerInvariant() switch
+    {
+        "yes" or "y" or "true" => SearchQuery.Yes,
+        "no" or "n" or "false" => SearchQuery.No,
+        _ => null,
+    };
 
     /// <summary>pdf, jpg, png or webp, or image for every image format.</summary>
     static string? NormalizeFormat(string value) => value.ToLowerInvariant() switch

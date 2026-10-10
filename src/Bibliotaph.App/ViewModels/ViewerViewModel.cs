@@ -46,7 +46,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, PasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
-    SourceFiles Sources, ILogger<ViewerViewModel> Log);
+    SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -72,9 +72,12 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly ISourceFileReader _files;
     readonly SourceFiles _sources;
     readonly WpfImageCodec _codec;
+    readonly FavoritesService _favorites;
+    readonly ReadingService _reading;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
+    readonly DispatcherTimer _placeTimer;
     readonly ReaderWindows _windows;
 
     DocumentSource? _source;
@@ -106,6 +109,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         _files = services.Files;
         _sources = services.Sources;
         _codec = services.Codec;
+        _favorites = services.Favorites;
+        _reading = services.Reading;
         _log = services.Log;
         _windows = windows;
         IsPoppedOut = poppedOut;
@@ -113,6 +118,13 @@ public sealed partial class ViewerViewModel : PageViewModel
         _dispatcher = Dispatcher.CurrentDispatcher;
         _noticeTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => Notice = null, _dispatcher);
         _noticeTimer.Stop();
+        // The page is kept once reading settles on it, so it survives the app closing with the book open.
+        _placeTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) =>
+        {
+            _placeTimer!.Stop();
+            if (Mode == ViewerMode.Pdf) KeepPlace(CurrentPageIndex);
+        }, _dispatcher);
+        _placeTimer.Stop();
     }
 
     /// <summary>True in a pop-out window, false in the main window's Reading route.</summary>
@@ -268,7 +280,15 @@ public sealed partial class ViewerViewModel : PageViewModel
     [ObservableProperty]
     public partial string? Notice { get; private set; }
 
-    partial void OnCurrentPageIndexChanged(int value) => PageEntry = PageNumbers.Display(value, _labels);
+    partial void OnCurrentPageIndexChanged(int value)
+    {
+        PageEntry = PageNumbers.Display(value, _labels);
+        if (Mode == ViewerMode.Pdf && KeepsPlace)
+        {
+            _placeTimer.Stop();
+            _placeTimer.Start();
+        }
+    }
 
     public override async Task LoadAsync()
     {
@@ -313,7 +333,12 @@ public sealed partial class ViewerViewModel : PageViewModel
     public override void Unload()
     {
         _version++;
-        if (Mode == ViewerMode.Pdf) _resume = new PageTarget(CurrentPageIndex, null);
+        if (Mode == ViewerMode.Pdf)
+        {
+            _resume = new PageTarget(CurrentPageIndex, null);
+            KeepPlace(CurrentPageIndex);
+        }
+        _placeTimer.Stop();
         _noticeTimer.Stop();
         Pdf = null;
         Image = null;
@@ -355,7 +380,81 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     /// <summary>A request that opens this book again as it is now: at the page in view and the same zoom.</summary>
     public ViewerRequest? Here() =>
-        _request is null ? null : _request with { PageIndex = Mode == ViewerMode.Pdf ? CurrentPageIndex : _request.PageIndex, Query = null, Zoom = Zoom };
+        _request is null ? null : _request with
+        {
+            PageIndex = Mode == ViewerMode.Pdf ? CurrentPageIndex : _request.PageIndex,
+            Query = null,
+            Zoom = Zoom,
+            Resume = false,
+            KeepsPlace = KeepsPlace,
+        };
+
+    /// <summary>True for an ordinary read, whose page is kept for next time (slice 3 plan, choice 6).</summary>
+    bool KeepsPlace => _request is { Resume: true } or { KeepsPlace: true };
+
+    /// <summary>Keeps the page an ordinary read is left at, so the book opens there next time.</summary>
+    void KeepPlace(int pageIndex)
+    {
+        if (KeepsPlace && _request is { } request) _ = KeepPlaceAsync(request.DocumentId, pageIndex);
+    }
+
+    async Task KeepPlaceAsync(long documentId, int pageIndex)
+    {
+        try
+        {
+            await _reading.SavePositionAsync(documentId, pageIndex);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Keeping the page of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>Records the open for Home and Recently opened, and shows whether the book is a favorite.</summary>
+    async Task RecordOpenAsync(long documentId)
+    {
+        try
+        {
+            _card = await _reading.RecordOpenAsync(documentId);
+            IsFavorite = _card is { } card && await _favorites.IsFavoriteAsync(card);
+            ToggleFavoriteCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Recording the open of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>The card the open book shows under in the Library: its own, or its pack's.</summary>
+    EntryId? _card;
+
+    /// <summary>The book is marked with a heart (slice 3 plan, choice 5).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FavoriteAction))]
+    public partial bool IsFavorite { get; private set; }
+
+    public string FavoriteAction => IsFavorite ? "Remove from favorites" : "Add to favorites";
+
+    /// <summary>The heart in the toolbar: marks the book, or the pack an image is in, as a favorite or not.</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleFavorite))]
+    async Task ToggleFavorite()
+    {
+        if (_card is not { } card) return;
+        var favorite = !IsFavorite;
+        IsFavorite = favorite;
+        try
+        {
+            await _favorites.SetAsync([card], favorite);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Marking entry {EntryId} as a favorite failed", card);
+            IsFavorite = !favorite;
+            ShowNotice("The heart couldn't be saved.");
+        }
+    }
+
+    bool CanToggleFavorite() => _card is not null;
 
     /// <summary>Moves the book to a window of its own at the same page and zoom; the main window goes Back.</summary>
     [RelayCommand(CanExecute = nameof(CanPopOut))]
@@ -384,6 +483,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         Image = image;
         Subtitle = DescribeSource(source, _request?.PackTitle is { } pack ? $"{source.Format.ToUpperInvariant()} image in {pack}" : $"{source.Format.ToUpperInvariant()} image");
         Mode = ViewerMode.Image;
+        await RecordOpenAsync(source.DocumentId);
     }
 
     async Task OpenPdfAsync(DocumentSource source, ViewerRequest request, int version)
@@ -418,7 +518,10 @@ public sealed partial class ViewerViewModel : PageViewModel
             CanCopy = doc.CanCopy;
             Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
 
-            var start = Math.Clamp(_resume?.PageIndex ?? request.PageIndex, 0, Math.Max(0, doc.PageCount - 1));
+            // An ordinary open goes back to the page the book was left at (choice 6); Back, to the page as it was.
+            var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;
+            if (version != _version) return;
+            var start = Math.Clamp(_resume?.PageIndex ?? (kept > 0 ? kept : request.PageIndex), 0, Math.Max(0, doc.PageCount - 1));
             _termHighlights = await TermHighlightsAsync(renderer, source.DocumentId, request, start);
             if (version != _version) return;
             // From a search hit, the first marked word is brought into view; coming Back, the page as it was left.
@@ -428,6 +531,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             Pdf = new OpenPdf(renderer, doc, TextAsync, start, top);
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
+            if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
+            await RecordOpenAsync(source.DocumentId);
         }
         catch
         {

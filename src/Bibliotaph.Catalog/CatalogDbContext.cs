@@ -18,6 +18,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
+    public DbSet<Favorite> Favorites => Set<Favorite>();
+    public DbSet<ReadingState> ReadingStates => Set<ReadingState>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<Rejection> Rejections => Set<Rejection>();
     public DbSet<VocabularyTerm> VocabularyTerms => Set<VocabularyTerm>();
@@ -136,6 +138,23 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(p => p.DocumentId);
             // User work points at page refs, so a document is never deleted out from under them.
             e.HasOne(p => p.Document).WithMany(d => d.PageRefs).HasForeignKey(p => p.DocumentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Favorite>(e =>
+        {
+            e.HasKey(f => f.EntryId);
+            e.Property(f => f.EntryId).ValueGeneratedNever();
+            e.HasOne<Entry>().WithOne().HasForeignKey<Favorite>(f => f.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReadingState>(e =>
+        {
+            e.HasKey(r => r.EntryId);
+            e.Property(r => r.EntryId).ValueGeneratedNever();
+            e.HasIndex(r => r.OpenedUtc);
+            e.HasIndex(r => r.DocumentId);
+            e.HasOne<Entry>().WithOne().HasForeignKey<ReadingState>(r => r.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Document>().WithMany().HasForeignKey(r => r.DocumentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));

@@ -7,7 +7,8 @@ namespace Bibliotaph.App.Controls;
 /// <summary>
 /// Draws one Lucide icon (a Geometry in Lucide's 24x24 space) as round-capped strokes, scaled to
 /// <see cref="Size"/> device-independent pixels, in the inherited Foreground. Matches the mockup:
-/// 17px icons with a 1.65 stroke in the 24-unit space.
+/// 17px icons with a 1.65 stroke in the 24-unit space. <see cref="Fill"/>, when set, also fills the shape: a
+/// favourite's heart.
 /// </summary>
 public sealed class LucideIcon : FrameworkElement
 {
@@ -24,6 +25,10 @@ public sealed class LucideIcon : FrameworkElement
     public static readonly DependencyProperty StrokeThicknessProperty = DependencyProperty.Register(
         nameof(StrokeThickness), typeof(double), typeof(LucideIcon),
         new FrameworkPropertyMetadata(1.65, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
+        nameof(Fill), typeof(Brush), typeof(LucideIcon),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty ForegroundProperty = TextElement.ForegroundProperty.AddOwner(
         typeof(LucideIcon),
@@ -53,6 +58,12 @@ public sealed class LucideIcon : FrameworkElement
         set => SetValue(StrokeThicknessProperty, value);
     }
 
+    public Brush? Fill
+    {
+        get => (Brush?)GetValue(FillProperty);
+        set => SetValue(FillProperty, value);
+    }
+
     public Brush Foreground
     {
         get => (Brush)GetValue(ForegroundProperty);
@@ -73,7 +84,7 @@ public sealed class LucideIcon : FrameworkElement
         pen.Freeze();
         var scale = Size / Canvas;
         drawingContext.PushTransform(new ScaleTransform(scale, scale));
-        drawingContext.DrawGeometry(null, pen, Data);
+        drawingContext.DrawGeometry(Fill, pen, Data);
         drawingContext.Pop();
     }
 }

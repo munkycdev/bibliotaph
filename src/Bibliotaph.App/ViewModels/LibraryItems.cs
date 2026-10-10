@@ -91,6 +91,28 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public bool HasCover => Cover is not null;
 
+    bool? _favorite;
+
+    /// <summary>
+    /// Marked with a heart (slice 3 plan, choice 5). A click shows the change at once; the next list from the index
+    /// that agrees with it takes over.
+    /// </summary>
+    public bool IsFavorite => _favorite ?? Entry.Favorite;
+
+    /// <summary>What the heart does, for its tooltip and screen readers.</summary>
+    public string FavoriteAction => IsFavorite ? "Remove from favorites" : "Add to favorites";
+
+    /// <summary>Shows the heart as set or not before the index has caught up.</summary>
+    public void ShowFavorite(bool favorite)
+    {
+        _favorite = favorite;
+        OnPropertyChanged(nameof(IsFavorite));
+        OnPropertyChanged(nameof(FavoriteAction));
+    }
+
+    /// <summary>When this book was last opened, for Home; null if never.</summary>
+    public DateTime? OpenedUtc => Entry.OpenedUtc;
+
     /// <summary>Ticked in the Library's Select mode. <see cref="BookSelection"/> sets it.</summary>
     public bool IsSelected
     {
@@ -128,6 +150,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public void Update(LibraryEntry entry)
     {
         if (entry == Entry) return;
+        if (_favorite == entry.Favorite) _favorite = null;
         var coverChanged = entry.Cover != Entry.Cover;
         Entry = entry;
         if (coverChanged)
@@ -151,6 +174,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(AiTip));
         OnPropertyChanged(nameof(ImagesLabel));
         OnPropertyChanged(nameof(Mosaic));
+        OnPropertyChanged(nameof(IsFavorite));
+        OnPropertyChanged(nameof(FavoriteAction));
+        OnPropertyChanged(nameof(OpenedUtc));
     }
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";

@@ -15,6 +15,12 @@ public abstract class PageViewModel : ObservableObject
     /// <summary>The page <see cref="Section"/> names, which the breadcrumb links to; null when it names no page.</summary>
     public virtual Route? SectionRoute => null;
 
+    /// <summary>
+    /// The part of its route the page shows, when the sidebar has an item of its own for it: the Library's Favorites
+    /// is the Library route scoped to "favorite". Raises PropertyChanged when it changes.
+    /// </summary>
+    public virtual string? NavScope => null;
+
     /// <summary>True for a page with its own scrolling list (a virtualized grid), which the shell must not wrap in a scroll viewer.</summary>
     public virtual bool ScrollsItself => false;
 

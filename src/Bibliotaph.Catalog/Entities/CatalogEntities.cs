@@ -3,8 +3,8 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Catalog.Entities;
 
 // Persistence shapes for catalog.db. Slice 0 created the core tables; slice 2 adds vocabulary, rejections and
-// classification runs; the foundation slice adds entries, which user work keys on; collections, smart views, session
-// packs and notes arrive by migration in slice 3.
+// classification runs; the foundation slice adds entries, which user work keys on; slice 3 adds favourites and reading
+// positions, then collections, smart views, session packs and notes, each by its own migration.
 // Domain behaviour lives in Core (Bibliotaph.Core.Metadata for metadata).
 
 /// <summary>A folder the user added. Its files are never marked missing while it is offline.</summary>
@@ -335,6 +335,26 @@ public sealed class PageRef
     public string? TextFingerprint { get; set; }
     public string? Label { get; set; }
     public bool IsStale { get; set; }
+}
+
+/// <summary>A book marked with a heart (slice 3 plan, choice 5).</summary>
+public sealed class Favorite
+{
+    public long EntryId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// When a book was last opened, and where its reader left it (choice 6). The page belongs to the document that was
+/// read, so a book whose current copy changed opens that copy at its start.
+/// </summary>
+public sealed class ReadingState
+{
+    public long EntryId { get; set; }
+    public long DocumentId { get; set; }
+    /// <summary>The zero-based PDF page in view when the reader last closed the book from an ordinary open.</summary>
+    public int PageIndex { get; set; }
+    public DateTime OpenedUtc { get; set; }
 }
 
 public sealed class Setting

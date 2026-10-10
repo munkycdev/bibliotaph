@@ -7,6 +7,53 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:HomeViewModel}">
+  <UserControl.Resources>
+    <Style x:Key="SectionLine" TargetType="DockPanel">
+      <Setter Property="Margin" Value="0,34,42,16" />
+    </Style>
+
+    <!--
+      A book on Home: its cover, title and a line about it. A click or Enter opens its details in the Library; the menu
+      (right-click, the Menu key or Shift+F10) also opens it, where it was left.
+    -->
+    <DataTemplate x:Key="HomeBook" DataType="{x:Type vm:LibraryItemViewModel}">
+      <Button x:Name="Card" Width="150" Margin="0,0,22,22" Cursor="Hand" ToolTip="{Binding Title}" AutomationProperties.Name="{Binding Title}"
+              ContextMenu="{DynamicResource BookMenu}" FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+              Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+              c:NewWindowGesture.Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+        <Button.Template>
+          <ControlTemplate TargetType="Button">
+            <StackPanel Background="Transparent">
+              <Grid x:Name="CoverArea">
+                <ContentControl Height="208" Content="{Binding}" ContentTemplate="{StaticResource Cover}" Focusable="False">
+                  <ContentControl.Effect>
+                    <DropShadowEffect BlurRadius="7" ShadowDepth="3" Direction="270" Opacity="0.15" />
+                  </ContentControl.Effect>
+                </ContentControl>
+                <Button x:Name="Heart" Style="{StaticResource CoverHeart}"
+                        Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+              </Grid>
+              <TextBlock Text="{Binding Title}" Margin="0,12,0,0" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                         TextTrimming="CharacterEllipsis" MaxHeight="34" LineHeight="17" LineStackingStrategy="BlockLineHeight"
+                         Foreground="{DynamicResource Bt.Text}" />
+              <TextBlock Text="{Binding Meta}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Heart" Property="Visibility" Value="Visible" />
+                <Setter TargetName="CoverArea" Property="RenderTransform">
+                  <Setter.Value>
+                    <TranslateTransform Y="-4" />
+                  </Setter.Value>
+                </Setter>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Button.Template>
+      </Button>
+    </DataTemplate>
+  </UserControl.Resources>
+
   <StackPanel>
     <!-- First run: no folders yet. Explain what Bibliotaph does and that files stay put (spec §4.1). -->
     <StackPanel Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}" MaxWidth="620" HorizontalAlignment="Left">
@@ -40,9 +87,55 @@
           </WrapPanel>
         </StackPanel>
       </Border>
-      <c:EmptyState Title="Indexing your library."
-                    Message="{Binding Activity.Summary, StringFormat='{}{0}. Browsing and search arrive with the next part of this build.'}"
+      <!-- Folders added but nothing read yet: indexing progress. -->
+      <c:EmptyState Title="Indexing your library." Visibility="{Binding HasBooks, Converter={StaticResource Bt.CollapsedWhenTrue}}"
+                    Message="{Binding Activity.Summary, StringFormat='{}{0}. Books appear here and in the Library as they are read.'}"
                     ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
+
+      <StackPanel Visibility="{Binding HasBooks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <!-- .bt-sectionline: the books opened last (slice 3 plan, choice 7). -->
+        <StackPanel Visibility="{Binding HasRecentlyOpened, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <DockPanel Style="{StaticResource SectionLine}">
+            <Button x:Name="BrowseLibrary" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Browse your library"
+                    c:Ui.Icon="{StaticResource Icon.ArrowRight}" Command="{Binding BrowseLibraryCommand}" />
+            <TextBlock Text="Recently opened" Style="{StaticResource Text.Row}" />
+          </DockPanel>
+          <ItemsControl x:Name="RecentlyOpened" ItemsSource="{Binding RecentlyOpened}" ItemTemplate="{StaticResource HomeBook}"
+                        Focusable="False" AutomationProperties.Name="Recently opened" KeyboardNavigation.TabNavigation="Continue">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </StackPanel>
+
+        <DockPanel Style="{StaticResource SectionLine}">
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Browse your library" c:Ui.Icon="{StaticResource Icon.ArrowRight}"
+                  Command="{Binding BrowseLibraryCommand}"
+                  Visibility="{Binding HasRecentlyOpened, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+          <TextBlock Text="Recently added" Style="{StaticResource Text.Row}" />
+        </DockPanel>
+        <ItemsControl x:Name="RecentlyAdded" ItemsSource="{Binding RecentlyAdded}" ItemTemplate="{StaticResource HomeBook}"
+                      Focusable="False" AutomationProperties.Name="Recently added" KeyboardNavigation.TabNavigation="Continue">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+
+        <!-- Ways into the library. Collections and Smart Views join Favorites as they arrive (3b, 3e). -->
+        <StackPanel Visibility="{Binding HasFavorites, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <DockPanel Style="{StaticResource SectionLine}">
+            <TextBlock Text="Pick up a thread" Style="{StaticResource Text.Row}" />
+          </DockPanel>
+          <WrapPanel>
+            <Button x:Name="OpenFavorites" Content="Your favorites" c:Ui.Icon="{StaticResource Icon.Heart}" Margin="0,0,8,8"
+                    Command="{Binding OpenFavoritesCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </StackPanel>
     </StackPanel>
   </StackPanel>
 </UserControl>

@@ -17,6 +17,18 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
 
     /// <summary>The pack's title, under the image's.</summary>
     public string? PackTitle { get; init; }
+
+    /// <summary>
+    /// An ordinary open, from the Library or Home (slice 3 plan, choice 6): the book opens at the page it was left at
+    /// last time, and the page it is left at is kept for next time. A search hit opens at its page and keeps nothing.
+    /// </summary>
+    public bool Resume { get; init; }
+
+    /// <summary>
+    /// Keeps the page the book is left at, like <see cref="Resume"/>, but opens at <see cref="PageIndex"/>: the same
+    /// read moving to another window.
+    /// </summary>
+    public bool KeepsPlace { get; init; }
 }
 
 /// <summary>An image of a pack the viewer can step to.</summary>

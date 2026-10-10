@@ -96,10 +96,10 @@ public sealed class LibraryQueriesTests : IndexFixture
         // The Documents tab finds it by its title and by where it is owned; Inside documents never does.
         Assert.Contains(printed, (await _library.SearchDocumentsAsync(Plan("dragon"), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId));
         Assert.DoesNotContain(printed, (await _library.SearchPagesAsync(Plan("dragon"), new LibraryFilter(), ct: Ct)).Entries.Select(e => e.Entry.EntryId));
-        Assert.Equal([printed], (await _library.ListAsync(new LibraryFilter(), Plan("own:foundry"), Ct)).Select(e => e.EntryId));
+        Assert.Equal([printed], (await _library.ListAsync(new LibraryFilter(), Plan("own:foundry"), ct: Ct)).Select(e => e.EntryId));
         Assert.Equal([printed], (await _library.ListAsync(new LibraryFilter(Owns: ["print"]), ct: Ct)).Select(e => e.EntryId));
-        Assert.Contains(printed, (await _library.ListAsync(new LibraryFilter(), Plan("-format:png"), Ct)).Select(e => e.EntryId));
-        Assert.DoesNotContain(printed, (await _library.ListAsync(new LibraryFilter(), Plan("format:pdf"), Ct)).Select(e => e.EntryId));
+        Assert.Contains(printed, (await _library.ListAsync(new LibraryFilter(), Plan("-format:png"), ct: Ct)).Select(e => e.EntryId));
+        Assert.DoesNotContain(printed, (await _library.ListAsync(new LibraryFilter(), Plan("format:pdf"), ct: Ct)).Select(e => e.EntryId));
         Assert.Equal([("foundry", 1L), ("print", 1L), (SearchQuery.Unknown, 4L)],
             (await _library.GetFacetCountsAsync("own", new LibraryFilter(), ct: Ct)).Select(c => (c.Value, c.Count)).Order());
         Assert.DoesNotContain(await _library.GetFormatCountsAsync(new LibraryFilter(), Ct), c => c.Value.Length == 0);
@@ -210,6 +210,56 @@ public sealed class LibraryQueriesTests : IndexFixture
         var notRead = await DocumentsAsync("dragon", new LibraryFilter(Ai: AiFilter.NotRead));
         Assert.Equal([Lairs], notRead);
         Assert.All(await PagesAsync("dragon", new LibraryFilter(Ai: AiFilter.Read)), hit => Assert.Equal(Gazetteer, hit.Doc));
+    }
+
+    [Fact]
+    public async Task Favorites_are_a_group_the_library_can_show_on_its_own_and_search_by()
+    {
+        var store = new IndexStore(Writer, Clock);
+        await store.SetScopesAsync(null, [(EntryOf(Gazetteer), ScopeKeys.Favorites), (EntryOf(Lairs), ScopeKeys.Favorites)], Ct);
+        // Reprojecting two entries: the Lairs heart goes, the inn's comes, the Gazetteer's is untouched.
+        await store.SetScopesAsync([EntryOf(Lairs), EntryOf(HauntedInn)], [(EntryOf(HauntedInn), ScopeKeys.Favorites), (EntryOf(TavernMap), ScopeKeys.Favorites)], Ct);
+
+        var favorites = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(e => e.DocumentId, e => e.Favorite);
+        Assert.Equal((true, true, false, false), (favorites[Gazetteer], favorites[HauntedInn], favorites[Lairs], favorites[TavernMap]));
+        Assert.Equal([HauntedInn, Gazetteer],
+            (await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyAdded, Group: ScopeKeys.Favorites), ct: Ct)).Select(e => e.DocumentId));
+        var inFavorites = await DocumentsAsync("marches", new LibraryFilter(Group: ScopeKeys.Favorites));
+        Assert.Equal([Gazetteer], inFavorites);
+        Assert.Empty(await DocumentsAsync("dragon", new LibraryFilter(Group: ScopeKeys.Favorites)));
+        var pages = await PagesAsync("dragon", new LibraryFilter(Group: ScopeKeys.Favorites));
+        Assert.NotEmpty(pages);
+        Assert.All(pages, hit => Assert.Equal(Gazetteer, hit.Doc));
+
+        // favorite:yes and favorite:no, alone or with words.
+        Assert.Equal([Gazetteer, HauntedInn], (await DocumentsAsync("favorite:yes")).Order());
+        Assert.Equal([Lairs, TavernMap], (await DocumentsAsync("fav:no")).Order());
+        var dragons = await DocumentsAsync("dragon -favorite:yes");
+        Assert.Equal([Lairs], dragons);
+
+        await store.RemoveEntriesAsync([EntryOf(Gazetteer)], Ct);
+        Assert.Equal(1, Connection.ExecuteScalar<long>("SELECT count(*) FROM entry_scope"));
+    }
+
+    [Fact]
+    public async Task Recently_opened_puts_the_last_opened_first_and_can_keep_only_opened_books()
+    {
+        var store = new IndexStore(Writer, Clock);
+        var monday = new DateTime(2026, 10, 5, 9, 0, 0, DateTimeKind.Utc);
+        await store.SetOpenedAsync(null, new Dictionary<EntryId, DateTime> { [EntryOf(Gazetteer)] = monday, [EntryOf(TavernMap)] = monday.AddDays(1) }, Ct);
+
+        var all = await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyOpened), ct: Ct);
+        // Then those never opened, newest first.
+        Assert.Equal([TavernMap, Gazetteer, HauntedInn, Lairs], all.Select(e => e.DocumentId));
+        Assert.Equal(monday.AddDays(1), all[0].OpenedUtc);
+        Assert.Equal(DateTimeKind.Utc, all[0].OpenedUtc!.Value.Kind);
+        Assert.Null(all[2].OpenedUtc);
+        Assert.Equal([TavernMap],
+            (await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: 1, ct: Ct)).Select(e => e.DocumentId));
+
+        await store.SetOpenedAsync([EntryOf(Lairs)], new Dictionary<EntryId, DateTime> { [EntryOf(Lairs)] = monday.AddDays(2) }, Ct);
+        Assert.Equal([Lairs, TavernMap, Gazetteer],
+            (await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), ct: Ct)).Select(e => e.DocumentId));
     }
 
     [Fact]
