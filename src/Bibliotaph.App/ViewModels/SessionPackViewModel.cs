@@ -35,6 +35,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly ILogger<SessionPackViewModel> _log;
     readonly DispatcherTimer _notesTimer;
     int _version;
+    int _ownWrites;
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
@@ -110,6 +111,8 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         Actions.Done -= OnDone;
         Actions.Done += OnDone;
+        _sessions.Changed -= OnSessionsChanged;
+        _sessions.Changed += OnSessionsChanged;
         await Actions.Directory.LoadAsync();
         // Opening the pack makes it the current one.
         await RefreshAsync(open: true);
@@ -118,11 +121,25 @@ public sealed partial class SessionPackViewModel : PageViewModel
     public override void Unload()
     {
         Actions.Done -= OnDone;
+        _sessions.Changed -= OnSessionsChanged;
         Actions.Close();
         if (_notesDirty) _ = SaveNotesAsync();
     }
 
     async void OnDone(object? sender, EventArgs e) => await RefreshAsync();
+
+    /// <summary>
+    /// A session changed somewhere else, such as a page added from the reader, a place taken on a Needs review card or
+    /// another window. This page's own writes are left out: each one already shows its result.
+    /// </summary>
+    void OnSessionsChanged(object? sender, EventArgs e)
+    {
+        if (Volatile.Read(ref _ownWrites) > 0) return;
+        _notesTimer.Dispatcher.InvokeAsync(async () =>
+        {
+            if (IsLoaded || IsMissing) await RefreshAsync();
+        });
+    }
 
     public async Task RefreshAsync(bool open = false, long? focus = null)
     {
@@ -302,6 +319,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
 
     async Task<bool> RunAsync(Func<Task<bool>> action, string failure)
     {
+        Interlocked.Increment(ref _ownWrites);
         try
         {
             return await Task.Run(action);
@@ -311,6 +329,10 @@ public sealed partial class SessionPackViewModel : PageViewModel
             _log.LogError(ex, "{Failure}", failure);
             Actions.Say("That didn't work. The log has the details.");
             return false;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _ownWrites);
         }
     }
 }
