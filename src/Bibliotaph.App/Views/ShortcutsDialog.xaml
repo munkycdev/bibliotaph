@@ -14,8 +14,11 @@
     <Button x:Name="CloseShortcuts" DockPanel.Dock="Bottom" Content="Close" AutomationProperties.Name="Close" IsDefault="True" IsCancel="True" Style="{StaticResource Bt.Button.Primary}"
             HorizontalAlignment="Right" Margin="0,16,0,0" />
 
-    <!-- Focusable, so the arrow keys and Page Down scroll the list without a mouse. -->
-    <ScrollViewer x:Name="ShortcutList" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+    <!--
+      A Tab stop, so the arrow keys and Page Down scroll the list without a mouse. A scroll viewer isn't one unless told:
+      without it, Close would be the popup's only stop.
+    -->
+    <ScrollViewer x:Name="ShortcutList" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="True" IsTabStop="True"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" AutomationProperties.Name="Keyboard shortcuts">
       <ItemsControl ItemsSource="{x:Static s:KeyboardShortcuts.All}" Focusable="False" Margin="0,0,12,0">
         <ItemsControl.ItemTemplate>
