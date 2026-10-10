@@ -59,6 +59,26 @@ public sealed partial class PipelineTests
     Task SwitchAiOnAsync(string model = "fake-8b", IReadOnlySet<long>? skipped = null) =>
         _ai.SaveAsync(new AiSetup(Endpoint, model, "ollama", Enabled: true, RemoteAllowed: false, skipped ?? new HashSet<long>()), Ct);
 
+    [Fact]
+    public async Task The_built_in_choice_is_saved_beside_the_model_server_and_both_come_back()
+    {
+        await _ai.SaveAsync(new AiSetup(Endpoint, "fake-8b", "ollama", Enabled: true, RemoteAllowed: false, new HashSet<long>(),
+            BuiltIn: true, BuiltInModel: "qwen3-8b"), Ct);
+
+        var loaded = new AiSettings(_settings, new NoApiKeys());
+        await loaded.LoadAsync(Ct);
+
+        Assert.Equal((true, "qwen3-8b", Endpoint, "fake-8b"), (loaded.Setup.BuiltIn, loaded.Setup.BuiltInModel, loaded.Setup.Endpoint, loaded.Setup.Model));
+        Assert.Equal(("built-in", "Qwen3 8B (built in)"), (loaded.Setup.RunProvider, loaded.Setup.ModelName));
+        // This AiSettings has no engine (as in tests), so there is no classifier, however ready the setup is.
+        Assert.True(loaded.Setup.IsReady);
+        Assert.Null(loaded.Classifier);
+
+        await loaded.SaveAsync(loaded.Setup with { BuiltIn = false }, Ct);
+        await _ai.LoadAsync(Ct);
+        Assert.Equal((false, "qwen3-8b"), (_ai.Setup.BuiltIn, _ai.Setup.BuiltInModel));
+    }
+
     /// <summary>Waits until indexing is idle and the Classify lane has nothing left.</summary>
     async Task<IndexProgress> SettleClassifyAsync()
     {

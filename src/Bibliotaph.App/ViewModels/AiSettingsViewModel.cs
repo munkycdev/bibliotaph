@@ -23,13 +23,14 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 }
 
 /// <summary>
-/// Settings > AI (choice 10): the model server and model, a key if the server needs one, Test, which library folders
-/// are sent, and how far classification has got, with Reclassify. AI is off until an endpoint and model are saved and
-/// switched on; an endpoint off this computer and network needs the user's say-so as well.
+/// Settings > AI (choice 10): Built in or a model server (Built-in AI plan, choice 7); for a server, its address and
+/// model, a key if it needs one, and Test; which library folders are sent, and how far classification has got, with
+/// Reclassify. AI is off until a model is set up and switched on; an endpoint off this computer and network needs the
+/// user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
-    PilotPanelViewModel pilot, ILogger<AiSettingsViewModel> log)
+    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, ILogger<AiSettingsViewModel> log)
     : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Ai;
@@ -41,6 +42,62 @@ public sealed partial class AiSettingsViewModel(
     public PilotPanelViewModel Pilot { get; } = pilot;
 
     public bool ShowPilot => pilotMode.IsOn;
+
+    /// <summary>The Built in panel: its models, download and Test.</summary>
+    public BuiltInAiViewModel BuiltIn { get; } = builtIn;
+
+    /// <summary>
+    /// The page shows Built in rather than the model server: when the built-in AI is in use, and for anyone who hasn't
+    /// set AI up at all (choice 7). Showing it changes nothing until a model is chosen or downloaded.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowBuiltIn { get; private set; }
+
+    partial void OnShowBuiltInChanged(bool value)
+    {
+        BuiltIn.IsShown = value;
+        OnPropertyChanged(nameof(UseBuiltIn));
+        OnPropertyChanged(nameof(UseServer));
+    }
+
+    /// <summary>The Built in side of the choice. Switching keeps the model server's settings for a switch back.</summary>
+    public bool UseBuiltIn
+    {
+        get => ShowBuiltIn;
+        set { if (value && !ShowBuiltIn) _ = SwitchToBuiltInAsync(); }
+    }
+
+    /// <summary>The Use a model server side. Switching keeps the built-in model, downloaded, for a switch back.</summary>
+    public bool UseServer
+    {
+        get => !ShowBuiltIn;
+        set { if (value && ShowBuiltIn) _ = SwitchToServerAsync(); }
+    }
+
+    async Task SwitchToBuiltInAsync()
+    {
+        ShowBuiltIn = true;
+        SwitchProblem = null;
+        SaveNote = null;
+        await BuiltIn.ShowAsync();
+    }
+
+    async Task SwitchToServerAsync()
+    {
+        ShowBuiltIn = false;
+        SwitchProblem = null;
+        if (ai.Setup.BuiltIn) await ai.SaveAsync(ai.Setup with { BuiltIn = false });
+        IsOn = ai.Setup.Enabled;
+        await RefreshProgressAsync();
+        if (ai.Setup.Endpoint is not null && !HasModels) _ = ConnectAsync();
+    }
+
+    void OnBuiltInSaved(object? sender, EventArgs e)
+    {
+        IsOn = ai.Setup.Enabled;
+        SwitchProblem = null;
+        _ = RefreshProgressAsync();
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsRemote))]
@@ -151,6 +208,10 @@ public sealed partial class AiSettingsViewModel(
         RemoteAllowed = setup.RemoteAllowed;
         IsOn = setup.Enabled;
         HasSavedKey = setup.Endpoint is { } saved && ai.Keys.Find(saved) is { Length: > 0 };
+        ShowBuiltIn = setup.BuiltIn || (setup.Endpoint is null && setup.Model is null);
+        BuiltIn.Saved -= OnBuiltInSaved;
+        BuiltIn.Saved += OnBuiltInSaved;
+        BuiltIn.Load();
         Dirty = false;
         SaveNote = null;
         // Saying it is set up but the user hasn't been asked would show the first-run step again.
@@ -166,12 +227,14 @@ public sealed partial class AiSettingsViewModel(
         Activity.Refreshed += OnActivityRefreshed;
         await RefreshProgressAsync();
         if (ShowPilot) await Pilot.LoadAsync();
-        if (setup.Endpoint is not null) _ = ConnectAsync();
+        if (setup.Endpoint is not null && !ShowBuiltIn) _ = ConnectAsync();
     }
 
     public override void Unload()
     {
         Activity.Refreshed -= OnActivityRefreshed;
+        BuiltIn.Saved -= OnBuiltInSaved;
+        BuiltIn.Unload();
         Pilot.Unload();
     }
 
@@ -187,7 +250,7 @@ public sealed partial class AiSettingsViewModel(
             Failed = progress.ClassifyFailed;
             OnPropertyChanged(nameof(ReclassifyText));
             OnPropertyChanged(nameof(ReclassifyLabel));
-            var model = ai.Setup.Model;
+            var model = ai.Setup.ModelName;
             ProgressText = model is null || !ai.Setup.Enabled
                 ? $"{summary.Current + summary.Earlier:N0} {Books(summary.Current + summary.Earlier)} classified so far."
                 : progress.ToClassify > 0
@@ -270,7 +333,8 @@ public sealed partial class AiSettingsViewModel(
         var was = ai.Setup;
         // A first save switches AI on: that's what saving a model is for. Later saves keep it as it was.
         var enabled = was.Endpoint is null || was.Model is null || was.Enabled;
-        await ai.SaveAsync(was with { Endpoint = endpoint, Model = Model.Trim(), Provider = _provider ?? "", Enabled = enabled, RemoteAllowed = RemoteAllowed });
+        // Saving a model server means using it, instead of the built-in AI.
+        await ai.SaveAsync(was with { Endpoint = endpoint, Model = Model.Trim(), Provider = _provider ?? "", Enabled = enabled, RemoteAllowed = RemoteAllowed, BuiltIn = false });
         Endpoint = endpoint;
         IsOn = enabled;
         SwitchProblem = null;
@@ -310,7 +374,15 @@ public sealed partial class AiSettingsViewModel(
 
     async Task SwitchAsync(bool on)
     {
-        if (on && (ai.Setup.Endpoint is null || ai.Setup.Model is null))
+        if (on && ShowBuiltIn && (!ai.Setup.BuiltIn || ai.Setup.BuiltInModel is null))
+        {
+            await Task.Yield();
+            OnIsOnChanged(IsOn);
+            SwitchNote = null;
+            SwitchProblem = "Download a model below first. Downloading turns AI on.";
+            return;
+        }
+        if (on && !ShowBuiltIn && (ai.Setup.Endpoint is null || ai.Setup.Model is null))
         {
             // The radio button has already checked itself; putting it back has to wait until its click is over.
             await Task.Yield();

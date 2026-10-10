@@ -184,8 +184,15 @@ public partial class App : Application
         builder.Services.AddSingleton<ApiKeyVault>();
         builder.Services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
         // The built-in AI's engine (llama.cpp's server, in aiworker\); nothing starts until there is a book to read.
-        builder.Services.AddSingleton(sp => new BuiltInEngine(new BuiltInEngineOptions(), new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
+        builder.Services.AddSingleton(new BuiltInEngineOptions { ModelsFolder = paths.Models });
+        builder.Services.AddSingleton(sp => new BuiltInEngine(sp.GetRequiredService<BuiltInEngineOptions>(),
+            new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
+        // Its models, downloaded only when Download is pressed. Pause and Cancel stop a download; nothing else times it out.
+        builder.Services.AddSingleton(sp => new BuiltInModelDownloads(sp.GetRequiredService<BuiltInEngineOptions>(),
+            new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan }, null,
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInModelDownloads>>()));
+        builder.Services.AddSingleton<GraphicsMemory>();
         builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(), null,
             sp.GetRequiredService<BuiltInEngine>()));
         builder.Services.AddSingleton<ClassifierInputs>();
@@ -280,6 +287,7 @@ public partial class App : Application
         builder.Services.AddTransient<StartOverSectionViewModel>();
         builder.Services.AddTransient<BackupSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
+        builder.Services.AddTransient<BuiltInAiViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
         builder.Services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
@@ -320,6 +328,7 @@ public partial class App : Application
         await ai.LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
+        services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
