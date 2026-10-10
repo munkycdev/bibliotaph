@@ -336,7 +336,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         }, ct);
 
     /// <summary>
-    /// Replaces which groups these entries are in (entry_scope: favourites now, collections and packs later), or every
+    /// Replaces which groups these entries are in (entry_scope: favourites and collections, packs later), or every
     /// entry's when <paramref name="entryIds"/> is null. <paramref name="scopes"/> lists each entry's groups by name.
     /// </summary>
     public Task SetScopesAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyCollection<(EntryId EntryId, string Scope)> scopes, CancellationToken ct = default) =>
@@ -346,6 +346,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             else c.Execute("DELETE FROM entry_scope WHERE entry_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(entryIds) }, t);
             c.Execute("INSERT OR IGNORE INTO entry_scope (scope, entry_id) VALUES (@scope, @entryId)",
                 scopes.Where(s => entryIds is null || entryIds.Contains(s.EntryId)).Select(s => new { scope = s.Scope, entryId = s.EntryId.Value }), t);
+        }, ct);
+
+    /// <summary>Replaces the names of the groups (scope_name), such as each collection's, all at once.</summary>
+    public Task SetScopeNamesAsync(IReadOnlyCollection<(string Scope, string Name)> names, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            c.Execute("DELETE FROM scope_name", transaction: t);
+            c.Execute("INSERT OR REPLACE INTO scope_name (scope, name) VALUES (@scope, @name)", names.Select(n => new { scope = n.Scope, name = n.Name }), t);
         }, ct);
 
     /// <summary>Replaces when these entries were last opened, or every entry's when <paramref name="entryIds"/> is null.</summary>

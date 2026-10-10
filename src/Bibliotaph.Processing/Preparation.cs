@@ -41,3 +41,70 @@ public sealed class ReadingService(ReadingStore reading, MetadataProjector proje
 
     public Task<int> GetPositionAsync(long documentId, CancellationToken ct = default) => reading.GetPositionAsync(documentId, ct);
 }
+
+/// <summary>
+/// Collections (slice 3 plan, choices 8 to 10): each change goes to catalog.db, then the collections' names and the
+/// changed entries' marks are projected, so a scoped Library and <c>collection:"name"</c> follow at once.
+/// </summary>
+public sealed class CollectionsService(CollectionStore collections, MetadataProjector projector)
+{
+    /// <summary>Raised after any collection changed, on the thread that changed it.</summary>
+    public event EventHandler? Changed;
+
+    public Task<IReadOnlyList<CollectionInfo>> ListAsync(CancellationToken ct = default) => collections.ListAsync(ct);
+
+    public Task<IReadOnlyList<long>> GetForEntryAsync(EntryId entryId, CancellationToken ct = default) => collections.GetForEntryAsync(entryId, ct);
+
+    public async Task<CollectionInfo> CreateAsync(string name, long? parentId = null, string? description = null, CancellationToken ct = default)
+    {
+        var created = await collections.CreateAsync(name, parentId, description, ct);
+        await ProjectAsync([], ct);
+        return created;
+    }
+
+    public async Task RenameAsync(long collectionId, string name, string? description, CancellationToken ct = default)
+    {
+        if (await collections.RenameAsync(collectionId, name, description, ct)) await ProjectAsync([], ct);
+    }
+
+    public async Task SetPinnedAsync(long collectionId, bool pinned, CancellationToken ct = default)
+    {
+        if (await collections.SetPinnedAsync(collectionId, pinned, ct)) await ProjectAsync([], ct);
+    }
+
+    public async Task MoveAsync(long collectionId, long? parentId, CancellationToken ct = default) =>
+        await ProjectAsync(await collections.MoveAsync(collectionId, parentId, ct), ct);
+
+    public async Task<CollectionDeletion?> DeleteAsync(long collectionId, CancellationToken ct = default)
+    {
+        var (deleted, changed) = await collections.DeleteAsync(collectionId, ct);
+        if (deleted is not null) await ProjectAsync(changed, ct);
+        return deleted;
+    }
+
+    public async Task RestoreAsync(CollectionDeletion deleted, CancellationToken ct = default) =>
+        await ProjectAsync(await collections.RestoreAsync(deleted, ct), ct);
+
+    /// <summary>Adds books to a collection. Returns those that weren't in it already, for Undo.</summary>
+    public async Task<IReadOnlyList<EntryId>> AddAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        var added = await collections.AddAsync(collectionId, entryIds, ct);
+        // Even when every book was in it already: the collection was used, so it heads the recent ones.
+        await ProjectAsync(added, ct);
+        return added;
+    }
+
+    /// <summary>Takes books out of a collection. Returns those that were in it, for Undo.</summary>
+    public async Task<IReadOnlyList<EntryId>> RemoveAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        var removed = await collections.RemoveAsync(collectionId, entryIds, ct);
+        if (removed.Count > 0) await ProjectAsync(removed, ct);
+        return removed;
+    }
+
+    async Task ProjectAsync(IReadOnlyCollection<EntryId> changed, CancellationToken ct)
+    {
+        await projector.ProjectCollectionsAsync(changed, ct);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+}

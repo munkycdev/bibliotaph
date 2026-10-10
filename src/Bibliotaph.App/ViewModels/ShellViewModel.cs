@@ -198,19 +198,24 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
-    /// <summary>Marks the sidebar item for the page shown: Favorites, not Library, for the Library scoped to favorites.</summary>
+    /// <summary>
+    /// Marks the sidebar item for the page shown: Favorites, not Library, for the Library scoped to favorites, and
+    /// Collections for a collection's.
+    /// </summary>
     void ShowActiveItem()
     {
         foreach (var item in NavItems.Concat(SmartViews).Append(Settings))
-            item.IsActive = item.Route == CurrentPage?.Route && item.Scope?.Key == CurrentPage?.NavScope;
+            item.IsActive = item.Route == CurrentPage?.NavRoute && item.Scope?.Key == CurrentPage?.NavScope;
     }
 
     void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PageViewModel.NavScope) or nameof(PageViewModel.Title))
+        if (e.PropertyName is nameof(PageViewModel.NavScope) or nameof(PageViewModel.NavRoute) or nameof(PageViewModel.Title) or nameof(PageViewModel.Section))
         {
             ShowActiveItem();
             OnPropertyChanged(nameof(Title));
+            OnPropertyChanged(nameof(Section));
+            OpenSectionCommand.NotifyCanExecuteChanged();
         }
     }
 

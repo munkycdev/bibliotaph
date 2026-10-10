@@ -337,6 +337,32 @@ public sealed class PageRef
     public bool IsStale { get; set; }
 }
 
+/// <summary>
+/// A collection (slice 3 plan, choice 8): a named group of entries, inside another collection or at the top. A book can
+/// be in any number of collections; deleting one removes only the grouping.
+/// </summary>
+public sealed class CollectionNode
+{
+    public long Id { get; set; }
+    /// <summary>The collection this one sits in, or null at the top.</summary>
+    public long? ParentId { get; set; }
+    public required string Name { get; set; }
+    public string? Description { get; set; }
+    /// <summary>Shown first on the Collections page and on Home.</summary>
+    public bool Pinned { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    /// <summary>When a book was last added to it or it was made: the menu's recent collections.</summary>
+    public DateTime UsedUtc { get; set; }
+}
+
+/// <summary>An entry added to a collection (choice 10).</summary>
+public sealed class CollectionItem
+{
+    public long CollectionId { get; set; }
+    public long EntryId { get; set; }
+    public DateTime AddedUtc { get; set; }
+}
+
 /// <summary>A book marked with a heart (slice 3 plan, choice 5).</summary>
 public sealed class Favorite
 {

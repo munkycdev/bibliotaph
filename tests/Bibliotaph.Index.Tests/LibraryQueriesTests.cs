@@ -242,6 +242,38 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_collection_is_a_group_found_by_its_name_and_counted_for_its_card()
+    {
+        var store = new IndexStore(Writer, Clock);
+        // Campaign (12) holds the Gazetteer itself and, through its Maps sub-collection (13), the tavern map.
+        await store.SetScopesAsync(null,
+        [
+            (EntryOf(Gazetteer), ScopeKeys.Collection(12)), (EntryOf(Gazetteer), ScopeKeys.CollectionOwn(12)),
+            (EntryOf(TavernMap), ScopeKeys.Collection(12)), (EntryOf(TavernMap), ScopeKeys.Collection(13)), (EntryOf(TavernMap), ScopeKeys.CollectionOwn(13)),
+        ], Ct);
+        await store.SetScopeNamesAsync(
+            [(ScopeKeys.Collection(12), "Winter campaign"), (ScopeKeys.CollectionOwn(12), "Winter campaign"), (ScopeKeys.Collection(13), "Maps"),
+                (ScopeKeys.CollectionOwn(13), "Maps")], Ct);
+
+        Assert.Equal([Gazetteer, TavernMap], (await DocumentsAsync("collection:\"winter campaign\"")).Order());
+        Assert.Equal([Gazetteer, TavernMap], (await DocumentsAsync("collection:wint*")).Order());
+        var maps = await DocumentsAsync("collections:maps");
+        Assert.Equal([TavernMap], maps);
+        Assert.Equal([Lairs, HauntedInn], (await DocumentsAsync("-collection:\"Winter campaign\"")).Order());
+        Assert.Empty(await DocumentsAsync("collection:winter"));
+        Assert.Equal([Gazetteer], (await _library.ListAsync(new LibraryFilter(Group: ScopeKeys.CollectionOwn(12)), ct: Ct)).Select(e => e.DocumentId));
+
+        var counts = await _library.CountGroupsAsync("collection:", null, Ct);
+        Assert.Equal(2, counts[ScopeKeys.Collection(12)]);
+        Assert.Equal(1, counts[ScopeKeys.Collection(13)]);
+        Assert.False(counts.ContainsKey(ScopeKeys.CollectionOwn(12)));
+        Assert.Equal(1, (await _library.CountGroupsAsync("collection:", [EntryOf(Gazetteer)], Ct))[ScopeKeys.Collection(12)]);
+
+        await store.SetScopeNamesAsync([(ScopeKeys.Collection(12), "Spring campaign")], Ct);
+        Assert.Empty(await DocumentsAsync("collection:\"winter campaign\""));
+    }
+
+    [Fact]
     public async Task Recently_opened_puts_the_last_opened_first_and_can_keep_only_opened_books()
     {
         var store = new IndexStore(Writer, Clock);

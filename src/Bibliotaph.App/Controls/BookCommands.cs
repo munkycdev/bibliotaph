@@ -16,4 +16,10 @@ public static class BookCommands
 
     /// <summary>Add to favorites, or Remove from favorites (slice 3 plan, choice 5).</summary>
     public static RoutedUICommand ToggleFavorite { get; } = new("Favorite", nameof(ToggleFavorite), typeof(BookCommands));
+
+    /// <summary>
+    /// Add to collection (slice 3 plan, choice 10), with a <see cref="CollectionRequest"/>: its target is the card's book,
+    /// or the details it was picked in.
+    /// </summary>
+    public static RoutedUICommand AddToCollection { get; } = new("Add to collection", nameof(AddToCollection), typeof(BookCommands));
 }

@@ -92,12 +92,28 @@
     </Grid.RowDefinitions>
 
     <DockPanel Margin="0,0,42,24">
-      <Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}"
-              Command="{Binding AddFolderCommand}" />
-      <Button x:Name="CheckDownload" DockPanel.Dock="Right" VerticalAlignment="Top" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
-              Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
-      <Button x:Name="AddElsewhere" DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
-              Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
+                  Visibility="{Binding IsWholeLibrary, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <Button x:Name="AddElsewhere" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
+                Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
+        <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
+                Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
+        <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+      </StackPanel>
+      <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->
+      <StackPanel x:Name="CollectionActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
+                  Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <Button x:Name="NewSubCollection" Content="New collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
+                Command="{Binding NewSubCollectionCommand}" ToolTip="Make a collection inside this one" />
+        <Button x:Name="RenameCollection" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameCollectionCommand}"
+                ToolTip="Change its name or description" AutomationProperties.Name="Rename the collection" />
+        <Button x:Name="MoveCollection" Content="Move to…" c:Ui.Icon="{StaticResource Icon.FolderInput}" Margin="0,0,8,0" Command="{Binding MoveCollectionCommand}"
+                ToolTip="Put it inside another collection, or at the top" AutomationProperties.Name="Move the collection" />
+        <Button x:Name="PinCollection" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" Margin="0,0,8,0" Command="{Binding TogglePinCommand}"
+                ToolTip="Pinned collections show first on Collections, and on Home" />
+        <Button x:Name="DeleteCollection" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteCollectionCommand}"
+                ToolTip="Delete the collection. Its books stay in your library, and Undo brings it back." AutomationProperties.Name="Delete the collection" />
+      </StackPanel>
       <StackPanel>
         <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H1}" />
         <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Subtitle}" />
@@ -198,6 +214,30 @@
                   Command="{Binding ClearScopeCommand}" />
         </StackPanel>
       </Border>
+      <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out (choice 9). -->
+      <StackPanel Visibility="{Binding HasSubCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ItemsControl x:Name="SubCollections" ItemsSource="{Binding SubCollections}" ItemTemplate="{StaticResource CollectionCard}"
+                      Focusable="False" AutomationProperties.Name="Collections inside this one" KeyboardNavigation.TabNavigation="Continue">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+        <CheckBox x:Name="OnlyAddedHere" Content="Only books added here" IsChecked="{Binding OnlyAddedHere}" Margin="0,0,0,14" FontSize="11"
+                  Foreground="{DynamicResource Bt.Text}" ToolTip="Leave out the books that are only in the collections inside this one" />
+      </StackPanel>
+      <!-- What the last collection change did, with Undo. -->
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+              Visibility="{Binding Collections.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button x:Name="UndoCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding Collections.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the collection change"
+                  Visibility="{Binding Collections.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock x:Name="CollectionMessage" Text="{Binding Collections.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
       <!-- Select mode: how many are ticked, Edit metadata, Clear and Done. -->
       <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14" AutomationProperties.Name="Selection"
               Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -205,6 +245,15 @@
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
             <Button Style="{StaticResource Bt.Button.Primary}" Content="Edit metadata" c:Ui.Icon="{StaticResource Icon.Pencil}"
                     Command="{Binding EditSelectedCommand}" Margin="0,0,8,0" ToolTip="Change fields on every selected book at once" />
+            <Button x:Name="AddSelectedToCollection" Content="Add to collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
+                    Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a collection">
+              <Button.ContextMenu>
+                <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{Binding AddSelectedToCollectionCommand}" />
+              </Button.ContextMenu>
+            </Button>
+            <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,0,8,0" Command="{Binding RemoveSelectedFromCollectionCommand}"
+                    ToolTip="Take the selected books out of this collection. They stay in your library."
+                    Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}" />
             <Button Content="Clear" Command="{Binding ClearSelectionCommand}" Margin="0,0,8,0" AutomationProperties.Name="Clear the selection" />
             <Button Content="Done" Command="{Binding StopSelectingCommand}" ToolTip="Leave Select mode (Esc)" AutomationProperties.Name="Done selecting" />
           </StackPanel>
@@ -486,6 +535,43 @@
               </StackPanel>
             </Grid>
 
+            <!-- The collections the book is in (slice 3 plan, choice 10): a chip opens one, its × takes the book out. -->
+            <DockPanel Margin="0,28,0,10">
+              <Button x:Name="AddToCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Add to collection"
+                      c:Ui.Icon="{StaticResource Icon.FolderPlus}" Click="DropDown_Click" ToolTip="Add this book to a collection">
+                <Button.ContextMenu>
+                  <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}" />
+                </Button.ContextMenu>
+              </Button>
+              <TextBlock Text="COLLECTIONS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+            </DockPanel>
+            <TextBlock Text="Not in any collection yet." Style="{StaticResource Text.Small}"
+                       Visibility="{Binding HasCollections, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+            <ItemsControl x:Name="BookCollections" ItemsSource="{Binding Collections}" Focusable="False" AutomationProperties.Name="Collections this book is in"
+                          KeyboardNavigation.TabNavigation="Continue">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:CollectionChip}">
+                  <Border Style="{StaticResource Bt.Chip}" Padding="10,2,2,2" Margin="0,0,6,6">
+                    <StackPanel Orientation="Horizontal">
+                      <Button Style="{StaticResource Bt.Link}" Content="{Binding Name}" Foreground="{DynamicResource Bt.Text}" ToolTip="{Binding Path}"
+                              AutomationProperties.Name="{Binding Path, StringFormat='Open {0}'}"
+                              Command="{Binding DataContext.OpenInspectorCollectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding}" />
+                      <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0" Padding="2"
+                              ToolTip="{Binding Name, StringFormat='Take this book out of {0}'}" AutomationProperties.Name="{Binding Name, StringFormat='Remove from {0}'}"
+                              Command="{Binding DataContext.RemoveFromInspectorCollectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
             <!-- A pack's images (F4): click one to open it, then step through the rest; or split the pack. -->
             <StackPanel Visibility="{Binding IsPack, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <DockPanel Margin="0,28,0,10">
@@ -711,7 +797,7 @@
                                     Command="{Binding ReprocessCommand}" AutomationProperties.Name="{Binding ReprocessLabel}"
                                     ToolTip="Read the file again: pages, text, cover and hints from names. What you added stays." />
                             <Button x:Name="ReprocessMenu" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Padding="7,8" Margin="4,0,0,0"
-                                    IsEnabled="{Binding CanReprocess}" Click="ReprocessMenu_Click"
+                                    IsEnabled="{Binding CanReprocess}" Click="DropDown_Click"
                                     ToolTip="More ways to reprocess" AutomationProperties.Name="More ways to reprocess"
                                     Visibility="{Binding CanOcrEveryPage, Converter={StaticResource Bt.VisibleWhenTrue}}">
                               <Button.ContextMenu>
@@ -791,6 +877,12 @@
     <Grid Grid.RowSpan="5" Visibility="{Binding AddElsewhereDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <v:AddElsewhereView x:Name="ElsewhereDialog" DataContext="{Binding AddElsewhereDialog}" MaxWidth="520" Margin="0,24,42,24" VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- Naming or picking a collection (slice 3b), a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="5" Visibility="{Binding Collections.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
+      <v:CollectionDialogView x:Name="CollectionDialog" DataContext="{Binding Collections.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
     </Grid>
 
     <!-- The bulk editor, a dialog over the page. Esc or Cancel closes it; nothing behind it can be clicked meanwhile. -->

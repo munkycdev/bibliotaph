@@ -21,15 +21,6 @@ public abstract partial class LibraryAwarePageViewModel(SourceRootStore roots, L
     public override async Task LoadAsync() => FolderCount = (await roots.ListAsync()).Count;
 }
 
-public sealed partial class CollectionsViewModel(INavigationService navigation) : PageViewModel
-{
-    public override Route Route => Route.Collections;
-    public override string Title => "Collections";
-
-    [RelayCommand]
-    void BrowseLibrary() => navigation.NavigateTo(Route.Library);
-}
-
 public sealed partial class SessionsViewModel(INavigationService navigation) : PageViewModel
 {
     public override Route Route => Route.Sessions;

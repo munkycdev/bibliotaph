@@ -12,12 +12,13 @@ namespace Bibliotaph.Processing;
 /// Copies the library's cards from catalog.db into index.db: which document each entry shows (entry_doc), and its
 /// effective metadata (entry_meta, entry_facet, entry_fts, term_alias), where the library lists, filters and searches
 /// it, and which entries a model has read (entry_ai), for the AI badge and filter. It also copies the user's marks: the
-/// groups each entry is in (entry_scope, favourites first) and when it was last opened (entry_opened). index.db holds
+/// groups each entry is in (entry_scope: favourites and collections, with the collections' names in scope_name) and
+/// when it was last opened (entry_opened). index.db holds
 /// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
     SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null, FavoriteStore? favorites = null,
-    ReadingStore? reading = null) : IDisposable
+    ReadingStore? reading = null, CollectionStore? collections = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -68,12 +69,45 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         Projected?.Invoke(this, entryIds);
     }
 
+    /// <summary>
+    /// After collections changed (slice 3b): their names, and the marks of <paramref name="entryIds"/>, the entries
+    /// whose collections changed. Raises <see cref="Projected"/> even when no entry changed, as after a rename.
+    /// </summary>
+    public async Task ProjectCollectionsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await WriteCollectionNamesAsync(ct);
+            await WriteMarksAsync(entryIds, ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        Projected?.Invoke(this, entryIds);
+    }
+
     /// <summary>The marks of these entries, or of every entry when <paramref name="entryIds"/> is null.</summary>
     async Task WriteMarksAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct)
     {
-        if (favorites is not null)
-            await index.SetScopesAsync(entryIds, [.. (await favorites.GetAsync(entryIds, ct)).Select(id => (id, ScopeKeys.Favorites))], ct);
+        if (entryIds is { Count: 0 }) return;
+        if (favorites is not null || collections is not null)
+        {
+            List<(EntryId, string)> scopes = [];
+            if (favorites is not null) scopes.AddRange((await favorites.GetAsync(entryIds, ct)).Select(id => (id, ScopeKeys.Favorites)));
+            if (collections is not null) scopes.AddRange(await collections.GetScopesAsync(entryIds, ct));
+            await index.SetScopesAsync(entryIds, scopes, ct);
+        }
         if (reading is not null) await index.SetOpenedAsync(entryIds, await reading.GetOpenedAsync(entryIds, ct), ct);
+        if (entryIds is null) await WriteCollectionNamesAsync(ct);
+    }
+
+    async Task WriteCollectionNamesAsync(CancellationToken ct)
+    {
+        if (collections is null) return;
+        await index.SetScopeNamesAsync([.. (await collections.ListAsync(ct)).SelectMany(c =>
+            new[] { (ScopeKeys.Collection(c.Id), c.Name), (ScopeKeys.CollectionOwn(c.Id), c.Name) })], ct);
     }
 
     /// <summary>

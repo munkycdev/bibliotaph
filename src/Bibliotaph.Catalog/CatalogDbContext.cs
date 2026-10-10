@@ -20,6 +20,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
     public DbSet<ReadingState> ReadingStates => Set<ReadingState>();
+    public DbSet<CollectionNode> Collections => Set<CollectionNode>();
+    public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<Rejection> Rejections => Set<Rejection>();
     public DbSet<VocabularyTerm> VocabularyTerms => Set<VocabularyTerm>();
@@ -157,9 +159,26 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<Document>().WithMany().HasForeignKey(r => r.DocumentId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<CollectionNode>(e =>
+        {
+            e.HasIndex(c => c.ParentId);
+            // Deleting a collection moves its sub-collections up a level first (choice 8); this only guards the rest.
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(c => c.ParentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CollectionItem>(e =>
+        {
+            e.HasKey(i => new { i.CollectionId, i.EntryId });
+            e.HasIndex(i => i.EntryId);
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));
 
         UseSnakeCaseNames(modelBuilder);
+        // The class can't be called Collection (CA1711), but the table can.
+        modelBuilder.Entity<CollectionNode>().ToTable("collection");
     }
 
     static void UseSnakeCaseNames(ModelBuilder modelBuilder)

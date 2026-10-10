@@ -49,4 +49,7 @@
   <Geometry x:Key="Icon.TriangleAlert">M 21.73 18 l -8 -14 a 2 2 0 0 0 -3.48 0 l -8 14 A 2 2 0 0 0 4 21 h 16 a 2 2 0 0 0 1.73 -3 M 12 9 v 4 M 12 17 h 0.01</Geometry>
   <Geometry x:Key="Icon.Undo2">M 9 14 L 4 9 l 5 -5 M 4 9 h 10.5 a 5.5 5.5 0 0 1 5.5 5.5 a 5.5 5.5 0 0 1 -5.5 5.5 H 11</Geometry>
   <Geometry x:Key="Icon.X">M 18 6 L 6 18 M 6 6 l 12 12</Geometry>
+  <Geometry x:Key="Icon.Pin">M 12 17 v 5 M 9 10.76 a 2 2 0 0 1 -1.11 1.79 l -1.78 0.9 A 2 2 0 0 0 5 15.24 V 16 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 v -0.76 a 2 2 0 0 0 -1.11 -1.79 l -1.78 -0.9 A 2 2 0 0 1 15 10.76 V 7 a 1 1 0 0 1 1 -1 a 2 2 0 0 0 0 -4 H 8 a 2 2 0 0 0 0 4 a 1 1 0 0 1 1 1 Z</Geometry>
+  <Geometry x:Key="Icon.Trash2">M 3 6 h 18 M 19 6 v 14 c 0 1 -1 2 -2 2 H 7 c -1 0 -2 -1 -2 -2 V 6 M 8 6 V 4 c 0 -1 1 -2 2 -2 h 4 c 1 0 2 1 2 2 v 2 M 10 11 V 17 M 14 11 V 17</Geometry>
+  <Geometry x:Key="Icon.FolderInput">M 2 9 V 5 a 2 2 0 0 1 2 -2 h 3.9 a 2 2 0 0 1 1.69 0.9 l 0.81 1.2 a 2 2 0 0 0 1.67 0.9 H 20 a 2 2 0 0 1 2 2 v 10 a 2 2 0 0 1 -2 2 H 4 a 2 2 0 0 1 -2 -2 v -1 M 2 13 h 10 M 9 16 l 3 -3 l -3 -3</Geometry>
 </ResourceDictionary>

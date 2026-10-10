@@ -5,14 +5,58 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:CollectionsViewModel}">
-  <StackPanel>
-    <TextBlock Text="Collections" Style="{StaticResource Text.H1}" />
-    <TextBlock Text="Books and pages gathered around a campaign, a setting or an idea." Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
-    <Border Style="{StaticResource Bt.Rule}" />
-    <c:EmptyState Title="No collections yet."
-                  Message="Collections keep the books and pages you want together. Start from your library."
-                  ActionText="Browse library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding BrowseLibraryCommand}" />
-  </StackPanel>
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding EscapeCommand}" />
+  </UserControl.InputBindings>
+
+  <Grid>
+    <StackPanel>
+      <DockPanel Margin="0,0,42,24">
+        <Button x:Name="NewCollection" DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource Bt.Button.Primary}" Content="New collection"
+                c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding NewCollectionCommand}" />
+        <StackPanel>
+          <TextBlock Text="Collections" Style="{StaticResource Text.H1}" />
+          <TextBlock Text="Books gathered around a campaign, a setting or an idea." Style="{StaticResource Text.Subtitle}" />
+        </StackPanel>
+      </DockPanel>
+      <Border Style="{StaticResource Bt.Rule}" Margin="0,0,42,0" />
+
+      <!-- What the last change did, with Undo: here, after a collection was deleted from its page. -->
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,20,42,0"
+              Visibility="{Binding Actions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button x:Name="UndoCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding Actions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo"
+                  Visibility="{Binding Actions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock Text="{Binding Actions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+
+      <ItemsControl x:Name="CollectionCards" ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CollectionCard}" Margin="0,28,0,0"
+                    Focusable="False" AutomationProperties.Name="Collections" KeyboardNavigation.TabNavigation="Continue"
+                    Visibility="{Binding HasCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+      </ItemsControl>
+
+      <StackPanel Visibility="{Binding IsLoaded, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <c:EmptyState Title="No collections yet."
+                      Message="A collection keeps the books you want together, such as those for a campaign. Make one here, or add books to a new one from the Library."
+                      ActionText="New collection" ActionIcon="{StaticResource Icon.FolderPlus}" Command="{Binding NewCollectionCommand}"
+                      Visibility="{Binding HasCollections, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- New collection, a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Visibility="{Binding Actions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
+      <v:CollectionDialogView x:Name="CollectionDialog" DataContext="{Binding Actions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
+    </Grid>
+  </Grid>
 </UserControl>

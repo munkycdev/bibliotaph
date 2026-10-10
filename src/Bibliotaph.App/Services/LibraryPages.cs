@@ -18,6 +18,9 @@ public sealed class LibraryPages(INavigationService navigation, Func<LibraryView
         navigation.Show(page);
     }
 
+    /// <summary>The Collections page, as from Home.</summary>
+    public void OpenCollections() => navigation.NavigateTo(Route.Collections);
+
     /// <summary>The whole Library with a book's details open, as from a cover on Home.</summary>
     public void ShowDetails(EntryId entryId)
     {

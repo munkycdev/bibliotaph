@@ -272,6 +272,25 @@ public sealed class LibraryQueries(IndexDatabase database)
         return [.. counts.Select(c => new FacetCount(c.Format, c.Format.ToUpperInvariant(), c.Count))];
     }
 
+    /// <summary>
+    /// How many cards in the library (or the part in <paramref name="scope"/>) each group whose name starts with
+    /// <paramref name="prefix"/> holds, such as every collection's, for the collection cards.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, long>> CountGroupsAsync(string prefix, IReadOnlyCollection<EntryId>? scope, CancellationToken ct = default)
+    {
+        var where = new Where(new LibraryFilter(scope), new SearchPlan(), titleAsFilter: true);
+        where.Parameters.Add("prefix", prefix + "%");
+        var sql = $"""
+            SELECT es.scope AS Scope, count(*) AS Count
+            FROM entry_scope es JOIN entry_doc e ON e.entry_id = es.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE es.scope LIKE @prefix AND {where.Sql}
+            GROUP BY es.scope
+            """;
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string Scope, long Count)>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct));
+        return rows.ToDictionary(r => r.Scope, r => r.Count);
+    }
+
     /// <summary>How many entries a model has read, so the filter panel offers the AI choice only once there are some.</summary>
     public async Task<long> CountAiReadAsync(CancellationToken ct = default)
     {
@@ -540,7 +559,17 @@ public sealed class LibraryQueries(IndexDatabase database)
             if (filter.Group is { } group) Add("e.entry_id IN (SELECT entry_id FROM entry_scope WHERE scope = @group)", "group", group);
             if (filter.OnlyOpened) _sql.Append(" AND e.entry_id IN (SELECT entry_id FROM entry_opened)");
             for (var i = 0; i < plan.Scopes.Count; i++)
-                Add($"e.entry_id {(plan.Scopes[i].Negated ? "NOT IN" : "IN")} (SELECT entry_id FROM entry_scope WHERE scope = @inScope{i})", $"inScope{i}", plan.Scopes[i].Scope);
+            {
+                var (inScope, negated) = (plan.Scopes[i], plan.Scopes[i].Negated ? "NOT IN" : "IN");
+                // A collection's scopes (whole and own) share its name; only the whole one, sub-collections included, matches by name.
+                if (!inScope.ByName) Add($"e.entry_id {negated} (SELECT entry_id FROM entry_scope WHERE scope = @inScope{i})", $"inScope{i}", inScope.Scope);
+                else if (inScope.Prefix)
+                    Add($"""e.entry_id {negated} (SELECT es.entry_id FROM entry_scope es JOIN scope_name sn ON sn.scope = es.scope WHERE sn.scope LIKE 'collection:%' AND sn.name LIKE @inScope{i} ESCAPE '\')""",
+                        $"inScope{i}", Escape(inScope.Scope) + "%");
+                else
+                    Add($"e.entry_id {negated} (SELECT es.entry_id FROM entry_scope es JOIN scope_name sn ON sn.scope = es.scope WHERE sn.scope LIKE 'collection:%' AND sn.name = @inScope{i} COLLATE NOCASE)",
+                        $"inScope{i}", inScope.Scope);
+            }
 
             switch (filter.Kind)
             {

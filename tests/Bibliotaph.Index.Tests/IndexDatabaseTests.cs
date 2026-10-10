@@ -130,6 +130,8 @@ public sealed class IndexDatabaseTests : IDisposable
         // Version 10: favourites (and later collections) as groups of entries, and when each was last opened.
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_scope"));
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_opened"));
+        // Version 11: the collections' names, for collection:"name".
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM scope_name"));
     }
 
     [Fact]

@@ -177,6 +177,14 @@ CREATE TABLE entry_scope (
 ) WITHOUT ROWID;
 CREATE INDEX entry_scope_entry ON entry_scope (entry_id);
 
+-- What each group is called, for groups that have a name the user typed: a collection's scopes ("collection:12" and
+-- "collection-own:12") both carry its name, so collection:"name" finds its books. Projected from catalog.db.
+CREATE TABLE scope_name (
+    scope  TEXT PRIMARY KEY,
+    name   TEXT NOT NULL
+) WITHOUT ROWID;
+CREATE INDEX scope_name_name ON scope_name (name COLLATE NOCASE);
+
 -- When each entry was last opened, for Home and the Recently opened order. Projected from catalog.db's reading_state.
 CREATE TABLE entry_opened (
     entry_id    INTEGER PRIMARY KEY,
@@ -242,4 +250,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 10;
+PRAGMA user_version = 11;
