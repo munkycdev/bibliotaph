@@ -143,6 +143,28 @@ public sealed class IndexQueries(IndexDatabase database)
             new { documentId, fingerprint }, cancellationToken: ct))];
     }
 
+    /// <summary>
+    /// Those of <paramref name="documentIds"/> whose pages have their fingerprints, or never will: Match has run, or their
+    /// text couldn't be read so it won't. Until then a new version's pages aren't looked for (slice 4h plan, choice 1).
+    /// </summary>
+    public async Task<IReadOnlyList<long>> GetFingerprintedAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return [];
+        await using var connection = database.OpenRead();
+        var found = new List<long>();
+        foreach (var ids in documentIds.Distinct().Chunk(500))
+            found.AddRange(await connection.QueryAsync<long>(new CommandDefinition(
+                """
+                SELECT s.document_id FROM stage_status s
+                WHERE s.document_id IN @ids AND (
+                    (s.stage = 'Match' AND s.status NOT IN ('Pending', 'Running'))
+                    OR (s.stage = 'Text' AND s.status IN ('Failed', 'Blocked', 'Skipped')
+                        AND NOT EXISTS (SELECT 1 FROM stage_status m WHERE m.document_id = s.document_id AND m.stage = 'Match')))
+                GROUP BY s.document_id
+                """, new { ids }, cancellationToken: ct)));
+        return found;
+    }
+
     /// <summary>The first page of a document with this printed label, or null.</summary>
     public async Task<int?> FindLabelAsync(long documentId, string label, CancellationToken ct = default)
     {

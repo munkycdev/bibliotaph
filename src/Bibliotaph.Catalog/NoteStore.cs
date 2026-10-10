@@ -89,7 +89,12 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
         if (await db.Notes.Include(n => n.PageRef).SingleOrDefaultAsync(n => n.Id == noteId && n.PageRefId != null, ct) is not { } note) return null;
         note.Text = clean;
         note.UpdatedUtc = Now;
-        if (range is not null)
+        if (range is not null && note.PageRef is { } kept && kept.CheckDocumentId == range.DocumentId)
+        {
+            // Moved within the new version it was looked for in: the user has checked it there (slice 4h plan, choice 3).
+            PageRefStore.Use(kept, range);
+        }
+        else if (range is not null)
         {
             // The note moves to its new range before the old one goes, so the cascade from the old range can't take it.
             var old = note.PageRef;
@@ -97,6 +102,19 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
             db.ChangeTracker.DetectChanges();
             if (old is not null) db.PageRefs.Remove(old);
         }
+        await db.SaveChangesAsync(ct);
+        return Info(note);
+    }
+
+    /// <summary>
+    /// "Use this page" on a note whose page changed (slice 4h plan, choice 2): the note is on these pages from now on,
+    /// checked by the user. Returns it as it is now, or null if it's gone.
+    /// </summary>
+    public async Task<PageNoteInfo?> RepointAsync(long noteId, PageRange range, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.Notes.Include(n => n.PageRef).SingleOrDefaultAsync(n => n.Id == noteId && n.PageRefId != null, ct) is not { PageRef: { } pages } note) return null;
+        PageRefStore.Use(pages, range);
         await db.SaveChangesAsync(ct);
         return Info(note);
     }
@@ -131,21 +149,9 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
         return Info(note);
     }
 
-    static PageNoteInfo Info(Note n) => new(n.Id, new EntryId(n.EntryId),
-        new PageRange(n.PageRef!.DocumentId, n.PageRef.FirstPdfPage, n.PageRef.LastPdfPage, n.PageRef.FirstLabel, n.PageRef.LastLabel,
-            n.PageRef.FirstFingerprint, n.PageRef.LastFingerprint),
-        n.Text, n.CreatedUtc, n.UpdatedUtc);
+    static PageNoteInfo Info(Note n) => new(n.Id, new EntryId(n.EntryId), PageRefStore.ToRange(n.PageRef!), n.Text, n.CreatedUtc, n.UpdatedUtc);
 
-    static PageRef ToPageRef(PageRange range) => new()
-    {
-        DocumentId = range.DocumentId,
-        FirstPdfPage = Math.Min(range.FirstPdfPage, range.LastPdfPage),
-        LastPdfPage = Math.Max(range.FirstPdfPage, range.LastPdfPage),
-        FirstLabel = range.FirstLabel,
-        LastLabel = range.LastLabel,
-        FirstFingerprint = range.FirstFingerprint,
-        LastFingerprint = range.LastFingerprint,
-    };
+    static PageRef ToPageRef(PageRange range) => PageRefStore.ToPageRef(range);
 
     /// <summary>The text as typed, without the blank lines and spaces around it; null for none.</summary>
     static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();

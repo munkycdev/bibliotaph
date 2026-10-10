@@ -50,6 +50,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     CollectionStore _collections = null!;
     SessionStore _sessions = null!;
     NoteStore _notes = null!;
+    PageRefStore _pageRefs = null!;
+    PagePlaces _places = null!;
+    readonly HeldStage.Gate _matchGate = new();
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -93,7 +96,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
-        _copies = new CopiesService(entries, versions, library, _queries, projector);
+        _pageRefs = new PageRefStore(contexts);
+        _places = new PagePlaces(_pageRefs, entries, library, _queries, _reading);
+        _copies = new CopiesService(entries, versions, library, _queries, projector, _places);
         var elsewhere = new ElsewhereStore(contexts, entries);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
         var packStore = new PackStore(contexts);
@@ -106,7 +111,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
-                new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere),
+                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places), _matchGate),
             ],
             new FileHasher(reader), new DiskSpace(), archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },

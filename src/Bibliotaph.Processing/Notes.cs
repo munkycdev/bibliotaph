@@ -1,14 +1,14 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
-using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing;
 
 /// <summary>
 /// Notes (slice 3 plan, choice 18): each book's own note, which search finds, and notes on pages of a book, which the
 /// reader lists and run mode shows. A book's note is projected to index.db after each save; page notes aren't searched yet.
+/// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice 2).
 /// </summary>
-public sealed class NotesService(NoteStore notes, EntryStore entries, IndexQueries index, MetadataProjector projector)
+public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
 {
     /// <summary>Raised after a page note was added, changed or deleted, with the book it is on, on the thread that changed it.</summary>
     public event EventHandler<EntryId>? PageNotesChanged;
@@ -39,13 +39,34 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, IndexQueri
         return added;
     }
 
-    /// <summary>New text for a page note and, when they changed, new pages of the same document.</summary>
-    public async Task<PageNoteInfo?> UpdatePageNoteAsync(PageNoteInfo note, string text, int firstPage, int lastPage, CancellationToken ct = default)
+    /// <summary>
+    /// New text for a page note and, when they changed, new pages: of <paramref name="documentId"/>, the document the
+    /// reader has the note open in, which can be another copy of the book than the note's.
+    /// </summary>
+    public async Task<PageNoteInfo?> UpdatePageNoteAsync(PageNoteInfo note, string text, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
-        var range = firstPage == note.Range.FirstPdfPage && lastPage == note.Range.LastPdfPage ? null : await MakeRangeAsync(note.Range.DocumentId, firstPage, lastPage, ct);
+        var same = documentId == note.Range.DocumentId && firstPage == note.Range.FirstPdfPage && lastPage == note.Range.LastPdfPage;
+        var range = same ? null : await MakeRangeAsync(documentId, firstPage, lastPage, ct);
         var updated = await notes.UpdatePageNoteAsync(note.Id, text, range, ct);
         if (updated is not null) PageNotesChanged?.Invoke(this, note.EntryId);
         return updated;
+    }
+
+    /// <summary>Where each page note opens now, by note: in the book's current copy, as a session item would (choice 2).</summary>
+    public async Task<IReadOnlyDictionary<long, PagePlace>> ResolveAsync(IReadOnlyList<PageNoteInfo> pageNotes, CancellationToken ct = default)
+    {
+        var resolved = await places.ResolveAsync([.. pageNotes.Select(n => (n.EntryId, n.Range))], ct);
+        var result = new Dictionary<long, PagePlace>(pageNotes.Count);
+        for (var i = 0; i < pageNotes.Count; i++) result[pageNotes[i].Id] = resolved[i];
+        return result;
+    }
+
+    /// <summary>"Use this page" on a note whose page changed (choice 2): the note is on these pages of the open document from now on.</summary>
+    public async Task<PageNoteInfo?> UsePageAsync(long noteId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
+    {
+        var used = await notes.RepointAsync(noteId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);
+        if (used is not null) PageNotesChanged?.Invoke(this, used.EntryId);
+        return used;
     }
 
     public async Task<PageNoteInfo?> DeletePageNoteAsync(long noteId, CancellationToken ct = default)
@@ -62,12 +83,5 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, IndexQueri
         return restored;
     }
 
-    /// <summary>A page range with the printed labels and fingerprints of its first and last pages, as index.db has them now.</summary>
-    async Task<PageRange> MakeRangeAsync(long documentId, int firstPage, int lastPage, CancellationToken ct)
-    {
-        var (first, last) = (Math.Min(firstPage, lastPage), Math.Max(firstPage, lastPage));
-        var a = await index.GetPageMarkAsync(documentId, first, ct);
-        var b = first == last ? a : await index.GetPageMarkAsync(documentId, last, ct);
-        return new PageRange(documentId, first, last, a?.Label, b?.Label, a?.Fingerprint, b?.Fingerprint);
-    }
+    Task<PageRange> MakeRangeAsync(long documentId, int firstPage, int lastPage, CancellationToken ct) => places.MakeRangeAsync(documentId, firstPage, lastPage, ct);
 }

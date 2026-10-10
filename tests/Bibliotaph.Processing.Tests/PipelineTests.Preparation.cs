@@ -21,7 +21,7 @@ public sealed partial class PipelineTests
         Assert.Equal(2, cards.Count);
         var (known, scan) = (cards[0], cards[1]);
         var favorites = new FavoritesService(_favorites, _entries, _projector);
-        var reading = new ReadingService(_reading, _projector);
+        var reading = new ReadingService(_reading, _projector, _places);
         var projected = new List<EntryId>();
         _projector.Projected += (_, ids) => projected.AddRange(ids);
 
@@ -111,7 +111,7 @@ public sealed partial class PipelineTests
         await SettleAsync();
         var search = new LibraryQueries(_index);
         var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
         var pack = await sessions.CreateAsync("The midnight bell", ct: Ct);
         var appendix = await sessions.AddPagesAsync(pack.Id, book.DocumentId, 4, 4, ct: Ct);
         var crypt = await sessions.AddPagesAsync(pack.Id, book.DocumentId, 3, 3, "Crypt", ct: Ct);
@@ -177,7 +177,7 @@ public sealed partial class PipelineTests
         var search = new LibraryQueries(_index);
         var cards = await search.ListAsync(new LibraryFilter(), ct: Ct);
         var (known, scan) = (cards[0], cards[1]);
-        var notes = new NotesService(_notes, _entries, _queries, _projector);
+        var notes = new NotesService(_notes, _entries, _projector, _places);
         var changed = new List<EntryId>();
         notes.PageNotesChanged += (_, id) => changed.Add(id);
         async Task<IReadOnlyList<EntryId>> FindAsync(string query) =>
@@ -199,7 +199,7 @@ public sealed partial class PipelineTests
         var note = await notes.AddPageNoteAsync(known.DocumentId, 1, 0, "Read this aloud", Ct);
         Assert.Equal((0, 1, known.EntryId), (note!.Range.FirstPdfPage, note.Range.LastPdfPage, note.EntryId));
         Assert.Equal([note], await notes.GetPageNotesForDocumentAsync(known.DocumentId, Ct));
-        var updated = await notes.UpdatePageNoteAsync(note, "Read this aloud, slowly", 1, 1, Ct);
+        var updated = await notes.UpdatePageNoteAsync(note, "Read this aloud, slowly", known.DocumentId, 1, 1, Ct);
         Assert.Equal((1, "Read this aloud, slowly"), (updated!.Range.FirstPdfPage, updated.Text));
         var deleted = await notes.DeletePageNoteAsync(note.Id, Ct);
         Assert.Empty(await notes.GetPageNotesAsync(known.EntryId, Ct));

@@ -106,6 +106,8 @@ static class SmokeTest
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
+            await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone",
+                () => ReviewRevisionAsync(services, window));
             if (real is { } reprocessed)
             {
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
@@ -1106,6 +1108,57 @@ static class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == card.KeepSeparateCommand), "Keep separate");
         await WaitUntilAsync(window, () => card.IsDone, () => "Keep separate didn't decide the card.");
         if ((await packs.GetProposalsAsync()).Any(p => p.Name == Name)) throw new InvalidOperationException("Keep separate left the proposal waiting.");
+    }
+
+    /// <summary>
+    /// Slice 4h: a session item made in the lairs' other copy, whose page wasn't found in the copy the book opens now,
+    /// is a "new version" card in Needs review; Use this page on the card checks it, and Undo puts it back. The
+    /// session is deleted at the end, so later checks see the library as it was. What was found is seeded, since the
+    /// made-up books have no pages to fingerprint.
+    /// </summary>
+    static async Task ReviewRevisionAsync(IServiceProvider services, Window window)
+    {
+        var lairs = (await services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter())).Single(e => e.Title == "Dragon Lairs");
+        var copies = await services.GetRequiredService<EntryStore>().GetCopiesAsync(lairs.EntryId);
+        var current = copies.Single(c => c.IsCurrent).DocumentId;
+        var other = copies.First(c => !c.IsCurrent).DocumentId;
+        var sessions = services.GetRequiredService<SessionsService>();
+        var pack = await sessions.CreateAsync("Smoke revision");
+        try
+        {
+            await sessions.AddPagesAsync(pack.Id, other, 1, 1, "Lair maps");
+            var range = (await sessions.GetAsync(pack.Id))!.Items.Single().Range!;
+            await services.GetRequiredService<PageRefStore>().SaveChecksAsync([(range.RefId, new PageRefCheck(PageCheck.NeedsLook, current, 1, 1))]);
+            var places = services.GetRequiredService<PagePlaces>();
+            if (await places.CountRevisionsAsync() != 1) throw new InvalidOperationException("The place that needs a look isn't counted for Needs review.");
+
+            var shell = services.GetRequiredService<ShellViewModel>();
+            services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
+            var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+            await page.ReloadCommand.ExecuteAsync(null);
+            var card = page.Cards.OfType<RevisionCardViewModel>().SingleOrDefault(c => c.Title == "Dragon Lairs")
+                ?? throw new InvalidOperationException("The new version isn't a card in Needs review.");
+            const string Heading = "New version of Dragon Lairs: 0 places found their page, 1 needs a look";
+            if (card.Heading != Heading) throw new InvalidOperationException($"The new version's card says \"{card.Heading}\".");
+            var row = card.Rows.Single();
+            await WaitUntilAsync(window, () => Shown(window, "UsePlace"), () => "The card's place has no Use this page.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UsePlace" && b.Command == row.UseCommand), "Use this page");
+            await WaitUntilAsync(window, () => card.IsDone && card.DoneText == "Every place in the new version of Dragon Lairs is checked.",
+                () => "Use this page didn't check the card's only place.");
+            if (await places.CountRevisionsAsync() != 0) throw new InvalidOperationException("A checked new version is still counted for Needs review.");
+            if ((await sessions.GetAsync(pack.Id))!.Items.Single().Range is not { DocumentId: var used, Check.Outcome: PageCheck.Checked } || used != current)
+                throw new InvalidOperationException("Use this page didn't point the item at the copy the book opens.");
+
+            await card.UndoCommand.ExecuteAsync(null);
+            await WaitUntilAsync(window, () => !card.IsDone && row.CanUse && card.Heading == Heading, () => "Undo didn't put the place back to be checked.");
+            if (await places.CountRevisionsAsync() != 1) throw new InvalidOperationException("Undo didn't bring the new version back to Needs review.");
+        }
+        finally
+        {
+            await sessions.DeleteAsync(pack.Id);
+        }
+        if (await services.GetRequiredService<PagePlaces>().CountRevisionsAsync() != 0)
+            throw new InvalidOperationException("Deleting the session left its place in Needs review.");
     }
 
     /// <summary>

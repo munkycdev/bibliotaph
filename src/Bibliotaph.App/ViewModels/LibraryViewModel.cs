@@ -799,11 +799,22 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>What was typed in the details' Notes tab is saved when they close, whatever closed them.</summary>
     partial void OnInspectorChanged(InspectorViewModel? oldValue, InspectorViewModel? newValue) => oldValue?.Notes?.Flush();
 
-    /// <summary>A page note in the details' Notes tab: the book opens at its pages, in the copy it was made in.</summary>
+    /// <summary>
+    /// A page note in the details' Notes tab: the book opens at its pages, in the copy it opens now where they were
+    /// found there (slice 4h plan, choice 2), else in the copy the note was made in.
+    /// </summary>
     [RelayCommand]
     void OpenPageNote(PageNoteRow note)
     {
         var title = _known.TryGetValue(note.Note.EntryId, out var item) ? item.Title : Inspector?.Item.Title ?? "";
+        if (note.Place is { CanOpen: true, DocumentId: { } documentId } place)
+        {
+            _readers.OpenInMainWindow(new ViewerRequest(documentId, title, place.FirstPage)
+            {
+                PageNote = new PageNoteOpen(note.Id, place.State, place.Reason, place.FirstPage, place.LastPage),
+            });
+            return;
+        }
         _readers.OpenInMainWindow(new ViewerRequest(note.Note.Range.DocumentId, title, note.Note.Range.FirstPdfPage));
     }
 

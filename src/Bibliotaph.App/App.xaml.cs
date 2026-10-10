@@ -159,6 +159,8 @@ public partial class App : Application
         builder.Services.AddSingleton<FavoritesService>();
         builder.Services.AddSingleton<CollectionStore>();
         builder.Services.AddSingleton<CollectionsService>();
+        builder.Services.AddSingleton<PageRefStore>();
+        builder.Services.AddSingleton<PagePlaces>();
         builder.Services.AddSingleton<SessionStore>();
         builder.Services.AddSingleton<SessionsService>();
         builder.Services.AddSingleton<SmartViewStore>();

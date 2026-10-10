@@ -21,6 +21,8 @@ public interface IReviewActions
     Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer);
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
     Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
+    Task<Func<Task>?> UsePlaceAsync(RevisionPlace place);
+    void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
     void OpenDocument(long documentId, string title);
@@ -416,4 +418,185 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
+}
+
+/// <summary>
+/// A new version of a book whose places need a look (slice 4h plan, choice 3): "New version of X: 12 places found
+/// their page, 2 need a look". Each that needs one opens at the page suggested for it, or takes it with Use this page;
+/// those found by themselves are listed and need nothing. The card is done once every place is checked.
+/// </summary>
+public sealed partial class RevisionCardViewModel : DecidedCardViewModel
+{
+    /// <summary>Places found by themselves listed by name; the rest are counted.</summary>
+    const int FoundShown = 8;
+
+    public RevisionCardViewModel(RevisionItem item, IReviewActions actions) : base(actions)
+    {
+        Item = item;
+        Rows = [.. item.Places.Where(p => p.Outcome != PageCheck.Found).Select(p => new RevisionRowViewModel(this, p))];
+        var found = item.Places.Where(p => p.Outcome == PageCheck.Found).ToList();
+        Found = [.. found.Take(FoundShown).Select(RevisionRowViewModel.Describe)];
+        FoundMore = found.Count > FoundShown ? $"and {(found.Count - FoundShown).ToString("N0", CultureInfo.CurrentCulture)} more" : "";
+    }
+
+    public RevisionItem Item { get; }
+
+    public string Title => Item.BookTitle;
+
+    public string Heading
+    {
+        get
+        {
+            var look = Rows.Count(r => !r.IsChecked);
+            var found = Item.Found;
+            var foundText = found == 1 ? "1 place found its page" : $"{found.ToString("N0", CultureInfo.CurrentCulture)} places found their page";
+            var lookText = look == 1 ? "1 needs a look" : $"{look.ToString("N0", CultureInfo.CurrentCulture)} need a look";
+            return $"New version of {Item.BookTitle}: {foundText}, {lookText}";
+        }
+    }
+
+    public string Path => Item.Path ?? "";
+
+    public string Detail => Item.NeedLook == 1
+        ? "Until it's checked, the place that needs a look opens at the same page number in this version. Open it to look, or take that page with Use this page."
+        : "Until they're checked, the places that need a look open at the same page number in this version. Open one to look, or take that page with Use this page.";
+
+    /// <summary>The places that needed a look, and those already checked.</summary>
+    public IReadOnlyList<RevisionRowViewModel> Rows { get; }
+
+    /// <summary>The places that found their page by themselves, which need nothing.</summary>
+    public IReadOnlyList<string> Found { get; }
+
+    public bool HasFound => Found.Count > 0;
+
+    public string FoundMore { get; }
+
+    public bool HasFoundMore => FoundMore.Length > 0;
+
+    [RelayCommand]
+    void OpenBook() => Actions.OpenDocument(Item.DocumentId, Item.BookTitle);
+
+    internal void Open(RevisionRowViewModel row) => Actions.OpenPlace(Item, row.Place);
+
+    internal Task<Func<Task>?> UseAsync(RevisionRowViewModel row) => Actions.UsePlaceAsync(row.Place);
+
+    /// <summary>A place was checked or put back: the heading counts again, and the card is done once none needs a look.</summary>
+    internal void RowChanged()
+    {
+        OnPropertyChanged(nameof(Heading));
+        if (IsDone || Rows.Any(r => !r.IsChecked)) return;
+        var undos = Rows.Select(r => r.TakeUndo()).OfType<Func<Task>>().ToList();
+        MarkDone($"Every place in the new version of {Item.BookTitle} is checked.", async () =>
+        {
+            foreach (var undo in undos) await undo();
+            foreach (var row in Rows) row.Restored();
+            OnPropertyChanged(nameof(Heading));
+        });
+    }
+}
+
+/// <summary>A place on a "new version" card: a session item or a page note, the page suggested for it, Open and Use this page.</summary>
+public sealed partial class RevisionRowViewModel(RevisionCardViewModel card, RevisionPlace place) : ObservableObject
+{
+    Func<Task>? _undo;
+    readonly bool _checkedBefore = place.Outcome == PageCheck.Checked;
+
+    public RevisionPlace Place { get; } = place;
+
+    public string Heading => Describe(Place);
+
+    /// <summary>"Was p. 12 · opens at p. 12 here, to be checked".</summary>
+    public string Where
+    {
+        get
+        {
+            var was = SessionItemRow.Pages(Place.Place.Range);
+            var here = Place.PageLabel ?? (Place.Check.FirstPdfPage + 1).ToString(CultureInfo.CurrentCulture);
+            return IsChecked ? $"Was {was} · now p. {here}, checked" : $"Was {was} · opens at p. {here} here, to be checked";
+        }
+    }
+
+    public bool IsNote => Place.Place.Kind == PlaceKind.PageNote;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Where), nameof(CanUse), nameof(CanUndoUse))]
+    public partial bool IsChecked { get; private set; } = place.Outcome == PageCheck.Checked;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUse), nameof(CanUndoUse))]
+    public partial bool IsBusy { get; private set; }
+
+    public bool CanUse => !IsChecked && !IsBusy;
+
+    /// <summary>Undo for a page taken here, until the whole card is done.</summary>
+    public bool CanUndoUse => IsChecked && _undo is not null && !IsBusy;
+
+    public string OpenName => $"Open {Heading}";
+
+    public string UseName => $"Use the suggested page for {Heading}";
+
+    public string UndoName => $"Undo the page for {Heading}";
+
+    /// <summary>"Encounter map in Session 4", "Note: the lever opens the vault", as the card lists a place.</summary>
+    public static string Describe(RevisionPlace place)
+    {
+        var placed = place.Place;
+        if (placed.Kind == PlaceKind.PageNote)
+        {
+            var text = (placed.Text ?? "").ReplaceLineEndings(" ").Trim();
+            return $"Note: {(text.Length > 60 ? text[..59].TrimEnd() + "…" : text)}";
+        }
+        var label = string.IsNullOrWhiteSpace(placed.Text) ? SessionItemRow.Pages(placed.Range) : placed.Text.Trim();
+        return placed.PackTitle is { } pack ? $"{label} in {pack}" : label;
+    }
+
+    [RelayCommand]
+    void Open() => card.Open(this);
+
+    [RelayCommand]
+    async Task Use()
+    {
+        if (!CanUse) return;
+        IsBusy = true;
+        try
+        {
+            _undo = await card.UseAsync(this) ?? (() => Task.CompletedTask);
+            IsChecked = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+        card.RowChanged();
+    }
+
+    [RelayCommand]
+    async Task UndoUse()
+    {
+        if (!CanUndoUse || _undo is not { } undo) return;
+        IsBusy = true;
+        try
+        {
+            await undo();
+            _undo = null;
+            IsChecked = false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+        card.RowChanged();
+    }
+
+    /// <summary>The card is done: its Undo puts back every page taken here.</summary>
+    internal Func<Task>? TakeUndo()
+    {
+        var undo = _undo;
+        _undo = null;
+        OnPropertyChanged(nameof(CanUndoUse));
+        return undo;
+    }
+
+    /// <summary>After the card's Undo: the place needs a look again, unless it was checked before the card was shown.</summary>
+    internal void Restored() => IsChecked = _checkedBefore;
 }

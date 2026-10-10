@@ -126,8 +126,17 @@
                               ToolTip="Go to these pages" AutomationProperties.Name="{Binding Pages, StringFormat='Go to {0}'}"
                               Command="{Binding DataContext.Viewer.GoToNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                       <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <DockPanel Margin="0,6,0,0" Visibility="{Binding HasReason, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                        <c:LucideIcon x:Name="NoteReasonIcon" Data="{StaticResource Icon.TriangleAlert}" Size="12" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Reason}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                      </DockPanel>
                     </StackPanel>
                   </Border>
+                  <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsChanged}" Value="True">
+                      <Setter TargetName="NoteReasonIcon" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+                    </DataTrigger>
+                  </DataTemplate.Triggers>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

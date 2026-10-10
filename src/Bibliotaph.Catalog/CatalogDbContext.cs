@@ -145,6 +145,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(p => p.DocumentId);
             // User work points at page refs, so a document is never deleted out from under them.
             e.HasOne(p => p.Document).WithMany(d => d.PageRefs).HasForeignKey(p => p.DocumentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(p => p.CheckDocumentId);
+            e.HasOne<Document>().WithMany().HasForeignKey(p => p.CheckDocumentId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Favorite>(e =>

@@ -455,7 +455,10 @@ public sealed class IndexingService(
         }
 
         Func<string, string?>? fileId = volume is { HasFileIds: true } ? relative => _identity.FileId(Path.Combine(root.Path, relative)) : null;
-        var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, fileId, volume?.Serial, ct);
+        // On a local drive every file's ID is read again, so a file saved over another with the same size and date is
+        // seen (slice 4h plan, choice 6); on a network share each read is a round trip, so only new and changed files are asked.
+        var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, fileId, volume?.Serial,
+            readKnownIds: volume is { IsLocal: true }, ct: ct);
         _log.LogInformation("Scanned library folder {RootId}: {Files} files, {Changes}", root.Id, result.Files.Count, changes);
         if (root.Availability == SourceRootAvailability.Offline)
         {
