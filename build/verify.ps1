@@ -33,6 +33,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell 5.1 has no $IsWindows, so the Windows-only steps (Engine, Smoke) would quietly skip themselves.
+# Run in PowerShell 7 instead.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+    if (-not $pwsh) { throw 'verify.ps1 needs PowerShell 7. Install it with: winget install Microsoft.PowerShell' }
+    $command = "& '$($PSCommandPath.Replace("'", "''"))'"
+    if ($PSBoundParameters.ContainsKey('Step')) { $command += " -Step $($Step -join ',')" }
+    if ($SkipSmoke) { $command += ' -SkipSmoke' }
+    Write-Host 'Running in PowerShell 7 (pwsh), since this is Windows PowerShell.' -ForegroundColor Yellow
+    & $pwsh.Source -NoProfile -Command $command
+    exit $LASTEXITCODE
+}
+
 $root = Split-Path $PSScriptRoot -Parent
 $solution = Join-Path $root 'Bibliotaph.slnx'
 $inCi = $env:GITHUB_ACTIONS -eq 'true'
@@ -125,22 +139,30 @@ function Invoke-BannedApi {
 }
 
 $order = 'Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
-foreach ($name in $order | Where-Object { $_ -in $Step }) {
-    Write-Host "== $name" -ForegroundColor Cyan
-    switch ($name) {
-        'Restore' { Invoke-Dotnet restore $solution }
-        'Engine' { Invoke-Engine }
-        # Debug builds contain the worker's fault-injection requests that the isolation tests use.
-        'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
-        'Licenses' { Invoke-Licenses }
-        'Test' {
-            Invoke-Dotnet test --solution $solution --configuration Debug --no-build --report-xunit-trx `
-                --results-directory (Join-Path $root 'TestResults')
+# From the repository root wherever it's started: dotnet finds global.json, which picks the SDK and the test runner,
+# by looking up from the current folder.
+Push-Location $root
+try {
+    foreach ($name in $order | Where-Object { $_ -in $Step }) {
+        Write-Host "== $name" -ForegroundColor Cyan
+        switch ($name) {
+            'Restore' { Invoke-Dotnet restore $solution }
+            'Engine' { Invoke-Engine }
+            # Debug builds contain the worker's fault-injection requests that the isolation tests use.
+            'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
+            'Licenses' { Invoke-Licenses }
+            'Test' {
+                Invoke-Dotnet test --solution $solution --configuration Debug --no-build --report-xunit-trx `
+                    --results-directory (Join-Path $root 'TestResults')
+            }
+            'Smoke' { Invoke-Smoke }
+            'BannedApi' { Invoke-BannedApi }
+            'Release' { Invoke-Dotnet build $solution --configuration Release --no-restore }
         }
-        'Smoke' { Invoke-Smoke }
-        'BannedApi' { Invoke-BannedApi }
-        'Release' { Invoke-Dotnet build $solution --configuration Release --no-restore }
     }
+}
+finally {
+    Pop-Location
 }
 $passed = $order | Where-Object { $_ -in $Step -and $_ -notin $skipped }
 Write-Host "Passed: $($passed -join ', ')." -ForegroundColor Green

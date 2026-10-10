@@ -12,6 +12,7 @@
     With an empty sha256 in engine.json, the script looks up the newest llama.cpp release (or the model's newest
     revision), downloads it, and fails printing what to pin. That is how a pin is first made or moved on.
 #>
+#Requires -Version 7
 [CmdletBinding()]
 param()
 

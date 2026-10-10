@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Bibliotaph.Index.Tests;
 
+[Collection(SqlitePools.Name)]
 public sealed class IndexDatabaseTests : IDisposable
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-index-").FullName;

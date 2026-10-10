@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Bibliotaph.Catalog.Tests;
 
+[Collection(SqlitePools.Name)]
 public sealed class CatalogDatabaseTests : IDisposable
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-catalog-").FullName;
