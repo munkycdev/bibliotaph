@@ -83,14 +83,14 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public string PackImagesHeading => $"IMAGES ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
 
-    /// <summary>Raised after "Split into separate images", with how many images got their cards back.</summary>
-    public event EventHandler<int>? PackSplit;
+    /// <summary>Raised after "Split into separate images", with the images that got their cards back.</summary>
+    public event EventHandler<IReadOnlyList<EntryId>>? PackSplit;
 
     /// <summary>"Split into separate images" (choice 4): every image gets its card back, and the folder isn't packed again.</summary>
     [RelayCommand]
     async Task SplitPack()
     {
-        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId))) PackSplit?.Invoke(this, PackImages.Count);
+        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } images) PackSplit?.Invoke(this, images);
     }
 
     /// <summary>A book owned elsewhere (F5 plan, choice 4): no file, so no Open, locations or processing, and Remove from library.</summary>
@@ -291,9 +291,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (item.IsElsewhere) locations = [];
         else if (item.IsPack)
         {
-            // A pack is where its folder or ZIP is; its images are listed below, each with its own file.
+            // A pack is where its folder or ZIP is; its images are listed below, each with its own file. Images added by
+            // hand, or a pack made by hand, name the other folders they are in (multi-select plan, choice 10).
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
-            locations = place is null ? [] : [new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder")];
+            var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
+            locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
+                .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
+                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Images.ToString("N0", CultureInfo.CurrentCulture)} of its images {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
             images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
         }
         else

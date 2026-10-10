@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261010195831_CatalogBinderAtHand";
+    public override string LastMigrationId => "20261010211117_CatalogPackMerges";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -368,7 +368,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("created_utc");
 
-                b.Property<long>("DocumentId")
+                b.Property<long?>("DocumentId")
                     .HasColumnType("INTEGER")
                     .HasColumnName("document_id");
 
@@ -380,7 +380,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("joined_entry_id");
 
-                b.Property<long>("MatchedDocumentId")
+                b.Property<long?>("MatchedDocumentId")
                     .HasColumnType("INTEGER")
                     .HasColumnName("matched_document_id");
 
@@ -1188,8 +1188,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasOne("Bibliotaph.Catalog.Entities.Document", null)
                     .WithMany()
                     .HasForeignKey("DocumentId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
                     .WithMany()
@@ -1206,8 +1205,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasOne("Bibliotaph.Catalog.Entities.Document", null)
                     .WithMany()
                     .HasForeignKey("MatchedDocumentId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.EntrySource", b =>

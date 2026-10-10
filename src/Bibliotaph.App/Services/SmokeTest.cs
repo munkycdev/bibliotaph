@@ -132,6 +132,8 @@ static partial class SmokeTest
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
+                await Check("two images kept separate made a pack with Pack together, a third added, the pack merged into the tokens' pack, and Undo",
+                    () => PackTogetherAsync(services, window));
                 await Check("a locked PDF and one with DRM marked on their cards, in their details and in Needs review; the protected one opened in another app; the locked one unlocked without Remember, Copy off, and searchable",
                     () => UseProtectedBooksAsync(services, window));
                 await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
@@ -1154,6 +1156,99 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == card.KeepSeparateCommand), "Keep separate");
         await WaitUntilAsync(window, () => card.IsDone, () => "Keep separate didn't decide the card.");
         if ((await packs.GetProposalsAsync()).Any(p => p.Name == Name)) throw new InvalidOperationException("Keep separate left the proposal waiting.");
+    }
+
+    /// <summary>
+    /// Pack together (multi-select plan, M2), with the handouts Keep separate left as cards of their own: two make a
+    /// pack, renamed in the dialog; a third joins it; the pack merges into the tokens' pack, the older one; Undo puts
+    /// it back, and a split at the end leaves the handouts as they were.
+    /// </summary>
+    static async Task PackTogetherAsync(IServiceProvider services, Window window)
+    {
+        const string Name = "Smoke Hand Pack";
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        var page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await page.RefreshAsync();
+        // Cards are found by file: the handouts' cards are all titled "Handout", and earlier checks rename the inn.
+        var paths = await services.GetRequiredService<LibraryStore>().GetRelativePathsAsync();
+        long DocumentOf(string name) => paths.First(p => p.RelativePath.EndsWith(name, StringComparison.Ordinal)).DocumentId;
+        long[] handouts = [.. Enumerable.Range(1, 6).Select(n => DocumentOf($"Handout {n}.png"))];
+        // A pack's card shows its first image's document, so only cards that aren't packs are the handouts' own.
+        int FreeHandouts() => page.Items.Count(i => !i.IsPack && handouts.Contains(i.DocumentId));
+        LibraryItemViewModel Handout(int n) => page.Items.First(i => !i.IsPack && i.DocumentId == handouts[n - 1]);
+        LibraryItemViewModel Card(string title) => page.Items.First(i => i.Title == title);
+        await WaitUntilAsync(window, () => FreeHandouts() == 6 && page.Items.Any(i => i.Title == "Smoke Tokens"),
+            () => $"The Library doesn't show the six handouts and the tokens' pack ({string.Join(", ", page.Items.Select(i => i.Title))}).");
+        var tokens = Card("Smoke Tokens").EntryId;
+
+        async Task<PackTogetherDialogViewModel> OpenAsync(params LibraryItemViewModel[] cards)
+        {
+            page.StartSelectingCommand.Execute(null);
+            page.ClearSelectionCommand.Execute(null);
+            foreach (var card in cards) await page.ActivateCommand.ExecuteAsync(card);
+            await Settle(window);
+            if (!page.CanPackSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "PackSelected") is not { IsVisible: true } button)
+                throw new InvalidOperationException($"Pack together isn't offered for {string.Join(", ", cards.Select(c => c.Title))}.");
+            Click(button, "Pack together");
+            await WaitUntilAsync(window, () => page.PackDialog is not null, () => "Pack together didn't open its dialog.");
+            return page.PackDialog!;
+        }
+
+        async Task PackAsync(PackTogetherDialogViewModel dialog, string message)
+        {
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.PackCommand), "Pack together");
+            await WaitUntilAsync(window, () => page.PackDialog is null && page.HasPackUndo, () => $"Packing didn't finish ({dialog.Problem}).");
+            if (page.BulkMessage != message) throw new InvalidOperationException($"Pack together says “{page.BulkMessage}”, not “{message}”.");
+        }
+
+        // A book can't go in a pack, and a pack isn't a copy of a book.
+        var innId = DocumentOf("Haunted Inn.pdf");
+        var inn = page.Items.Single(i => i.DocumentId == innId);
+        page.StartSelectingCommand.Execute(null);
+        await page.ActivateCommand.ExecuteAsync(Handout(1));
+        await page.ActivateCommand.ExecuteAsync(inn);
+        if (page.CanPackSelected) throw new InvalidOperationException("Pack together is offered for a book.");
+        await page.ActivateCommand.ExecuteAsync(inn);
+        await page.ActivateCommand.ExecuteAsync(Card("Smoke Tokens"));
+        if (page.CanJoinSelected) throw new InvalidOperationException("Same book is offered for a pack.");
+
+        var dialog = await OpenAsync(Handout(1), Handout(2));
+        if (dialog.Heading != "Make a pack of 2 images" || dialog.Name != "Smoke Handouts")
+            throw new InvalidOperationException($"The dialog says “{dialog.Heading}”, named “{dialog.Name}”.");
+        dialog.Name = Name;
+        await Settle(window);
+        await AuditAsync(window, "the Pack together dialog");
+        await PackAsync(dialog, $"Made a pack of 2 images: {Name}.");
+        await WaitUntilAsync(window, () => page.Items.Any(i => i is { Title: Name, IsPack: true, SizeLabel: "2 images" }),
+            () => $"The new pack isn't in the Library ({string.Join(", ", page.Items.Select(i => $"{i.Title} ({i.SizeLabel})"))}).");
+        var hand = Card(Name).EntryId;
+
+        dialog = await OpenAsync(Card(Name), Handout(3));
+        if (dialog.Heading != $"Add 1 image to {Name}") throw new InvalidOperationException($"The dialog says “{dialog.Heading}”.");
+        await PackAsync(dialog, $"Added 1 image to {Name}.");
+        await WaitUntilAsync(window, () => page.Items.Any(i => i.EntryId == hand && i.SizeLabel == "3 images"), () => "The third handout didn't join the pack.");
+        await page.OpenDetailsCommand.ExecuteAsync(Card(Name));
+        await WaitUntilAsync(window, () => page.Inspector is { IsPack: true, PackImages.Count: 3 }, () => "The hand-made pack's details don't list its three images.");
+        if (page.Inspector!.Locations is not [{ State: "3 of its images are in this ZIP" }])
+            throw new InvalidOperationException($"The hand-made pack's details say {string.Join(", ", page.Inspector.Locations.Select(l => l.State))}.");
+        page.CloseDetailsCommand.Execute(null);
+
+        dialog = await OpenAsync(Card(Name), Card("Smoke Tokens"));
+        if (dialog.Heading != "Merge 2 packs" || dialog.Name != "Smoke Tokens") throw new InvalidOperationException($"The dialog says “{dialog.Heading}”, named “{dialog.Name}”.");
+        await PackAsync(dialog, "Merged 2 packs into Smoke Tokens.");
+        await WaitUntilAsync(window, () => page.Items.Any(i => i.EntryId == tokens && i.SizeLabel == "23 images") && page.Items.All(i => i.EntryId != hand),
+            () => "The hand-made pack didn't merge into the tokens' pack.");
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoPackCommand), "Undo Pack together");
+        await WaitUntilAsync(window, () => !page.HasPackUndo && page.Items.Any(i => i.EntryId == hand && i.SizeLabel == "3 images")
+            && page.Items.Any(i => i.EntryId == tokens && i.SizeLabel == "20 images"), () => "Undo didn't bring the hand-made pack back.");
+
+        page.StopSelectingCommand.Execute(null);
+        if (await services.GetRequiredService<PackService>().SplitAsync(hand) is not { Count: 3 }) throw new InvalidOperationException("The hand-made pack didn't split.");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => FreeHandouts() == 6,
+            () => "Splitting the hand-made pack didn't give the handouts their cards back.");
     }
 
     /// <summary>

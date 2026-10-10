@@ -400,9 +400,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SplitUndo = null;
         RemoveUndo = null;
         JoinUndo = null;
+        PackUndo = null;
         BulkMessage = null;
         AddElsewhereDialog = null;
         SameBookDialog = null;
+        PackDialog = null;
         if (BulkEdit is { IsApplyingStep: false }) BulkEdit = null;
     }
 
@@ -1003,6 +1005,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         BulkUndo = null;
         SplitUndo = null;
         JoinUndo = null;
+        PackUndo = null;
         RemoveUndo = removed;
         BulkMessage = $"Removed {item.Title} from your library.";
         await RefreshAsync();
@@ -1037,35 +1040,37 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>After "Split into separate images": the library with the images back, and Undo beside a note saying so.</summary>
-    async Task ShowPackSplitAsync(LibraryItemViewModel pack, int images)
+    async Task ShowPackSplitAsync(LibraryItemViewModel pack, IReadOnlyList<EntryId> images)
     {
         Inspector = null;
         BulkUndo = null;
         RemoveUndo = null;
         JoinUndo = null;
-        SplitUndo = pack.EntryId;
-        BulkMessage = $"Split {pack.Title} into {images.ToString("N0", CultureInfo.CurrentCulture)} {(images == 1 ? "image" : "images")}.";
+        PackUndo = null;
+        SplitUndo = (pack.EntryId, images);
+        BulkMessage = $"Split {pack.Title} into {images.Count.ToString("N0", CultureInfo.CurrentCulture)} {(images.Count == 1 ? "image" : "images")}.";
         await RefreshAsync();
     }
 
-    /// <summary>The pack the last split took apart, until the next edit or until the Library is left.</summary>
+    /// <summary>The pack the last split took apart, and its images, until the next edit or until the Library is left.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSplitUndo))]
     [NotifyCanExecuteChangedFor(nameof(UndoSplitCommand))]
-    public partial EntryId? SplitUndo { get; private set; }
+    public partial (EntryId Pack, IReadOnlyList<EntryId> Images)? SplitUndo { get; private set; }
 
     public bool HasSplitUndo => SplitUndo is not null;
 
-    /// <summary>Makes the split folder or ZIP one card again.</summary>
+    /// <summary>Makes the split pack one card again.</summary>
     [RelayCommand(CanExecute = nameof(HasSplitUndo))]
     async Task UndoSplit()
     {
-        if (SplitUndo is not { } pack) return;
+        if (SplitUndo is not { } undo) return;
+        var (pack, images) = undo;
         SplitUndo = null;
         BulkMessage = "Undoing…";
         try
         {
-            await Task.Run(() => _packs.RepackAsync(pack));
+            await Task.Run(() => _packs.RepackAsync(pack, images));
             BulkMessage = null;
         }
         catch (Exception ex)
@@ -1117,6 +1122,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SelectRangeCommand.NotifyCanExecuteChanged();
         JoinSelectedCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanJoinSelected));
+        PackSelectedCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanPackSelected));
     }
 
     /// <summary>Select: a checkbox on every book, and a click ticks a book instead of opening its details.</summary>
@@ -1186,6 +1193,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SplitUndo = null;
         RemoveUndo = null;
         JoinUndo = null;
+        PackUndo = null;
         BulkUndo = null;
         try
         {
@@ -1207,6 +1215,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SplitUndo = null;
         RemoveUndo = null;
         JoinUndo = null;
+        PackUndo = null;
         BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
         BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
             : $"Edited {BulkEditViewModel.Books(result.Books)}.";
@@ -1274,6 +1283,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         BulkUndo = null;
         SplitUndo = null;
         RemoveUndo = null;
+        PackUndo = null;
         // Leaving the Library while it joined ends the Undo, as leaving afterwards would.
         JoinUndo = ReferenceEquals(_navigation.Current, this) ? result.Join : null;
         var title = _known.TryGetValue(result.Join.EntryId, out var card) ? card.Title : "one book";
@@ -1310,6 +1320,80 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
+    // Pack together (multi-select plan, M2).
+
+    /// <summary>The Pack together dialog, while it is open over the Library.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PackSelectedCommand))]
+    public partial PackTogetherDialogViewModel? PackDialog { get; private set; }
+
+    /// <summary>Pack together fits two or more cards for single images or packs (choice 8): no books, PDFs or books owned elsewhere.</summary>
+    public bool CanPackSelected => PackDialog is null && Selection.Count >= 2
+        && Selection.Items.All(c => c.IsPack || !c.IsElsewhere && SourceFormats.IsImage(c.Entry.Format));
+
+    /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
+    [RelayCommand(CanExecute = nameof(CanPackSelected))]
+    async Task PackSelected()
+    {
+        try
+        {
+            var dialog = await PackTogetherDialogViewModel.LoadAsync(_packs, _library, Selection.Items);
+            dialog.Closed += async (_, result) => await PackDialogClosedAsync(result);
+            Inspector = null;
+            PackDialog = dialog;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Opening Pack together for {Count} selected cards failed", Selection.Count);
+        }
+        OnPropertyChanged(nameof(CanPackSelected));
+    }
+
+    /// <summary>After Pack together: the library with the pack, and Undo beside a note saying what happened.</summary>
+    async Task PackDialogClosedAsync(PackTogetherDialogResult? result)
+    {
+        PackDialog = null;
+        OnPropertyChanged(nameof(CanPackSelected));
+        if (result is null) return;
+        BulkUndo = null;
+        SplitUndo = null;
+        RemoveUndo = null;
+        JoinUndo = null;
+        // Leaving the Library while it packed ends the Undo, as leaving afterwards would.
+        PackUndo = ReferenceEquals(_navigation.Current, this) ? result.Result : null;
+        BulkMessage = result.Message;
+        Selection.Clear();
+        await RefreshAsync();
+    }
+
+    /// <summary>What undoes the last Pack together, until the next edit or until the Library is left (choice 11).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPackUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoPackCommand))]
+    public partial PackTogetherResult? PackUndo { get; private set; }
+
+    public bool HasPackUndo => PackUndo is not null;
+
+    /// <summary>Puts the cards back as they were: merged packs come back, and images have their own cards again.</summary>
+    [RelayCommand(CanExecute = nameof(HasPackUndo))]
+    async Task UndoPack()
+    {
+        if (PackUndo is not { } result) return;
+        PackUndo = null;
+        BulkMessage = "Undoing…";
+        try
+        {
+            await Task.Run(() => _packs.UndoPackTogetherAsync(result));
+            BulkMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing Pack together on pack {EntryId} failed", result.Together.PackId);
+            BulkMessage = "The pack couldn't be put back as it was. Use Split into separate images in its details.";
+        }
+        await RefreshAsync();
+    }
+
     /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>
     [RelayCommand]
     void Escape()
@@ -1319,6 +1403,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else if (Collections.Dialog is { } collection) collection.CancelCommand.Execute(null);
         else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
         else if (SameBookDialog is { } sameBook) sameBook.CancelCommand.Execute(null);
+        else if (PackDialog is { } packing) packing.CancelCommand.Execute(null);
         else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
         else if (Inspector is not null) Inspector = null;
         else Selection.Stop();

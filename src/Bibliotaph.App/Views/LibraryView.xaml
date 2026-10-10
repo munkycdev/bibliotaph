@@ -339,6 +339,9 @@
           <Button x:Name="JoinSelected" Content="Same book" c:Ui.Icon="{StaticResource Icon.Copy}" Margin="0,4,8,4" Command="{Binding JoinSelectedCommand}"
                   ToolTip="Join the selected cards as one book: copies, or versions of it" AutomationProperties.Name="Join the selected cards as one book"
                   Visibility="{Binding CanJoinSelected, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="PackSelected" Content="Pack together" c:Ui.Icon="{StaticResource Icon.LayoutGrid}" Margin="0,4,8,4" Command="{Binding PackSelectedCommand}"
+                  ToolTip="Put the selected images and packs into one pack" AutomationProperties.Name="Put the selected images and packs into one pack"
+                  Visibility="{Binding CanPackSelected, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,4,8,4" Command="{Binding RemoveSelectedFromCollectionCommand}"
                   ToolTip="Take the selected books out of this collection. They stay in your library."
                   Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -356,6 +359,8 @@
                   Padding="12,0,0,0" AutomationProperties.Name="Undo the edit" Visibility="{Binding HasBulkUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoSplitCommand}"
                   Padding="12,0,0,0" AutomationProperties.Name="Undo the split" Visibility="{Binding HasSplitUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoPackCommand}"
+                  Padding="12,0,0,0" AutomationProperties.Name="Undo Pack together" Visibility="{Binding HasPackUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoJoinCommand}"
                   Padding="12,0,0,0" AutomationProperties.Name="Undo Same book" Visibility="{Binding HasJoinUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoRemoveCommand}"
@@ -1047,6 +1052,15 @@
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <v:SameBookDialogView x:Name="SameBookDialog" DataContext="{Binding SameBookDialog}" MaxWidth="520" Margin="0,24,42,24" VerticalAlignment="Center" />
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Pack together (multi-select plan, M2), a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="3" Visibility="{Binding PackDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
+      <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:PackTogetherDialogView x:Name="PackDialog" DataContext="{Binding PackDialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
       </ScrollViewer>
     </Grid>
 

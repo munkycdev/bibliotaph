@@ -20,12 +20,27 @@ public sealed record PackProposal(EntryId PackId, PackPlace Place, string Name, 
 public sealed record PackChange(IReadOnlyList<EntryId> Changed, PackAnswer Previous);
 
 /// <summary>
+/// What Pack together did (multi-select plan, choices 8 to 11), so Undo can put it back: the pack the cards went
+/// into, whether it was made for them, the images that joined it, and the packs merged into it. <see cref="Changed"/>
+/// lists every card that changed, the pack's first, to project.
+/// </summary>
+public sealed record PackTogether(EntryId PackId, bool Created, IReadOnlyList<EntryId> Images, IReadOnlyList<EntryId> Merged, IReadOnlyList<EntryId> Changed);
+
+/// <summary>A folder or ZIP some of a pack's images are in, and how many, for the details panel.</summary>
+public sealed record PackFolder(string FullPath, bool IsArchive, int Images);
+
+/// <summary>
 /// Image packs in catalog.db (F4 plan, choices 1 to 5): a folder or ZIP of many images becomes one card. Each image
 /// keeps its own entry, which points at the pack's while it is in it, so splitting gives every image its card back
-/// with anything set on it. The folders' decisions are remembered by path, so a rescan doesn't undo them.
+/// with anything set on it. The folders' decisions are remembered by path, so a rescan doesn't undo them. Pack
+/// together (multi-select plan) makes packs by hand, which have no folder, and merges packs: a merged pack keeps its
+/// entry, marked as merged, and its folder's new images join the pack it merged into.
 /// </summary>
 public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
+    /// <summary>For moving what a merged pack brings, as a copy's card is moved when it joins another.</summary>
+    readonly EntryStore _entries = new(contexts, clock);
+
     /// <summary>A folder or ZIP with at least this many images and no PDF becomes a pack by itself (choice 2).</summary>
     public const int AutomaticMinimum = 20;
 
@@ -51,6 +66,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         await using var db = await contexts.CreateDbContextAsync(ct);
         var groups = await LocateAsync(db, ct);
         var decisions = (await db.PackDecisions.ToListAsync(ct)).ToDictionary(d => Key(d.SourceRootId, d.FolderPath));
+        var merged = await MergedAsync(db, ct);
 
         var changed = new List<EntryId>();
         foreach (var group in groups.Values)
@@ -67,10 +83,12 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             else if (decision.Answer == PackAnswer.Proposed && automatic) decision.Answer = PackAnswer.Packed;
             if (decision.Answer != PackAnswer.Packed) continue;
 
-            var joining = await JoinAsync(db, decision.EntryId, [.. group.Images.Select(i => i.DocumentId)], ct);
+            // A folder whose pack merged into another fills that one (multi-select plan, choice 10).
+            var packId = Resolve(merged, decision.EntryId);
+            var joining = await JoinAsync(db, packId, [.. group.Images.Select(i => i.DocumentId)], ct);
             if (joining.Count == 0) continue;
             changed.AddRange(joining);
-            if (!changed.Contains(new EntryId(decision.EntryId))) changed.Add(new EntryId(decision.EntryId));
+            if (!changed.Contains(new EntryId(packId))) changed.Add(new EntryId(packId));
         }
         await db.SaveChangesAsync(ct);
         return changed;
@@ -132,15 +150,152 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     }
 
     /// <summary>
-    /// "Split into separate images" (choice 4): every image gets its card back, and the folder or ZIP isn't packed
-    /// again. Returns the entries whose cards changed, the pack's first, or null for an entry that isn't a pack.
+    /// "Split into separate images" (choice 4): every image gets its card back, and no folder or ZIP the pack was made
+    /// from is packed again, its own or those of packs merged into it; a pack made by hand has none. Returns the
+    /// entries whose cards changed, the pack's first and then its images, or null for an entry that isn't a pack.
     /// </summary>
-    public async Task<IReadOnlyList<EntryId>?> SplitAsync(EntryId packId, CancellationToken ct = default) =>
-        (await AnswerAsync(packId, PackAnswer.Split, ct: ct))?.Changed;
+    public async Task<IReadOnlyList<EntryId>?> SplitAsync(EntryId packId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (!await db.Entries.AnyAsync(e => e.Id == packId.Value && e.Kind == EntryKind.Pack && e.MergedIntoEntryId == null, ct)) return null;
+        foreach (var decision in await DecisionsOfAsync(db, packId.Value, ct)) decision.Answer = PackAnswer.Split;
+        List<EntryId> changed = [packId];
+        foreach (var member in await db.Entries.Where(e => e.ParentEntryId == packId.Value).OrderBy(e => e.Id).ToListAsync(ct))
+        {
+            member.ParentEntryId = null;
+            changed.Add(new EntryId(member.Id));
+        }
+        await db.SaveChangesAsync(ct);
+        return changed;
+    }
 
-    /// <summary>Undoes <see cref="SplitAsync"/>: the folder or ZIP is a pack again, with the images in it now.</summary>
-    public async Task<IReadOnlyList<EntryId>> RepackAsync(EntryId packId, CancellationToken ct = default) =>
-        (await AnswerAsync(packId, PackAnswer.Packed, ct: ct))?.Changed ?? [];
+    /// <summary>
+    /// Undoes <see cref="SplitAsync"/>: its folders and ZIPs are packed again, with the images in them now, and
+    /// <paramref name="images"/> (what the split freed) are back in the pack unless they have joined another card since.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> RepackAsync(EntryId packId, IReadOnlyCollection<EntryId> images, CancellationToken ct = default)
+    {
+        List<EntryId> changed = [packId];
+        await using (var db = await contexts.CreateDbContextAsync(ct))
+        {
+            foreach (var decision in await DecisionsOfAsync(db, packId.Value, ct)) decision.Answer = PackAnswer.Packed;
+            var ids = images.Select(i => i.Value).ToList();
+            foreach (var image in await db.Entries.Where(e => ids.Contains(e.Id) && e.ParentEntryId == null && e.MergedIntoEntryId == null).ToListAsync(ct))
+            {
+                image.ParentEntryId = packId.Value;
+                changed.Add(new EntryId(image.Id));
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        changed.AddRange((await PlanAsync(ct)).Where(e => !changed.Contains(e)));
+        return changed;
+    }
+
+    /// <summary>
+    /// Pack together (multi-select plan, choices 8 to 11): two or more cards for single images or packs become one
+    /// pack. Images only make a new pack, with no folder, that doesn't grow by itself; with a pack among them, the
+    /// images join it; with several, the newer packs merge into the oldest with their images, and what each brings
+    /// (favourites, collections, binder items, notes, values) moves as a copy's card's does. Null when the cards can't
+    /// go together: fewer than two, a book, a part, a card in a pack or merged already.
+    /// </summary>
+    public async Task<PackTogether?> PackTogetherAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+        if (ids.Count < 2) return null;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var cards = await db.Entries.Where(e => ids.Contains(e.Id) && e.ParentEntryId == null && e.MergedIntoEntryId == null).ToListAsync(ct);
+        if (cards.Count != ids.Count) return null;
+        var packs = cards.Where(c => c.Kind == EntryKind.Pack).OrderBy(c => c.Id).ToList();
+        var images = cards.Where(c => c.Kind != EntryKind.Pack).OrderBy(c => c.Id).ToList();
+        var imageIds = images.Select(i => i.Id).ToList();
+        var sources = await db.EntrySources.AsNoTracking().Where(s => imageIds.Contains(s.EntryId))
+            .Select(s => new { s.EntryId, s.FirstPdfPage, s.Document.Format }).ToListAsync(ct);
+        if (images.Any(i => i.Kind != EntryKind.Whole || sources.All(s => s.EntryId != i.Id))
+            || sources.Any(s => s.FirstPdfPage is not null || !SourceFormats.IsImage(s.Format))) return null;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var created = packs.Count == 0;
+        var pack = packs.FirstOrDefault() ?? db.Entries.Add(new Entry { Kind = EntryKind.Pack, CreatedUtc = _clock.GetUtcNow().UtcDateTime }).Entity;
+        if (created) await db.SaveChangesAsync(ct);
+        foreach (var image in images) image.ParentEntryId = pack.Id;
+        List<EntryId> changed = [new(pack.Id), .. images.Select(i => new EntryId(i.Id))];
+        foreach (var other in packs.Skip(1))
+        {
+            var members = await db.Entries.Where(e => e.ParentEntryId == other.Id).ToListAsync(ct);
+            foreach (var member in members) member.ParentEntryId = pack.Id;
+            var moved = await _entries.MoveAsync(db, other.Id, pack.Id, ct);
+            moved.Members.AddRange(members.Select(m => m.Id));
+            _entries.AddJoin(db, pack.Id, other.Id, null, null, moved);
+            // Saved each time, so the next pack's values are compared with this one's too.
+            await db.SaveChangesAsync(ct);
+            changed.Add(new EntryId(other.Id));
+            changed.AddRange(members.Select(m => new EntryId(m.Id)));
+        }
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new PackTogether(new EntryId(pack.Id), created, [.. images.Select(i => new EntryId(i.Id))], [.. packs.Skip(1).Select(p => new EntryId(p.Id))], changed);
+    }
+
+    /// <summary>
+    /// Undoes <see cref="PackTogetherAsync"/>: each merged pack is back with its images and what it brought, and the
+    /// images that joined have their own cards again. A pack made for them is left with none, so it shows nowhere.
+    /// Returns the cards to project.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> UndoPackTogetherAsync(PackTogether together, CancellationToken ct = default)
+    {
+        var packId = together.PackId.Value;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        foreach (var merged in together.Merged.Reverse())
+        {
+            var record = await db.EntryJoins.Where(j => j.EntryId == packId && j.JoinedEntryId == merged.Value)
+                .OrderByDescending(j => j.Id).FirstOrDefaultAsync(ct);
+            if (record is null) continue;
+            await EntryStore.RestoreAsync(db, packId, record, [], ct);
+            await db.SaveChangesAsync(ct);
+        }
+        var images = together.Images.Select(i => i.Value).ToList();
+        foreach (var image in await db.Entries.Where(e => images.Contains(e.Id) && e.ParentEntryId == packId).ToListAsync(ct))
+            image.ParentEntryId = null;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return together.Changed;
+    }
+
+    /// <summary>The folders and ZIPs a pack's images are in, with how many of them each holds, most first.</summary>
+    public async Task<IReadOnlyList<PackFolder>> GetFoldersAsync(EntryId packId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var located = await db.FileLocations.AsNoTracking()
+            .Where(l => l.DocumentId != null && l.State != FileLocationState.Missing
+                && db.EntrySources.Any(s => s.DocumentId == l.DocumentId && s.Entry.ParentEntryId == packId.Value))
+            .Select(l => new { RootPath = l.SourceRoot.Path, l.RelativePath, Archive = l.Container == null ? null : l.Container.RelativePath, l.DocumentId })
+            .ToListAsync(ct);
+        return [.. located
+            .Select(l => (Path: Path.Combine(l.RootPath, l.Archive ?? Parent(l.RelativePath)), IsArchive: l.Archive is not null, l.DocumentId))
+            .GroupBy(l => (l.Path.ToUpperInvariant(), l.IsArchive))
+            .Select(g => new PackFolder(g.First().Path, g.Key.IsArchive, g.Select(l => l.DocumentId).Distinct().Count()))
+            .OrderByDescending(f => f.Images).ThenBy(f => f.FullPath, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    /// <summary>Each pack merged into another, and the pack it merged into.</summary>
+    static async Task<Dictionary<long, long>> MergedAsync(CatalogDbContext db, CancellationToken ct) =>
+        await db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Pack && e.MergedIntoEntryId != null)
+            .ToDictionaryAsync(e => e.Id, e => e.MergedIntoEntryId!.Value, ct);
+
+    /// <summary>The pack a pack's images are in now: itself, or the pack it merged into, however many merges on.</summary>
+    static long Resolve(Dictionary<long, long> merged, long packId)
+    {
+        for (var hops = 0; merged.TryGetValue(packId, out var into) && hops < merged.Count; hops++) packId = into;
+        return packId;
+    }
+
+    /// <summary>The folder and ZIP decisions behind a pack: its own, and those of packs merged into it.</summary>
+    static async Task<List<PackDecision>> DecisionsOfAsync(CatalogDbContext db, long packId, CancellationToken ct)
+    {
+        var merged = await MergedAsync(db, ct);
+        return [.. (await db.PackDecisions.ToListAsync(ct)).Where(d => Resolve(merged, d.EntryId) == packId)];
+    }
 
     /// <summary>
     /// The proposals waiting in Needs review, by path: folders and ZIPs proposed that still have
