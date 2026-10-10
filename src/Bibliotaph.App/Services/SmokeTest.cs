@@ -781,7 +781,7 @@ static partial class SmokeTest
         await viewer.PopOutCommand.ExecuteAsync(null);
         if (shell.CurrentPage is not LibraryViewModel) throw new InvalidOperationException("Popping out didn't take the main window Back to the Library.");
         if (readers.Windows is not [var popOut]) throw new InvalidOperationException($"Pop out opened {readers.Windows.Count} windows, not one.");
-        var reader = popOut.Model;
+        var reader = (ViewerViewModel)popOut.Model;
         if (popOut.Owner is not null || !popOut.ShowInTaskbar || popOut.Title != book.Title || !reader.IsPoppedOut || reader.Zoom != Zoom)
             throw new InvalidOperationException($"The pop-out is “{popOut.Title}” at {reader.Zoom}, owned: {popOut.Owner is not null}.");
         await WaitUntilAsync(popOut, () => reader.IsPdf || reader.Mode == ViewerMode.Problem, () => $"The pop-out's PDF didn't open (still {reader.Mode}).");
@@ -809,7 +809,8 @@ static partial class SmokeTest
         await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
         await library.OpenBookInNewWindowCommand.ExecuteAsync(book);
         if (readers.Windows is not [var first, var second]) throw new InvalidOperationException($"{readers.Windows.Count} windows opened, not two.");
-        await WaitUntilAsync(second, () => first.Model.IsPdf && second.Model.IsPdf, () => "The book didn't open in both new windows.");
+        await WaitUntilAsync(second, () => first.Model is ViewerViewModel { IsPdf: true } && second.Model is ViewerViewModel { IsPdf: true },
+            () => "The book didn't open in both new windows.");
         await AuditAsync(second, "a pop-out reader");
         if (workers.ViewerWorkerCount != 3) throw new InvalidOperationException($"{workers.ViewerWorkerCount} viewer workers run with two pop-outs, not 3.");
         System.Windows.Input.ApplicationCommands.Close.Execute(null, first);
@@ -1605,12 +1606,15 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3c: New session on Sessions makes a pack and opens it, empty. In the reader, Add pages… adds pages i to 1
-    /// with a label and Add page adds the page in view, called after its bookmark. The pack lists both in order; Move
-    /// down swaps them and keeps their labels; an item opens at its first page and leaves the book's kept place alone.
-    /// Home shows the pack under Continue preparing. Begin session runs it (3d): Next opens the second item at its first
-    /// page, full screen comes and goes, End returns. A section is added; Delete goes to Sessions with Undo, which brings
-    /// the pack back.
+    /// Slice 3c: New session on Sessions makes a binder and opens it, empty. In the reader, Add pages… adds pages i to 1
+    /// with a label and Add page adds the page in view, called after its bookmark. Home shows the binder under Continue
+    /// preparing, which opens its reader (Binders plan, B1). Edit binder lists both items in order; Move down swaps them
+    /// and keeps their labels; an item opens at its first page and leaves the book's kept place alone; Done goes back to
+    /// the reader. There Next opens the second item at its first page, a page is renamed in the list (F2, Enter), Add
+    /// this page adds the page in view after the item in hand with its name ready to type, and a change made elsewhere
+    /// shows. Pop out moves the binder to a window of its own, which opening it again brings forward, and Return to main
+    /// window brings it back at the same item. A section is added; Delete goes to Binders with Undo, which brings the
+    /// binder back.
     /// </summary>
     static async Task UseSessionPacksAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -1630,9 +1634,9 @@ static partial class SmokeTest
         await Settle(window);
         await AuditAsync(window, "the New session dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveSession" && b.IsVisible), "Create");
-        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: false, Pack.Title: "The midnight bell" },
-            () => "Create didn't open the new session, empty.");
-        var packId = ((SessionPackViewModel)shell.CurrentPage!).PackId;
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, HasItems: false, Pack.Title: "The midnight bell" },
+            () => "Create didn't open the new binder, empty.");
+        var packId = ((SessionReaderViewModel)shell.CurrentPage!).PackId;
 
         // The reader: Add pages… from the menu by the Add page button, then Add page on the page in view.
         shell.NavigateCommand.Execute(Route.Library);
@@ -1664,14 +1668,18 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
 
-        // The pack: both items in order, with their labels; Move down swaps them.
+        // Continue preparing on Home opens the binder's reader; Edit binder lists both items in order, with their labels.
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.ContinuePreparing is { Title: "The midnight bell", CountLabel: "2 items" },
             () => "Home doesn't show the session under Continue preparing.");
         var card = Descendants<ContentControl>(window).FirstOrDefault(c => c.Name == "ContinuePreparing");
         Click(card is null ? null : Descendants<Button>(card).FirstOrDefault(b => b.Name == "Card"), "Continue preparing's card");
-        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Continue preparing didn't open the session.");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, HasItems: true, Current: not null },
+            () => "Continue preparing didn't open the binder's reader.");
+        var reader = (SessionReaderViewModel)shell.CurrentPage!;
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "EditBinder"), "Edit binder");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Edit binder didn't open the binder's list.");
         var pack = (SessionPackViewModel)shell.CurrentPage!;
         static IReadOnlyList<SessionItemRow> Items(SessionPackViewModel p) => [.. p.Rows.OfType<SessionItemRow>()];
         await WaitUntilAsync(window, () => Items(pack) is [{ Heading: "Warehouse ambush" } first, var second] && first.Where.EndsWith("p. i–1", StringComparison.Ordinal)
@@ -1692,35 +1700,78 @@ static partial class SmokeTest
         await Settle(window);
         if (await reading.GetPositionAsync(documentId) != kept) throw new InvalidOperationException("Opening a session item moved the book's kept place.");
 
-        // Run mode (3d): Begin session opens the first item, Next the second at its first page, full screen and back, and End.
-        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Back didn't return to the session.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "BeginSession"), "Begin session");
-        await WaitUntilAsync(window, () => shell.CurrentPage is RunSessionViewModel { Current: not null, Viewer.IsPdf: true },
-            () => "Begin session didn't open run mode at the first item.");
-        var run = (RunSessionViewModel)shell.CurrentPage!;
-        if (run.Counter != "p. 1 · 1 of 2" || run.PreviousItemCommand.CanExecute(null))
-            throw new InvalidOperationException($"Run mode's counter reads “{run.Counter}” at the first item.");
+        // Done goes back to the reader, which shows the new order: the first item, then Next to the second at its first page.
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Back didn't return to the binder's list.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DoneEditing"), "Done");
+        await WaitUntilAsync(window, () => shell.CurrentPage == reader && reader.Counter == "p. 1 · 1 of 2" && reader.Viewer.IsPdf,
+            () => $"Done didn't go back to the binder's reader at its first item ({reader.Counter}).");
+        if (reader.PreviousItemCommand.CanExecute(null)) throw new InvalidOperationException("Previous is offered at the binder's first item.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NextItem"), "Next");
-        await WaitUntilAsync(window, () => run is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
-                && !run.NextItemCommand.CanExecute(null),
-            () => $"Next didn't open Warehouse ambush at page i ({run.Counter}, page index {run.Viewer.CurrentPageIndex}).");
-        await AuditAsync(window, "run mode");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "FullScreen"), "Full screen");
-        await WaitUntilAsync(window, () => window.WindowStyle == WindowStyle.None, () => "Full screen didn't take the window's frame away.");
-        run.EscapeCommand.Execute(null);
-        await WaitUntilAsync(window, () => window.WindowStyle != WindowStyle.None && shell.CurrentPage == run, () => "Esc didn't leave full screen first.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "EndSession"), "End session");
-        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true }, () => "End session didn't return to the session's page.");
+        await WaitUntilAsync(window, () => reader is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
+                && !reader.NextItemCommand.CanExecute(null),
+            () => $"Next didn't open Warehouse ambush at page i ({reader.Counter}, page index {reader.Viewer.CurrentPageIndex}).");
+        await AuditAsync(window, "a binder's reader");
+
+        // Renaming the page in hand in the list: its name in a box with the keyboard, then Enter saves it.
+        var ambush = reader.Current!;
+        reader.RenameItemCommand.Execute(ambush);
+        // Focus rather than keyboard focus: the window may not have the keyboard on a build machine.
+        await WaitUntilAsync(window, () => Descendants<TextBox>(window).FirstOrDefault(t => t.Name == "RenameBox" && t.IsVisible) is { IsFocused: true, Text: "Warehouse ambush" },
+            () => "Rename didn't put the page's name in a box to type over.");
+        var renameBox = Descendants<TextBox>(window).First(t => t.Name == "RenameBox" && t.IsVisible);
+        renameBox.Text = "Docks ambush";
+        Press(renameBox, Key.Enter);
+        await WaitUntilAsync(window, () => reader.Current is { Heading: "Docks ambush", IsRenaming: false }, () => "Enter didn't rename the page in the list.");
+        for (var tries = 0; (await sessions.GetAsync(packId))?.Items.Any(i => i.Label == "Docks ambush") != true; tries++)
+        {
+            if (tries == 50) throw new InvalidOperationException("The page's new name wasn't saved.");
+            await Task.Delay(100);
+        }
+
+        // Add this page, from the first item: the page in view goes right after it, with its name ready to type; Esc keeps it.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PreviousItem"), "Previous");
+        await WaitUntilAsync(window, () => reader.Counter == "p. 1 · 1 of 2" && reader.Viewer.IsPdf, () => "Previous didn't go back to the first item.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddBinderPage"), "Add this page");
+        await WaitUntilAsync(window, () => reader.Rows.OfType<SessionItemRow>().ToList() is [_, { IsRenaming: true } added, { Heading: "Docks ambush" }] && reader.Current == added,
+            () => $"Add this page didn't add the page after the item in hand, ready to rename ({string.Join(", ", reader.Rows.OfType<SessionItemRow>().Select(i => i.Heading))}).");
+        renameBox = Descendants<TextBox>(window).First(t => t.Name == "RenameBox" && t.IsVisible);
+        Press(renameBox, Key.Escape);
+        await WaitUntilAsync(window, () => reader.Current is { IsRenaming: false }, () => "Esc didn't close the name's box.");
+        // A change made somewhere else shows in the reader's list: the added page is removed again.
+        await sessions.RemoveItemsAsync([reader.Current!.Id]);
+        await WaitUntilAsync(window, () => reader.Rows.OfType<SessionItemRow>().Count() == 2 && reader.Current is not null,
+            () => "The binder's reader didn't show a page removed elsewhere.");
+
+        // Pop out: the binder moves to a window of its own at the same item; opening it again brings that window forward.
+        var windows = services.GetRequiredService<ReaderWindows>();
+        var sessionPages = services.GetRequiredService<SessionPages>();
+        var inHand = reader.Current!.Id;
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PopOutBinder"), "Pop out");
+        await WaitUntilAsync(window, () => shell.CurrentPage is not SessionReaderViewModel
+                && windows.Windows.FirstOrDefault(w => w.Model is SessionReaderViewModel) is { Model: SessionReaderViewModel { IsPoppedOut: true, Current: { } current, Viewer.IsPdf: true } }
+                && current.Id == inHand,
+            () => "Pop out didn't move the binder to a window of its own at the same item.");
+        var binderWindow = windows.Windows.First(w => w.Model is SessionReaderViewModel);
+        var before = shell.CurrentPage;
+        sessionPages.Open(packId);
+        await Settle(window);
+        if (shell.CurrentPage != before || windows.Windows.Count(w => w.Model is SessionReaderViewModel) != 1)
+            throw new InvalidOperationException("Opening a popped-out binder opened it again instead of bringing its window forward.");
+        Click(Descendants<Button>(binderWindow).FirstOrDefault(b => b.Name == "ReturnBinder"), "Return to main window");
+        await WaitUntilAsync(window, () => !windows.Windows.Any(w => w.Model is SessionReaderViewModel)
+                && shell.CurrentPage is SessionReaderViewModel { IsPoppedOut: false, Current: { } back, Viewer.IsPdf: true } && back.Id == inHand,
+            () => "Return to main window didn't bring the binder back at the same item.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "EditBinder"), "Edit binder");
 
         // A section, then Delete with Undo.
-        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true }, () => "Back didn't return to the session.");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true }, () => "Edit binder didn't open the binder's list.");
         pack = (SessionPackViewModel)shell.CurrentPage!;
         await pack.AddSuggestedSectionCommand.ExecuteAsync("Maps");
         await WaitUntilAsync(window, () => pack.Rows.OfType<SessionSectionRow>().Any(r => r.Name == "Maps"), () => "Add section didn't show the Maps heading.");
         // A change made somewhere else, as from another window, shows on the open page without leaving it.
-        var elsewhere = Items(pack).First(i => i.Heading == "Warehouse ambush");
-        await sessions.UpdateItemAsync(elsewhere.Id, "Docks ambush", elsewhere.Note);
-        await WaitUntilAsync(window, () => Items(pack).Any(i => i.Heading == "Docks ambush"), () => "The open session didn't show a label changed elsewhere.");
+        var elsewhere = Items(pack).First(i => i.Heading == "Docks ambush");
+        await sessions.UpdateItemAsync(elsewhere.Id, "Harbour ambush", elsewhere.Note);
+        await WaitUntilAsync(window, () => Items(pack).Any(i => i.Heading == "Harbour ambush"), () => "The open session didn't show a label changed elsewhere.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteSession"), "Delete");
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionsViewModel { Actions.HasUndo: true, HasSessions: false }, () => "Delete didn't go to Sessions with an Undo.");
         list = (SessionsViewModel)shell.CurrentPage!;

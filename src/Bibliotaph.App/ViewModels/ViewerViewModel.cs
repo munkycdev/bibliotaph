@@ -140,14 +140,20 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>True in a pop-out window, false in the main window's Reading route.</summary>
     public bool IsPoppedOut { get; }
 
-    /// <summary>True for the reader inside run mode (slice 3d), which frames it itself.</summary>
-    public bool InRunMode { get; init; }
+    /// <summary>True for the reader inside a binder, which frames it and pops out as a whole, so the reader has no Pop out of its own.</summary>
+    public bool InBinder { get; init; }
 
-    /// <summary>No margins of its own: a pop-out's window or run mode sets them.</summary>
-    public bool FitsFrame => IsPoppedOut || InRunMode;
+    /// <summary>No margins of its own: a pop-out's window or a binder sets them.</summary>
+    public bool FitsFrame => IsPoppedOut || InBinder;
+
+    /// <summary>Pop out shows in the main window's reader; a binder has its own.</summary>
+    public bool ShowsPopOut => !IsPoppedOut && !InBinder;
+
+    /// <summary>Return to main window shows in a pop-out reader; a popped-out binder has its own.</summary>
+    public bool ShowsReturn => IsPoppedOut && !InBinder;
 
     /// <summary>
-    /// Shows another book or another place in this one, as run mode does going from item to item (slice 3 plan, choice
+    /// Shows another book or another place in this one, as a binder does going from item to item (slice 3 plan, choice
     /// 16). The PDF already open stays open, so the next item in the same book shows at once.
     /// </summary>
     public async Task ShowAsync(ViewerRequest request)
@@ -178,7 +184,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         await LoadAsync();
     }
 
-    /// <summary>Shows why nothing can open here, as for a run mode item whose file can't be reached, with no Try again.</summary>
+    /// <summary>Shows why nothing can open here, as for a binder item whose file can't be reached, with no Try again.</summary>
     public void ShowUnavailable(string title, string message)
     {
         Unload();
@@ -432,7 +438,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// The pop-out window is closing: closes the book, and once it's closed gives the window's viewer worker back,
     /// which stops the worker if no other window is using it.
     /// </summary>
-    public async Task CloseWindowAsync()
+    public override async Task CloseWindowAsync()
     {
         // A load still running stops at its next step rather than leasing a worker nobody would give back.
         _windowClosed = true;
@@ -533,7 +539,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanPopOut))]
     Task PopOut() => _windows.PopOutAsync(this);
 
-    bool CanPopOut() => !IsPoppedOut && Mode is ViewerMode.Pdf or ViewerMode.Image;
+    bool CanPopOut() => ShowsPopOut && Mode is ViewerMode.Pdf or ViewerMode.Image;
 
     /// <summary>Moves a pop-out's book back to the main window, at the same page and zoom, and closes the pop-out.</summary>
     [RelayCommand]

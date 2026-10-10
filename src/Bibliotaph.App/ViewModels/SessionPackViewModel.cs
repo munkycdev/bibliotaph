@@ -15,10 +15,11 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record SectionMove(SessionItemRow Item, long SectionId, string Label);
 
 /// <summary>
-/// A session pack's page (slice 3 plan, choices 11 to 15, the mockup's session page): its title and date, its items in
-/// order, numbered, under their sections, and its notes beside them. Items are reordered by Move up and Move down
-/// (Alt+Up and Alt+Down) or by dragging; each opens at its pages, without moving the book's saved reading position.
-/// Opening the page makes the pack the current one, which Add to session adds to.
+/// A binder's list page, for editing it (slice 3 plan, choices 11 to 15; Binders plan, choice 2): its title and date,
+/// its items in order, numbered, under their sections, and its notes beside them. Items are reordered by Move up and
+/// Move down (Alt+Up and Alt+Down) or by dragging; each opens at its pages, without moving the book's saved reading
+/// position. Done goes back to the binder's reader. Opening the page makes the binder the current one, which Add page
+/// adds to.
 /// </summary>
 public sealed partial class SessionPackViewModel : PageViewModel
 {
@@ -57,7 +58,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
 
     public long PackId { get; set; }
 
-    public override Route Route => Route.SessionPack;
+    public override Route Route => Route.SessionEdit;
 
     public override Route NavRoute => Route.Sessions;
 
@@ -83,7 +84,6 @@ public sealed partial class SessionPackViewModel : PageViewModel
     public ObservableCollection<object> Rows { get; } = [];
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(BeginCommand))]
     public partial bool HasItems { get; private set; }
 
     [ObservableProperty]
@@ -297,9 +297,13 @@ public sealed partial class SessionPackViewModel : PageViewModel
         if (_navigation.Current is SessionsViewModel sessions) sessions.ShowDeleted(deleted);
     }
 
-    /// <summary>Begin session (choice 16): run mode, at the first item.</summary>
-    [RelayCommand(CanExecute = nameof(HasItems))]
-    void Begin() => _sessionPages.Begin(PackId);
+    /// <summary>Done: back to the binder's reader.</summary>
+    [RelayCommand]
+    async Task Done()
+    {
+        if (_notesDirty) await SaveNotesAsync();
+        _sessionPages.FinishEditing(PackId);
+    }
 
     /// <summary>Find resources (the mockup): the Library, to add books and pages from.</summary>
     [RelayCommand]

@@ -68,6 +68,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
 
     /// <summary>The label as shown and edited; blank shows the book's title.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Heading), nameof(AccessibleName))]
     public partial string Label { get; set; } = item.Label ?? "";
 
     [ObservableProperty]
@@ -86,12 +87,19 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public bool HasMoveTargets => MoveTargets.Count > 0;
 
     /// <summary>The label, or the book's title when there is none.</summary>
-    public string Heading => Item.Label ?? BookTitle;
+    public string Heading => string.IsNullOrWhiteSpace(Label) ? BookTitle : Label.Trim();
+
+    /// <summary>The name being typed in a binder's list, before Enter saves it (Binders plan, choice 5).</summary>
+    [ObservableProperty]
+    public partial bool IsRenaming { get; set; }
+
+    [ObservableProperty]
+    public partial string Draft { get; set; } = "";
 
     /// <summary>"The Drowned Abbey · p. 42–44", "… · Whole book".</summary>
     public string Where => $"{BookTitle} · {Pages(Item.Range)}";
 
-    /// <summary>For the reader's counter later (3d) and the item's own line: "p. 42–44", "Whole book".</summary>
+    /// <summary>For the reader's counter and the item's own line: "p. 42–44", "Whole book".</summary>
     public static string Pages(PageRange? range)
     {
         if (range is null) return "Whole book";
@@ -101,7 +109,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
         return $"p. {first}–{last}";
     }
 
-    /// <summary>The item in hand in run mode.</summary>
+    /// <summary>The item in hand in a binder's reader.</summary>
     [ObservableProperty]
     public partial bool IsCurrent { get; set; }
 
@@ -123,7 +131,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public string AccessibleName => $"{Number}. {Heading}, {Where}{(Reason is null ? "" : ". " + Reason)}";
 }
 
-/// <summary>What a pack's page and run mode both show: its sections and items, each item resolved to where it opens.</summary>
+/// <summary>What a binder's reader and its list page both show: its sections and items, each item resolved to where it opens.</summary>
 public static class SessionPackRows
 {
     /// <summary>The pack's rows in order: items before any section, then each section's heading and items, numbered throughout.</summary>

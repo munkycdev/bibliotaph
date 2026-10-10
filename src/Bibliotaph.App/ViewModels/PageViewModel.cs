@@ -27,9 +27,6 @@ public abstract class PageViewModel : ObservableObject
     /// </summary>
     public virtual Route NavRoute => Route;
 
-    /// <summary>True for a page that fills the window, as run mode does: the shell folds its sidebar and top bar away.</summary>
-    public virtual bool IsImmersive => false;
-
     /// <summary>True for a page with its own scrolling list (a virtualized grid), which the shell must not wrap in a scroll viewer.</summary>
     public virtual bool ScrollsItself => false;
 
@@ -39,5 +36,12 @@ public abstract class PageViewModel : ObservableObject
     /// <summary>Called when another page replaces this one, to stop listening for updates it no longer shows.</summary>
     public virtual void Unload()
     {
+    }
+
+    /// <summary>Called when the pop-out window showing the page closes, to let go of what the page holds.</summary>
+    public virtual Task CloseWindowAsync()
+    {
+        Unload();
+        return Task.CompletedTask;
     }
 }

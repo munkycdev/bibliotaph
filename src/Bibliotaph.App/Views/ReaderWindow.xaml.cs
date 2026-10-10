@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Bibliotaph.App.Controls;
@@ -10,7 +11,7 @@ using Bibliotaph.Core.Layout;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// A pop-out reader window. It opens at <c>start</c> (in pixels, so a monitor with another scale gets the same
+/// A pop-out window around a reader, or a binder with its own reader. It opens at <c>start</c> (in pixels, so a monitor with another scale gets the same
 /// rectangle), and keeps track of where its restored rectangle is, for the next pop-out to open there.
 /// </summary>
 public partial class ReaderWindow
@@ -19,12 +20,23 @@ public partial class ReaderWindow
     ScreenRect? _restored;
     bool _maximized;
 
-    public ReaderWindow(ViewerViewModel model, WindowPlacement? start)
+    public ReaderWindow(PageViewModel model, WindowPlacement? start)
     {
         InitializeComponent();
         Model = model;
         DataContext = model;
-        Title = string.IsNullOrWhiteSpace(model.Title) ? "Bibliotaph" : model.Title;
+        if (model is ViewerViewModel reader)
+        {
+            Title = string.IsNullOrWhiteSpace(reader.Title) ? "Bibliotaph" : reader.Title;
+            Host.Margin = new Thickness(22, 18, 22, 18);
+            // Esc only clears find (or a selection, first); it never closes the window.
+            InputBindings.Add(new KeyBinding(reader.ClearFindCommand, Key.Escape, ModifierKeys.None));
+        }
+        else
+        {
+            // A binder's title arrives as it loads, and changes if it's renamed.
+            SetBinding(TitleProperty, new Binding(nameof(PageViewModel.Title)));
+        }
         _start = start;
         // The first pop-out opens in the middle of the screen; later ones where the last one was.
         WindowStartupLocation = start is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.Manual;
@@ -39,7 +51,7 @@ public partial class ReaderWindow
         };
     }
 
-    public ViewerViewModel Model { get; }
+    public PageViewModel Model { get; }
 
     /// <summary>Where the window was as it closed; null until then.</summary>
     public WindowPlacement? Placement { get; private set; }

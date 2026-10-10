@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A page note as the reader, run mode and the details list it: which pages, and the text, and where it opens in the
+/// A page note as the reader, a binder's reader and the details list it: which pages, and the text, and where it opens in the
 /// book as it is now (slice 4h plan, choice 2), with why when that isn't simply its pages.
 /// </summary>
 public sealed class PageNoteRow(PageNoteInfo note, PagePlace? place = null)
