@@ -5,6 +5,7 @@
 .DESCRIPTION
     Steps, in CI's order:
       Restore    dotnet restore
+      Engine     downloads the built-in AI's engine and the engine test's model (fetch-engine.ps1; Windows only)
       Build      Debug build; warnings are errors
       Licenses   writes licenses\packages beside the Debug build; fails on a licence that isn't GPL-3.0-compatible
       Test       every test project
@@ -12,7 +13,8 @@
       BannedApi  proves that a write API in Core fails the build with RS0030
       Release    Release build, which leaves out the worker's fault-injection requests
 
-    With no -Step, every step runs. Off Windows, Smoke is skipped with a warning.
+    With no -Step, every step runs. Off Windows, Engine and Smoke are skipped with a warning, and the engine test
+    skips itself.
 
 .EXAMPLE
     ./build/verify.ps1
@@ -23,8 +25,8 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Restore', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release')]
-    [string[]] $Step = @('Restore', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'),
+    [ValidateSet('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release')]
+    [string[]] $Step = @('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'),
 
     # Leaves out the smoke test, which opens the app's window for about a minute.
     [switch] $SkipSmoke
@@ -85,6 +87,16 @@ function Invoke-Smoke {
     throw "Smoke test failed with exit code $($app.ExitCode). Its data and logs are in $run."
 }
 
+function Invoke-Engine {
+    if (-not $IsWindows) {
+        if ($explicitSteps) { throw 'The built-in AI engine is a Windows program.' }
+        Write-Warning 'Engine skipped: it is a Windows program. CI still downloads it and runs the engine test.'
+        $skipped.Add('Engine')
+        return
+    }
+    & (Join-Path $PSScriptRoot 'fetch-engine.ps1')
+}
+
 function Invoke-Licenses {
     # Every package that ships gets licenses\packages\<id>.txt, which the About popup lists (the smoke test looks).
     # The release workflow runs the same tool on the published app.
@@ -112,11 +124,12 @@ function Invoke-BannedApi {
     $global:LASTEXITCODE = 0
 }
 
-$order = 'Restore', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
+$order = 'Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
 foreach ($name in $order | Where-Object { $_ -in $Step }) {
     Write-Host "== $name" -ForegroundColor Cyan
     switch ($name) {
         'Restore' { Invoke-Dotnet restore $solution }
+        'Engine' { Invoke-Engine }
         # Debug builds contain the worker's fault-injection requests that the isolation tests use.
         'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
         'Licenses' { Invoke-Licenses }

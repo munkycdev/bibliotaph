@@ -1,0 +1,13 @@
+{
+  "engine": {
+    "release": "",
+    "asset": "",
+    "sha256": ""
+  },
+  "testModel": {
+    "repo": "ggml-org/models",
+    "revision": "",
+    "path": "tinyllamas/stories260K.gguf",
+    "sha256": ""
+  }
+}
