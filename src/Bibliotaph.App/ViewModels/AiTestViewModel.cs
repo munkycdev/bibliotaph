@@ -13,11 +13,11 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record AiTestLine(string Text, string Detail);
 
 /// <summary>
-/// The Test with a book dialog: classifies one book with the endpoint and model on screen, saved or not, and stores
+/// The Test with a book dialog: classifies one book with the endpoint and model on screen, or the built-in AI, and stores
 /// nothing. While it runs it says which step it is on and for how long; then it shows what the model kept, with page
 /// and quote, and what the evidence check threw out.
 /// </summary>
-public sealed partial class AiTestViewModel(AiService ai, string endpoint, string model) : ObservableObject
+public sealed partial class AiTestViewModel(AiService ai, Func<IProgress<AiTestProgress>, CancellationToken, Task<AiTestResult>> run, string model) : ObservableObject
 {
     /// <summary>Stops the test running now, if there is one.</summary>
     Action? _stop;
@@ -69,7 +69,7 @@ public sealed partial class AiTestViewModel(AiService ai, string endpoint, strin
         try
         {
             // Progress posts each step back to this (the UI) thread, whichever thread reports it.
-            var test = await ai.TestAsync(endpoint, model, new Progress<AiTestProgress>(Show), work.Token);
+            var test = await run(new Progress<AiTestProgress>(Show), work.Token);
             var seconds = test.Took.TotalSeconds.ToString("0", CultureInfo.CurrentCulture);
             if (test.Result is not { } result)
             {

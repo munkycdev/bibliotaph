@@ -121,6 +121,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
         Apply(setup);
     }
 
+    /// <summary>Makes the classifier again for the same setup, and wakes the Classify lane: after a built-in model downloads, say.</summary>
+    public void Refresh() => Apply(_setup);
+
     void Apply(AiSetup setup)
     {
         setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model), BuiltInModel = Blank(setup.BuiltInModel) };
@@ -323,7 +326,17 @@ public sealed class AiService(
     public Task<int> ReclassifyAsync(CancellationToken ct = default) => indexing.RerunAsync(Stage.Classify, ct);
 
     /// <summary>Classifies one book from the library with the setup on screen, and stores nothing.</summary>
-    public async Task<AiTestResult> TestAsync(string endpoint, string model, IProgress<AiTestProgress>? progress = null, CancellationToken ct = default)
+    public Task<AiTestResult> TestAsync(string endpoint, string model, IProgress<AiTestProgress>? progress = null, CancellationToken ct = default) =>
+        TestAsync(() => settings.ClientFor(endpoint), model, progress, ct);
+
+    /// <summary>
+    /// Classifies one book with the built-in AI on <paramref name="model"/> (an id from <see cref="BuiltInModels"/>),
+    /// starting the engine if it isn't running, and stores nothing.
+    /// </summary>
+    public Task<AiTestResult> TestBuiltInAsync(string model, IProgress<AiTestProgress>? progress = null, CancellationToken ct = default) =>
+        TestAsync(() => settings.BuiltInClientFor(model), BuiltInModels.NameFor(model), progress, ct);
+
+    async Task<AiTestResult> TestAsync(Func<IModelClient> clientFor, string model, IProgress<AiTestProgress>? progress, CancellationToken ct)
     {
         progress?.Report(new AiTestProgress(AiTestStep.Choosing, null));
         var skipped = await library.GetDocumentIdsInRootsAsync([.. settings.Setup.SkippedRoots], ct);
@@ -334,7 +347,7 @@ public sealed class AiService(
         var (input, why) = await inputs.BuildAsync(documentId, ct);
         if (input is null) return new AiTestResult(title, TimeSpan.Zero, null, why);
 
-        var client = settings.ClientFor(endpoint);
+        var client = clientFor();
         var started = _clock.GetTimestamp();
         progress?.Report(new AiTestProgress(AiTestStep.Asking, title));
         try

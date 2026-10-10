@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
@@ -99,7 +100,7 @@ static partial class SmokeTest
                     () => ReviewAsync(services, window, decide: preference == ThemePreference.Light));
                 await Check($"Settings worked through with a library in {preference}", () => ShowSettingsAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
-                await Check($"Settings > AI with no model server in {preference}", () => ShowAiSettingsAsync(services, window));
+                await Check($"Settings > AI, built in and with no model server, in {preference}", () => ShowAiSettingsAsync(services, window));
                 if (real is not { } files) continue;
                 await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
@@ -2181,8 +2182,10 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Settings > AI with no model server: AI is off, the library's folders are listed, and an endpoint nothing
-    /// answers at says so rather than hanging or switching AI on.
+    /// Settings > AI before anything is set up: AI is off, the library's folders are listed, and Built in shows first
+    /// (Built-in AI plan, choice 7) with its models, the suggested one chosen, its licence and Download, and nothing
+    /// downloading. Then with a model server: an endpoint nothing answers at says so rather than hanging or switching
+    /// AI on. Switching back to Built in keeps AI off.
     /// </summary>
     static async Task ShowAiSettingsAsync(IServiceProvider services, Window window)
     {
@@ -2192,12 +2195,34 @@ static partial class SmokeTest
         if (!page.Activity.Phases[^1].Status.StartsWith("Off", StringComparison.Ordinal))
             throw new InvalidOperationException($"The AI step says {page.Activity.Phases[^1].Status}, not that AI is off.");
 
+        // Built in, first: the models, the suggested one chosen, and Download with its size. Nothing downloads by itself.
+        if (!page.ShowBuiltIn) throw new InvalidOperationException("Settings > AI doesn't show Built in first, with nothing set up.");
+        var builtIn = page.BuiltIn;
+        if (builtIn.Models.Count != BuiltInModels.All.Count || builtIn.Chosen is not { IsSuggested: true, IsChosen: true })
+            throw new InvalidOperationException("The Built in panel doesn't list the models with the suggested one chosen.");
+        if (builtIn.IsDownloading || builtIn.Chosen.State == BuiltInModelState.Downloaded)
+            throw new InvalidOperationException("A model is downloading, or downloaded, before Download was pressed.");
+        var download = Descendants<Button>(window).FirstOrDefault(b => b.Command == builtIn.DownloadCommand && b.IsVisible)
+            ?? throw new InvalidOperationException("The Built in panel has no Download button.");
+        if (!(download.Content as string ?? "").StartsWith("Download (", StringComparison.Ordinal) || !builtIn.LicenceText.Contains("Apache-2.0", StringComparison.Ordinal))
+            throw new InvalidOperationException($"Download says “{download.Content}” and the licence line “{builtIn.LicenceText}”.");
+        if (Descendants<TextBox>(window).Any(t => t.IsVisible && AutomationProperties.GetName(t) == "Model server address"))
+            throw new InvalidOperationException("The model server's address shows with Built in.");
+        await AuditAsync(window, "Settings > AI, built in, before a download");
+
         // On before anything is set up springs back and says why, under the switch.
         var on = Descendants<RadioButton>(window).FirstOrDefault(r => r.GroupName == "UseAi" && Equals(r.Content, "On"))
             ?? throw new InvalidOperationException("Settings > AI has no On switch.");
         ((ISelectionItemProvider)new RadioButtonAutomationPeer(on)).Select();
         await WaitUntilAsync(window, () => page.SwitchProblem is not null && on.IsChecked == false && !page.IsOn,
             () => "Switching AI on before setting it up didn't spring back and say why.");
+
+        // A model server instead.
+        var server = Descendants<RadioButton>(window).FirstOrDefault(r => r.GroupName == "AiRunsOn" && Equals(r.Content, "Use a model server"))
+            ?? throw new InvalidOperationException("Settings > AI has no Use a model server choice.");
+        ((ISelectionItemProvider)new RadioButtonAutomationPeer(server)).Select();
+        await WaitUntilAsync(window, () => !page.ShowBuiltIn && Descendants<TextBox>(window).Any(t => t.IsVisible && AutomationProperties.GetName(t) == "Model server address"),
+            () => "Choosing Use a model server didn't show its address.");
 
         // Port 9 is discard: nothing listens on it, so connecting fails at once.
         page.Endpoint = "http://127.0.0.1:9";
@@ -2222,6 +2247,13 @@ static partial class SmokeTest
         await AuditAsync(dialog!, "the Test with a book popup");
         dialog!.Close();
         await WaitUntilAsync(window, () => !Application.Current.Windows.OfType<Views.AiTestDialog>().Any(), () => "The test popup didn't close.");
+
+        // Back to Built in: still off, with no model to run.
+        var builtInChoice = Descendants<RadioButton>(window).First(r => r.GroupName == "AiRunsOn" && Equals(r.Content, "Built in"));
+        ((ISelectionItemProvider)new RadioButtonAutomationPeer(builtInChoice)).Select();
+        var ai = services.GetRequiredService<AiService>();
+        await WaitUntilAsync(window, () => page.ShowBuiltIn && ai.Setup.BuiltIn, () => "Choosing Built in again didn't switch to it.");
+        if (page.IsOn || ai.Setup.IsReady) throw new InvalidOperationException("Switching to Built in, with no model downloaded, switched AI on.");
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
     }

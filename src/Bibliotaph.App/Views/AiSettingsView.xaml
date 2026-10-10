@@ -78,7 +78,75 @@
       </DockPanel>
     </Border>
 
+    <!-- Built in or a model server (Built-in AI plan, choice 7) -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+      <DockPanel>
+        <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle">
+            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="AiRunsOn" Content="Built in" IsChecked="{Binding UseBuiltIn}" />
+            <RadioButton Style="{StaticResource Bt.Segment}" GroupName="AiRunsOn" Content="Use a model server" IsChecked="{Binding UseServer}" />
+          </StackPanel>
+        </Border>
+        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+          <TextBlock Text="Where the model runs" Style="{StaticResource Text.Row}" />
+          <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                     Text="Built in: Bibliotaph downloads a model once and runs it itself. A model server: Ollama, LM Studio or similar, which you install and run." />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- The built-in AI -->
+    <StackPanel DataContext="{Binding BuiltIn}" d:DataContext="{d:DesignInstance vm:BuiltInAiViewModel}"
+                Visibility="{Binding DataContext.ShowBuiltIn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <TextBlock Text="Built-in model" Style="{StaticResource Text.Row}" Margin="0,18,0,4" />
+      <TextBlock Text="{Binding EngineText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding GraphicsText}" Style="{StaticResource Note}" />
+      <ItemsControl ItemsSource="{Binding Models}" Focusable="False" Margin="0,10,0,0" AutomationProperties.Name="Built-in models">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:BuiltInModelItem}">
+            <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,9">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding StateText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <RadioButton GroupName="BuiltInModel" IsChecked="{Binding IsChosen, Mode=OneWay}" Foreground="{DynamicResource Bt.Text}"
+                             Command="{Binding DataContext.ChooseCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                             AutomationProperties.Name="{Binding Name}">
+                  <StackPanel Margin="4,0,0,0">
+                    <TextBlock Text="{Binding Name}" FontSize="12" />
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </RadioButton>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0">
+        <Run Text="{Binding LicenceText, Mode=OneWay}" />
+        <Hyperlink Command="{Binding OpenLicenceCommand}" Foreground="{DynamicResource Bt.Accent}">Read the licence</Hyperlink>
+      </TextBlock>
+
+      <StackPanel Visibility="{Binding IsDownloading, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,12,0,0">
+        <ProgressBar Style="{StaticResource Bt.ProgressBar}" Value="{Binding DownloadPercent, Mode=OneWay}" Maximum="100" AutomationProperties.Name="Download progress" />
+        <TextBlock Text="{Binding DownloadText}" Style="{StaticResource Note}" />
+      </StackPanel>
+
+      <WrapPanel Margin="0,14,0,0">
+        <Button Style="{StaticResource Bt.Button.Primary}" Content="{Binding DownloadLabel}" Command="{Binding DownloadCommand}" Margin="0,0,8,0"
+                AutomationProperties.Name="Download model" />
+        <Button Content="Pause" c:Ui.Icon="{StaticResource Icon.Pause}" Command="{Binding PauseCommand}" Margin="0,0,8,0"
+                Visibility="{Binding IsDownloading, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <Button Content="Cancel download" Command="{Binding CancelCommand}" Margin="0,0,8,0"
+                Visibility="{Binding ShowCancel, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <Button Content="Test with a book" Command="{Binding TestCommand}" Margin="0,0,8,0" />
+        <Button Content="Delete model" Command="{Binding DeleteCommand}" />
+      </WrapPanel>
+      <TextBlock Text="{Binding Note}" Style="{StaticResource Note}" Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      <TextBlock Text="{Binding Problem}" Style="{StaticResource Problem}" Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+    </StackPanel>
+
     <!-- The model server -->
+    <StackPanel Visibility="{Binding ShowBuiltIn, Converter={StaticResource Bt.CollapsedWhenTrue}}">
     <TextBlock Text="Model server" Style="{StaticResource Text.Row}" Margin="0,18,0,4" />
     <TextBlock Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,12"
                Text="Ollama is usually at http://localhost:11434 and LM Studio at http://localhost:1234. Any server that speaks the OpenAI chat API works too." />
@@ -123,6 +191,7 @@
       <Button Content="Test with a book" Command="{Binding TestCommand}" />
     </WrapPanel>
     <TextBlock Text="{Binding SaveNote}" Style="{StaticResource Note}" Visibility="{Binding SaveNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+    </StackPanel>
 
     <!-- Reclassify -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,24,0,0"
