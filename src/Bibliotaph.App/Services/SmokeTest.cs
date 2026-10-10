@@ -1305,6 +1305,8 @@ static class SmokeTest
         var search = services.GetRequiredService<SearchState>();
         var navigation = services.GetRequiredService<INavigationService>();
         var notes = services.GetRequiredService<NotesService>();
+        var reading = services.GetRequiredService<ReadingService>();
+        var kept = await reading.GetPositionAsync(documentId);
         shell.NavigateCommand.Execute(Route.Library);
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
         await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
@@ -1356,6 +1358,9 @@ static class SmokeTest
         await Settle(window);
         foreach (var note in await notes.GetPageNotesAsync(entryId)) await notes.DeletePageNoteAsync(note.Id);
         await notes.SetEntryNoteAsync(entryId, "");
+        // The reader can settle on another page of the short smoke PDF as the notes panel changes its width; put the
+        // book's kept place back for the session check that follows.
+        await reading.SavePositionAsync(documentId, kept);
         search.Search(Word);
         await WaitUntilAsync(window, () => library.Items.Count == 0, () => "The cleared note still finds the book.");
         search.Search("");
