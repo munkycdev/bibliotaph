@@ -363,7 +363,7 @@ public sealed partial class NeedsReviewViewModel(
         readers.OpenInMainWindow(place.Place.Kind == PlaceKind.SessionItem
             ? request with
             {
-                SessionItem = new SessionItemOpen(place.Place.OwnerId, place.Place.PackTitle ?? "the session",
+                SessionItem = new SessionItemOpen(place.Place.OwnerId, place.Place.PackTitle ?? "the binder",
                     needsLook ? SessionItemState.Changed : SessionItemState.Ready, needsLook ? PagePlaces.ChangedReason : null, check.FirstPdfPage, check.LastPdfPage),
             }
             : request with
