@@ -1518,7 +1518,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = ResolveScope(view.Scope);
             ViewNote = view.Scope is not null && scope is null
-                ? "The collection or session this view was saved in is gone, so it looks through your whole library." : null;
+                ? "The collection or binder this view was saved in is gone, so it looks through your whole library." : null;
             ShowScope(scope);
             OnlyAddedHere = scope?.CollectionId is not null && view.OnlyAddedHere;
             if (Search.Text != view.Query.Trim())

@@ -103,7 +103,7 @@
           <!-- .bt-sectionline: Continue preparing (3c), the session pack worked on last. -->
           <StackPanel Visibility="{Binding ContinuePreparing, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel Style="{StaticResource SectionLine}">
-              <Button x:Name="BrowseSessions" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="All sessions"
+              <Button x:Name="BrowseSessions" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="All binders"
                       c:Ui.Icon="{StaticResource Icon.ArrowRight}" Command="{Binding BrowseSessionsCommand}" />
               <TextBlock Text="Continue preparing" Style="{StaticResource Text.Row}" />
             </DockPanel>
@@ -154,12 +154,12 @@
             </DockPanel>
           </Border>
 
-          <!-- What the last Add to session did, with Undo. -->
+          <!-- What the last Add to binder did, with Undo. -->
           <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,24,42,0" HorizontalAlignment="Left" MinWidth="420"
                   Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel>
               <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                      Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the session change"
+                      Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the binder change"
                       Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               <TextBlock Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
             </DockPanel>

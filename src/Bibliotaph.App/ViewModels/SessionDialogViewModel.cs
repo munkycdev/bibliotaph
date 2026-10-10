@@ -84,7 +84,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
 
     public SessionDialogKind Kind { get; }
 
-    public string Eyebrow => Kind == SessionDialogKind.Section ? "SECTION" : "SESSION";
+    public string Eyebrow => Kind == SessionDialogKind.Section ? "SECTION" : "BINDER";
 
     public string Heading { get; }
 

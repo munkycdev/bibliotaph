@@ -93,10 +93,10 @@
                 ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
                 Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <Button x:Name="AddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add page" c:Ui.Icon="{StaticResource Icon.Plus}"
-                Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current session"
-                AutomationProperties.Name="Add page to session" />
+                Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current binder"
+                AutomationProperties.Name="Add page to binder" />
         <Button x:Name="AddPageMenu" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Margin="2,0,0,0"
-                ToolTip="Add pages, or add to another session" AutomationProperties.Name="More ways to add to a session" Click="AddPageMenu_Click">
+                ToolTip="Add pages, or add to another binder" AutomationProperties.Name="More ways to add to a binder" Click="AddPageMenu_Click">
           <Button.ContextMenu>
             <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddPageToSessionCommand}">
               <MenuItem x:Name="AddPagesItem" Header="Add pages…" Click="AddPages_Click" />

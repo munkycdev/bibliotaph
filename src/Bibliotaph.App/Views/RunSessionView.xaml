@@ -80,12 +80,12 @@
         <Button x:Name="NextItem" Style="{StaticResource Bt.Button.Primary}" Content="Next" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
                 Command="{Binding NextItemCommand}" ToolTip="Next item (Ctrl+Right)" Margin="0,0,14,0" />
         <Button x:Name="ToggleNotes" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelRight}" Command="{Binding ToggleNotesCommand}"
-                ToolTip="Show or hide the session notes" AutomationProperties.Name="Session notes" />
+                ToolTip="Show or hide the binder notes" AutomationProperties.Name="Binder notes" />
         <Button x:Name="FullScreen" Style="{StaticResource Bt.Link}" Content="{Binding FullScreenLabel}" Command="{Binding ToggleFullScreenCommand}"
                 ToolTip="F11" Margin="8,0,8,0" VerticalAlignment="Center" />
         <Button x:Name="PopOutItem" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
                 Command="{Binding Viewer.PopOutCommand}" ToolTip="Open this item in a window of its own, for another screen" AutomationProperties.Name="Pop out" />
-        <Button x:Name="EndSession" Content="End session" c:Ui.Icon="{StaticResource Icon.X}" Command="{Binding EndCommand}" ToolTip="Back to the session's page (Esc)"
+        <Button x:Name="EndSession" Content="End session" c:Ui.Icon="{StaticResource Icon.X}" Command="{Binding EndCommand}" ToolTip="Back to the binder's page (Esc)"
                 Margin="10,0,0,0" />
       </StackPanel>
       <StackPanel VerticalAlignment="Center">
@@ -104,7 +104,7 @@
     <Border Grid.Row="1" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6"
             Margin="0,0,12,0" Padding="6">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <ItemsControl x:Name="RunItems" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Session items"
+        <ItemsControl x:Name="RunItems" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Binder items"
                       KeyboardNavigation.TabNavigation="Continue" />
       </ScrollViewer>
     </Border>
@@ -115,7 +115,7 @@
     <!-- The session's notes, saved as you type; the panel folds away. -->
     <Border Grid.Row="1" Grid.Column="2" Width="260" Margin="12,0,0,0" Visibility="{Binding ShowNotes, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="Session notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
+        <TextBlock DockPanel.Dock="Top" Text="Binder notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
         <!-- The notes on the item's pages (slice 3 plan, choice 18), added in the reader with Note. -->
         <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0" Visibility="{Binding HasItemNotes, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <TextBlock Text="On these pages" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,8" />
@@ -147,7 +147,7 @@
           </ScrollViewer>
         </StackPanel>
         <TextBox x:Name="RunNotes" Style="{StaticResource Bt.TextBox}" Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
-                 TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Session notes"
+                 TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Binder notes"
                  ToolTip="Saved as you type" />
       </DockPanel>
     </Border>

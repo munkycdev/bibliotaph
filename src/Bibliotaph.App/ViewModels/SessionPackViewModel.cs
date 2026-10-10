@@ -60,11 +60,11 @@ public sealed partial class SessionPackViewModel : PageViewModel
 
     public override Route NavRoute => Route.Sessions;
 
-    public override string Section => "Sessions";
+    public override string Section => "Binders";
 
     public override Route? SectionRoute => Route.Sessions;
 
-    public override string Title => Pack?.Title ?? "Session";
+    public override string Title => Pack?.Title ?? "Binder";
 
     public SessionActions Actions { get; }
 
@@ -72,8 +72,8 @@ public sealed partial class SessionPackViewModel : PageViewModel
     [NotifyPropertyChangedFor(nameof(Title), nameof(Eyebrow), nameof(CountLabel))]
     public partial SessionPackInfo? Pack { get; private set; }
 
-    /// <summary>"SATURDAY, 17 OCTOBER 2026", or "SESSION" without a date.</summary>
-    public string Eyebrow => (SessionDirectory.DateLabel(Pack?.Date) ?? "Session").ToUpperInvariant();
+    /// <summary>"SATURDAY, 17 OCTOBER 2026", or "BINDER" without a date.</summary>
+    public string Eyebrow => (SessionDirectory.DateLabel(Pack?.Date) ?? "Binder").ToUpperInvariant();
 
     /// <summary>"3 items · Your order, your notes".</summary>
     public string CountLabel => $"{SessionDirectory.CountLabel(Pack?.ItemCount ?? 0)} · Your order, your notes";
@@ -234,7 +234,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     }
 
     [RelayCommand]
-    Task RemoveItem(SessionItemRow row) => Actions.RemoveAsync([row.Id], row.Heading, Pack?.Title ?? "the session");
+    Task RemoveItem(SessionItemRow row) => Actions.RemoveAsync([row.Id], row.Heading, Pack?.Title ?? "the binder");
 
     [RelayCommand]
     void ShowInFolder(SessionItemRow row)
