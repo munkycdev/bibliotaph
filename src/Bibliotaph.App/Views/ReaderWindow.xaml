@@ -25,6 +25,8 @@
     <KeyBinding Key="Escape" Command="{Binding ClearFindCommand}" />
     <KeyBinding Gesture="Ctrl+W" Command="ApplicationCommands.Close" />
     <KeyBinding Gesture="Ctrl+K" Command="{x:Static c:ShellCommands.FocusSearch}" />
+    <KeyBinding Key="OemQuestion" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
+    <KeyBinding Key="Divide" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
   </Window.InputBindings>
 
   <views:ViewerView Margin="22,18,22,18" />

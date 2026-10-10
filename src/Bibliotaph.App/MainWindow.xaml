@@ -22,6 +22,8 @@
 
   <Window.InputBindings>
     <KeyBinding Gesture="Ctrl+K" Command="{x:Static c:ShellCommands.FocusSearch}" />
+    <KeyBinding Key="OemQuestion" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
+    <KeyBinding Key="Divide" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
     <KeyBinding Gesture="Alt+Left" Command="{Binding GoBackCommand}" />
     <KeyBinding Key="BrowserBack" Command="{Binding GoBackCommand}" />
   </Window.InputBindings>
