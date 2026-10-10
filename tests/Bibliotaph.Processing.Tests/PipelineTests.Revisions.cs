@@ -71,8 +71,9 @@ public sealed partial class PipelineTests
             await _entries.GetCurrentDocumentAsync(book.EntryId, Ct) is { } current && current != book.DocumentId
             && await _queries.GetStageStatusAsync(revised = current, Stage.Text, Ct) == StageStatus.Complete);
 
-        // It is the book's current version at once, but nothing is judged before its fingerprints exist (choice 1).
-        Assert.Equal(StageStatus.Pending, await _queries.GetStageStatusAsync(revised, Stage.Match, Ct));
+        // It is the book's current version at once, but nothing is judged before its fingerprints exist (choice 1). The
+        // held Match job is waiting, or picked up for the moment it takes to be put back.
+        Assert.Contains(await _queries.GetStageStatusAsync(revised, Stage.Match, Ct), new StageStatus?[] { StageStatus.Pending, StageStatus.Running });
         var items = await ItemsAsync();
         Assert.Equal(new SessionItemTarget(revised, 4, 4, SessionItemState.Pending, PagePlaces.PendingReason), items[appendix]);
         Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Pending, PagePlaces.PendingReason), items[crypt]);
