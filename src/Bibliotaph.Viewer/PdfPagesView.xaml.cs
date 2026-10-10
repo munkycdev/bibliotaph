@@ -105,6 +105,9 @@ public partial class PdfPagesView
     /// <summary>Something to tell the reader, such as why Copy did nothing.</summary>
     public event EventHandler<string>? Notice;
 
+    /// <summary>A link on a page was clicked. The view doesn't follow it: the reader decides, so it can offer the way back.</summary>
+    public event EventHandler<PageLink>? LinkClicked;
+
     /// <summary>The page in view changed, by scrolling or by <see cref="GoToPage"/>.</summary>
     public event EventHandler? CurrentPageChanged;
 
@@ -452,6 +455,12 @@ public partial class PdfPagesView
         e.Handled = true;
         var clicks = e.ClickCount;
         var point = ToPdf(page, e.GetPosition(surface));
+        if (clicks == 1 && page.LinkAt(point.X, point.Y) is { } link)
+        {
+            ClearSelection();
+            LinkClicked?.Invoke(this, link);
+            return;
+        }
         if (_selectionPage != page) ClearSelection();
         _selectionPage = page;
         _selectionSurface = surface;
@@ -483,8 +492,35 @@ public partial class PdfPagesView
             if (page.Text.Result.HitTest(point.X, point.Y) is { } focus) SetSelection(PageTextLayer.Between(anchor, focus));
             return;
         }
-        // Read a page's text as the pointer reaches it, so a drag can start at once.
-        if (!_dragging && Surface(e.OriginalSource) is { DataContext: ViewerPage hovered } && hovered.Text is null) _ = TextOf(hovered);
+        if (_dragging || Surface(e.OriginalSource) is not { DataContext: ViewerPage hovered } over) return;
+        // Read a page's text and links as the pointer reaches it, so a drag can start at once and a link shows its hand.
+        if (hovered.Text is null) _ = TextOf(hovered);
+        if (hovered.Links is null) _ = LinksOf(hovered);
+        var at = ToPdf(hovered, e.GetPosition(over));
+        var link = hovered.LinkAt(at.X, at.Y);
+        over.Cursor = link is null ? null : Cursors.Hand;
+        object? tip = link switch
+        {
+            null => null,
+            { Uri: { } uri } => uri,
+            _ => _pages.Count > link.PageIndex && _pages[link.PageIndex].Label is { } label ? $"Go to page {label}" : $"Go to page {link.PageIndex + 1}",
+        };
+        if (!Equals(over.ToolTip, tip)) over.ToolTip = tip;
+    }
+
+    Task<IReadOnlyList<PageLink>> LinksOf(ViewerPage page) => page.Links ??= LoadLinksAsync(page);
+
+    async Task<IReadOnlyList<PageLink>> LoadLinksAsync(ViewerPage page)
+    {
+        try
+        {
+            return _renderer is { } renderer ? await renderer.GetLinksAsync(page.Index) : [];
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Links are a convenience, like selection: a page whose links can't be read just has none.
+            return [];
+        }
     }
 
     void Pages_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)

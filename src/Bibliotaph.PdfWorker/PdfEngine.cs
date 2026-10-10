@@ -26,6 +26,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
         Op.ExtractPages => WithDoc(r, doc => ExtractPages(r, doc)),
         Op.Find => WithDoc(r, doc => Find(r, doc)),
         Op.Ocr => WithDoc(r, doc => Ocr(r, doc)),
+        Op.Links => WithDoc(r, doc => Links(r, doc)),
 #if BIBLIOTAPH_TEST_OPS
         Op.Crash => Crash(),
         Op.Hang => Hang(),
@@ -274,6 +275,89 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
             if (!result.Ok && r.PageIndex >= 0) return result;
         }
         return Response.Success(r.Id) with { Hits = hits };
+    }
+
+    /// <summary>Most links a page reports; an index page has a few hundred.</summary>
+    const int MaxLinks = 5000;
+
+    const int AnnotLink = 2;      // FPDF_ANNOT_LINK
+    const ulong ActionGoTo = 1;   // PDFACTION_GOTO
+    const ulong ActionUri = 3;    // PDFACTION_URI
+
+    static Response Links(Request r, FpdfDocumentT doc)
+    {
+        var page = fpdfview.FPDF_LoadPage(doc, r.PageIndex);
+        if (IsNull(page)) return LastError(r.Id, $"Page {r.PageIndex} failed to load", ErrorKind.Page);
+        try
+        {
+            var links = new List<PdfLink>();
+            var count = fpdf_annot.FPDFPageGetAnnotCount(page);
+            using var rect = new FS_RECTF_();
+            for (var i = 0; i < count && links.Count < MaxLinks; i++)
+            {
+                var annot = fpdf_annot.FPDFPageGetAnnot(page, i);
+                if (annot is null || annot.__Instance == IntPtr.Zero) continue;
+                try
+                {
+                    if (fpdf_annot.FPDFAnnotGetSubtype(annot) != AnnotLink || fpdf_annot.FPDFAnnotGetRect(annot, rect) == 0) continue;
+                    var link = fpdf_annot.FPDFAnnotGetLink(annot);
+                    if (link is null || link.__Instance == IntPtr.Zero) continue;
+                    var box = new PdfRect(Math.Min(rect.Left, rect.Right), Math.Max(rect.Top, rect.Bottom), Math.Max(rect.Left, rect.Right), Math.Min(rect.Top, rect.Bottom));
+                    if (Target(doc, link) is { } target) links.Add(target with { Box = box });
+                }
+                finally
+                {
+                    fpdf_annot.FPDFPageCloseAnnot(annot);
+                }
+            }
+            return Response.Success(r.Id) with { Links = links };
+        }
+        finally
+        {
+            fpdfview.FPDF_ClosePage(page);
+        }
+    }
+
+    /// <summary>Where a link goes: a page in this file (by its destination or a go-to action), or a web address.</summary>
+    static PdfLink? Target(FpdfDocumentT doc, FpdfLinkT link)
+    {
+        var empty = new PdfRect(0, 0, 0, 0);
+        var dest = fpdf_doc.FPDFLinkGetDest(doc, link);
+        if (IsNull(dest))
+        {
+            var action = fpdf_doc.FPDFLinkGetAction(link);
+            if (IsNull(action)) return null;
+            var type = fpdf_doc.FPDFActionGetType(action);
+            if (type == ActionUri) return WebAddress(doc, action) is { } uri ? new PdfLink(empty, -1, null, uri) : null;
+            if (type != ActionGoTo) return null;
+            dest = fpdf_doc.FPDFActionGetDest(doc, action);
+            if (IsNull(dest)) return null;
+        }
+        var pageIndex = fpdf_doc.FPDFDestGetDestPageIndex(doc, dest);
+        if (pageIndex < 0) return null;
+        int hasX = 0, hasY = 0, hasZoom = 0;
+        float x = 0, y = 0, zoom = 0;
+        var located = fpdf_doc.FPDFDestGetLocationInPage(dest, ref hasX, ref hasY, ref hasZoom, ref x, ref y, ref zoom) != 0 && hasY != 0;
+        return new PdfLink(empty, pageIndex, located ? y : null, null);
+    }
+
+    /// <summary>A web link's address, only for http, https and mailto: nothing a click should run.</summary>
+    static string? WebAddress(FpdfDocumentT doc, FpdfActionT action)
+    {
+        var bytes = fpdf_doc.FPDFActionGetURIPath(doc, action, IntPtr.Zero, 0);
+        if (bytes is <= 1 or > 1 << 13) return null;
+        var buffer = Marshal.AllocHGlobal((int)bytes);
+        try
+        {
+            fpdf_doc.FPDFActionGetURIPath(doc, action, buffer, bytes);
+            // The path is 7-bit ASCII, terminated.
+            var uri = Marshal.PtrToStringAnsi(buffer, (int)bytes - 1).Trim();
+            return Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https" or "mailto" ? parsed.AbsoluteUri : null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
     }
 
     static Response WithTextPage(Request r, FpdfDocumentT doc, int pageIndex, Func<FpdfTextpageT, Response> action)

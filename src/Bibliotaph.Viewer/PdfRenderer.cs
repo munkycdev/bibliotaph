@@ -105,6 +105,15 @@ public sealed class PdfRenderer : IAsyncDisposable
         return new PageTextLayer(text.Text, [.. boxes.Select(ToPageRect)]);
     }
 
+    /// <summary>A page's links. A page whose links can't be read just has none.</summary>
+    public async Task<IReadOnlyList<PageLink>> GetLinksAsync(int pageIndex, CancellationToken ct = default)
+    {
+        var session = await EnsureOpenAsync(ct);
+        var response = await _worker.SendAsync(new Request { Op = Op.Links, DocId = session.DocId, PageIndex = pageIndex }, RenderTimeout, ct);
+        if (!response.Ok || response.Links is not { } links) return [];
+        return [.. links.Where(l => l.PageIndex >= 0 || l.Uri is not null).Select(l => new PageLink(ToPageRect(l.Box), l.PageIndex, l.Top, l.Uri))];
+    }
+
     /// <summary>Where a phrase appears on one page (or in the whole book with -1), with its rectangles.</summary>
     public async Task<IReadOnlyList<SearchHit>> FindAsync(string query, int pageIndex = -1, int maxHits = 2000, CancellationToken ct = default)
     {
