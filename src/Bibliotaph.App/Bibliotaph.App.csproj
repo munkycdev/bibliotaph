@@ -52,6 +52,9 @@
          AI plan, choice 3). A build without it runs, and Settings > AI says the engine isn't installed. -->
     <None Include="$(RepoRoot)artifacts\aiworker\**" Link="aiworker\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <!-- The engine's libomp.dll comes with its licence, which About lists with the others. -->
+    <None Include="$(RepoRoot)artifacts\aiworker\LICENSE-LLVM-OpenMP" Condition="Exists('$(RepoRoot)artifacts\aiworker\LICENSE-LLVM-OpenMP')"
+          Link="licenses\LICENSE-LLVM-OpenMP.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <!-- Bibliotaph's own licence and notices, which the About popup reads (as .txt so Notepad opens the licence too). -->
     <None Include="$(RepoRoot)LICENSE" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE.txt" Visible="false" />
     <None Include="$(RepoRoot)LICENSE-EXCEPTION.md" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-EXCEPTION.md" Visible="false" />

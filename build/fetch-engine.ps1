@@ -92,6 +92,12 @@ if (-not $server) { throw "$($pin.engine.asset) has no llama-server.exe." }
 if ($server.DirectoryName -ne (Resolve-Path $engine).Path) {
     Get-ChildItem $server.DirectoryName | Move-Item -Destination $engine
 }
+# Only the server and the libraries it loads. The release's other tools (llama-cli, llama-bench and so on), each with
+# its own -impl library, aren't used.
+Get-ChildItem $engine -File |
+    Where-Object { ($_.Extension -eq '.exe' -and $_.Name -ne 'llama-server.exe') -or ($_.Name -like '*-impl.dll' -and $_.Name -ne 'llama-server-impl.dll') } |
+    Remove-Item
+if (-not (Test-Path (Join-Path $engine 'LICENSE-LLVM-OpenMP'))) { throw "$($pin.engine.asset) no longer carries libomp's licence: check its files and THIRD-PARTY-NOTICES.md." }
 if ($inCi) { Write-Host "::notice title=Engine files::$((Get-ChildItem $engine -File).Name -join ', ')" }
 Set-Content (Join-Path $engine 'engine.txt') "llama.cpp $($pin.engine.release)" -Encoding utf8NoBOM
 Write-Host "llama-server from llama.cpp $($pin.engine.release) is in $engine."

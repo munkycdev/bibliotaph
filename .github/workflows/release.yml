@@ -72,7 +72,8 @@ jobs:
             -p:Version=$env:VERSION --output publish/pdfworker
           if ($LASTEXITCODE -ne 0) { throw 'Publishing the PDF worker failed.' }
           foreach ($file in 'publish/Bibliotaph.exe', 'publish/pdfworker/Bibliotaph.PdfWorker.exe', 'publish/pdfworker/pdfium.dll',
-                   'publish/aiworker/llama-server.exe', 'publish/aiworker/engine.txt', 'publish/licenses/LICENSE-llama.cpp.txt') {
+                   'publish/aiworker/llama-server.exe', 'publish/aiworker/engine.txt', 'publish/licenses/LICENSE-llama.cpp.txt',
+                   'publish/licenses/LICENSE-LLVM-OpenMP.txt') {
             if (-not (Test-Path $file)) { throw "$file is missing from the published app." }
           }
 
