@@ -88,6 +88,10 @@
       <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <!-- Note (slice 3f): a note on the page in view, or on the page with selected text. -->
+        <Button x:Name="AddNote" Content="Note" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Click="AddNote_Click"
+                ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
+                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <Button x:Name="AddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add page" c:Ui.Icon="{StaticResource Icon.Plus}"
                 Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current session"
                 AutomationProperties.Name="Add page to session" />
@@ -148,6 +152,9 @@
             <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
             <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
                     AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
+            <Border Style="{StaticResource Divider}" />
+            <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding NotesLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
+                    Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
           <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
@@ -226,6 +233,56 @@
             </ListBox>
           </DockPanel>
         </Border>
+        <!-- Notes on this book's pages (slice 3f): each goes to its pages, and can be changed or deleted. -->
+        <Border x:Name="NotesPanel" DockPanel.Dock="Right" Width="280" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                BorderThickness="1,0,0,0">
+          <Border.Style>
+            <Style TargetType="Border">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NotesVisible}" Value="True" />
+                    <Condition Binding="{Binding IsPdf}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="NOTES ON ITS PAGES" Style="{StaticResource Text.Eyebrow}" Margin="14,14,14,8" />
+            <TextBlock DockPanel.Dock="Top" Text="No notes yet. Note adds one on the page in view." Style="{StaticResource Text.Small}" TextWrapping="Wrap"
+                       Margin="14,0,14,0" Visibility="{Binding HasPageNotes, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+              <ItemsControl x:Name="ReaderPageNotes" ItemsSource="{Binding PageNotes}" Focusable="False" AutomationProperties.Name="Notes on its pages"
+                            KeyboardNavigation.TabNavigation="Continue" Margin="10,0,10,10">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:PageNoteRow}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="10,8" Margin="0,0,0,6" AutomationProperties.Name="{Binding AccessibleName}">
+                      <StackPanel>
+                        <DockPanel>
+                          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="EditNote" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" MinWidth="24" MinHeight="24" Padding="3"
+                                    ToolTip="Change this note" AutomationProperties.Name="Change this note"
+                                    Command="{Binding DataContext.EditNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                            <Button x:Name="DeleteNote" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" MinWidth="24" MinHeight="24" Padding="3"
+                                    ToolTip="Delete this note" AutomationProperties.Name="Delete this note"
+                                    Command="{Binding DataContext.DeleteNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                          </StackPanel>
+                          <Button x:Name="GoToNote" Style="{StaticResource Bt.Link}" Content="{Binding Pages}" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                  ToolTip="Go to these pages" AutomationProperties.Name="{Binding Pages, StringFormat='Go to {0}'}"
+                                  Command="{Binding DataContext.GoToNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
         <Grid>
           <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
                                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -258,6 +315,19 @@
                            VerticalAlignment="Center" />
               </DockPanel>
             </Border>
+            <!-- What the last page note change did, with Undo. -->
+            <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,8,0,0"
+                    Visibility="{Binding NoteMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                        ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissNoteMessageCommand}" />
+                <Button x:Name="UndoNote" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                        Command="{Binding UndoNoteCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the note change" VerticalAlignment="Center"
+                        Visibility="{Binding HasNoteUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="NoteMessage" Text="{Binding NoteMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+              </DockPanel>
+            </Border>
           </StackPanel>
           <!-- A short message over the pages, such as why Copy did nothing. -->
           <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="12,8" CornerRadius="5"
@@ -284,6 +354,12 @@
     <Grid Grid.RowSpan="4" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Background="{DynamicResource Bt.Shadow}" />
       <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+    </Grid>
+
+    <!-- A note on pages (slice 3f), as a dialog over the reader. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="4" Visibility="{Binding NoteDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Background="{DynamicResource Bt.Shadow}" />
+      <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding NoteDialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
     </Grid>
   </Grid>
 </UserControl>

@@ -600,6 +600,41 @@
               </StackPanel>
             </Grid>
 
+            <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
+            <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
+              <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />
+              <RadioButton x:Name="NotesTab" Style="{StaticResource Bt.Tab}" Content="{Binding Notes.TabLabel, FallbackValue=Notes}" IsChecked="{Binding IsNotesTab}" />
+            </StackPanel>
+            <StackPanel DataContext="{Binding Notes}" Margin="0,18,0,0"
+                        Visibility="{Binding DataContext.IsNotesTab, ElementName=Drawer, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBox x:Name="EntryNote" Style="{StaticResource Bt.TextBox}" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                       TextWrapping="Wrap" MinHeight="140" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
+                       AutomationProperties.Name="Note on this book" ToolTip="Saved as you type. A search finds the book by its note." />
+              <TextBlock Text="Saved as you type. A search finds this book by its note." Style="{StaticResource Text.Small}" Margin="0,6,0,0" />
+              <TextBlock Text="ON ITS PAGES" Style="{StaticResource SectionHead}" />
+              <TextBlock Text="No page notes yet. Add one in the reader with Note." Style="{StaticResource Text.Small}"
+                         Visibility="{Binding HasPageNotes, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              <ItemsControl x:Name="BookPageNotes" ItemsSource="{Binding PageNotes}" Focusable="False" AutomationProperties.Name="Notes on its pages"
+                            KeyboardNavigation.TabNavigation="Continue">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:PageNoteRow}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleName}">
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Open" VerticalAlignment="Top" Margin="10,0,0,0"
+                                AutomationProperties.Name="{Binding Pages, StringFormat='Open at {0}'}" ToolTip="Open the book at these pages"
+                                Command="{Binding DataContext.OpenPageNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                        <StackPanel>
+                          <TextBlock Text="{Binding Pages}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                          <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsDetailsTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <!-- The collections the book is in (slice 3 plan, choice 10): a chip opens one, its × takes the book out. -->
             <DockPanel Margin="0,28,0,10">
               <Button x:Name="AddToCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Add to collection"
@@ -932,6 +967,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+            </StackPanel>
             </StackPanel>
           </StackPanel>
         </ScrollViewer>

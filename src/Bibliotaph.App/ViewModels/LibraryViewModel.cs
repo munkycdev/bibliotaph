@@ -67,6 +67,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly ILogger<LibraryViewModel> _log;
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     readonly DispatcherTimer _staleTimer;
+    readonly NotesService _notes;
     int _version;
     bool _loaded;
     bool _stale;
@@ -75,10 +76,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, LibraryPages pages, ILogger<LibraryViewModel> log)
+        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         Views = views;
+        _notes = notes;
         Collections = collections;
         Sessions = sessions;
         _pages = pages;
@@ -375,6 +377,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Collections.Close();
         Sessions.Close();
         ViewDialog?.CancelCommand.Execute(null);
+        Inspector?.Notes?.Flush();
         ViewMessage = null;
         ViewUndo = null;
         Search.PropertyChanged -= OnSearchChanged;
@@ -770,6 +773,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         try
         {
             var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers);
+            inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
+            await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
@@ -785,6 +790,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [RelayCommand]
     void CloseDetails() => Inspector = null;
+
+    /// <summary>What was typed in the details' Notes tab is saved when they close, whatever closed them.</summary>
+    partial void OnInspectorChanged(InspectorViewModel? oldValue, InspectorViewModel? newValue) => oldValue?.Notes?.Flush();
+
+    /// <summary>A page note in the details' Notes tab: the book opens at its pages, in the copy it was made in.</summary>
+    [RelayCommand]
+    void OpenPageNote(PageNoteRow note)
+    {
+        var title = _known.TryGetValue(note.Note.EntryId, out var item) ? item.Title : Inspector?.Item.Title ?? "";
+        _readers.OpenInMainWindow(new ViewerRequest(note.Note.Range.DocumentId, title, note.Note.Range.FirstPdfPage));
+    }
 
     /// <summary>
     /// After Make current or Not the same book: the library again, and the inspector on the card the user was on, or

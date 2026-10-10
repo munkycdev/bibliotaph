@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -48,7 +49,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, PasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    ILogger<ViewerViewModel> Log);
+    NotesService Notes, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -77,6 +78,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly FavoritesService _favorites;
     readonly ReadingService _reading;
     readonly SessionsService _sessions;
+    readonly NotesService _notes;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
@@ -116,6 +118,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _reading = services.Reading;
         _sessions = services.Sessions;
         Sessions = services.SessionActions();
+        _notes = services.Notes;
         _log = services.Log;
         _windows = windows;
         IsPoppedOut = poppedOut;
@@ -143,7 +146,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     /// <summary>
     /// Shows another book or another place in this one, as run mode does going from item to item (slice 3 plan, choice
-    /// 16). Pages of the PDF already open are only scrolled to, so the next item in the same book shows at once.
+    /// 16). The PDF already open stays open, so the next item in the same book shows at once.
     /// </summary>
     public async Task ShowAsync(ViewerRequest request)
     {
@@ -401,6 +404,13 @@ public sealed partial class ViewerViewModel : PageViewModel
         _placeTimer.Stop();
         _noticeTimer.Stop();
         Sessions.Close();
+        NoteDialog?.CancelCommand.Execute(null);
+        NoteMessage = null;
+        NoteUndo = null;
+        _notes.PageNotesChanged -= OnPageNotesChanged;
+        PageNotes.Clear();
+        HasPageNotes = false;
+        OnPropertyChanged(nameof(NotesLabel));
         Pdf = null;
         Image = null;
         _findHits = [];
@@ -631,6 +641,172 @@ public sealed partial class ViewerViewModel : PageViewModel
     [RelayCommand]
     void DismissSessionMessage() => Sessions.Close();
 
+    // Page notes (slice 3f).
+
+    EntryId? _notesEntry;
+
+    /// <summary>The notes on the open book's pages, from all its copies, in page order.</summary>
+    public ObservableCollection<PageNoteRow> PageNotes { get; } = [];
+
+    /// <summary>"Notes", or "Notes (3)".</summary>
+    public string NotesLabel => PageNotes.Count > 0 ? $"Notes ({PageNotes.Count.ToString("N0", CultureInfo.CurrentCulture)})" : "Notes";
+
+    [ObservableProperty]
+    public partial bool HasPageNotes { get; private set; }
+
+    /// <summary>The Notes panel beside the pages.</summary>
+    [ObservableProperty]
+    public partial bool NotesVisible { get; set; }
+
+    [ObservableProperty]
+    public partial PageNoteDialogViewModel? NoteDialog { get; private set; }
+
+    /// <summary>"Deleted the note on p. 12.", beside its Undo.</summary>
+    [ObservableProperty]
+    public partial string? NoteMessage { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoteUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoNoteCommand))]
+    public partial Func<Task>? NoteUndo { get; private set; }
+
+    public bool HasNoteUndo => NoteUndo is not null;
+
+    [RelayCommand]
+    void ToggleNotes() => NotesVisible = !NotesVisible;
+
+    /// <summary>Note: a note on the page in view, or on the page with selected text, which the dialog can widen to a range.</summary>
+    [RelayCommand]
+    void AddNote(int? selectionPage)
+    {
+        if (Mode != ViewerMode.Pdf || _request is not { } request) return;
+        var page = Math.Clamp(selectionPage ?? CurrentPageIndex, 0, Math.Max(0, PageCount - 1));
+        var shown = PageNumbers.Display(page, _labels);
+        OpenNoteDialog(new PageNoteDialogViewModel($"A note on page {shown}", "Save note", shown, "", "", FindPage), async result =>
+        {
+            var added = await Task.Run(() => _notes.AddPageNoteAsync(request.DocumentId, result.FirstPage, result.LastPage, result.Text));
+            if (added is null) SayNote("The note couldn't be saved. The log may have the details.", null);
+            else
+            {
+                NotesVisible = true;
+                SayNote($"Saved the note on {SessionItemRow.Pages(added.Range)}.", null);
+            }
+        });
+    }
+
+    [RelayCommand]
+    void EditNote(PageNoteRow row)
+    {
+        var range = row.Note.Range;
+        var (from, to) = (PageNumbers.Display(range.FirstPdfPage, _labels), range.IsSinglePage ? "" : PageNumbers.Display(range.LastPdfPage, _labels));
+        OpenNoteDialog(new PageNoteDialogViewModel($"The note on {row.Pages}", "Save note", from, to, row.Text, FindPage), async result =>
+        {
+            var updated = await Task.Run(() => _notes.UpdatePageNoteAsync(row.Note, result.Text, result.FirstPage, result.LastPage));
+            if (updated is null) SayNote("That note isn't there any more.", null);
+        });
+    }
+
+    /// <summary>Deletes a page note, with Undo until the next change.</summary>
+    [RelayCommand]
+    async Task DeleteNote(PageNoteRow row)
+    {
+        var deleted = await Task.Run(() => _notes.DeletePageNoteAsync(row.Id));
+        if (deleted is null) return;
+        SayNote($"Deleted the note on {row.Pages}.", async () => await Task.Run(() => _notes.RestorePageNoteAsync(deleted)));
+    }
+
+    /// <summary>A note in the panel: the reader goes to its first page. A note made in another copy goes to the same page number.</summary>
+    [RelayCommand]
+    void GoToNote(PageNoteRow row)
+    {
+        if (Mode != ViewerMode.Pdf) return;
+        GoTo(Math.Clamp(row.Note.Range.FirstPdfPage, 0, Math.Max(0, PageCount - 1)), null);
+        if (_request is { } request && row.Note.Range.DocumentId != request.DocumentId)
+            ShowNotice("This note was made in another copy of the book, so its page may be a little different here.");
+    }
+
+    [RelayCommand(CanExecute = nameof(HasNoteUndo))]
+    async Task UndoNote()
+    {
+        if (NoteUndo is not { } undo) return;
+        NoteUndo = null;
+        NoteMessage = null;
+        try
+        {
+            await undo();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing a page note change failed");
+            NoteMessage = "That couldn't be undone.";
+        }
+    }
+
+    [RelayCommand]
+    void DismissNoteMessage()
+    {
+        NoteMessage = null;
+        NoteUndo = null;
+    }
+
+    int? FindPage(string text) => PageNumbers.Find(text, _labels, PageCount);
+
+    void OpenNoteDialog(PageNoteDialogViewModel dialog, Func<PageNoteDialogResult, Task> then)
+    {
+        dialog.Closed += async (_, result) =>
+        {
+            NoteDialog = null;
+            if (result is null) return;
+            try
+            {
+                await then(result);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Saving a page note failed");
+                SayNote("That didn't work. The log has the details.", null);
+            }
+        };
+        NoteDialog = dialog;
+    }
+
+    void SayNote(string message, Func<Task>? undo)
+    {
+        NoteMessage = message;
+        NoteUndo = undo;
+    }
+
+    /// <summary>The open book's page notes, read again whenever any reader changes one of them.</summary>
+    async Task LoadPageNotesAsync()
+    {
+        _notes.PageNotesChanged -= OnPageNotesChanged;
+        _notes.PageNotesChanged += OnPageNotesChanged;
+        if (_request is not { } request) return;
+        var version = _version;
+        try
+        {
+            var documentId = request.DocumentId;
+            var (entry, notes) = await Task.Run(async () => (await _notes.GetEntryAsync(documentId), await _notes.GetPageNotesForDocumentAsync(documentId)));
+            if (version != _version) return;
+            _notesEntry = entry;
+            PageNotes.Clear();
+            foreach (var note in notes) PageNotes.Add(new PageNoteRow(note));
+            HasPageNotes = PageNotes.Count > 0;
+            OnPropertyChanged(nameof(NotesLabel));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Loading the page notes failed");
+        }
+    }
+
+    void OnPageNotesChanged(object? sender, EntryId entryId)
+    {
+        if (entryId != _notesEntry) return;
+        if (_dispatcher.CheckAccess()) _ = LoadPageNotesAsync();
+        else _dispatcher.InvokeAsync(LoadPageNotesAsync);
+    }
+
     async Task OpenImageAsync(DocumentSource source, int version)
     {
         await using var file = await _sources.OpenAsync(source);
@@ -697,6 +873,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             Pdf = new OpenPdf(renderer, doc, TextAsync, start, top);
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
+            _ = LoadPageNotesAsync();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
             await RecordOpenAsync(source.DocumentId);
