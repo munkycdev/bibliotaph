@@ -214,6 +214,7 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, CoversStage>();
         builder.Services.AddSingleton<IStage, RuleHintsStage>();
         builder.Services.AddSingleton<IStage, OcrStage>();
+        builder.Services.AddSingleton<AiReadingFeed>();
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
         builder.Services.AddSingleton<MetadataProjector>();
@@ -288,6 +289,7 @@ public partial class App : Application
         builder.Services.AddTransient<BackupSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<BuiltInAiViewModel>();
+        builder.Services.AddTransient<AiReadingViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
         builder.Services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
@@ -311,6 +313,7 @@ public partial class App : Application
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
+        Route.AiReading => services.GetRequiredService<AiReadingViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

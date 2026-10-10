@@ -171,7 +171,7 @@ public class LocalModelClientTests
         var classifier = new ModelClassifier(client, "ollama", "model-a");
 
         var result = await classifier.ClassifyAsync(
-            new ClassifierInput(excerpt, "lantern.pdf", p => p == 0 ? excerpt.Pages[0].Text : null, vocabulary), TestContext.Current.CancellationToken);
+            new ClassifierInput(excerpt, "lantern.pdf", p => p == 0 ? excerpt.Pages[0].Text : null, vocabulary), ct: TestContext.Current.CancellationToken);
 
         Assert.Equal("The Sunken Lantern", Assert.Single(result.Accepted).Value);
         Assert.Equal("publisher", Assert.Single(result.Dropped).Claim.Field);
@@ -264,7 +264,7 @@ public class LocalModelClientTests
         });
         var classifier = new ModelClassifier(client, "ollama", "model-a");
 
-        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(() => classifier.ClassifyAsync(Lantern(), TestContext.Current.CancellationToken));
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(() => classifier.ClassifyAsync(Lantern(), ct: TestContext.Current.CancellationToken));
 
         Assert.Contains("couldn't read this book", ex.Message, StringComparison.Ordinal);
         Assert.Contains("token repeat limit reached", ex.Message, StringComparison.Ordinal);
@@ -288,8 +288,103 @@ public class LocalModelClientTests
         });
         var classifier = new ModelClassifier(client, "ollama", "model-a");
 
-        var ex = await Assert.ThrowsAsync<ModelRequestException>(() => classifier.ClassifyAsync(Lantern(), TestContext.Current.CancellationToken));
+        var ex = await Assert.ThrowsAsync<ModelRequestException>(() => classifier.ClassifyAsync(Lantern(), ct: TestContext.Current.CancellationToken));
 
         Assert.Contains("runner process has terminated", ex.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>Keeps every report in order, on the reporting thread, as <see cref="Progress{T}"/> wouldn't.</summary>
+    sealed class Reports : IProgress<ModelProgress>
+    {
+        public List<ModelProgress> All { get; } = [];
+
+        public void Report(ModelProgress value) => All.Add(value);
+    }
+
+    [Fact]
+    public async Task Streams_an_Ollama_answer_and_reports_it_as_it_comes()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""
+                {"message":{"content":"{\"title\":[{\"value\":"},"done":false}
+                {"message":{"content":"\"The Sunken Lantern\""},"done":false}
+                {"message":{"content":",\"page\":1}]}"},"done":false}
+                {"message":{"content":""},"done":true,"eval_count":12}
+                """),
+            _ => NotFound,
+        });
+        var reports = new Reports();
+
+        var answer = await client.CompleteAsync(Request with { Progress = reports }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("""{"title":[{"value":"The Sunken Lantern","page":1}]}""", answer);
+        Assert.True(server.Requests.Single(r => r.Path == "/api/chat").Body!["stream"]!.GetValue<bool>());
+        Assert.Equal([ModelStep.Waiting, ModelStep.Writing, ModelStep.Writing, ModelStep.Writing], reports.All.Select(r => r.Step));
+        Assert.Equal(answer, reports.All[^1].Answer);
+    }
+
+    [Fact]
+    public async Task Streams_an_OpenAI_style_answer_with_llama_servers_reading_progress()
+    {
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/api/version" => NotFound,
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok("""
+                data: {"prompt_progress":{"total":4000,"cache":0,"processed":1000,"time_ms":50}}
+
+                data: {"prompt_progress":{"total":4000,"cache":0,"processed":4000,"time_ms":200}}
+
+                data: {"choices":[{"delta":{"role":"assistant"}}]}
+
+                data: {"choices":[{"delta":{"content":"{\"ok\":"}}]}
+
+                data: {"choices":[{"delta":{"content":"true}"}}]}
+
+                data: [DONE]
+
+                """),
+            _ => NotFound,
+        });
+        var reports = new Reports();
+
+        var answer = await client.CompleteAsync(Request with { Progress = reports }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("""{"ok":true}""", answer);
+        Assert.True(server.Requests.Single(r => r.Path == "/v1/chat/completions").Body!["stream"]!.GetValue<bool>());
+        Assert.Equal([0.25, 1.0], reports.All.Where(r => r.Step == ModelStep.Reading).Select(r => r.Read!.Value));
+        Assert.Equal(["{\"ok\":", answer], reports.All.Where(r => r.Step == ModelStep.Writing).Select(r => r.Answer));
+    }
+
+    [Fact]
+    public async Task An_error_part_way_through_a_stream_fails_the_request()
+    {
+        var (client, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""
+                {"message":{"content":"{\"title\":["},"done":false}
+                {"error":"prediction aborted, token repeat limit reached"}
+                """),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ModelRequestException>(() =>
+            client.CompleteAsync(Request with { Progress = new Reports() }, TestContext.Current.CancellationToken));
+
+        Assert.Contains("token repeat limit reached", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("{\"title\":[{\"value\":\"The Sunk", "title:")]
+    [InlineData("{\"title\":[{\"value\":\"The Sunken Lantern\",\"page\":1,\"quote\":\"THE SUN", "title:The Sunken Lantern")]
+    [InlineData("{\"title\":[],\"authors\":[{\"value\":\"Ana Ruiz\",\"page\":3},{\"value\":\"Bo\"", "title:|authors:Ana Ruiz,Bo")]
+    [InlineData("Sorry, I can't", "")]
+    public void Reads_the_fields_of_an_answer_still_being_written(string answer, string expected) =>
+        Assert.Equal(expected, string.Join("|", PartialAnswer.Read(answer).Select(f => $"{f.Name}:{string.Join(",", f.Values)}")));
 }

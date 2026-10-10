@@ -30,7 +30,7 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 /// </summary>
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
-    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, ILogger<AiSettingsViewModel> log)
+    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, ILogger<AiSettingsViewModel> log)
     : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Ai;
@@ -424,6 +424,10 @@ public sealed partial class AiSettingsViewModel(
         }
         tester.Show(endpoint, Model.Trim());
     }
+
+    /// <summary>Opens AI reading: the book being read now and the last ones read.</summary>
+    [RelayCommand]
+    void OpenAiReading() => links.OpenAiReading();
 
     [RelayCommand]
     async Task ReclassifyAsync()

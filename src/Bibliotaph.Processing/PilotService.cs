@@ -200,7 +200,7 @@ public sealed class PilotService(
         var started = _clock.GetTimestamp();
         try
         {
-            var result = await classifier.ClassifyAsync(input, ct);
+            var result = await classifier.ClassifyAsync(input, ct: ct);
             var seconds = _clock.GetElapsedTime(started).TotalSeconds;
             List<PilotProposal> proposals =
             [

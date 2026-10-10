@@ -376,9 +376,14 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
 {
     /// <summary>
     /// llama.cpp's own request fields. No repetition penalty: the evidence check needs the book's words quoted exactly,
-    /// and a penalty on repeats would push the model off them. llama.cpp's JSON grammar already bounds whitespace.
+    /// and a penalty on repeats would push the model off them. llama.cpp's JSON grammar already bounds whitespace. A
+    /// streamed request also gets how far the excerpt has been read, for the AI reading page.
     /// </summary>
-    static readonly JsonObject Extras = new() { ["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = false } };
+    static readonly JsonObject Extras = new()
+    {
+        ["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = false },
+        ["return_progress"] = true,
+    };
 
     public string ModelPath => modelPath;
 

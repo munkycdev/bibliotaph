@@ -35,6 +35,9 @@ public sealed class SettingsLinks(INavigationService navigation)
         navigation.NavigateTo(Route.Settings);
     }
 
+    /// <summary>AI reading, from Processing's and Settings > AI's "See what the AI is reading" (Built-in AI plan, choice 13).</summary>
+    public void OpenAiReading() => navigation.NavigateTo(Route.AiReading);
+
     /// <summary>The section the latest <see cref="Open"/> asked for, once; null when Settings was opened another way.</summary>
     public SettingsSection? TakeRequest()
     {
