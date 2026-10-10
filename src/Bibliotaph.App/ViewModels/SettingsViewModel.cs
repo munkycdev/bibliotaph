@@ -28,12 +28,12 @@ public sealed partial class SettingsViewModel : PageViewModel
         _about = about;
         _shortcuts = shortcuts;
         _log = log;
-        SettingsSectionViewModel[] sections = [library, processing, appearance, review, vocabulary, ai, passwords, backup];
+        SettingsSectionViewModel[] sections = [processing, library, appearance, review, vocabulary, ai, passwords, backup];
         // Start over only with --dev (slice 4l plan, choice 7).
         Sections = dev.IsOn ? [.. sections, startOver] : sections;
         foreach (var section in Sections) section.PropertyChanged += OnSectionChanged;
-        Selected = library;
-        library.IsSelected = true;
+        Selected = processing;
+        processing.IsSelected = true;
     }
 
     public override Route Route => Route.Settings;
@@ -42,7 +42,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>The section list stays put while the chosen section scrolls beside it.</summary>
     public override bool ScrollsItself => true;
 
-    /// <summary>The section list, in order; Start over, when the app started with --dev, is last.</summary>
+    /// <summary>The section list, in order: Processing first; Start over, when the app started with --dev, last.</summary>
     public IReadOnlyList<SettingsSectionViewModel> Sections { get; }
 
     /// <summary>The section filling the page.</summary>

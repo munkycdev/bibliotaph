@@ -34,14 +34,6 @@ public sealed partial class LibraryFolderItem(long id, string path) : Observable
 
     [ObservableProperty]
     public partial string Detail { get; set; } = "";
-
-    /// <summary>Percent of the folder's documents that are searchable.</summary>
-    [ObservableProperty]
-    public partial double Percent { get; set; }
-
-    /// <summary>The bar shows while some of the folder isn't searchable yet.</summary>
-    [ObservableProperty]
-    public partial bool ShowProgress { get; set; }
 }
 
 /// <summary>A folder the user picked, shown with what it holds before it joins the library.</summary>
@@ -192,8 +184,6 @@ public sealed partial class LibrarySectionViewModel(
                 // Availability is kept in the catalog, so a folder offline before a restart says so before it is scanned again.
                 item.IsOffline = root.Availability == SourceRootAvailability.Offline;
                 item.Detail = Describe(root.AddedUtc, item.IsOffline, scans.GetValueOrDefault(root.Id), searchable, ids.Count);
-                item.Percent = ids.Count == 0 ? 0 : 100.0 * searchable / ids.Count;
-                item.ShowProgress = searchable < ids.Count;
             }
             HasFolders = Folders.Count > 0;
         }
