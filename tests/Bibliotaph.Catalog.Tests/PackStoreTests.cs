@@ -118,7 +118,7 @@ public sealed class PackStoreTests : IAsyncLifetime
         Assert.Null(await _packs.SplitAsync(zombie, Ct));
 
         // Undo: the same pack card, with the same images.
-        var repacked = await _packs.RepackAsync(pack, Ct);
+        var repacked = await _packs.RepackAsync(pack, [.. changed.Skip(1)], Ct);
         Assert.Equal(pack, repacked[0]);
         var again = Assert.Single(await _entries.GetCurrentAsync(ct: Ct));
         Assert.Equal((pack, 20), (again.EntryId, again.Members!.Count));
@@ -189,6 +189,123 @@ public sealed class PackStoreTests : IAsyncLifetime
     }
 
     /// <summary>Packs compare by value, members included.</summary>
+    [Fact]
+    public async Task Pack_together_makes_a_pack_of_loose_images_that_a_rescan_leaves_alone_and_undo_takes_apart()
+    {
+        var images = await AddAsync("Handouts/Harbor.png", "Handouts/Crypt.png", "Maps/Keep.jpg", "Handouts/Guide.pdf");
+        await _packs.PlanAsync(Ct);
+
+        var together = await _packs.PackTogetherAsync([images["Maps/Keep.jpg"], images["Handouts/Harbor.png"], images["Handouts/Crypt.png"]], Ct);
+
+        Assert.NotNull(together);
+        Assert.True(together.Created);
+        Assert.Empty(together.Merged);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack);
+        Assert.Equal((together.PackId, (string?)null), (pack.EntryId, pack.Name));
+        Assert.Equal(["Crypt.png", "Harbor.png", "Keep.jpg"], pack.Members!.Select(m => m.Name));
+        Assert.Equal([together.PackId, .. together.Images], together.Changed);
+        Assert.Empty(await _packs.PlanAsync(Ct));
+        Assert.Null(await _packs.GetPlaceAsync(together.PackId, Ct));
+        var folders = await _packs.GetFoldersAsync(together.PackId, Ct);
+        Assert.Equal([("Handouts", 2), ("Maps", 1)], folders.Select(f => (Path.GetFileName(f.FullPath), f.Images)));
+
+        await _packs.UndoPackTogetherAsync(together, Ct);
+
+        var cards = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.Equal(4, cards.Count);
+        Assert.All(cards, c => Assert.Equal(EntryKind.Whole, c.Kind));
+    }
+
+    [Fact]
+    public async Task Pack_together_adds_images_to_a_folder_pack_which_still_grows_and_a_split_frees_them_all()
+    {
+        var images = await AddAsync([.. Images("Tokens/Undead", 20), "Extras/Lich.png"]);
+        await _packs.PlanAsync(Ct);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack).EntryId;
+
+        var together = await _packs.PackTogetherAsync([images["Extras/Lich.png"], pack], Ct);
+
+        Assert.NotNull(together);
+        Assert.Equal((pack, false), (together.PackId, together.Created));
+        Assert.Equal([images["Extras/Lich.png"]], together.Images);
+        Assert.Equal(21, Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).Members!.Count);
+        var folders = await _packs.GetFoldersAsync(pack, Ct);
+        Assert.Equal([("Undead", 20), ("Extras", 1)], folders.Select(f => (Path.GetFileName(f.FullPath), f.Images)));
+
+        // Its folder still fills it.
+        await AddAsync("Tokens/Undead/Ghoul.png");
+        await _packs.PlanAsync(Ct);
+        Assert.Equal(22, Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).Members!.Count);
+
+        var freed = (await _packs.SplitAsync(pack, Ct))!;
+        Assert.Equal(22, (await _entries.GetCurrentAsync(ct: Ct)).Count);
+        await _packs.RepackAsync(pack, [.. freed.Skip(1)], Ct);
+        Assert.Equal(22, Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).Members!.Count);
+    }
+
+    [Fact]
+    public async Task Pack_together_merges_packs_into_the_oldest_which_takes_their_folders_images_and_undo_brings_them_back()
+    {
+        var metadata = new MetadataStore(new Factory(_database));
+        await AddAsync([.. Images("Tokens/Undead", 20), .. Images("Tokens/Beasts", 20)]);
+        await _packs.PlanAsync(Ct);
+        var packs = (await _entries.GetCurrentAsync(ct: Ct)).Select(c => c.EntryId).OrderBy(e => e.Value).ToList();
+        Assert.Equal(2, packs.Count);
+        var (older, newer) = (packs[0], packs[1]);
+        await metadata.SetValuesAsync(newer, MetadataFields.Tags, ["Night"], Ct);
+
+        var together = await _packs.PackTogetherAsync([newer, older], Ct);
+
+        Assert.NotNull(together);
+        Assert.Equal((older, false), (together.PackId, together.Created));
+        Assert.Equal([newer], together.Merged);
+        Assert.Equal(22, together.Changed.Count);
+        var card = Assert.Single(await _entries.GetCurrentAsync(ct: Ct));
+        Assert.Equal((older, 40), (card.EntryId, card.Members!.Count));
+        Assert.Equal(["Night"], (await metadata.GetAsync(older, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
+
+        // The merged pack's folders fill the pack it merged into.
+        await AddAsync("Tokens/Beasts/Owlbear.png", "Tokens/Undead/Ghoul.png");
+        await _packs.PlanAsync(Ct);
+        Assert.Equal(42, Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).Members!.Count);
+
+        await _packs.UndoPackTogetherAsync(together, Ct);
+
+        var cards = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.Equal([(older, 22), (newer, 20)], cards.OrderBy(c => c.EntryId.Value).Select(c => (c.EntryId, c.Members!.Count)));
+        Assert.Equal(["Night"], (await metadata.GetAsync(newer, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
+    }
+
+    [Fact]
+    public async Task A_split_of_a_merged_pack_keeps_every_folder_behind_it_from_packing_again()
+    {
+        await AddAsync([.. Images("Tokens/Undead", 20), .. Images("Tokens/Beasts", 20)]);
+        await _packs.PlanAsync(Ct);
+        var packs = (await _entries.GetCurrentAsync(ct: Ct)).Select(c => c.EntryId).OrderBy(e => e.Value).ToList();
+        await _packs.PackTogetherAsync(packs, Ct);
+
+        var freed = (await _packs.SplitAsync(packs[0], Ct))!;
+
+        Assert.Equal(41, freed.Count);
+        Assert.Empty(await _packs.PlanAsync(Ct));
+        Assert.Equal(40, (await _entries.GetCurrentAsync(ct: Ct)).Count);
+        Assert.Null(await _packs.SplitAsync(packs[1], Ct));
+    }
+
+    [Fact]
+    public async Task Pack_together_refuses_books_single_cards_and_merged_packs()
+    {
+        var images = await AddAsync([.. Images("Tokens/Undead", 20), .. Images("Tokens/Beasts", 20), "Extras/Lich.png", "Extras/Guide.pdf"]);
+        await _packs.PlanAsync(Ct);
+        var packs = (await _entries.GetCurrentAsync(ct: Ct)).Where(c => c.Kind == EntryKind.Pack).Select(c => c.EntryId).OrderBy(e => e.Value).ToList();
+
+        Assert.Null(await _packs.PackTogetherAsync([images["Extras/Lich.png"]], Ct));
+        Assert.Null(await _packs.PackTogetherAsync([images["Extras/Lich.png"], images["Extras/Guide.pdf"]], Ct));
+        Assert.Null(await _packs.PackTogetherAsync([images["Tokens/Undead/Zombie 1.png"], images["Extras/Lich.png"]], Ct));
+        await _packs.PackTogetherAsync(packs, Ct);
+        Assert.Null(await _packs.PackTogetherAsync([packs[1], images["Extras/Lich.png"]], Ct));
+    }
+
     sealed class PackComparer : IEqualityComparer<EntryDocument>
     {
         public bool Equals(EntryDocument? x, EntryDocument? y) =>

@@ -1,0 +1,48 @@
+<UserControl x:Class="Bibliotaph.App.Views.PackTogetherDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:PackTogetherDialogViewModel}"
+             KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="Pack together">
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+  </UserControl.InputBindings>
+
+  <!-- Multi-select plan, choices 8 to 11: a new pack, images added to a pack, or packs merged, with the pack's name. -->
+  <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />
+    </Border.Effect>
+    <StackPanel Margin="28,22,28,22">
+      <DockPanel Margin="0,0,0,4">
+        <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
+                ToolTip="Close (Esc)" AutomationProperties.Name="Close without packing" Command="{Binding CancelCommand}" />
+        <StackPanel>
+          <TextBlock Text="IMAGE PACK" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+          <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,6,0,0" />
+        </StackPanel>
+      </DockPanel>
+
+      <TextBlock Text="Name" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,14,0,5" />
+      <TextBox x:Name="NameBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pack name">
+        <TextBox.InputBindings>
+          <KeyBinding Key="Enter" Command="{Binding PackCommand}" />
+        </TextBox.InputBindings>
+      </TextBox>
+
+      <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,12,0,0"
+                 Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+        <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+        <Button x:Name="PackButton" Style="{StaticResource Bt.Button.Primary}" Content="Pack together" c:Ui.Icon="{StaticResource Icon.LayoutGrid}"
+                Command="{Binding PackCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

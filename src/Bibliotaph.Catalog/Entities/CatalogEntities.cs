@@ -126,7 +126,8 @@ public sealed class EntrySource
 
 /// <summary>
 /// A copy that joined an entry because its text matched another copy page for page (catalog entry design, choice 5),
-/// with what moved across, so "Not the same book" can put everything back.
+/// or because the user said so with Same book, with what moved across, so "Not the same book" can put everything back.
+/// A pack merged into another by Pack together (multi-select plan, choice 9) is recorded the same way, with no files.
 /// </summary>
 public sealed class EntryJoin
 {
@@ -135,10 +136,10 @@ public sealed class EntryJoin
     public long EntryId { get; set; }
     /// <summary>The copy's own entry before the join, kept with <see cref="Entry.MergedIntoEntryId"/> set.</summary>
     public long JoinedEntryId { get; set; }
-    /// <summary>The copy that joined.</summary>
-    public long DocumentId { get; set; }
-    /// <summary>The copy it matched.</summary>
-    public long MatchedDocumentId { get; set; }
+    /// <summary>The copy that joined; null for a pack that merged into another.</summary>
+    public long? DocumentId { get; set; }
+    /// <summary>The copy it matched; null for a pack that merged into another.</summary>
+    public long? MatchedDocumentId { get; set; }
     /// <summary>The ids of the assertions, rejections and runs that moved, and of the values set aside, as JSON.</summary>
     public required string MovedJson { get; set; }
     public DateTime CreatedUtc { get; set; }

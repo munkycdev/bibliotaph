@@ -313,7 +313,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var rows = await Sources(db.EntrySources.AsNoTracking().Where(s => s.EntryId == entryId.Value && s.FirstPdfPage == null)).ToListAsync(ct);
         if (rows.Count == 0) return [];
         var shown = Shown(rows).DocumentId;
-        var joined = await db.EntryJoins.AsNoTracking().Where(j => j.EntryId == entryId.Value).Select(j => j.DocumentId).ToListAsync(ct);
+        var joined = await db.EntryJoins.AsNoTracking().Where(j => j.EntryId == entryId.Value && j.DocumentId != null).Select(j => j.DocumentId!.Value).ToListAsync(ct);
         return [.. rows.OrderByDescending(r => r.IsCurrent).ThenByDescending(r => r.DocumentId)
             .Select(r => new EntryCopy(r.DocumentId, r.ContentHash, r.PageCount, r.IsCurrent, r.DocumentId == shown, r.HasFile, joined.Contains(r.DocumentId), r.AddedUtc))];
     }
@@ -374,7 +374,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// aside for a "Copies disagree" card (choice 7). The card that joined keeps its id, marked as merged. Returns what
     /// moved, which the caller records; the caller saves.
     /// </summary>
-    async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
+    internal async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
     {
         var sources = await db.EntrySources.Where(s => s.EntryId == joining).ToListAsync(ct);
         var moved = new MovedRows { Sources = [.. sources.Select(s => new MovedSource(s.Id, s.IsCurrent))] };
@@ -467,7 +467,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return moved;
     }
 
-    void AddJoin(CatalogDbContext db, long target, long joining, long documentId, long matchedDocumentId, MovedRows moved) =>
+    internal void AddJoin(CatalogDbContext db, long target, long joining, long? documentId, long? matchedDocumentId, MovedRows moved) =>
         db.EntryJoins.Add(new EntryJoin
         {
             EntryId = target,
@@ -482,7 +482,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// Puts back what a join moved: the sources go back to the card that joined, as current as they were, with the
     /// assertions, rejections and runs they brought, and that card shows again. The caller saves.
     /// </summary>
-    static async Task RestoreAsync(CatalogDbContext db, long entryId, EntryJoin join, List<EntrySource> sources, CancellationToken ct)
+    internal static async Task RestoreAsync(CatalogDbContext db, long entryId, EntryJoin join, List<EntrySource> sources, CancellationToken ct)
     {
         var card = join.JoinedEntryId;
         var moved = JsonSerializer.Deserialize<MovedRows>(join.MovedJson) ?? new MovedRows();
@@ -533,6 +533,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             own.Text = own.Text[..^appended.Length];
         foreach (var pageNote in await db.Notes.Where(n => n.EntryId == entryId && moved.PageNotes.Contains(n.Id)).ToListAsync(ct))
             pageNote.EntryId = card;
+        // A pack's images go back to it, those still in the pack it merged into (multi-select plan, choice 11).
+        foreach (var member in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Members.Contains(e.Id)).ToListAsync(ct))
+            member.ParentEntryId = card;
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
     }
@@ -729,7 +732,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return current.HasFile ? current : sources.Where(s => s.HasFile).MaxBy(s => s.DocumentId) ?? current;
     }
 
-    sealed class MovedRows
+    internal sealed class MovedRows
     {
         public List<MovedSource> Sources { get; set; } = [];
         public List<long> Assertions { get; set; } = [];
@@ -750,7 +753,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public string? NoteAppended { get; set; }
         /// <summary>The page notes the card that joined brought.</summary>
         public List<long> PageNotes { get; set; } = [];
+        /// <summary>For a pack merged into another (multi-select plan, choice 9): the images that were in it.</summary>
+        public List<long> Members { get; set; } = [];
     }
 
-    sealed record MovedSource(long Id, bool WasCurrent);
+    internal sealed record MovedSource(long Id, bool WasCurrent);
 }

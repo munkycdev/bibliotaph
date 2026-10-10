@@ -28,7 +28,7 @@ public sealed partial class PipelineTests
         Assert.Equal(["Zombie 1.png", "Zombie 2.png"], images.Take(2).Select(i => i.Name));
         Assert.Equal(pack.DocumentId, images[0].DocumentId);
 
-        Assert.True(await _packs.SplitAsync(pack.EntryId, Ct));
+        Assert.NotNull(await _packs.SplitAsync(pack.EntryId, Ct));
 
         cards = await search.ListAsync(new LibraryFilter(), ct: Ct);
         Assert.Equal(21, cards.Count);

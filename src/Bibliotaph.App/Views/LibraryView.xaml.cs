@@ -23,6 +23,7 @@ public partial class LibraryView
         BulkDialog.IsVisibleChanged += BulkDialog_IsVisibleChanged;
         ElsewhereDialog.IsVisibleChanged += ElsewhereDialog_IsVisibleChanged;
         SameBookDialog.IsVisibleChanged += SameBookDialog_IsVisibleChanged;
+        PackDialog.IsVisibleChanged += PackDialog_IsVisibleChanged;
         SizeChanged += (_, _) => FitPageHead();
         PageFoot.SizeChanged += (_, _) => FitPageHead();
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
@@ -176,6 +177,21 @@ public partial class LibraryView
         {
             _focusBeforeDialog = Keyboard.FocusedElement;
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => SameBookDialog.FocusFirst());
+        }
+        else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
+        {
+            previous.Focus();
+            _focusBeforeDialog = null;
+        }
+    }
+
+    /// <summary>And for Pack together: focus in the name as it opens, and back to the selection bar after.</summary>
+    void PackDialog_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (PackDialog.IsVisible)
+        {
+            _focusBeforeDialog = Keyboard.FocusedElement;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PackDialog.FocusFirst());
         }
         else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
         {
