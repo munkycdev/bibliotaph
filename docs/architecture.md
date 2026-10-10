@@ -80,7 +80,7 @@ Each worker keeps the spike's contract: length-prefixed messages over a named pi
 
 Tests live under `tests/`: unit tests for Core, Index (in-memory SQLite) and Classification; integration tests for Pdf.Host against generated fixtures; and an acceptance harness, grown from the spike's `Harness`, that drives scenarios A01 to A18 against a corpus manifest.
 
-Build-enforced rules: Core and Pdf.Contracts reference nothing; only App knows about WPF windows; only Processing and Pdf.Host open source files, and only through one read-only `ISourceFileReader` (a banned-API analyzer rejects write-capable `FileStream` and `File.Write*` calls elsewhere).
+Build-enforced rules: Core and Pdf.Contracts reference nothing; only App knows about WPF windows; only Processing and Pdf.Host open source files, and only through one read-only `ISourceFileReader` (a banned-API analyzer rejects write-capable `FileStream` and `File.Write*` calls elsewhere). The one exception is returning an online-only file to online-only (see OneDrive below), which changes only its local download state and lives in one small Processing class.
 
 ## Storage
 
@@ -149,7 +149,7 @@ A document is a content hash; a path is where that content was last seen. That g
 
 **Check a download.** The Library's "Check a download" page checks a folder (with its subfolders and ZIPs) or one ZIP against the library without adding anything. Each PDF and image is hashed through the read-only reader: a hash with a file in a library folder is Already owned. Other PDFs are read in the index worker for their page text and fingerprints, which the Match rules compare with `page.fingerprint` in index.db (Another copy, Maybe a new version), and then their rule-hint title and publisher are compared with the cards' (Owned elsewhere, Maybe a new version). Images are judged by hash only. A PDF inside a ZIP is read from a temporary copy in `check-*` under the extract cache, removed when the check ends. Nothing is written to catalog.db, index.db or the job queue; Copy list puts the results on the clipboard as tab-separated text.
 
-**OneDrive.** Online-only files (recall-on-data-access attribute) are always indexed, which downloads each as the queue reaches it. Local files are queued first, first run shows how many files and how much data will download, and the online-only lane pauses if free disk space falls below a threshold (2 GB proposed). Bibliotaph never frees space back to the cloud.
+**OneDrive.** Online-only files (recall-on-data-access attribute) are always indexed, which downloads each as the queue reaches it. Local files are queued first, first run shows how many files and how much data will download, and the online-only lane pauses if free disk space falls below a threshold (2 GB proposed). Once a file that was online-only has been read, Bibliotaph returns it to online-only through the Cloud Files API (`CfDehydratePlaceholder`, the same action as Explorer's "Free up space"), so a library larger than the disk can be indexed (Dave, 10 October 2026; not built yet). A setting, "Return files to online-only after indexing", is on by default. Only files that were online-only before Bibliotaph read them are returned; content, path and timestamps never change. Dropbox should behave the same, since it uses the same placeholders; Google Drive for desktop streams through its own drive letter and cache and needs its own check.
 
 **Stages**, each with its own status (pending, running, complete, partial, blocked, failed, skipped):
 
@@ -266,7 +266,7 @@ Open risks, in the order to retire them:
 2. **Memory headroom.** Viewer worker 1.5 GB, index workers 1 GB; measure release-on-close.
 3. **Slow pages.** Preview-first and prefetch must meet the 250 ms no-blank-page bar on the worst books; measured in slice 1.
 4. **OCR.** Settled by the slice 1 bake-off: Windows OCR was as accurate as Tesseract and 7 to 14 times faster. It reads multi-column pages column by column, which suits search.
-5. **OneDrive hydration.** Placeholder detection, local-first ordering and the low-disk pause are new code.
+5. **OneDrive hydration.** Placeholder detection, local-first ordering and the low-disk pause are new code, and returning files to online-only after indexing (decided 10 October 2026) is still to build.
 6. **Non-ASCII paths and rotated pages.** A fixture each.
 7. **.NET 11 RC to GA** in November 2026; a rebuild, not a migration.
 
