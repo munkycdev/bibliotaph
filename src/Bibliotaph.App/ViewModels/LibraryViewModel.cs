@@ -399,8 +399,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         BulkUndo = null;
         SplitUndo = null;
         RemoveUndo = null;
+        JoinUndo = null;
         BulkMessage = null;
         AddElsewhereDialog = null;
+        SameBookDialog = null;
         if (BulkEdit is { IsApplyingStep: false }) BulkEdit = null;
     }
 
@@ -1000,6 +1002,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Inspector = null;
         BulkUndo = null;
         SplitUndo = null;
+        JoinUndo = null;
         RemoveUndo = removed;
         BulkMessage = $"Removed {item.Title} from your library.";
         await RefreshAsync();
@@ -1039,6 +1042,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Inspector = null;
         BulkUndo = null;
         RemoveUndo = null;
+        JoinUndo = null;
         SplitUndo = pack.EntryId;
         BulkMessage = $"Split {pack.Title} into {images.ToString("N0", CultureInfo.CurrentCulture)} {(images == 1 ? "image" : "images")}.";
         await RefreshAsync();
@@ -1111,6 +1115,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SelectAllCommand.NotifyCanExecuteChanged();
         ClearSelectionCommand.NotifyCanExecuteChanged();
         SelectRangeCommand.NotifyCanExecuteChanged();
+        JoinSelectedCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanJoinSelected));
     }
 
     /// <summary>Select: a checkbox on every book, and a click ticks a book instead of opening its details.</summary>
@@ -1179,6 +1185,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (dialog.ShowDialog(System.Windows.Application.Current.MainWindow) != true) return;
         SplitUndo = null;
         RemoveUndo = null;
+        JoinUndo = null;
         BulkUndo = null;
         try
         {
@@ -1199,6 +1206,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         // Leaving the Library while it applied ends the Undo, as leaving afterwards would.
         SplitUndo = null;
         RemoveUndo = null;
+        JoinUndo = null;
         BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
         BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
             : $"Edited {BulkEditViewModel.Books(result.Books)}.";
@@ -1225,6 +1233,83 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
+    // Same book (multi-select plan, M1).
+
+    /// <summary>The Same book dialog, while it is open over the Library.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(JoinSelectedCommand))]
+    public partial SameBookDialogViewModel? SameBookDialog { get; private set; }
+
+    /// <summary>
+    /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them
+    /// (choice 3). Packs aren't offered: a pack is many images, not a copy of a book.
+    /// </summary>
+    public bool CanJoinSelected => SameBookDialog is null && Selection.Count >= 2 && Selection.Items is var cards
+        && !cards.Any(c => c.IsPack) && cards.Count(c => c.IsElsewhere) <= 1;
+
+    /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
+    [RelayCommand(CanExecute = nameof(CanJoinSelected))]
+    async Task JoinSelected()
+    {
+        try
+        {
+            var dialog = await SameBookDialogViewModel.LoadAsync(_copies, Selection.Items);
+            dialog.Closed += async (_, result) => await SameBookClosedAsync(result);
+            Inspector = null;
+            SameBookDialog = dialog;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Loading the copies of {Count} selected cards failed", Selection.Count);
+        }
+        OnPropertyChanged(nameof(CanJoinSelected));
+    }
+
+    /// <summary>After Join: the library with one card where there were several, and Undo beside a note saying so.</summary>
+    async Task SameBookClosedAsync(SameBookResult? result)
+    {
+        SameBookDialog = null;
+        OnPropertyChanged(nameof(CanJoinSelected));
+        if (result is null) return;
+        BulkUndo = null;
+        SplitUndo = null;
+        RemoveUndo = null;
+        // Leaving the Library while it joined ends the Undo, as leaving afterwards would.
+        JoinUndo = ReferenceEquals(_navigation.Current, this) ? result.Join : null;
+        var title = _known.TryGetValue(result.Join.EntryId, out var card) ? card.Title : "one book";
+        BulkMessage = $"Joined {result.Cards.ToString("N0", CultureInfo.CurrentCulture)} cards as {title}.";
+        Selection.Clear();
+        await RefreshAsync();
+    }
+
+    /// <summary>What undoes the last Same book, until the next edit or until the Library is left (choice 7).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasJoinUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoJoinCommand))]
+    public partial BookJoin? JoinUndo { get; private set; }
+
+    public bool HasJoinUndo => JoinUndo is not null;
+
+    /// <summary>Gives each card its files back, with what it brought.</summary>
+    [RelayCommand(CanExecute = nameof(HasJoinUndo))]
+    async Task UndoJoin()
+    {
+        if (JoinUndo is not { } join) return;
+        JoinUndo = null;
+        BulkMessage = "Undoing…";
+        try
+        {
+            await Task.Run(() => _copies.UndoJoinAsOneBookAsync(join));
+            BulkMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing Same book on entry {EntryId} failed", join.EntryId);
+            BulkMessage = "The cards couldn't be taken apart again. Use Not the same book in the card's Copies list.";
+        }
+        await RefreshAsync();
+    }
+
     /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>
     [RelayCommand]
     void Escape()
@@ -1233,6 +1318,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else if (Sessions.Dialog is { } session) session.CancelCommand.Execute(null);
         else if (Collections.Dialog is { } collection) collection.CancelCommand.Execute(null);
         else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
+        else if (SameBookDialog is { } sameBook) sameBook.CancelCommand.Execute(null);
         else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
         else if (Inspector is not null) Inspector = null;
         else Selection.Stop();

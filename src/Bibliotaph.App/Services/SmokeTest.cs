@@ -117,6 +117,8 @@ static partial class SmokeTest
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone",
                 () => ReviewRevisionAsync(services, window));
+            await Check("two cards ticked and joined as one book with Same book, opening the file chosen, and taken apart again with Undo",
+                () => JoinAsOneBookAsync(services, window, books));
             if (real is { } reprocessed)
             {
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
@@ -1912,6 +1914,65 @@ static partial class SmokeTest
             throw new InvalidOperationException("The book owned elsewhere couldn't be removed again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was.");
+    }
+
+    /// <summary>
+    /// Same book (multi-select plan, M1): the scan Needs review proposes as a new version of the inn, ticked with the
+    /// inn and joined with the inn's file opening. One card with two copies, the version card gone, then Undo.
+    /// </summary>
+    static async Task JoinAsOneBookAsync(IServiceProvider services, Window window, int books)
+    {
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
+        var copies = services.GetRequiredService<CopiesService>();
+        var versions = await copies.CountVersionsAsync();
+        // By file: earlier checks have given the inn and the scan titles of their own.
+        var paths = await services.GetRequiredService<LibraryStore>().GetRelativePathsAsync();
+        LibraryItemViewModel Card(string file) =>
+            page.Items.Single(i => i.DocumentId == paths.First(p => p.RelativePath.EndsWith(file, StringComparison.Ordinal)).DocumentId);
+        var inn = Card("Haunted Inn.pdf");
+        var scan = Card("IMG_0042.pdf");
+        var map = Card("Tavern Map.png");
+
+        page.StartSelectingCommand.Execute(null);
+        await page.ActivateCommand.ExecuteAsync(inn);
+        if (page.CanJoinSelected) throw new InvalidOperationException("Same book is offered for one card.");
+        await page.ActivateCommand.ExecuteAsync(scan);
+        await Settle(window);
+        if (!page.CanJoinSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "JoinSelected") is not { IsVisible: true } join)
+            throw new InvalidOperationException("Same book isn't offered for two books.");
+        Click(join, "Same book");
+        await WaitUntilAsync(window, () => page.SameBookDialog is not null, () => "Same book didn't open its dialog.");
+        var dialog = page.SameBookDialog!;
+        if (dialog.Files.Count != 2 || dialog.Files.Count(f => f.Opens) != 1)
+            throw new InvalidOperationException($"The dialog lists {dialog.Files.Count} files, {dialog.Files.Count(f => f.Opens)} of them opening.");
+        var innFile = dialog.Files.Single(f => f.DocumentId == inn.DocumentId);
+        innFile.Opens = true;
+        if (dialog.Files.Single(f => f.DocumentId == scan.DocumentId).Opens) throw new InvalidOperationException("Choosing the inn's file left the scan's chosen too.");
+        await Settle(window);
+        await AuditAsync(window, "the Same book dialog");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.JoinCommand), "Join as one book");
+        await WaitUntilAsync(window, () => page.SameBookDialog is null && page.HasJoinUndo && page.Items.Count == books - 1,
+            () => $"Joining left {page.Items.Count} books ({page.BulkMessage}).");
+        var joined = page.Items.Single(i => i.EntryId == inn.EntryId || i.EntryId == scan.EntryId);
+        if (page.BulkMessage != $"Joined 2 cards as {joined.Title}.") throw new InvalidOperationException($"Same book says “{page.BulkMessage}”.");
+        if (joined.CopiesLabel != "2 copies" || joined.DocumentId != innFile.DocumentId)
+            throw new InvalidOperationException($"The joined card reads “{joined.CopiesLabel}” and opens document {joined.DocumentId}, not {innFile.DocumentId}.");
+        if (await copies.CountVersionsAsync() != versions - 1) throw new InvalidOperationException("The scan's “new version?” card is still waiting.");
+
+        // An image is a single file as a book is, so it can join one too; only packs are left out.
+        page.StartSelectingCommand.Execute(null);
+        await page.ActivateCommand.ExecuteAsync(joined);
+        await page.ActivateCommand.ExecuteAsync(map);
+        if (!page.CanJoinSelected) throw new InvalidOperationException("Same book isn't offered for a book and an image.");
+        page.StopSelectingCommand.Execute(null);
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoJoinCommand), "Undo Same book");
+        await WaitUntilAsync(window, () => !page.HasJoinUndo && page.BulkMessage is null && page.Items.Count == books,
+            () => $"Undo left {page.Items.Count} books ({page.BulkMessage}).");
+        if (await copies.CountVersionsAsync() != versions) throw new InvalidOperationException("Undo didn't bring back the scan's “new version?” card.");
     }
 
     /// <summary>

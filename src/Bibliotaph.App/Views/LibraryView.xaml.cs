@@ -22,6 +22,7 @@ public partial class LibraryView
         // in a second compile pass the code-style analyzers don't see, so they report the handler as unused.
         BulkDialog.IsVisibleChanged += BulkDialog_IsVisibleChanged;
         ElsewhereDialog.IsVisibleChanged += ElsewhereDialog_IsVisibleChanged;
+        SameBookDialog.IsVisibleChanged += SameBookDialog_IsVisibleChanged;
         SizeChanged += (_, _) => FitPageHead();
         PageFoot.SizeChanged += (_, _) => FitPageHead();
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
@@ -160,6 +161,21 @@ public partial class LibraryView
         {
             _focusBeforeDialog = Keyboard.FocusedElement;
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => ElsewhereDialog.FocusFirst());
+        }
+        else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
+        {
+            previous.Focus();
+            _focusBeforeDialog = null;
+        }
+    }
+
+    /// <summary>And for Same book: focus on Join as one book as it opens, and back to the selection bar after.</summary>
+    void SameBookDialog_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (SameBookDialog.IsVisible)
+        {
+            _focusBeforeDialog = Keyboard.FocusedElement;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => SameBookDialog.FocusFirst());
         }
         else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
         {

@@ -301,6 +301,105 @@ public sealed class EntryStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Same_book_joins_ticked_cards_onto_the_oldest_forgets_not_the_same_book_and_undo_puts_them_back()
+    {
+        var (core, original) = await AddBookAsync("Core/abbey.pdf", 'a');
+        var (backup, copy) = await AddBookAsync("Backup/abbey.pdf", 'b');
+        var (revised, update) = await AddBookAsync("Updates/abbey v2.pdf", 'c');
+        await _metadata.SetValuesAsync(original, MetadataFields.Title, ["The Drowned Abbey"], Ct);
+        await _metadata.SetValuesAsync(copy, MetadataFields.Title, ["Abbey backup"], Ct);
+        await _metadata.SetValuesAsync(update, MetadataFields.Tags, ["Revised"], Ct);
+        await _entries.RememberNotSameBookAsync(Hex('a'), Hex('c'), Ct);
+
+        // Ticked in any order, the cards join the oldest, which opens the file chosen.
+        var join = await _entries.JoinAsOneBookAsync([update, original, copy], revised, Ct);
+
+        Assert.NotNull(join);
+        Assert.Equal((original, core, false), (join.EntryId, join.PreviousCurrent, join.WasElsewhere));
+        Assert.Equal([copy, update], join.Joined);
+        Assert.Equal([new EntryDocument(original, revised, EntryKind.Whole, Copies: 3)], await _entries.GetCurrentAsync(ct: Ct));
+        var effective = (await _metadata.GetAsync(original, Ct)).Compute();
+        Assert.Equal("The Drowned Abbey", effective[MetadataFields.Title].First?.Value);
+        Assert.Contains(await ClaimsAsync(original, MetadataFields.Title), a => a is { NormalizedValue: "abbey backup", State: AssertionState.SetAside });
+        Assert.Equal(["Revised"], effective[MetadataFields.Tags].Values.Select(v => v.Value));
+        Assert.False(await _entries.IsNotSameBookAsync(Hex('a'), Hex('c'), Ct));
+        Assert.Equal([(revised, true, true), (backup, false, true), (core, false, false)],
+            (await _entries.GetCopiesAsync(original, Ct)).Select(c => (c.DocumentId, c.IsCurrent, c.Joined)));
+
+        await _entries.UndoJoinAsOneBookAsync(join, Ct);
+
+        Assert.Equal([(original, core, 1), (copy, backup, 1), (update, revised, 1)],
+            (await _entries.GetCurrentAsync(ct: Ct)).OrderBy(e => e.EntryId.Value).Select(e => (e.EntryId, e.DocumentId, e.Copies)));
+        Assert.Equal(("Abbey backup", true), Title(await _metadata.GetAsync(copy, Ct)));
+        Assert.Equal(["Revised"], (await _metadata.GetAsync(update, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
+        Assert.Empty((await _metadata.GetAsync(original, Ct)).Compute()[MetadataFields.Tags].Values);
+        Assert.True(await _entries.IsNotSameBookAsync(Hex('c'), Hex('a'), Ct));
+    }
+
+    [Fact]
+    public async Task Same_book_with_a_book_owned_elsewhere_brings_the_files_to_it_and_undo_leaves_it_owned_elsewhere()
+    {
+        var printed = await _entries.AddElsewhereAsync(Ct);
+        await _metadata.SetValuesAsync(printed, MetadataFields.Title, ["Tomb of the Serpent"], Ct);
+        var (scan, scanned) = await AddBookAsync("tomb scan.pdf", 'c');
+        var (store, bought) = await AddBookAsync("tomb.pdf", 'd');
+        await _metadata.SetValuesAsync(bought, MetadataFields.Tags, ["Prep"], Ct);
+
+        var join = await _entries.JoinAsOneBookAsync([scanned, bought, printed], store, Ct);
+
+        Assert.NotNull(join);
+        Assert.Equal((printed, (long?)null, true), (join.EntryId, join.PreviousCurrent, join.WasElsewhere));
+        Assert.Equal([scanned, bought], join.Joined);
+        Assert.Equal([new EntryDocument(printed, store, EntryKind.Whole, Copies: 2)], await _entries.GetCurrentAsync(ct: Ct));
+        var metadata = (await _metadata.GetAsync(printed, Ct)).Compute();
+        Assert.Equal("Tomb of the Serpent", metadata[MetadataFields.Title].First?.Value);
+        Assert.Equal(["Prep"], metadata[MetadataFields.Tags].Values.Select(v => v.Value));
+
+        await _entries.UndoJoinAsOneBookAsync(join, Ct);
+
+        var current = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.Contains(new EntryDocument(scanned, scan, EntryKind.Whole), current);
+        Assert.Contains(new EntryDocument(bought, store, EntryKind.Whole), current);
+        Assert.Contains(current, c => c.EntryId == printed && c.Kind == EntryKind.Elsewhere && c.DocumentId is null);
+        Assert.Equal(["Prep"], (await _metadata.GetAsync(bought, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
+    }
+
+    [Fact]
+    public async Task Not_the_same_book_takes_a_card_joined_by_same_book_back_out_with_what_it_brought()
+    {
+        var (core, original) = await AddBookAsync("Core/abbey.pdf", 'a');
+        var (revised, update) = await AddBookAsync("Updates/abbey v2.pdf", 'b');
+        await _metadata.SetValuesAsync(update, MetadataFields.Tags, ["Revised"], Ct);
+        await _entries.JoinAsOneBookAsync([original, update], revised, Ct);
+
+        Assert.Equal(update, await _entries.SplitCopyAsync(original, revised, ct: Ct));
+
+        Assert.Equal([(original, core), (update, revised)],
+            (await _entries.GetCurrentAsync(ct: Ct)).OrderBy(e => e.EntryId.Value).Select(e => (e.EntryId, e.DocumentId)));
+        Assert.Equal(["Revised"], (await _metadata.GetAsync(update, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
+        Assert.True(await _entries.IsNotSameBookAsync(Hex('a'), Hex('b'), Ct));
+    }
+
+    [Fact]
+    public async Task Same_book_refuses_cards_it_cannot_join()
+    {
+        var (core, original) = await AddBookAsync("Core/abbey.pdf", 'a');
+        var (backup, copy) = await AddBookAsync("Backup/abbey.pdf", 'b');
+        var (other, otherCard) = await AddBookAsync("Other/tomb.pdf", 'c');
+        var printed = await _entries.AddElsewhereAsync(Ct);
+        var alsoPrinted = await _entries.AddElsewhereAsync(Ct);
+
+        Assert.Null(await _entries.JoinAsOneBookAsync([original], core, Ct));
+        Assert.Null(await _entries.JoinAsOneBookAsync([original, copy], other, Ct));
+        Assert.Null(await _entries.JoinAsOneBookAsync([original, printed, alsoPrinted], core, Ct));
+
+        // A card that has joined another isn't a card any more.
+        await _entries.JoinAsCopyAsync(core, backup, Ct);
+        Assert.Null(await _entries.JoinAsOneBookAsync([copy, otherCard], other, Ct));
+        Assert.Equal(2, (await _entries.GetCopiesAsync(original, Ct)).Count);
+    }
+
+    [Fact]
     public async Task A_file_is_offered_once_to_a_book_owned_elsewhere_and_separate_book_is_remembered()
     {
         var elsewhere = new ElsewhereStore(_contexts, _entries);
