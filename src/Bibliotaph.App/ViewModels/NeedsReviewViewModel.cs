@@ -13,10 +13,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>A file Bibliotaph couldn't fully process, and why, in words the user can act on.</summary>
-public sealed record AttentionRow(long? DocumentId, string Title, string Detail)
+/// <summary>
+/// A file Bibliotaph couldn't fully process, and why, in words the user can act on. Trying again can't help a locked
+/// file or one with DRM (slice 4i plan, choices 3 and 4), so those offer opening it to unlock, or in another app.
+/// </summary>
+public sealed record AttentionRow(long? DocumentId, string Title, string Detail, TextAccess Access = TextAccess.Readable)
 {
-    public bool CanRetry => DocumentId is not null;
+    public bool CanRetry => DocumentId is not null && Access == TextAccess.Readable;
+
+    public bool CanUnlock => DocumentId is not null && Access == TextAccess.Locked;
+
+    public bool CanOpenElsewhere => DocumentId is not null && Access == TextAccess.Protected;
 }
 
 /// <summary>
@@ -33,6 +40,7 @@ public sealed partial class NeedsReviewViewModel(
     INavigationService navigation,
     ReaderWindows readers,
     CoverImages covers,
+    BookTextActions text,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
@@ -184,7 +192,8 @@ public sealed partial class NeedsReviewViewModel(
         try
         {
             var rows = (await queries.GetAttentionAsync())
-                .Select(a => new AttentionRow(a.DocumentId, a.Title, $"{StageName(a.Stage)}: {a.Reason ?? "something went wrong"}"))
+                .Select(a => new AttentionRow(a.DocumentId, a.Title, $"{StageName(a.Stage)}: {a.Reason ?? "something went wrong"}",
+                    TextAccessReasons.Of(a.Status, a.Reason)))
                 .Concat(indexing.Unreadable.Select(u => new AttentionRow(null, Path.GetFileName(u.Path), $"Couldn't be read: {u.Reason}")))
                 .Concat((await library.GetProblemsAsync()).Select(p => new AttentionRow(null, Path.GetFileName(p.FullPath), $"Not read: {p.Problem} ({p.FullPath})")))
                 .ToList();
@@ -217,6 +226,20 @@ public sealed partial class NeedsReviewViewModel(
         await indexing.RetryAsync(id);
         activity.Invalidate();
         await RefreshFilesAsync();
+    }
+
+    /// <summary>A locked file: the reader asks for its password, and unlocking it makes its text searchable.</summary>
+    [RelayCommand]
+    void Unlock(AttentionRow row)
+    {
+        if (row.DocumentId is { } id) OpenDocument(id, row.Title);
+    }
+
+    /// <summary>A file with DRM Bibliotaph can't open: the user's default PDF app.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    async Task OpenElsewhere(AttentionRow row)
+    {
+        if (row.DocumentId is { } id) await text.OpenElsewhereAsync(id);
     }
 
     [RelayCommand]

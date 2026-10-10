@@ -18,11 +18,13 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// work (any stage but OCR) waiting or running. For progress bars: documents queued for any stage (known before
 /// Probe adds them to the index), and scanned pages already read by OCR. Classification by AI is counted on its own
 /// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>) and nowhere else, since it is
-/// optional and may wait for an endpoint for as long as the user likes.
+/// optional and may wait for an endpoint for as long as the user likes. <see cref="Withheld"/> counts the documents whose
+/// text won't be read by itself: locked, protected or forgotten (<see cref="TextAccess"/>), so nothing says they are still
+/// being read.
 /// </summary>
 public sealed record IndexProgress(
     long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
-    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0)
+    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0)
 {
     /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
     public long Indexed => Math.Max(0, Queued - Indexing);
@@ -81,8 +83,11 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Pending', 'Running')) AS ToClassify,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Complete', 'Partial', 'Skipped')) AS Classified,
-                (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status = 'Failed') AS ClassifyFailed
-            """, cancellationToken: ct));
+                (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status = 'Failed') AS ClassifyFailed,
+                (SELECT count(DISTINCT document_id) FROM stage_status WHERE stage IN ('Probe', 'Text') AND (
+                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason = @protected) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld
+            """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, forgotten = TextAccessReasons.Forgotten },
+            cancellationToken: ct));
     }
 
     /// <summary>Failed and blocked stages, newest first, with the document's title where Probe got that far.</summary>
@@ -335,6 +340,28 @@ public sealed class IndexQueries(IndexDatabase database)
         await using var connection = database.OpenRead();
         return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
             "SELECT display_title FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>
+    /// The title each of these content hashes is shown by: its card's title, or its file's name. Hashes the index doesn't
+    /// have are left out. For Settings, Passwords (slice 4i plan, choice 2), which knows its books only by hash.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetTitlesByHashAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
+    {
+        if (contentHashes.Count == 0) return new Dictionary<string, string>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string Hash, string Title)>(new CommandDefinition(
+            """
+            SELECT d.content_hash, COALESCE(m.title, d.display_title)
+            FROM doc d
+            LEFT JOIN entry_doc e ON e.document_id = d.document_id
+            LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
+            WHERE d.content_hash IN @contentHashes
+            ORDER BY e.entry_id IS NULL, d.document_id
+            """, new { contentHashes }, cancellationToken: ct));
+        var titles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (hash, title) in rows) titles.TryAdd(hash, title);
+        return titles;
     }
 
     /// <summary>

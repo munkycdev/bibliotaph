@@ -46,10 +46,10 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 }
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
-public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, PasswordVault Vault,
+public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -67,7 +67,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
     readonly PdfWorkerPool _workers;
-    readonly PasswordVault _vault;
+    readonly IPasswordVault _vault;
+    readonly OtherApps _otherApps;
     readonly UnlockedPasswords _unlocked;
     readonly IPasswordPrompt _prompt;
     readonly IndexingService _indexing;
@@ -107,6 +108,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _queries = services.Queries;
         _workers = services.Workers;
         _vault = services.Vault;
+        _otherApps = services.OtherApps;
         _unlocked = services.Unlocked;
         _prompt = services.Prompt;
         _indexing = services.Indexing;
@@ -877,21 +879,20 @@ public sealed partial class ViewerViewModel : PageViewModel
         var renderer = new PdfRenderer(Worker(), _dispatcher);
         try
         {
-            var (doc, password, remember) = await OpenWithPasswordAsync(renderer, source, file.Path, version);
+            var (doc, password, entered) = await OpenWithPasswordAsync(renderer, source, file.Path, version);
             if (doc is null || version != _version)
             {
                 await renderer.DisposeAsync();
                 await file.DisposeAsync();
                 return;
             }
-            // Kept in memory for this sitting, so the book moving to another window isn't asked for again.
-            if (password is not null) _unlocked.Add(source.ContentHash, password);
-            if (remember && password is not null)
-            {
-                // A remembered password also lets indexing read the book, so its blocked stages run again.
-                if (_vault.Remember(source.ContentHash, password)) await _indexing.RetryAsync(source.DocumentId);
-                else ShowNotice("Windows didn't store the password, so Bibliotaph will ask for it next time.");
-            }
+            // Kept in memory for this sitting, so the book moving to another window isn't asked for again. With "Make its
+            // text searchable" ticked, indexing may use it too until the app closes (slice 4i plan, choice 1).
+            if (password is not null) _unlocked.Add(source.ContentHash, password, forIndexing: entered?.Searchable == true);
+            if (entered is { Remember: true } && password is not null && !_vault.Remember(source.ContentHash, password))
+                ShowNotice("Windows didn't store the password, so Bibliotaph will ask for it next time.");
+            // Indexing can read the book now, so its stages blocked on the password run again.
+            if (entered is { Searchable: true } or { Remember: true }) await _indexing.RetryAsync(source.DocumentId);
 
             _renderer = renderer;
             _file = file;
@@ -936,22 +937,22 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// Opens the PDF, trying the password that opened it earlier in this sitting or a remembered one first, and then
     /// asking. A null document means it didn't open.
     /// </summary>
-    async Task<(DocInfo? Doc, string? Password, bool Remember)> OpenWithPasswordAsync(PdfRenderer renderer, DocumentSource source, string path, int version)
+    async Task<(DocInfo? Doc, string? Password, EnteredPassword? Entered)> OpenWithPasswordAsync(PdfRenderer renderer, DocumentSource source, string path, int version)
     {
         var unlocked = _unlocked.Find(source.ContentHash);
         var password = unlocked ?? _vault.Find(source.ContentHash);
         var remembered = unlocked is null && password is not null;
-        var remember = false;
+        EnteredPassword? entered = null;
         var asked = 0;
         while (true)
         {
             try
             {
-                return (await renderer.OpenAsync(path, password), password, remember);
+                return (await renderer.OpenAsync(path, password), password, entered);
             }
             catch (PdfOpenException ex) when (ex.Kind == ErrorKind.Password)
             {
-                if (version != _version) return (null, null, false);
+                if (version != _version) return (null, null, null);
                 if (unlocked is not null)
                 {
                     _unlocked.Forget(source.ContentHash);
@@ -963,21 +964,26 @@ public sealed partial class ViewerViewModel : PageViewModel
                     _vault.Forget(source.ContentHash);
                     remembered = false;
                 }
-                var entered = _prompt.Ask(Title, retry: asked++ > 0);
+                entered = _prompt.Ask(Title, retry: asked++ > 0);
                 if (entered is null)
                 {
-                    Problem("This PDF needs a password.", "Enter its password to read it. Bibliotaph can remember it, so indexing can read the book too.",
-                        "Enter password");
-                    return (null, null, false);
+                    Problem("This PDF needs a password.", "Enter its password to read it, and to make its text searchable.", "Enter password");
+                    return (null, null, null);
                 }
                 password = entered.Password;
-                remember = entered.Remember;
+            }
+            catch (PdfOpenException ex) when (ex.Kind == ErrorKind.Security)
+            {
+                // DRM: no password helps, and nor does trying again (slice 4i plan, choice 4).
+                Problem("Can't be read here.", "This PDF uses a protection scheme Bibliotaph can't open. Its details stay editable, " +
+                    "and your default PDF app may be able to open it.", "Open in another app", OpenElsewhereCommand);
+                return (null, null, null);
             }
             catch (PdfOpenException ex)
             {
                 var (title, message) = OpenFailure(ex);
                 Problem(title, message);
-                return (null, null, false);
+                return (null, null, null);
             }
         }
     }
@@ -985,7 +991,6 @@ public sealed partial class ViewerViewModel : PageViewModel
     static (string Title, string Message) OpenFailure(PdfOpenException ex) => ex.Kind switch
     {
         ErrorKind.Format => ("This file isn't a readable PDF.", "It may be damaged, or only partly downloaded."),
-        ErrorKind.Security => ("This PDF uses a protection scheme Bibliotaph can't open.", "Another PDF reader may be able to open it."),
         ErrorKind.File => ("The file could not be read.", "It may be in use, or still downloading."),
         _ => ("This book could not be opened.", ex.Message),
     };
@@ -1158,13 +1163,21 @@ public sealed partial class ViewerViewModel : PageViewModel
         _noticeTimer.Start();
     }
 
-    void Problem(string title, string message, string action = "Try again")
+    void Problem(string title, string message, string action = "Try again", IRelayCommand? command = null)
     {
         EmptyTitle = title;
         EmptyMessage = message;
         EmptyActionText = action;
-        EmptyCommand = RetryCommand;
+        EmptyCommand = command ?? RetryCommand;
         Mode = ViewerMode.Problem;
+    }
+
+    /// <summary>Open in another app, from the problem screen of a PDF Bibliotaph can't open: the user's default PDF app.</summary>
+    [RelayCommand]
+    async Task OpenElsewhere()
+    {
+        if (_source is not { } source) return;
+        if (await _otherApps.OpenAsync(source.DocumentId) is { } problem) ShowNotice(problem);
     }
 
     static string DescribeSource(DocumentSource source, string? kind) =>

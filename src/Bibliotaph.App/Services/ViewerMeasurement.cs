@@ -29,7 +29,7 @@ static class ViewerMeasurement
     {
         var library = services.GetRequiredService<LibraryStore>();
         var queries = services.GetRequiredService<LibraryQueries>();
-        var vault = services.GetRequiredService<PasswordVault>();
+        var vault = services.GetRequiredService<IPasswordVault>();
         // Given back after the renderer below has closed its document.
         await using var lease = services.GetRequiredService<PdfWorkerPool>().LeaseViewer();
         var worker = lease.Worker;

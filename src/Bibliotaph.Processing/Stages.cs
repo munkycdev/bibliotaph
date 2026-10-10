@@ -35,7 +35,10 @@ public abstract record StageOutcome
     public static Done Complete(params Stage[] next) => new(StageStatus.Complete, next);
 }
 
-/// <summary>Remembered PDF passwords, by content hash. Slice 1c stores them in Windows Credential Manager.</summary>
+/// <summary>
+/// PDF passwords the index may open files with, by content hash: those remembered in Windows Credential Manager (slice
+/// 1c), and those entered this sitting to make a book searchable (slice 4i plan, choice 1), which live only in memory.
+/// </summary>
 public interface IPasswordStore
 {
     string? Find(string contentHash);
@@ -185,9 +188,9 @@ static class StageHelpers
 
     public static StageOutcome OpenFailure(Response error) => error.Error switch
     {
-        ErrorKind.Password => new StageOutcome.Blocked("Password required. Open the book to enter it."),
+        ErrorKind.Password => new StageOutcome.Blocked(TextAccessReasons.Locked),
         ErrorKind.Format => new StageOutcome.Failed("This file isn't a readable PDF; it may be damaged or incomplete.", Retry: false),
-        ErrorKind.Security => new StageOutcome.Failed("This PDF uses a protection scheme Bibliotaph can't open.", Retry: false),
+        ErrorKind.Security => new StageOutcome.Failed(TextAccessReasons.Protected, Retry: false),
         ErrorKind.File => new StageOutcome.Failed("The file could not be read. It may be in use, or still downloading.", Retry: true),
         _ => new StageOutcome.Failed($"The PDF engine could not open the file ({error.Message}).", Retry: true),
     };

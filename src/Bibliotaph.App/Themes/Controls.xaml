@@ -752,6 +752,18 @@
             <TextBlock Text="{Binding AvailabilityLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
           </Border>
         </Viewbox>
+        <!-- A book whose text Bibliotaph can't read by itself (4i): it needs a password, or uses DRM. -->
+        <Viewbox x:Name="TextMark" StretchDirection="DownOnly" Margin="4,4,26,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                 Visibility="Collapsed" ToolTip="{Binding TextMarkTip}">
+          <Border Padding="5,2,7,2" CornerRadius="3" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+                  AutomationProperties.Name="{Binding TextMark}">
+            <StackPanel Orientation="Horizontal">
+              <c:LucideIcon Data="{StaticResource Icon.Lock}" Size="10" StrokeThickness="2.2" Foreground="{DynamicResource Bt.Text}"
+                            VerticalAlignment="Center" Margin="0,0,4,0" />
+              <TextBlock Text="{Binding TextMark}" FontSize="10" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Viewbox>
         <!-- A model has read this book (2c). -->
         <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
                 Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
@@ -770,6 +782,9 @@
       </DataTrigger>
       <DataTrigger Binding="{Binding IsElsewhere}" Value="True">
         <Setter TargetName="ElsewhereMark" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding HasTextMark}" Value="True">
+        <Setter TargetName="TextMark" Property="Visibility" Value="Visible" />
       </DataTrigger>
       <DataTrigger Binding="{Binding IsAway}" Value="True">
         <Setter TargetName="AwayMark" Property="Visibility" Value="Visible" />
@@ -909,5 +924,12 @@
               CommandParameter="{Binding}" />
     <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
     <MenuItem Header="{Binding FavoriteAction}" Command="{x:Static c:BookCommands.ToggleFavorite}" CommandParameter="{Binding}" />
+    <MenuItem Header="Open in another app" Command="{x:Static c:BookCommands.OpenElsewhere}" CommandParameter="{Binding}"
+              Visibility="{Binding CanOpenElsewhere, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
+    <MenuItem Header="Forget its text" Command="{x:Static c:BookCommands.ForgetText}" CommandParameter="{Binding}"
+              ToolTip="Removes its pages, search text, cover and AI results from Bibliotaph, and stops reading it. The file isn't touched."
+              Visibility="{Binding CanForgetText, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
+    <MenuItem Header="Read it again" Command="{x:Static c:BookCommands.ReadTextAgain}" CommandParameter="{Binding}"
+              Visibility="{Binding CanReadAgain, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
   </ContextMenu>
 </ResourceDictionary>

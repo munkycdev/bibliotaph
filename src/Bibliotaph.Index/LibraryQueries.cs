@@ -18,13 +18,15 @@ namespace Bibliotaph.Index;
 /// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned
 /// elsewhere (<see cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/>
 /// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/>
-/// is a heart on it (slice 3), and <see cref="OpenedUtc"/> when it was last opened, if it has been.
+/// is a heart on it (slice 3), and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/>
+/// says when its text won't be read by itself: it is locked, protected or forgotten (slice 4i).
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
     string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
     string? AiModel = null, int Copies = 1, EntryKind EntryKind = EntryKind.Whole, int Members = 0, string? MemberCovers = null,
-    string? MatchedMember = null, long? MatchedDocumentId = null, string? AlsoOwn = null, bool Favorite = false, DateTime? OpenedUtc = null)
+    string? MatchedMember = null, long? MatchedDocumentId = null, string? AlsoOwn = null, bool Favorite = false, DateTime? OpenedUtc = null,
+    TextAccess TextAccess = TextAccess.Readable)
 {
     public bool IsPack => EntryKind == EntryKind.Pack;
 
@@ -139,7 +141,8 @@ public sealed class LibraryQueries(IndexDatabase database)
     const string EntryColumns = """
         e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, coalesce(m.title, e.name, d.display_title, '') AS Title, coalesce(d.format, '') AS Format,
         d.page_count AS PageCount, d.cover AS Cover, d.folder_hint AS FolderHint, coalesce(d.added_utc, e.added_utc, '') AS AddedUtc,
-        coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable,
+        coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable, s.status AS TextStatus, s.reason AS TextReason,
+        ps.status AS ProbeStatus, ps.reason AS ProbeReason,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
         coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
         ai.model AS AiModel, e.copies AS Copies, e.kind AS EntryKind, e.members AS Members,
@@ -159,6 +162,7 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     const string EntryJoin = """
         LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'
+        LEFT JOIN stage_status ps ON ps.document_id = d.document_id AND ps.stage = 'Probe'
         LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
         LEFT JOIN entry_ai ai ON ai.entry_id = e.entry_id
         LEFT JOIN entry_opened o ON o.entry_id = e.entry_id
@@ -487,7 +491,18 @@ public sealed class LibraryQueries(IndexDatabase database)
             r.AddedUtc.Length == 0 ? DateTime.MinValue : Utc(r.AddedUtc),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
-            r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn, r.Favorite != 0, r.OpenedUtc is { Length: > 0 } opened ? Utc(opened) : null))];
+            r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn, r.Favorite != 0, r.OpenedUtc is { Length: > 0 } opened ? Utc(opened) : null,
+            Access(r)))];
+
+    /// <summary>
+    /// Whether a card's text is locked, protected or forgotten, from how its document's Probe stage stopped, or its Text
+    /// stage for a book whose password went after Probe had read it.
+    /// </summary>
+    static TextAccess Access(EntryRow r) =>
+        TextAccessReasons.Of(Status(r.ProbeStatus), r.ProbeReason) is var probe and not TextAccess.Readable ? probe
+        : TextAccessReasons.Of(Status(r.TextStatus), r.TextReason);
+
+    static StageStatus? Status(string? status) => status is null ? null : Enum.Parse<StageStatus>(status);
 
     static DateTime Utc(string timestamp) => DateTime.Parse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
 
@@ -521,6 +536,10 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? FolderHint { get; init; }
         public string AddedUtc { get; init; } = "";
         public long Searchable { get; init; }
+        public string? TextStatus { get; init; }
+        public string? TextReason { get; init; }
+        public string? ProbeStatus { get; init; }
+        public string? ProbeReason { get; init; }
         public string? SystemLabel { get; init; }
         public string? KindLabel { get; init; }
         public string? Publisher { get; init; }

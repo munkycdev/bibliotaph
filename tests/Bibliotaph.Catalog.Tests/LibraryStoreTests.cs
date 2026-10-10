@@ -67,6 +67,28 @@ public sealed partial class LibraryStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Forgetting_a_documents_text_is_kept_in_the_catalog_until_it_is_read_again()
+    {
+        var root = await RootAsync();
+        await _library.ReconcileRootAsync(root, [File("a.pdf")], ct: Ct);
+        await _library.AttachHashAsync((await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Single(), Hash('a'), Ct);
+        var id = (await LocationsAsync()).Single().DocumentId!.Value;
+        Assert.False(await _library.IsTextForgottenAsync(id, Ct));
+
+        await _library.SetTextForgottenAsync([id], forgotten: true, Ct);
+        await using (var db = _contexts.CreateDbContext())
+        {
+            var first = (await db.Documents.AsNoTracking().SingleAsync(d => d.Id == id, Ct)).TextForgottenUtc;
+            await _library.SetTextForgottenAsync([id], forgotten: true, Ct);
+            Assert.Equal(first, (await db.Documents.AsNoTracking().SingleAsync(d => d.Id == id, Ct)).TextForgottenUtc); // the first time stands
+        }
+        Assert.True(await _library.IsTextForgottenAsync(id, Ct));
+
+        await _library.SetTextForgottenAsync([id], forgotten: false, Ct);
+        Assert.False(await _library.IsTextForgottenAsync(id, Ct));
+    }
+
+    [Fact]
     public async Task Hashing_reads_local_files_first_and_small_files_before_large_ones()
     {
         var root = await RootAsync();

@@ -32,9 +32,46 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     /// <summary>
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
-    /// read" until its text is searchable. A pack a search found by one of its images names that image (F4 plan, choice 8).
+    /// read" until its text is searchable, or why it won't be by itself (slice 4i plan, choices 3, 4 and 6). A pack a
+    /// search found by one of its images names that image (F4 plan, choice 8).
     /// </summary>
-    public string Meta => Entry.MatchedMember ?? (Catalogued ?? Describe(Entry)) + (Entry.Searchable || IsElsewhere ? "" : " · still being read");
+    public string Meta => Entry.MatchedMember ?? (Catalogued ?? Describe(Entry)) + TextNote;
+
+    string TextNote => IsElsewhere ? "" : Entry.TextAccess switch
+    {
+        TextAccess.Locked => " · Locked: open it to unlock",
+        TextAccess.Protected => " · Can't be read here",
+        TextAccess.Forgotten => " · Text forgotten",
+        _ => Entry.Searchable ? "" : " · still being read",
+    };
+
+    /// <summary>Why the file's text isn't read by itself, if it isn't: it's locked, protected (DRM), or forgotten.</summary>
+    public TextAccess TextAccess => IsElsewhere ? TextAccess.Readable : Entry.TextAccess;
+
+    /// <summary>"Locked" or "Protected", for the mark on the cover; empty otherwise.</summary>
+    public string TextMark => TextAccess switch
+    {
+        TextAccess.Locked => "Locked",
+        TextAccess.Protected => "Protected",
+        _ => "",
+    };
+
+    public bool HasTextMark => TextMark.Length > 0;
+
+    public string? TextMarkTip => TextAccess switch
+    {
+        TextAccess.Locked => "It needs a password. Open it to enter it; its text becomes searchable once it's unlocked.",
+        TextAccess.Protected => "Its protection is a scheme Bibliotaph can't open. Its details stay editable, and another app may open it.",
+        _ => null,
+    };
+
+    /// <summary>DRM Bibliotaph can't open: the file can go to the default PDF app instead.</summary>
+    public bool CanOpenElsewhere => TextAccess == TextAccess.Protected;
+
+    /// <summary>A book's text can be forgotten (slice 4i plan, choice 6) unless it already is; a pack's images have none to forget.</summary>
+    public bool CanForgetText => !IsElsewhere && !IsPack && TextAccess != TextAccess.Forgotten;
+
+    public bool CanReadAgain => TextAccess == TextAccess.Forgotten;
 
     string? Catalogued => Entry.System is null && Entry.Kind is null ? null : string.Join(" · ", new[] { Entry.System, Entry.Kind }.OfType<string>());
 
@@ -211,6 +248,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(IsFavorite));
         OnPropertyChanged(nameof(FavoriteAction));
         OnPropertyChanged(nameof(OpenedUtc));
+        OnPropertyChanged(nameof(TextAccess));
+        OnPropertyChanged(nameof(TextMark));
+        OnPropertyChanged(nameof(HasTextMark));
+        OnPropertyChanged(nameof(TextMarkTip));
+        OnPropertyChanged(nameof(CanOpenElsewhere));
+        OnPropertyChanged(nameof(CanForgetText));
+        OnPropertyChanged(nameof(CanReadAgain));
     }
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";
