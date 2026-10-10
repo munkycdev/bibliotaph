@@ -14,10 +14,10 @@ public sealed class ReadingStore(IDbContextFactory<CatalogDbContext> contexts, E
 
     /// <summary>
     /// Records that a document was opened, on the card it shows under. The saved page stays while the same document
-    /// is read; another copy starts again from its first page. Returns the card, or null for a document the catalog
-    /// doesn't know.
+    /// is read; another copy takes <paramref name="carriedPage"/>, the page that matches where the last one was left
+    /// (slice 4h plan, choice 5). Returns the card, or null for a document the catalog doesn't know.
     /// </summary>
-    public async Task<EntryId?> RecordOpenAsync(long documentId, CancellationToken ct = default)
+    public async Task<EntryId?> RecordOpenAsync(long documentId, int carriedPage = 0, CancellationToken ct = default)
     {
         if (await entries.GetCardAsync(documentId, ct) is not { } card) return null;
         await using var db = await contexts.CreateDbContextAsync(ct);
@@ -26,7 +26,7 @@ public sealed class ReadingStore(IDbContextFactory<CatalogDbContext> contexts, E
         else if (state.DocumentId != documentId)
         {
             state.DocumentId = documentId;
-            state.PageIndex = 0;
+            state.PageIndex = Math.Max(0, carriedPage);
         }
         state.OpenedUtc = _clock.GetUtcNow().UtcDateTime;
         await db.SaveChangesAsync(ct);
@@ -43,12 +43,31 @@ public sealed class ReadingStore(IDbContextFactory<CatalogDbContext> contexts, E
     }
 
     /// <summary>The page a reader left this document at, or 0 when it hasn't been read here, or another copy was read last.</summary>
-    public async Task<int> GetPositionAsync(long documentId, CancellationToken ct = default)
+    public async Task<int> GetPositionAsync(long documentId, CancellationToken ct = default) =>
+        await GetPlaceAsync(documentId, ct) is { } place && place.DocumentId == documentId ? place.PageIndex : 0;
+
+    /// <summary>
+    /// Where the book a document shows under was left: the copy read last and its page. Null when the book hasn't been
+    /// opened, or the catalog doesn't know the document.
+    /// </summary>
+    public async Task<(long DocumentId, int PageIndex)?> GetPlaceAsync(long documentId, CancellationToken ct = default)
     {
-        if (await entries.GetCardAsync(documentId, ct) is not { } card) return 0;
+        if (await entries.GetCardAsync(documentId, ct) is not { } card) return null;
         await using var db = await contexts.CreateDbContextAsync(ct);
-        return await db.ReadingStates.AsNoTracking().Where(r => r.EntryId == card.Value && r.DocumentId == documentId)
-            .Select(r => r.PageIndex).FirstOrDefaultAsync(ct);
+        var state = await db.ReadingStates.AsNoTracking().Where(r => r.EntryId == card.Value).Select(r => new { r.DocumentId, r.PageIndex }).FirstOrDefaultAsync(ct);
+        return state is null ? null : (state.DocumentId, state.PageIndex);
+    }
+
+    /// <summary>
+    /// Moves where a book was left from one copy to the matching page of another, as when a new version of it becomes
+    /// the one it opens (slice 4h plan, choice 5). Nothing changes when the book was last read in another copy.
+    /// </summary>
+    public async Task<bool> MoveAsync(long fromDocumentId, long toDocumentId, int pageIndex, CancellationToken ct = default)
+    {
+        if (await entries.GetCardAsync(toDocumentId, ct) is not { } card) return false;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.ReadingStates.Where(r => r.EntryId == card.Value && r.DocumentId == fromDocumentId)
+            .ExecuteUpdateAsync(u => u.SetProperty(r => r.DocumentId, toDocumentId).SetProperty(r => r.PageIndex, Math.Max(0, pageIndex)), ct) > 0;
     }
 
     /// <summary>When these entries were last opened, or every opened entry when <paramref name="entryIds"/> is null.</summary>

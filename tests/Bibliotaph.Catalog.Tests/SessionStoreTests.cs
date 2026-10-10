@@ -65,7 +65,7 @@ public sealed class SessionStoreTests : IAsyncLifetime
         var contents = (await _sessions.GetAsync(pack.Id, Ct))!;
         Assert.Equal(["Warehouse ambush", "", "Village map"], contents.Items.Select(i => i.Label ?? ""));
         // A range is stored first page first, whichever way it was given.
-        Assert.Equal(new PageRange(abbeyDoc, 41, 44, "42", "45", "f1", "f4"), contents.Items[0].Range);
+        Assert.Equal(new PageRange(abbeyDoc, 41, 44, "42", "45", "f1", "f4"), contents.Items[0].Range! with { RefId = 0 });
         Assert.Null(contents.Items[1].Range);
         Assert.Equal("Keep it handy", contents.Items[2].Note);
         Assert.Equal(3, contents.Pack.ItemCount);
@@ -128,7 +128,7 @@ public sealed class SessionStoreTests : IAsyncLifetime
         var contents = (await _sessions.GetAsync(pack.Id, Ct))!;
         Assert.Equal(["One", "Two", "Three"], contents.Items.Select(i => i.Label));
         Assert.Equal([contents.Items[1].Id], restored);
-        Assert.Equal(new PageRange(doc, 5, 6, "5", "6"), contents.Items[1].Range);
+        Assert.Equal(new PageRange(doc, 5, 6, "5", "6"), contents.Items[1].Range! with { RefId = 0 });
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class SessionStoreTests : IAsyncLifetime
         Assert.Equal(["Maps"], copied.Sections.Select(s => s.Name));
         Assert.Equal(["Intro", "Harbor"], copied.Items.Select(i => i.Label));
         Assert.Equal(copied.Sections[0].Id, copied.Items[1].SectionId);
-        Assert.Equal(new PageRange(doc, 9, 9), copied.Items[1].Range);
+        Assert.Equal(new PageRange(doc, 9, 9), copied.Items[1].Range! with { RefId = 0 });
         // The copy's page reference is its own: re-pointing it leaves the original alone.
         await _sessions.RepointAsync(copied.Items[1].Id, new PageRange(doc, 10, 10), Ct);
         Assert.Equal(9, (await _sessions.GetAsync(pack.Id, Ct))!.Items[1].Range!.FirstPdfPage);

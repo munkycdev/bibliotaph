@@ -225,7 +225,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_request?.Pack is not { } pack) return;
         var next = PackIndex + by;
         if (next < 0 || next >= pack.Count) return;
-        _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0, SessionItem = null };
+        _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0, SessionItem = null, PageNote = null };
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(PackPosition));
         PreviousImageCommand.NotifyCanExecuteChanged();
@@ -582,8 +582,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>
-    /// Opened from a session pack's item whose pages weren't where they were (choice 14): why, over the pages. For a
-    /// page that changed, Use this page points the item at the page in view.
+    /// Opened from a session pack's item or a page note whose pages weren't where they were (choice 14; slice 4h plan,
+    /// choices 1 and 2): why, over the pages. For a page that changed, Use this page points it at the page in view.
     /// </summary>
     [ObservableProperty]
     public partial string? SessionBanner { get; private set; }
@@ -594,40 +594,58 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     void ShowSessionBanner()
     {
-        if (_request?.SessionItem is not { } item || item.State is not (SessionItemState.Changed or SessionItemState.Original))
+        if (_request?.SessionItem is { State: SessionItemState.Changed or SessionItemState.Original or SessionItemState.Pending } item)
+        {
+            SessionBanner = item.State == SessionItemState.Changed
+                ? $"This page changed since it was added to {item.PackTitle}. If this isn't the right page, go to it, then choose Use this page."
+                : item.Reason;
+            CanUsePage = item.State == SessionItemState.Changed && Mode == ViewerMode.Pdf;
+        }
+        else if (_request?.PageNote is { State: PagePlaceState.Changed or PagePlaceState.Original or PagePlaceState.Pending } note)
+        {
+            SessionBanner = note.State == PagePlaceState.Changed
+                ? "This page changed since the note was made. If this isn't the right page, go to it, then choose Use this page."
+                : note.Reason;
+            CanUsePage = note.State == PagePlaceState.Changed && Mode == ViewerMode.Pdf;
+        }
+        else
         {
             SessionBanner = null;
             CanUsePage = false;
-            return;
         }
-        SessionBanner = item.State == SessionItemState.Changed
-            ? $"This page changed since it was added to {item.PackTitle}. If this isn't the right page, go to it, then choose Use this page."
-            : item.Reason;
-        CanUsePage = item.State == SessionItemState.Changed && Mode == ViewerMode.Pdf;
     }
 
-    /// <summary>Points the session item at the page in view, keeping how many pages it spans.</summary>
+    /// <summary>Points the session item or the page note at the page in view, keeping how many pages it spans.</summary>
     [RelayCommand(CanExecute = nameof(CanUsePage))]
     async Task UsePage()
     {
-        if (_request is not { SessionItem: { } item } request) return;
-        var span = item.LastPage - item.FirstPage;
+        if (_request is not { } request || (request.SessionItem, request.PageNote) is (null, null)) return;
+        var span = request.SessionItem is { } open ? open.LastPage - open.FirstPage : request.PageNote!.LastPage - request.PageNote.FirstPage;
         var first = CurrentPageIndex;
         var last = Math.Min(first + span, Math.Max(0, PageCount - 1));
         try
         {
-            await _sessions.RepointAsync(item.ItemId, request.DocumentId, first, last);
+            if (request.SessionItem is { } item) await _sessions.RepointAsync(item.ItemId, request.DocumentId, first, last);
+            else await Task.Run(() => _notes.UsePageAsync(request.PageNote!.NoteId, request.DocumentId, first, last));
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Pointing session item {ItemId} at a page failed", item.ItemId);
+            _log.LogError(ex, "Pointing a session item or page note at a page failed");
             Sessions.Say("That didn't work. The log has the details.");
             return;
         }
-        _request = request with { SessionItem = item with { State = SessionItemState.Ready, Reason = null, FirstPage = first, LastPage = last } };
         CanUsePage = false;
         SessionBanner = null;
-        Sessions.Say($"Saved. In {item.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
+        if (request.SessionItem is { } used)
+        {
+            _request = request with { SessionItem = used with { State = SessionItemState.Ready, Reason = null, FirstPage = first, LastPage = last } };
+            Sessions.Say($"Saved. In {used.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
+        }
+        else
+        {
+            _request = request with { PageNote = request.PageNote! with { State = PagePlaceState.Ready, Reason = null, FirstPage = first, LastPage = last } };
+            SayNote($"Saved. The note is now on page {PageNumbers.Display(first, _labels)}.", null);
+        }
     }
 
     [RelayCommand]
@@ -694,14 +712,23 @@ public sealed partial class ViewerViewModel : PageViewModel
         });
     }
 
+    /// <summary>
+    /// Changes a note's text or pages, shown as they are in the open document. Pages left as they were stay where the
+    /// note is; new ones are of the open document.
+    /// </summary>
     [RelayCommand]
     void EditNote(PageNoteRow row)
     {
+        if (_request is not { } request) return;
         var range = row.Note.Range;
-        var (from, to) = (PageNumbers.Display(range.FirstPdfPage, _labels), range.IsSinglePage ? "" : PageNumbers.Display(range.LastPdfPage, _labels));
+        var (first, last) = row.PagesIn(request.DocumentId);
+        var (from, to) = (PageNumbers.Display(first, _labels), first == last ? "" : PageNumbers.Display(last, _labels));
         OpenNoteDialog(new PageNoteDialogViewModel($"The note on {row.Pages}", "Save note", from, to, row.Text, FindPage), async result =>
         {
-            var updated = await Task.Run(() => _notes.UpdatePageNoteAsync(row.Note, result.Text, result.FirstPage, result.LastPage));
+            var (document, firstPage, lastPage) = result.FirstPage == first && result.LastPage == last
+                ? (range.DocumentId, range.FirstPdfPage, range.LastPdfPage)
+                : (request.DocumentId, result.FirstPage, result.LastPage);
+            var updated = await Task.Run(() => _notes.UpdatePageNoteAsync(row.Note, result.Text, document, firstPage, lastPage));
             if (updated is null) SayNote("That note isn't there any more.", null);
         });
     }
@@ -715,14 +742,26 @@ public sealed partial class ViewerViewModel : PageViewModel
         SayNote($"Deleted the note on {row.Pages}.", async () => await Task.Run(() => _notes.RestorePageNoteAsync(deleted)));
     }
 
-    /// <summary>A note in the panel: the reader goes to its first page. A note made in another copy goes to the same page number.</summary>
+    /// <summary>
+    /// A note in the panel: the reader goes to its first page, where it was found in this copy (slice 4h plan, choice
+    /// 2). One whose page changed says so, with Use this page. A note made in another copy that wasn't looked for here
+    /// goes to the same page number.
+    /// </summary>
     [RelayCommand]
     void GoToNote(PageNoteRow row)
     {
-        if (Mode != ViewerMode.Pdf) return;
-        GoTo(Math.Clamp(row.Note.Range.FirstPdfPage, 0, Math.Max(0, PageCount - 1)), null);
-        if (_request is { } request && row.Note.Range.DocumentId != request.DocumentId)
+        if (Mode != ViewerMode.Pdf || _request is not { } request) return;
+        var (first, last) = row.PagesIn(request.DocumentId);
+        GoTo(Math.Clamp(first, 0, Math.Max(0, PageCount - 1)), null);
+        if (row.Place is { State: PagePlaceState.Changed or PagePlaceState.Pending } place && place.DocumentId == request.DocumentId)
+        {
+            _request = request with { PageNote = new PageNoteOpen(row.Id, place.State, place.Reason, first, last) };
+            ShowSessionBanner();
+        }
+        else if (row.Note.Range.DocumentId != request.DocumentId && row.Place?.DocumentId != request.DocumentId)
+        {
             ShowNotice("This note was made in another copy of the book, so its page may be a little different here.");
+        }
     }
 
     [RelayCommand(CanExecute = nameof(HasNoteUndo))]
@@ -786,11 +825,15 @@ public sealed partial class ViewerViewModel : PageViewModel
         try
         {
             var documentId = request.DocumentId;
-            var (entry, notes) = await Task.Run(async () => (await _notes.GetEntryAsync(documentId), await _notes.GetPageNotesForDocumentAsync(documentId)));
+            var (entry, notes, places) = await Task.Run(async () =>
+            {
+                var notes = await _notes.GetPageNotesForDocumentAsync(documentId);
+                return (await _notes.GetEntryAsync(documentId), notes, await _notes.ResolveAsync(notes));
+            });
             if (version != _version) return;
             _notesEntry = entry;
             PageNotes.Clear();
-            foreach (var note in notes) PageNotes.Add(new PageNoteRow(note));
+            foreach (var note in notes) PageNotes.Add(new PageNoteRow(note, places.GetValueOrDefault(note.Id)));
             HasPageNotes = PageNotes.Count > 0;
             OnPropertyChanged(nameof(NotesLabel));
         }

@@ -4,7 +4,10 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>How a session item will open, worked out each time its pack is shown (slice 3 plan, choices 14 and 15).</summary>
+/// <summary>
+/// How a session item will open, worked out each time its pack is shown (slice 3 plan, choices 14 and 15) from what
+/// was found when a new version was read (slice 4h plan, choice 4).
+/// </summary>
 public enum SessionItemState
 {
     /// <summary>Opens as it was added: the whole book, or its pages in the same file.</summary>
@@ -18,6 +21,12 @@ public enum SessionItemState
 
     /// <summary>The pages couldn't be found in the book as it is now: it opens at the same printed page, to be checked.</summary>
     Changed,
+
+    /// <summary>
+    /// A new version of the book is still being read (slice 4h plan, choice 1): its pages haven't been looked for yet,
+    /// so nothing is judged changed. It opens at the same printed page meanwhile.
+    /// </summary>
+    Pending,
 
     /// <summary>No file to open: its folder is offline, or it's gone. The item stays, dimmed.</summary>
     Unreachable,
@@ -38,9 +47,10 @@ public sealed record SessionItemTarget(long? DocumentId, int FirstPage, int Last
 /// <summary>
 /// Session packs (slice 3 plan, choices 11 to 15): each change goes to catalog.db, then the books' marks are projected,
 /// so a pack's books show as a group in index.db. Page ranges get their labels and fingerprints from index.db when
-/// they are made, and are looked for again in the book's current copy each time the pack is shown.
+/// they are made, and are looked for in a new version of the book once it has been read (<see cref="PagePlaces"/>).
 /// </summary>
-public sealed class SessionsService(SessionStore sessions, EntryStore entries, LibraryStore library, IndexQueries index, MetadataProjector projector)
+public sealed class SessionsService(SessionStore sessions, EntryStore entries, LibraryStore library, IndexQueries index, MetadataProjector projector,
+    PagePlaces places)
 {
     /// <summary>Raised after any pack changed, on the thread that changed it.</summary>
     public event EventHandler? Changed;
@@ -123,13 +133,8 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
         (await index.GetBookmarkAsync(documentId, page, ct))?.Trim() is { Length: > 0 } title ? title : null;
 
     /// <summary>A page range with the printed labels and fingerprints of its first and last pages, as index.db has them now.</summary>
-    public async Task<PageRange> MakeRangeAsync(long documentId, int firstPage, int lastPage, CancellationToken ct = default)
-    {
-        var (first, last) = (Math.Min(firstPage, lastPage), Math.Max(firstPage, lastPage));
-        var a = await index.GetPageMarkAsync(documentId, first, ct);
-        var b = first == last ? a : await index.GetPageMarkAsync(documentId, last, ct);
-        return new PageRange(documentId, first, last, a?.Label, b?.Label, a?.Fingerprint, b?.Fingerprint);
-    }
+    public Task<PageRange> MakeRangeAsync(long documentId, int firstPage, int lastPage, CancellationToken ct = default) =>
+        places.MakeRangeAsync(documentId, firstPage, lastPage, ct);
 
     public async Task<IReadOnlyList<SessionItemInfo>> RemoveItemsAsync(IReadOnlyCollection<long> itemIds, CancellationToken ct = default)
     {
@@ -180,87 +185,48 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
         if (await sessions.DeleteSectionAsync(sectionId, ct)) Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>"Use this page" (choice 14): the item points at these pages of the document the reader has open from now on.</summary>
+    /// <summary>"Use this page" (choice 14): the item points at these pages of the document the reader has open from now on, checked.</summary>
     public async Task RepointAsync(long itemId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         if (await sessions.RepointAsync(itemId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct)) Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Where each item opens now (choice 14). A page range opens in its entry's current copy: in the same file as it was
-    /// added, as it is; in another copy or version, at the pages whose fingerprints match; failing that, in the file it
-    /// was added from if that is still there; otherwise at the same printed page of the current copy, marked
-    /// <see cref="SessionItemState.Changed"/>. It never jumps somewhere else silently. An item with no file to open
-    /// says why (choice 15).
+    /// Where each item opens now (choice 14; slice 4h plan, choices 1 and 2). A page range opens in its entry's current
+    /// copy: in the same file as it was added, as it is; in another copy or version, at the pages whose fingerprints
+    /// match; failing that, in the file it was added from if that is still there; otherwise at the same printed page of
+    /// the current copy, marked <see cref="SessionItemState.Changed"/>. A new version still being read isn't judged
+    /// yet. It never jumps somewhere else silently. An item with no file to open says why (choice 15).
     /// </summary>
     public async Task<IReadOnlyDictionary<long, SessionItemTarget>> ResolveAsync(IReadOnlyList<SessionItemInfo> items, CancellationToken ct = default)
     {
         var result = new Dictionary<long, SessionItemTarget>();
         if (items.Count == 0) return result;
-        var current = await CurrentDocumentsAsync([.. items.Select(i => i.EntryId).Distinct()], ct);
-        var documents = items.Select(i => i.Range?.DocumentId).Concat(current.Values).OfType<long>().Distinct().ToList();
-        var readable = (await library.GetReadableAsync(documents, ct)).ToHashSet();
-        foreach (var item in items) result[item.Id] = await ResolveAsync(item, current.GetValueOrDefault(item.EntryId), readable, ct);
+        var ranged = items.Where(i => i.Range is not null).ToList();
+        var resolved = await places.ResolveAsync([.. ranged.Select(i => (i.EntryId, i.Range!))], ct);
+        for (var i = 0; i < ranged.Count; i++) result[ranged[i].Id] = ToTarget(resolved[i]);
+        var wholes = items.Where(i => i.Range is null).ToList();
+        if (wholes.Count == 0) return result;
+        var current = await places.CurrentDocumentsAsync([.. wholes.Select(i => i.EntryId).Distinct()], ct);
+        var readable = (await library.GetReadableAsync([.. current.Values.OfType<long>().Distinct()], ct)).ToHashSet();
+        foreach (var item in wholes)
+        {
+            result[item.Id] = current.GetValueOrDefault(item.EntryId) is not { } whole
+                ? new SessionItemTarget(null, 0, 0, SessionItemState.NoFile, "You own this book elsewhere: there's no file to open.")
+                : readable.Contains(whole) ? new SessionItemTarget(whole, 0, 0, SessionItemState.Ready) : ToTarget(await places.UnreachableAsync(whole, ct));
+        }
         return result;
     }
 
-    async Task<SessionItemTarget> ResolveAsync(SessionItemInfo item, long? current, HashSet<long> readable, CancellationToken ct)
+    static SessionItemTarget ToTarget(PagePlace place) => new(place.DocumentId, place.FirstPage, place.LastPage, place.State switch
     {
-        if (item.Range is not { } range)
-        {
-            if (current is not { } whole) return new SessionItemTarget(null, 0, 0, SessionItemState.NoFile, "You own this book elsewhere: there's no file to open.");
-            return readable.Contains(whole) ? new SessionItemTarget(whole, 0, 0, SessionItemState.Ready) : await UnreachableAsync(whole, ct);
-        }
-        var span = range.LastPdfPage - range.FirstPdfPage;
-        if (current == range.DocumentId || current is null)
-        {
-            return readable.Contains(range.DocumentId)
-                ? new SessionItemTarget(range.DocumentId, range.FirstPdfPage, range.LastPdfPage, SessionItemState.Ready)
-                : await UnreachableAsync(range.DocumentId, ct);
-        }
-        var copy = current.Value;
-        if (readable.Contains(copy) && range.FirstFingerprint is { } fingerprint && (await index.FindFingerprintAsync(copy, fingerprint, ct)) is { Count: > 0 } found)
-        {
-            // A page found more than once (a repeated handout): the one nearest where it was.
-            var first = found.MinBy(p => Math.Abs(p - range.FirstPdfPage));
-            var last = first + span;
-            if (span > 0 && range.LastFingerprint is { } lastPrint && (await index.FindFingerprintAsync(copy, lastPrint, ct)).Where(p => p >= first) is var ends && ends.Any())
-                last = ends.MinBy(p => Math.Abs(p - (first + span)));
-            return new SessionItemTarget(copy, first, last, SessionItemState.OtherCopy);
-        }
-        if (readable.Contains(range.DocumentId))
-            return new SessionItemTarget(range.DocumentId, range.FirstPdfPage, range.LastPdfPage, SessionItemState.Original,
-                "These pages aren't in the book's current copy, so this opens the file they were added from.");
-        if (readable.Contains(copy))
-        {
-            var page = range.FirstLabel is { } label ? await index.FindLabelAsync(copy, label, ct) : null;
-            var start = page ?? range.FirstPdfPage;
-            return new SessionItemTarget(copy, start, start + span, SessionItemState.Changed, "This page changed: check it.");
-        }
-        return await UnreachableAsync(copy, ct);
-    }
-
-    async Task<SessionItemTarget> UnreachableAsync(long documentId, CancellationToken ct)
-    {
-        var locations = await library.GetLocationsAsync(documentId, ct);
-        var offline = locations.FirstOrDefault(l => l.RootAvailability == SourceRootAvailability.Offline);
-        var last = offline ?? (locations.Count > 0 ? locations[0] : null);
-        return new SessionItemTarget(null, 0, 0, SessionItemState.Unreachable,
-            offline is not null ? "Its folder is offline. It opens again once the folder is back." : "Its file is gone from your library folders.",
-            last?.ExplorerPath);
-    }
-
-    /// <summary>
-    /// The document each entry opens: the one its card shows, or for an image hidden in a pack, its own file (choice 19:
-    /// those keep their items and still open). A book owned elsewhere has none.
-    /// </summary>
-    async Task<Dictionary<EntryId, long?>> CurrentDocumentsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct)
-    {
-        var result = (await entries.GetCurrentAsync(entryIds, ct)).ToDictionary(e => e.EntryId, e => e.DocumentId);
-        foreach (var missing in entryIds.Where(e => !result.ContainsKey(e)))
-            result[missing] = (await entries.GetCopiesAsync(missing, ct)).FirstOrDefault(c => c.IsShown)?.DocumentId;
-        return result;
-    }
+        PagePlaceState.Ready => SessionItemState.Ready,
+        PagePlaceState.OtherCopy => SessionItemState.OtherCopy,
+        PagePlaceState.Original => SessionItemState.Original,
+        PagePlaceState.Changed => SessionItemState.Changed,
+        PagePlaceState.Pending => SessionItemState.Pending,
+        _ => SessionItemState.Unreachable,
+    }, place.Reason, place.LastPath);
 
     async Task ProjectAsync(IReadOnlyCollection<EntryId> changed, CancellationToken ct)
     {

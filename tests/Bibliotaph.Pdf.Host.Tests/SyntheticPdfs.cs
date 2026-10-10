@@ -35,6 +35,7 @@ public sealed class SyntheticPdfs : IDisposable
         WatermarkedForAna = Write("watermarked-ana.pdf", BuildPages(Watermark(BookPages, "Ana Example", 1234)));
         WatermarkedForDale = Write("watermarked-dale.pdf", BuildPages(Watermark(BookPages, "Dale Example", 98765)));
         RevisedForAna = Write("revised-ana.pdf", BuildPages(Watermark(RevisedPages, "Ana Example", 5678)));
+        ExpandedForAna = Write("expanded-ana.pdf", BuildPages(Watermark(ExpandedPages, "Ana Example", 1234)));
     }
 
     /// <summary>Characters outside Windows' ANSI code page, as bundle file names often have.</summary>
@@ -100,6 +101,12 @@ public sealed class SyntheticPdfs : IDisposable
     /// </summary>
     public string RevisedForAna { get; }
 
+    /// <summary>
+    /// A revised edition of <see cref="WatermarkedForAna"/>'s book, for the same buyer: a page added after the
+    /// background, so every later page moves one on, and the crypt corrected.
+    /// </summary>
+    public string ExpandedForAna { get; }
+
     /// <summary>A short book, a line at a time, page by page.</summary>
     public static readonly string[][] BookPages =
     [
@@ -117,6 +124,16 @@ public sealed class SyntheticPdfs : IDisposable
         ["Area 2: The Crypt", "The abbot's tomb is sealed; his ghost waits in the chapter house below."],
         BookPages[4],
         ["Errata", "Second printing: the crypt now leads down to the chapter house."],
+    ];
+
+    /// <summary><see cref="BookPages"/> with a cloister added as the third page and the crypt corrected.</summary>
+    public static readonly string[][] ExpandedPages =
+    [
+        .. BookPages[..2],
+        ["Area 0: The Cloister", "Moss covers the cloister walk; a stair in the far corner climbs to the bell tower."],
+        BookPages[2],
+        RevisedPages[3],
+        BookPages[4],
     ];
 
     static string[][] Watermark(string[][] pages, string buyer, int order) =>

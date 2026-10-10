@@ -628,9 +628,18 @@
                         <StackPanel>
                           <TextBlock Text="{Binding Pages}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
                           <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                          <DockPanel Margin="0,6,0,0" Visibility="{Binding HasReason, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                            <c:LucideIcon x:Name="NoteReasonIcon" Data="{StaticResource Icon.TriangleAlert}" Size="12" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Reason}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                          </DockPanel>
                         </StackPanel>
                       </DockPanel>
                     </Border>
+                    <DataTemplate.Triggers>
+                      <DataTrigger Binding="{Binding IsChanged}" Value="True">
+                        <Setter TargetName="NoteReasonIcon" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+                      </DataTrigger>
+                    </DataTemplate.Triggers>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

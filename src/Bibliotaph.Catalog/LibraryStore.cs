@@ -74,8 +74,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// A new path whose file ID, size and modified time match a location not seen at its own path, in this folder or
     /// missing from another, is that file moved or renamed (A06, slice 4g plan, choice 2). The location moves with it and
     /// keeps its id, hash and document, so nothing is read again and the card never leaves the library.
-    /// <paramref name="fileId"/> reads a file's ID by its relative path; it is asked only for new and changed paths and
-    /// for locations that don't have one yet, and is null where the volume has no lasting IDs. Missing locations of a
+    /// <paramref name="fileId"/> reads a file's ID by its relative path; it is asked of every path the scan lists, since
+    /// a file replaced by another of the same size and date is told apart only by its ID (slice 4h plan, choice 6), and
+    /// is null where the volume has no lasting IDs. Missing locations of a
     /// document whose content has turned up elsewhere are deleted. <paramref name="volumeSerial"/> is kept as the
     /// root's the first time it is given, so a different disk in its drive later reads as offline.
     /// </para>
@@ -100,7 +101,12 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
                 unmatched.Add(file);
                 continue;
             }
-            if (location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc)
+            // Another file at the same path, with the same size and date (copied over it keeping its date, or
+            // deleted and put back), has a different ID: new content as much as a changed size or date is
+            // (slice 4h plan, choice 6).
+            var id = fileId?.Invoke(file.RelativePath);
+            var replaced = id is not null && location.NtfsFileId is not null && !string.Equals(id, location.NtfsFileId, StringComparison.Ordinal);
+            if (location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc || replaced)
             {
                 // New content at a known path. The old document keeps its other locations; the new content joins
                 // its card as a new version once it is hashed (A08). An app that saves by replacing the file gives it
@@ -110,13 +116,13 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
                 location.ContentHash = null;
                 location.PreviousDocumentId = location.DocumentId ?? location.PreviousDocumentId;
                 location.DocumentId = null;
-                location.NtfsFileId = fileId?.Invoke(file.RelativePath);
+                location.NtfsFileId = id;
                 changed++;
             }
             else
             {
                 // Once for a location from before file IDs were kept.
-                if (location.NtfsFileId is null && fileId is not null) location.NtfsFileId = fileId(file.RelativePath);
+                location.NtfsFileId ??= id;
                 unchanged++;
             }
             location.RelativePath = file.RelativePath;
@@ -508,6 +514,17 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .Where(f => f.DocumentId != null && documentIds.Contains(f.DocumentId.Value)
                 && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online)
             .Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Whether new content has been found where this document's file was and isn't hashed yet: a new version still
+    /// being read, rather than a file that has gone (slice 4h plan, choice 1).
+    /// </summary>
+    public async Task<bool> IsBeingReplacedAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations.AnyAsync(f => f.PreviousDocumentId == documentId && f.ContentHash == null
+            && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online, ct);
     }
 
     /// <summary>

@@ -35,6 +35,15 @@ public sealed partial class PipelineTests
                 if (_ids.Remove(from, out var id)) _ids[to] = id;
         }
 
+        /// <summary>
+        /// Another file now at this path, as when an app saves by writing a new file and renaming it over the old one:
+        /// a new ID, whatever its size and date.
+        /// </summary>
+        public void Renew(string path)
+        {
+            lock (_lock) _ids.Remove(path);
+        }
+
         public VolumeIdentity? Volume(string folder)
         {
             lock (_lock) return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var serial) ? new VolumeIdentity(serial, HasFileIds: true) : null;
@@ -92,7 +101,7 @@ public sealed partial class PipelineTests
         var pack = await _sessions.CreateAsync("Session 1", ct: Ct);
         await _sessions.AddItemsAsync(pack.Id, [new NewSessionItem(card.EntryId, new PageRange(card.DocumentId, 0, 0))], ct: Ct);
         await _notes.SetEntryNoteAsync(card.EntryId, "The owlbear is a red herring.", Ct);
-        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
         var original = (await FileLocationsAsync()).Single(l => l.DocumentId == card.DocumentId);
         var cards = await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct);
 

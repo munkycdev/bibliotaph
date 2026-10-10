@@ -12,7 +12,19 @@ public sealed record PageRange(long DocumentId, int FirstPdfPage, int LastPdfPag
     string? FirstFingerprint = null, string? LastFingerprint = null)
 {
     public bool IsSinglePage => FirstPdfPage == LastPdfPage;
+
+    /// <summary>The page reference's id once it is stored; 0 for pages not stored yet.</summary>
+    public long RefId { get; init; }
+
+    /// <summary>What was found when the pages were looked for in a new version of the book (slice 4h), if they have been.</summary>
+    public PageRefCheck? Check { get; init; }
 }
+
+/// <summary>
+/// Where a page reference's pages were found in another version of its book, or the same printed pages there when they
+/// weren't (<see cref="PageCheck.NeedsLook"/>): zero-based PDF pages of <see cref="DocumentId"/>, inclusive.
+/// </summary>
+public sealed record PageRefCheck(PageCheck Outcome, long DocumentId, int FirstPdfPage, int LastPdfPage);
 
 /// <summary>A pack as the Sessions page shows it: how many items it has, and the books of its first two, for covers.</summary>
 public sealed record SessionPackInfo(long Id, string Title, DateOnly? Date, string? Notes, DateTime TouchedUtc, int ItemCount, IReadOnlyList<EntryId> FirstEntries);
@@ -277,13 +289,16 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         return true;
     }
 
-    /// <summary>"Use this page" (choice 14): the item points at these pages from now on.</summary>
+    /// <summary>
+    /// "Use this page" (choice 14): the item points at these pages from now on, checked by the user (slice 4h plan,
+    /// choice 4), so Needs review counts it as done.
+    /// </summary>
     public async Task<bool> RepointAsync(long itemId, PageRange range, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         if (await db.SessionItems.Include(i => i.PageRef).SingleOrDefaultAsync(i => i.Id == itemId, ct) is not { } item) return false;
-        if (item.PageRef is { } old) db.PageRefs.Remove(old);
-        item.PageRef = ToPageRef(range);
+        if (item.PageRef is { } pages) PageRefStore.Use(pages, range);
+        else item.PageRef = PageRefStore.Use(new PageRef(), range);
         await Touch(db, item.PackId, ct);
         await db.SaveChangesAsync(ct);
         return true;
@@ -459,19 +474,9 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     static SessionItemInfo ToInfo(SessionItem i) => new(i.Id, i.PackId, i.SectionId, i.Position, new EntryId(i.EntryId),
-        i.PageRef is { } r ? new PageRange(r.DocumentId, r.FirstPdfPage, r.LastPdfPage, r.FirstLabel, r.LastLabel, r.FirstFingerprint, r.LastFingerprint) : null,
-        i.Label, i.Note, i.AddedUtc);
+        i.PageRef is { } r ? PageRefStore.ToRange(r) : null, i.Label, i.Note, i.AddedUtc);
 
-    static PageRef ToPageRef(PageRange range) => new()
-    {
-        DocumentId = range.DocumentId,
-        FirstPdfPage = Math.Min(range.FirstPdfPage, range.LastPdfPage),
-        LastPdfPage = Math.Max(range.FirstPdfPage, range.LastPdfPage),
-        FirstLabel = range.FirstLabel,
-        LastLabel = range.LastLabel,
-        FirstFingerprint = range.FirstFingerprint,
-        LastFingerprint = range.LastFingerprint,
-    };
+    static PageRef ToPageRef(PageRange range) => PageRefStore.ToPageRef(range);
 
     static string Title(string title) =>
         string.IsNullOrWhiteSpace(title) ? throw new ArgumentException("A name can't be blank.", nameof(title)) : title.Trim();

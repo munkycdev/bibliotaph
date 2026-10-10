@@ -72,7 +72,7 @@ public sealed class NoteStoreTests : IAsyncLifetime
         Assert.Null(await _notes.AddPageNoteAsync(abbey, new PageRange(document, 4, 4), " ", Ct));
 
         Assert.Equal(["Read aloud", "Warehouse ambush starts here"], (await _notes.GetPageNotesAsync(abbey, Ct)).Select(n => n.Text));
-        Assert.Equal(new PageRange(document, 12, 14, "10", "12"), late!.Range);
+        Assert.Equal(new PageRange(document, 12, 14, "10", "12"), late!.Range with { RefId = 0 });
 
         var moved = await _notes.UpdatePageNoteAsync(early!.Id, "Read aloud, then roll", new PageRange(document, 20, 20, "18", "18"), Ct);
         Assert.Equal((20, "Read aloud, then roll"), (moved!.Range.FirstPdfPage, moved.Text));
@@ -82,7 +82,7 @@ public sealed class NoteStoreTests : IAsyncLifetime
         Assert.Null(await _notes.DeletePageNoteAsync(late.Id, Ct));
         Assert.Single(await _notes.GetPageNotesAsync(abbey, Ct));
         var back = await _notes.RestorePageNoteAsync(deleted!, Ct);
-        Assert.Equal(deleted! with { Id = back!.Id }, back);
+        Assert.Equal(deleted! with { Id = back!.Id, Range = deleted.Range with { RefId = back.Range.RefId } }, back);
         Assert.Equal(2, (await _notes.GetPageNotesAsync(abbey, Ct)).Count);
         // The book's own note is never a page note.
         Assert.Equal("The book's own note", await _notes.GetEntryNoteAsync(abbey, Ct));

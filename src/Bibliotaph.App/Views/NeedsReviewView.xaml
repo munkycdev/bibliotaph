@@ -227,6 +227,76 @@
       </Border>
     </DataTemplate>
 
+    <!-- A new version of a book whose places need a look (slice 4h): those that do, each with Open and Use this page, and those found. -->
+    <DataTemplate DataType="{x:Type vm:RevisionCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="New version" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button x:Name="OpenRevisedBook" Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenBookCommand}" ToolTip="Open the new version"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock x:Name="RevisionHeading" Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" Visibility="{Binding Path, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <ItemsControl x:Name="RevisionPlaces" ItemsSource="{Binding Rows}" Focusable="False" Margin="0,12,0,0" AutomationProperties.Name="Places to check"
+                          KeyboardNavigation.TabNavigation="Continue">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:RevisionRowViewModel}">
+                  <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,8" Margin="0,0,0,6" AutomationProperties.Name="{Binding Heading}">
+                    <DockPanel>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <Button x:Name="OpenPlace" Style="{StaticResource Bt.Link}" Content="Open" Command="{Binding OpenCommand}" Margin="0,0,12,0"
+                                ToolTip="Open the new version at this page" AutomationProperties.Name="{Binding OpenName}" />
+                        <Button x:Name="UsePlace" Style="{StaticResource Bt.Link}" Content="Use this page" Command="{Binding UseCommand}"
+                                ToolTip="This place opens at the page suggested from now on" AutomationProperties.Name="{Binding UseName}"
+                                Visibility="{Binding CanUse, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                        <Button x:Name="UndoPlace" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoUseCommand}"
+                                AutomationProperties.Name="{Binding UndoName}" Visibility="{Binding CanUndoUse, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      </StackPanel>
+                      <c:LucideIcon x:Name="PlaceIcon" DockPanel.Dock="Left" Data="{StaticResource Icon.TriangleAlert}" Size="13" Foreground="{DynamicResource Bt.Accent}"
+                                    VerticalAlignment="Top" Margin="0,1,8,0" />
+                      <StackPanel>
+                        <TextBlock Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Where}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                    </DockPanel>
+                  </Border>
+                  <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsChecked}" Value="True">
+                      <Setter TargetName="PlaceIcon" Property="Data" Value="{StaticResource Icon.Check}" />
+                      <Setter TargetName="PlaceIcon" Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+                    </DataTrigger>
+                  </DataTemplate.Triggers>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Margin="0,8,0,0" Visibility="{Binding HasFound, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Found their page, nothing to do:" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,0,4" />
+              <ItemsControl ItemsSource="{Binding Found}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <DockPanel Margin="0,0,0,2">
+                      <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Check}" Size="11" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                      <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding FoundMore}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="17,0,0,0"
+                         Visibility="{Binding HasFoundMore, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- A file with the title of a book owned elsewhere (F5a): Same book puts the file on the book's card. -->
     <DataTemplate DataType="{x:Type vm:ElsewhereCardViewModel}">
       <Border Style="{StaticResource Card}">
