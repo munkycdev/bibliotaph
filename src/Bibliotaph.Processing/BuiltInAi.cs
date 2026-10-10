@@ -1,0 +1,420 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text.Json.Nodes;
+using Bibliotaph.Classification;
+using Bibliotaph.Core;
+using Bibliotaph.Pdf.Host;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Bibliotaph.Processing;
+
+/// <summary>Where the built-in AI's engine is and how it is run (Built-in AI plan, choices 1 to 3 and 8 to 10).</summary>
+public sealed record BuiltInEngineOptions
+{
+    /// <summary>llama.cpp's server, which the build puts in aiworker\ beside Bibliotaph.exe (build/fetch-engine.ps1).</summary>
+    public string ServerPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "aiworker", "llama-server.exe");
+
+    /// <summary>How long the engine stays loaded with nothing to do, before it stops and gives the graphics memory back.</summary>
+    public TimeSpan IdleStop { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Loading a 5 GB model from a hard disk takes a while; one that hasn't loaded by then isn't going to.</summary>
+    public TimeSpan LoadTimeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The least context the engine starts with. A book that needs more starts it again with more.</summary>
+    public int MinContextTokens { get; init; } = 16_384;
+
+    /// <summary>
+    /// The most the engine is asked to write. An answer needs well under this, so a model stuck repeating itself stops
+    /// here instead of running on, and its book fails by itself.
+    /// </summary>
+    public int MaxAnswerTokens { get; init; } = 2_048;
+}
+
+/// <summary>How the engine is started: the server, the model file, its context, and where it listens.</summary>
+public sealed record EngineStart(string ServerPath, string ModelPath, int ContextTokens, int Port, string ApiKey)
+{
+    /// <summary>
+    /// llama-server's arguments. It listens on this computer only. The key goes in its environment rather than here,
+    /// so it isn't in the process list. llama.cpp fits the model's layers to the graphics card by itself.
+    /// </summary>
+    public IReadOnlyList<string> Arguments =>
+    [
+        "--model", ModelPath,
+        "--host", "127.0.0.1",
+        "--port", Port.ToString(CultureInfo.InvariantCulture),
+        "--ctx-size", ContextTokens.ToString(CultureInfo.InvariantCulture),
+        // One book at a time, so the whole context is that book's.
+        "--parallel", "1",
+        "--jinja",
+        "--no-webui",
+    ];
+
+    /// <summary>The environment variable llama-server reads its API key from.</summary>
+    public const string ApiKeyVariable = "LLAMA_API_KEY";
+}
+
+/// <summary>A running engine, as <see cref="BuiltInEngine"/> needs it.</summary>
+public interface IEngineProcess : IDisposable
+{
+    bool HasExited { get; }
+
+    /// <summary>The last few lines the engine wrote, for the message when it stops.</summary>
+    string RecentOutput { get; }
+}
+
+/// <summary>llama-server as a process, in a job object so it never outlives the app.</summary>
+public sealed class EngineProcess : IEngineProcess
+{
+    readonly Process _process;
+    readonly ConcurrentQueue<string> _output = new();
+    readonly JobObject? _job;
+
+    EngineProcess(EngineStart start)
+    {
+        var info = new ProcessStartInfo(start.ServerPath)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            WorkingDirectory = Path.GetDirectoryName(start.ServerPath),
+        };
+        foreach (var argument in start.Arguments) info.ArgumentList.Add(argument);
+        info.Environment[EngineStart.ApiKeyVariable] = start.ApiKey;
+        _process = Process.Start(info) ?? throw new ModelEndpointException($"Couldn't start {start.ServerPath}.");
+        _process.ErrorDataReceived += (_, e) => Keep(e.Data);
+        _process.OutputDataReceived += (_, e) => Keep(e.Data);
+        _process.BeginErrorReadLine();
+        _process.BeginOutputReadLine();
+        if (OperatingSystem.IsWindows())
+        {
+            _job = new JobObject(null);
+            _job.Assign(_process);
+        }
+    }
+
+    public static IEngineProcess Start(EngineStart start) => new EngineProcess(start);
+
+    public bool HasExited => _process.HasExited;
+
+    public string RecentOutput => string.Join(" | ", _output);
+
+    void Keep(string? line)
+    {
+        if (string.IsNullOrWhiteSpace(line)) return;
+        _output.Enqueue(line.Trim());
+        while (_output.Count > 8) _output.TryDequeue(out _);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (!_process.HasExited) _process.Kill(entireProcessTree: true);
+            _process.WaitForExit(5000);
+        }
+        catch (InvalidOperationException)
+        {
+            // It had already gone.
+        }
+        _process.Dispose();
+        if (OperatingSystem.IsWindows()) _job?.Dispose();
+    }
+}
+
+/// <summary>
+/// The built-in AI's engine (Built-in AI plan): llama.cpp's server, started on the model when there is something to
+/// read, and stopped after a few idle minutes, when AI is paused or switched off, and with the app. It listens on this
+/// computer only, on a free port, with a key made for each start, so no other program can use it.
+/// </summary>
+public sealed class BuiltInEngine : IAsyncDisposable
+{
+    public const string NotInstalled = "The built-in AI engine isn't installed with this copy of Bibliotaph.";
+    public const string NoModel = "The built-in AI's model isn't downloaded yet.";
+
+    readonly HttpClient _http;
+    readonly Func<EngineStart, IEngineProcess> _start;
+    readonly TimeProvider _clock;
+    readonly ILogger _log;
+    readonly SemaphoreSlim _gate = new(1, 1);
+    IEngineProcess? _process;
+    EngineStart? _running;
+    ITimer? _idle;
+    int _uses;
+
+    /// <param name="options">Where the engine is, and how long it waits.</param>
+    /// <param name="http">For the health check; requests go through the caller's own client.</param>
+    /// <param name="start">Starts the engine; tests pass a stand-in.</param>
+    /// <param name="clock">For the idle stop and the load timeout.</param>
+    /// <param name="log">Starts, stops and failures; never anything of a book.</param>
+    public BuiltInEngine(BuiltInEngineOptions options, HttpClient http, Func<EngineStart, IEngineProcess>? start = null, TimeProvider? clock = null,
+        ILogger<BuiltInEngine>? log = null)
+    {
+        Options = options;
+        _http = http;
+        _start = start ?? EngineProcess.Start;
+        _clock = clock ?? TimeProvider.System;
+        _log = log ?? NullLogger<BuiltInEngine>.Instance;
+    }
+
+    public BuiltInEngineOptions Options { get; }
+
+    public bool IsInstalled => File.Exists(Options.ServerPath);
+
+    /// <summary>"llama.cpp b1234", from the note the build leaves beside the server, or null when there isn't one.</summary>
+    public string? Version
+    {
+        get
+        {
+            var note = Path.Combine(Path.GetDirectoryName(Options.ServerPath) ?? "", "engine.txt");
+            return File.Exists(note) ? File.ReadAllText(note).Trim() : null;
+        }
+    }
+
+    /// <summary>The engine is loaded and running.</summary>
+    public bool IsRunning => _process is { HasExited: false };
+
+    /// <summary>Raised when the engine starts or stops.</summary>
+    public event EventHandler? StateChanged;
+
+    /// <summary>
+    /// Runs <paramref name="use"/> against the engine loaded with <paramref name="modelPath"/> and room for
+    /// <paramref name="contextTokens"/>, starting it, or starting it again with more room, first. One use at a time:
+    /// the engine answers one request at a time anyway.
+    /// </summary>
+    /// <exception cref="ModelEndpointException">The engine or the model is missing, or the engine couldn't load it.</exception>
+    /// <exception cref="ModelRequestException">The engine stopped while answering.</exception>
+    public async Task<T> UseAsync<T>(string modelPath, int contextTokens, Func<Uri, string, Task<T>> use, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            _uses++;
+            _idle?.Dispose();
+            _idle = null;
+            var (address, key) = await EnsureAsync(modelPath, contextTokens, ct);
+            try
+            {
+                return await use(address, key);
+            }
+            catch (ModelEndpointException ex) when (_process is { HasExited: true } process)
+            {
+                // It stopped while answering: most likely this book was too much for it. The classifier's check that
+                // follows starts it again, and if that answers, the book fails by itself.
+                var said = process.RecentOutput;
+                Stop("it stopped while answering");
+                throw new ModelRequestException(Said("The built-in AI engine stopped while answering.", said), ex);
+            }
+        }
+        finally
+        {
+            if (_process is not null)
+            {
+                var uses = _uses;
+                _idle = _clock.CreateTimer(_ => _ = StopIfIdleAsync(uses), null, Options.IdleStop, Timeout.InfiniteTimeSpan);
+            }
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Stops the engine now, if it is running: AI was paused or switched off.</summary>
+    public async Task StopAsync()
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            Stop("AI was paused or switched off");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    async Task StopIfIdleAsync(int uses)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (_uses == uses) Stop($"nothing to read for {Options.IdleStop.TotalMinutes:0} minutes");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    async Task<(Uri Address, string Key)> EnsureAsync(string modelPath, int contextTokens, CancellationToken ct)
+    {
+        if (!IsInstalled) throw new ModelEndpointException(NotInstalled);
+        if (!File.Exists(modelPath)) throw new ModelEndpointException(NoModel);
+        if (_process is { HasExited: false } && _running is { } running && running.ModelPath == modelPath && running.ContextTokens >= contextTokens)
+            return (Address(running), running.ApiKey);
+
+        if (_process is { HasExited: true } dead) _log.LogWarning("The built-in AI engine had stopped by itself. It said: {Output}", dead.RecentOutput);
+        // Never smaller than it was for this model, so books that needed more don't start it again each time.
+        var context = Math.Max(Math.Max(contextTokens, Options.MinContextTokens), _running?.ModelPath == modelPath ? _running.ContextTokens : 0);
+        Stop(_running?.ModelPath == modelPath ? "a book needs more room" : "another model was chosen");
+        var start = new EngineStart(Options.ServerPath, modelPath, context, FreePort(), Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
+        var started = _clock.GetTimestamp();
+        IEngineProcess process;
+        try
+        {
+            process = _start(start);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
+        {
+            throw new ModelEndpointException($"The built-in AI engine couldn't start: {ex.Message}", ex);
+        }
+        _process = process;
+        _running = start;
+        await WaitUntilLoadedAsync(process, start, ct);
+        _log.LogInformation("Built-in AI engine loaded {Model} with {Context} tokens of context in {Seconds:0.0} s",
+            Path.GetFileName(modelPath), context, _clock.GetElapsedTime(started).TotalSeconds);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        return (Address(start), start.ApiKey);
+    }
+
+    /// <summary>llama-server answers /health with 503 while it loads the model and 200 once it can take requests.</summary>
+    async Task WaitUntilLoadedAsync(IEngineProcess process, EngineStart start, CancellationToken ct)
+    {
+        var started = _clock.GetTimestamp();
+        var health = new Uri(Address(start), "health");
+        while (true)
+        {
+            if (process.HasExited)
+            {
+                var said = process.RecentOutput;
+                Stop("it stopped while loading");
+                throw new ModelEndpointException(Said("The built-in AI engine couldn't load the model.", said));
+            }
+            using (var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                attempt.CancelAfter(TimeSpan.FromSeconds(5));
+                try
+                {
+                    using var response = await _http.GetAsync(health, attempt.Token);
+                    if (response.IsSuccessStatusCode) return;
+                }
+                catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+                {
+                    // Not listening yet.
+                }
+            }
+            if (_clock.GetElapsedTime(started) > Options.LoadTimeout)
+            {
+                Stop("it didn't load in time");
+                throw new ModelEndpointException($"The built-in AI engine didn't load the model within {Options.LoadTimeout.TotalMinutes:0} minutes.");
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(250), _clock, ct);
+        }
+    }
+
+    void Stop(string why)
+    {
+        _idle?.Dispose();
+        _idle = null;
+        if (_process is null) return;
+        var wasRunning = !_process.HasExited;
+        _process.Dispose();
+        _process = null;
+        if (!wasRunning) return;
+        _log.LogInformation("Built-in AI engine stopped: {Why}", why);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    static Uri Address(EngineStart start) => new($"http://127.0.0.1:{start.Port.ToString(CultureInfo.InvariantCulture)}/");
+
+    static string Said(string message, string output) => output.Length == 0 ? message : $"{message} It said: {Last(output)}";
+
+    /// <summary>The end of the engine's output, which is where it says what went wrong.</summary>
+    static string Last(string output) => output.Length > 300 ? "…" + output[^300..] : output;
+
+    static int FreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            Stop("the app closed");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        _gate.Dispose();
+    }
+}
+
+/// <summary>
+/// The classifier's model client for the built-in AI: the engine's OpenAI-compatible API, with the answer's length
+/// capped and Qwen3's thinking switched off. Temperature stays 0, as for any server, so a book gets the same answer
+/// each time it is read.
+/// </summary>
+public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, string modelPath) : IModelClient
+{
+    /// <summary>
+    /// llama.cpp's own request fields. No repetition penalty: the evidence check needs the book's words quoted exactly,
+    /// and a penalty on repeats would push the model off them. llama.cpp's JSON grammar already bounds whitespace.
+    /// </summary>
+    static readonly JsonObject Extras = new() { ["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = false } };
+
+    public string ModelPath => modelPath;
+
+    public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default)
+    {
+        if (!engine.IsInstalled) throw new ModelEndpointException(BuiltInEngine.NotInstalled);
+        if (!File.Exists(modelPath)) throw new ModelEndpointException(BuiltInEngine.NoModel);
+        return Task.FromResult(new EndpointInfo(EndpointKind.BuiltIn, engine.Version, [BuiltInModels.NameFor(modelPath)]));
+    }
+
+    public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
+    {
+        var max = engine.Options.MaxAnswerTokens;
+        var capped = request with { MaxTokens = Math.Min(request.MaxTokens ?? max, max) };
+        return engine.UseAsync(modelPath, request.ContextTokens,
+            (address, key) => new LocalModelClient(http, address.ToString(), () => key, EndpointKind.OpenAiCompatible, Extras).CompleteAsync(capped, ct), ct);
+    }
+}
+
+/// <summary>The built-in AI's models, by the name runs are recorded under.</summary>
+public static class BuiltInModels
+{
+    /// <summary>"Qwen3-8B-Q4_K_M (built in)": a different model, in the records, from the same one on a model server.</summary>
+    public static string NameFor(string modelPath) => $"{Path.GetFileNameWithoutExtension(modelPath)} (built in)";
+}
+
+public static class BuiltInEngineWatch
+{
+    /// <summary>
+    /// Stops the engine as soon as the Classify lane is paused, or AI is switched off or moved to a model server, so the
+    /// graphics memory goes back at once rather than after the idle minutes.
+    /// </summary>
+    public static void StopWhenNotNeeded(this BuiltInEngine engine, AiSettings ai, IndexingService indexing)
+    {
+        void Check(object? sender, EventArgs e)
+        {
+            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || !ai.Setup.IsReady || !ai.Setup.IsBuiltIn)) _ = engine.StopAsync();
+        }
+        ai.Changed += Check;
+        indexing.Changed += Check;
+    }
+}

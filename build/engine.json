@@ -6,8 +6,8 @@
   },
   "testModel": {
     "repo": "ggml-org/models",
-    "revision": "",
+    "revision": "499bc8821c6b12b4e53c5bffcb21ec206f212d81",
     "path": "tinyllamas/stories260K.gguf",
-    "sha256": ""
+    "sha256": "270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d"
   }
 }

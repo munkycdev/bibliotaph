@@ -22,6 +22,11 @@ $pin = Get-Content (Join-Path $PSScriptRoot 'engine.json') -Raw | ConvertFrom-Js
 $cache = Join-Path $root 'artifacts/cache'
 New-Item -ItemType Directory -Force $cache | Out-Null
 $inCi = $env:GITHUB_ACTIONS -eq 'true'
+# In CI, any failure also becomes an annotation, readable on the PR's checks without opening the log.
+trap {
+    if ($inCi -and $_.Exception.Message -notlike 'Nothing pinned yet*') { Write-Host "::error title=Built-in AI engine::$($_.Exception.Message)" }
+    break
+}
 
 function Get-Sha256([string] $path) { (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() }
 

@@ -38,19 +38,30 @@ public sealed class NoApiKeys : IApiKeyStore
 /// </summary>
 public sealed record AiSetup(string? Endpoint, string? Model, string Provider, bool Enabled, bool RemoteAllowed, IReadOnlySet<long> SkippedRoots)
 {
+    /// <summary>The provider of the built-in AI, whose model is a file Bibliotaph runs itself and which has no endpoint.</summary>
+    public const string BuiltInProvider = "built-in";
+
     public static AiSetup Off { get; } = new(null, null, "", false, false, new HashSet<long>());
 
-    public bool IsLocal => Endpoint is not null && LocalModelClient.IsLocal(Endpoint);
+    public bool IsBuiltIn => Provider == BuiltInProvider;
 
-    /// <summary>Set up, switched on, and either on this computer or network or allowed off it. Never a fallback to anything else.</summary>
-    public bool IsReady => Enabled && Endpoint is not null && Model is not null && (IsLocal || RemoteAllowed);
+    public bool IsLocal => IsBuiltIn || (Endpoint is not null && LocalModelClient.IsLocal(Endpoint));
+
+    /// <summary>
+    /// Set up, switched on, and either built in, on this computer or network, or allowed off it. Never a fallback to
+    /// anything else.
+    /// </summary>
+    public bool IsReady => Enabled && Model is not null && (IsBuiltIn || (Endpoint is not null && (IsLocal || RemoteAllowed)));
+
+    /// <summary>The name runs are recorded under: the model's, or for the built-in AI, its file's.</summary>
+    public string? ModelName => Model is null ? null : IsBuiltIn ? BuiltInModels.NameFor(Model) : Model;
 }
 
 /// <summary>
 /// AI's settings in catalog.db, loaded once and kept, and the classifier they make. A change raises
 /// <see cref="Changed"/>, which wakes or stops the Classify lane.
 /// </summary>
-public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null)
+public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null)
 {
     /// <summary>A local model can take minutes to load and read a long excerpt on a modest GPU.</summary>
     static readonly Lazy<HttpClient> Http = new(() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
@@ -67,6 +78,13 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     public IClassifier? Classifier => _classifier;
 
     public IModelClient ClientFor(string endpoint) => _clients(endpoint);
+
+    /// <summary>The built-in AI's engine, or null where the app has none (tests).</summary>
+    public BuiltInEngine? BuiltIn => builtIn;
+
+    /// <summary>The client for the built-in AI on <paramref name="modelPath"/>.</summary>
+    public IModelClient BuiltInClientFor(string modelPath) =>
+        new BuiltInModelClient(builtIn ?? throw new InvalidOperationException("This app has no built-in AI engine."), Http.Value, modelPath);
 
     public async Task LoadAsync(CancellationToken ct = default)
     {
@@ -95,7 +113,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     {
         setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model) };
         _setup = setup;
-        _classifier = setup.IsReady ? new ModelClassifier(_clients(setup.Endpoint!), setup.Provider, setup.Model!) : null;
+        _classifier = !setup.IsReady ? null
+            : setup.IsBuiltIn ? builtIn is null ? null : new ModelClassifier(BuiltInClientFor(setup.Model!), setup.Provider, setup.ModelName!)
+            : new ModelClassifier(_clients(setup.Endpoint!), setup.Provider, setup.Model!);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -282,7 +302,7 @@ public sealed class AiService(
 
     /// <summary>How many books the current model and prompt have classified, and how many only an earlier one did.</summary>
     public Task<ClassificationSummary> SummarizeAsync(CancellationToken ct = default) =>
-        settings.Setup.Model is { } model ? runs.SummarizeAsync(model, ClassifierPrompt.Version, ct) : Task.FromResult(new ClassificationSummary(0, 0));
+        settings.Setup.ModelName is { } model ? runs.SummarizeAsync(model, ClassifierPrompt.Version, ct) : Task.FromResult(new ClassificationSummary(0, 0));
 
     /// <summary>
     /// "Reclassify N documents": every book goes back to the Classify lane, which reads again those the current model

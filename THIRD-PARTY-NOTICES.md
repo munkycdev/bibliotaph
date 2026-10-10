@@ -36,6 +36,7 @@ made with the font.
 | SQLitePCLRaw (via Microsoft.Data.Sqlite) | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
 | SQLite | Public domain | https://sqlite.org |
 | Velopack (installer and updates) | MIT | https://github.com/velopack/velopack |
+| llama.cpp and ggml: `llama-server.exe` and its libraries in `aiworker\`, the built-in AI's engine (Vulkan build, downloaded and checked by `build/fetch-engine.ps1`; not a NuGet package) | MIT (`licenses/LICENSE-llama.cpp.txt`) | https://github.com/ggml-org/llama.cpp |
 | .NET and Windows Desktop runtimes (the installed app is self-contained) | MIT | https://github.com/dotnet |
 | Windows SDK projection for .NET (`Microsoft.Windows.SDK.NET.dll`, with C#/WinRT's `WinRT.Runtime.dll`, MIT), used by the PDF worker for Windows' text recognition | Windows SDK licence terms; shipped under the GPL section 7 additional permission in `LICENSE-EXCEPTION.md` | https://aka.ms/WinSDKProjectURL |
 

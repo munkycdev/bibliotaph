@@ -47,6 +47,11 @@
     <!-- Link, not LinkBase: LinkBase applies only to files outside the project folder, so these landed in Fonts\. -->
     <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\fonts\%(Filename)%(Extension)" />
     <None Include="Icons\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-lucide.txt" />
+    <None Include="Engine\LICENSE-llama.cpp.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-llama.cpp.txt" />
+    <!-- The built-in AI's engine, llama.cpp's llama-server, which build/fetch-engine.ps1 downloads and checks (Built-in
+         AI plan, choice 3). A build without it runs, and Settings > AI says the engine isn't installed. -->
+    <None Include="$(RepoRoot)artifacts\aiworker\**" Link="aiworker\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <!-- Bibliotaph's own licence and notices, which the About popup reads (as .txt so Notepad opens the licence too). -->
     <None Include="$(RepoRoot)LICENSE" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE.txt" Visible="false" />
     <None Include="$(RepoRoot)LICENSE-EXCEPTION.md" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-EXCEPTION.md" Visible="false" />

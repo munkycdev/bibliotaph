@@ -52,11 +52,6 @@ jobs:
           path: artifacts/cache
           key: engine-${{ hashFiles('build/engine.json') }}
 
-      # TEMPORARY: the model list's revisions and hashes, for the session writing it (removed before merge).
-      - name: Look up models
-        shell: pwsh
-        run: ./build/discover-models.ps1
-
       - name: Built-in AI engine
         shell: pwsh
         env:
