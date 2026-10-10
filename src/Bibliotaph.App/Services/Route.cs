@@ -7,6 +7,8 @@ public enum Route
     Library,
     Collections,
     Sessions,
+    /// <summary>One session pack's page, under Sessions.</summary>
+    SessionPack,
     NeedsReview,
     Settings,
     PilotReview,

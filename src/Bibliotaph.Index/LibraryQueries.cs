@@ -427,6 +427,22 @@ public sealed class LibraryQueries(IndexDatabase database)
         return [.. rows.Select(r => new OcrWordRow(r.Text, r.LeftPt, r.TopPt, r.RightPt, r.BottomPt))];
     }
 
+    /// <summary>
+    /// Documents as cards of their own, by id: for a session item whose book has no card in the Library, such as an
+    /// image hidden in a pack, which still shows and opens in the pack (slice 3 plan, choice 19).
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, LibraryEntry>> GetDocumentCardsAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return new Dictionary<long, LibraryEntry>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, string Title, string Format, long? PageCount, string? Cover, string? FolderHint, string AddedUtc)>(
+            new CommandDefinition(
+                "SELECT document_id, display_title, format, page_count, cover, folder_hint, added_utc FROM doc WHERE document_id IN @ids",
+                new { ids = documentIds.Distinct().ToArray() }, cancellationToken: ct));
+        return rows.ToDictionary(r => r.DocumentId, r => new LibraryEntry(default, r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
+            DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal), Searchable: true));
+    }
+
     /// <summary>A pack's images in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
     public async Task<IReadOnlyList<PackImage>> GetPackImagesAsync(EntryId packId, CancellationToken ct = default)
     {

@@ -13,12 +13,13 @@ namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
 /// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, the pinned collections, and ways
-/// into the library such as Favorites. Before any folder is added it explains what Bibliotaph does. Continue preparing
-/// joins it with session packs (3c).
+/// into the library such as Favorites, and Continue preparing: the session pack worked on last (3c). Before any folder
+/// is added it explains what Bibliotaph does.
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
-    ReaderWindows readers, FavoritesService favorites, CollectionActions collections, ILogger<HomeViewModel> log)
+    ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
+    ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
@@ -32,6 +33,13 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     /// <summary>Add to collection from a cover's menu, with its dialog and note.</summary>
     public CollectionActions Collections { get; } = collections;
+
+    /// <summary>Add to session from a cover's menu, with its dialog and note.</summary>
+    public SessionActions Sessions { get; } = sessions;
+
+    /// <summary>Continue preparing (3c): the session pack worked on last, as a card; null before there is one.</summary>
+    [ObservableProperty]
+    public partial SessionCardViewModel? ContinuePreparing { get; private set; }
 
     /// <summary>The pinned collections (choice 7), as cards.</summary>
     public ObservableCollection<CollectionCardViewModel> PinnedCollections { get; } = [];
@@ -69,6 +77,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         Collections.Directory.Changed -= OnActivityRefreshed;
         Collections.Directory.Changed += OnActivityRefreshed;
         await Collections.Directory.LoadAsync();
+        Sessions.Directory.Changed -= OnActivityRefreshed;
+        await Sessions.Directory.LoadAsync();
+        Sessions.Directory.Changed += OnActivityRefreshed;
         await RefreshAsync();
     }
 
@@ -77,6 +88,8 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         Activity.Refreshed -= OnActivityRefreshed;
         Collections.Directory.Changed -= OnActivityRefreshed;
         Collections.Close();
+        Sessions.Directory.Changed -= OnActivityRefreshed;
+        Sessions.Close();
     }
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
@@ -99,7 +112,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
             Show(RecentlyOpened, opened);
             Show(RecentlyAdded, added);
             var pinned = await Collections.Directory.CardsAsync(Collections.Directory.Pinned);
+            var preparing = Sessions.Directory.Current is { } current ? await Sessions.Directory.CardsAsync([current]) : [];
             if (version != _version) return;
+            ContinuePreparing = preparing.Count > 0 ? preparing[0] : null;
             PinnedCollections.Clear();
             foreach (var card in pinned) PinnedCollections.Add(card);
             HasPinnedCollections = PinnedCollections.Count > 0;
@@ -197,8 +212,25 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         if (request.Target is LibraryItemViewModel item) Collections.Add([item.EntryId], item.Title, request.Choice);
     }
 
+    /// <summary>A cover menu's Add to session.</summary>
+    public void AddToSession(SessionRequest request)
+    {
+        if (request.Target is LibraryItemViewModel item) Sessions.Add([item.EntryId], item.Title, request.Choice);
+    }
+
+    /// <summary>Continue preparing's card: the pack's page.</summary>
     [RelayCommand]
-    void Escape() => Collections.Dialog?.CancelCommand.Execute(null);
+    void OpenSession(SessionCardViewModel card) => sessionPages.Open(card.Id);
+
+    [RelayCommand]
+    void BrowseSessions() => sessionPages.OpenList();
+
+    [RelayCommand]
+    void Escape()
+    {
+        if (Sessions.Dialog is { } session) session.CancelCommand.Execute(null);
+        else Collections.Dialog?.CancelCommand.Execute(null);
+    }
 
     [RelayCommand]
     void SetUpAi() => links.Open(SettingsSection.Ai);

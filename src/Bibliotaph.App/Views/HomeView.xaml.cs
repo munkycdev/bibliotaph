@@ -19,6 +19,12 @@ public partial class HomeView
                 if (DataContext is HomeViewModel model && e.Parameter is CollectionRequest request) model.AddToCollection(request);
             },
             (_, e) => e.CanExecute = DataContext is HomeViewModel && e.Parameter is CollectionRequest));
+        CommandBindings.Add(new CommandBinding(BookCommands.AddToSession,
+            (_, e) =>
+            {
+                if (DataContext is HomeViewModel model && e.Parameter is SessionRequest request) model.AddToSession(request);
+            },
+            (_, e) => e.CanExecute = DataContext is HomeViewModel && e.Parameter is SessionRequest));
     }
 
     /// <summary>A cover menu's command, run with the cover's book on Home's own command.</summary>

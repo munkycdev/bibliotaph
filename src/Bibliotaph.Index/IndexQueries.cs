@@ -125,6 +125,48 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT fingerprint FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
     }
 
+    /// <summary>A page's printed label and fingerprint, for a session item's page reference (slice 3 plan, choice 14). Null for a page the index doesn't have.</summary>
+    public async Task<(string? Label, string? Fingerprint)?> GetPageMarkAsync(long documentId, int pdfPage, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string? Label, string? Fingerprint)>(new CommandDefinition(
+            "SELECT label, fingerprint FROM page WHERE document_id = @documentId AND pdf_page = @pdfPage", new { documentId, pdfPage }, cancellationToken: ct));
+        return rows.Select(r => ((string? Label, string? Fingerprint)?)r).FirstOrDefault();
+    }
+
+    /// <summary>The pages of a document with this fingerprint, in page order: where a page went in another copy or version.</summary>
+    public async Task<IReadOnlyList<int>> FindFingerprintAsync(long documentId, string fingerprint, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<int>(new CommandDefinition(
+            "SELECT pdf_page FROM page WHERE document_id = @documentId AND fingerprint = @fingerprint ORDER BY pdf_page",
+            new { documentId, fingerprint }, cancellationToken: ct))];
+    }
+
+    /// <summary>The first page of a document with this printed label, or null.</summary>
+    public async Task<int?> FindLabelAsync(long documentId, string label, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.QueryFirstOrDefaultAsync<int?>(new CommandDefinition(
+            "SELECT pdf_page FROM page WHERE document_id = @documentId AND label = @label ORDER BY pdf_page LIMIT 1",
+            new { documentId, label }, cancellationToken: ct));
+    }
+
+    /// <summary>
+    /// The bookmark a page sits under: the deepest one at or before it, nearest first. A session item takes its label
+    /// from it (choice 13). Null when the book has no bookmarks before that page.
+    /// </summary>
+    public async Task<string?> GetBookmarkAsync(long documentId, int pdfPage, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.QueryFirstOrDefaultAsync<string?>(new CommandDefinition(
+            """
+            SELECT title FROM outline
+            WHERE document_id = @documentId AND pdf_page >= 0 AND pdf_page <= @pdfPage AND trim(title) <> ''
+            ORDER BY pdf_page DESC, depth DESC, ord DESC LIMIT 1
+            """, new { documentId, pdfPage }, cancellationToken: ct));
+    }
+
     /// <summary>
     /// The other documents with a page whose fingerprint one of <paramref name="documentId"/>'s pages has, with how many
     /// of its distinct fingerprints each shares, most first, and how many distinct fingerprints each has in all.

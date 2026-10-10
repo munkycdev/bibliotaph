@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
              xmlns:viewer="clr-namespace:Bibliotaph.Viewer;assembly=Bibliotaph.Viewer"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:ViewerViewModel}">
@@ -84,6 +85,21 @@
 
     <!-- .bt-reader-head; Back is the shell's. -->
     <DockPanel Margin="0,0,0,16">
+      <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                  Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <Button x:Name="AddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add page" c:Ui.Icon="{StaticResource Icon.Plus}"
+                Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current session"
+                AutomationProperties.Name="Add page to session" />
+        <Button x:Name="AddPageMenu" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Margin="2,0,0,0"
+                ToolTip="Add pages, or add to another session" AutomationProperties.Name="More ways to add to a session" Click="AddPageMenu_Click">
+          <Button.ContextMenu>
+            <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddPageToSessionCommand}">
+              <MenuItem x:Name="AddPagesItem" Header="Add pages…" Click="AddPages_Click" />
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
+      </StackPanel>
       <StackPanel VerticalAlignment="Center">
         <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" />
         <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
@@ -217,6 +233,32 @@
                             Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
                      Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <!-- A session item's pages weren't where they were (choice 14), and what Add page did, with Undo. -->
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="18,14,18,0" MaxWidth="560">
+            <Border x:Name="SessionBanner" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Warm}" BorderThickness="1" CornerRadius="6"
+                    Padding="14,10" Margin="0,0,0,8" Visibility="{Binding SessionBanner, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                        ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionBannerCommand}" VerticalAlignment="Top" />
+                <Button x:Name="UsePage" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Use this page" Padding="12,0,0,0"
+                        Command="{Binding UsePageCommand}" VerticalAlignment="Center"
+                        Visibility="{Binding CanUsePage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock Text="{Binding SessionBanner}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+              </DockPanel>
+            </Border>
+            <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="14,10"
+                    Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                        ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionMessageCommand}" />
+                <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                        Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
+                        Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+              </DockPanel>
+            </Border>
+          </StackPanel>
           <!-- A short message over the pages, such as why Copy did nothing. -->
           <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="12,8" CornerRadius="5"
                   Background="{DynamicResource Bt.Text}" IsHitTestVisible="False"
@@ -237,5 +279,11 @@
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}" />
     </ScrollViewer>
+
+    <!-- Add pages… and naming a new session, as a dialog over the reader. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="4" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Background="{DynamicResource Bt.Shadow}" />
+      <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+    </Grid>
   </Grid>
 </UserControl>

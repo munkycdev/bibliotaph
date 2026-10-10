@@ -29,7 +29,7 @@ public sealed record CollectionRequest(object? Target, CollectionMenuChoice Choi
 /// </summary>
 public static class CollectionMenu
 {
-    static readonly object Marker = new();
+    static readonly MenuGroup Group = new(Order: 2);
 
     /// <summary>The items every menu shows, kept current by the collection directory on the UI thread.</summary>
     public static IReadOnlyList<CollectionMenuChoice> Choices { get; set; } = [];
@@ -51,18 +51,37 @@ public static class CollectionMenu
     static void Fill(object sender, RoutedEventArgs e)
     {
         var menu = (ContextMenu)sender;
-        foreach (var stale in menu.Items.OfType<MenuItem>().Where(i => ReferenceEquals(i.Tag, Marker)).ToList()) menu.Items.Remove(stale);
-        if (GetCommand(menu) is not { } command) return;
-        foreach (var choice in Choices)
+        var command = GetCommand(menu);
+        Group.Refill(menu, command is null ? [] : Choices.Select(choice => new MenuItem
         {
-            menu.Items.Add(new MenuItem
-            {
-                Header = choice.Label,
-                ToolTip = choice.Path,
-                Command = command,
-                CommandParameter = new CollectionRequest(menu.DataContext, choice),
-                Tag = Marker,
-            });
+            Header = choice.Label,
+            ToolTip = choice.Path,
+            Command = command,
+            CommandParameter = new CollectionRequest(menu.DataContext, choice),
+        }));
+    }
+}
+
+/// <summary>
+/// Items a behaviour puts in a menu each time it opens, such as Add to collection's. Each group replaces its own items
+/// and keeps its place among the other groups by <see cref="Order"/>, whichever opened handler runs first.
+/// </summary>
+sealed record MenuGroup(int Order)
+{
+    public void Refill(ContextMenu menu, IEnumerable<MenuItem> items)
+    {
+        foreach (var stale in menu.Items.OfType<MenuItem>().Where(i => ReferenceEquals(i.Tag, this)).ToList()) menu.Items.Remove(stale);
+        var at = menu.Items.Count;
+        for (var i = 0; i < menu.Items.Count; i++)
+        {
+            if (menu.Items[i] is not MenuItem { Tag: MenuGroup other } || other.Order <= Order) continue;
+            at = i;
+            break;
+        }
+        foreach (var item in items)
+        {
+            item.Tag = this;
+            menu.Items.Insert(at++, item);
         }
     }
 }

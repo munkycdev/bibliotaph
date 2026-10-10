@@ -107,6 +107,8 @@ static class SmokeTest
             if (real is { } reprocessed)
             {
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
+                await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, and deleted with Undo",
+                    () => UseSessionPacksAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
@@ -1253,6 +1255,106 @@ static class SmokeTest
         ((LibraryViewModel)shell.CurrentPage!).CloseDetailsCommand.Execute(null);
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// Slice 3c: New session on Sessions makes a pack and opens it, empty. In the reader, Add pages… adds pages i to 1
+    /// with a label and Add page adds the page in view, called after its bookmark. The pack lists both in order; Move
+    /// down swaps them and keeps their labels; an item opens at its first page and leaves the book's kept place alone.
+    /// Home shows the pack under Continue preparing. A section is added; Delete goes to Sessions with Undo, which brings
+    /// the pack back.
+    /// </summary>
+    static async Task UseSessionPacksAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var reading = services.GetRequiredService<ReadingService>();
+        var sessions = services.GetRequiredService<SessionsService>();
+        var kept = await reading.GetPositionAsync(documentId);
+
+        shell.NavigateCommand.Execute(Route.Sessions);
+        var list = shell.CurrentPage as SessionsViewModel ?? throw new InvalidOperationException("The Sessions route didn't open Sessions.");
+        await WaitUntilAsync(window, () => list.IsLoaded, () => "Sessions didn't load.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NewSession" && b.IsVisible), "New session");
+        await WaitUntilAsync(window, () => list.Actions.Dialog is { IsNaming: true, ShowsDate: true }, () => "New session didn't ask for a title and date.");
+        list.Actions.Dialog!.Title = "The midnight bell";
+        list.Actions.Dialog.DateText = DateOnly.FromDateTime(DateTime.Today.AddDays(7)).ToString("d", CultureInfo.CurrentCulture);
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveSession" && b.IsVisible), "Create");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: false, Pack.Title: "The midnight bell" },
+            () => "Create didn't open the new session, empty.");
+        var packId = ((SessionPackViewModel)shell.CurrentPage!).PackId;
+
+        // The reader: Add pages… from the menu by the Add page button, then Add page on the page in view.
+        shell.NavigateCommand.Execute(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf && viewer.AddPageCommand.CanExecute(null), () => $"The PDF didn't open for Add page (still {viewer.Mode}).");
+        var menuButton = Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPageMenu");
+        Click(menuButton, "Add page's menu");
+        await WaitUntilAsync(window, () => menuButton!.ContextMenu is { IsOpen: true, Items.Count: >= 2 }, () => "Add page's menu didn't list Add pages… and the sessions.");
+        menuButton!.ContextMenu!.IsOpen = false;
+        await viewer.AddPagesCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => viewer.Sessions.Dialog is { IsPages: true, Pack: not null }, () => "Add pages… didn't ask which pages.");
+        var dialog = viewer.Sessions.Dialog!;
+        if (dialog.Pack!.Value != packId) throw new InvalidOperationException("Add pages… didn't offer the current session first.");
+        dialog.From = "i";
+        dialog.To = "1";
+        dialog.Label = "Warehouse ambush";
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPagesButton" && b.IsVisible), "Add");
+        await WaitUntilAsync(window, () => viewer.Sessions is { Dialog: null, HasUndo: true, Message: "Added Warehouse ambush to The midnight bell." },
+            () => $"Add pages… said “{viewer.Sessions.Message}”.");
+        var pageInView = viewer.CurrentPageIndex;
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPage"), "Add page");
+        await WaitUntilAsync(window, () => viewer.Sessions.Message is { } note && note.StartsWith("Added page ", StringComparison.Ordinal),
+            () => $"Add page said “{viewer.Sessions.Message}”.");
+        navigation.GoBack();
+        await Settle(window);
+
+        // The pack: both items in order, with their labels; Move down swaps them.
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
+        await WaitUntilAsync(window, () => home.ContinuePreparing is { Title: "The midnight bell", CountLabel: "2 items" },
+            () => "Home doesn't show the session under Continue preparing.");
+        var card = Descendants<ContentControl>(window).FirstOrDefault(c => c.Name == "ContinuePreparing");
+        Click(card is null ? null : Descendants<Button>(card).FirstOrDefault(b => b.Name == "Card"), "Continue preparing's card");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Continue preparing didn't open the session.");
+        var pack = (SessionPackViewModel)shell.CurrentPage!;
+        static IReadOnlyList<SessionItemRow> Items(SessionPackViewModel p) => [.. p.Rows.OfType<SessionItemRow>()];
+        await WaitUntilAsync(window, () => Items(pack) is [{ Heading: "Warehouse ambush" } first, var second] && first.Where.EndsWith("p. i–1", StringComparison.Ordinal)
+                && second.Item.Range is { IsSinglePage: true } range && range.FirstPdfPage == pageInView,
+            () => $"The session lists {string.Join(", ", Items(pack).Select(i => $"{i.Heading} ({i.Where})"))}.");
+        var rows = Descendants<Border>(window).Where(b => b.Name == "ItemRow").ToList();
+        Click(rows.Count > 0 ? Descendants<Button>(rows[0]).FirstOrDefault(b => b.Name == "MoveItemDown") : null, "Move down");
+        await WaitUntilAsync(window, () => Items(pack) is [{ Number: "01" } moved, { Heading: "Warehouse ambush", Number: "02" }] && moved.Heading != "Warehouse ambush",
+            () => "Move down didn't swap the two items, keeping their labels.");
+
+        // Opening an item: its first page, and the book's kept place stays where it was.
+        rows = [.. Descendants<Border>(window).Where(b => b.Name == "ItemRow")];
+        Click(rows.Count > 1 ? Descendants<Button>(rows[1]).FirstOrDefault(b => b.Name == "OpenItem") : null, "Open Warehouse ambush");
+        await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { IsPdf: true, CurrentPageIndex: 0 }, () => "The item didn't open at page i.");
+        await Task.Delay(TimeSpan.FromSeconds(2.5));
+        navigation.GoBack();
+        await Settle(window);
+        if (await reading.GetPositionAsync(documentId) != kept) throw new InvalidOperationException("Opening a session item moved the book's kept place.");
+
+        // A section, then Delete with Undo.
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true }, () => "Back didn't return to the session.");
+        pack = (SessionPackViewModel)shell.CurrentPage!;
+        await pack.AddSuggestedSectionCommand.ExecuteAsync("Maps");
+        await WaitUntilAsync(window, () => pack.Rows.OfType<SessionSectionRow>().Any(r => r.Name == "Maps"), () => "Add section didn't show the Maps heading.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteSession"), "Delete");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionsViewModel { Actions.HasUndo: true, HasSessions: false }, () => "Delete didn't go to Sessions with an Undo.");
+        list = (SessionsViewModel)shell.CurrentPage!;
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoSession" && b.IsVisible), "Undo");
+        await WaitUntilAsync(window, () => list.Upcoming is [{ Title: "The midnight bell", CountLabel: "2 items" }], () => "Undo didn't bring the session back.");
+
+        // Leave the library as it was for the checks after this one.
+        foreach (var left in await sessions.ListAsync()) await sessions.DeleteAsync(left.Id);
+        await WaitUntilAsync(window, () => list.ShowEmpty, () => "The smoke test's session didn't go.");
     }
 
     static async Task AddElsewhereAsync(IServiceProvider services, Window window, int books)

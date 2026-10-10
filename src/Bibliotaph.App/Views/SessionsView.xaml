@@ -5,14 +5,79 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SessionsViewModel}">
-  <StackPanel>
-    <TextBlock Text="Sessions" Style="{StaticResource Text.H1}" />
-    <TextBlock Text="Your next session, gathered in one place." Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" />
-    <Border Style="{StaticResource Bt.Rule}" />
-    <c:EmptyState Title="An empty notebook."
-                  Message="Add a book or page from your library to get started."
-                  ActionText="Browse library" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding BrowseLibraryCommand}" />
-  </StackPanel>
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding EscapeCommand}" />
+  </UserControl.InputBindings>
+
+  <UserControl.Resources>
+    <Style x:Key="CardRow" TargetType="ItemsControl">
+      <Setter Property="ItemTemplate" Value="{StaticResource SessionCard}" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="KeyboardNavigation.TabNavigation" Value="Continue" />
+      <Setter Property="ItemsPanel">
+        <Setter.Value>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="RowHeading" TargetType="TextBlock" BasedOn="{StaticResource Text.Eyebrow}">
+      <Setter Property="Margin" Value="0,28,0,14" />
+    </Style>
+  </UserControl.Resources>
+
+  <Grid>
+    <StackPanel>
+      <DockPanel Margin="0,0,42,24">
+        <Button x:Name="NewSession" DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource Bt.Button.Primary}" Content="New session"
+                c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding NewSessionCommand}" />
+        <StackPanel>
+          <TextBlock Text="Sessions" Style="{StaticResource Text.H1}" />
+          <TextBlock Text="Your next session, gathered in one place." Style="{StaticResource Text.Subtitle}" />
+        </StackPanel>
+      </DockPanel>
+      <Border Style="{StaticResource Bt.Rule}" Margin="0,0,42,0" />
+
+      <!-- What the last change did, with Undo: here, after a session was deleted from its page. -->
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,20,42,0"
+              Visibility="{Binding Actions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding Actions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo"
+                  Visibility="{Binding Actions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock Text="{Binding Actions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+
+      <StackPanel Visibility="{Binding HasUpcoming, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="UPCOMING" Style="{StaticResource RowHeading}" />
+        <ItemsControl x:Name="UpcomingSessions" ItemsSource="{Binding Upcoming}" Style="{StaticResource CardRow}" AutomationProperties.Name="Upcoming sessions" />
+      </StackPanel>
+      <StackPanel Visibility="{Binding HasUndated, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="NO DATE YET" Style="{StaticResource RowHeading}" />
+        <ItemsControl x:Name="UndatedSessions" ItemsSource="{Binding Undated}" Style="{StaticResource CardRow}" AutomationProperties.Name="Sessions without a date" />
+      </StackPanel>
+      <StackPanel Visibility="{Binding HasEarlier, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,8,0,0">
+        <Button x:Name="ToggleEarlier" Style="{StaticResource Bt.Link}" HorizontalAlignment="Left" Content="{Binding EarlierLabel}" Margin="0,20,0,0"
+                c:Ui.Icon="{StaticResource Icon.ChevronDown}" Command="{Binding ToggleEarlierCommand}" />
+        <ItemsControl x:Name="EarlierSessions" ItemsSource="{Binding Earlier}" Style="{StaticResource CardRow}" Margin="0,16,0,0"
+                      AutomationProperties.Name="Earlier sessions" Visibility="{Binding ShowEarlier, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+      </StackPanel>
+
+      <c:EmptyState Title="An empty notebook."
+                    Message="A session gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one."
+                    ActionText="New session" ActionIcon="{StaticResource Icon.Plus}" Command="{Binding NewSessionCommand}"
+                    Visibility="{Binding ShowEmpty, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+    </StackPanel>
+
+    <!-- New session, a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Visibility="{Binding Actions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
+      <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Actions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
+    </Grid>
+  </Grid>
 </UserControl>

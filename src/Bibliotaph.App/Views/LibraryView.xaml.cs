@@ -40,6 +40,12 @@ public partial class LibraryView
                 if (DataContext is LibraryViewModel model && e.Parameter is CollectionRequest request) model.AddToCollection(request);
             },
             (_, e) => e.CanExecute = DataContext is LibraryViewModel && e.Parameter is CollectionRequest));
+        CommandBindings.Add(new CommandBinding(BookCommands.AddToSession,
+            (_, e) =>
+            {
+                if (DataContext is LibraryViewModel model && e.Parameter is SessionRequest request) model.AddToSession(request);
+            },
+            (_, e) => e.CanExecute = DataContext is LibraryViewModel && e.Parameter is SessionRequest));
     }
 
     /// <summary>A card menu's command, run with the card's book on the Library's own command.</summary>

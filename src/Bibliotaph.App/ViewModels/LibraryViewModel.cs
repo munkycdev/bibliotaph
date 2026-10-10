@@ -75,10 +75,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        CollectionActions collections, LibraryPages pages, ILogger<LibraryViewModel> log)
+        CollectionActions collections, SessionActions sessions, LibraryPages pages, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         Collections = collections;
+        Sessions = sessions;
         _pages = pages;
         _favorites = favorites;
         _elsewhere = elsewhere;
@@ -338,6 +339,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Collections.Directory.Changed -= OnCollectionsChanged;
         await Collections.Directory.LoadAsync();
         Collections.Directory.Changed += OnCollectionsChanged;
+        await Sessions.Directory.LoadAsync();
         _staleTimer.Start();
         if (IsCollection) await ShowCollectionAsync();
         await LoadFolderChoicesAsync();
@@ -356,6 +358,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Activity.Refreshed -= OnActivityRefreshed;
         Collections.Directory.Changed -= OnCollectionsChanged;
         Collections.Close();
+        Sessions.Close();
         Search.PropertyChanged -= OnSearchChanged;
         _staleTimer.Stop();
         // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
@@ -1093,7 +1096,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void Escape()
     {
-        if (Collections.Dialog is { } naming) naming.CancelCommand.Execute(null);
+        if (Sessions.Dialog is { } session) session.CancelCommand.Execute(null);
+        else if (Collections.Dialog is { } naming) naming.CancelCommand.Execute(null);
         else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
         else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
         else if (Inspector is not null) Inspector = null;
@@ -1253,4 +1257,32 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         if (Inspector is { } inspector) await Collections.RemoveAsync([inspector.Item.EntryId], inspector.Item.Title, chip.Id);
     }
+
+    // Session packs (slice 3c).
+
+    /// <summary>Adding books and pages to session packs, with the dialog and the note they show.</summary>
+    public SessionActions Sessions { get; }
+
+    /// <summary>A card's menu or the details' Add to session: the book they are for.</summary>
+    public void AddToSession(SessionRequest request)
+    {
+        var item = request.Target switch
+        {
+            LibraryItemViewModel book => book,
+            InspectorViewModel details => details.Item,
+            _ => null,
+        };
+        if (item is not null) Sessions.Add([item.EntryId], item.Title, request.Choice);
+    }
+
+    /// <summary>Select mode's Add to session: every ticked book, shown or not.</summary>
+    [RelayCommand]
+    void AddSelectedToSession(SessionRequest request) =>
+        Sessions.Add(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), request.Choice);
+
+    /// <summary>A matching page's Add: that page to the current session pack (slice 3 plan, choice 13).</summary>
+    [RelayCommand]
+    void AddPageToSession(PageHitViewModel page) =>
+        Sessions.AddPage(page.Hit.DocumentId, page.Hit.PdfPage,
+            $"page {(string.IsNullOrWhiteSpace(page.Hit.Label) ? (page.Hit.PdfPage + 1).ToString(CultureInfo.CurrentCulture) : page.Hit.Label)}");
 }

@@ -238,6 +238,17 @@
                      VerticalAlignment="Center" />
         </DockPanel>
       </Border>
+      <!-- What the last Add to session did, with Undo. -->
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+              Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the session change"
+                  Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
       <!-- Select mode: how many are ticked, Edit metadata, Clear and Done. -->
       <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14" AutomationProperties.Name="Selection"
               Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -249,6 +260,12 @@
                     Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a collection">
               <Button.ContextMenu>
                 <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{Binding AddSelectedToCollectionCommand}" />
+              </Button.ContextMenu>
+            </Button>
+            <Button x:Name="AddSelectedToSession" Content="Add to session" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="0,0,8,0"
+                    Click="DropDown_Click" IsEnabled="{Binding Selection.HasAny}" ToolTip="Add every selected book to a session">
+              <Button.ContextMenu>
+                <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddSelectedToSessionCommand}" />
               </Button.ContextMenu>
             </Button>
             <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,0,8,0" Command="{Binding RemoveSelectedFromCollectionCommand}"
@@ -433,6 +450,11 @@
                                     AutomationProperties.Name="{Binding Where, StringFormat='Open {0} in new window'}"
                                     Command="{Binding DataContext.OpenPageInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}"
+                                    VerticalAlignment="Top" Margin="4,0,0,0" ToolTip="Add this page to the current session"
+                                    AutomationProperties.Name="{Binding Where, StringFormat='Add {0} to the session'}"
+                                    Command="{Binding DataContext.AddPageToSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
                             <Button DockPanel.Dock="Right" Content="Open page" c:Ui.Icon="{StaticResource Icon.BookOpen}" VerticalAlignment="Top"
                                     AutomationProperties.Name="{Binding Where, StringFormat='Open {0}'}"
                                     Command="{Binding DataContext.OpenPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -532,6 +554,13 @@
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
+                <!-- Add to session (slice 3c): the current session, another or a new one. -->
+                <Button x:Name="AddToSession" Content="Add to session" c:Ui.Icon="{StaticResource Icon.NotebookPen}" HorizontalAlignment="Left"
+                        Margin="0,8,0,0" Click="DropDown_Click" ToolTip="Add this book to a session">
+                  <Button.ContextMenu>
+                    <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
+                  </Button.ContextMenu>
+                </Button>
               </StackPanel>
             </Grid>
 
@@ -883,6 +912,12 @@
     <Grid Grid.RowSpan="5" Visibility="{Binding Collections.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <v:CollectionDialogView x:Name="CollectionDialog" DataContext="{Binding Collections.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- Naming or picking a session (slice 3c), a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="5" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
+      <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
     </Grid>
 
     <!-- The bulk editor, a dialog over the page. Esc or Cancel closes it; nothing behind it can be clicked meanwhile. -->

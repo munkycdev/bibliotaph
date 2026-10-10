@@ -1,7 +1,6 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -19,13 +18,4 @@ public abstract partial class LibraryAwarePageViewModel(SourceRootStore roots, L
     public bool HasFolders => FolderCount > 0;
 
     public override async Task LoadAsync() => FolderCount = (await roots.ListAsync()).Count;
-}
-
-public sealed partial class SessionsViewModel(INavigationService navigation) : PageViewModel
-{
-    public override Route Route => Route.Sessions;
-    public override string Title => "Sessions";
-
-    [RelayCommand]
-    void BrowseLibrary() => navigation.NavigateTo(Route.Library);
 }
