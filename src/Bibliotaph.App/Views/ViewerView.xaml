@@ -69,7 +69,7 @@
       <Style TargetType="Grid">
         <Setter Property="Margin" Value="0,0,42,24" />
         <Style.Triggers>
-          <!-- A pop-out has no shell around it, and run mode frames the reader itself. -->
+          <!-- A pop-out has no shell around it, and a binder frames the reader itself. -->
           <DataTrigger Binding="{Binding FitsFrame}" Value="True">
             <Setter Property="Margin" Value="0" />
           </DataTrigger>
@@ -184,15 +184,15 @@
           <Border Style="{StaticResource Divider}" />
           <Button x:Name="FavoriteButton" Style="{StaticResource Bt.HeartButton}" c:Ui.IsActive="{Binding IsFavorite}"
                   ToolTip="{Binding FavoriteAction}" AutomationProperties.Name="{Binding FavoriteAction}" Command="{Binding ToggleFavoriteCommand}" />
-          <!-- Pop out: the book moves to a window of its own (one per monitor, say); a pop-out sends it back. -->
-          <Border Style="{StaticResource Divider}" />
+          <!-- Pop out: the book moves to a window of its own (one per monitor, say); a pop-out sends it back. A binder pops out whole instead. -->
+          <Border Style="{StaticResource Divider}" Visibility="{Binding InBinder, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
                   ToolTip="Pop out into a window of its own" AutomationProperties.Name="Pop out" Command="{Binding PopOutCommand}"
-                  Visibility="{Binding IsPoppedOut, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                  Visibility="{Binding ShowsPopOut, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowDownLeft}"
                   ToolTip="Return to the main window" AutomationProperties.Name="Return to main window"
                   Command="{Binding ReturnToMainWindowCommand}"
-                  Visibility="{Binding IsPoppedOut, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  Visibility="{Binding ShowsReturn, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
         <!-- Find in book; what it found follows, and wraps on its own. -->
         <StackPanel Orientation="Horizontal" Margin="6,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">

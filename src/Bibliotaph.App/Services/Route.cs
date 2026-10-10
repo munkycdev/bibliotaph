@@ -7,10 +7,10 @@ public enum Route
     Library,
     Collections,
     Sessions,
-    /// <summary>One session pack's page, under Sessions.</summary>
+    /// <summary>One binder: its pages in the reader, under Binders.</summary>
     SessionPack,
-    /// <summary>Run mode: a session pack at the table, filling the window.</summary>
-    RunSession,
+    /// <summary>Editing one binder: its items in order, with sections and notes.</summary>
+    SessionEdit,
     NeedsReview,
     Settings,
     PilotReview,

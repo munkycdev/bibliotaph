@@ -5,7 +5,7 @@ namespace Bibliotaph.Processing;
 
 /// <summary>
 /// Notes (slice 3 plan, choice 18): each book's own note, which search finds, and notes on pages of a book, which the
-/// reader lists and run mode shows. A book's note is projected to index.db after each save; page notes aren't searched yet.
+/// reader lists and a binder's reader shows. A book's note is projected to index.db after each save; page notes aren't searched yet.
 /// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice 2).
 /// </summary>
 public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)

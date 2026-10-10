@@ -13,6 +13,7 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// Makes readers, each with its request, and hosts them: in the main window's Reading route, or in pop-out windows.
+/// A popped-out binder lives in the same kind of window, around its own reader.
 /// A pop-out is a top-level window with its own taskbar button and no owner, so it doesn't minimise or stay on top
 /// with the main window and can live on another monitor. Each one opens where the last one was (saved in the
 /// settings table, in pixels), pulled back onto a screen if that monitor is gone. Closing the main window closes
@@ -43,23 +44,25 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
 
     /// <summary>
     /// A reader for <paramref name="request"/>, or an empty one; <paramref name="poppedOut"/> for a pop-out window,
-    /// <paramref name="inRunMode"/> for the one inside run mode.
+    /// <paramref name="inBinder"/> for the one inside a binder.
     /// </summary>
-    public ViewerViewModel Create(ViewerRequest? request, bool poppedOut = false, bool inRunMode = false) =>
-        new(request, viewer, this, poppedOut) { InRunMode = inRunMode };
+    public ViewerViewModel Create(ViewerRequest? request, bool poppedOut = false, bool inBinder = false) =>
+        new(request, viewer, this, poppedOut) { InBinder = inBinder };
 
     /// <summary>Opens a book in the main window's reader, and brings the main window forward.</summary>
     public void OpenInMainWindow(ViewerRequest request)
     {
         navigation.Show(Create(request));
-        if (Application.Current.MainWindow is { } main) BringForward(main);
+        BringMainForward();
     }
 
     /// <summary>Opens a book in a pop-out window of its own. The book loads once the window is showing.</summary>
-    public async Task OpenInNewWindowAsync(ViewerRequest request)
+    public Task OpenInNewWindowAsync(ViewerRequest request) => HostAsync(Create(request, poppedOut: true));
+
+    /// <summary>Shows a page, a reader or a binder, in a pop-out window of its own. The page loads once the window is showing.</summary>
+    public async Task HostAsync(PageViewModel model)
     {
         var placement = await NextPlacementAsync();
-        var model = Create(request, poppedOut: true);
         var window = new ReaderWindow(model, placement);
         theme.Track(window);
         window.CommandBindings.Add(new CommandBinding(ShellCommands.ShowShortcuts, (_, _) => shortcuts.Show(window)));
@@ -70,6 +73,12 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
         window.Show();
         _ = LoadAsync(model);
     }
+
+    /// <summary>The pop-out showing a page that matches, if one is open.</summary>
+    public ReaderWindow? Find(Func<PageViewModel, bool> match) => _windows.Find(w => match(w.Model));
+
+    /// <summary>Closes the pop-out showing <paramref name="model"/>, if it is open.</summary>
+    public void Close(PageViewModel model) => _windows.Find(w => ReferenceEquals(w.Model, model))?.Close();
 
     /// <summary>Moves the main window's book to a pop-out at the same page and zoom; the main window goes Back.</summary>
     public async Task PopOutAsync(ViewerViewModel reader)
@@ -116,7 +125,13 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
             log.LogWarning("Saving where the reader window was took too long");
     }
 
-    static void BringForward(Window window)
+    /// <summary>Brings the main window forward, as before a page opens in it from a pop-out.</summary>
+    public static void BringMainForward()
+    {
+        if (Application.Current.MainWindow is { } main) BringForward(main);
+    }
+
+    public static void BringForward(Window window)
     {
         ScreenAreas.RestoreIfMinimized(new WindowInteropHelper(window).Handle);
         window.Activate();
@@ -129,7 +144,7 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
         main.Closed += (_, _) => CloseAll();
     }
 
-    async Task LoadAsync(ViewerViewModel model)
+    async Task LoadAsync(PageViewModel model)
     {
         try
         {
@@ -137,7 +152,7 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            log.LogError(ex, "Loading a book in a reader window failed");
+            log.LogError(ex, "Loading a reader window failed");
         }
     }
 

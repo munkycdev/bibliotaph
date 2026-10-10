@@ -5,6 +5,8 @@ namespace Bibliotaph.App.Services;
 public interface INavigationService
 {
     PageViewModel? Current { get; }
+    /// <summary>The page Back returns to, if any.</summary>
+    PageViewModel? Previous { get; }
     bool CanGoBack { get; }
     event EventHandler? Navigated;
     void NavigateTo(Route route);
@@ -23,6 +25,8 @@ public sealed class NavigationService(Func<Route, PageViewModel> createPage) : I
     readonly LinkedList<PageViewModel> _back = new();
 
     public PageViewModel? Current { get; private set; }
+
+    public PageViewModel? Previous => _back.Last?.Value;
 
     public bool CanGoBack => _back.Count > 0;
 

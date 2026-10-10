@@ -59,18 +59,17 @@ public static class KeyboardShortcuts
             new("Esc", "Clear find"),
             new("Ctrl+K", "Search in the main window"),
         ]),
-        new("A binder's page",
+        new("A binder",
+        [
+            new("Ctrl+Right, Ctrl+Left", "The next or previous page in the binder"),
+            new("F2", "Rename the page in focus in the list; Enter saves, Esc cancels"),
+        ]),
+        new("Editing a binder",
         [
             new("Alt+Up, Alt+Down", "Move the item in focus up or down"),
             new("Enter", "Open the item in focus; in its label or note, save it"),
             new("Shift+Enter", "Open the item in focus in a new window"),
             new("Delete", "Remove the item in focus"),
-        ]),
-        new("Run mode",
-        [
-            new("Ctrl+Right, Ctrl+Left", "The next or previous item"),
-            new("F11", "Full screen, or back"),
-            new("Esc", "Leave full screen, then end the session"),
         ]),
         new("Dialogs and fields",
         [
