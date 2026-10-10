@@ -238,7 +238,10 @@ public static partial class ClassifierPrompt
 /// <summary>One value the model gave for a field: the page marker it cited and its quote, both unchecked.</summary>
 public sealed record ClassifierClaim(string Field, string Value, int? Page, string? Quote);
 
-/// <summary>The model answered, but not in the shape asked for.</summary>
+/// <summary>
+/// The model answered, but not in the shape asked for; or it couldn't answer for this book (it got stuck repeating itself,
+/// say) while it still answers others. Either way it's about this book, not the server.
+/// </summary>
 public sealed class ClassifierAnswerException : Exception
 {
     public ClassifierAnswerException(string message) : base(message) { }

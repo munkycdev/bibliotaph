@@ -19,7 +19,9 @@ public interface IClassifier
     string Model { get; }
 
     /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
-    /// <exception cref="ClassifierAnswerException">The model answered, but not in the schema.</exception>
+    /// <exception cref="ClassifierAnswerException">
+    /// The model answered, but not in the schema, or couldn't answer for this book while it still answers others.
+    /// </exception>
     Task<ClassifierResult> ClassifyAsync(ClassifierInput input, CancellationToken ct = default);
 }
 
@@ -37,10 +39,36 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
     {
         var system = ClassifierPrompt.SystemMessage(input.Vocabulary);
         var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName);
-        var answer = await client.CompleteAsync(
-            new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user)), ct);
+        var request = new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user));
+        string answer;
+        try
+        {
+            answer = await client.CompleteAsync(request, ct);
+        }
+        catch (ModelRequestException ex)
+        {
+            // The server took the book and failed on it. If it still answers a question with nothing of the book in it,
+            // the failure is this book's, and the caller can move on to the next; if not, this throws the server's
+            // problem and the caller waits for it.
+            await CheckAsync(request.ContextTokens, ct);
+            throw new ClassifierAnswerException($"The model couldn't read this book. {ex.Message}", ex);
+        }
         var claims = ClassifierPrompt.ParseAnswer(answer);
         var checkedClaims = EvidenceCheck.Check(claims, input.Excerpt, input.PageText, input.Vocabulary);
         return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped);
     }
+
+    /// <summary>
+    /// Asks the model for a few tokens of JSON with nothing of any book in it. Sent with the same context window as the
+    /// book was, so Ollama doesn't load the model again to answer it.
+    /// </summary>
+    /// <exception cref="ModelEndpointException">The server can't answer even that.</exception>
+    Task<string> CheckAsync(int contextTokens, CancellationToken ct) =>
+        client.CompleteAsync(new ModelRequest(Model, CheckSystem, CheckUser, CheckSchemaJson, contextTokens, MaxTokens: 32), ct);
+
+    const string CheckSystem = "You check that a model server is working. Answer only with the JSON asked for.";
+
+    const string CheckUser = """Answer with {"ok": true}.""";
+
+    const string CheckSchemaJson = """{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}""";
 }

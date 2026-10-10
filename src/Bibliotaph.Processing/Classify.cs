@@ -165,7 +165,8 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// Classify: sends a bounded excerpt of the book to the configured model and stores the values whose evidence checks
 /// out as AI suggestions. Runs in its own lane, one book at a time, only while AI is ready; waits for the book's OCR;
 /// skips books in a folder the user keeps from AI, and books this model and prompt have already read. When the
-/// endpoint can't be used, the lane waits with a notice instead of failing books (A14).
+/// endpoint can't be used, the lane waits with a notice instead of failing books (A14). A book the server fails on while
+/// it still answers others fails like an unusable answer, so it can't hold up the books behind it.
 /// </summary>
 public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,

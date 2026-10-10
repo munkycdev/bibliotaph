@@ -179,4 +179,117 @@ public class LocalModelClientTests
         Assert.DoesNotContain("Sunken", messages[0]!["content"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.Contains("<book-excerpt>", messages[1]!["content"]!.GetValue<string>(), StringComparison.Ordinal);
     }
+
+    const string RepeatLimit = """{"error":"prediction aborted, token repeat limit reached"}""";
+
+    static ClassifierInput Lantern()
+    {
+        var excerpt = new Excerpt([new ExcerptPage(0, "The Sunken Lantern. An adventure for 3rd level characters.", ExcerptPart.Opening)], [], 1);
+        return new ClassifierInput(excerpt, "lantern.pdf", p => p == 0 ? excerpt.Pages[0].Text : null, new Core.Metadata.Vocabulary([]));
+    }
+
+    static bool IsBook(JsonNode? body) =>
+        body?["messages"]?[1]?["content"]?.GetValue<string>().Contains("<book-excerpt>", StringComparison.Ordinal) == true;
+
+    [Fact]
+    public async Task A_server_that_fails_while_answering_is_told_apart_from_one_that_refuses()
+    {
+        var (ollama, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            _ => (HttpStatusCode.InternalServerError, RepeatLimit),
+        });
+        var failed = await Assert.ThrowsAsync<ModelRequestException>(() => ollama.CompleteAsync(Request, TestContext.Current.CancellationToken));
+        Assert.Contains("failed while answering (500)", failed.Message, StringComparison.Ordinal);
+        Assert.Contains("token repeat limit reached", failed.Message, StringComparison.Ordinal);
+
+        var (studio, _) = Connect("http://localhost:1234/v1", (path, _) => path switch
+        {
+            "/api/version" => NotFound,
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            _ => (HttpStatusCode.ServiceUnavailable, """{"error":{"message":"model crashed"}}"""),
+        });
+        failed = await Assert.ThrowsAsync<ModelRequestException>(() => studio.CompleteAsync(Request, TestContext.Current.CancellationToken));
+        Assert.Contains("(503)", failed.Message, StringComparison.Ordinal);
+
+        // A refusal is still about the endpoint, not the request.
+        var (refusing, _) = Connect("http://localhost:11434", (path, _) => path == "/api/version"
+            ? Ok("""{"version":"0.12.3"}""")
+            : path == "/api/tags" ? Ok("""{"models":[]}""") : NotFound);
+        var refused = await Assert.ThrowsAsync<ModelEndpointException>(() => refusing.CompleteAsync(Request, TestContext.Current.CancellationToken));
+        Assert.IsNotType<ModelRequestException>(refused);
+    }
+
+    [Fact]
+    public async Task A_model_that_takes_longer_than_allowed_is_a_failed_request_not_a_server_that_is_gone()
+    {
+        var server = new SlowChat();
+#pragma warning disable CA2000 // The client owns the handler.
+        using var http = new HttpClient(server) { Timeout = TimeSpan.FromMilliseconds(300) };
+#pragma warning restore CA2000
+        var client = new LocalModelClient(http, "http://localhost:11434");
+
+        var ex = await Assert.ThrowsAsync<ModelRequestException>(() => client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+
+        Assert.Contains("in the time allowed", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Ollama that answers everything at once except a chat, which it never finishes.</summary>
+    sealed class SlowChat : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var text = request.RequestUri!.AbsolutePath switch
+            {
+                "/api/version" => """{"version":"0.12.3"}""",
+                "/api/tags" => """{"models":[]}""",
+                _ => null,
+            };
+            if (text is null) await Task.Delay(Timeout.Infinite, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(text!, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    [Fact]
+    public async Task A_book_the_model_loops_on_is_that_books_problem_while_the_server_still_answers_a_check()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, body) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" when IsBook(body) => (HttpStatusCode.InternalServerError, RepeatLimit),
+            "/api/chat" => Ok("""{"message":{"content":"{\"ok\":true}"}}"""),
+            _ => NotFound,
+        });
+        var classifier = new ModelClassifier(client, "ollama", "model-a");
+
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(() => classifier.ClassifyAsync(Lantern(), TestContext.Current.CancellationToken));
+
+        Assert.Contains("couldn't read this book", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("token repeat limit reached", ex.Message, StringComparison.Ordinal);
+        var chats = server.Requests.Where(r => r.Path == "/api/chat").Select(r => r.Body!).ToList();
+        Assert.Equal(2, chats.Count);
+        // The check carries nothing of the book, is capped short, and keeps the book's window so the model isn't reloaded.
+        Assert.DoesNotContain("Lantern", chats[1].ToJsonString(), StringComparison.Ordinal);
+        Assert.Equal(32, chats[1]["options"]!["num_predict"]!.GetValue<int>());
+        Assert.Equal(chats[0]["options"]!["num_ctx"]!.GetValue<int>(), chats[1]["options"]!["num_ctx"]!.GetValue<int>());
+        Assert.Equal("model-a", chats[1]["model"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_server_that_fails_every_request_is_the_servers_problem()
+    {
+        var (client, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            _ => (HttpStatusCode.InternalServerError, """{"error":"llama runner process has terminated"}"""),
+        });
+        var classifier = new ModelClassifier(client, "ollama", "model-a");
+
+        var ex = await Assert.ThrowsAsync<ModelRequestException>(() => classifier.ClassifyAsync(Lantern(), TestContext.Current.CancellationToken));
+
+        Assert.Contains("runner process has terminated", ex.Message, StringComparison.Ordinal);
+    }
 }

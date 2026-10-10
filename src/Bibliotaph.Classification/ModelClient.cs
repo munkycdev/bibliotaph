@@ -22,20 +22,38 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
     public string Provider => Kind == EndpointKind.Ollama ? "ollama" : "openai-compatible";
 }
 
-/// <summary>One classification request: the model, the two messages, the answer's schema and the context it needs.</summary>
-public sealed record ModelRequest(string Model, string System, string User, string SchemaJson, int ContextTokens);
+/// <summary>
+/// One classification request: the model, the two messages, the answer's schema and the context it needs, and at most how
+/// many tokens to answer with when that should be capped.
+/// </summary>
+public sealed record ModelRequest(string Model, string System, string User, string SchemaJson, int ContextTokens, int? MaxTokens = null);
 
 /// <summary>
 /// The endpoint couldn't be used: it isn't running, it refused the request, or it doesn't have the model. This is about
 /// the endpoint, not the book, so the Classify lane waits and says so rather than failing books one by one.
 /// </summary>
-public sealed class ModelEndpointException : Exception
+public class ModelEndpointException : Exception
 {
     public ModelEndpointException(string message, Exception? inner = null) : base(message, inner) { }
 
     public ModelEndpointException() { }
 
     public ModelEndpointException(string message) : base(message) { }
+}
+
+/// <summary>
+/// The endpoint took the request but didn't answer it: it failed while answering (a 5xx), as Ollama does when the model
+/// gets stuck repeating itself ("token repeat limit reached") or can't be loaded, or it took longer than the time
+/// allowed. That can be the book or the server, so <see cref="ModelClassifier"/> asks the server something small to tell
+/// which. Callers that don't care treat it like any other <see cref="ModelEndpointException"/>.
+/// </summary>
+public sealed class ModelRequestException : ModelEndpointException
+{
+    public ModelRequestException(string message, Exception? inner = null) : base(message, inner) { }
+
+    public ModelRequestException() { }
+
+    public ModelRequestException(string message) : base(message) { }
 }
 
 /// <summary>A local model server, as the classifier needs it.</summary>
@@ -47,6 +65,7 @@ public interface IModelClient
 
     /// <summary>Asks the model for an answer in the request's schema and returns the answer's text.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be reached or refused the request.</exception>
+    /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
     Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default);
 }
 
@@ -191,6 +210,7 @@ public sealed class LocalModelClient : IModelClient
                 ["format"] = schema,
                 ["options"] = new JsonObject { ["temperature"] = 0, ["num_ctx"] = request.ContextTokens },
             };
+            if (request.MaxTokens is { } ollamaMax) body["options"]!["num_predict"] = ollamaMax;
             using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), body, ct);
             var json = await ReadJsonAsync(response, ct);
             return json?["message"]?["content"]?.GetValue<string>()
@@ -209,6 +229,7 @@ public sealed class LocalModelClient : IModelClient
                 ["json_schema"] = new JsonObject { ["name"] = "book_metadata", ["strict"] = true, ["schema"] = schema },
             },
         };
+        if (request.MaxTokens is { } max) request1["max_tokens"] = max;
         HttpResponseMessage completion;
         try
         {
@@ -240,6 +261,11 @@ public sealed class LocalModelClient : IModelClient
         {
             response = await _http.SendAsync(message, ct);
         }
+        catch (TaskCanceledException ex) when (body is not null && !ct.IsCancellationRequested)
+        {
+            // The server took the request and was still working on it when the time ran out.
+            throw new ModelRequestException("The model didn't answer in the time allowed.", ex);
+        }
         catch (Exception ex) when (Unreachable(ex, ct))
         {
             throw new ModelEndpointException($"Nothing is answering at {Root}. Is the model server running?", ex);
@@ -250,14 +276,19 @@ public sealed class LocalModelClient : IModelClient
         {
             var detail = await ErrorDetailAsync(response, ct);
             var status = (int)response.StatusCode;
+            var inner = new HttpRequestException(detail, null, response.StatusCode);
+            if (status >= 500)
+            {
+                var failed = $"The model server failed while answering ({status}).";
+                throw new ModelRequestException(detail is null ? failed : $"{failed} It said: {detail}", inner);
+            }
             var reason = response.StatusCode switch
             {
                 HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "The endpoint needs a key, or didn't accept the one saved.",
                 HttpStatusCode.NotFound => "The endpoint doesn't have that model, or isn't a model server.",
                 _ => $"The endpoint refused the request ({status}).",
             };
-            throw new ModelEndpointException(detail is null ? reason : $"{reason} It said: {detail}",
-                new HttpRequestException(detail, null, response.StatusCode));
+            throw new ModelEndpointException(detail is null ? reason : $"{reason} It said: {detail}", inner);
         }
     }
 

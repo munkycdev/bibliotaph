@@ -220,6 +220,62 @@ public sealed partial class PipelineTests
         Assert.Null(_service.Unavailable(Lane.Classify));
     }
 
+    const string RepeatLimit = "The model server failed while answering (500). It said: prediction aborted, token repeat limit reached";
+
+    [Fact]
+    public async Task A_book_the_model_loops_on_fails_by_itself_and_the_books_behind_it_are_still_classified()
+    {
+        // Ollama gives up on a book when the model keeps emitting the same token; it answers the next book, and the check.
+        _model.Answer = r => r.User.Contains("SUNKEN", StringComparison.Ordinal) ? throw new ModelRequestException(RepeatLimit) : "{}";
+        Copy(pdfs.Injected, "Adventures/Lantern.pdf");
+        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await SwitchAiOnAsync();
+        await _service.StartAsync(Ct);
+
+        await SettleAsync();
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            timeout.CancelAfter(Patience);
+            while ((await _queries.GetProgressAsync(timeout.Token)).Classified == 0) await Task.Delay(50, timeout.Token);
+        }
+
+        // The lane isn't waiting on the server, and the book it couldn't read says why and waits for its retry.
+        Assert.Null(_service.Unavailable(Lane.Classify));
+        await using var c = _index.OpenRead();
+        var (status, reason) = await c.QuerySingleAsync<(string Status, string Reason)>(
+            "SELECT status, reason FROM stage_status WHERE stage = 'Classify' AND status <> 'Complete'");
+        Assert.Equal("Pending", status);
+        Assert.Contains("couldn't read this book", reason, StringComparison.Ordinal);
+        Assert.Contains("token repeat limit", reason, StringComparison.Ordinal);
+        Assert.Contains(_model.Requests, r => r.MaxTokens is not null && !r.User.Contains("SUNKEN", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_server_failing_every_request_makes_classify_wait_without_failing_books()
+    {
+        _model.Answer = _ => throw new ModelRequestException("The model server failed while answering (500). It said: llama runner process has terminated");
+        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await SwitchAiOnAsync();
+        await _service.StartAsync(Ct);
+
+        var progress = await SettleAsync();
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            timeout.CancelAfter(Patience);
+            while (_service.Unavailable(Lane.Classify) is null) await Task.Delay(50, timeout.Token);
+        }
+
+        Assert.Contains("runner process has terminated", _service.Unavailable(Lane.Classify), StringComparison.Ordinal);
+        Assert.Equal((1, 0), (progress.ToClassify, progress.ClassifyFailed));
+
+        _model.Answer = _ => "{}";
+        progress = await SettleClassifyAsync();
+        Assert.Equal((1, 0), (progress.Classified, progress.ClassifyFailed));
+        Assert.Null(_service.Unavailable(Lane.Classify));
+    }
+
     [Fact]
     public async Task Test_with_a_book_says_each_step_and_stores_nothing()
     {
