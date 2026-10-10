@@ -47,22 +47,43 @@ public sealed partial class LibraryStoreTests
     }
 
     [Fact]
-    public async Task File_ids_are_read_for_every_path_and_a_new_id_at_a_known_path_is_new_content()
+    public async Task File_ids_are_read_for_new_and_changed_paths_and_once_for_a_location_without_one()
+    {
+        var root = await RootAsync();
+        await _library.ReconcileRootAsync(root, [File("old.pdf")], ct: Ct); // indexed before file IDs were kept
+        var ids = new FileIds(new() { ["old.pdf"] = "V:1", ["new.pdf"] = "V:2", ["saved.pdf"] = "V:3" });
+
+        await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, ct: Ct);
+        await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf", size: 5)], fileId: ids.Read, ct: Ct);
+
+        Assert.Equal(["old.pdf", "new.pdf", "saved.pdf", "saved.pdf"], ids.Asked);
+        Assert.Equal(["V:2", "V:1", "V:3"], (await LocationsAsync()).Select(l => l.NtfsFileId));
+    }
+
+    [Fact]
+    public async Task On_a_local_drive_every_path_has_its_id_read_and_a_new_id_at_a_known_path_is_new_content()
     {
         var root = await RootAsync();
         await _library.ReconcileRootAsync(root, [File("old.pdf")], ct: Ct); // indexed before file IDs were kept
         var known = new Dictionary<string, string> { ["old.pdf"] = "V:1", ["new.pdf"] = "V:2", ["saved.pdf"] = "V:3" };
         var ids = new FileIds(known);
-        await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, ct: Ct);
+        await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, readKnownIds: true, ct: Ct);
         Assert.Equal(["V:2", "V:1", "V:3"], (await LocationsAsync()).Select(l => l.NtfsFileId));
 
         // An app saved another file over saved.pdf, keeping its size and date: only its new ID tells (slice 4h plan, choice 6).
         known["saved.pdf"] = "V:4";
-        var result = await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, ct: Ct);
+        var result = await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, readKnownIds: true, ct: Ct);
 
         Assert.Equal(new ReconcileResult(Added: 0, Changed: 1, Unchanged: 2, Missing: 0, Moved: 0), result);
         Assert.Equal(["old.pdf", "new.pdf", "saved.pdf", "old.pdf", "new.pdf", "saved.pdf"], ids.Asked);
         Assert.Equal(["V:2", "V:1", "V:4"], (await LocationsAsync()).Select(l => l.NtfsFileId));
+
+        // Without it, as on a network share, known paths aren't asked and the same change goes unseen.
+        known["saved.pdf"] = "V:5";
+        ids.Asked.Clear();
+        result = await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, ct: Ct);
+        Assert.Equal(new ReconcileResult(Added: 0, Changed: 0, Unchanged: 3, Missing: 0, Moved: 0), result);
+        Assert.Empty(ids.Asked);
     }
 
     [Fact]

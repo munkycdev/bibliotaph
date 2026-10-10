@@ -134,15 +134,17 @@ public sealed partial class PipelineTests
         Assert.Equal((revised, 3), await _reading.GetPlaceAsync(revised, Ct));
     }
 
-    [Fact]
-    public async Task A_file_replaced_with_the_same_size_and_date_is_read_again_when_its_id_changed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_file_replaced_with_the_same_size_and_date_is_read_again_when_its_id_changed_on_a_local_drive(bool network)
     {
         var path = Path.Combine(_library, "Handout Map.png");
         var date = new DateTime(2024, 3, 1, 12, 0, 0, DateTimeKind.Utc);
         Directory.CreateDirectory(_library);
         File.WriteAllBytes(path, FakeCodec.Png(640, 480));
         File.SetLastWriteTimeUtc(path, date);
-        _identity.Disk(_library, "1234ABCD");
+        _identity.Disk(_library, "1234ABCD", network);
         var root = (await _roots.AddAsync(_library, Ct)).Id;
         await _service.StartAsync(Ct);
         await SettleAsync();
@@ -156,10 +158,20 @@ public sealed partial class PipelineTests
         Assert.Equal(first.SizeBytes, new FileInfo(path).Length);
         await ScanAsync(root);
         await SettleAsync();
-        Assert.Equal((first.DocumentId, first.ContentHash), (Assert.Single(await FileLocationsAsync()).DocumentId, Assert.Single(await FileLocationsAsync()).ContentHash));
+        var kept = Assert.Single(await FileLocationsAsync());
+        Assert.Equal((first.DocumentId, first.ContentHash), (kept.DocumentId, kept.ContentHash));
 
-        // Another file saved over it, with the same size and date but a new ID, is new content (choice 6).
+        // Another file saved over it, with the same size and date but a new ID, is new content on a local drive
+        // (choice 6). On a network share known files' IDs aren't read on every scan, so it goes unseen there.
         _identity.Renew(path);
+        if (network)
+        {
+            await ScanAsync(root);
+            await SettleAsync();
+            var after = Assert.Single(await FileLocationsAsync());
+            Assert.Equal((first.DocumentId, first.ContentHash, first.NtfsFileId), (after.DocumentId, after.ContentHash, after.NtfsFileId));
+            return;
+        }
         await ScanAsync(root);
         await SettleUntilAsync(async () => Assert.Single(await FileLocationsAsync()).DocumentId is { } d && d != first.DocumentId);
         var replaced = Assert.Single(await FileLocationsAsync());

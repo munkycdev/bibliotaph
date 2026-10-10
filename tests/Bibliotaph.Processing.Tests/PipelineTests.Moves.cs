@@ -18,12 +18,13 @@ public sealed partial class PipelineTests
     {
         readonly Lock _lock = new();
         readonly Dictionary<string, string> _ids = [];
-        readonly Dictionary<string, string> _disks = [];
+        readonly Dictionary<string, (string Serial, bool IsLocal)> _disks = [];
         int _next;
 
-        public void Disk(string folder, string serial)
+        /// <summary>Puts a library folder on a disk; <paramref name="network"/> makes it a network share's.</summary>
+        public void Disk(string folder, string serial, bool network = false)
         {
-            lock (_lock) _disks[Path.TrimEndingDirectorySeparator(folder)] = serial;
+            lock (_lock) _disks[Path.TrimEndingDirectorySeparator(folder)] = (serial, !network);
         }
 
         /// <summary>Moves a file as Explorer would: same file, same ID, new path.</summary>
@@ -46,7 +47,8 @@ public sealed partial class PipelineTests
 
         public VolumeIdentity? Volume(string folder)
         {
-            lock (_lock) return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var serial) ? new VolumeIdentity(serial, HasFileIds: true) : null;
+            lock (_lock)
+                return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var disk) ? new VolumeIdentity(disk.Serial, HasFileIds: true, disk.IsLocal) : null;
         }
 
         public string? FileId(string path)

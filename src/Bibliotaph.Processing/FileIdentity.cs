@@ -5,10 +5,12 @@ using Microsoft.Win32.SafeHandles;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// The disk a library folder is on: its volume serial, and whether its files have IDs that last through a move or
-/// rename (NTFS and ReFS; FAT and exFAT number a file by where its directory entry sits, which a move changes).
+/// The disk a library folder is on: its volume serial, whether its files have IDs that last through a move or rename
+/// (NTFS and ReFS; FAT and exFAT number a file by where its directory entry sits, which a move changes), and whether
+/// it is a local drive, fixed or removable, where reading a file's ID is cheap. On a network share each read is a
+/// round trip to the server.
 /// </summary>
-public sealed record VolumeIdentity(string Serial, bool HasFileIds);
+public sealed record VolumeIdentity(string Serial, bool HasFileIds, bool IsLocal);
 
 /// <summary>
 /// What tells a file or a disk apart without reading it (slice 4g plan, choices 2 and 3): the volume serial a
@@ -33,6 +35,8 @@ public sealed class FileIdentity : IFileIdentity
     const uint BackupSemantics = 0x02000000; // needed to open a folder
     const uint OpenReparsePoint = 0x00200000; // the placeholder itself, so a cloud file's provider isn't asked for it
     const int FileIdInfoClass = 18;
+    const uint DriveRemovable = 2;
+    const uint DriveFixed = 3;
 
     public VolumeIdentity? Volume(string folder)
     {
@@ -43,7 +47,22 @@ public sealed class FileIdentity : IFileIdentity
         var name = new char[64];
         var hasIds = GetVolumeInformationByHandle(handle, null, 0, out _, out _, out _, name, name.Length)
             && new string(name).TrimEnd('\0') is "NTFS" or "ReFS";
-        return new VolumeIdentity(info.VolumeSerialNumber.ToString("X8", CultureInfo.InvariantCulture), hasIds);
+        return new VolumeIdentity(info.VolumeSerialNumber.ToString("X8", CultureInfo.InvariantCulture), hasIds, IsLocal(handle, folder));
+    }
+
+    /// <summary>
+    /// Whether the folder is on a fixed or removable drive, rather than a network share, a mapped network drive or
+    /// a UNC path. A folder may be a link to a share, so the drive asked about is the one its handle ended up on.
+    /// </summary>
+    static bool IsLocal(SafeFileHandle handle, string folder)
+    {
+        var buffer = new char[1024];
+        var length = GetFinalPathNameByHandle(handle, buffer, buffer.Length, 0);
+        var path = length > 0 && length < buffer.Length ? new string(buffer, 0, length) : Path.GetFullPath(folder);
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return false;
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal)) path = path[4..];
+        if (Path.GetPathRoot(path) is not { Length: > 0 } root) return false;
+        return GetDriveType(root.EndsWith('\\') ? root : root + '\\') is DriveRemovable or DriveFixed;
     }
 
     public string? FileId(string path)
@@ -100,6 +119,12 @@ public sealed class FileIdentity : IFileIdentity
     [DllImport("kernel32", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int informationClass, out FileIdInfo information, int size);
+
+    [DllImport("kernel32", EntryPoint = "GetFinalPathNameByHandleW", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern int GetFinalPathNameByHandle(SafeFileHandle file, [Out] char[] path, int pathSize, uint flags);
+
+    [DllImport("kernel32", EntryPoint = "GetDriveTypeW", CharSet = CharSet.Unicode)]
+    static extern uint GetDriveType(string rootPath);
 
     [DllImport("kernel32", EntryPoint = "GetVolumeInformationByHandleW", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
