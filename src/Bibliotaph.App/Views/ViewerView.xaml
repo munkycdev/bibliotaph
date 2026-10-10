@@ -138,6 +138,10 @@
           <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
                   AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
+          <!-- After following a link in the book, as from its index: the way back to where it was clicked. -->
+          <Button x:Name="BackFromLink" Style="{StaticResource Bt.Link}" Content="{Binding LinkBackLabel}" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding BackFromLinkCommand}" ToolTip="Go back to the page where you followed the link" VerticalAlignment="Center" Margin="6,0,0,0"
+                  Visibility="{Binding HasLinkBack, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">

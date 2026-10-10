@@ -22,6 +22,7 @@ public partial class ViewerView
         InitializeComponent();
         PagesView.CurrentPageChanged += (_, _) => _model?.CurrentPageIndex = PagesView.CurrentPageIndex;
         PagesView.Notice += (_, text) => _model?.ShowNotice(text);
+        PagesView.LinkClicked += (_, link) => _model?.FollowLink(link);
         DataContextChanged += (_, _) => Attach(DataContext as ViewerViewModel);
         Loaded += (_, _) => Attach(DataContext as ViewerViewModel);
         Unloaded += (_, _) => Attach(null);

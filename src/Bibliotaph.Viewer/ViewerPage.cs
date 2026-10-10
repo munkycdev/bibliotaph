@@ -30,6 +30,15 @@ public sealed class ViewerPage(int index, string? label, double widthPts, double
     /// <summary>The page's selectable text, once it has been asked for.</summary>
     public Task<PageTextLayer>? Text { get; set; }
 
+    /// <summary>The page's links, once the pointer has reached the page.</summary>
+    public Task<IReadOnlyList<PageLink>>? Links { get; set; }
+
+    /// <summary>The link at a spot in PDF points, if any; the smallest box wins where links overlap.</summary>
+    public PageLink? LinkAt(double x, double y) =>
+        Links is { IsCompletedSuccessfully: true } links
+            ? links.Result.Where(l => l.Box.Contains(x, y)).OrderBy(l => l.Box.Width * l.Box.Height).FirstOrDefault()
+            : null;
+
     public double Width { get; set => Set(ref field, value); }
     public double Height { get; set => Set(ref field, value); }
     public ImageSource? Image { get; set => Set(ref field, value); }

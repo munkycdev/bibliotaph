@@ -15,6 +15,9 @@ public enum Op
     /// <summary>Renders a page at <see cref="Request.Scale"/> and reads it with the worker's OCR engine.</summary>
     Ocr,
 
+    /// <summary>A page's links: where each goes, in this file or on the web.</summary>
+    Links,
+
     // Fault injection for the isolation tests. Only Debug (test) builds of the worker handle these;
     // a Release worker answers BadRequest.
     Crash,
@@ -89,6 +92,7 @@ public sealed record Response
     public List<PageText>? Pages { get; init; }
     public OcrInfo? Ocr { get; init; }
     public List<SearchHit>? Hits { get; init; }
+    public List<PdfLink>? Links { get; init; }
 
     /// <summary>Time spent inside the worker handling the request.</summary>
     public double WorkerMs { get; init; }
@@ -166,3 +170,10 @@ public sealed record OcrInfo(string Engine, string Text, List<OcrWord> Words);
 public sealed record OcrWord(string Text, PdfRect Box);
 
 public sealed record SearchHit(int PageIndex, int CharIndex, int CharCount, List<PdfRect> Rects);
+
+/// <summary>
+/// One link on a page: its box, and where it goes. <see cref="PageIndex"/> is a page in this file, -1 when the link
+/// goes elsewhere; <see cref="Top"/> is the spot on that page in PDF points from its bottom, when the link names one.
+/// <see cref="Uri"/> is set for a web link.
+/// </summary>
+public sealed record PdfLink(PdfRect Box, int PageIndex, double? Top, string? Uri);

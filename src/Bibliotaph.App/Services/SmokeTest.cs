@@ -682,6 +682,13 @@ static partial class SmokeTest
         viewer.GoToPageCommand.Execute(null);
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
 
+        // A link in the book, as on an index page, goes to its page and offers the way back.
+        viewer.FollowLink(new Bibliotaph.Viewer.PageLink(default, 1, null, null));
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && viewer is { HasLinkBack: true, LinkBackLabel: "Back to page i" } && Shown(window, "BackFromLink"),
+            () => $"Following a link left the page in view at {pages.CurrentPageIndex}, offering “{viewer.LinkBackLabel}”.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "BackFromLink"), "Back to page i");
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0 && !viewer.HasLinkBack, () => "Back to page i didn't return to the first page.");
+
         if (viewer.Outline is not [{ Title: "Front matter", Page: "i" }, { Title: "Chapter One", Page: "1" } chapter])
             throw new InvalidOperationException($"The contents panel shows {viewer.Outline.Count} bookmarks, not the fixture's two.");
         viewer.Zoom = Bibliotaph.Viewer.PdfPagesView.FitPage;
