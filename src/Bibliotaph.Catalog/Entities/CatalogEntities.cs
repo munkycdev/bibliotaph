@@ -360,6 +360,19 @@ public sealed class CollectionNode
     public DateTime UsedUtc { get; set; }
 }
 
+/// <summary>
+/// A saved Smart View (slice 3 plan, choice 17): a name and what the Library showed, as JSON (version, search text,
+/// filters, scope, order, layout and tab). Never a list of books: opening it runs the search again.
+/// </summary>
+public sealed class SmartView
+{
+    public long Id { get; set; }
+    public required string Name { get; set; }
+    public required string Definition { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+}
+
 /// <summary>An entry added to a collection (choice 10).</summary>
 public sealed class CollectionItem
 {

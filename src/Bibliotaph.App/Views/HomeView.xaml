@@ -6,6 +6,7 @@
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
+             xmlns:catalog="clr-namespace:Bibliotaph.Catalog;assembly=Bibliotaph.Catalog"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:HomeViewModel}">
   <UserControl.InputBindings>
@@ -181,14 +182,28 @@
             </ItemsControl>
           </StackPanel>
 
-          <!-- Ways into the library. Smart Views join Favorites as they arrive (3e). -->
-          <StackPanel Visibility="{Binding HasFavorites, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <!-- Ways into the library: Favorites, then each saved Smart View (3e). -->
+          <StackPanel Visibility="{Binding HasThreads, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <DockPanel Style="{StaticResource SectionLine}">
               <TextBlock Text="Pick up a thread" Style="{StaticResource Text.Row}" />
             </DockPanel>
             <WrapPanel>
               <Button x:Name="OpenFavorites" Content="Your favorites" c:Ui.Icon="{StaticResource Icon.Heart}" Margin="0,0,8,8"
-                      Command="{Binding OpenFavoritesCommand}" />
+                      Command="{Binding OpenFavoritesCommand}" Visibility="{Binding HasFavorites, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <ItemsControl x:Name="HomeSmartViews" ItemsSource="{Binding SmartViews}" Focusable="False" AutomationProperties.Name="Smart views"
+                            KeyboardNavigation.TabNavigation="Continue">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type catalog:SmartViewInfo}">
+                    <Button Content="{Binding Name}" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Margin="0,0,8,8" AutomationProperties.Name="{Binding Name}"
+                            Command="{Binding DataContext.OpenViewCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </WrapPanel>
           </StackPanel>
         </StackPanel>

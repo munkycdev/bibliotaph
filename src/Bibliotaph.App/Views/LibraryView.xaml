@@ -93,7 +93,7 @@
 
     <DockPanel Margin="0,0,42,24">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
-                  Visibility="{Binding IsWholeLibrary, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  Visibility="{Binding ShowsLibraryActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <Button x:Name="AddElsewhere" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
                 Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
         <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
@@ -102,7 +102,7 @@
       </StackPanel>
       <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->
       <StackPanel x:Name="CollectionActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
-                  Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  Visibility="{Binding ShowsCollectionActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <Button x:Name="NewSubCollection" Content="New collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
                 Command="{Binding NewSubCollectionCommand}" ToolTip="Make a collection inside this one" />
         <Button x:Name="RenameCollection" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameCollectionCommand}"
@@ -113,6 +113,14 @@
                 ToolTip="Pinned collections show first on Collections, and on Home" />
         <Button x:Name="DeleteCollection" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteCollectionCommand}"
                 ToolTip="Delete the collection. Its books stay in your library, and Undo brings it back." AutomationProperties.Name="Delete the collection" />
+      </StackPanel>
+      <!-- A Smart View's own actions (slice 3 plan, choice 17). Deleting it never deletes a book. -->
+      <StackPanel x:Name="ViewActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
+                  Visibility="{Binding IsView, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <Button x:Name="RenameView" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding RenameViewCommand}"
+                AutomationProperties.Name="Rename the Smart View" />
+        <Button x:Name="DeleteView" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteViewCommand}"
+                ToolTip="Delete the Smart View. Your books stay as they are, and Undo brings it back." AutomationProperties.Name="Delete the Smart View" />
       </StackPanel>
       <StackPanel>
         <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H1}" />
@@ -130,6 +138,9 @@
                     ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
                     Visibility="{Binding Selection.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
           </Border>
+          <Button x:Name="SaveView" Content="Save view" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding SaveViewCommand}" Margin="0,0,8,0"
+                  ToolTip="Keep this search, its filters and order as a Smart View in the sidebar"
+                  Visibility="{Binding CanSaveView, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,0" />
           <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
                     AutomationProperties.Name="Sort" Margin="0,0,8,0" />
@@ -227,6 +238,31 @@
         <CheckBox x:Name="OnlyAddedHere" Content="Only books added here" IsChecked="{Binding OnlyAddedHere}" Margin="0,0,0,14" FontSize="11"
                   Foreground="{DynamicResource Bt.Text}" ToolTip="Leave out the books that are only in the collections inside this one" />
       </StackPanel>
+      <!-- A Smart View whose search, filters or order were changed: keep the change in it, or as a new view. -->
+      <Border x:Name="ViewChanged" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,8" Margin="0,0,0,14"
+              Visibility="{Binding IsViewChanged, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button x:Name="UpdateView" Style="{StaticResource Bt.Button.Primary}" Content="Update view" Command="{Binding UpdateViewCommand}" Margin="0,0,8,0"
+                    ToolTip="The Smart View keeps the search, filters and order shown now" />
+            <Button x:Name="SaveViewAsNew" Content="Save as new" Command="{Binding SaveViewAsNewCommand}" ToolTip="Keep both: a new Smart View, and this one as it was" />
+          </StackPanel>
+          <TextBlock Text="You've changed this view." FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+      <TextBlock x:Name="ViewNote" Text="{Binding ViewNote}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,14"
+                 Visibility="{Binding ViewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      <!-- What the last Smart View change did, with Undo. -->
+      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
+              Visibility="{Binding ViewMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+        <DockPanel>
+          <Button x:Name="UndoView" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                  Command="{Binding UndoViewCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the Smart View change"
+                  Visibility="{Binding HasViewUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock x:Name="ViewMessage" Text="{Binding ViewMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
       <!-- What the last collection change did, with Undo. -->
       <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
               Visibility="{Binding Collections.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
@@ -918,6 +954,12 @@
     <Grid Grid.RowSpan="5" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- Naming a Smart View (slice 3e), a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="5" Visibility="{Binding ViewDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
+      <v:SmartViewDialogView x:Name="SmartViewDialog" DataContext="{Binding ViewDialog}" MaxWidth="440" Margin="0,24,42,24" VerticalAlignment="Center" />
     </Grid>
 
     <!-- The bulk editor, a dialog over the page. Esc or Cancel closes it; nothing behind it can be clicked meanwhile. -->

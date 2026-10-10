@@ -22,6 +22,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<ReadingState> ReadingStates => Set<ReadingState>();
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
+    public DbSet<SmartView> SmartViews => Set<SmartView>();
     public DbSet<SessionPack> SessionPacks => Set<SessionPack>();
     public DbSet<SessionSection> SessionSections => Set<SessionSection>();
     public DbSet<SessionItem> SessionItems => Set<SessionItem>();
@@ -176,6 +177,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<SmartView>(e => e.HasIndex(v => v.Name));
 
         modelBuilder.Entity<SessionPack>(e => e.HasIndex(p => p.TouchedUtc));
 

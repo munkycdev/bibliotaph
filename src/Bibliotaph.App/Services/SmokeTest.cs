@@ -101,6 +101,8 @@ static class SmokeTest
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
                 () => UseCollectionsAsync(services, window, books));
+            await Check("a Smart View saved from a search and a filter, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
+                () => UseSmartViewsAsync(services, window, books));
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
@@ -1082,6 +1084,89 @@ static class SmokeTest
     }
 
     /// <summary>
+    /// Slice 3e: a search and a filter saved as a Smart View, which joins the sidebar and is marked there; a changed
+    /// filter offers Update view, whose Undo puts the view back; Home's Pick up a thread opens it with its search and
+    /// filter; the sidebar's Rename… renames it; Delete removes it with Undo, and it is deleted again at the end.
+    /// </summary>
+    static async Task UseSmartViewsAsync(IServiceProvider services, Window window, int books)
+    {
+        const string Query = "system:5e type:adventure";
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var views = services.GetRequiredService<SmartViewDirectory>();
+        shell.NavigateCommand.Execute(Route.Library);
+        var page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await WaitUntilAsync(window, () => page.Items.Count == books && !page.CanSaveView, () => "The whole library offers Save view.");
+
+        search.Search(Query);
+        page.KindChoice = page.KindChoices.Single(c => c.Value == KindFilter.Books);
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.CanSaveView, () => "The search and filter didn't offer Save view.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveView"), "Save view");
+        await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Save view didn't ask for a name.");
+        page.ViewDialog!.Name = "Haunted places";
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
+        await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.SmartViews is [_, { Label: "Haunted places", IsActive: true }]
+                && page.ViewMessage is not null && !page.IsViewChanged,
+            () => "Saving didn't make the page the view, list it in the sidebar and mark it there.");
+        var viewId = page.ActiveView!.Id;
+        var saved = SmartViewDefinition.Parse(views.Find(viewId)!.Definition);
+        if (saved.Query != Query || saved.Kind != KindFilter.Books) throw new InvalidOperationException($"The view keeps “{saved.Query}” and {saved.Kind}.");
+
+        // A changed filter offers Update view; its Undo puts the view back as it was.
+        page.KindChoice = page.KindChoices[0];
+        await WaitUntilAsync(window, () => page.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UpdateView"), "Update view");
+        await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.HasViewUndo
+                && Shown(window, "UndoView"),
+            () => "Update view didn't keep the change in the view.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the update");
+        await WaitUntilAsync(window, () => SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.Books && page.IsViewChanged,
+            () => "Undo didn't put the view back.");
+
+        // Leaving the view: the sidebar's Library is the whole library again, without the view's search.
+        shell.NavigateCommand.Execute(Route.Library);
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView: null, Scope: null } whole && whole.Items.Count == books
+                && search.Text.Length == 0,
+            () => "The sidebar's Library didn't show the whole library after the view.");
+        var whole = (LibraryViewModel)shell.CurrentPage!;
+        whole.KindChoice = whole.KindChoices[0];
+
+        // Home's Pick up a thread opens the view with its search and filter.
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
+        await WaitUntilAsync(window, () => home.HasThreads && home.SmartViews.Count == 1, () => "Home doesn't offer the Smart View.");
+        await Settle(window);
+        var homeViews = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "HomeSmartViews");
+        Click(homeViews is null ? null : Descendants<Button>(homeViews).FirstOrDefault(), "the view on Home");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView.Name: "Haunted places", IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
+                && shown.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.SmartViews[1].IsActive,
+            () => "The view on Home didn't open with its search and filter.");
+        page = (LibraryViewModel)shell.CurrentPage!;
+
+        // The sidebar's right-click Rename… asks on the view's page.
+        shell.RenameViewCommand.Execute(shell.SmartViews[1]);
+        await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Rename… didn't ask for a name.");
+        page.ViewDialog!.Name = "Haunted inns";
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
+        await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.Heading == "Haunted inns" && Shown(window, "DeleteView"),
+            () => "Rename didn't rename the view in the sidebar and on its page.");
+
+        // Delete takes the view away, never a book; Undo brings it back.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteView"), "Delete the Smart View");
+        await WaitUntilAsync(window, () => shell.SmartViews.Count == 1 && !page.IsView && page.HasViewUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
+            () => "Delete didn't take the view out of the sidebar and leave its books shown.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the delete");
+        await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.IsView, () => "Undo didn't bring the view back.");
+        await page.DeleteViewCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => shell.SmartViews.Count == 1 && views.All.Count == 0, () => "The view wasn't deleted at the end.");
+        page.KindChoice = page.KindChoices[0];
+        search.Search("");
+        shell.NavigateCommand.Execute(Route.Library);
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView: null } last && last.Items.Count == books,
+            () => "The library didn't go back to how it was.");
+    }
+
+    /// <summary>
     /// Slice 3b: a collection made on Collections, with a Maps collection inside it; books added from Select mode and
     /// from a card's menu, with Undo; the collection's page showing its books and its sub-collection's, and only its
     /// own with the switch; collection:"name"; the details' chips; Pin (on Home) and Rename; and Delete with Undo.
@@ -1648,6 +1733,9 @@ static class SmokeTest
             mode.IsOn = false;
         }
     }
+
+    /// <summary>Whether a button with this name is laid out and showing, so a click can follow.</summary>
+    static bool Shown(Window window, string name) => Descendants<Button>(window).Any(b => b.Name == name && b.IsVisible);
 
     /// <summary>Clicks <paramref name="button"/> the way a person would, failing clearly if they couldn't.</summary>
     static void Click(Button? button, string name) => Clickable(button, name).Invoke();

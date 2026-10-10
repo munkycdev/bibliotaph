@@ -13,13 +13,14 @@ namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
 /// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, the pinned collections, and ways
-/// into the library such as Favorites, and Continue preparing: the session pack worked on last (3c). Before any folder
+/// into the library such as Favorites and the saved Smart Views (3e), and Continue preparing: the session pack worked on
+/// last (3c). Before any folder
 /// is added it explains what Bibliotaph does.
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    ILogger<HomeViewModel> log)
+    SmartViewDirectory views, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
@@ -66,7 +67,14 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     /// <summary>Some book is a favorite, so Home offers the way in.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasThreads))]
     public partial bool HasFavorites { get; private set; }
+
+    /// <summary>The saved Smart Views, each a way into the library, by name.</summary>
+    public ObservableCollection<SmartViewInfo> SmartViews { get; } = [];
+
+    /// <summary>Pick up a thread shows: there are favorites or saved views.</summary>
+    public bool HasThreads => HasFavorites || SmartViews.Count > 0;
 
     public override async Task LoadAsync()
     {
@@ -80,6 +88,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         Sessions.Directory.Changed -= OnActivityRefreshed;
         await Sessions.Directory.LoadAsync();
         Sessions.Directory.Changed += OnActivityRefreshed;
+        views.Changed -= OnViewsChanged;
+        views.Changed += OnViewsChanged;
+        ShowViews();
         await RefreshAsync();
     }
 
@@ -90,7 +101,21 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         Collections.Close();
         Sessions.Directory.Changed -= OnActivityRefreshed;
         Sessions.Close();
+        views.Changed -= OnViewsChanged;
     }
+
+    void OnViewsChanged(object? sender, EventArgs e) => ShowViews();
+
+    void ShowViews()
+    {
+        SmartViews.Clear();
+        foreach (var view in views.All) SmartViews.Add(view);
+        OnPropertyChanged(nameof(HasThreads));
+    }
+
+    /// <summary>A saved Smart View from Pick up a thread.</summary>
+    [RelayCommand]
+    void OpenView(SmartViewInfo view) => pages.OpenView(view);
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
