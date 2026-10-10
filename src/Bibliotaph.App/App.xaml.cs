@@ -217,6 +217,7 @@ public partial class App : Application
         builder.Services.AddTransient<SessionActions>();
         builder.Services.AddSingleton<Func<SessionActions>>(sp => () => sp.GetRequiredService<SessionActions>());
         builder.Services.AddSingleton<Func<SessionPackViewModel>>(sp => () => sp.GetRequiredService<SessionPackViewModel>());
+        builder.Services.AddSingleton<Func<RunSessionViewModel>>(sp => () => sp.GetRequiredService<RunSessionViewModel>());
         builder.Services.AddSingleton<SessionPages>();
         builder.Services.AddSingleton<ShellViewModel>();
         builder.Services.AddTransient<HomeViewModel>();
@@ -224,6 +225,7 @@ public partial class App : Application
         builder.Services.AddTransient<CollectionsViewModel>();
         builder.Services.AddTransient<SessionsViewModel>();
         builder.Services.AddTransient<SessionPackViewModel>();
+        builder.Services.AddTransient<RunSessionViewModel>();
         builder.Services.AddTransient<NeedsReviewViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibrarySectionViewModel>();
@@ -251,8 +253,8 @@ public partial class App : Application
         Route.Home => services.GetRequiredService<HomeViewModel>(),
         Route.Library => services.GetRequiredService<LibraryViewModel>(),
         Route.Collections => services.GetRequiredService<CollectionsViewModel>(),
-        // A pack's page is opened with its pack (SessionPages); by route alone, the list of them.
-        Route.Sessions or Route.SessionPack => services.GetRequiredService<SessionsViewModel>(),
+        // A pack's page and run mode are opened with their pack (SessionPages); by route alone, the list of them.
+        Route.Sessions or Route.SessionPack or Route.RunSession => services.GetRequiredService<SessionsViewModel>(),
         Route.NeedsReview => services.GetRequiredService<NeedsReviewViewModel>(),
         Route.Settings => services.GetRequiredService<SettingsViewModel>(),
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),

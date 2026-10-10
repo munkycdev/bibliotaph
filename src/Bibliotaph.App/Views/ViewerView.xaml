@@ -69,8 +69,8 @@
       <Style TargetType="Grid">
         <Setter Property="Margin" Value="0,0,42,24" />
         <Style.Triggers>
-          <!-- A pop-out has no shell around it; its window sets the margins. -->
-          <DataTrigger Binding="{Binding IsPoppedOut}" Value="True">
+          <!-- A pop-out has no shell around it, and run mode frames the reader itself. -->
+          <DataTrigger Binding="{Binding FitsFrame}" Value="True">
             <Setter Property="Margin" Value="0" />
           </DataTrigger>
         </Style.Triggers>

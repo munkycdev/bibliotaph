@@ -40,8 +40,12 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
     /// </summary>
     public WorkerClient MainWorker => (_mainLease ??= viewer.Workers.LeaseViewer()).Worker;
 
-    /// <summary>A reader for <paramref name="request"/>, or an empty one; <paramref name="poppedOut"/> for a pop-out window.</summary>
-    public ViewerViewModel Create(ViewerRequest? request, bool poppedOut = false) => new(request, viewer, this, poppedOut);
+    /// <summary>
+    /// A reader for <paramref name="request"/>, or an empty one; <paramref name="poppedOut"/> for a pop-out window,
+    /// <paramref name="inRunMode"/> for the one inside run mode.
+    /// </summary>
+    public ViewerViewModel Create(ViewerRequest? request, bool poppedOut = false, bool inRunMode = false) =>
+        new(request, viewer, this, poppedOut) { InRunMode = inRunMode };
 
     /// <summary>Opens a book in the main window's reader, and brings the main window forward.</summary>
     public void OpenInMainWindow(ViewerRequest request)

@@ -148,6 +148,9 @@
       <!-- .bt-heading: the pack's date as the eyebrow, its title, and its actions. -->
       <DockPanel Margin="0,0,42,24">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+          <!-- Run mode (3d): the pack at the table, filling the window. -->
+          <Button x:Name="BeginSession" Style="{StaticResource Bt.Button.Primary}" Content="Begin session" c:Ui.Icon="{StaticResource Icon.Play}"
+                  Margin="0,0,12,0" Command="{Binding BeginCommand}" ToolTip="Run the session: its items down the side, each open at its pages" />
           <Button x:Name="EditSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" ToolTip="Edit title and date"
                   AutomationProperties.Name="Edit title and date" Command="{Binding EditCommand}" />
           <Button x:Name="DuplicateSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Copy}" ToolTip="Duplicate"

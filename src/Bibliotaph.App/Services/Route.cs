@@ -9,6 +9,8 @@ public enum Route
     Sessions,
     /// <summary>One session pack's page, under Sessions.</summary>
     SessionPack,
+    /// <summary>Run mode: a session pack at the table, filling the window.</summary>
+    RunSession,
     NeedsReview,
     Settings,
     PilotReview,

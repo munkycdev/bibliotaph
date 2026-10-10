@@ -135,6 +135,55 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>True in a pop-out window, false in the main window's Reading route.</summary>
     public bool IsPoppedOut { get; }
 
+    /// <summary>True for the reader inside run mode (slice 3d), which frames it itself.</summary>
+    public bool InRunMode { get; init; }
+
+    /// <summary>No margins of its own: a pop-out's window or run mode sets them.</summary>
+    public bool FitsFrame => IsPoppedOut || InRunMode;
+
+    /// <summary>
+    /// Shows another book or another place in this one, as run mode does going from item to item (slice 3 plan, choice
+    /// 16). Pages of the PDF already open are only scrolled to, so the next item in the same book shows at once.
+    /// </summary>
+    public async Task ShowAsync(ViewerRequest request)
+    {
+        if (Mode == ViewerMode.Pdf && _renderer is not null && _request is { Pack: null } open && open.DocumentId == request.DocumentId && request.Pack is null)
+        {
+            _request = request with { Zoom = Zoom };
+            OnPropertyChanged(nameof(Title));
+            Sessions.Close();
+            ShowSessionBanner();
+            GoTo(Math.Clamp(request.PageIndex, 0, Math.Max(0, PageCount - 1)), null);
+            return;
+        }
+        Unload();
+        _resume = null;
+        _request = request;
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(IsInPack));
+        OnPropertyChanged(nameof(PackPosition));
+        PreviousImageCommand.NotifyCanExecuteChanged();
+        NextImageCommand.NotifyCanExecuteChanged();
+        await LoadAsync();
+    }
+
+    /// <summary>Shows why nothing can open here, as for a run mode item whose file can't be reached, with no Try again.</summary>
+    public void ShowUnavailable(string title, string message)
+    {
+        Unload();
+        _resume = null;
+        _request = null;
+        OnPropertyChanged(nameof(Title));
+        Subtitle = "";
+        SessionBanner = null;
+        CanUsePage = false;
+        EmptyTitle = title;
+        EmptyMessage = message;
+        EmptyActionText = null;
+        EmptyCommand = null;
+        Mode = ViewerMode.Problem;
+    }
+
     public override Route Route => Route.Viewer;
 
     public override string Title => _request?.Title ?? "Reader";

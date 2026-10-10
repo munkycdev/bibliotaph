@@ -25,6 +25,7 @@
       <DataTemplate DataType="{x:Type vm:CollectionsViewModel}"><views:CollectionsView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:SessionsViewModel}"><views:SessionsView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:SessionPackViewModel}"><views:SessionPackView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:RunSessionViewModel}"><views:RunSessionView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:NeedsReviewViewModel}"><views:NeedsReviewView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:PilotReviewViewModel}"><views:PilotReviewView /></DataTemplate>

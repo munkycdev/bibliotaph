@@ -82,6 +82,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     public ObservableCollection<object> Rows { get; } = [];
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BeginCommand))]
     public partial bool HasItems { get; private set; }
 
     [ObservableProperty]
@@ -139,15 +140,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
                 IsLoaded = true;
                 return;
             }
-            var (targets, cards, documents) = await Task.Run(async () =>
-            {
-                var targets = await _sessions.ResolveAsync(contents.Items);
-                var cards = (await _queries.ListAsync(new LibraryFilter([.. contents.Items.Select(i => i.EntryId).Distinct()]))).ToDictionary(e => e.EntryId);
-                // Items whose book has no card of its own (an image in a pack) show their file's name and cover.
-                var documents = await _queries.GetDocumentCardsAsync([.. contents.Items.Where(i => !cards.ContainsKey(i.EntryId))
-                    .Select(i => targets[i.Id].DocumentId ?? i.Range?.DocumentId).OfType<long>()]);
-                return (targets, cards, documents);
-            });
+            var rows = await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
             if (version != _version) return;
             Pack = contents.Pack;
             if (!_notesDirty)
@@ -156,28 +149,10 @@ public sealed partial class SessionPackViewModel : PageViewModel
                 Notes = contents.Pack.Notes ?? "";
             }
             Rows.Clear();
-            var moves = new List<(long Id, string Label)> { (SessionStore.NoSection, "Before the first section") };
-            moves.AddRange(contents.Sections.Select(s => (s.Id, s.Name)));
-            var number = 0;
-            void AddItems(long? sectionId)
+            foreach (var row in rows)
             {
-                foreach (var item in contents.Items.Where(i => i.SectionId == sectionId))
-                {
-                    var target = targets[item.Id];
-                    var card = cards.GetValueOrDefault(item.EntryId)
-                        ?? ((target.DocumentId ?? item.Range?.DocumentId) is { } d && documents.TryGetValue(d, out var doc) ? doc with { EntryId = item.EntryId } : null);
-                    var row = new SessionItemRow(item, ++number, card?.Title ?? "A book no longer in your library",
-                        card is null ? null : new LibraryItemViewModel(card, _covers), target);
-                    row.MoveTargets = [.. moves.Where(m => m.Id != (item.SectionId ?? SessionStore.NoSection)).Select(m => new SectionMove(row, m.Id, $"Move to {m.Label}"))];
-                    row.Edited += OnItemEdited;
-                    Rows.Add(row);
-                }
-            }
-            AddItems(null);
-            foreach (var section in contents.Sections)
-            {
-                Rows.Add(new SessionSectionRow(section));
-                AddItems(section.Id);
+                if (row is SessionItemRow item) item.Edited += OnItemEdited;
+                Rows.Add(row);
             }
             HasItems = contents.Items.Count > 0;
             IsMissing = false;
@@ -220,22 +195,12 @@ public sealed partial class SessionPackViewModel : PageViewModel
 
     async Task<ViewerRequest?> RequestAsync(SessionItemRow row)
     {
-        if (!row.CanOpen || row.Target.DocumentId is not { } documentId)
+        if (!row.CanOpen)
         {
             Actions.Say(row.Reason ?? "This item can't be opened right now.");
             return null;
         }
-        if (row.Cover is { IsPack: true } pack && row.Item.Range is null)
-        {
-            var images = await Task.Run(() => _queries.GetPackImagesAsync(pack.EntryId));
-            if (images.Count == 0) return null;
-            var steps = images.Select(i => new PackStep(i.DocumentId, Path.GetFileNameWithoutExtension(i.Name))).ToList();
-            return new ViewerRequest(steps[0].DocumentId, steps[0].Title) { Pack = steps, PackTitle = pack.Title };
-        }
-        return new ViewerRequest(documentId, row.Heading, row.Target.FirstPage)
-        {
-            SessionItem = new SessionItemOpen(row.Id, Pack?.Title ?? "", row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage),
-        };
+        return await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
     }
 
     [RelayCommand]
@@ -314,6 +279,10 @@ public sealed partial class SessionPackViewModel : PageViewModel
         _sessionPages.OpenList();
         if (_navigation.Current is SessionsViewModel sessions) sessions.ShowDeleted(deleted);
     }
+
+    /// <summary>Begin session (choice 16): run mode, at the first item.</summary>
+    [RelayCommand(CanExecute = nameof(HasItems))]
+    void Begin() => _sessionPages.Begin(PackId);
 
     /// <summary>Find resources (the mockup): the Library, to add books and pages from.</summary>
     [RelayCommand]
