@@ -78,6 +78,9 @@ static partial class SmokeTest
 
             await Check("the sidebar status opened Settings > Processing", () => OpenProcessingFromStatusAsync(services, window));
             await Check("the password dialog's Make its text searchable tick, on to start with and locked on by Remember", () => ShowPasswordDialogAsync(window));
+            await Check("an update ready to apply shown in the sidebar, never clicked", () => ShowUpdateReadyAsync(services, window));
+            await Check("Settings > Start over listed only with --dev", () => ShowStartOverOnlyWithDevAsync(services, window));
+            await Check("the About popup's licence for every package that ships", () => ShowPackageLicencesAsync(window));
 
             // Every later check needs the library, so a failure here ends the run.
             await SeedLibraryAsync(services);

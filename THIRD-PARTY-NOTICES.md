@@ -2,8 +2,9 @@
 
 Bibliotaph is licensed under the GNU General Public License v3.0 or later (see `LICENSE`). It includes or depends
 on the components below, which keep their own licences. All of them are permissive (MIT, Apache-2.0, BSD, ISC,
-FreeType, public domain), and all of them can be combined with GPL-3.0 code. Apache-2.0 is compatible with GPL
-version 3, not version 2, which is one reason the project is GPL-3.0 rather than GPL-2.0.
+FreeType, public domain), and all of them can be combined with GPL-3.0 code, apart from the Windows SDK projection,
+which ships as a System Library (see the table). Apache-2.0 is compatible with GPL version 3, not version 2, which is
+one reason the project is GPL-3.0 rather than GPL-2.0.
 
 The fonts stay under the SIL Open Font License. The OFL allows bundling them with software under any licence; they
 are not relicensed under the GPL.
@@ -34,16 +35,20 @@ made with the font.
 | Microsoft.Extensions.*, Microsoft.EntityFrameworkCore.*, Microsoft.Data.Sqlite | MIT | https://github.com/dotnet |
 | SQLitePCLRaw (via Microsoft.Data.Sqlite) | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
 | SQLite | Public domain | https://sqlite.org |
+| Velopack (installer and updates) | MIT | https://github.com/velopack/velopack |
+| .NET and Windows Desktop runtimes (the installed app is self-contained) | MIT | https://github.com/dotnet |
+| Windows SDK projection for .NET (`Microsoft.Windows.SDK.NET.dll`, with C#/WinRT's `WinRT.Runtime.dll`, MIT), used by the PDF worker for Windows' text recognition | Windows SDK licence terms; it serves only to call Windows, a System Library under section 1 of the GPL | https://aka.ms/WinSDKProjectURL |
 
 **PDFium's bundled libraries.** The PDFium binary includes code from libraries such as FreeType, libjpeg-turbo,
 libpng, zlib, OpenJPEG, Little CMS and Abseil. Each pdfium-binaries release ships a `LICENSE` file with all of
 their notices. FreeType is used under the FreeType License, which asks for this credit in the documentation:
 *Portions of this software are copyright © The FreeType Project (www.freetype.org). All rights reserved.*
 
-**Before the first release:** the installer must carry the full licence texts for everything in this section:
-the pdfium-binaries `LICENSE` for the exact PDFium version, the Apache-2.0 and MIT texts with each package's
-copyright line, any `NOTICE` file an Apache-2.0 package ships, and the two OFL files, in a `licenses\` folder,
-with Settings > About linking to them. Planned for slice 4 (see "Licences" in `docs/architecture.md`).
+**Full texts.** The app carries every text above in its `licenses\` folder, which the About popup reads:
+`LICENSE.txt`, this file, the fonts' and Lucide's licences, and `packages\<id>.txt` for each package that ships,
+written by `tools/LicenseNotices` from the package's own licence and notice files (or the standard text for its SPDX
+id, kept in `tools/LicenseNotices/texts/`), plus `packages\pdfium.txt` with the pdfium-binaries notices for the
+pinned PDFium build. The tool fails the build when a shipped package's licence is unknown or not GPL-3.0-compatible.
 
 ## Build, test and tooling only (not shipped)
 
@@ -54,6 +59,7 @@ with Settings > About linking to them. Planned for slice 4 (see "Licences" in `d
 | Microsoft.CodeAnalysis.BannedApiAnalyzers | MIT |
 | Pillow and fontTools (`tools/AppIcon`) | MIT-CMU (HPND) and MIT |
 | Tesseract .NET wrapper, with Tesseract 5 and Leptonica native binaries (`tools/OcrBakeoff`); its English models are downloaded at run time | Apache-2.0; Leptonica BSD-2-Clause; tessdata Apache-2.0 |
+| vpk, Velopack's packaging tool (the release workflow) | MIT |
 | GitHub Actions: checkout, setup-dotnet, cache, upload-artifact | MIT |
 
 Trademarks and product names mentioned in the docs and spike results (game systems, publishers and book titles)

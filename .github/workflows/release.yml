@@ -1,0 +1,140 @@
+name: Release
+
+# A version tag (v0.N.P: N is the slice, P counts releases within it; slice 4l plan, choices 2 and 3) runs every check
+# CI runs, publishes the app self-contained for win-x64, packs it with Velopack, and leaves a DRAFT GitHub Release
+# holding Setup.exe and the update files. Nothing is public until someone presses Publish on the draft.
+on:
+  push:
+    tags: ['v*.*.*']
+
+# Only this workflow may write: it creates the draft release. CI keeps contents: read.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, pack and draft the release
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+      TAG: ${{ github.ref_name }}
+      # The vpk tool must match the Velopack package the app is built with (Directory.Packages.props).
+      VPK_VERSION: 1.2.161
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # .NET 11 is in release candidate until November 2026; switch dotnet-quality to ga then (as in ci.yml).
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: preview
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The version comes from the tag; Directory.Build.props keeps 0.N.0 for local builds.
+      - name: Version from the tag
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:TAG -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "The tag $env:TAG isn't vMAJOR.MINOR.PATCH, such as v0.4.1." }
+          "number=$($Matches[1]).$($Matches[2]).$($Matches[3])" >> $env:GITHUB_OUTPUT
+
+      # Everything CI checks, smoke test included, on this exact commit.
+      - name: Verify
+        shell: pwsh
+        run: ./build/verify.ps1
+
+      # The app starts its workers from pdfworker\ beside Bibliotaph.exe (WorkerOptions.DefaultWorkerPath), so the
+      # worker is published there too, self-contained like the app: neither needs .NET installed.
+      - name: Publish (self-contained win-x64)
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.number }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          dotnet publish src/Bibliotaph.App/Bibliotaph.App.csproj --configuration Release --runtime win-x64 --self-contained `
+            -p:Version=$env:VERSION -p:ReleasesUrl=$env:REPO_URL --output publish
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the app failed.' }
+          dotnet publish src/Bibliotaph.PdfWorker/Bibliotaph.PdfWorker.csproj --configuration Release --runtime win-x64 --self-contained `
+            -p:Version=$env:VERSION --output publish/pdfworker
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the PDF worker failed.' }
+          foreach ($file in 'publish/Bibliotaph.exe', 'publish/pdfworker/Bibliotaph.PdfWorker.exe', 'publish/pdfworker/pdfium.dll') {
+            if (-not (Test-Path $file)) { throw "$file is missing from the published app." }
+          }
+
+      # licenses\packages\<id>.txt for every package the published app and worker ship, the .NET runtime included.
+      - name: Licences
+        shell: pwsh
+        run: |
+          dotnet tools/LicenseNotices/bin/Release/net11.0/LicenseNotices.dll publish
+          if ($LASTEXITCODE -ne 0) { throw 'A shipped package has a licence that is unknown or not GPL-3.0-compatible.' }
+
+      - name: Install vpk
+        shell: pwsh
+        run: |
+          dotnet tool install vpk --version $env:VPK_VERSION --tool-path .tools
+          if ($LASTEXITCODE -ne 0) { throw 'Installing vpk failed.' }
+
+      # The latest published release's full package, so vpk pack can make a delta from it. Anonymous, as the app
+      # checks, so drafts and pre-releases are never the base. With no release yet, vpk says so and exits 0.
+      - name: Download the latest release
+        shell: pwsh
+        env:
+          # vpk targets .NET 8 to 10; this lets it run on .NET 11 when the runner has no older runtime.
+          DOTNET_ROLL_FORWARD: Major
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          ./.tools/vpk download github --repoUrl $env:REPO_URL --channel win --outputDir releases
+          if ($LASTEXITCODE -ne 0) { throw 'Downloading the latest release failed.' }
+
+      # Installs per user into %LOCALAPPDATA%\BibliotaphApp, apart from the library in %LOCALAPPDATA%\Bibliotaph
+      # (AppPaths.PackId; a test fails if the two ever meet). Unsigned for now (choice 5).
+      - name: Pack
+        shell: pwsh
+        env:
+          DOTNET_ROLL_FORWARD: Major
+          VERSION: ${{ steps.version.outputs.number }}
+        run: |
+          ./.tools/vpk pack --packId BibliotaphApp --packVersion $env:VERSION --packDir publish --mainExe Bibliotaph.exe `
+            --packTitle Bibliotaph --packAuthors munkycdev --icon src/Bibliotaph.App/Assets/Bibliotaph.ico `
+            --runtime win-x64 --channel win --noPortable --outputDir releases
+          if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed.' }
+
+      # This build's files as vpk listed them (Setup.exe, the full package, a delta when there was a release before),
+      # and a feed of just those, which is what vpk upload github would send: the feed vpk wrote also lists the
+      # downloaded package, which belongs to the earlier release.
+      - name: Draft the GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.number }}
+        run: |
+          $built = @(Get-Content releases/assets.win.json -Raw | ConvertFrom-Json | ForEach-Object { $_.RelativeFileName })
+          if ($built.Count -eq 0) { throw 'vpk listed no files.' }
+          $feed = Get-Content releases/releases.win.json -Raw | ConvertFrom-Json
+          $feed.Assets = @($feed.Assets | Where-Object { $_.FileName -in $built })
+          New-Item -ItemType Directory feed | Out-Null
+          $feed | ConvertTo-Json -Depth 10 -Compress | Set-Content feed/releases.win.json -Encoding utf8NoBOM
+          $files = @($built | ForEach-Object { Join-Path releases $_ }) + 'feed/releases.win.json'
+          gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed.' }
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore

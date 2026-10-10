@@ -20,13 +20,15 @@ public sealed partial class SettingsViewModel : PageViewModel
     public SettingsViewModel(
         SettingsLinks links, AboutBox about, LibrarySectionViewModel library, ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance,
         ReviewSectionViewModel review, VocabularyViewModel vocabulary, AiSettingsViewModel ai, PasswordsSectionViewModel passwords,
-        BackupSectionViewModel backup, StartOverSectionViewModel startOver,
+        BackupSectionViewModel backup, StartOverSectionViewModel startOver, DevMode dev,
         ILogger<SettingsViewModel> log)
     {
         _links = links;
         _about = about;
         _log = log;
-        Sections = [library, processing, appearance, review, vocabulary, ai, passwords, backup, startOver];
+        SettingsSectionViewModel[] sections = [library, processing, appearance, review, vocabulary, ai, passwords, backup];
+        // Start over only with --dev (slice 4l plan, choice 7).
+        Sections = dev.IsOn ? [.. sections, startOver] : sections;
         foreach (var section in Sections) section.PropertyChanged += OnSectionChanged;
         Selected = library;
         library.IsSelected = true;
@@ -38,14 +40,20 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>The section list stays put while the chosen section scrolls beside it.</summary>
     public override bool ScrollsItself => true;
 
-    /// <summary>The section list, in order; Start over is last.</summary>
+    /// <summary>The section list, in order; Start over, when the app started with --dev, is last.</summary>
     public IReadOnlyList<SettingsSectionViewModel> Sections { get; }
 
     /// <summary>The section filling the page.</summary>
     public SettingsSectionViewModel Selected { get; private set; }
 
-    /// <summary>Chooses a section, as a link into Settings does. Choosing the one already showing loads it again.</summary>
-    public void Show(SettingsSection section) => Select(Sections.First(s => s.Section == section));
+    /// <summary>
+    /// Chooses a section, as a link into Settings does. Choosing the one already showing loads it again; one not in the
+    /// list (Start over without --dev) is not chosen.
+    /// </summary>
+    public void Show(SettingsSection section)
+    {
+        if (Sections.FirstOrDefault(s => s.Section == section) is { } shown) Select(shown);
+    }
 
     public override async Task LoadAsync()
     {

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Writes licenses\packages\<id>.txt beside the app for every NuGet package that ships with it, and fails on a licence
+    that isn't known or isn't GPL-3.0-compatible (slice 4l plan, choice 6). build/verify.ps1 runs it on the Debug build
+    (step Licenses), and the release workflow on the published app before it is packed. Run it (dotnet run with this
+    project) with the app's folder, the one holding Bibliotaph.deps.json, as its one argument.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <AllowFileWrites>true</AllowFileWrites>
+  </PropertyGroup>
+</Project>

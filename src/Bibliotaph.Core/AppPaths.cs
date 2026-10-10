@@ -7,6 +7,16 @@ namespace Bibliotaph.Core;
 /// </summary>
 public sealed record AppPaths(string Root)
 {
+    /// <summary>The data folder's name in %LOCALAPPDATA%.</summary>
+    public const string FolderName = "Bibliotaph";
+
+    /// <summary>
+    /// The installer's pack id (slice 4l plan, choice 1), which .github/workflows/release.yml passes to vpk. Velopack
+    /// installs the app into %LOCALAPPDATA%\&lt;pack id&gt; and deletes that folder on uninstall, so it must never be the
+    /// data folder or hold it: uninstalling would delete the library.
+    /// </summary>
+    public const string PackId = "BibliotaphApp";
+
     public string CatalogDatabase => Path.Combine(Root, "catalog.db");
     public string IndexDatabase => Path.Combine(Root, "index.db");
     public string Backups => Path.Combine(Root, "backups");
@@ -22,5 +32,5 @@ public sealed record AppPaths(string Root)
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>
-        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Bibliotaph"));
+        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), FolderName));
 }

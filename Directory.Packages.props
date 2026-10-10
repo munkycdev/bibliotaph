@@ -27,6 +27,8 @@
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="VirtualizingWrapPanel" Version="2.5.4" />
+    <!-- MIT. The installer and updates (slice 4l); build/release.yml installs the vpk tool at this same version. -->
+    <PackageVersion Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup Label="Tools">

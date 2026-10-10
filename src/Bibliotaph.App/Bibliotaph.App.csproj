@@ -10,7 +10,17 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- The exe's icon (Explorer, shortcuts). MainWindow sets the same .ico for its title bar and taskbar button. -->
     <ApplicationIcon>Assets\Bibliotaph.ico</ApplicationIcon>
+    <!-- Program.Main, not the Main WPF generates from App.xaml: Velopack must run before anything else (slice 4l). -->
+    <StartupObject>Bibliotaph.App.Program</StartupObject>
+    <!--
+      Where an installed build looks for updates (slice 4l): this repository's GitHub Releases. The release workflow
+      passes the repository it ran in, so a fork's builds update from the fork's own releases.
+    -->
+    <ReleasesUrl Condition="'$(ReleasesUrl)' == ''">https://github.com/munkycdev/bibliotaph</ReleasesUrl>
   </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="ReleasesUrl" Value="$(ReleasesUrl)" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
     <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
@@ -28,6 +38,7 @@
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Velopack" />
     <PackageReference Include="VirtualizingWrapPanel" />
   </ItemGroup>
   <ItemGroup>
