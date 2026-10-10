@@ -67,6 +67,7 @@
     <DataTemplate DataType="{x:Type vm:ProcessingSectionViewModel}"><views:ProcessingSectionView /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:VocabularyViewModel}"><views:VocabularyView /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:AiSettingsViewModel}"><views:AiSettingsView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:BackupSectionViewModel}"><views:BackupSectionView /></DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:AppearanceSectionViewModel}">
       <StackPanel>

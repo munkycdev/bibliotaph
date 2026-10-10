@@ -118,6 +118,8 @@ static class SmokeTest
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
             }
+            await Check("a backup saved from Settings > Backup and read back for restoring, its missing folder offered a new place, then cancelled",
+                () => BackUpAndPreviewRestoreAsync(services, window));
             // Last: the made-up library's books can't be read once its folder is found offline.
             await Check("a library folder that can't be reached: its books marked Offline, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));
@@ -982,6 +984,49 @@ static class SmokeTest
     /// in the Library, marked Offline; the sidebar says one folder is offline; and its card in Settings says it can't be
     /// reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
     /// </summary>
+    /// <summary>
+    /// Settings > Backup (slice 4j): Back up now's work saves a ZIP of the catalog and its manifest, without the search
+    /// index unless asked; choosing that ZIP for restoring reads it back and lists the made-up library's folder, which
+    /// isn't on disk, as Not found with Point to its new place; Cancel puts the section back and drops what was read.
+    /// The file dialogs and the restart aren't driven: the section's own methods do what follows them.
+    /// </summary>
+    static async Task BackUpAndPreviewRestoreAsync(IServiceProvider services, Window window)
+    {
+        var paths = services.GetRequiredService<AppPaths>();
+        var section = (BackupSectionViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Backup)).Selected;
+        await WaitUntilAsync(window, () => Shown(window, "BackUpNow") && Shown(window, "ChooseBackup") && !Shown(window, "RestoreAndRestart"),
+            () => "Settings > Backup doesn't show Back up now and Choose a backup, or already offers to restore.");
+
+        var backup = System.IO.Path.Combine(paths.Root, "smoke-backup.zip");
+        await section.BackUpToAsync(backup);
+        if (section.BackupNote?.StartsWith("Saved smoke-backup.zip (", StringComparison.Ordinal) != true || !System.IO.File.Exists(backup))
+            throw new InvalidOperationException($"Back up now says \"{section.BackupNote}\", not that it saved smoke-backup.zip.");
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(backup))
+        {
+            var names = zip.Entries.Select(e => e.FullName).Order(StringComparer.Ordinal).ToList();
+            if (!names.SequenceEqual(["catalog.db", "manifest.json"]))
+                throw new InvalidOperationException($"The backup holds {string.Join(", ", names)}, not just catalog.db and manifest.json.");
+        }
+
+        await section.PreviewRestoreAsync(backup);
+        if (section.RestoreProblem is { } problem) throw new InvalidOperationException($"The backup just saved can't be restored: {problem}");
+        if (section.RestoreSummary?.StartsWith("Made ", StringComparison.Ordinal) != true || !section.HasPreview)
+            throw new InvalidOperationException($"Choosing the backup says \"{section.RestoreSummary}\", not what it holds.");
+        var missing = section.RestoreFolders.SingleOrDefault(f => System.IO.Path.GetFileName(f.Path) == "smoke-library")
+            ?? throw new InvalidOperationException("The backup's folders don't include the made-up library's.");
+        if (missing.Found || !missing.Status.StartsWith("Not found", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The made-up library's folder, which isn't on disk, reads \"{missing.Status}\".");
+        await WaitUntilAsync(window, () => Shown(window, "PointRestoredFolder") && Shown(window, "RestoreAndRestart"),
+            () => "The backup's missing folder has no Point to its new place, or there is no Restore and restart.");
+
+        Click(Descendants<Button>(window).SingleOrDefault(b => b.Name == "CancelRestore"), "Cancel restoring");
+        await WaitUntilAsync(window, () => !section.HasPreview && section.RestoreFolders.Count == 0 && !Shown(window, "RestoreAndRestart")
+                && !System.IO.Directory.Exists(PendingRestore.StagingFolder(paths)),
+            () => "Cancel didn't put Settings > Backup back, or left the backup it read for restoring.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
+    }
+
     static async Task ShowOfflineFolderAsync(IServiceProvider services, Window window)
     {
         var smoke = (await services.GetRequiredService<SourceRootStore>().ListAsync())

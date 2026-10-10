@@ -70,6 +70,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     IReadOnlyDictionary<EntryId, EntryAvailability> _away = new Dictionary<EntryId, EntryAvailability>();
     readonly DispatcherTimer _staleTimer;
     readonly NotesService _notes;
+    readonly ExportService _export;
     int _version;
     bool _loaded;
     bool _stale;
@@ -78,9 +79,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, ILogger<LibraryViewModel> log)
+        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, ExportService export, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _export = export;
         Views = views;
         _notes = notes;
         Collections = collections;
@@ -1047,6 +1049,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
         EditSelectedCommand.NotifyCanExecuteChanged();
+        ExportSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
         ClearSelectionCommand.NotifyCanExecuteChanged();
         SelectRangeCommand.NotifyCanExecuteChanged();
@@ -1101,6 +1104,33 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Loading metadata for {Count} selected documents failed", Selection.Count);
+        }
+    }
+
+    /// <summary>Export these (slice 4j plan, choice 7): the ticked books as CSV, the rows Settings > Backup's Export CSV writes.</summary>
+    [RelayCommand(CanExecute = nameof(CanClearSelection))]
+    async Task ExportSelected()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export these books for a spreadsheet",
+            FileName = "Bibliotaph books.csv",
+            DefaultExt = ".csv",
+            Filter = "CSV (*.csv)|*.csv",
+        };
+        if (dialog.ShowDialog(System.Windows.Application.Current.MainWindow) != true) return;
+        SplitUndo = null;
+        RemoveUndo = null;
+        BulkUndo = null;
+        try
+        {
+            var rows = await _export.WriteCsvAsync(dialog.FileName, Selection.EntryIds);
+            BulkMessage = $"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(dialog.FileName)}.";
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            _log.LogError(ex, "Exporting {Count} selected books to {Path} failed", Selection.Count, dialog.FileName);
+            BulkMessage = $"The export couldn't be saved: {ex.Message}";
         }
     }
 

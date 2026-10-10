@@ -51,6 +51,9 @@ public partial class App : Application
         try
         {
             StartOver.FinishIfRequested(paths, e.Args);
+            // A restore chosen before the restart (slice 4j) swaps its catalog in now, before anything opens it.
+            var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
+            if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
             _host = BuildHost(paths, pilot);
             await PrepareDatabasesAsync(_host.Services);
@@ -58,6 +61,7 @@ public partial class App : Application
 
             var services = _host.Services;
             ProjectMetadataInBackground(services);
+            if (!_smokeTest && !measureSearch && !measureViewer) BackUpWeeklyInBackground(services);
             if (measureSearch)
             {
                 Shutdown(await SearchMeasurement.RunAsync(services));
@@ -77,6 +81,7 @@ public partial class App : Application
             MainWindow = window;
             window.Show();
             await services.GetRequiredService<ShellViewModel>().StartAsync();
+            if (restored is not null && !_smokeTest) AppRestart.Tell(restored);
 
             if (_smokeTest) Shutdown(await SmokeTest.RunAsync(services, window, Argument(e.Args, "--smoke-files")));
         }
@@ -174,6 +179,9 @@ public partial class App : Application
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
+        builder.Services.AddSingleton<CatalogExport>();
+        builder.Services.AddSingleton<BackupService>();
+        builder.Services.AddSingleton<ExportService>();
         builder.Services.AddSingleton<FileHasher>();
         builder.Services.AddSingleton<ArchiveReader>();
         builder.Services.AddSingleton<SourceFiles>();
@@ -212,6 +220,7 @@ public partial class App : Application
         builder.Services.AddSingleton<IPasswordPrompt, PasswordPrompt>();
         builder.Services.AddSingleton<AboutBox>();
         builder.Services.AddSingleton<AiTestBox>();
+        builder.Services.AddSingleton<AppRestart>();
         builder.Services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
         builder.Services.AddSingleton<Func<LibraryViewModel>>(sp => () => sp.GetRequiredService<LibraryViewModel>());
         builder.Services.AddSingleton<LibraryPages>();
@@ -239,6 +248,7 @@ public partial class App : Application
         builder.Services.AddTransient<ReviewSectionViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
         builder.Services.AddTransient<StartOverSectionViewModel>();
+        builder.Services.AddTransient<BackupSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
         builder.Services.AddTransient<PilotReviewViewModel>();
@@ -300,6 +310,24 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Error(ex, "Projecting metadata into index.db failed");
+            }
+        });
+
+    /// <summary>
+    /// The weekly automatic backup (slice 4j plan, choice 2), at the first start of the week: in the background, as
+    /// copying the catalog can take a moment and nothing waits on it.
+    /// </summary>
+    static void BackUpWeeklyInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (await services.GetRequiredService<BackupService>().BackUpWeeklyIfDueAsync() is { } backup)
+                    Log.Information("Weekly backup saved to {Backup}", backup.Path);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "The weekly backup failed");
             }
         });
 
