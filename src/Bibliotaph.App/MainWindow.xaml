@@ -11,7 +11,7 @@
         d:DataContext="{d:DesignInstance vm:ShellViewModel}"
         Title="Bibliotaph"
         Icon="pack://application:,,,/Assets/Bibliotaph.ico"
-        Width="1280" Height="840" MinWidth="880" MinHeight="560"
+        Width="1280" Height="840" MinWidth="880" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bt.Bg}"
         Foreground="{DynamicResource Bt.Text}"
@@ -37,9 +37,15 @@
     <!-- .bt-sidebar; run mode folds it away. -->
     <Border Width="210" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0" Padding="13,27,13,18"
             Visibility="{Binding CurrentPage.IsImmersive, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-      <DockPanel LastChildFill="False">
+      <!-- The brand and the foot stay put; the navigation between them scrolls on a short window (at 200% scaling, say). -->
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <!-- .bt-brand -->
-        <Button DockPanel.Dock="Top" Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
+        <Button Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
                 AutomationProperties.Name="Bibliotaph home" Cursor="Hand" Margin="0,0,0,26"
                 FocusVisualStyle="{StaticResource Bt.FocusVisual}">
           <Button.Template>
@@ -56,59 +62,63 @@
           </Button.Template>
         </Button>
 
-        <!-- .bt-navigation -->
-        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding NavItems}" Focusable="False"
-                      AutomationProperties.Name="Main navigation">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
-              <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
-                      c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" AutomationProperties.Name="{Binding Label}"
-                      AutomationProperties.ItemStatus="{Binding Count}"
-                      Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                      CommandParameter="{Binding Route}" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+          <StackPanel>
+            <!-- .bt-navigation -->
+            <ItemsControl ItemsSource="{Binding NavItems}" Focusable="False"
+                          AutomationProperties.Name="Main navigation">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
+                  <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
+                          c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" AutomationProperties.Name="{Binding Label}"
+                          AutomationProperties.ItemStatus="{Binding Count}"
+                          Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding Route}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-        <!-- .bt-sidegroup: Smart Views (slice 3 plan, choices 5 and 17): Favorites, then the saved views. -->
-        <StackPanel DockPanel.Dock="Top" Margin="0,22,0,0">
-          <TextBlock Text="SMART VIEWS" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
-          <ItemsControl x:Name="SmartViews" ItemsSource="{Binding SmartViews}" Focusable="False" AutomationProperties.Name="Smart views">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
-                <!-- A saved view renames and deletes from its right-click menu; Tag carries the shell for the menu's commands. -->
-                <Button x:Name="SmartView" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
-                        c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
-                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
-                        Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        CommandParameter="{Binding}">
-                  <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource Bt.NavButton}">
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsView}" Value="True">
-                          <Setter Property="ToolTip" Value="Right-click to rename or delete" />
-                          <Setter Property="ContextMenu">
-                            <Setter.Value>
-                              <ContextMenu Style="{StaticResource Bt.Menu}">
-                                <MenuItem Header="Rename…" CommandParameter="{Binding}"
-                                          Command="{Binding PlacementTarget.Tag.RenameViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                <MenuItem Header="Delete" CommandParameter="{Binding}"
-                                          Command="{Binding PlacementTarget.Tag.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                              </ContextMenu>
-                            </Setter.Value>
-                          </Setter>
-                        </DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Button.Style>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
+            <!-- .bt-sidegroup: Smart Views (slice 3 plan, choices 5 and 17): Favorites, then the saved views. -->
+            <StackPanel Margin="0,22,0,0">
+              <TextBlock Text="SMART VIEWS" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
+              <ItemsControl x:Name="SmartViews" ItemsSource="{Binding SmartViews}" Focusable="False" AutomationProperties.Name="Smart views">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
+                    <!-- A saved view renames and deletes from its right-click menu; Tag carries the shell for the menu's commands. -->
+                    <Button x:Name="SmartView" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
+                            c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
+                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}">
+                      <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Bt.NavButton}">
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsView}" Value="True">
+                              <Setter Property="ToolTip" Value="Right-click to rename or delete" />
+                              <Setter Property="ContextMenu">
+                                <Setter.Value>
+                                  <ContextMenu Style="{StaticResource Bt.Menu}">
+                                    <MenuItem Header="Rename…" CommandParameter="{Binding}"
+                                              Command="{Binding PlacementTarget.Tag.RenameViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <MenuItem Header="Delete" CommandParameter="{Binding}"
+                                              Command="{Binding PlacementTarget.Tag.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                  </ContextMenu>
+                                </Setter.Value>
+                              </Setter>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Button.Style>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
 
         <!-- .bt-sidebottom: processing status, then Settings. -->
-        <StackPanel DockPanel.Dock="Bottom">
+        <StackPanel Grid.Row="2">
           <!-- Opens Settings > Processing, where the details and pause buttons are. -->
           <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding OpenProcessingCommand}"
@@ -154,7 +164,7 @@
                   Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                   CommandParameter="{Binding Route}" />
         </StackPanel>
-      </DockPanel>
+      </Grid>
     </Border>
 
     <Grid Grid.Column="1">

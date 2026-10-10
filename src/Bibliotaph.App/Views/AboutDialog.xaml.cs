@@ -29,6 +29,9 @@ public partial class AboutDialog
         AppIcon.Source = icon.Frames.OrderBy(frame => frame.PixelWidth).FirstOrDefault(frame => frame.PixelWidth >= 96) ?? icon.Frames[^1];
         VersionLine.Text = $"Version {info.VersionText}";
         CopyrightLine.Text = AboutInfo.Copyright;
+        // A 1080p screen at 200% scaling has under 500 of height: the licence reader shrinks so the popup still fits on it
+        // (the text scrolls). About 150 is the title bar, the margins and the Close row.
+        Licences.Height = Math.Clamp(SystemParameters.WorkArea.Height * 0.9 - 150, 200, Licences.Height);
     }
 
     public AboutInfo Info { get; }
