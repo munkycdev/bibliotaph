@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.IO;
+using Bibliotaph.App.Services;
+using Bibliotaph.Index;
 using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -98,6 +101,10 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
         return $"p. {first}–{last}";
     }
 
+    /// <summary>The item in hand in run mode.</summary>
+    [ObservableProperty]
+    public partial bool IsCurrent { get; set; }
+
     public bool CanOpen => Target.CanOpen;
 
     /// <summary>Dimmed: its file can't be reached, or it's owned elsewhere.</summary>
@@ -114,4 +121,66 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public bool CanShowInFolder => Target.LastPath is not null;
 
     public string AccessibleName => $"{Number}. {Heading}, {Where}{(Reason is null ? "" : ". " + Reason)}";
+}
+
+/// <summary>What a pack's page and run mode both show: its sections and items, each item resolved to where it opens.</summary>
+public static class SessionPackRows
+{
+    /// <summary>The pack's rows in order: items before any section, then each section's heading and items, numbered throughout.</summary>
+    public static async Task<IReadOnlyList<object>> BuildAsync(SessionsService sessions, LibraryQueries queries, CoverImages covers, SessionPackContents contents)
+    {
+        var (targets, cards, documents) = await Task.Run(async () =>
+        {
+            var targets = await sessions.ResolveAsync(contents.Items);
+            var cards = (await queries.ListAsync(new LibraryFilter([.. contents.Items.Select(i => i.EntryId).Distinct()]))).ToDictionary(e => e.EntryId);
+            // Items whose book has no card of its own (an image in a pack) show their file's name and cover.
+            var documents = await queries.GetDocumentCardsAsync([.. contents.Items.Where(i => !cards.ContainsKey(i.EntryId))
+                .Select(i => targets[i.Id].DocumentId ?? i.Range?.DocumentId).OfType<long>()]);
+            return (targets, cards, documents);
+        });
+        var rows = new List<object>();
+        var moves = new List<(long Id, string Label)> { (SessionStore.NoSection, "Before the first section") };
+        moves.AddRange(contents.Sections.Select(s => (s.Id, s.Name)));
+        var number = 0;
+        void AddItems(long? sectionId)
+        {
+            foreach (var item in contents.Items.Where(i => i.SectionId == sectionId))
+            {
+                var target = targets[item.Id];
+                var card = cards.GetValueOrDefault(item.EntryId)
+                    ?? ((target.DocumentId ?? item.Range?.DocumentId) is { } d && documents.TryGetValue(d, out var doc) ? doc with { EntryId = item.EntryId } : null);
+                var row = new SessionItemRow(item, ++number, card?.Title ?? "A book no longer in your library",
+                    card is null ? null : new LibraryItemViewModel(card, covers), target);
+                row.MoveTargets = [.. moves.Where(m => m.Id != (item.SectionId ?? SessionStore.NoSection)).Select(m => new SectionMove(row, m.Id, $"Move to {m.Label}"))];
+                rows.Add(row);
+            }
+        }
+        AddItems(null);
+        foreach (var section in contents.Sections)
+        {
+            rows.Add(new SessionSectionRow(section));
+            AddItems(section.Id);
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// What opens an item (choice 14): its pages in the file it resolved to, keeping no reading position; a whole pack
+    /// at its first image. Null when it can't open.
+    /// </summary>
+    public static async Task<ViewerRequest?> RequestAsync(SessionItemRow row, string packTitle, LibraryQueries queries)
+    {
+        if (!row.CanOpen || row.Target.DocumentId is not { } documentId) return null;
+        if (row.Cover is { IsPack: true } pack && row.Item.Range is null)
+        {
+            var images = await Task.Run(() => queries.GetPackImagesAsync(pack.EntryId));
+            if (images.Count == 0) return null;
+            var steps = images.Select(i => new PackStep(i.DocumentId, Path.GetFileNameWithoutExtension(i.Name))).ToList();
+            return new ViewerRequest(steps[0].DocumentId, steps[0].Title) { Pack = steps, PackTitle = pack.Title };
+        }
+        return new ViewerRequest(documentId, row.Heading, row.Target.FirstPage)
+        {
+            SessionItem = new SessionItemOpen(row.Id, packTitle, row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage),
+        };
+    }
 }

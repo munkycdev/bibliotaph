@@ -28,12 +28,13 @@
 
   <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="210" />
+      <ColumnDefinition Width="Auto" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
-    <!-- .bt-sidebar -->
-    <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0" Padding="13,27,13,18">
+    <!-- .bt-sidebar; run mode folds it away. -->
+    <Border Width="210" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0" Padding="13,27,13,18"
+            Visibility="{Binding CurrentPage.IsImmersive, Converter={StaticResource Bt.CollapsedWhenTrue}}">
       <DockPanel LastChildFill="False">
         <!-- .bt-brand -->
         <Button DockPanel.Dock="Top" Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
@@ -133,8 +134,9 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <!-- .bt-topbar -->
-      <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="24,15" MinHeight="68">
+      <!-- .bt-topbar; run mode has its own header instead. -->
+      <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="24,15" MinHeight="68"
+              Visibility="{Binding CurrentPage.IsImmersive, Converter={StaticResource Bt.CollapsedWhenTrue}}">
         <DockPanel>
           <Button DockPanel.Dock="Left" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowLeft}"
                   Command="{Binding GoBackCommand}" Margin="-8,0,6,0"
@@ -192,6 +194,9 @@
                 <!-- The list runs to the bottom edge; its own padding keeps the last row clear. -->
                 <DataTrigger Binding="{Binding CurrentPage.ScrollsItself}" Value="True">
                   <Setter Property="Margin" Value="42,36,0,0" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CurrentPage.IsImmersive}" Value="True">
+                  <Setter Property="Margin" Value="0" />
                 </DataTrigger>
               </Style.Triggers>
             </Style>

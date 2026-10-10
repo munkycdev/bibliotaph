@@ -107,7 +107,7 @@ static class SmokeTest
             if (real is { } reprocessed)
             {
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
-                await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, and deleted with Undo",
+                await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, run, and deleted with Undo",
                     () => UseSessionPacksAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
@@ -1261,7 +1261,8 @@ static class SmokeTest
     /// Slice 3c: New session on Sessions makes a pack and opens it, empty. In the reader, Add pages… adds pages i to 1
     /// with a label and Add page adds the page in view, called after its bookmark. The pack lists both in order; Move
     /// down swaps them and keeps their labels; an item opens at its first page and leaves the book's kept place alone.
-    /// Home shows the pack under Continue preparing. A section is added; Delete goes to Sessions with Undo, which brings
+    /// Home shows the pack under Continue preparing. Begin session runs it (3d): Next opens the second item at its first
+    /// page, full screen comes and goes, End returns. A section is added; Delete goes to Sessions with Undo, which brings
     /// the pack back.
     /// </summary>
     static async Task UseSessionPacksAsync(IServiceProvider services, Window window, long documentId)
@@ -1340,6 +1341,25 @@ static class SmokeTest
         navigation.GoBack();
         await Settle(window);
         if (await reading.GetPositionAsync(documentId) != kept) throw new InvalidOperationException("Opening a session item moved the book's kept place.");
+
+        // Run mode (3d): Begin session opens the first item, Next the second at its first page, full screen and back, and End.
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Back didn't return to the session.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "BeginSession"), "Begin session");
+        await WaitUntilAsync(window, () => shell.CurrentPage is RunSessionViewModel { Current: not null, Viewer.IsPdf: true },
+            () => "Begin session didn't open run mode at the first item.");
+        var run = (RunSessionViewModel)shell.CurrentPage!;
+        if (run.Counter != "p. 1 · 1 of 2" || run.PreviousItemCommand.CanExecute(null))
+            throw new InvalidOperationException($"Run mode's counter reads “{run.Counter}” at the first item.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NextItem"), "Next");
+        await WaitUntilAsync(window, () => run is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
+                && !run.NextItemCommand.CanExecute(null),
+            () => $"Next didn't open Warehouse ambush at page i ({run.Counter}, page index {run.Viewer.CurrentPageIndex}).");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "FullScreen"), "Full screen");
+        await WaitUntilAsync(window, () => window.WindowStyle == WindowStyle.None, () => "Full screen didn't take the window's frame away.");
+        run.EscapeCommand.Execute(null);
+        await WaitUntilAsync(window, () => window.WindowStyle != WindowStyle.None && shell.CurrentPage == run, () => "Esc didn't leave full screen first.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "EndSession"), "End session");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true }, () => "End session didn't return to the session's page.");
 
         // A section, then Delete with Undo.
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true }, () => "Back didn't return to the session.");

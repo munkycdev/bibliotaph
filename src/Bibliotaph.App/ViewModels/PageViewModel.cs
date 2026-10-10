@@ -27,6 +27,9 @@ public abstract class PageViewModel : ObservableObject
     /// </summary>
     public virtual Route NavRoute => Route;
 
+    /// <summary>True for a page that fills the window, as run mode does: the shell folds its sidebar and top bar away.</summary>
+    public virtual bool IsImmersive => false;
+
     /// <summary>True for a page with its own scrolling list (a virtualized grid), which the shell must not wrap in a scroll viewer.</summary>
     public virtual bool ScrollsItself => false;
 
