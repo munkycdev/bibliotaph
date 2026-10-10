@@ -44,6 +44,7 @@ public sealed partial class RunSessionViewModel : PageViewModel
         _log = log;
         Viewer = readers.Create(null, inRunMode: true);
         Viewer.PropertyChanged += OnViewerChanged;
+        Viewer.PageNotes.CollectionChanged += (_, _) => RefreshItemNotes();
         _notesTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveNotesAsync(), Dispatcher.CurrentDispatcher);
         _notesTimer.Stop();
     }
@@ -89,6 +90,25 @@ public sealed partial class RunSessionViewModel : PageViewModel
     {
         oldValue?.IsCurrent = false;
         newValue?.IsCurrent = true;
+        RefreshItemNotes();
+    }
+
+    /// <summary>The page notes on the item in hand: on its pages, or all of them for a whole book.</summary>
+    public ObservableCollection<PageNoteRow> ItemNotes { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasItemNotes { get; private set; }
+
+    void RefreshItemNotes()
+    {
+        ItemNotes.Clear();
+        if (Current is { Target: { DocumentId: { } documentId } target } current)
+        {
+            foreach (var note in Viewer.PageNotes)
+                if (note.Note.EntryId == current.Item.EntryId && (current.Item.Range is null || note.Overlaps(documentId, target.FirstPage, target.LastPage)))
+                    ItemNotes.Add(note);
+        }
+        HasItemNotes = ItemNotes.Count > 0;
     }
 
     [ObservableProperty]

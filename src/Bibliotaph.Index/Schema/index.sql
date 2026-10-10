@@ -185,6 +185,13 @@ CREATE TABLE scope_name (
 ) WITHOUT ROWID;
 CREATE INDEX scope_name_name ON scope_name (name COLLATE NOCASE);
 
+-- Each entry's own note (slice 3f), for the notes column of entry_fts, so a search finds the books whose note has the
+-- words. Projected from catalog.db; page notes aren't searched yet.
+CREATE TABLE entry_note (
+    entry_id  INTEGER PRIMARY KEY,
+    text      TEXT NOT NULL
+);
+
 -- When each entry was last opened, for Home and the Recently opened order. Projected from catalog.db's reading_state.
 CREATE TABLE entry_opened (
     entry_id    INTEGER PRIMARY KEY,
@@ -250,4 +257,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 11;
+PRAGMA user_version = 12;

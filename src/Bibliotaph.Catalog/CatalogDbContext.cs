@@ -23,6 +23,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<SmartView> SmartViews => Set<SmartView>();
+    public DbSet<Note> Notes => Set<Note>();
     public DbSet<SessionPack> SessionPacks => Set<SessionPack>();
     public DbSet<SessionSection> SessionSections => Set<SessionSection>();
     public DbSet<SessionItem> SessionItems => Set<SessionItem>();
@@ -179,6 +180,16 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<SmartView>(e => e.HasIndex(v => v.Name));
+
+        modelBuilder.Entity<Note>(e =>
+        {
+            e.HasIndex(n => new { n.EntryId, n.PageRefId });
+            // One note of its own per entry; page notes are any number.
+            e.HasIndex(n => n.EntryId).IsUnique().HasFilter("page_ref_id IS NULL").HasDatabaseName("ix_note_entry_own");
+            e.HasOne<Entry>().WithMany().HasForeignKey(n => n.EntryId).OnDelete(DeleteBehavior.Cascade);
+            // A note's page reference is its own: the store deletes it with the note.
+            e.HasOne(n => n.PageRef).WithMany().HasForeignKey(n => n.PageRefId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<SessionPack>(e => e.HasIndex(p => p.TouchedUtc));
 

@@ -373,6 +373,22 @@ public sealed class SmartView
     public DateTime UpdatedUtc { get; set; }
 }
 
+/// <summary>
+/// A note (slice 3 plan, choice 18): plain text on an entry, or with a page reference, on pages of one of its
+/// documents. An entry has at most one note of its own; page notes are any number.
+/// </summary>
+public sealed class Note
+{
+    public long Id { get; set; }
+    public long EntryId { get; set; }
+    /// <summary>The pages the note is on; null for the entry's own note.</summary>
+    public long? PageRefId { get; set; }
+    public PageRef? PageRef { get; set; }
+    public required string Text { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+}
+
 /// <summary>An entry added to a collection (choice 10).</summary>
 public sealed class CollectionItem
 {

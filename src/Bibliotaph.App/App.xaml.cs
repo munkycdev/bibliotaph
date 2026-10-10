@@ -157,6 +157,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SessionStore>();
         builder.Services.AddSingleton<SessionsService>();
         builder.Services.AddSingleton<SmartViewStore>();
+        builder.Services.AddSingleton<NoteStore>();
+        builder.Services.AddSingleton<NotesService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));

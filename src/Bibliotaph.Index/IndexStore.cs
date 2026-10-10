@@ -348,6 +348,28 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 scopes.Where(s => entryIds is null || entryIds.Contains(s.EntryId)).Select(s => new { scope = s.Scope, entryId = s.EntryId.Value }), t);
         }, ct);
 
+    /// <summary>
+    /// Replaces the own notes of these entries (entry_note), or of every entry when <paramref name="entryIds"/> is null,
+    /// and refreshes the search rows of those whose note changed.
+    /// </summary>
+    public Task SetNotesAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyDictionary<EntryId, string> notes, CancellationToken ct = default) =>
+        entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            var before = (entryIds is null
+                    ? c.Query<(long EntryId, string Text)>("SELECT entry_id, text FROM entry_note", transaction: t)
+                    : c.Query<(long EntryId, string Text)>("SELECT entry_id, text FROM entry_note WHERE entry_id IN (SELECT value FROM json_each(@ids))",
+                        new { ids = JsonSerializer.Serialize(entryIds) }, t))
+                .ToDictionary(n => n.EntryId, n => n.Text);
+            var after = notes.Where(n => entryIds is null || entryIds.Contains(n.Key)).ToDictionary(n => n.Key.Value, n => n.Value);
+            var changed = before.Keys.Union(after.Keys)
+                .Where(id => !before.TryGetValue(id, out var was) || !after.TryGetValue(id, out var now) || was != now).ToList();
+            if (changed.Count == 0) return;
+            c.Execute("DELETE FROM entry_note WHERE entry_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(changed) }, t);
+            c.Execute("INSERT INTO entry_note (entry_id, text) VALUES (@entryId, @text)",
+                changed.Where(after.ContainsKey).Select(id => new { entryId = id, text = after[id] }), t);
+            foreach (var id in changed) RefreshEntrySearch(c, t, id);
+        }, ct);
+
     /// <summary>Replaces the names of the groups (scope_name), such as each collection's, all at once.</summary>
     public Task SetScopeNamesAsync(IReadOnlyCollection<(string Scope, string Name)> names, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
@@ -388,6 +410,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     DELETE FROM entry_ai WHERE entry_id = @id;
                     DELETE FROM entry_scope WHERE entry_id = @id;
                     DELETE FROM entry_opened WHERE entry_id = @id;
+                    DELETE FROM entry_note WHERE entry_id = @id;
                     DELETE FROM entry_fts WHERE rowid = @id;
                     """,
                     new { id }, t);
@@ -456,12 +479,13 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             """
             INSERT INTO entry_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
             SELECT e.entry_id, coalesce(m.title, e.name, d.display_title, ''), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
-                   coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), '', coalesce(m.confirmed_text, ''),
+                   coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), coalesce(n.text, ''), coalesce(m.confirmed_text, ''),
                    coalesce(m.provisional_text, '') || ' · ' || coalesce(d.meta_title, '') || ' · ' || coalesce(d.meta_author, '') || ' · '
                        || coalesce(d.meta_keywords, '') || ' · ' || coalesce(d.folder_hint, '')
                        || CASE WHEN e.kind <> 'Pack' AND m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
                        || CASE WHEN m.title IS NOT NULL AND e.name IS NOT NULL AND m.title <> e.name THEN ' · ' || e.name ELSE '' END
             FROM entry_doc e LEFT JOIN doc d ON d.document_id = e.document_id LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
+                LEFT JOIN entry_note n ON n.entry_id = e.entry_id
             WHERE e.entry_id = @entryId AND (d.document_id IS NOT NULL OR e.document_id IS NULL)
             """,
             new { entryId }, t);

@@ -42,7 +42,7 @@ public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
 /// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
 /// </summary>
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
-    bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null);
+    bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null, string? Note = null);
 
 /// <summary>
 /// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
@@ -164,7 +164,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
             await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
             [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
-                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))]);
+                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))],
+            await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct));
         db.Entries.Remove(entry);
         await db.SaveChangesAsync(ct);
         return removed;
@@ -181,6 +182,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         await db.SaveChangesAsync(ct);
         var now = _clock.GetUtcNow().UtcDateTime;
         if (removed.Favorite) db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = now });
+        if (removed.Note is { } note) db.Notes.Add(new Note { EntryId = entry.Id, Text = note, CreatedUtc = now, UpdatedUtc = now });
         if (removed.Collections is { Count: > 0 } collections)
         {
             var still = await db.Collections.Where(c => collections.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
@@ -364,7 +366,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// aside for a "Copies disagree" card (choice 7). The card that joined keeps its id, marked as merged. Returns what
     /// moved, which the caller records; the caller saves.
     /// </summary>
-    static async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
+    async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
     {
         var sources = await db.EntrySources.Where(s => s.EntryId == joining).ToListAsync(ct);
         var moved = new MovedRows { Sources = [.. sources.Select(s => new MovedSource(s.Id, s.IsCurrent))] };
@@ -430,6 +432,28 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             item.EntryId = target;
             moved.SessionItems.Add(item.Id);
         }
+        // Notes (slice 3f): page notes all move. The card's own note moves to a card without one; to a card with one, its
+        // text is added at the end, and the note stays behind on the card that joined for Not the same book.
+        if (await db.Notes.SingleOrDefaultAsync(n => n.EntryId == joining && n.PageRefId == null, ct) is { } note)
+        {
+            if (await db.Notes.SingleOrDefaultAsync(n => n.EntryId == target && n.PageRefId == null, ct) is { } own)
+            {
+                var appended = $"{Environment.NewLine}{Environment.NewLine}{note.Text}";
+                own.Text += appended;
+                own.UpdatedUtc = _clock.GetUtcNow().UtcDateTime;
+                moved.NoteAppended = appended;
+            }
+            else
+            {
+                note.EntryId = target;
+                moved.Note = true;
+            }
+        }
+        foreach (var pageNote in await db.Notes.Where(n => n.EntryId == joining && n.PageRefId != null).ToListAsync(ct))
+        {
+            pageNote.EntryId = target;
+            moved.PageNotes.Add(pageNote.Id);
+        }
 
         (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
         return moved;
@@ -494,6 +518,13 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         }
         foreach (var item in await db.SessionItems.Where(i => i.EntryId == entryId && moved.SessionItems.Contains(i.Id)).ToListAsync(ct))
             item.EntryId = card;
+        var own = await db.Notes.SingleOrDefaultAsync(n => n.EntryId == entryId && n.PageRefId == null, ct);
+        if (moved.Note && own is not null) own.EntryId = card;
+        // The added text comes off again, unless the note has been edited past it since; the card kept its own note anyway.
+        else if (moved.NoteAppended is { } appended && own is not null && own.Text.EndsWith(appended, StringComparison.Ordinal))
+            own.Text = own.Text[..^appended.Length];
+        foreach (var pageNote in await db.Notes.Where(n => n.EntryId == entryId && moved.PageNotes.Contains(n.Id)).ToListAsync(ct))
+            pageNote.EntryId = card;
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
     }
@@ -626,6 +657,12 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public List<long> Collections { get; set; } = [];
         /// <summary>The session items that pointed at the card that joined (slice 3c).</summary>
         public List<long> SessionItems { get; set; } = [];
+        /// <summary>The card that joined brought its own note, to a card without one (slice 3f).</summary>
+        public bool Note { get; set; }
+        /// <summary>The text added to the end of the surviving card's own note, from the note of the card that joined.</summary>
+        public string? NoteAppended { get; set; }
+        /// <summary>The page notes the card that joined brought.</summary>
+        public List<long> PageNotes { get; set; } = [];
     }
 
     sealed record MovedSource(long Id, bool WasCurrent);

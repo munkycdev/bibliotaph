@@ -129,4 +129,7 @@ public partial class ViewerView
     }
 
     void AddPages_Click(object sender, RoutedEventArgs e) => _model?.AddPagesCommand.Execute(_selectionPage);
+
+    /// <summary>Note: on the page with selected text, if there is a selection, else the page in view.</summary>
+    void AddNote_Click(object sender, RoutedEventArgs e) => _model?.AddNoteCommand.Execute(PagesView.SelectionPageIndex);
 }

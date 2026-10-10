@@ -267,6 +267,17 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool CanOcrEveryPage => PageCount > 0;
 
+    /// <summary>The Notes tab (slice 3f): the book's own note and its page notes. Set by the page once the details load.</summary>
+    [ObservableProperty]
+    public partial EntryNotesViewModel? Notes { get; set; }
+
+    /// <summary>The Notes tab is shown instead of the details.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDetailsTab))]
+    public partial bool IsNotesTab { get; set; }
+
+    public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
+
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers)
     {

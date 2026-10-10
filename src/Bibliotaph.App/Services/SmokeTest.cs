@@ -109,6 +109,8 @@ static class SmokeTest
             if (real is { } reprocessed)
             {
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
+                await Check("a book's note written in the details and found by search, and a page note added in the reader, deleted with Undo and listed in the details",
+                    () => UseNotesAsync(services, window, reprocessed.Pdf));
                 await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, run, and deleted with Undo",
                     () => UseSessionPacksAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
@@ -1292,6 +1294,78 @@ static class SmokeTest
     /// Slice 3a: a PDF opened from the Library, left on its second page, opens there again next time; Home lists it
     /// under Recently opened; and a search hit still opens at its own page.
     /// </summary>
+    /// <summary>
+    /// Slice 3f: the book's own note typed in the details' Notes tab and found by a word from it; a page note added
+    /// in the reader with Note, shown in its notes panel, deleted with Undo, and listed in the details; then both cleared.
+    /// </summary>
+    static async Task UseNotesAsync(IServiceProvider services, Window window, long documentId)
+    {
+        const string Word = "quillwort";
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var notes = services.GetRequiredService<NotesService>();
+        var reading = services.GetRequiredService<ReadingService>();
+        var kept = await reading.GetPositionAsync(documentId);
+        shell.NavigateCommand.Execute(Route.Library);
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+        await WaitUntilAsync(window, () => library.Inspector?.Notes is not null, () => "The details didn't load the book's notes.");
+        var inspector = library.Inspector!;
+        var entryId = inspector.Notes!.EntryId;
+
+        var tab = Descendants<RadioButton>(window).FirstOrDefault(r => r.Name == "NotesTab");
+        if (tab is not { IsVisible: true }) throw new InvalidOperationException("The details don't show a Notes tab.");
+        tab.IsChecked = true;
+        await WaitUntilAsync(window, () => inspector.IsNotesTab && Descendants<TextBox>(window).Any(t => t.Name == "EntryNote" && t.IsVisible),
+            () => "The Notes tab didn't show the book's note.");
+        Descendants<TextBox>(window).First(t => t.Name == "EntryNote").Text = $"Ask the {Word} gargoyle about the bell.";
+        search.Search(Word);
+        await WaitUntilAsync(window, () => library.Items is [{ } found] && found.DocumentId == documentId, () => $"Searching “{Word}” didn't find the book by its note.");
+        search.Search("");
+
+        // A page note, added in the reader on the page in view.
+        await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf && !viewer.HasPageNotes && Shown(window, "AddNote"), () => "The PDF didn't open, or it already has page notes.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddNote"), "the reader's Note");
+        await WaitUntilAsync(window, () => viewer.NoteDialog is not null && Shown(window, "SaveNoteButton"), () => "Note didn't ask for the note.");
+        viewer.NoteDialog!.Text = "The bell rings at midnight.";
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveNoteButton"), "the dialog's Save note");
+        await WaitUntilAsync(window, () => viewer.NoteDialog is null && viewer.PageNotes is [{ Text: "The bell rings at midnight." }] && viewer.NotesVisible
+                && Descendants<ItemsControl>(window).Any(i => i.Name == "ReaderPageNotes" && i.IsVisible && i.Items.Count == 1),
+            () => "Saving didn't show the note in the reader's notes panel.");
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteNote"), "Delete this note");
+        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.HasNoteUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoNote"), "Undo the delete");
+        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 1, () => "Undo didn't bring the note back.");
+        navigation.GoBack();
+        await Settle(window);
+
+        // The details list the page note under the book's own.
+        library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The Library didn't show the smoke PDF again.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+        await WaitUntilAsync(window, () => library.Inspector?.Notes is { HasPageNotes: true } shown && shown.Text.Contains(Word, StringComparison.Ordinal),
+            () => "The details don't list the page note under the book's note.");
+
+        // Clear both, so later checks see the book as it was.
+        library.Inspector!.IsNotesTab = false;
+        library.CloseDetailsCommand.Execute(null);
+        await Settle(window);
+        foreach (var note in await notes.GetPageNotesAsync(entryId)) await notes.DeletePageNoteAsync(note.Id);
+        await notes.SetEntryNoteAsync(entryId, "");
+        // The reader can settle on another page of the short smoke PDF as the notes panel changes its width; put the
+        // book's kept place back for the session check that follows.
+        await reading.SavePositionAsync(documentId, kept);
+        search.Search(Word);
+        await WaitUntilAsync(window, () => library.Items.Count == 0, () => "The cleared note still finds the book.");
+        search.Search("");
+    }
+
     static async Task ResumeBookAsync(IServiceProvider services, Window window, long documentId)
     {
         var shell = services.GetRequiredService<ShellViewModel>();

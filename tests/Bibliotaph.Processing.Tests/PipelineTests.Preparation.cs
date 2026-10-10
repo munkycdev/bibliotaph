@@ -5,7 +5,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 3a to 3c: hearts, opens, collections and session packs reach the Library through index.db, and come back after it is rebuilt.</summary>
+/// <summary>Slice 3a to 3f: hearts, opens, collections, session packs and notes reach the Library through index.db, and come back after it is rebuilt.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]
@@ -164,5 +164,48 @@ public sealed partial class PipelineTests
         Assert.All(targets, t => Assert.Equal(SessionItemState.Unreachable, t.State));
         Assert.False(targets[0].CanOpen);
         Assert.EndsWith("second printing.pdf", targets[2].LastPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_book_is_found_by_its_note_and_page_notes_follow_it()
+    {
+        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
+        Copy(pdfs.Scanned, "Scans/Goblin Scan.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var search = new LibraryQueries(_index);
+        var cards = await search.ListAsync(new LibraryFilter(), ct: Ct);
+        var (known, scan) = (cards[0], cards[1]);
+        var notes = new NotesService(_notes, _entries, _queries, _projector);
+        var changed = new List<EntryId>();
+        notes.PageNotesChanged += (_, id) => changed.Add(id);
+        async Task<IReadOnlyList<EntryId>> FindAsync(string query) =>
+            [.. (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Select(c => c.EntryId)];
+
+        await notes.SetEntryNoteAsync(scan.EntryId, "Use the lighthouse keeper as the patron", Ct);
+        Assert.Equal([scan.EntryId], await FindAsync("lighthouse"));
+        Assert.Equal("Use the lighthouse keeper as the patron", await notes.GetEntryNoteAsync(scan.EntryId, Ct));
+
+        // index.db is derived: emptied and projected again, the note is found again.
+        await new IndexStore(_writer).SetNotesAsync(null, new Dictionary<EntryId, string>(), Ct);
+        Assert.Empty(await FindAsync("lighthouse"));
+        await _projector.ProjectAllAsync(Ct);
+        Assert.Equal([scan.EntryId], await FindAsync("lighthouse"));
+
+        await notes.SetEntryNoteAsync(scan.EntryId, "", Ct);
+        Assert.Empty(await FindAsync("lighthouse"));
+
+        var note = await notes.AddPageNoteAsync(known.DocumentId, 1, 0, "Read this aloud", Ct);
+        Assert.Equal((0, 1, known.EntryId), (note!.Range.FirstPdfPage, note.Range.LastPdfPage, note.EntryId));
+        Assert.Equal([note], await notes.GetPageNotesForDocumentAsync(known.DocumentId, Ct));
+        var updated = await notes.UpdatePageNoteAsync(note, "Read this aloud, slowly", 1, 1, Ct);
+        Assert.Equal((1, "Read this aloud, slowly"), (updated!.Range.FirstPdfPage, updated.Text));
+        var deleted = await notes.DeletePageNoteAsync(note.Id, Ct);
+        Assert.Empty(await notes.GetPageNotesAsync(known.EntryId, Ct));
+        Assert.NotNull(await notes.RestorePageNoteAsync(deleted!, Ct));
+        Assert.Equal([known.EntryId, known.EntryId, known.EntryId, known.EntryId], changed);
+        // Page notes aren't searched yet.
+        Assert.Empty(await FindAsync("aloud"));
     }
 }

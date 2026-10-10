@@ -18,7 +18,7 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
     SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null, FavoriteStore? favorites = null,
-    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null) : IDisposable
+    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null, NoteStore? notes = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -51,8 +51,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
-    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened), after
-    /// one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
+    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened, their own
+    /// note), after one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
     /// </summary>
     public async Task ProjectMarksAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -101,6 +101,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             await index.SetScopesAsync(entryIds, scopes, ct);
         }
         if (reading is not null) await index.SetOpenedAsync(entryIds, await reading.GetOpenedAsync(entryIds, ct), ct);
+        if (notes is not null) await index.SetNotesAsync(entryIds, await notes.GetEntryNotesAsync(entryIds, ct), ct);
         if (entryIds is null) await WriteCollectionNamesAsync(ct);
     }
 
