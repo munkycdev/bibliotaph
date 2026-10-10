@@ -227,6 +227,36 @@
       </Border>
     </DataTemplate>
 
+    <!-- A file with the title of a book owned elsewhere (F5a): Same book puts the file on the book's card. -->
+    <DataTemplate DataType="{x:Type vm:ElsewhereCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Owned elsewhere" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this file"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" Visibility="{Binding Path, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <WrapPanel Margin="0,16,0,0">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="Same book" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding SameBookCommand}" Margin="0,0,8,8"
+                      ToolTip="One card: the book you own elsewhere, now opening this file. What you set on it stays." />
+              <Button Content="Separate book" Command="{Binding SeparateBookCommand}" Margin="0,0,8,8"
+                      ToolTip="Two cards, as now. Bibliotaph won't ask about these two again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- A smaller or mixed folder of images (F4): make it one card, or keep its images separate. -->
     <DataTemplate DataType="{x:Type vm:PackCardViewModel}">
       <Border Style="{StaticResource Card}">

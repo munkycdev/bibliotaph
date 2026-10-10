@@ -21,6 +21,7 @@ public partial class LibraryView
         // Hooked here, not in XAML: the bulk editor is a control from this assembly, and XAML events on those are wired
         // in a second compile pass the code-style analyzers don't see, so they report the handler as unused.
         BulkDialog.IsVisibleChanged += BulkDialog_IsVisibleChanged;
+        ElsewhereDialog.IsVisibleChanged += ElsewhereDialog_IsVisibleChanged;
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
         Unloaded += (_, _) =>
         {
@@ -109,6 +110,21 @@ public partial class LibraryView
         {
             _focusBeforeDialog = Keyboard.FocusedElement;
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => BulkDialog.FocusFirst());
+        }
+        else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
+        {
+            previous.Focus();
+            _focusBeforeDialog = null;
+        }
+    }
+
+    /// <summary>And for Add a book I own elsewhere: focus on its title as it opens, and back to the button after.</summary>
+    void ElsewhereDialog_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (ElsewhereDialog.IsVisible)
+        {
+            _focusBeforeDialog = Keyboard.FocusedElement;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => ElsewhereDialog.FocusFirst());
         }
         else if (_focusBeforeDialog is UIElement { IsVisible: true } previous)
         {

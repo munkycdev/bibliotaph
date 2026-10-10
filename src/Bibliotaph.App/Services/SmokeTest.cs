@@ -98,6 +98,7 @@ static class SmokeTest
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
+            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             if (real is { } reprocessed)
             {
@@ -1006,6 +1007,62 @@ static class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == card.KeepSeparateCommand), "Keep separate");
         await WaitUntilAsync(window, () => card.IsDone, () => "Keep separate didn't decide the card.");
         if ((await packs.GetProposalsAsync()).Any(p => p.Name == Name)) throw new InvalidOperationException("Keep separate left the proposal waiting.");
+    }
+
+    /// <summary>
+    /// Owned elsewhere (F5a): the Library's "Add a book I own elsewhere" dialog makes a card with no file, whose
+    /// inspector opens with Also own first and nothing to open; own:print finds it; Remove takes it away and Undo brings
+    /// it back. The book is removed again at the end, so later checks see the library as it was.
+    /// </summary>
+    static async Task AddElsewhereAsync(IServiceProvider services, Window window, int books)
+    {
+        const string Title = "Smoke Atlas of the Marches";
+        var search = services.GetRequiredService<SearchState>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog.");
+        var dialog = page.AddElsewhereDialog!;
+        dialog.Title = Title;
+        dialog.System = dialog.Systems.FirstOrDefault(s => s.Label == "D&D 5e") ?? throw new InvalidOperationException("The dialog doesn't offer D&D 5e.");
+        (dialog.Owns.FirstOrDefault(o => o.Term.Key == "print") ?? throw new InvalidOperationException("The dialog doesn't offer Print.")).IsChecked = true;
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.SaveCommand), "Add to library");
+        await WaitUntilAsync(window, () => page.AddElsewhereDialog is null && page.Inspector is { IsElsewhere: true },
+            () => "Saving the book didn't open its inspector.");
+
+        var inspector = page.Inspector!;
+        if (inspector.Title != Title) throw new InvalidOperationException($"The inspector shows “{inspector.Title}”.");
+        if (!inspector.Facts.Any(f => f.Value == "No file in your library")) throw new InvalidOperationException("The inspector doesn't say there's no file.");
+        if (inspector.VisibleFields is not [{ Field: var first }, ..] || first != MetadataFields.AlsoOwn) throw new InvalidOperationException("Also own isn't the inspector's first field.");
+        if (Descendants<Button>(window).Any(b => b.Name == "OpenBook" && b.IsVisible)) throw new InvalidOperationException("A book with no file offers Open.");
+        await WaitUntilAsync(window, () => page.Items.Count == books + 1, () => "The book owned elsewhere isn't in the Library.");
+        var card = page.Items.Single(i => i.Title == Title);
+        if (!card.IsElsewhere || card.SizeLabel != "Print" || card.SystemLabel != "D&D 5e")
+            throw new InvalidOperationException($"The card reads “{card.SizeLabel}”, “{card.SystemLabel}”.");
+        if (page.OpenBookCommand.CanExecute(card)) throw new InvalidOperationException("A book with no file can be opened.");
+
+        page.CloseDetailsCommand.Execute(null);
+        search.Search("own:print");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: Title }], () => "own:print didn't find the book owned elsewhere.");
+        search.Search("");
+        await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books + 1, () => "Clearing the search didn't bring the library back.");
+
+        await page.OpenDetailsCommand.ExecuteAsync(card);
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveFromLibrary"), "Remove from library");
+        await WaitUntilAsync(window, () => page.HasRemoveUndo && page.Items.Count == books, () => "Remove from library didn't take the book away.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoRemoveCommand), "Undo the removal");
+        await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == Title && i.IsElsewhere), () => "Undo didn't bring the book back.");
+
+        var back = page.Items.Single(i => i.Title == Title);
+        if (await services.GetRequiredService<ElsewhereService>().RemoveAsync(back.EntryId) is null)
+            throw new InvalidOperationException("The book owned elsewhere couldn't be removed again.");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was.");
     }
 
     /// <summary>A small PNG of its own colour, so each token is different content.</summary>

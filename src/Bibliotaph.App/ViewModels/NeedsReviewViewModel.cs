@@ -146,6 +146,7 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var term in list.Terms) Cards.Add(new TermCardViewModel(term, _vocabulary, this));
             foreach (var version in list.Versions) Cards.Add(new VersionCardViewModel(version, this));
             foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
+            foreach (var match in list.Elsewhere ?? []) Cards.Add(new ElsewhereCardViewModel(match, this));
             Hidden = _items.Count;
             ShowMore();
             Remaining = list.Count;
@@ -311,6 +312,9 @@ public sealed partial class NeedsReviewViewModel(
 
     public async Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer) =>
         await review.AnswerPackAsync(proposal, answer) ?? (() => Task.CompletedTask);
+
+    public async Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer) =>
+        await review.AnswerElsewhereAsync(item.Match, answer) ?? (() => Task.CompletedTask);
 
     public void ShowFolder(string path) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();

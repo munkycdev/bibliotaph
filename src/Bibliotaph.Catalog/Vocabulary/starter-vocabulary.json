@@ -1,6 +1,6 @@
 {
   "comment": "Starter vocabularies, seeded into catalog.db by version. A term or alias is added only when the stored seed version is below its 'since' (default 1), and never overwrites a term the user has changed. Add new terms with a higher 'since' and bump 'version'. Keys are stable: never rename one.",
-  "version": 1,
+  "version": 2,
   "terms": [
     { "vocabulary": "system", "key": "dnd", "label": "Dungeons & Dragons", "short": "D&D", "aliases": ["D&D", "DnD", "D and D", "Dungeons and Dragons", "AD&D", "ADnD"] },
     { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "short": "OD&D", "aliases": ["OD&D", "ODnD", "Original D&D", "0e"] },
@@ -137,6 +137,12 @@
     { "vocabulary": "publisher", "key": "troll-lord", "label": "Troll Lord Games", "aliases": ["Troll Lord"] },
     { "vocabulary": "publisher", "key": "tuesday-knight-games", "label": "Tuesday Knight Games" },
     { "vocabulary": "publisher", "key": "the-design-mechanism", "label": "The Design Mechanism" },
-    { "vocabulary": "publisher", "key": "arc-dream", "label": "Arc Dream Publishing", "aliases": ["Arc Dream"] }
+    { "vocabulary": "publisher", "key": "arc-dream", "label": "Arc Dream Publishing", "aliases": ["Arc Dream"] },
+    { "vocabulary": "own", "key": "print", "label": "Print", "aliases": ["Physical", "Hardcover", "Paper"], "since": 2 },
+    { "vocabulary": "own", "key": "foundry", "label": "Foundry VTT", "short": "Foundry", "aliases": ["Foundry", "FoundryVTT", "FVTT"], "since": 2 },
+    { "vocabulary": "own", "key": "roll20", "label": "Roll20", "aliases": ["Roll 20"], "since": 2 },
+    { "vocabulary": "own", "key": "dnd-beyond", "label": "D&D Beyond", "aliases": ["DnD Beyond", "DDB"], "since": 2 },
+    { "vocabulary": "own", "key": "fantasy-grounds", "label": "Fantasy Grounds", "aliases": ["FG", "FGU", "Fantasy Grounds Unity"], "since": 2 },
+    { "vocabulary": "own", "key": "alchemy", "label": "Alchemy", "aliases": ["Alchemy RPG", "Alchemy VTT"], "since": 2 }
   ]
 }

@@ -16,8 +16,17 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public EntryId EntryId => Entry.EntryId;
 
-    /// <summary>The document the card shows, which opens.</summary>
+    /// <summary>The document the card shows, which opens; 0 for a book owned elsewhere.</summary>
     public long DocumentId => Entry.DocumentId;
+
+    /// <summary>
+    /// A book owned elsewhere, with no file here (F5 plan, choice 4): a placeholder cover with an "Elsewhere" mark,
+    /// and nothing to open.
+    /// </summary>
+    public bool IsElsewhere => Entry.IsElsewhere;
+
+    /// <summary>The card has a file to open.</summary>
+    public bool CanOpen => !IsElsewhere;
 
     public string Title => Entry.Title;
 
@@ -25,7 +34,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
     /// read" until its text is searchable. A pack a search found by one of its images names that image (F4 plan, choice 8).
     /// </summary>
-    public string Meta => Entry.MatchedMember ?? (Catalogued ?? Describe(Entry)) + (Entry.Searchable ? "" : " · still being read");
+    public string Meta => Entry.MatchedMember ?? (Catalogued ?? Describe(Entry)) + (Entry.Searchable || IsElsewhere ? "" : " · still being read");
 
     string? Catalogued => Entry.System is null && Entry.Kind is null ? null : string.Join(" · ", new[] { Entry.System, Entry.Kind }.OfType<string>());
 
@@ -43,8 +52,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// </summary>
     public string Byline => Entry.MatchedMember ?? Entry.Publisher ?? Entry.FolderHint ?? "";
 
-    /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack.</summary>
-    public string SizeLabel => IsPack ? ImagesLabel : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
+    /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack, "Print · Foundry VTT" for a book owned elsewhere.</summary>
+    public string SizeLabel => IsPack ? ImagesLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
 
     /// <summary>Many images shown as one card (F4): its cover is a mosaic of its first four.</summary>
     public bool IsPack => Entry.IsPack;
@@ -65,7 +74,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string Folder => Entry.FolderHint ?? "";
 
-    public string FormatLabel => IsPack ? "PACK" : Entry.Format.ToUpperInvariant();
+    public string FormatLabel => IsPack ? "PACK" : IsElsewhere ? "ELSEWHERE" : Entry.Format.ToUpperInvariant();
 
     /// <summary>A model has read this book: its cover carries a spark.</summary>
     public bool IsAiRead => Entry.AiModel is not null;
@@ -148,6 +157,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public static string Describe(LibraryEntry entry) =>
         entry.IsPack ? $"Image pack · {Images(entry.Members)}"
+        : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
         : entry.PageCount is { } pages ? $"PDF · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
         : "PDF";

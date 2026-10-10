@@ -157,6 +157,22 @@ public sealed class PackDecision
 }
 
 /// <summary>
+/// A file whose title and publisher match a book the user owns elsewhere (F5 plan, choice 6): a Needs review card,
+/// "You own X elsewhere. Is this its file?", while <see cref="Answer"/> is null. "Same book" joins the file to the book
+/// and the row goes; "Separate book" stays, so the pair is never asked about again.
+/// </summary>
+public sealed class ElsewhereMatch
+{
+    public long Id { get; set; }
+    /// <summary>The book owned elsewhere.</summary>
+    public long EntryId { get; set; }
+    /// <summary>The file that may be its.</summary>
+    public long DocumentId { get; set; }
+    public ElsewhereAnswer? Answer { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
 /// The user's answer about a pair of files, by content hash, so Match never asks or joins again: "Not the same book"
 /// keeps them on separate cards.
 /// </summary>

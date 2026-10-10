@@ -147,6 +147,8 @@ public partial class App : Application
         builder.Services.AddSingleton<CopiesService>();
         builder.Services.AddSingleton<PackStore>();
         builder.Services.AddSingleton<PackService>();
+        builder.Services.AddSingleton<ElsewhereStore>();
+        builder.Services.AddSingleton<ElsewhereService>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();

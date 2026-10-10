@@ -122,6 +122,16 @@ public enum PackAnswer
     Proposed,
 }
 
+/// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review (F5 plan, choice 6).</summary>
+public enum ElsewhereAnswer
+{
+    /// <summary>The file joins the book's card, which then opens it.</summary>
+    SameBook,
+
+    /// <summary>A different book: the two stay apart and the pair isn't asked about again.</summary>
+    SeparateBook,
+}
+
 /// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>
 public enum VersionEvidence
 {

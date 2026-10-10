@@ -15,15 +15,20 @@ namespace Bibliotaph.Index;
 /// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack
 /// (<see cref="EntryKind"/>) shows its first image, counts its <see cref="Members"/>, and has the covers of its first
 /// four images for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that
-/// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows.
+/// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned
+/// elsewhere (<see cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/>
+/// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
     string? System = null, string? Kind = null, string? Publisher = null, string? Levels = null, bool NeedsReview = false, bool Suggested = false,
     string? AiModel = null, int Copies = 1, EntryKind EntryKind = EntryKind.Whole, int Members = 0, string? MemberCovers = null,
-    string? MatchedMember = null, long? MatchedDocumentId = null)
+    string? MatchedMember = null, long? MatchedDocumentId = null, string? AlsoOwn = null)
 {
     public bool IsPack => EntryKind == EntryKind.Pack;
+
+    /// <summary>A book owned elsewhere, with no file in the library: nothing to open.</summary>
+    public bool IsElsewhere => EntryKind == EntryKind.Elsewhere;
 
     /// <summary>The cover file names of a pack's first four images that have one.</summary>
     public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
@@ -51,6 +56,8 @@ public enum KindFilter
     /// <summary>Single images, not those in packs.</summary>
     Images,
     Packs,
+    /// <summary>Books owned elsewhere, with no file (F5 plan, choice 8).</summary>
+    Elsewhere,
 }
 
 /// <summary>The AI choice in the filter panel: books a model has read, or those it hasn't yet.</summary>
@@ -66,7 +73,8 @@ public enum AiFilter
 /// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is
 /// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
 /// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12). <see cref="Ai"/> keeps books a model
-/// has or hasn't read, and <see cref="OnlyWithCopies"/> those with more than one file.
+/// has or hasn't read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in
+/// any of those places (Also own term keys; unknown is none).
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -77,7 +85,8 @@ public sealed record LibraryFilter(
     int? Level = null,
     bool IncludeUnknownLevel = false,
     AiFilter Ai = AiFilter.All,
-    bool OnlyWithCopies = false);
+    bool OnlyWithCopies = false,
+    IReadOnlyCollection<string>? Owns = null);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -122,8 +131,8 @@ public sealed class LibraryQueries(IndexDatabase database)
     const string MemberRank = "bm25(member_fts, 10.0)";
 
     const string EntryColumns = """
-        e.entry_id AS EntryId, d.document_id AS DocumentId, coalesce(m.title, e.name, d.display_title) AS Title, d.format AS Format, d.page_count AS PageCount, d.cover AS Cover,
-        d.folder_hint AS FolderHint, d.added_utc AS AddedUtc,
+        e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, coalesce(m.title, e.name, d.display_title, '') AS Title, coalesce(d.format, '') AS Format,
+        d.page_count AS PageCount, d.cover AS Cover, d.folder_hint AS FolderHint, coalesce(d.added_utc, e.added_utc, '') AS AddedUtc,
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
         coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
@@ -131,11 +140,15 @@ public sealed class LibraryQueries(IndexDatabase database)
         CASE WHEN e.kind = 'Pack' THEN (
             SELECT json_group_array(cover) FROM (
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
-                WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers
+                WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
+        (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn
         """;
 
-    /// <summary>Library cards: each entry with the document it shows.</summary>
-    const string Entries = "entry_doc e JOIN doc d ON d.document_id = e.document_id";
+    /// <summary>
+    /// Library cards: each entry with the document it shows, or none for a book owned elsewhere. <see cref="Where"/>
+    /// leaves out a file's card until Probe has its document.
+    /// </summary>
+    const string Entries = "entry_doc e LEFT JOIN doc d ON d.document_id = e.document_id";
 
     const string EntryJoin = """
         LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'
@@ -183,7 +196,7 @@ public sealed class LibraryQueries(IndexDatabase database)
                 {members})
             SELECT {EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId
             FROM (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
-            JOIN entry_doc e ON e.entry_id = h.entry_id JOIN doc d ON d.document_id = e.document_id {EntryJoin}
+            JOIN entry_doc e ON e.entry_id = h.entry_id LEFT JOIN doc d ON d.document_id = e.document_id {EntryJoin}
             WHERE {where.Sql}
             ORDER BY {Order(filter.Sort, relevance: "h.rank")}
             LIMIT @limit
@@ -239,7 +252,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             $"""
             SELECT d.format, count(*)
             FROM {Entries}
-            WHERE {where.Sql}
+            WHERE {where.Sql} AND d.format IS NOT NULL
             GROUP BY d.format
             ORDER BY count(*) DESC, d.format
             """, where.Parameters, cancellationToken: ct));
@@ -343,6 +356,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         await using var connection = database.OpenRead();
         var entry = (await GetEntriesAsync(connection, [entryId.Value], ct)).SingleOrDefault();
         if (entry is null) return null;
+        if (entry.IsElsewhere) return new DocumentDetails(entry, false, true, null, null, null, null, null, 0, 0, []);
         var documentId = entry.DocumentId;
 
         var (encrypted, canCopy, metaTitle, metaAuthor, metaSubject, widthPx, heightPx) =
@@ -416,15 +430,15 @@ public sealed class LibraryQueries(IndexDatabase database)
         LibrarySort.Title => "coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
         LibrarySort.Publisher => "m.publisher IS NULL, m.publisher COLLATE NOCASE, coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
         LibrarySort.Relevance when relevance is not null => $"{relevance}, e.entry_id",
-        _ => "d.added_utc DESC, e.entry_id DESC",
+        _ => "coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
     };
 
     static List<LibraryEntry> ToEntries(IEnumerable<EntryRow> rows) =>
         [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
-            DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
+            r.AddedUtc.Length == 0 ? DateTime.MinValue : DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
-            r.MatchedMember, r.MatchedDocumentId))];
+            r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn))];
 
     static string? DescribeLevels(string state, long? min, long? max) => state switch
     {
@@ -471,6 +485,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? MemberCovers { get; init; }
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }
+        public string? AlsoOwn { get; init; }
     }
 
     sealed class HitRow
@@ -484,12 +499,13 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The WHERE clause shared by the library and both tabs, over <c>entry_doc e</c> and <c>doc d</c>, the document each entry shows. Built from fixed fragments with
-    /// parameter names it numbers itself; values go into <see cref="Parameters"/>.
+    /// The WHERE clause shared by the library and both tabs, over <c>entry_doc e</c> and <c>doc d</c>, the document each
+    /// entry shows, joined optionally. It always keeps a file's card out until Probe has its document. Built from fixed
+    /// fragments with parameter names it numbers itself; values go into <see cref="Parameters"/>.
     /// </summary>
     sealed class Where
     {
-        readonly StringBuilder _sql = new("1");
+        readonly StringBuilder _sql = new("(d.document_id IS NOT NULL OR e.document_id IS NULL)");
 
         public DynamicParameters Parameters { get; } = new();
 
@@ -515,6 +531,9 @@ public sealed class LibraryQueries(IndexDatabase database)
                 case KindFilter.Packs:
                     _sql.Append(" AND e.kind = 'Pack'");
                     break;
+                case KindFilter.Elsewhere:
+                    _sql.Append(" AND e.kind = 'Elsewhere'");
+                    break;
             }
 
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
@@ -524,7 +543,7 @@ public sealed class LibraryQueries(IndexDatabase database)
 
             if (plan.Formats.Count > 0) Add("d.format IN (SELECT value FROM json_each(@formats))", "formats", JsonSerializer.Serialize(plan.Formats));
             if (plan.ExcludedFormats.Count > 0)
-                Add("d.format NOT IN (SELECT value FROM json_each(@excludedFormats))", "excludedFormats", JsonSerializer.Serialize(plan.ExcludedFormats));
+                Add("coalesce(d.format, '') NOT IN (SELECT value FROM json_each(@excludedFormats))", "excludedFormats", JsonSerializer.Serialize(plan.ExcludedFormats));
 
             for (var i = 0; i < plan.Folders.Count; i++)
                 Add($"coalesce(d.folder_hint, '') LIKE @folder{i} ESCAPE '\\'", $"folder{i}", Contains(plan.Folders[i]));
@@ -544,6 +563,7 @@ public sealed class LibraryQueries(IndexDatabase database)
 
             if (filter.Systems is { Count: > 0 } systems) AddChoice("system", systems, "systems");
             if (filter.Types is { Count: > 0 } types) AddChoice("type", types, "types");
+            if (filter.Owns is { Count: > 0 } owns) AddChoice("own", owns, "owns");
             if (filter.Level is { } level)
             {
                 var known = "EXISTS (SELECT 1 FROM entry_meta lm WHERE lm.entry_id = e.entry_id AND lm.level_state = 'known' AND lm.level_min <= @level AND lm.level_max >= @level)";

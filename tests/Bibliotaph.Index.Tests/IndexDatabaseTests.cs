@@ -123,6 +123,10 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_member"));
         // Version 8: the names of a pack's images are searchable.
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM member_fts"));
+        // Version 9: a book owned elsewhere has no document, and keeps when it was added.
+        Assert.Equal((7L, (string?)null), read.QuerySingle<(long, string?)>("SELECT document_id, added_utc FROM entry_doc"));
+        Assert.Equal(0L, read.ExecuteScalar<long>("SELECT \"notnull\" FROM pragma_table_info('entry_doc') WHERE name = 'document_id'"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = 'entry_doc_document'"));
     }
 
     [Fact]

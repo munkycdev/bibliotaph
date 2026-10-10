@@ -219,4 +219,121 @@ public sealed class EntryStoreTests : IAsyncLifetime
         Assert.Equal((other, otherEntry), (again, againEntry));
         Assert.Equal(first, await _entries.GetCurrentDocumentAsync(entry, Ct));
     }
+
+    // ---- Owned elsewhere (F5a) -------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_book_owned_elsewhere_is_a_card_with_no_file_that_shows_whatever_folders_are_online()
+    {
+        var (abbey, abbeyEntry) = await AddBookAsync("abbey.pdf", 'a');
+        var printed = await _entries.AddElsewhereAsync(Ct);
+
+        var current = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.Contains(new EntryDocument(abbeyEntry, abbey, EntryKind.Whole), current);
+        var elsewhere = Assert.Single(current, c => c.EntryId == printed);
+        Assert.Equal((null, EntryKind.Elsewhere, 0), (elsewhere.DocumentId, elsewhere.Kind, elsewhere.Copies));
+        Assert.NotNull(elsewhere.AddedUtc);
+        Assert.Equal(EntryKind.Elsewhere, await _entries.GetKindAsync(printed, Ct));
+        Assert.Null(await _entries.GetCurrentDocumentAsync(printed, Ct));
+
+        // Always in scope, but in no one folder.
+        Assert.Equal([abbeyEntry, printed], (await _library.GetVisibleEntryIdsAsync(ct: Ct)).OrderBy(e => e.Value));
+        Assert.Equal([abbeyEntry], await _library.GetVisibleEntryIdsAsync(_root, Ct));
+    }
+
+    [Fact]
+    public async Task Removing_a_book_owned_elsewhere_deletes_it_and_undo_brings_back_what_was_set_on_it()
+    {
+        var (_, abbeyEntry) = await AddBookAsync("abbey.pdf", 'a');
+        var printed = await _entries.AddElsewhereAsync(Ct);
+        await _metadata.SetValuesAsync(printed, MetadataFields.Title, ["Tomb of the Serpent"], Ct);
+        await _metadata.SetValuesAsync(printed, MetadataFields.AlsoOwn, ["print", "foundry"], Ct);
+        await _metadata.RejectAsync(printed, MetadataFields.Types, "adventure", Ct);
+
+        // A file's card can't be removed this way.
+        Assert.Null(await _entries.RemoveElsewhereAsync(abbeyEntry, Ct));
+
+        var removed = await _entries.RemoveElsewhereAsync(printed, Ct);
+
+        Assert.NotNull(removed);
+        Assert.DoesNotContain(await _entries.GetCurrentAsync(ct: Ct), c => c.EntryId == printed);
+        Assert.Null(await _entries.GetKindAsync(printed, Ct));
+
+        var restored = await _entries.RestoreElsewhereAsync(removed, Ct);
+
+        var metadata = (await _metadata.GetAsync(restored, Ct)).Compute();
+        Assert.Equal("Tomb of the Serpent", metadata[MetadataFields.Title].First?.Value);
+        Assert.Equal(["foundry", "print"], metadata[MetadataFields.AlsoOwn].Values.Select(v => v.Value).Order());
+        Assert.All(metadata[MetadataFields.AlsoOwn].Values, v => Assert.True(v.Confirmed));
+        Assert.Single((await _metadata.GetAsync(restored, Ct)).Rejections);
+        Assert.Equal(EntryKind.Elsewhere, await _entries.GetKindAsync(restored, Ct));
+    }
+
+    [Fact]
+    public async Task Same_book_brings_the_file_to_the_book_owned_elsewhere_and_undo_takes_it_back()
+    {
+        var printed = await _entries.AddElsewhereAsync(Ct);
+        await _metadata.SetValuesAsync(printed, MetadataFields.Title, ["Tomb of the Serpent"], Ct);
+        await _metadata.SetValuesAsync(printed, MetadataFields.AlsoOwn, ["print"], Ct);
+        var (tomb, file) = await AddBookAsync("tomb.pdf", 'c');
+        await _metadata.ReplaceHintsAsync(file, Hex('c'), [new MetadataProposal(MetadataFields.Title, "tomb", AssertionOrigin.Filename, "tomb.pdf")], Ct);
+        await _metadata.SetValuesAsync(file, MetadataFields.Tags, ["Prep"], Ct);
+
+        var join = await _entries.JoinElsewhereAsync(printed, tomb, Ct);
+
+        Assert.Equal(new CopyJoin(printed, file), join);
+        Assert.Equal([new EntryDocument(printed, tomb, EntryKind.Whole)], await _entries.GetCurrentAsync(ct: Ct));
+        var metadata = (await _metadata.GetAsync(printed, Ct)).Compute();
+        Assert.Equal("Tomb of the Serpent", metadata[MetadataFields.Title].First?.Value);
+        Assert.Equal(["print"], metadata[MetadataFields.AlsoOwn].Values.Select(v => v.Value));
+        Assert.Equal(["Prep"], metadata[MetadataFields.Tags].Values.Select(v => v.Value));
+        Assert.Null(await _entries.JoinElsewhereAsync(printed, tomb, Ct));
+
+        // Undo: the file has its own card with what it brought, and the book is owned elsewhere again.
+        Assert.Equal(file, await _entries.UndoJoinElsewhereAsync(printed, tomb, Ct));
+
+        var current = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.Contains(new EntryDocument(file, tomb, EntryKind.Whole), current);
+        Assert.Contains(current, c => c.EntryId == printed && c.Kind == EntryKind.Elsewhere && c.DocumentId is null);
+        Assert.Equal(["Prep"], (await _metadata.GetAsync(file, Ct)).Compute()[MetadataFields.Tags].Values.Select(v => v.Value));
+        Assert.Empty((await _metadata.GetAsync(printed, Ct)).Compute()[MetadataFields.Tags].Values);
+        Assert.Null(await _entries.UndoJoinElsewhereAsync(printed, tomb, Ct));
+    }
+
+    [Fact]
+    public async Task A_file_is_offered_once_to_a_book_owned_elsewhere_and_separate_book_is_remembered()
+    {
+        var elsewhere = new ElsewhereStore(_contexts, _entries);
+        var printed = await _entries.AddElsewhereAsync(Ct);
+        var (tomb, file) = await AddBookAsync("tomb.pdf", 'c');
+        var (abbey, _) = await AddBookAsync("abbey.pdf", 'a');
+
+        Assert.True(await elsewhere.ProposeAsync(printed, tomb, Ct));
+        Assert.False(await elsewhere.ProposeAsync(printed, tomb, Ct));
+        Assert.False(await elsewhere.ProposeAsync(file, abbey, Ct)); // not a book owned elsewhere
+        var pending = Assert.Single(await elsewhere.GetPendingAsync(Ct));
+        Assert.Equal((printed, tomb, file), (pending.EntryId, pending.DocumentId, pending.FileEntryId));
+
+        var separate = await elsewhere.AnswerAsync(pending.Id, ElsewhereAnswer.SeparateBook, Ct);
+
+        Assert.NotNull(separate);
+        Assert.Empty(await elsewhere.GetPendingAsync(Ct));
+        Assert.False(await elsewhere.ProposeAsync(printed, tomb, Ct));
+        Assert.Null(await elsewhere.AnswerAsync(pending.Id, ElsewhereAnswer.SameBook, Ct));
+
+        await elsewhere.UndoAsync(separate, Ct);
+        pending = Assert.Single(await elsewhere.GetPendingAsync(Ct));
+
+        var same = await elsewhere.AnswerAsync(pending.Id, ElsewhereAnswer.SameBook, Ct);
+
+        Assert.NotNull(same);
+        Assert.Equal(tomb, await _entries.GetCurrentDocumentAsync(printed, Ct));
+        Assert.Empty(await elsewhere.GetPendingAsync(Ct));
+
+        await elsewhere.UndoAsync(same, Ct);
+
+        Assert.Equal(EntryKind.Elsewhere, await _entries.GetKindAsync(printed, Ct));
+        Assert.Equal(tomb, await _entries.GetCurrentDocumentAsync(file, Ct));
+        Assert.Single(await elsewhere.GetPendingAsync(Ct));
+    }
 }

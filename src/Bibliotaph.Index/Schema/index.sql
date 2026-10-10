@@ -93,14 +93,15 @@ CREATE TRIGGER page_au AFTER UPDATE OF text ON page BEGIN
 END;
 
 -- Library cards: each entry and the document it shows (its current source), projected from catalog.db. A pack shows
--- its first image.
+-- its first image. A book owned elsewhere has no document: queries join doc optionally.
 CREATE TABLE entry_doc (
     entry_id     INTEGER PRIMARY KEY,
-    document_id  INTEGER NOT NULL,
+    document_id  INTEGER,                        -- null for a book owned elsewhere
     kind         TEXT    NOT NULL,               -- Bibliotaph.Core.EntryKind
     copies       INTEGER NOT NULL DEFAULT 1,     -- how many files of the book the entry has: "2 copies"
     name         TEXT,                           -- a pack's name, from its folder or ZIP; the title until one is set
-    members      INTEGER NOT NULL DEFAULT 0      -- a pack's images: "120 images"
+    members      INTEGER NOT NULL DEFAULT 0,     -- a pack's images: "120 images"
+    added_utc    TEXT                            -- when a book owned elsewhere was added; a file's card uses its document's
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
@@ -226,4 +227,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 8;
+PRAGMA user_version = 9;

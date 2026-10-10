@@ -52,13 +52,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly IndexingService _indexing;
     readonly CopiesService _copies;
     readonly PackService _packs;
+    readonly ElsewhereService _elsewhere;
     bool _refreshing;
     bool _refreshAgain;
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
-        PackService packs)
+        PackService packs, ElsewhereService elsewhere)
     {
+        _elsewhere = elsewhere;
         Item = item;
         _metadata = metadata;
         _queries = queries;
@@ -86,6 +88,23 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     async Task SplitPack()
     {
         if (await Task.Run(() => _packs.SplitAsync(Item.EntryId))) PackSplit?.Invoke(this, PackImages.Count);
+    }
+
+    /// <summary>A book owned elsewhere (F5 plan, choice 4): no file, so no Open, locations or processing, and Remove from library.</summary>
+    public bool IsElsewhere => Item.IsElsewhere;
+
+    public bool CanOpen => !IsElsewhere;
+
+    public string FactsHeading => IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
+
+    /// <summary>Raised after "Remove from library", with what Undo needs.</summary>
+    public event EventHandler<RemovedEntry>? Removed;
+
+    /// <summary>"Remove from library" (choice 5), for a book owned elsewhere only: a file's card goes when its file does.</summary>
+    [RelayCommand]
+    async Task RemoveFromLibrary()
+    {
+        if (await Task.Run(() => _elsewhere.RemoveAsync(Item.EntryId)) is { } removed) Removed?.Invoke(this, removed);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
@@ -161,7 +180,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         var (metadata, vocabulary) = await _metadata.GetAsync(Item.EntryId);
         var open = Fields.Where(f => f.ShowEvidence).Select(f => f.Field).ToHashSet();
-        Fields = [.. metadata.Fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this, PrimaryFields.Contains(f.Field))
+        // A book owned elsewhere says first where it is owned.
+        var fields = IsElsewhere ? metadata.Fields.OrderBy(f => f.Field != MetadataFields.AlsoOwn) : metadata.Fields;
+        Fields = [.. fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this, PrimaryFields.Contains(f.Field) || IsElsewhere && f.Field == MetadataFields.AlsoOwn)
         {
             ShowEvidence = open.Contains(f.Field),
         })];
@@ -204,7 +225,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public string Title => Item.Title;
 
-    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
+    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -238,13 +259,14 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool CanOcrEveryPage => PageCount > 0;
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing, CopiesService copies, PackService packs, CoverImages covers)
+        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
         IReadOnlyList<CopyDetails> copyList = [];
         IReadOnlyList<PackImageViewModel> images = [];
-        if (item.IsPack)
+        if (item.IsElsewhere) locations = [];
+        else if (item.IsPack)
         {
             // A pack is where its folder or ZIP is; its images are listed below, each with its own file.
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
@@ -257,7 +279,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
                 .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath))];
             copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere);
         await inspector.ReloadMetadataAsync(changed: false);
         return inspector;
     }
@@ -334,6 +356,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details)
     {
+        if (entry.IsElsewhere)
+            return [new("File", "No file in your library"), new("Added", entry.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture))];
         var facts = new List<InspectorFact>
         {
             new("Format", details is { WidthPx: { } w, HeightPx: { } h } && !entry.IsPack

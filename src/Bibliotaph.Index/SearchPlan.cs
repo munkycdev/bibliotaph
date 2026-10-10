@@ -86,6 +86,7 @@ public sealed record SearchPlan
         SearchField.Setting => ["setting"],
         SearchField.Theme => ["theme"],
         SearchField.Environment => ["environment"],
+        SearchField.Own => ["own"],
         _ => null,
     };
 
