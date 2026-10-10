@@ -19,6 +19,9 @@ public sealed record BuiltInEngineOptions
     /// <summary>llama.cpp's server, which the build puts in aiworker\ beside Bibliotaph.exe (build/fetch-engine.ps1).</summary>
     public string ServerPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "aiworker", "llama-server.exe");
 
+    /// <summary>Where downloaded models are kept: %LOCALAPPDATA%\Bibliotaph\models (<see cref="AppPaths.Models"/>).</summary>
+    public string ModelsFolder { get; init; } = AppPaths.ForCurrentUser().Models;
+
     /// <summary>How long the engine stays loaded with nothing to do, before it stops and gives the graphics memory back.</summary>
     public TimeSpan IdleStop { get; init; } = TimeSpan.FromMinutes(5);
 
@@ -395,11 +398,63 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
     }
 }
 
-/// <summary>The built-in AI's models, by the name runs are recorded under.</summary>
+/// <summary>
+/// A model the built-in AI can download (Built-in AI plan, choice 4): pinned to one revision of one file on Hugging
+/// Face, with its size and SHA-256, so what is downloaded is exactly what was tested.
+/// </summary>
+/// <param name="Id">What settings store: "qwen3-8b".</param>
+/// <param name="Name">What people see, and with " (built in)" what runs are recorded under: "Qwen3 8B".</param>
+/// <param name="Repo">The Hugging Face repository.</param>
+/// <param name="Revision">The repository's commit, so a later upload can't change what is downloaded.</param>
+/// <param name="File">The file in the repository, which is also its name in the models folder.</param>
+/// <param name="Bytes">The file's size, for the free disk check and the progress bar.</param>
+/// <param name="Sha256">The file's SHA-256, checked before the model is used.</param>
+/// <param name="GraphicsBytes">The graphics memory it runs well in, with a book's worth of context.</param>
+/// <param name="Licence">The model's licence, by name.</param>
+/// <param name="LicenceUrl">Where the licence can be read, shown before the download starts.</param>
+public sealed record BuiltInModel(string Id, string Name, string Repo, string Revision, string File, long Bytes, string Sha256,
+    long GraphicsBytes, string Licence, Uri LicenceUrl)
+{
+    public Uri DownloadUrl => new($"https://huggingface.co/{Repo}/resolve/{Revision}/{File}");
+}
+
+/// <summary>The built-in AI's models, where they are kept, and the name runs are recorded under.</summary>
 public static class BuiltInModels
 {
-    /// <summary>"Qwen3-8B-Q4_K_M (built in)": a different model, in the records, from the same one on a model server.</summary>
-    public static string NameFor(string modelPath) => $"{Path.GetFileNameWithoutExtension(modelPath)} (built in)";
+    const long GiB = 1L << 30;
+
+    /// <summary>Qwen3 8B, the default: the size the pilot was run with on Ollama, for an 8 GB graphics card.</summary>
+    public static BuiltInModel Qwen8B { get; } = new("qwen3-8b", "Qwen3 8B", "Qwen/Qwen3-8B-GGUF", "7c41481f57cb95916b40956ab2f0b139b296d974",
+        "Qwen3-8B-Q4_K_M.gguf", 5_027_783_488, "d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785", 7 * GiB,
+        "Apache-2.0", new("https://huggingface.co/Qwen/Qwen3-8B/blob/main/LICENSE"));
+
+    /// <summary>Qwen3 4B, for smaller graphics cards and computers without one.</summary>
+    public static BuiltInModel Qwen4B { get; } = new("qwen3-4b", "Qwen3 4B", "Qwen/Qwen3-4B-GGUF", "bc640142c66e1fdd12af0bd68f40445458f3869b",
+        "Qwen3-4B-Q4_K_M.gguf", 2_497_280_256, "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5", 4 * GiB,
+        "Apache-2.0", new("https://huggingface.co/Qwen/Qwen3-4B/blob/main/LICENSE"));
+
+    /// <summary>The models offered, the default first.</summary>
+    public static IReadOnlyList<BuiltInModel> All { get; } = [Qwen8B, Qwen4B];
+
+    public static BuiltInModel? Find(string? id) => All.FirstOrDefault(m => m.Id == id);
+
+    /// <summary>
+    /// The model to suggest for a computer with <paramref name="graphicsBytes"/> of graphics memory (choice 5): the
+    /// largest that fits, or the smallest when the memory isn't known or nothing fits.
+    /// </summary>
+    public static BuiltInModel Suggest(long? graphicsBytes) =>
+        All.FirstOrDefault(m => graphicsBytes >= m.GraphicsBytes) ?? All[^1];
+
+    /// <summary>
+    /// "Qwen3 8B (built in)": a different model, in the records, from the same one on a model server. A model given by
+    /// its id or its downloaded file goes by its name in the list; any other file (in tests) by the file's name.
+    /// </summary>
+    public static string NameFor(string model) =>
+        $"{(Find(model) ?? All.FirstOrDefault(m => Path.GetFileName(model) == m.File))?.Name ?? Path.GetFileNameWithoutExtension(model)} (built in)";
+
+    /// <summary>Where <paramref name="model"/>'s file is, or would be once downloaded: in the models folder, or a path as given.</summary>
+    public static string PathFor(string model, string modelsFolder) =>
+        Find(model) is { } known ? Path.Combine(modelsFolder, known.File) : model;
 }
 
 public static class BuiltInEngineWatch
@@ -412,7 +467,7 @@ public static class BuiltInEngineWatch
     {
         void Check(object? sender, EventArgs e)
         {
-            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || !ai.Setup.IsReady || !ai.Setup.IsBuiltIn)) _ = engine.StopAsync();
+            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || !ai.Setup.IsReady || !ai.Setup.BuiltIn)) _ = engine.StopAsync();
         }
         ai.Changed += Check;
         indexing.Changed += Check;

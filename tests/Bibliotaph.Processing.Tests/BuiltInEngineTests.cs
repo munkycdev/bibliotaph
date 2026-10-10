@@ -201,6 +201,40 @@ public sealed class BuiltInEngineTests : IDisposable
         Assert.Equal(("built-in", "Model-Q4_K_M (built in)"), (info.Provider, Assert.Single(info.Models)));
     }
 
+    [Fact]
+    public void Models_are_found_by_id_and_file_and_suggested_by_graphics_memory()
+    {
+        const long GiB = 1L << 30;
+        var folder = Path.Combine(_folder, "models");
+
+        Assert.Equal("Qwen3 8B (built in)", BuiltInModels.NameFor("qwen3-8b"));
+        Assert.Equal("Qwen3 8B (built in)", BuiltInModels.NameFor(Path.Combine(folder, "Qwen3-8B-Q4_K_M.gguf")));
+        Assert.Equal("Model-Q4_K_M (built in)", BuiltInModels.NameFor(_model));
+        Assert.Equal(Path.Combine(folder, "Qwen3-4B-Q4_K_M.gguf"), BuiltInModels.PathFor("qwen3-4b", folder));
+        Assert.Equal(_model, BuiltInModels.PathFor(_model, folder));
+        Assert.Equal("qwen3-8b", BuiltInModels.Suggest(8 * GiB).Id);
+        Assert.Equal("qwen3-4b", BuiltInModels.Suggest(6 * GiB).Id);
+        Assert.Equal("qwen3-4b", BuiltInModels.Suggest(null).Id);
+        Assert.All(BuiltInModels.All, m => Assert.Equal(64, m.Sha256.Length));
+        Assert.Equal("https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q4_K_M.gguf",
+            BuiltInModels.Qwen8B.DownloadUrl.ToString());
+    }
+
+    [Fact]
+    public void A_built_in_setup_keeps_the_model_server_for_a_switch_back()
+    {
+        var server = new AiSetup("http://localhost:11434", "qwen3:8b", "ollama", true, false, new HashSet<long>());
+        var builtIn = server with { BuiltIn = true, BuiltInModel = "qwen3-8b" };
+
+        Assert.True(builtIn.IsReady);
+        Assert.True(builtIn.IsLocal);
+        Assert.Equal(("built-in", "Qwen3 8B (built in)"), (builtIn.RunProvider, builtIn.ModelName));
+        Assert.Equal(("ollama", "qwen3:8b"), (server.RunProvider, server.ModelName));
+        Assert.False((builtIn with { BuiltInModel = null }).IsReady);
+        Assert.True((AiSetup.Off with { Enabled = true, BuiltIn = true, BuiltInModel = "qwen3-4b" }).IsReady);
+        Assert.Equal(server, builtIn with { BuiltIn = false, BuiltInModel = null });
+    }
+
     sealed class Chat(Func<JsonNode?, string> answer) : HttpMessageHandler
     {
         public Uri? Uri { get; private set; }

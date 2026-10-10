@@ -58,6 +58,7 @@ jobs:
 
       # The app starts its workers from pdfworker\ beside Bibliotaph.exe (WorkerOptions.DefaultWorkerPath), so the
       # worker is published there too, self-contained like the app: neither needs .NET installed.
+      # The built-in AI's engine comes with the app, in aiworker\ (build/fetch-engine.ps1, run by Verify).
       - name: Publish (self-contained win-x64)
         shell: pwsh
         env:
@@ -70,7 +71,8 @@ jobs:
           dotnet publish src/Bibliotaph.PdfWorker/Bibliotaph.PdfWorker.csproj --configuration Release --runtime win-x64 --self-contained `
             -p:Version=$env:VERSION --output publish/pdfworker
           if ($LASTEXITCODE -ne 0) { throw 'Publishing the PDF worker failed.' }
-          foreach ($file in 'publish/Bibliotaph.exe', 'publish/pdfworker/Bibliotaph.PdfWorker.exe', 'publish/pdfworker/pdfium.dll') {
+          foreach ($file in 'publish/Bibliotaph.exe', 'publish/pdfworker/Bibliotaph.PdfWorker.exe', 'publish/pdfworker/pdfium.dll',
+                   'publish/aiworker/llama-server.exe', 'publish/aiworker/engine.txt', 'publish/licenses/LICENSE-llama.cpp.txt') {
             if (-not (Test-Path $file)) { throw "$file is missing from the published app." }
           }
 

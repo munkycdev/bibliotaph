@@ -34,27 +34,32 @@ public sealed class NoApiKeys : IApiKeyStore
 /// <summary>
 /// How AI is set up (choice 10): the endpoint and model, whether it is switched on, whether the user agreed to an
 /// endpoint off this computer, and the library folders never sent. <see cref="IsReady"/> says whether the Classify lane
-/// may send anything.
+/// may send anything. With <see cref="BuiltIn"/>, Bibliotaph runs <see cref="BuiltInModel"/> itself (Built-in AI plan,
+/// choice 7), and the model server's endpoint and model are kept for a switch back.
 /// </summary>
-public sealed record AiSetup(string? Endpoint, string? Model, string Provider, bool Enabled, bool RemoteAllowed, IReadOnlySet<long> SkippedRoots)
+public sealed record AiSetup(string? Endpoint, string? Model, string Provider, bool Enabled, bool RemoteAllowed, IReadOnlySet<long> SkippedRoots,
+    bool BuiltIn = false, string? BuiltInModel = null)
 {
-    /// <summary>The provider of the built-in AI, whose model is a file Bibliotaph runs itself and which has no endpoint.</summary>
+    /// <summary>The provider runs of the built-in AI are recorded under.</summary>
     public const string BuiltInProvider = "built-in";
 
     public static AiSetup Off { get; } = new(null, null, "", false, false, new HashSet<long>());
 
-    public bool IsBuiltIn => Provider == BuiltInProvider;
-
-    public bool IsLocal => IsBuiltIn || (Endpoint is not null && LocalModelClient.IsLocal(Endpoint));
+    public bool IsLocal => BuiltIn || (Endpoint is not null && LocalModelClient.IsLocal(Endpoint));
 
     /// <summary>
     /// Set up, switched on, and either built in, on this computer or network, or allowed off it. Never a fallback to
     /// anything else.
     /// </summary>
-    public bool IsReady => Enabled && Model is not null && (IsBuiltIn || (Endpoint is not null && (IsLocal || RemoteAllowed)));
+    public bool IsReady => Enabled && (BuiltIn
+        ? BuiltInModel is not null
+        : Model is not null && Endpoint is not null && (IsLocal || RemoteAllowed));
 
-    /// <summary>The name runs are recorded under: the model's, or for the built-in AI, its file's.</summary>
-    public string? ModelName => Model is null ? null : IsBuiltIn ? BuiltInModels.NameFor(Model) : Model;
+    /// <summary>The name runs are recorded under: the model server's name for it, or the built-in model's with " (built in)".</summary>
+    public string? ModelName => BuiltIn ? BuiltInModel is null ? null : BuiltInModels.NameFor(BuiltInModel) : Model;
+
+    /// <summary>The provider runs are recorded under.</summary>
+    public string RunProvider => BuiltIn ? BuiltInProvider : Provider;
 }
 
 /// <summary>
@@ -82,9 +87,12 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     /// <summary>The built-in AI's engine, or null where the app has none (tests).</summary>
     public BuiltInEngine? BuiltIn => builtIn;
 
-    /// <summary>The client for the built-in AI on <paramref name="modelPath"/>.</summary>
-    public IModelClient BuiltInClientFor(string modelPath) =>
-        new BuiltInModelClient(builtIn ?? throw new InvalidOperationException("This app has no built-in AI engine."), Http.Value, modelPath);
+    /// <summary>The client for the built-in AI on <paramref name="model"/>: a model's id from <see cref="BuiltInModels"/>, or a file's path.</summary>
+    public IModelClient BuiltInClientFor(string model)
+    {
+        var engine = builtIn ?? throw new InvalidOperationException("This app has no built-in AI engine.");
+        return new BuiltInModelClient(engine, Http.Value, BuiltInModels.PathFor(model, engine.Options.ModelsFolder));
+    }
 
     public async Task LoadAsync(CancellationToken ct = default)
     {
@@ -95,7 +103,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiProvider, ct) ?? "",
             await settings.GetAsync(SettingKeys.AiEnabled, ct) == bool.TrueString,
             await settings.GetAsync(SettingKeys.AiRemoteAllowed, ct) == bool.TrueString,
-            skipped.ToHashSet()));
+            skipped.ToHashSet(),
+            await settings.GetAsync(SettingKeys.AiBuiltIn, ct) == bool.TrueString,
+            await settings.GetAsync(SettingKeys.AiBuiltInModel, ct)));
     }
 
     public async Task SaveAsync(AiSetup setup, CancellationToken ct = default)
@@ -106,15 +116,17 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
         await settings.SetAsync(SettingKeys.AiEnabled, setup.Enabled.ToString(), ct);
         await settings.SetAsync(SettingKeys.AiRemoteAllowed, setup.RemoteAllowed.ToString(), ct);
         await settings.SetAsync(SettingKeys.AiSkippedRoots, JsonSerializer.Serialize(setup.SkippedRoots.Order()), ct);
+        await settings.SetAsync(SettingKeys.AiBuiltIn, setup.BuiltIn.ToString(), ct);
+        await settings.SetAsync(SettingKeys.AiBuiltInModel, setup.BuiltInModel ?? "", ct);
         Apply(setup);
     }
 
     void Apply(AiSetup setup)
     {
-        setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model) };
+        setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model), BuiltInModel = Blank(setup.BuiltInModel) };
         _setup = setup;
         _classifier = !setup.IsReady ? null
-            : setup.IsBuiltIn ? builtIn is null ? null : new ModelClassifier(BuiltInClientFor(setup.Model!), setup.Provider, setup.ModelName!)
+            : setup.BuiltIn ? builtIn is null ? null : new ModelClassifier(BuiltInClientFor(setup.BuiltInModel!), setup.RunProvider, setup.ModelName!)
             : new ModelClassifier(_clients(setup.Endpoint!), setup.Provider, setup.Model!);
         Changed?.Invoke(this, EventArgs.Empty);
     }

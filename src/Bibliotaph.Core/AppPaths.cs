@@ -29,6 +29,12 @@ public sealed record AppPaths(string Root)
     /// <summary>The model pilot's book list, proposals, answers and report (slice 2d). Never part of a backup or the repo.</summary>
     public string Pilot => Path.Combine(Root, "pilot");
 
+    /// <summary>
+    /// The built-in AI's downloaded models (Built-in AI plan, choice 6): gigabytes each, downloaded again rather than
+    /// backed up, and kept by Start over so a fresh library doesn't mean a fresh download.
+    /// </summary>
+    public string Models => Path.Combine(Root, "models");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

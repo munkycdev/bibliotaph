@@ -318,7 +318,7 @@ public partial class App : Application
         // Before the Classify lane looks at whether it may send anything.
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
-        Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.Provider} model {ai.Setup.ModelName}" : "off");
+        Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
