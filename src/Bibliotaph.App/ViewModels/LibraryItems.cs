@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Windows;
 using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Core;
@@ -11,6 +12,8 @@ namespace Bibliotaph.App.ViewModels;
 public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers) : ObservableObject
 {
     bool _coverRequested;
+    bool _siteIconRequested;
+    bool _watchingSiteIcons;
 
     public LibraryEntry Entry { get; private set; } = entry;
 
@@ -20,13 +23,78 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public long DocumentId => Entry.DocumentId;
 
     /// <summary>
-    /// A book owned elsewhere, with no file here (F5 plan, choice 4): a placeholder cover with an "Elsewhere" mark,
-    /// and nothing to open.
+    /// A book owned elsewhere, with no file here (F5 plan, choice 4): a placeholder cover with a badge saying where it
+    /// is, and no file to open; with an online link (online libraries, O1) it opens that.
     /// </summary>
     public bool IsElsewhere => Entry.IsElsewhere;
 
     /// <summary>The card has a file to open.</summary>
     public bool CanOpen => !IsElsewhere;
+
+    /// <summary>The book's page where the user owns it online: its first Also own place with a link. Null without one.</summary>
+    public string? OnlineLink => Entry.OnlineLink;
+
+    public bool HasOnlineLink => OnlineLink is not null;
+
+    /// <summary>Where <see cref="OnlineLink"/> goes: "D&amp;D Beyond".</summary>
+    public string OnlineLabel => Entry.OnlineLabel ?? "the web";
+
+    /// <summary>"Open on D&amp;D Beyond", for the card's menu and the details.</summary>
+    public string OnlineAction => $"Open on {OnlineLabel}";
+
+    /// <summary>A book owned only elsewhere that has an online link: opening the card opens its page in the browser.</summary>
+    public bool OpensOnline => IsElsewhere && HasOnlineLink;
+
+    /// <summary>Open on… in the card's menu: a book with a file here and an online link too. A book only online just opens.</summary>
+    public bool ShowOpenOnline => HasOnlineLink && !IsElsewhere;
+
+    /// <summary>
+    /// The badge on a book owned elsewhere (online libraries plan, choice 12): where it is, its online place first
+    /// ("D&amp;D Beyond"), else the first place it is owned ("Print"), else "Elsewhere".
+    /// </summary>
+    public string BadgeLabel => Entry.OnlineLabel ?? Entry.AlsoOwn?.Split(" · ")[0] ?? "Elsewhere";
+
+    /// <summary>The icon of the site <see cref="OnlineLink"/> is on, for the badge; null until it loads, or when icons are off or it has none.</summary>
+    public ImageSource? SiteIcon
+    {
+        get
+        {
+            if (!_siteIconRequested && IsElsewhere && OnlineLink is { } link && covers.Sites is { } sites)
+            {
+                _siteIconRequested = true;
+                if (!_watchingSiteIcons)
+                {
+                    // Switching icons on or off in Settings shows or hides them on the cards already made.
+                    _watchingSiteIcons = true;
+                    WeakEventManager<SiteIconImages, EventArgs>.AddHandler(sites, nameof(SiteIconImages.Changed), (_, _) => RefreshSiteIcon());
+                }
+                field = sites.TryGet(link);
+                if (field is null) _ = LoadSiteIconAsync(sites, link);
+            }
+            return field;
+        }
+        private set
+        {
+            field = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSiteIcon));
+        }
+    }
+
+    public bool HasSiteIcon => SiteIcon is not null;
+
+    async Task LoadSiteIconAsync(SiteIconImages sites, string link)
+    {
+        var icon = await sites.GetAsync(link);
+        if (icon is not null && link == OnlineLink) SiteIcon = icon;
+    }
+
+    /// <summary>Asks for the site icon again, as after "Show site icons" was switched on or off.</summary>
+    public void RefreshSiteIcon()
+    {
+        _siteIconRequested = false;
+        SiteIcon = null;
+    }
 
     /// <summary>A PDF whose text Bibliotaph can read, so it can be asked a question (Ask plan, choice 11).</summary>
     public bool CanAsk => CanOpen && !Entry.IsPack && string.Equals(Entry.Format, "pdf", StringComparison.OrdinalIgnoreCase) && TextAccess == TextAccess.Readable;
@@ -245,7 +313,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         if (entry == Entry) return;
         if (_favorite == entry.Favorite) _favorite = null;
         var coverChanged = entry.Cover != Entry.Cover;
+        var linkChanged = entry.OnlineLink != Entry.OnlineLink;
         Entry = entry;
+        if (linkChanged) RefreshSiteIcon();
         if (coverChanged)
         {
             _coverRequested = false;
@@ -278,6 +348,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(CanForgetText));
         OnPropertyChanged(nameof(CanReadAgain));
         OnPropertyChanged(nameof(PartsLabel));
+        OnPropertyChanged(nameof(OnlineLink));
+        OnPropertyChanged(nameof(HasOnlineLink));
+        OnPropertyChanged(nameof(OnlineLabel));
+        OnPropertyChanged(nameof(OnlineAction));
+        OnPropertyChanged(nameof(OpensOnline));
+        OnPropertyChanged(nameof(ShowOpenOnline));
+        OnPropertyChanged(nameof(BadgeLabel));
     }
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";

@@ -19,8 +19,8 @@ public enum FieldKind
     Players,
 
     /// <summary>
-    /// Where to get it: a term of the store vocabulary, with an optional web link after a space ("drivethrurpg
-    /// https://…"). See <see cref="StoreLink"/>.
+    /// A term with an optional web link after a space: where to get it ("drivethrurpg https://…") or where else it is
+    /// owned ("dnd-beyond https://…"). See <see cref="StoreLink"/>.
     /// </summary>
     Store,
 }
@@ -74,10 +74,11 @@ public static class MetadataFields
     public static readonly MetadataField Tags = new("tags", "Your tags", FieldKind.Text, Multiple: true);
 
     /// <summary>
-    /// Where else the user owns the book: in print, on a VTT (F5 plan, choice 3). Only the user sets it; no hint or
-    /// model suggests it. An entry owned elsewhere, with no file here, says so first.
+    /// Where else the user owns the book: in print, on a VTT (F5 plan, choice 3), with the book's page there when the
+    /// place is online (online libraries, O1): "dnd-beyond https://www.dndbeyond.com/sources/…". Only the user sets it;
+    /// no hint or model suggests it. An entry owned elsewhere, with no file here, says so first, and opens its link.
     /// </summary>
-    public static readonly MetadataField AlsoOwn = new("own", "Also own", FieldKind.Term, Multiple: true, Vocabulary: "own");
+    public static readonly MetadataField AlsoOwn = new("own", "Also own", FieldKind.Store, Multiple: true, Vocabulary: "own");
 
     /// <summary>
     /// Where the book can be got again: a store, with a link to its page there when someone has one (scenario review,

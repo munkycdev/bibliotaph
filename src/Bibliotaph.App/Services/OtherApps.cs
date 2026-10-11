@@ -64,3 +64,18 @@ public sealed class OtherApps(LibraryStore library, IShellLauncher launcher)
         return launcher.Open(path) is { } error ? $"Windows couldn't open it: {error}" : null;
     }
 }
+
+/// <summary>
+/// Opens a book where the user owns it online (online libraries, O1): its Also own link, in the user's own browser.
+/// The link is one the user put there, so it opens without asking, unlike a link inside a PDF. Only http and https
+/// addresses open.
+/// </summary>
+public sealed class OnlineBooks(IShellLauncher launcher)
+{
+    /// <summary>Returns what to tell the user when it couldn't, or null once the browser has it.</summary>
+    public string? Open(string? link)
+    {
+        if (link is null || Core.Metadata.StoreLink.WebAddress(link) is not { } address) return "This book has no web link to open.";
+        return launcher.Open(address) is { } error ? $"Windows couldn't open its page: {error}" : null;
+    }
+}

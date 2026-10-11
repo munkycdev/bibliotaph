@@ -128,4 +128,47 @@ public class WatermarksTests
 
         Assert.Equal(["The Vault Job", "A heist for 4-6 characters."], Watermarks.Strip(pages));
     }
+
+    static readonly Vocabulary Places = new(
+        [new Term("own", "print", "Print"), new Term("own", "dnd-beyond", "D&D Beyond"), new Term("store", StoreLink.OtherStore, "Other store")],
+        [("own", "dnd-beyond", "DDB"), ("own", "dnd-beyond", "dndbeyond.com")]);
+
+    [Theory]
+    [InlineData("https://www.dndbeyond.com/sources/dnd/vault-job", "dnd-beyond", "D&D Beyond")]
+    [InlineData("DDB https://www.dndbeyond.com/sources/dnd/vault-job", "dnd-beyond", "DDB")]
+    [InlineData("Print", "print", "Print")]
+    public void Also_own_finds_its_place_by_name_or_by_its_links_site(string typed, string key, string name)
+    {
+        var (term, read, _) = StoreLink.Read(typed, Places, MetadataFields.AlsoOwn);
+
+        Assert.Equal((key, name), (term?.Key, read));
+    }
+
+    [Fact]
+    public void A_link_to_a_site_Also_own_doesnt_know_names_a_new_place_after_the_site()
+    {
+        var (term, name, url) = StoreLink.Read("https://www.lanternworks.example/library/vault", Places, MetadataFields.AlsoOwn);
+
+        Assert.Null(term);
+        Assert.Equal(("lanternworks.example", "https://www.lanternworks.example/library/vault"), (name, url));
+    }
+
+    [Fact]
+    public void A_link_is_on_its_places_own_site_only_when_the_vocabulary_says_so()
+    {
+        Assert.True(new StoreLink("dnd-beyond", "https://www.dndbeyond.com/sources/dnd/vault-job").IsOnOwnSite(Places, "own"));
+        Assert.False(new StoreLink("dnd-beyond", "https://lanternworks.example/vault").IsOnOwnSite(Places, "own"));
+        Assert.False(new StoreLink("print", null).IsOnOwnSite(Places, "own"));
+    }
+
+    [Theory]
+    [InlineData("D&D Beyond https://www.dndbeyond.com/sources/dnd/vault-job", null)]
+    [InlineData(" - ", "Also own needs a name or a web link.")]
+    public void Also_own_values_are_checked_as_links_too(string typed, string? problem) =>
+        Assert.Equal(problem, MetadataValues.Parse(MetadataFields.AlsoOwn, typed).Problem);
+
+    [Fact]
+    public void Also_own_splits_like_Get_it_from() =>
+        Assert.Equal(["Print", "D&D Beyond https://www.dndbeyond.com/sources/dnd/a?b=1,2"],
+            MetadataValues.Split(MetadataFields.AlsoOwn, "Print, D&D Beyond https://www.dndbeyond.com/sources/dnd/a?b=1,2"));
 }

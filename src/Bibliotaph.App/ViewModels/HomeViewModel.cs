@@ -151,12 +151,21 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand]
     void CatalogedWrong(LibraryItemViewModel item) => pages.ShowCorrection(item.EntryId);
 
-    /// <summary>Opens a book where it was left (choice 6), from a cover's menu or Enter on it.</summary>
-    [RelayCommand(CanExecute = nameof(CanOpenBook))]
+    /// <summary>Opens a book where it was left (choice 6), from a cover's menu or Enter on it; a book owned only online opens its page.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
     {
-        if (await RequestAsync(item) is { } request) readers.OpenInMainWindow(request);
+        if (item.OpensOnline) text.OpenOnline(item);
+        else if (await RequestAsync(item) is { } request) readers.OpenInMainWindow(request);
     }
+
+    /// <summary>Open on…, from a cover's menu: the book's page where the user owns it online.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenOnline))]
+    void OpenOnline(LibraryItemViewModel item) => text.OpenOnline(item);
+
+    static bool CanOpenOnline(LibraryItemViewModel? item) => item is { HasOnlineLink: true };
+
+    static bool CanOpenCard(LibraryItemViewModel? item) => item is { CanOpen: true } or { OpensOnline: true };
 
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenBook))]
     async Task OpenBookInNewWindow(LibraryItemViewModel item)

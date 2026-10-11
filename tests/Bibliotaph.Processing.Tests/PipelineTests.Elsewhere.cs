@@ -90,4 +90,43 @@ public sealed partial class PipelineTests
         await SettleUntilAsync(async () => await _elsewhere.CountPendingAsync(Ct) == 3);
         Assert.Equal([printed.Value, other.Value, glass!.Value], (await _elsewhere.GetPendingAsync(Ct)).Select(p => p.Match.EntryId));
     }
+
+    [Fact]
+    public async Task A_book_owned_online_keeps_its_link_once_and_its_card_opens_it()
+    {
+        await _service.StartAsync(Ct);
+        var search = new LibraryQueries(_index);
+        const string Link = "https://www.dndbeyond.com/sources/dnd/vault-job";
+
+        // D&D Beyond ticked and its link typed too: one value, with the link, found through the site's name.
+        var (added, problem) = await _elsewhere.AddAsync(new ElsewhereDraft("The Vault Job", AlsoOwn: ["D&D Beyond", "Print", Link]), Ct);
+        Assert.Null(problem);
+        var online = Assert.IsType<EntryId>(added);
+        var owns = (await _metadata.GetAsync(online, Ct)).Metadata[MetadataFields.AlsoOwn].Values.Select(v => v.Value).Order();
+        Assert.Equal(["dnd-beyond " + Link, "print"], owns);
+
+        var card = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal((Link, "D&D Beyond", "D&D Beyond · Print"), (card.OnlineLink, card.OnlineLabel, card.AlsoOwn));
+        Assert.Equal([online], (await search.ListAsync(new LibraryFilter(), SearchPlan.From(SearchQuery.Parse("own:\"D&D Beyond\" where:elsewhere")), ct: Ct))
+            .Select(e => e.EntryId));
+
+        // A link to a site the vocabulary doesn't know names a place of the user's own after the site.
+        Assert.Null(await _metadata.SetAsync(online, MetadataFields.AlsoOwn, "https://www.lanternworks.example/library/vault-job", Ct));
+        card = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal(("https://www.lanternworks.example/library/vault-job", "lanternworks.example"), (card.OnlineLink, card.OnlineLabel));
+    }
+
+    [Fact]
+    public async Task The_starter_vocabulary_knows_online_libraries_and_stores_by_their_sites()
+    {
+        await _service.StartAsync(Ct);
+        var vocabulary = await _vocabulary.GetAsync(Ct);
+
+        Assert.Equal("dnd-beyond", StoreLink.FromSite("https://www.dndbeyond.com/sources/dnd/x", vocabulary, "own")?.Key);
+        Assert.Equal("demiplane", StoreLink.FromSite("https://app.demiplane.com/nexus/x", vocabulary, "own")?.Key);
+        Assert.Equal("roll20", StoreLink.FromSite("https://app.roll20.net/compendium/x", vocabulary, "own")?.Key);
+        Assert.Equal("shard", vocabulary.Resolve("own", "Shard Tabletop")?.Key);
+        Assert.Equal("dmsguild", StoreLink.FromSite("https://www.dmsguild.com/product/1", vocabulary)?.Key);
+        Assert.Equal("paizo", StoreLink.FromSite("https://paizo.com/products/x", vocabulary)?.Key);
+    }
 }

@@ -778,11 +778,22 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <!-- A book owned elsewhere (F5a): no file here, so a placeholder with a mark saying where it is. -->
-        <Border x:Name="ElsewhereMark" Margin="0,0,0,8" Padding="7,2" CornerRadius="3" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" Visibility="Collapsed">
-          <TextBlock Text="Elsewhere" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
-        </Border>
+        <!-- A book owned elsewhere (F5a): no file here, so a placeholder with a corner badge saying where it is (online
+             libraries plan, choice 12): the site's own icon when it is online and icons are on, else a cloud. -->
+        <Viewbox x:Name="ElsewhereMark" StretchDirection="DownOnly" Margin="4,0,4,6" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                 Visibility="Collapsed" ToolTip="{Binding SizeLabel, StringFormat='Owned elsewhere: {0}'}">
+          <Border Padding="4,2,7,2" CornerRadius="3" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+                  AutomationProperties.Name="{Binding BadgeLabel, StringFormat='Owned elsewhere: {0}'}">
+            <StackPanel Orientation="Horizontal">
+              <Grid Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center">
+                <c:LucideIcon x:Name="ElsewhereGlyph" Data="{StaticResource Icon.Cloud}" Size="12" StrokeThickness="2" Foreground="{DynamicResource Bt.Muted}" />
+                <Image x:Name="SiteIcon" Source="{Binding SiteIcon}" Width="12" Height="12" Visibility="Collapsed"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+              </Grid>
+              <TextBlock Text="{Binding BadgeLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Viewbox>
         <!-- A book whose folder is offline or whose file is missing (4g): the cover dims, and a mark says which. -->
         <Viewbox x:Name="AwayMark" StretchDirection="DownOnly" Margin="4,0,4,8" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                  Visibility="Collapsed" ToolTip="{Binding AvailabilityTip}">
@@ -820,6 +831,10 @@
       </DataTrigger>
       <DataTrigger Binding="{Binding IsElsewhere}" Value="True">
         <Setter TargetName="ElsewhereMark" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding HasSiteIcon}" Value="True">
+        <Setter TargetName="SiteIcon" Property="Visibility" Value="Visible" />
+        <Setter TargetName="ElsewhereGlyph" Property="Visibility" Value="Collapsed" />
       </DataTrigger>
       <DataTrigger Binding="{Binding HasTextMark}" Value="True">
         <Setter TargetName="TextMark" Property="Visibility" Value="Visible" />
@@ -960,6 +975,9 @@
     <MenuItem Header="Open" Command="{x:Static c:BookCommands.Open}" CommandParameter="{Binding}" />
     <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
               CommandParameter="{Binding}" />
+    <!-- Online libraries (O1): a book with a file here that the user also owns online opens its page there too. -->
+    <MenuItem Header="{Binding OnlineAction}" Command="{x:Static c:BookCommands.OpenOnline}" CommandParameter="{Binding}"
+              ToolTip="{Binding OnlineLink}" Visibility="{Binding ShowOpenOnline, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
     <!-- Ask this book (Ask plan, choice 11): only a PDF with text, and only while AI is on, so it shows only when it can run. -->
     <MenuItem Header="Ask this book" Command="{x:Static c:BookCommands.Ask}" CommandParameter="{Binding}"

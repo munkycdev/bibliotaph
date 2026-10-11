@@ -222,10 +222,12 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             foreach (var value in effective[field].Values)
                 facets.Add(new FacetRow(field.Key, value.Value, vocabulary.Label(field.Vocabulary!, value.Value), value.Confirmed));
 
-        // Where to get it is filtered and searched by store; a store with two links is one facet.
-        var stores = MetadataFields.GetItFrom;
-        foreach (var store in effective[stores].Values.GroupBy(v => StoreLink.Parse(v.Value).Store, StringComparer.Ordinal))
-            facets.Add(new FacetRow(stores.Key, store.Key, vocabulary.Label(stores.Vocabulary!, store.Key), store.Any(v => v.Confirmed)));
+        // Where to get it and where else it is owned are filtered and searched by term; a term with two links is one
+        // facet, which keeps the first link (a confirmed one first) for cards to open.
+        foreach (var field in MetadataFields.All.Where(f => f.Kind == FieldKind.Store))
+            foreach (var term in effective[field].Values.GroupBy(v => StoreLink.Parse(v.Value).Store, StringComparer.Ordinal))
+                facets.Add(new FacetRow(field.Key, term.Key, vocabulary.Label(field.Vocabulary!, term.Key), term.Any(v => v.Confirmed),
+                    term.OrderByDescending(v => v.Confirmed).Select(v => StoreLink.Parse(v.Value).Url).FirstOrDefault(u => u is not null)));
 
         // An edition implies its system, so filtering by D&D finds books only known to be 5e.
         var edition = effective[MetadataFields.Edition].First;
@@ -451,6 +453,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
             added |= isNew;
             values.Add(value!);
         }
+        if (field.Kind == FieldKind.Store) values = WithoutBareDuplicates(values);
         await metadata.SetValuesAsync(entryId, field, values, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([entryId], ct);
@@ -467,7 +470,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         if (Check(field, part) is { } problem) return (null, problem, false);
         if (field.Kind == FieldKind.Store)
         {
-            var (term, name, url) = StoreLink.Read(part, await vocabularies.GetAsync(ct));
+            var (term, name, url) = StoreLink.Read(part, await vocabularies.GetAsync(ct), field);
             var key = term?.Key ?? (await vocabularies.ResolveOrAddAsync(field.Vocabulary!, name, ct)).Key;
             return (new StoreLink(key, url).ToString(), null, term is null);
         }
@@ -479,6 +482,16 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         var value = MetadataValues.Parse(field, part).Value!;
         if (field.Vocabulary is { } aliases && (await vocabularies.GetAsync(ct)).Resolve(aliases, value) is { } known) value = known.Label;
         return (value, null, false);
+    }
+
+    /// <summary>
+    /// A linked field's values, leaving out a place given both bare and with a link: "D&amp;D Beyond" ticked and its link
+    /// typed is the link alone.
+    /// </summary>
+    static List<string> WithoutBareDuplicates(List<string> values)
+    {
+        var linked = values.Select(StoreLink.Parse).Where(v => v.HasLink).Select(v => v.Store).ToHashSet(StringComparer.Ordinal);
+        return [.. values.Where(v => StoreLink.Parse(v) is var parsed && (parsed.HasLink || !linked.Contains(parsed.Store))).Distinct(StringComparer.Ordinal)];
     }
 
     /// <summary>Why a typed value can't be stored in a field, or null when it can.</summary>

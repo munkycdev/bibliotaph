@@ -275,6 +275,12 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
+        // Site icons for books owned online, fetched once per site; the smoke test has a stand-in for the web.
+        builder.Services.AddSingleton(sp => new SiteIcons(sp.GetRequiredService<AppPaths>(),
+            smokeTest ? new System.Net.Http.HttpClient(new SmokeSiteIcons()) : new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) },
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<SiteIcons>>()));
+        builder.Services.AddSingleton<SiteIconImages>();
+        builder.Services.AddSingleton<OnlineBooks>();
         builder.Services.AddSingleton<PageThumbnails>();
         if (smokeTest)
         {

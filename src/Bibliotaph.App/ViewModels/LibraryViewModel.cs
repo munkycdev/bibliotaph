@@ -215,10 +215,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
 
-    /// <summary>Books, single images, image packs (F4 plan, choice 10) or books owned elsewhere (F5 plan, choice 8).</summary>
+    /// <summary>
+    /// Books, single images, image packs (F4 plan, choice 10), everything with a file on this PC (online libraries, O1)
+    /// or books owned elsewhere (F5 plan, choice 8).
+    /// </summary>
     public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
         [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs"),
-            new(KindFilter.Elsewhere, "Owned elsewhere")];
+            new(KindFilter.Here, "On this PC"), new(KindFilter.Elsewhere, "Owned elsewhere")];
 
     /// <summary>
     /// Where else books are owned (F5 plan, choice 8): "Also own: any", then Print, Foundry VTT and so on with how many
@@ -1071,12 +1074,25 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
-    /// <summary>Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu.</summary>
-    [RelayCommand(CanExecute = nameof(CanOpenBook))]
+    /// <summary>
+    /// Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu; a book owned
+    /// only online opens its page in the browser (online libraries, O1).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
     {
-        if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
+        if (item.OpensOnline) _text.OpenOnline(item);
+        else if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
     }
+
+    /// <summary>Open on…, from a card's menu or the details: the book's page where the user owns it online.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenOnline))]
+    void OpenOnline(LibraryItemViewModel item) => _text.OpenOnline(item);
+
+    static bool CanOpenOnline(LibraryItemViewModel? item) => item is { HasOnlineLink: true };
+
+    /// <summary>A card opens when it has a file, or a page online.</summary>
+    static bool CanOpenCard(LibraryItemViewModel? item) => item is { CanOpen: true } or { OpensOnline: true };
 
     /// <summary>
     /// The heart on a cover, in a card's menu or in the details (slice 3 plan, choice 5): marks the book as a favorite,

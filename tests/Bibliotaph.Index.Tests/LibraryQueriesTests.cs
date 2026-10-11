@@ -110,6 +110,34 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_book_owned_online_carries_its_link_and_where_and_On_this_PC_tell_it_from_books_with_files()
+    {
+        var store = new IndexStore(Writer, Clock);
+        var online = new EntryId(71);
+        const string Link = "https://www.dndbeyond.com/sources/dnd/vault-job";
+        await store.SetEntriesAsync([new EntryDocRow(online, null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = Clock.GetUtcNow().UtcDateTime }], Ct);
+        await store.SetMetadataAsync([new EntryMetaRow
+        {
+            EntryId = online,
+            Title = "The Vault Job",
+            Facets = [new("own", "print", "Print", true), new("own", "dnd-beyond", "D&D Beyond", true, Link), new("store", "drivethrurpg", "DriveThruRPG", true, "https://www.drivethrurpg.com/x")],
+        }], Ct);
+
+        var card = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).Single(e => e.EntryId == online);
+        Assert.Equal((Link, "D&D Beyond"), (card.OnlineLink, card.OnlineLabel));
+        // A book with a file but no Also own link has none: a Get it from link is where to buy it, not where it is owned.
+        Assert.All((await _library.ListAsync(new LibraryFilter(), ct: Ct)).Where(e => e.EntryId != online), e => Assert.Null(e.OnlineLink));
+
+        var all = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.EntryId.Value).ToList();
+        Assert.Equal([online], (await _library.ListAsync(new LibraryFilter(), Plan("where:elsewhere"), ct: Ct)).Select(e => e.EntryId));
+        Assert.Equal([online], (await _library.ListAsync(new LibraryFilter(), Plan("-where:here"), ct: Ct)).Select(e => e.EntryId));
+        var here = (await _library.ListAsync(new LibraryFilter(), Plan("where:here"), ct: Ct)).Select(e => e.EntryId.Value).ToList();
+        Assert.Equal(all.Where(e => e != online.Value).Order(), here.Order());
+        Assert.Equal(here.Order(), (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Here), ct: Ct)).Select(e => e.EntryId.Value).Order());
+        Assert.Equal(here.Order(), (await _library.ListAsync(new LibraryFilter(), Plan("-where:elsewhere"), ct: Ct)).Select(e => e.EntryId.Value).Order());
+    }
+
+    [Fact]
     public async Task A_pack_shows_its_name_its_image_count_and_a_mosaic_and_has_a_kind_of_its_own()
     {
         var store = new IndexStore(Writer, Clock);

@@ -3,9 +3,10 @@ using System.Text;
 namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
-/// A Get it from value (scenario review, row 7): a store's key, and the book's page there when someone has one. It is
-/// stored as the key, or the key and the link after a space: "drivethrurpg https://www.drivethrurpg.com/…". Only
-/// absolute http and https links are kept, so a link is always one a browser can open.
+/// A value of a linked field: Get it from (scenario review, row 7), a store's key and the book's page there, or Also
+/// own (online libraries, O1), where the user owns it and the book's page on that service. It is stored as the key, or
+/// the key and the link after a space: "drivethrurpg https://www.drivethrurpg.com/…". Only absolute http and https
+/// links are kept, so a link is always one a browser can open.
 /// </summary>
 public readonly record struct StoreLink(string Store, string? Url)
 {
@@ -57,7 +58,7 @@ public readonly record struct StoreLink(string Store, string? Url)
                 name.Add(word);
                 continue;
             }
-            if (url is not null) return (typed, null, "Give one link for each store, and separate stores with commas.");
+            if (url is not null) return (typed, null, "Give one link for each value, and separate them with commas.");
             if (WebAddress(bare) is not { } address)
                 return (typed, null, $"“{(bare.Length > 40 ? bare[..40] + "…" : bare)}” isn't a web link a browser can open (http or https).");
             url = address;
@@ -66,32 +67,51 @@ public readonly record struct StoreLink(string Store, string? Url)
     }
 
     /// <summary>
-    /// What was typed for one store, filed against the store vocabulary: the store it names, or else the store whose
-    /// site the link is on (a store's site is one of its names: "drivethrurpg.com"), or Other store for a link to a site
-    /// the vocabulary doesn't know. Term is null for a name the vocabulary doesn't know, which becomes the user's own.
+    /// What was typed for one value of a linked field (<see cref="FieldKind.Store"/>), filed against its vocabulary: the
+    /// term it names, or else the term whose site the link is on (a site is one of its names: "drivethrurpg.com",
+    /// "dndbeyond.com"). A link to a site the vocabulary doesn't know goes to Other store in Get it from, and in Also own
+    /// becomes a new place named after the site ("example.com"). Term is null for a name the vocabulary doesn't know,
+    /// which becomes the user's own.
     /// </summary>
-    public static (Term? Term, string Name, string? Url) Read(string typed, Vocabulary vocabulary)
+    public static (Term? Term, string Name, string? Url) Read(string typed, Vocabulary vocabulary, MetadataField? field = null)
     {
-        var store = MetadataFields.GetItFrom.Vocabulary!;
+        var key = (field ?? MetadataFields.GetItFrom).Vocabulary!;
         var (name, url, _) = Split(MetadataText.Tidy(typed));
-        if (MetadataText.Normalize(name).Length > 0) return (vocabulary.Resolve(store, name), name, url);
-        var site = url is null ? null : FromSite(url, vocabulary) ?? vocabulary.Find(store, OtherStore);
-        return (site, site?.Label ?? "Other store", url);
+        if (MetadataText.Normalize(name).Length > 0) return (vocabulary.Resolve(key, name), name, url);
+        if (url is null) return (null, name, null);
+        if (FromSite(url, vocabulary, key) is { } site) return (site, site.Label, url);
+        if (key != MetadataFields.GetItFrom.Vocabulary) return (null, SiteName(url) ?? url, url);
+        var other = vocabulary.Find(key, OtherStore);
+        return (other, other?.Label ?? "Other store", url);
     }
 
-    /// <summary>The store a link's site belongs to: "shop.example.itch.io" is itch.io's, through its site name "itch.io".</summary>
-    public static Term? FromSite(string url, Vocabulary vocabulary)
+    /// <summary>
+    /// The term a link's site belongs to, in the store vocabulary or <paramref name="vocabularyKey"/>:
+    /// "shop.example.itch.io" is itch.io's, through its site name "itch.io".
+    /// </summary>
+    public static Term? FromSite(string url, Vocabulary vocabulary, string? vocabularyKey = null)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
+        var key = vocabularyKey ?? MetadataFields.GetItFrom.Vocabulary!;
         var host = uri.Host.ToLowerInvariant();
         while (true)
         {
-            if (vocabulary.Resolve(MetadataFields.GetItFrom.Vocabulary!, host) is { } term) return term;
+            if (vocabulary.Resolve(key, host) is { } term) return term;
             var dot = host.IndexOf('.', StringComparison.Ordinal);
             if (dot < 0 || host.IndexOf('.', dot + 1) < 0) return null;
             host = host[(dot + 1)..];
         }
     }
+
+    /// <summary>True when the link is on the term's own site, as the vocabulary knows it: a D&amp;D Beyond link for D&amp;D Beyond.</summary>
+    public bool IsOnOwnSite(Vocabulary vocabulary, string vocabularyKey) =>
+        Url is not null && FromSite(Url, vocabulary, vocabularyKey)?.Key == Store;
+
+    /// <summary>A link's site without "www.": "example.com". Null for text that isn't a link.</summary>
+    public static string? SiteName(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            ? uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..].ToLowerInvariant() : uri.Host.ToLowerInvariant()
+            : null;
 
     /// <summary>
     /// Splits a typed list of stores at commas and semicolons, except those inside a web link: a link runs to the next

@@ -74,7 +74,10 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
     [ObservableProperty]
     public partial string Publisher { get; set; } = "";
 
-    /// <summary>Somewhere not in the list, typed: "Owlbear Rodeo". It becomes a term of the user's own.</summary>
+    /// <summary>
+    /// Somewhere not in the list, typed: "Owlbear Rodeo", which becomes a term of the user's own; or the book's page
+    /// online, which opens it (online libraries, O1): "D&amp;D Beyond https://…", or the link alone.
+    /// </summary>
     [ObservableProperty]
     public partial string OtherOwn { get; set; } = "";
 

@@ -9,9 +9,13 @@ namespace Bibliotaph.App.Services;
 /// <summary>
 /// Cover images for the grid, decoded off the UI thread at display size and frozen, with the most recently used
 /// few hundred kept. Covers live in Bibliotaph's own cache folder; a missing or unreadable one just has no image.
+/// <see cref="Sites"/> has the site icons for the badges on books owned online.
 /// </summary>
-public sealed class CoverImages(CoverCache cache, ILogger<CoverImages> log)
+public sealed class CoverImages(CoverCache cache, ILogger<CoverImages> log, SiteIconImages? sites = null)
 {
+    /// <summary>Site icons for the badges on books owned online (online libraries plan, choice 12); none in a test.</summary>
+    public SiteIconImages? Sites => sites;
+
     /// <summary>Grid covers are about 150 px wide; twice that stays sharp at 200% scaling.</summary>
     const int DecodeWidth = 300;
 

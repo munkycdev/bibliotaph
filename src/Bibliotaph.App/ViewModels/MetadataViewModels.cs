@@ -146,13 +146,23 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
         FieldKind.Levels => "3, 1-5 or n/a",
         FieldKind.Players => "4 or 3-5",
         FieldKind.Year => "2019",
-        FieldKind.Store => StoreHint,
+        FieldKind.Store => LinkHint(Field),
         _ when Field.Multiple => "Separate values with commas",
         _ => "",
     };
 
     /// <summary>How to type Get it from, wherever it is edited.</summary>
     public const string StoreHint = "A store, a link, or both: DriveThruRPG https://… Separate stores with commas";
+
+    /// <summary>How to type Also own, wherever it is edited: a place, and the book's page there when it is online.</summary>
+    public const string OwnHint = "Where, a link to the book there, or both: D&D Beyond https://… Separate them with commas";
+
+    /// <summary>How to type a linked field (<see cref="FieldKind.Store"/>).</summary>
+    public static string LinkHint(MetadataField field) => field == MetadataFields.AlsoOwn ? OwnHint : StoreHint;
+
+    /// <summary>What a new term of the field is called: "a new store", "a new place", "a new setting".</summary>
+    public static string TermNoun(MetadataField field) =>
+        field == MetadataFields.AlsoOwn ? "place" : field.Kind == FieldKind.Store ? field.Vocabulary! : field.Label.ToLower(CultureInfo.CurrentCulture);
 
     [ObservableProperty]
     public partial bool ShowEvidence { get; set; }
@@ -195,7 +205,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
             Term? term;
             if (field.Kind == FieldKind.Store)
             {
-                (term, part, var url) = StoreLink.Read(typedPart, vocabulary);
+                (term, part, var url) = StoreLink.Read(typedPart, vocabulary, field);
                 if (term is not null && url is not null && MetadataText.Normalize(StoreLink.Split(typedPart).Name).Length == 0)
                 {
                     notes.Add($"The link goes to {term.Label}.");
@@ -203,7 +213,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
                 }
             }
             else term = vocabulary.Resolve(field.Vocabulary!, part);
-            var kind = field.Kind == FieldKind.Store ? field.Vocabulary! : field.Label.ToLower(CultureInfo.CurrentCulture);
+            var kind = TermNoun(field);
             if (term is null) notes.Add($"“{part}” will be added as a new {kind}.");
             else if (MetadataText.Normalize(term.Label) != MetadataText.Normalize(part)) notes.Add($"“{part}” is another name for {term.Label}.");
         }

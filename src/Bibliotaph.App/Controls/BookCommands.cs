@@ -12,6 +12,9 @@ public static class BookCommands
 
     public static RoutedUICommand OpenInNewWindow { get; } = new("Open in new window", nameof(OpenInNewWindow), typeof(BookCommands));
 
+    /// <summary>Open on D&amp;D Beyond (online libraries, O1): the book's page where the user owns it online, in the browser.</summary>
+    public static RoutedUICommand OpenOnline { get; } = new("Open online", nameof(OpenOnline), typeof(BookCommands));
+
     public static RoutedUICommand Details { get; } = new("Details", nameof(Details), typeof(BookCommands));
 
     /// <summary>Add to favorites, or Remove from favorites (slice 3 plan, choice 5).</summary>

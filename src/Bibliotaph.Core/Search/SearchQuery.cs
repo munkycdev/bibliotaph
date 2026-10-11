@@ -67,6 +67,12 @@ public enum SearchField
 
     /// <summary><c>collection:</c> a collection's name: its books and its sub-collections' books (slice 3 plan, choice 10).</summary>
     Collection,
+
+    /// <summary>
+    /// <c>where:</c> here for the books with a file on this PC, elsewhere for those owned only somewhere else (online
+    /// libraries, O1).
+    /// </summary>
+    Where,
 }
 
 /// <summary>
@@ -136,6 +142,12 @@ public sealed record SearchQuery(string Text, QueryNode? Root, IReadOnlyList<Que
 
     /// <summary>The stored value of <c>favorite:no</c>.</summary>
     public const string No = "no";
+
+    /// <summary>The stored value of <c>where:here</c>.</summary>
+    public const string Here = "here";
+
+    /// <summary>The stored value of <c>where:elsewhere</c>.</summary>
+    public const string Elsewhere = "elsewhere";
 
     public bool IsEmpty => Root is null;
 
@@ -393,6 +405,15 @@ sealed class QueryParser(string text)
             }
             value = new TermNode(yesNo);
         }
+        if (field == SearchField.Where)
+        {
+            if (value is not TermNode { Prefix: false } answer || NormalizeWhere(answer.Text) is not { } where)
+            {
+                Issue("where: can be here or elsewhere.", Span(token, valueToken));
+                return null;
+            }
+            value = new TermNode(where);
+        }
         return new FieldNode(field, value);
     }
 
@@ -420,6 +441,14 @@ sealed class QueryParser(string text)
     {
         "yes" or "y" or "true" => SearchQuery.Yes,
         "no" or "n" or "false" => SearchQuery.No,
+        _ => null,
+    };
+
+    /// <summary>"here" or "elsewhere", for <c>where:</c>; a few other words for each are understood.</summary>
+    static string? NormalizeWhere(string value) => value.ToLowerInvariant() switch
+    {
+        "here" or "local" or "pc" or "file" or "files" => SearchQuery.Here,
+        "elsewhere" or "online" or "away" => SearchQuery.Elsewhere,
         _ => null,
     };
 

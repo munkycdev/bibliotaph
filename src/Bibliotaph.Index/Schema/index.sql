@@ -182,13 +182,15 @@ CREATE TABLE entry_meta (
 );
 
 -- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own, store), for filters, facet
--- counts and field search. value is the term key.
+-- counts and field search. value is the term key; link is the value's web link (own and store), the first when it
+-- has several.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
     field        TEXT    NOT NULL,
     value        TEXT    NOT NULL,
     label        TEXT    NOT NULL,
     confirmed    INTEGER NOT NULL,
+    link         TEXT,
     PRIMARY KEY (entry_id, field, value)
 ) WITHOUT ROWID;
 
@@ -290,4 +292,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 16;
+PRAGMA user_version = 17;
