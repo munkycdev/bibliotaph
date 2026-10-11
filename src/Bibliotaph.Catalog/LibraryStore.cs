@@ -8,7 +8,8 @@ namespace Bibliotaph.Catalog;
 public sealed record ScannedFile(string RelativePath, long SizeBytes, DateTime ModifiedUtc, bool OnlineOnly);
 
 /// <summary>
-/// What a scan changed. <see cref="Moved"/> are files found at a new path by their file ID, which keep their hash.
+/// What a scan changed. <see cref="Moved"/> are files found at a new path by their file ID (or, without IDs, by their
+/// size, date and name), which keep their hash.
 /// <see cref="MovedFrom"/> are other folders that still list a file with the ID of one new here, which may have moved
 /// from there: scanned before the new file is read, it moves rather than being hashed again.
 /// </summary>
@@ -77,7 +78,10 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// <para>
     /// A new path whose file ID, size and modified time match a location not seen at its own path, in this folder or
     /// missing from another, is that file moved or renamed (A06, slice 4g plan, choice 2). The location moves with it and
-    /// keeps its id, hash and document, so nothing is read again and the card never leaves the library.
+    /// keeps its id, hash and document, so nothing is read again and the card never leaves the library. Where there are
+    /// no IDs, as on FAT and exFAT drives, a file that left its path in this scan and one that arrived with the same
+    /// name, size and modified time are the same file when nothing else in the scan could be (<see cref="LikelyMoves"/>).
+    /// A moved ZIP keeps the files it held, and a split or proposed pack follows its folder or ZIP.
     /// <paramref name="fileId"/> reads a file's ID by its relative path; it is asked only for new and changed paths and
     /// for locations that don't have one yet, and is null where the volume has no lasting IDs. With
     /// <paramref name="readKnownIds"/>, as on a local drive, it is asked of every path the scan lists, since a file
@@ -94,7 +98,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         await using var db = await contexts.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var existing = await db.FileLocations.Where(f => f.SourceRootId == rootId && f.ContainerId == null).ToListAsync(ct);
-        var wasMissing = existing.Where(f => f.State == FileLocationState.Missing).Select(f => f.Id).ToHashSet();
+        // Missing before this scan, and when each was last seen, which tells a ZIP's files that went missing with it.
+        var wasMissing = existing.Where(f => f.State == FileLocationState.Missing).ToDictionary(f => f.Id, f => f.LastSeenUtc);
         var byPath = existing.ToDictionary(f => f.RelativePath, StringComparer.OrdinalIgnoreCase);
         int changed = 0, unchanged = 0, moved = 0;
 
@@ -137,18 +142,34 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
         // What is left wasn't seen at its path: moved, or gone. Files under a folder the scan couldn't list are neither.
         var gone = byPath.Values.Where(f => !IsUnder(f.RelativePath, unreadFolders)).ToList();
-        var fresh = new List<FileLocation>();
+        var identified = new List<(ScannedFile File, string? Id, FileLocation? Location)>();
         foreach (var file in unmatched)
         {
-            var state = file.OnlineOnly ? FileLocationState.OnlineOnly : FileLocationState.Present;
             var id = fileId?.Invoke(file.RelativePath);
             var location = id is null ? null : gone.FirstOrDefault(f => SameFile(f, id, file.RelativePath, file.SizeBytes, file.ModifiedUtc));
-            if (location is not null)
+            if (location is not null) gone.Remove(location);
+            identified.Add((file, id, location));
+        }
+        // Without file IDs, as on FAT and exFAT drives, a file that left one path and arrived at another in this scan
+        // is recognised by its size, date and name instead.
+        var likely = LikelyMoves([.. identified.Where(f => f.Id is null).Select(f => f.File)],
+            [.. gone.Where(f => f.NtfsFileId is null && !wasMissing.ContainsKey(f.Id))]);
+        var followed = likely.Values.ToHashSet();
+        gone.RemoveAll(followed.Contains);
+
+        var moves = new List<PlaceMove>();
+        var fresh = new List<FileLocation>();
+        foreach (var (file, id, found) in identified)
+        {
+            var state = file.OnlineOnly ? FileLocationState.OnlineOnly : FileLocationState.Present;
+            if ((found ?? likely.GetValueOrDefault(file)) is { } location)
             {
-                gone.Remove(location);
-                await MoveAsync(db, location, rootId, file.RelativePath, ct);
+                await MoveAsync(db, location, rootId, file.RelativePath, moves, ct);
                 location.State = state;
                 location.LastSeenUtc = now;
+                // A ZIP that was missing brings back the files it held rather than being read again.
+                if (wasMissing.Remove(location.Id, out var lastSeen) && SourceFormats.IsArchive(file.RelativePath) && location.ContentHash is not null)
+                    await RestoreArchiveAsync(db, location, lastSeen, ct);
                 moved++;
                 continue;
             }
@@ -180,7 +201,10 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             root.VolumeSerial ??= volumeSerial;
         }
         await db.SaveChangesAsync(ct);
-        var adopted = await AdoptMovesAsync(db, ct);
+        var adopted = await AdoptMovesAsync(db, moves, ct);
+        // A split or proposed pack follows its folder or ZIP; a packed one is followed when packs are next looked at.
+        await PackStore.FollowMovesAsync(db, moves, ct);
+        await db.SaveChangesAsync(ct);
         await ForgetReplacedAsync(db, null, ct);
         // A file new here with the ID of one another folder still lists may have moved from there: that folder's scan says.
         var ids = fresh.Where(f => !adopted.Contains(f) && f.NtfsFileId is not null).Select(f => f.NtfsFileId!).Distinct().ToList();
@@ -200,17 +224,40 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// </summary>
     static bool SameFile(FileLocation location, string fileId, string relativePath, long sizeBytes, DateTime modifiedUtc) =>
         location.NtfsFileId == fileId && location.SizeBytes == sizeBytes && location.ModifiedUtc == modifiedUtc
-        && SourceFormats.IsArchive(location.RelativePath) == SourceFormats.IsArchive(relativePath)
-        && SourceFormats.FromFileName(location.RelativePath) == SourceFormats.FromFileName(relativePath);
+        && SameKind(location.RelativePath, relativePath);
+
+    static bool SameKind(string path, string other) =>
+        SourceFormats.IsArchive(path) == SourceFormats.IsArchive(other) && SourceFormats.FromFileName(path) == SourceFormats.FromFileName(other);
+
+    /// <summary>
+    /// Files new in a scan that have no ID to follow, paired with locations that left their paths in the same scan and
+    /// have none either: the same name, size and modified time, which is all an unchanged file is known by on such a
+    /// drive. A pair counts only when neither file could pair with any other, so two different files are never taken
+    /// for one. A renamed file isn't paired, since one file deleted and another of the same size and date added beside
+    /// it look just the same; it is hashed as a new one and finds its card by its content, as before.
+    /// </summary>
+    static Dictionary<ScannedFile, FileLocation> LikelyMoves(List<ScannedFile> arrived, List<FileLocation> left)
+    {
+        var pairs = new Dictionary<ScannedFile, FileLocation>();
+        if (arrived.Count == 0 || left.Count == 0) return pairs;
+        static (string, long, DateTime) Key(string path, long sizeBytes, DateTime modifiedUtc) =>
+            (Path.GetFileName(path).ToUpperInvariant(), sizeBytes, modifiedUtc);
+        var leftBy = left.ToLookup(f => Key(f.RelativePath, f.SizeBytes, f.ModifiedUtc));
+        foreach (var group in arrived.GroupBy(f => Key(f.RelativePath, f.SizeBytes, f.ModifiedUtc)))
+            if (group.Count() == 1 && leftBy[group.Key].ToList() is [var location])
+                pairs[group.First()] = location;
+        return pairs;
+    }
 
     /// <summary>
     /// Files moved into this folder from another, or that went missing in an earlier scan before turning up here: a
     /// location not hashed yet whose file ID, size and modified time match a missing location's is that location's
     /// file. The missing location takes its path and the new one goes, so the file keeps its hash and document and
-    /// isn't read again (an online-only one isn't downloaded again). A copy has an ID of its own, so it is hashed as usual.
+    /// isn't read again (an online-only one isn't downloaded again); a ZIP keeps the files it held. A copy has an ID of
+    /// its own, so it is hashed as usual.
     /// </summary>
     /// <returns>The new locations that turned out to be moved files, and are gone.</returns>
-    static async Task<IReadOnlyCollection<FileLocation>> AdoptMovesAsync(CatalogDbContext db, CancellationToken ct)
+    static async Task<IReadOnlyCollection<FileLocation>> AdoptMovesAsync(CatalogDbContext db, List<PlaceMove> moves, CancellationToken ct)
     {
         var missing = await db.FileLocations
             .Where(f => f.State == FileLocationState.Missing && f.ContainerId == null && f.NtfsFileId != null && f.ContentHash != null
@@ -238,19 +285,24 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         await db.SaveChangesAsync(ct);
         foreach (var (old, location) in pairs)
         {
-            await MoveAsync(db, old, location.SourceRootId, location.RelativePath, ct);
+            var lastSeen = old.LastSeenUtc;
+            await MoveAsync(db, old, location.SourceRootId, location.RelativePath, moves, ct);
             old.State = location.State;
             old.LastSeenUtc = location.LastSeenUtc;
-            // Its files went missing with it, so a ZIP is listed again; those with the same name, size and CRC keep their hashes.
-            if (SourceFormats.IsArchive(old.RelativePath)) old.ContentHash = null;
+            // Its files went missing with it, and come back with it rather than the ZIP being read again.
+            if (SourceFormats.IsArchive(old.RelativePath)) await RestoreArchiveAsync(db, old, lastSeen, ct);
         }
         await db.SaveChangesAsync(ct);
         return [.. pairs.Select(p => p.New)];
     }
 
-    /// <summary>Gives a location a new place. The files inside a ZIP move with it, their paths still reading as File Explorer shows them.</summary>
-    static async Task MoveAsync(CatalogDbContext db, FileLocation location, long rootId, string relativePath, CancellationToken ct)
+    /// <summary>
+    /// Gives a location a new place, noted in <paramref name="moves"/> for the packs that follow it. The files inside a
+    /// ZIP move with it, their paths still reading as File Explorer shows them.
+    /// </summary>
+    static async Task MoveAsync(CatalogDbContext db, FileLocation location, long rootId, string relativePath, List<PlaceMove> moves, CancellationToken ct)
     {
+        moves.Add(new PlaceMove(location.SourceRootId, location.RelativePath, rootId, relativePath));
         if (SourceFormats.IsArchive(location.RelativePath) || SourceFormats.IsArchive(relativePath))
             foreach (var member in await db.FileLocations.Where(f => f.ContainerId == location.Id).ToListAsync(ct))
             {
@@ -278,21 +330,48 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Files inside a ZIP take its state: missing when it is, online-only or present as it is. A ZIP that comes back
-    /// is listed again rather than trusted, since it may hold other files now; until then its members stay missing.
+    /// at its own path is listed again rather than trusted, since it may hold other files now; until then its members
+    /// stay missing. The files of a read ZIP that is there are seen with it, which <see cref="RestoreArchiveAsync"/> relies on.
     /// </summary>
-    static async Task FollowArchivesAsync(CatalogDbContext db, List<FileLocation> archives, HashSet<long> wasMissing, CancellationToken ct)
+    static async Task FollowArchivesAsync(CatalogDbContext db, List<FileLocation> archives, Dictionary<long, DateTime> wasMissing, CancellationToken ct)
     {
         var byId = archives.Where(a => SourceFormats.IsArchive(a.RelativePath)).ToDictionary(a => a.Id);
         if (byId.Count == 0) return;
         var ids = byId.Keys.ToList();
         var members = await db.FileLocations.Where(f => f.ContainerId != null && ids.Contains(f.ContainerId.Value)).ToListAsync(ct);
-        foreach (var archive in byId.Values.Where(a => wasMissing.Contains(a.Id) && a.State != FileLocationState.Missing && a.ContentHash is not null))
+        foreach (var archive in byId.Values.Where(a => wasMissing.ContainsKey(a.Id) && a.State != FileLocationState.Missing && a.ContentHash is not null))
             archive.ContentHash = null;
         foreach (var member in members)
         {
             var archive = byId[member.ContainerId!.Value];
             if (archive.State == FileLocationState.Missing) member.State = FileLocationState.Missing;
-            else if (member.State != FileLocationState.Missing) member.State = archive.State;
+            else if (member.State != FileLocationState.Missing)
+            {
+                member.State = archive.State;
+                if (archive.ContentHash is not null && archive.LastSeenUtc > member.LastSeenUtc) member.LastSeenUtc = archive.LastSeenUtc;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A ZIP found unchanged at a new place keeps what it held: the files that went missing with it come back with it,
+    /// instead of the ZIP being read again. They are the ones seen with it when it was last seen (<paramref name="lastSeen"/>);
+    /// a file found gone from it at an earlier read was last seen before then. A ZIP none of whose files was seen
+    /// with it, as one last seen before this was kept, is read again, as before.
+    /// </summary>
+    static async Task RestoreArchiveAsync(CatalogDbContext db, FileLocation archive, DateTime lastSeen, CancellationToken ct)
+    {
+        var missing = await db.FileLocations.Where(f => f.ContainerId == archive.Id && f.State == FileLocationState.Missing).ToListAsync(ct);
+        var held = missing.Where(f => f.LastSeenUtc >= lastSeen).ToList();
+        if (held.Count == 0 && missing.Count > 0)
+        {
+            archive.ContentHash = null;
+            return;
+        }
+        foreach (var member in held)
+        {
+            member.State = archive.State;
+            member.LastSeenUtc = archive.LastSeenUtc;
         }
     }
 

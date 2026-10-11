@@ -106,6 +106,7 @@ public sealed class IndexingService(
 
     /// <summary>Set when files may have arrived, moved or been hashed, so folders are looked at for packs (F4) after hashing.</summary>
     volatile bool _packsDue = true;
+    volatile bool _packing;
     HashSet<long>? _pendingScans; // null: every root
     bool _scanAll = true;
     /// <summary>Those waiting in <see cref="ScanNowAsync"/> for the next pass to finish.</summary>
@@ -139,6 +140,12 @@ public sealed class IndexingService(
     }
 
     public bool IsScanning { get; private set; }
+
+    /// <summary>
+    /// True while folders are due to be looked at for packs, or are being looked at: hashing can finish and every job
+    /// go idle a moment before the pack cards it calls for are made.
+    /// </summary>
+    public bool PacksPending => packs is not null && (_packsDue || _packing);
 
     /// <summary>True when online-only files are waiting because their drive is short of space.</summary>
     public bool WaitingForDiskSpace { get; private set; }
@@ -617,6 +624,7 @@ public sealed class IndexingService(
     async Task PackAsync(CancellationToken ct)
     {
         if (packs is null || !_packsDue || IsPaused(Lane.Index)) return;
+        _packing = true;
         _packsDue = false;
         try
         {
@@ -627,6 +635,10 @@ public sealed class IndexingService(
         {
             _log.LogError(ex, "Looking for image packs failed");
             _packsDue = true;
+        }
+        finally
+        {
+            _packing = false;
         }
     }
 

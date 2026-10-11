@@ -53,7 +53,7 @@ public sealed class NoteStoreTests : IAsyncLifetime
         Assert.False(await _notes.SetEntryNoteAsync(abbey, "Run the bell tower first.", Ct));
         Assert.True(await _notes.SetEntryNoteAsync(abbey, "Run the bell tower last.", Ct));
         Assert.Equal("Run the bell tower last.", await _notes.GetEntryNoteAsync(abbey, Ct));
-        Assert.Equal(new Dictionary<EntryId, string> { [abbey] = "Run the bell tower last." }, await _notes.GetEntryNotesAsync(ct: Ct));
+        Assert.Equal(new Dictionary<EntryId, string> { [abbey] = "Run the bell tower last." }, await _notes.GetSearchTextAsync(ct: Ct));
 
         Assert.True(await _notes.SetEntryNoteAsync(abbey, "   ", Ct));
         Assert.Null(await _notes.GetEntryNoteAsync(abbey, Ct));
@@ -85,6 +85,30 @@ public sealed class NoteStoreTests : IAsyncLifetime
         Assert.Equal(2, (await _notes.GetPageNotesAsync(abbey, Ct)).Count);
         // The book's own note is never a page note.
         Assert.Equal("The book's own note", await _notes.GetEntryNoteAsync(abbey, Ct));
+    }
+
+    [Fact]
+    public async Task Search_reads_a_books_own_note_and_then_its_page_notes_in_page_order()
+    {
+        var (document, abbey) = await AddBookAsync("abbey.pdf", 'a');
+        var (mapsDocument, maps) = await AddBookAsync("maps.pdf", 'c');
+        await _notes.AddPageNoteAsync(abbey, new PageRange(document, 12, 12), "Warehouse ambush starts here", Ct);
+        await _notes.AddPageNoteAsync(abbey, new PageRange(document, 3, 3), "Read aloud", Ct);
+        await _notes.AddPageNoteAsync(maps, new PageRange(mapsDocument, 0, 0), "The harbour at night", Ct);
+        await _notes.SetEntryNoteAsync(abbey, "Run the bell tower last.", Ct);
+
+        Assert.Equal(new Dictionary<EntryId, string>
+        {
+            [abbey] = "Run the bell tower last.\n\nRead aloud\n\nWarehouse ambush starts here",
+            [maps] = "The harbour at night",
+        }, await _notes.GetSearchTextAsync(ct: Ct));
+        Assert.Equal(["The harbour at night"], (await _notes.GetSearchTextAsync([maps], Ct)).Values);
+
+        // A book whose only notes are on its pages is still found by them; one with none isn't listed.
+        await _notes.SetEntryNoteAsync(abbey, "", Ct);
+        Assert.Equal("Read aloud\n\nWarehouse ambush starts here", (await _notes.GetSearchTextAsync([abbey], Ct))[abbey]);
+        foreach (var note in await _notes.GetPageNotesAsync(abbey, Ct)) await _notes.DeletePageNoteAsync(note.Id, Ct);
+        Assert.Empty(await _notes.GetSearchTextAsync([abbey], Ct));
     }
 
     [Fact]
@@ -133,7 +157,7 @@ public sealed class NoteStoreTests : IAsyncLifetime
 
         var removed = await _entries.RemoveElsewhereAsync(printed, Ct);
         Assert.Equal("Borrowed from a friend", removed!.Note);
-        Assert.Empty(await _notes.GetEntryNotesAsync(ct: Ct));
+        Assert.Empty(await _notes.GetSearchTextAsync(ct: Ct));
 
         var restored = await _entries.RestoreElsewhereAsync(removed, Ct);
         Assert.Equal("Borrowed from a friend", await _notes.GetEntryNoteAsync(restored, Ct));

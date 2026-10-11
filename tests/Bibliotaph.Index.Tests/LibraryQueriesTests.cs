@@ -295,6 +295,28 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_book_is_found_by_any_word_of_its_notes_until_they_change()
+    {
+        var store = new IndexStore(Writer, Clock);
+        // The book's own note and the notes on its pages, as the projection writes them.
+        await store.SetNotesAsync(null, new Dictionary<EntryId, string>
+        {
+            [EntryOf(TavernMap)] = "Hand this out at the inn.\n\nThe cellar door is barred",
+            [EntryOf(Lairs)] = "Kobold warrens",
+        }, Ct);
+        var (cellar, warrens) = (await DocumentsAsync("cellar"), await DocumentsAsync("warrens"));
+        Assert.Equal([TavernMap], cellar);
+        Assert.Equal([Lairs], warrens);
+
+        // The page note deleted: only its own note finds it now, and the other book is untouched.
+        await store.SetNotesAsync([EntryOf(TavernMap)], new Dictionary<EntryId, string> { [EntryOf(TavernMap)] = "Hand this out at the inn." }, Ct);
+        Assert.Empty(await DocumentsAsync("cellar"));
+        var (hand, kobolds) = (await DocumentsAsync("hand"), await DocumentsAsync("warrens"));
+        Assert.Equal([TavernMap], hand);
+        Assert.Equal([Lairs], kobolds);
+    }
+
+    [Fact]
     public async Task Cards_count_their_copies_and_the_copies_filter_keeps_books_with_more_than_one()
     {
         await new IndexStore(Writer, Clock).SetEntriesAsync([new EntryDocRow(EntryOf(Lairs), Lairs, EntryKind.Whole, Copies: 2)], Ct);
