@@ -773,8 +773,8 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     /// <summary>
     /// A note in the panel: the reader goes to its first page, where it was found in this copy (slice 4h plan, choice
-    /// 2). One whose page changed says so, with Use this page. A note made in another copy that wasn't looked for here
-    /// goes to the same page number.
+    /// 2). One whose page changed says so, with Use this page. A note made in another copy goes to the page found for it
+    /// here by fingerprint or printed page number; one not found goes to the same page, saying it may differ.
     /// </summary>
     [RelayCommand]
     void GoToNote(PageNoteRow row)
@@ -787,7 +787,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             _request = request with { PageNote = new PageNoteOpen(row.Id, place.State, place.Reason, first, last) };
             ShowSessionBanner();
         }
-        else if (row.Note.Range.DocumentId != request.DocumentId && row.Place?.DocumentId != request.DocumentId)
+        else if (!row.IsFound || row.Shown.DocumentId != request.DocumentId)
         {
             ShowNotice("This note was made in another copy of the book, so its page may be a little different here.");
         }
@@ -857,7 +857,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             var (entry, notes, places) = await Task.Run(async () =>
             {
                 var notes = await _notes.GetPageNotesForDocumentAsync(documentId);
-                return (await _notes.GetEntryAsync(documentId), notes, await _notes.ResolveAsync(notes));
+                return (await _notes.GetEntryAsync(documentId), notes, await _notes.ListAsync(notes, documentId));
             });
             if (version != _version) return;
             _notesEntry = entry;

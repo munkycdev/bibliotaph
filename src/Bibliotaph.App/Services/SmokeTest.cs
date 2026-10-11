@@ -120,6 +120,8 @@ static partial class SmokeTest
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone",
                 () => ReviewRevisionAsync(services, window));
+            await Check("a page note found a page on in the copy a book opens now, listed in the details at its page there",
+                () => ListMovedPageNoteAsync(services, window));
             await Check("two cards ticked and joined as one book with Same book, opening the file chosen, and taken apart again with Undo",
                 () => JoinAsOneBookAsync(services, window, books));
             if (real is { } reprocessed)
@@ -1303,6 +1305,50 @@ static partial class SmokeTest
         }
         if (await services.GetRequiredService<PagePlaces>().CountRevisionsAsync() != 0)
             throw new InvalidOperationException("Deleting the session left its place in Needs review.");
+    }
+
+    /// <summary>
+    /// Slice 3f with 4h: a page note made in the lairs' other copy, whose page was found a page on in the copy the book
+    /// opens now, is listed in the details' Notes tab at its page there, not the page it was made on. What was found is
+    /// seeded, as in <see cref="ReviewRevisionAsync"/>; the note is deleted at the end, so later checks see the book as it was.
+    /// </summary>
+    static async Task ListMovedPageNoteAsync(IServiceProvider services, Window window)
+    {
+        // The lairs are the only book with two files; earlier checks may have renamed it.
+        var lairs = (await services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(OnlyWithCopies: true))).Single();
+        var copies = await services.GetRequiredService<EntryStore>().GetCopiesAsync(lairs.EntryId);
+        var current = copies.Single(c => c.IsCurrent).DocumentId;
+        var other = copies.First(c => !c.IsCurrent).DocumentId;
+        var notes = services.GetRequiredService<NotesService>();
+        var note = await notes.AddPageNoteAsync(other, 0, 0, "The ledger names every lair.")
+            ?? throw new InvalidOperationException("The page note on the lairs' other copy wasn't saved.");
+        try
+        {
+            if (note.Range.FirstLabel != "1") throw new InvalidOperationException($"The note on the other copy's first page is on p. {note.Range.FirstLabel}.");
+            await services.GetRequiredService<PageRefStore>().SaveChecksAsync([(note.Range.RefId, new PageRefCheck(PageCheck.Found, current, 1, 1))]);
+
+            var shell = services.GetRequiredService<ShellViewModel>();
+            services.GetRequiredService<SearchState>().Search("");
+            shell.NavigateCommand.Execute(Route.Library);
+            var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+            await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == lairs.EntryId), () => "The lairs aren't in the Library.");
+            await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == lairs.EntryId));
+            await WaitUntilAsync(window, () => library.Inspector?.Notes is { HasPageNotes: true }, () => "The details didn't load the lairs' page note.");
+            var tab = Descendants<RadioButton>(window).FirstOrDefault(r => r.Name == "NotesTab");
+            if (tab is not { IsVisible: true, IsEnabled: true }) throw new InvalidOperationException("The details don't show a Notes tab.");
+            tab.IsChecked = true;
+            await WaitUntilAsync(window, () => library.Inspector?.Notes?.PageNotes is [{ Pages: "p. 2", Place.State: PagePlaceState.OtherCopy }]
+                    && Descendants<ItemsControl>(window).Any(i => i.Name == "BookPageNotes" && i.IsVisible && i.Items.Count == 1)
+                    && Descendants<TextBlock>(window).Any(t => t.Text == "p. 2" && t.IsVisible),
+                () => $"The details list the note at {library.Inspector?.Notes?.PageNotes.FirstOrDefault()?.Pages ?? "no page"}, not p. 2, where the book opens it.");
+            library.Inspector!.IsNotesTab = false;
+            library.CloseDetailsCommand.Execute(null);
+            await Settle(window);
+        }
+        finally
+        {
+            await notes.DeletePageNoteAsync(note.Id);
+        }
     }
 
     /// <summary>

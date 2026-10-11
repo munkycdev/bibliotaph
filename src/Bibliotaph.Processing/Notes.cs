@@ -4,9 +4,17 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Processing;
 
 /// <summary>
+/// A page note as a list shows it: where it opens now, and the pages it is on in the copy the list is about, with that
+/// copy's printed page numbers. <see cref="Found"/> is false for a note made in another copy whose pages weren't found
+/// in this one, so these are the same printed page there, or else the same page, which may not be the right one.
+/// </summary>
+public sealed record PageNotePages(PagePlace Place, PageRange Pages, bool Found = true);
+
+/// <summary>
 /// Notes (slice 3 plan, choice 18): each book's own note, and notes on pages of a book, which the reader lists and a
 /// binder's reader shows. Search finds a book by the words of either: they are projected to index.db after each change.
-/// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice 2).
+/// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice
+/// 2), and lists at the pages it opens at, or in a reader at its pages in the copy open there.
 /// </summary>
 public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
 {
@@ -58,6 +66,32 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         var resolved = await places.ResolveAsync([.. pageNotes.Select(n => (n.EntryId, n.Range))], ct);
         var result = new Dictionary<long, PagePlace>(pageNotes.Count);
         for (var i = 0; i < pageNotes.Count; i++) result[pageNotes[i].Id] = resolved[i];
+        return result;
+    }
+
+    /// <summary>
+    /// Each page note as a list shows it, by note. In the details (<paramref name="documentId"/> null), at the pages it
+    /// opens at now, in the version the book opens, so a note a new version moved lists at its new page. In a reader
+    /// open on <paramref name="documentId"/>, at its pages in that copy: its own when it was made there, where it opens
+    /// when that copy is the one it opens in, and otherwise looked for there by fingerprint and printed page number.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, PageNotePages>> ListAsync(IReadOnlyList<PageNoteInfo> pageNotes, long? documentId = null, CancellationToken ct = default)
+    {
+        var opens = await ResolveAsync(pageNotes, ct);
+        var result = new Dictionary<long, PageNotePages>(pageNotes.Count);
+        foreach (var note in pageNotes)
+        {
+            var place = opens[note.Id];
+            var range = note.Range;
+            var copy = documentId ?? (place.CanOpen ? place.DocumentId!.Value : range.DocumentId);
+            if (copy == range.DocumentId) result[note.Id] = new PageNotePages(place, range);
+            else if (place.CanOpen && place.DocumentId == copy) result[note.Id] = new PageNotePages(place, await MakeRangeAsync(copy, place.FirstPage, place.LastPage, ct));
+            else
+            {
+                var (first, last, found) = await places.MatchAsync(range, copy, ct);
+                result[note.Id] = new PageNotePages(place, await MakeRangeAsync(copy, first, last, ct), found);
+            }
+        }
         return result;
     }
 
