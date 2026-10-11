@@ -25,6 +25,9 @@ public interface IReviewActions
     Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId);
     Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages);
     Task<Func<Task>> RemovePartAsync(UnplacedPart part);
+    Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item);
+    void FixCorrection(CorrectionItem item);
+    Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -189,6 +192,7 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
     public string EditHint => Item.Issue.Field.Kind switch
     {
         FieldKind.Levels => "3, 1-5 or n/a",
+        FieldKind.Players => "4 or 3-5",
         FieldKind.Year => "2019",
         _ when Item.Issue.Field.Multiple => "Separate values with commas",
         _ => "",
@@ -472,6 +476,80 @@ public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOn
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Part.DocumentId, Part.FileTitle);
+}
+
+/// <summary>
+/// "You said this book was cataloged wrong" (scenario review, row 8): Cataloged wrong… was closed without a change.
+/// Fix it opens the editor again; the card goes once a correction is made there, or with It's fine now.
+/// </summary>
+public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public CorrectionItem Item { get; } = item;
+
+    public string Title => Item.Title;
+
+    public string Heading { get; } = "You said this book was cataloged wrong.";
+
+    public string Detail { get; } = "Its details were closed without a change. Fix it opens them again, with the values Bibliotaph guessed marked.";
+
+    [RelayCommand]
+    void FixIt() => Actions.FixCorrection(Item);
+
+    [RelayCommand]
+    Task ItsFine() => DecideAsync(() => Actions.DismissCorrectionAsync(Item), $"Left {Title} as it is.");
+
+    [RelayCommand]
+    void OpenFile()
+    {
+        if (Item.DocumentId is { } id) Actions.OpenDocument(id, Title);
+    }
+}
+
+/// <summary>
+/// A proposed folder rule (scenario review, row 8): the user set the same value on several books from one folder, so
+/// every file there could get it as a suggestion. Use this rule switches it on; No thanks keeps it off, and it isn't
+/// proposed again. Settings > Library lists the answered ones with a switch each.
+/// </summary>
+public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabulary vocabulary, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public FolderRuleInfo Rule { get; } = rule;
+
+    /// <summary>The folder's own name, or the library folder's for a rule on the whole of one.</summary>
+    public string FolderName => FolderRuleText.FolderName(Rule);
+
+    public string Title => $"A rule for “{FolderName}”";
+
+    public string Heading => $"You set {FolderRuleText.Describe(Rule, vocabulary)} on {Rule.Books.ToString("N0", CultureInfo.CurrentCulture)} books in this folder. "
+        + "Suggest it for every file in it?";
+
+    public string Detail { get; } = "Files in this folder and its subfolders, new ones too, get it as a suggestion. Anything you set on a book yourself stays. "
+        + "Settings > Library can switch the rule off.";
+
+    public string Path => FolderRuleText.FullPath(Rule);
+
+    [RelayCommand]
+    Task UseRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, true),
+        $"Files in “{FolderName}” now get {FolderRuleText.Describe(Rule, vocabulary)} as a suggestion.");
+
+    [RelayCommand]
+    Task NoRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, false), $"No rule for “{FolderName}”. Bibliotaph won't suggest this one again.");
+
+    [RelayCommand]
+    void ShowFolder() => Actions.ShowFolder(Path);
+}
+
+/// <summary>How a folder rule reads, on its Needs review card and in Settings > Library.</summary>
+public static class FolderRuleText
+{
+    public static string FolderName(FolderRuleInfo rule) =>
+        rule.Folder.Name is { Length: > 0 } name ? name : System.IO.Path.GetFileName(rule.RootPath.TrimEnd('\\', '/')) is { Length: > 0 } top ? top : rule.RootPath;
+
+    /// <summary>"system Pathfinder 2e", "types Adventure": the field in lower case, then the value as it reads.</summary>
+    public static string Describe(FolderRuleInfo rule, Vocabulary vocabulary) => MetadataFields.Find(rule.Field) is { } field
+        ? $"{field.Label.ToLower(CultureInfo.CurrentCulture)} {MetadataValueViewModel.Display(field, rule.Value, vocabulary)}"
+        : $"{rule.Field} {rule.Value}";
+
+    public static string FullPath(FolderRuleInfo rule) => rule.Folder.Folder.Length == 0 ? rule.RootPath : System.IO.Path.Combine(rule.RootPath, rule.Folder.Folder);
 }
 
 /// <summary>

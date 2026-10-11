@@ -21,6 +21,8 @@ public sealed record DocRow
     public string? MetaAuthor { get; init; }
     public string? MetaSubject { get; init; }
     public string? MetaKeywords { get; init; }
+    /// <summary>The software the PDF says made it, which can name the store that sold it ("…DriveThruRPG…").</summary>
+    public string? MetaProducer { get; init; }
     public string? FolderHint { get; init; }
 }
 
@@ -87,6 +89,9 @@ public sealed record EntryMetaRow
     public int? LevelMin { get; init; }
     public int? LevelMax { get; init; }
     public LevelState Levels { get; init; }
+    /// <summary>How many players it is for, both null when nobody knows.</summary>
+    public int? PlayersMin { get; init; }
+    public int? PlayersMax { get; init; }
     /// <summary>How many Needs review cards the entry has (<see cref="Core.Metadata.MetadataReview"/>).</summary>
     public int Reviews { get; init; }
     public bool Suggested { get; init; }
@@ -118,15 +123,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute(
                 """
                 INSERT INTO doc (document_id, content_hash, format, display_title, page_count, width_px, height_px, encrypted, can_copy,
-                                 meta_title, meta_author, meta_subject, meta_keywords, folder_hint, added_utc)
+                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, folder_hint, added_utc)
                 VALUES (@DocumentId, @ContentHash, @Format, @DisplayTitle, @PageCount, @WidthPx, @HeightPx, @Encrypted, @CanCopy,
-                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @FolderHint, @now)
+                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @FolderHint, @now)
                 ON CONFLICT (document_id) DO UPDATE SET
                     content_hash = excluded.content_hash, format = excluded.format, display_title = excluded.display_title,
                     page_count = excluded.page_count, width_px = excluded.width_px, height_px = excluded.height_px,
                     encrypted = excluded.encrypted, can_copy = excluded.can_copy, meta_title = excluded.meta_title,
                     meta_author = excluded.meta_author, meta_subject = excluded.meta_subject, meta_keywords = excluded.meta_keywords,
-                    folder_hint = excluded.folder_hint
+                    meta_producer = excluded.meta_producer, folder_hint = excluded.folder_hint
                 """,
                 new
                 {
@@ -143,6 +148,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.MetaAuthor,
                     doc.MetaSubject,
                     doc.MetaKeywords,
+                    doc.MetaProducer,
                     doc.FolderHint,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
@@ -332,13 +338,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 c.Execute(
                     """
                     INSERT INTO entry_meta (entry_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
-                                          level_state, needs_review, suggested, tags, confirmed_text, provisional_text)
+                                          level_state, players_min, players_max, needs_review, suggested, tags, confirmed_text, provisional_text)
                     VALUES (@entryId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
-                            @levelState, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
+                            @levelState, @PlayersMin, @PlayersMax, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
                     ON CONFLICT (entry_id) DO UPDATE SET
                         title = excluded.title, publisher = excluded.publisher, series = excluded.series, authors = excluded.authors,
                         year = excluded.year, system_label = excluded.system_label, kind_label = excluded.kind_label,
                         level_min = excluded.level_min, level_max = excluded.level_max, level_state = excluded.level_state,
+                        players_min = excluded.players_min, players_max = excluded.players_max,
                         needs_review = excluded.needs_review, suggested = excluded.suggested, tags = excluded.tags,
                         confirmed_text = excluded.confirmed_text, provisional_text = excluded.provisional_text
                     """,
@@ -355,6 +362,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.LevelMin,
                         row.LevelMax,
                         levelState = LevelStateText(row.Levels),
+                        row.PlayersMin,
+                        row.PlayersMax,
                         row.Reviews,
                         row.Suggested,
                         row.Tags,
@@ -394,8 +403,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         }, ct);
 
     /// <summary>
-    /// Replaces the own notes of these entries (entry_note), or of every entry when <paramref name="entryIds"/> is null,
-    /// and refreshes the search rows of those whose note changed.
+    /// Replaces the notes of these entries (entry_note: the text of their own note and page notes), or of every entry when
+    /// <paramref name="entryIds"/> is null, and refreshes the search rows of those whose notes changed.
     /// </summary>
     public Task SetNotesAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyDictionary<EntryId, string> notes, CancellationToken ct = default) =>
         entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>

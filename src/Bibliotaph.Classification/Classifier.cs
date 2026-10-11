@@ -2,8 +2,12 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Classification;
 
-/// <summary>A book as the classifier sees it: the excerpt it reads, and every page's text for the evidence check.</summary>
-public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int, string?> PageText, Vocabulary Vocabulary);
+/// <summary>
+/// A book as the classifier sees it: the excerpt it reads, every page's text for the evidence check, and the user's
+/// books sent as worked examples (scenario review, row 8), which the evidence check never reads.
+/// </summary>
+public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int, string?> PageText, Vocabulary Vocabulary,
+    IReadOnlyList<WorkedExample>? Examples = null);
 
 /// <summary>What one classification produced: the claims that passed the evidence check, and those that didn't.</summary>
 public sealed record ClassifierResult(string Provider, string Model, IReadOnlyList<CheckedClaim> Accepted, IReadOnlyList<DroppedClaim> Dropped);
@@ -39,7 +43,7 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
     public async Task<ClassifierResult> ClassifyAsync(ClassifierInput input, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
     {
         var system = ClassifierPrompt.SystemMessage(input.Vocabulary);
-        var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName);
+        var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName, input.Examples);
         var request = new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user), Progress: progress);
         string answer;
         try

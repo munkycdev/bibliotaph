@@ -328,6 +328,63 @@
       </Border>
     </DataTemplate>
 
+    <!-- Cataloged wrong… left without a change (scenario review, row 8): Fix it opens the book's details to correct again. -->
+    <DataTemplate DataType="{x:Type vm:CorrectionCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Cataloged wrong" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this book"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <WrapPanel Margin="0,16,0,0">
+              <Button x:Name="FixIt" Style="{StaticResource Bt.Button.Primary}" Content="Fix it" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                      Command="{Binding FixItCommand}" Margin="0,0,8,8" AutomationProperties.Name="{Binding Title, StringFormat='Fix {0}'}"
+                      ToolTip="Open its details, with the values Bibliotaph guessed marked" />
+              <Button x:Name="ItsFine" Content="It's fine now" Command="{Binding ItsFineCommand}" Margin="0,0,8,8"
+                      ToolTip="Leave it as it is, and take this card away" />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
+    <!-- A proposed folder rule (scenario review, row 8): the same value set on several books from one folder. -->
+    <DataTemplate DataType="{x:Type vm:FolderRuleCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Folder rule?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding ShowFolderCommand}" ToolTip="Show in File Explorer"
+                      AutomationProperties.Name="{Binding FolderName, StringFormat='Show {0} in File Explorer'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <WrapPanel Margin="0,16,0,0">
+              <Button x:Name="UseRule" Style="{StaticResource Bt.Button.Primary}" Content="Use this rule" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding UseRuleCommand}" Margin="0,0,8,8" ToolTip="Suggest this for every file in the folder, new ones too" />
+              <Button x:Name="NoRule" Content="No thanks" Command="{Binding NoRuleCommand}" Margin="0,0,8,8"
+                      ToolTip="No rule. Bibliotaph won't suggest this one again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- An adventure inside a file whose pages weren't found in the file as it is now (slice 5): set its pages, or remove it. -->
     <DataTemplate DataType="{x:Type vm:UnplacedPartCardViewModel}">
       <Border Style="{StaticResource Card}">

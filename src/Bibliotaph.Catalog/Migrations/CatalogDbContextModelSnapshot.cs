@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011044120_CatalogParts";
+    public override string LastMigrationId => "20261011163000_CatalogParts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -196,6 +196,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<DateTime>("UsedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("used_utc");
@@ -203,6 +207,9 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.HasIndex("ParentId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("collection");
             });
@@ -239,6 +246,29 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("copy_decision");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CorrectionRequest", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.HasKey("Id");
+
+                b.HasIndex("EntryId")
+                    .IsUnique();
+
+                b.ToTable("correction_request");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Document", b =>
@@ -344,11 +374,18 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_entry_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("MergedIntoEntryId");
 
                 b.HasIndex("ParentEntryId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("entry");
             });
@@ -517,6 +554,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("relative_path");
 
+                b.Property<bool>("ReturnToOnlineOnly")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("return_to_online_only");
+
                 b.Property<long>("SizeBytes")
                     .HasColumnType("INTEGER")
                     .HasColumnName("size_bytes");
@@ -544,6 +585,57 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("file_location");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.FolderRule", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<int>("Books")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("books");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<DateTime?>("DecidedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("decided_utc");
+
+                b.Property<string>("Field")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("field");
+
+                b.Property<string>("Folder")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("folder");
+
+                b.Property<long>("SourceRootId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("source_root_id");
+
+                b.Property<string>("State")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("state");
+
+                b.Property<string>("Value")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("value");
+
+                b.HasKey("Id");
+
+                b.HasIndex("SourceRootId", "Folder", "Field", "Value")
+                    .IsUnique();
+
+                b.ToTable("folder_rule");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.IgnoredFolderLabel", b =>
@@ -599,6 +691,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("page_ref_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<string>("Text")
                     .IsRequired()
                     .HasColumnType("TEXT")
@@ -616,6 +712,9 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasFilter("page_ref_id IS NULL");
 
                 b.HasIndex("PageRefId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.HasIndex("EntryId", "PageRefId");
 
@@ -882,6 +981,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("section_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("EntryId");
@@ -891,6 +994,9 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("PageRefId");
 
                 b.HasIndex("SectionId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("session_item");
             });
@@ -922,6 +1028,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("notes");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<string>("Title")
                     .IsRequired()
                     .HasColumnType("TEXT")
@@ -932,6 +1042,9 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnName("touched_utc");
 
                 b.HasKey("Id");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.HasIndex("TouchedUtc");
 
@@ -958,9 +1071,16 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("position");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("PackId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("session_section");
             });
@@ -1002,6 +1122,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("name");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<DateTime>("UpdatedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("updated_utc");
@@ -1009,6 +1133,9 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.HasIndex("Name");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("smart_view");
             });
@@ -1044,6 +1171,34 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("source_root");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.SyncState", b =>
+            {
+                b.Property<string>("Key")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("key");
+
+                b.Property<string>("AliasesJson")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("aliases_json");
+
+                b.Property<DateTime?>("DeletedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("deleted_utc");
+
+                b.Property<string>("FieldsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("fields_json");
+
+                b.Property<bool>("Pending")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("pending");
+
+                b.HasKey("Key");
+
+                b.ToTable("sync_state");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VersionProposal", b =>
@@ -1214,6 +1369,15 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CorrectionRequest", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.ElsewhereMatch", b =>
             {
                 b.HasOne("Bibliotaph.Catalog.Entities.Document", null)
@@ -1325,6 +1489,15 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Document");
 
                 b.Navigation("SourceRoot");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.FolderRule", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.SourceRoot", null)
+                    .WithMany()
+                    .HasForeignKey("SourceRootId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Note", b =>

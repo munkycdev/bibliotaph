@@ -8,9 +8,9 @@ public static class PilotFields
 {
     /// <summary>Every field the review page asks about, in its order.</summary>
     public static IReadOnlyList<MetadataField> Core { get; } =
-        [MetadataFields.Title, MetadataFields.System, MetadataFields.Types, MetadataFields.Publisher, MetadataFields.Levels];
+        [MetadataFields.Title, MetadataFields.System, MetadataFields.Types, MetadataFields.Publisher, MetadataFields.Levels, MetadataFields.Players];
 
-    /// <summary>The fields the precision and coverage gates are measured on. Levels are reported, not gated.</summary>
+    /// <summary>The fields the precision and coverage gates are measured on. Levels and players are reported, not gated.</summary>
     public static IReadOnlyList<MetadataField> Gated { get; } =
         [MetadataFields.Title, MetadataFields.System, MetadataFields.Types, MetadataFields.Publisher];
 }
@@ -51,7 +51,7 @@ public static class PilotSample
 
 /// <summary>
 /// Whether two values of a field mean the same: a term's names all count as it, titles match with or without a subtitle,
-/// publishers without "Inc." or "LLC", and levels by their range.
+/// publishers without "Inc." or "LLC", and levels and players by their range.
 /// </summary>
 public sealed class PilotMatcher(Vocabulary vocabulary)
 {
@@ -61,7 +61,7 @@ public sealed class PilotMatcher(Vocabulary vocabulary)
     public bool Same(MetadataField field, string a, string b)
     {
         if (field.Kind == FieldKind.Term) return TermKey(field, a) == TermKey(field, b);
-        if (field.Kind == FieldKind.Levels) return MetadataValues.Normalize(field, a) == MetadataValues.Normalize(field, b);
+        if (field.Kind is FieldKind.Levels or FieldKind.Players) return MetadataValues.Normalize(field, a) == MetadataValues.Normalize(field, b);
         if (field == MetadataFields.Title) return SameTitle(a, b);
         if (field == MetadataFields.Publisher) return Publisher(a) == Publisher(b);
         return MetadataText.Normalize(a) == MetadataText.Normalize(b);

@@ -31,6 +31,33 @@
       </StackPanel>
     </CheckBox>
 
+    <!-- Sync with another PC (library sync plan): a sync file per PC in a folder the user picks, merged both ways. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Sync with another PC" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
+                   Text="Use Bibliotaph on two Windows PCs with the same corrections, hearts, notes, collections, binders, saved searches and pins. Pick a folder both PCs can see, such as one in OneDrive, on each PC. Each PC writes its own sync file there and merges the other's; when both changed the same thing, the newer change wins." />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,8,0,12" TextWrapping="Wrap"
+                   Text="Only your work goes in the folder. Your books, and Bibliotaph's databases, never do: don't put Bibliotaph's data folder in OneDrive or another synced folder, as a database synced while it's open gets damaged." />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,0,0,12" TextWrapping="Wrap"
+                   Visibility="{Binding IsSyncing, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <Run Text="Syncing with " /><Run Text="{Binding SyncFolder, Mode=OneWay}" /><Run Text=" as " /><Run Text="{Binding SyncFileName, Mode=OneWay}" /><Run Text="." />
+        </TextBlock>
+        <WrapPanel>
+          <Button x:Name="ChooseSyncFolder" Content="Choose a folder…" c:Ui.Icon="{StaticResource Icon.FolderInput}" Margin="0,0,8,0"
+                  Command="{Binding ChooseSyncFolderCommand}" AutomationProperties.Name="Choose a folder to sync with another PC" />
+          <Button x:Name="SyncNow" Content="Sync now" Margin="0,0,8,0" Command="{Binding SyncNowCommand}" AutomationProperties.Name="Sync now"
+                  Visibility="{Binding IsSyncing, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="StopSyncing" Style="{StaticResource Bt.Link}" Content="Stop syncing" VerticalAlignment="Center"
+                  Command="{Binding StopSyncingCommand}" AutomationProperties.Name="Stop syncing"
+                  Visibility="{Binding IsSyncing, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        </WrapPanel>
+        <TextBlock x:Name="SyncStatusText" Text="{Binding SyncStatusLine}" Style="{StaticResource Text.Small}" Margin="0,10,0,0" TextWrapping="Wrap" />
+        <TextBlock x:Name="SyncProblemText" Text="{Binding SyncProblem}" Style="{StaticResource Text.Small}" Margin="0,6,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding SyncProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </Border>
+
     <!-- Restore (choice 4): pick a backup, see each of its folders found or not, point the missing ones, then restart. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
       <StackPanel>

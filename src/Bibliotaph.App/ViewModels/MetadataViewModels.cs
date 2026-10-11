@@ -14,6 +14,9 @@ public interface IMetadataEditor
     Task RejectAsync(MetadataField field, string normalized);
     Task UseAsync(MetadataField field, string value);
     Task ResetAsync(MetadataField field);
+
+    /// <summary>Opens a Get it from link in the browser once the user says yes.</summary>
+    void OpenLink(string url);
 }
 
 /// <summary>One value, or one alternative, with where it came from.</summary>
@@ -23,8 +26,19 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
 
     public MetadataField Field { get; } = field;
 
-    /// <summary>As it reads: a term's label, "Levels 1–5", the text itself.</summary>
+    /// <summary>As it reads: a term's label, "Levels 1–5", "4–6 players", a store's name, the text itself.</summary>
     public string Text { get; } = Display(field, value.Value, vocabulary);
+
+    /// <summary>A store's link (Get it from), or null.</summary>
+    public string? Url { get; } = field.Kind == FieldKind.Store ? StoreLink.Parse(value.Value).Url : null;
+
+    public bool HasLink => Url is not null;
+
+    /// <summary>The link as its button reads: "drivethrurpg.com/en/product/…".</summary>
+    public string? LinkText { get; } = field.Kind == FieldKind.Store ? StoreLink.Parse(value.Value).ShortUrl : null;
+
+    /// <summary>As it is typed back into the editor: a store's name with its link after it, otherwise <see cref="Text"/>.</summary>
+    public string EditForm => Url is null ? Text : $"{Text} {Url}";
 
     public bool Confirmed => Value.Confirmed;
 
@@ -35,8 +49,14 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
     {
         FieldKind.Term => vocabulary.Label(field.Vocabulary!, value),
         FieldKind.Levels when LevelRange.TryParse(value, out var range) => range.Describe(),
+        FieldKind.Players when PlayerRange.TryParse(value, out var players) => players.Describe(),
+        FieldKind.Store => vocabulary.Label(field.Vocabulary!, StoreLink.Parse(value).Store),
         _ => value,
     };
+
+    /// <summary>As a value reads where its link has to show too, as on a bulk edit chip: "DriveThruRPG · drivethrurpg.com/…".</summary>
+    public static string DisplayWithLink(MetadataField field, string value, Vocabulary vocabulary) =>
+        field.Kind == FieldKind.Store && StoreLink.Parse(value) is { ShortUrl: { } link } ? $"{Display(field, value, vocabulary)} · {link}" : Display(field, value, vocabulary);
 
     /// <summary>Where one claim came from, in words: "From the folder name “D&amp;D 5e”", with its pages unless told not to.</summary>
     public static string Describe(MetadataClaim claim, bool pages = true)
@@ -48,7 +68,8 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
             AssertionOrigin.Folder => "From the folder name" + quote,
             AssertionOrigin.Filename => "From the file name" + quote,
             AssertionOrigin.Embedded => "From the PDF's own information" + quote,
-            AssertionOrigin.Rule => "Written in the file's name or title" + quote,
+            AssertionOrigin.Rule => (claim.Field == MetadataFields.GetItFrom.Key ? "Named in the file's watermark" : "Written in the file's name or title") + quote,
+            AssertionOrigin.FolderRule => string.IsNullOrWhiteSpace(claim.Quote) ? "From your rule for this library folder" : $"From your rule for the folder “{claim.Quote}”",
             AssertionOrigin.Ai => "Suggested by the AI model" + quote + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
             _ => claim.Origin.ToString(),
         };
@@ -75,7 +96,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
         Alternatives = [.. field.Alternatives.Select(v => new MetadataValueViewModel(field.Field, v, vocabulary))];
         NeedsReview = field.NeedsReview;
         Choices = ChoicesFor(field.Field, vocabulary);
-        EditText = string.Join(", ", Values.Select(v => v.Text));
+        EditText = string.Join(", ", Values.Select(v => v.EditForm));
     }
 
     public MetadataField Field { get; }
@@ -92,6 +113,11 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     public bool IsKnown => Values.Count > 0;
 
     public string Display => IsKnown ? string.Join(", ", Values.Select(v => v.Text)) : "Not set";
+
+    /// <summary>The values with a web link (Get it from), shown as links under the field.</summary>
+    public IReadOnlyList<MetadataValueViewModel> Links => [.. Values.Where(v => v.HasLink)];
+
+    public bool HasLinks => Values.Any(v => v.HasLink);
 
     /// <summary>Some value here is a suggestion nobody has confirmed.</summary>
     public bool IsSuggested => Values.Any(v => !v.Confirmed);
@@ -118,13 +144,26 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     public string EditHint => Field.Kind switch
     {
         FieldKind.Levels => "3, 1-5 or n/a",
+        FieldKind.Players => "4 or 3-5",
         FieldKind.Year => "2019",
+        FieldKind.Store => StoreHint,
         _ when Field.Multiple => "Separate values with commas",
         _ => "",
     };
 
+    /// <summary>How to type Get it from, wherever it is edited.</summary>
+    public const string StoreHint = "A store, a link, or both: DriveThruRPG https://… Separate stores with commas";
+
     [ObservableProperty]
     public partial bool ShowEvidence { get; set; }
+
+    /// <summary>Cataloged wrong… is open: a value nobody confirmed carries a "Guessed" mark, so the guesses stand out.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsGuessed))]
+    public partial bool MarksGuesses { get; set; }
+
+    /// <summary>The "Guessed" mark: shown while correcting, on a field whose value is only suggested.</summary>
+    public bool ShowsGuessed => MarksGuesses && IsKnown && IsSuggested;
 
     [ObservableProperty]
     public partial bool IsEditing { get; set; }
@@ -147,13 +186,25 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     /// <summary>How typed text will be filed in a term field; empty for other fields, or when every value is a label.</summary>
     public static string DescribeResolution(MetadataField field, string? typed, Vocabulary vocabulary)
     {
-        if (field.Kind != FieldKind.Term) return "";
+        if (field.Kind is not (FieldKind.Term or FieldKind.Store)) return "";
         var notes = new List<string>();
-        foreach (var part in MetadataValues.Split(field, typed ?? ""))
+        foreach (var typedPart in MetadataValues.Split(field, typed ?? ""))
         {
-            if (MetadataText.Normalize(part).Length == 0) continue;
-            var term = vocabulary.Resolve(field.Vocabulary!, part);
-            if (term is null) notes.Add($"“{part}” will be added as a new {field.Label.ToLower(CultureInfo.CurrentCulture)}.");
+            if (MetadataText.Normalize(typedPart).Length == 0) continue;
+            var part = typedPart;
+            Term? term;
+            if (field.Kind == FieldKind.Store)
+            {
+                (term, part, var url) = StoreLink.Read(typedPart, vocabulary);
+                if (term is not null && url is not null && MetadataText.Normalize(StoreLink.Split(typedPart).Name).Length == 0)
+                {
+                    notes.Add($"The link goes to {term.Label}.");
+                    continue;
+                }
+            }
+            else term = vocabulary.Resolve(field.Vocabulary!, part);
+            var kind = field.Kind == FieldKind.Store ? field.Vocabulary! : field.Label.ToLower(CultureInfo.CurrentCulture);
+            if (term is null) notes.Add($"“{part}” will be added as a new {kind}.");
             else if (MetadataText.Normalize(term.Label) != MetadataText.Normalize(part)) notes.Add($"“{part}” is another name for {term.Label}.");
         }
         return string.Join(" ", notes);
@@ -161,7 +212,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     /// <summary>The labels of a term field's vocabulary, to pick from; empty for other fields.</summary>
     public static IReadOnlyList<string> ChoicesFor(MetadataField field, Vocabulary vocabulary) =>
-        field.Kind == FieldKind.Term
+        field.Kind is FieldKind.Term or FieldKind.Store
             ? [.. vocabulary.InVocabulary(field.Vocabulary!).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase)]
             : [];
 
@@ -220,6 +271,13 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     [RelayCommand]
     Task Reset() => RunAsync(() => _editor.ResetAsync(Field));
+
+    /// <summary>Opens a value's link, after asking, as a web link in a PDF does.</summary>
+    [RelayCommand]
+    void OpenLink(MetadataValueViewModel value)
+    {
+        if (value.Url is { } url) _editor.OpenLink(url);
+    }
 
     async Task RunAsync(Func<Task> action)
     {

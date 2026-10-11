@@ -147,6 +147,10 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand]
     void OpenDetails(LibraryItemViewModel item) => pages.ShowDetails(item.EntryId);
 
+    /// <summary>Cataloged wrong…, from a cover's menu: the Library with the book's editor open to correct it.</summary>
+    [RelayCommand]
+    void CatalogedWrong(LibraryItemViewModel item) => pages.ShowCorrection(item.EntryId);
+
     /// <summary>Opens a book where it was left (choice 6), from a cover's menu or Enter on it.</summary>
     [RelayCommand(CanExecute = nameof(CanOpenBook))]
     async Task OpenBook(LibraryItemViewModel item)

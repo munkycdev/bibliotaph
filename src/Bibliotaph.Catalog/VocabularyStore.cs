@@ -87,6 +87,9 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
             ?? throw new InvalidOperationException("The starter vocabulary is empty.");
     }
 
+    /// <summary>Drops the loaded vocabulary after terms were changed outside this store (library sync's merge), so the next load reads them.</summary>
+    internal void Forget() => _cached = null;
+
     /// <summary>The active terms and their aliases. Pending and rejected terms neither match nor label.</summary>
     public async Task<Vocabulary> GetAsync(CancellationToken ct = default)
     {

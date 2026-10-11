@@ -45,7 +45,7 @@ public sealed record PageTextEntry(int PdfPage, string Text);
 public sealed record PilotCandidate(long DocumentId, string Folder, string? System);
 
 /// <summary>The PDF's own document information, as Probe read it.</summary>
-public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords);
+public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords, string? Producer = null);
 
 /// <summary>A card with a given title: its kind, the document it shows (none when owned elsewhere) and its publisher.</summary>
 public sealed record TitleMatch(EntryId EntryId, EntryKind Kind, long? DocumentId, string? Publisher);
@@ -325,6 +325,30 @@ public sealed class IndexQueries(IndexDatabase database)
             new { entryId = entryId.Value }, cancellationToken: ct))).Select(id => new EntryId(id))];
     }
 
+    /// <summary>
+    /// Every file in the library that could be a book owned elsewhere's, by the rule of <see cref="GetElsewhereMatchesAsync"/>
+    /// (the same title, ignoring case, and no publisher that says otherwise): each book, the card of the file, and the
+    /// document that card opens. Read in one pass over the cards, so it is cheap enough to run after any edit.
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId Book, EntryId File, long DocumentId)>> GetElsewhereFilesAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<(long Book, long File, long DocumentId)>(new CommandDefinition(
+            """
+            WITH book AS MATERIALIZED (
+                SELECT m.entry_id, lower(m.title) AS title, lower(m.publisher) AS publisher
+                FROM entry_doc e JOIN entry_meta m ON m.entry_id = e.entry_id
+                WHERE e.kind = 'Elsewhere' AND m.title IS NOT NULL)
+            SELECT book.entry_id, other.entry_id, file.document_id
+            FROM entry_meta other
+            JOIN book ON book.title = lower(other.title) AND book.entry_id <> other.entry_id
+                AND (other.publisher IS NULL OR book.publisher IS NULL OR book.publisher = lower(other.publisher))
+            JOIN entry_doc file ON file.entry_id = other.entry_id AND file.kind = 'Whole' AND file.document_id IS NOT NULL
+            ORDER BY book.entry_id, file.document_id
+            """,
+            cancellationToken: ct))).Select(r => (new EntryId(r.Book), new EntryId(r.File), r.DocumentId))];
+    }
+
     /// <summary>The title each of <paramref name="entryIds"/>' cards shows: its effective title, or its document's.</summary>
     public async Task<IReadOnlyDictionary<EntryId, string>> GetEntryTitlesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -338,6 +362,24 @@ public sealed class IndexQueries(IndexDatabase database)
             """,
             new { ids = entryIds.Select(e => e.Value).Distinct().ToArray() }, cancellationToken: ct));
         return rows.Where(r => r.Title is not null).ToDictionary(r => new EntryId(r.EntryId), r => r.Title!);
+    }
+
+    /// <summary>
+    /// The game systems and editions (field and term key) whose books in the library are marked as having no levels,
+    /// at least one of them and none with known levels: Ask ignores a level asked of one (scenario review, row 5).
+    /// </summary>
+    public async Task<IReadOnlyList<(string Field, string Key)>> GetSystemsWithoutLevelsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string Field, string Key)>(new CommandDefinition(
+            """
+            SELECT f.field, f.value
+            FROM entry_facet f JOIN entry_meta m ON m.entry_id = f.entry_id
+            WHERE f.field IN ('system', 'edition')
+            GROUP BY f.field, f.value
+            HAVING sum(m.level_state = 'na') > 0 AND sum(m.level_state = 'known') = 0
+            """, cancellationToken: ct));
+        return [.. rows];
     }
 
     /// <summary>A document's cover file name in the cover cache, or null when it has none.</summary>
@@ -423,7 +465,7 @@ public sealed class IndexQueries(IndexDatabase database)
     {
         await using var connection = database.OpenRead();
         return await connection.QuerySingleOrDefaultAsync<EmbeddedInfo>(new CommandDefinition(
-            "SELECT meta_title AS Title, meta_author AS Author, meta_subject AS Subject, meta_keywords AS Keywords FROM doc WHERE document_id = @documentId",
+            "SELECT meta_title AS Title, meta_author AS Author, meta_subject AS Subject, meta_keywords AS Keywords, meta_producer AS Producer FROM doc WHERE document_id = @documentId",
             new { documentId }, cancellationToken: ct));
     }
 
