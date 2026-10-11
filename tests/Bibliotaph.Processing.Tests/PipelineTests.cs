@@ -140,7 +140,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         File.Copy(source, target);
     }
 
-    /// <summary>Waits until nothing is waiting to be scanned, hashed or processed.</summary>
+    /// <summary>Waits until nothing is waiting to be scanned, hashed, packed or processed.</summary>
     async Task<IndexProgress> SettleAsync()
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
@@ -153,8 +153,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             var counts = await _libraryStore.GetCountsAsync(timeout.Token);
             // Hashing attaches a document in catalog.db before it queues the document's jobs in index.db, so idle
             // also means every catalog document has reached index.db.
+            // Packs are made just after hashing, so idle also waits for the pack cards hashing called for.
             if (!_service.IsScanning && counts.Files > 0 && counts.Unhashed == 0 && progress.Documents == counts.Documents
-                && summary.IsIdle && progress.Processing == 0) return progress;
+                && summary.IsIdle && progress.Processing == 0 && !_service.PacksPending) return progress;
         }
     }
 
