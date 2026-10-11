@@ -233,7 +233,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
             await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
             [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
-                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))],
+                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc) { Link = i.Link })],
             await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct),
             await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct));
     }
@@ -270,6 +270,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
                 SectionId = section,
                 Position = item.Position,
                 EntryId = entry.Id,
+                Link = item.Link,
                 Label = item.Label,
                 Note = item.Note,
                 AddedUtc = item.AddedUtc,

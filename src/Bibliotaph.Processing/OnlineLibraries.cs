@@ -63,6 +63,9 @@ public interface IOnlineLibraryReader
 
     /// <summary>The books on the page, or null when it isn't this service's library page.</summary>
     OnlinePage? Read(string html);
+
+    /// <summary>Other sites the service signs in on, which the online reader follows as it follows the service's own.</summary>
+    IReadOnlyList<string> SignInSites => [];
 }
 
 /// <summary>
@@ -81,6 +84,9 @@ public sealed partial class DndBeyondReader : IOnlineLibraryReader
     public string Name => "D&D Beyond";
 
     public Uri LibraryPage { get; } = new($"{Site}/en/library?ownership=owned");
+
+    /// <summary>D&amp;D Beyond's sign-in with a Wizards account goes through Wizards of the Coast's site.</summary>
+    public IReadOnlyList<string> SignInSites { get; } = ["wizards.com"];
 
     public OnlinePage? Read(string html)
     {

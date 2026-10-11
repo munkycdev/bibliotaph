@@ -114,6 +114,118 @@ static partial class SmokeTest
         }
     }
 
+    /// <summary>
+    /// The online reader (O2b) on the made-up library page standing in for a book's page: it opens in the main window
+    /// with the page loaded, keeps the book's note, pops out into a window of its own and comes back.
+    /// </summary>
+    static async Task ReadOnlineBookAsync(IServiceProvider services, Window window)
+    {
+        var saved = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(services.GetRequiredService<AppPaths>().Root)!, "online", "dndbeyond-library.html");
+        if (OnlineBrowsers.RuntimeVersion is null || !System.IO.File.Exists(saved))
+        {
+            Log.Warning("Smoke test: no WebView2 Runtime or no made-up page, so the online reader is left out");
+            return;
+        }
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var notes = services.GetRequiredService<NotesService>();
+        var visible = await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync();
+        var book = (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible))))[0];
+        var noteBefore = await notes.GetEntryNoteAsync(book.EntryId);
+
+        var readers = services.GetRequiredService<OnlineReaders>();
+        var request = new OnlineReaderRequest(book.EntryId, "Smoke online book", new Uri(saved).AbsoluteUri) { Place = "D&D Beyond" };
+        if (await readers.OpenAsync(request) is { } problem) throw new InvalidOperationException($"The online reader didn't open: {problem}");
+        await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel, () => "The online reader didn't show in the main window.");
+        var reader = (OnlineReaderViewModel)shell.CurrentPage!;
+        await WaitForPageAsync(window, reader);
+        if (Descendants<Button>(window).Any(b => b.Name is "OnlineReturn" && b.IsVisible)) throw new InvalidOperationException("The main window's online reader offers Return.");
+        await AuditAsync(window, "the online reader");
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlineNote"), "Note");
+        await WaitUntilAsync(window, () => reader.ShowNote, () => "Note didn't show the book's note.");
+        reader.NoteText = "Smoke note from the online reader";
+        await reader.SaveNoteAsync();
+        if (await notes.GetEntryNoteAsync(book.EntryId) != "Smoke note from the online reader") throw new InvalidOperationException("The online reader didn't keep the note.");
+        reader.NoteText = noteBefore ?? "";
+        await reader.SaveNoteAsync();
+
+        await AddOnlinePageAsync(services, window, reader);
+
+        var windows = services.GetRequiredService<ReaderWindows>();
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlinePopOut"), "Pop out");
+        await WaitUntilAsync(window, () => windows.Find(m => m is OnlineReaderViewModel) is not null && shell.CurrentPage is not OnlineReaderViewModel,
+            () => "Pop out didn't move the online reader to a window of its own.");
+        var popped = windows.Find(m => m is OnlineReaderViewModel)!;
+        var poppedReader = (OnlineReaderViewModel)popped.Model;
+        await WaitForPageAsync(popped, poppedReader);
+        Click(Descendants<Button>(popped).FirstOrDefault(b => b.Name == "OnlineReturn"), "Return to main window");
+        await WaitUntilAsync(window, () => windows.Find(m => m is OnlineReaderViewModel) is null && shell.CurrentPage is OnlineReaderViewModel,
+            () => "Return to main window didn't bring the online reader back.");
+        navigation.GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// Add this page (O2b): the page in view goes into the current binder as a link labelled with the page's title, and
+    /// opening it from the binder's list opens the online reader at that page. The binder is deleted afterwards.
+    /// </summary>
+    static async Task AddOnlinePageAsync(IServiceProvider services, Window window, OnlineReaderViewModel reader)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var sessions = services.GetRequiredService<SessionsService>();
+        var binder = await sessions.CreateAsync("Smoke online pages");
+        await services.GetRequiredService<SessionDirectory>().LoadAsync();
+        try
+        {
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlineAddPage" && b.IsVisible), "Add this page");
+            await WaitUntilAsync(window, () => reader.Sessions.Message?.StartsWith("Added", StringComparison.Ordinal) == true,
+                () => $"Add this page didn't add the page ({reader.Sessions.Message ?? "no message"}).");
+            var item = Assert1((await sessions.GetAsync(binder.Id))!.Items, "the binder's items");
+            if (item.Link != reader.Address || item.EntryId != reader.Request.EntryId || string.IsNullOrEmpty(item.Label))
+                throw new InvalidOperationException($"Add this page added {item.Link} labelled {item.Label ?? "nothing"}, not {reader.Address}.");
+
+            services.GetRequiredService<SessionPages>().Edit(binder.Id);
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Edit binder didn't open the binder's list.");
+            var pack = (SessionPackViewModel)shell.CurrentPage!;
+            var row = pack.Rows.OfType<SessionItemRow>().Single();
+            if (!row.OpensOnline || row.IsDimmed) throw new InvalidOperationException($"The binder's online page doesn't open online ({row.Reason}).");
+            await AuditAsync(window, "a binder with a page owned online");
+            pack.OpenItemCommand.Execute(row);
+            await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel { Request.At: { } at } && at == item.Link,
+                () => "Opening the binder's online page didn't open the online reader at it.");
+            await WaitForPageAsync(window, (OnlineReaderViewModel)shell.CurrentPage!);
+            navigation.GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel, () => "Back didn't return to the binder's list.");
+            navigation.GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage == reader, () => "Back didn't return to the online reader.");
+            await WaitForPageAsync(window, reader);
+        }
+        finally
+        {
+            await sessions.DeleteAsync(binder.Id);
+            await services.GetRequiredService<SessionDirectory>().LoadAsync();
+        }
+    }
+
+    static T Assert1<T>(IReadOnlyList<T> items, string what) =>
+        items.Count == 1 ? items[0] : throw new InvalidOperationException($"Expected one of {what}, found {items.Count}.");
+
+    /// <summary>Waits for the online reader's browser to show the made-up page; the browser takes a while to start.</summary>
+    static async Task WaitForPageAsync(Window window, OnlineReaderViewModel reader)
+    {
+        var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency * 60;
+        while (Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(window).FirstOrDefault()?.CoreWebView2?.Source is not { } source
+            || !source.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (System.Diagnostics.Stopwatch.GetTimestamp() > deadline)
+                throw new InvalidOperationException($"The online reader didn't show the page ({reader.Notice ?? "no notice"}).");
+            await Task.Delay(200);
+        }
+        await Settle(window);
+    }
+
     /// <summary>Opens a button's menu, as a click does, and chooses the item with <paramref name="command"/>.</summary>
     static async Task ChooseAsync(Window window, string button, System.Windows.Input.ICommand command, string name)
     {

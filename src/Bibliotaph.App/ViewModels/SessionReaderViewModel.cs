@@ -31,6 +31,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly LibraryQueries _queries;
     readonly CoverImages _covers;
     readonly ReaderWindows _readers;
+    readonly OnlineReaders _online;
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
     readonly ILogger<SessionReaderViewModel> _log;
@@ -43,8 +44,9 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        SessionDirectory directory, PinDirectory pins, ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, PinDirectory pins, OnlineReaders online, ILogger<SessionReaderViewModel> log)
     {
+        _online = online;
         _directory = directory;
         _pins = pins;
         _sessions = sessions;
@@ -412,7 +414,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         try
         {
-            if (await SessionPackRows.RequestAsync(page.Row, page.BinderTitle, _queries) is { } request) await _readers.OpenInNewWindowAsync(request);
+            if (SessionPackRows.OnlineRequest(page.Row) is { } online) await _online.OpenInWindowAsync(online);
+            else if (await SessionPackRows.RequestAsync(page.Row, page.BinderTitle, _queries) is { } request) await _readers.OpenInNewWindowAsync(request);
         }
         catch (Exception ex)
         {
@@ -448,7 +451,13 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         Current = row;
         _currentId = row.Id;
-        if (!row.CanOpen)
+        if (row.OpensOnline)
+        {
+            // The binder's reader shows files; a page owned online opens in the online reader, from the binder's page or At hand.
+            Viewer.ShowUnavailable($"{row.Heading} is a page on {row.OnlinePlace ?? "the web"}.",
+                "Pages owned online open in the online reader: open it from the binder's page, or from At hand.");
+        }
+        else if (!row.CanOpen)
         {
             // Its folder offline or its file gone: the reader says what to do, and Try again opens it once it's back.
             if (row.Target.Away is { } away) Viewer.ShowAway(away, () => RefreshRowsAsync(reopen: true));

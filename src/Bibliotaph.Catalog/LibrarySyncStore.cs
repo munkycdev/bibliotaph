@@ -156,6 +156,7 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
                 (SyncFields.Position, Json(i.Position)),
                 (SyncFields.Card, Json(card)),
                 (SyncFields.Pages, i.PageRefId is { } r ? pages.GetValueOrDefault(r) : null),
+                (SyncFields.Link, i.Link is { } link ? Json(link) : null),
                 (SyncFields.Label, i.Label is { } l ? Json(l) : null),
                 (SyncFields.Note, i.Note is { } n ? Json(n) : null));
         }

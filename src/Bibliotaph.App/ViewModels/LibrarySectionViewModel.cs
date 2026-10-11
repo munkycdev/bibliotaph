@@ -94,7 +94,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
     LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies,
-    SiteIconImages siteIcons, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
+    SiteIconImages siteIcons, OnlineReaders onlineReaders, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
     public override string Label => "Library";
@@ -134,6 +134,7 @@ public sealed partial class LibrarySectionViewModel(
         StartOnLibrary = await settings.GetAsync(SettingKeys.StartPage) == nameof(Route.Library);
         _loadingSiteIcons = true;
         ShowSiteIcons = await siteIcons.IsOnAsync();
+        ReadOnlineInApp = await onlineReaders.OpensInAppAsync();
         _loadingSiteIcons = false;
         if (folders.TakePickRequest()) await AddFolder();
     }
@@ -146,6 +147,26 @@ public sealed partial class LibrarySectionViewModel(
     /// </summary>
     [ObservableProperty]
     public partial bool ShowSiteIcons { get; set; } = true;
+
+    /// <summary>
+    /// Read books owned online in Bibliotaph (online libraries plan, choice 19): Open shows the service's page in the
+    /// online reader. Off, it opens in the everyday browser.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ReadOnlineInApp { get; set; } = true;
+
+    async partial void OnReadOnlineInAppChanged(bool value)
+    {
+        if (_loadingSiteIcons) return;
+        try
+        {
+            await onlineReaders.SetOpensInAppAsync(value);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving the online reader setting failed");
+        }
+    }
 
     async partial void OnShowSiteIconsChanged(bool value)
     {

@@ -36,13 +36,20 @@ public sealed record SessionPackInfo(long Id, string Title, DateOnly? Date, stri
 
 public sealed record SessionSectionInfo(long Id, string Name, int Position);
 
-public sealed record SessionItemInfo(long Id, long PackId, long? SectionId, int Position, EntryId EntryId, PageRange? Range, string? Label, string? Note, DateTime AddedUtc);
+public sealed record SessionItemInfo(long Id, long PackId, long? SectionId, int Position, EntryId EntryId, PageRange? Range, string? Label, string? Note, DateTime AddedUtc)
+{
+    /// <summary>A page of a book owned online: its address (online libraries plan, O2b). Null for a book's file or pages.</summary>
+    public string? Link { get; init; }
+}
 
 /// <summary>A pack with its sections in order, and its items in the order they show: those before any section, then each section's.</summary>
 public sealed record SessionPackContents(SessionPackInfo Pack, IReadOnlyList<SessionSectionInfo> Sections, IReadOnlyList<SessionItemInfo> Items);
 
-/// <summary>Something to add to a pack: a whole book, or a page range of it, with a label and note if given.</summary>
-public sealed record NewSessionItem(EntryId EntryId, PageRange? Range = null, string? Label = null, string? Note = null);
+/// <summary>
+/// Something to add to a pack: a whole book, a page range of it, or with <paramref name="Link"/> a page of a book owned
+/// online, with a label and note if given.
+/// </summary>
+public sealed record NewSessionItem(EntryId EntryId, PageRange? Range = null, string? Label = null, string? Note = null, string? Link = null);
 
 /// <summary>
 /// Everything in a pack, for Undo after deleting it: <see cref="SessionStore.RestoreAsync"/> makes it again, pinned
@@ -218,6 +225,7 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
                 Position = item.Position,
                 EntryId = item.EntryId.Value,
                 PageRef = item.Range is { } range && documents.Contains(range.DocumentId) ? ToPageRef(range) : null,
+                Link = item.Link,
                 Label = item.Label,
                 Note = item.Note,
                 AddedUtc = item.AddedUtc,
@@ -254,6 +262,7 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
             Position = ++position,
             EntryId = item.EntryId.Value,
             PageRef = item.Range is { } range ? ToPageRef(range) : null,
+            Link = item.Range is null ? Blank(item.Link) : null,
             Label = Blank(item.Label),
             Note = Blank(item.Note),
             AddedUtc = now,
@@ -308,6 +317,7 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
                     SectionId = section,
                     EntryId = item.EntryId.Value,
                     PageRef = item.Range is { } range && await db.Documents.AnyAsync(d => d.Id == range.DocumentId, ct) ? ToPageRef(range) : null,
+                    Link = item.Link,
                     Label = item.Label,
                     Note = item.Note,
                     AddedUtc = item.AddedUtc,
@@ -522,8 +532,11 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         if (await db.SessionPacks.FindAsync([packId], ct) is { } pack) pack.TouchedUtc = Now;
     }
 
-    static SessionItemInfo ToInfo(SessionItem i) => new(i.Id, i.PackId, i.SectionId, i.Position, new EntryId(i.EntryId),
-        i.PageRef is { } r ? PageRefStore.ToRange(r) : null, i.Label, i.Note, i.AddedUtc);
+    static SessionItemInfo ToInfo(SessionItem i) =>
+        new(i.Id, i.PackId, i.SectionId, i.Position, new EntryId(i.EntryId), i.PageRef is { } r ? PageRefStore.ToRange(r) : null, i.Label, i.Note, i.AddedUtc)
+        {
+            Link = i.Link,
+        };
 
     static PageRef ToPageRef(PageRange range) => PageRefStore.ToPageRef(range);
 

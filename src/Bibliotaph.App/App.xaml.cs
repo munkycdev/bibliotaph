@@ -182,6 +182,7 @@ public partial class App : Application
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton<OnlineImports>();
         builder.Services.AddSingleton<OnlineBrowsers>();
+        builder.Services.AddSingleton<OnlineReaders>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
@@ -364,6 +365,8 @@ public partial class App : Application
         Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
         Route.AiReading => services.GetRequiredService<AiReadingViewModel>(),
         Route.OnlineLibraries => services.GetRequiredService<OnlineLibrariesViewModel>(),
+        // An online reader opens with its book (OnlineReaders); by route alone, the Library.
+        Route.OnlineReader => services.GetRequiredService<LibraryViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

@@ -1081,7 +1081,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
     {
-        if (item.OpensOnline) _text.OpenOnline(item);
+        if (item.OpensOnline) await _text.ReadOnlineAsync(item);
         else if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
     }
 

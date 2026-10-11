@@ -155,6 +155,7 @@ public sealed partial class LibrarySyncStore
                 row.SectionId = section;
                 row.Position = Read<int>(wanted, SyncFields.Position);
                 row.EntryId = entryId;
+                row.Link = ReadOrDefault<string>(wanted, SyncFields.Link);
                 row.Label = ReadOrDefault<string>(wanted, SyncFields.Label);
                 row.Note = ReadOrDefault<string>(wanted, SyncFields.Note);
                 var oldPages = SwapPages(db, row.PageRef, range, p => row.PageRef = p);

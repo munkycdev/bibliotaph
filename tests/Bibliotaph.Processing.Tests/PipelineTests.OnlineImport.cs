@@ -1,3 +1,4 @@
+using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
@@ -99,4 +100,21 @@ public sealed partial class PipelineTests
 
     async Task<IReadOnlyList<string>> Values(EntryId entryId, MetadataField field) =>
         [.. (await _metadata.GetAsync(entryId, Ct)).Metadata[field].Values.Select(v => v.Value).Order(StringComparer.Ordinal)];
+
+    [Fact]
+    public async Task A_page_owned_online_in_a_binder_opens_online_and_its_book_alone_has_no_file()
+    {
+        await _service.StartAsync(Ct);
+        var (book, _) = await _elsewhere.AddAsync(new ElsewhereDraft("The Ember Vault", AlsoOwn: ["https://www.dndbeyond.com/sources/dnd/ember-vault"]), Ct);
+        var pack = await _sessions.CreateAsync("Session 1", ct: Ct);
+        const string Page = "https://www.dndbeyond.com/sources/dnd/ember-vault/the-vault#door";
+        await _sessions.AddItemsAsync(pack.Id, [new NewSessionItem(book!.Value), new NewSessionItem(book.Value, Label: "The door", Link: Page)], ct: Ct);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
+
+        var items = (await _sessions.GetAsync(pack.Id, Ct))!.Items;
+        var targets = await sessions.ResolveAsync(items, Ct);
+        Assert.Equal([SessionItemState.NoFile, SessionItemState.Online], items.Select(i => targets[i.Id].State));
+        Assert.All(targets.Values, t => Assert.False(t.CanOpen));
+        Assert.Equal(Page, items[1].Link);
+    }
 }
