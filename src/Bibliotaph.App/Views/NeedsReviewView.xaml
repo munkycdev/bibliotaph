@@ -415,30 +415,73 @@
     </StackPanel>
 
     <StackPanel MaxWidth="720" HorizontalAlignment="Left" Visibility="{Binding IsFilesTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <DockPanel Margin="0,18,0,0" Visibility="{Binding CanRetryAll, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <Button x:Name="RetryAll" DockPanel.Dock="Right" Content="Try all again" c:Ui.Icon="{StaticResource Icon.RotateCcw}" Command="{Binding RetryAllCommand}" />
+        <TextBlock Text="Gives every file below another go, apart from locked and protected ones, which trying again can't help." Style="{StaticResource Text.Small}"
+                   VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+      </DockPanel>
       <ItemsControl ItemsSource="{Binding Files}" Focusable="False" Margin="0,6,0,0" AutomationProperties.Name="Files needing attention">
         <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="{x:Type vm:AttentionRow}">
+          <DataTemplate DataType="{x:Type vm:AttentionGroup}">
             <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
               <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Try again" c:Ui.Icon="{StaticResource Icon.RotateCcw}" VerticalAlignment="Top"
                         Visibility="{Binding CanRetry, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                        AutomationProperties.Name="{Binding Title, StringFormat='Try {0} again'}"
-                        Command="{Binding DataContext.RetryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        AutomationProperties.Name="{Binding Heading, StringFormat='Try {0} again'}"
+                        Command="{Binding DataContext.RetryGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         CommandParameter="{Binding}" />
                 <Button DockPanel.Dock="Right" Content="Open to unlock" c:Ui.Icon="{StaticResource Icon.Lock}" VerticalAlignment="Top"
                         Visibility="{Binding CanUnlock, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                        AutomationProperties.Name="{Binding Title, StringFormat='Open {0} to unlock'}"
+                        AutomationProperties.Name="{Binding Heading, StringFormat='Open {0} to unlock'}"
                         Command="{Binding DataContext.UnlockCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}" />
+                        CommandParameter="{Binding First}" />
                 <Button DockPanel.Dock="Right" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" VerticalAlignment="Top"
                         Visibility="{Binding CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                        AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in another app'}"
+                        AutomationProperties.Name="{Binding Heading, StringFormat='Open {0} in another app'}"
                         Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}" />
+                        CommandParameter="{Binding First}" />
                 <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TriangleAlert}" Margin="0,0,10,0" VerticalAlignment="Top" />
                 <StackPanel Margin="0,0,12,0">
-                  <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
+                  <WrapPanel Margin="0,4,0,0">
+                    <Button Style="{StaticResource Bt.Link}" Content="{Binding ToggleLabel}" Padding="0,0,16,0"
+                            Visibility="{Binding IsMany, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                            Command="{Binding DataContext.ToggleFilesCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}" />
+                    <Button Style="{StaticResource Bt.Link}" Content="{Binding CopyLabel}"
+                            Visibility="{Binding IsBug, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                            AutomationProperties.HelpText="Copies the version and the error, without file names, to paste into a bug report."
+                            Command="{Binding DataContext.CopyDetailsCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}" />
+                  </WrapPanel>
+                  <!-- The files of a card of many, each with what helps it. -->
+                  <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Margin="0,6,0,0"
+                                Visibility="{Binding IsExpanded, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:AttentionRow}">
+                        <DockPanel Margin="0,6,0,0">
+                          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Try again" Padding="12,0,0,0"
+                                  Visibility="{Binding CanRetry, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Try {0} again'}"
+                                  Command="{Binding DataContext.RetryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Open to unlock" Padding="12,0,0,0"
+                                  Visibility="{Binding CanUnlock, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Open {0} to unlock'}"
+                                  Command="{Binding DataContext.UnlockCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Open in another app" Padding="12,0,0,0"
+                                  Visibility="{Binding CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in another app'}"
+                                  Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                          <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Small}" Foreground="{DynamicResource Bt.Text}"
+                                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        </DockPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
                 </StackPanel>
               </DockPanel>
             </Border>

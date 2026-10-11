@@ -114,6 +114,25 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_book_the_ai_failed_for_good_needs_attention_and_one_waiting_for_it_does_not()
+    {
+        await _store.UpsertDocumentAsync(Doc(1) with { DisplayTitle = "Failed book" }, Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2), Pages(1), [], Ct);
+        await AddEntriesAsync(_store, 1, 2);
+        await _queue.EnqueueAsync(1, "hash1", Stage.Classify, ct: Ct);
+        await _queue.EnqueueAsync(2, "hash2", Stage.Classify, ct: Ct);
+        var lane = new[] { Stage.Classify };
+        await _queue.FailAsync((await _queue.LeaseAsync(lane, "t", TimeSpan.FromMinutes(1), Ct))!, "Unexpected error: boom", retry: false, Ct);
+
+        var progress = await _queries.GetProgressAsync(Ct);
+        var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
+
+        Assert.Equal((1, 1, 1), (progress.NeedAttention, progress.ClassifyFailed, progress.ToClassify));
+        Assert.Equal((1L, "Failed book", Stage.Classify, StageStatus.Failed, "Unexpected error: boom"),
+            (attention.DocumentId, attention.Title, attention.Stage, attention.Status, attention.Reason));
+    }
+
+    [Fact]
     public async Task Forgetting_a_documents_text_waits_for_its_running_stage_then_removes_its_pages_and_cover()
     {
         await _store.UpsertDocumentAsync(Doc(), Pages(2), [new OutlineRow("Chapter one", 1, 0)], Ct);

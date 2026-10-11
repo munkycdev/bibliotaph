@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -17,13 +19,64 @@ namespace Bibliotaph.App.ViewModels;
 /// A file Bibliotaph couldn't fully process, and why, in words the user can act on. Trying again can't help a locked
 /// file or one with DRM (slice 4i plan, choices 3 and 4), so those offer opening it to unlock, or in another app.
 /// </summary>
-public sealed record AttentionRow(long? DocumentId, string Title, string Detail, TextAccess Access = TextAccess.Readable)
+public sealed record AttentionRow(long? DocumentId, string Title, string Detail, TextAccess Access = TextAccess.Readable, string? Error = null)
 {
     public bool CanRetry => DocumentId is not null && Access == TextAccess.Readable;
 
     public bool CanUnlock => DocumentId is not null && Access == TextAccess.Locked;
 
     public bool CanOpenElsewhere => DocumentId is not null && Access == TextAccess.Protected;
+
+    /// <summary>A stage threw something nothing expected: a bug to report, with <see cref="Error"/> as what to paste.</summary>
+    public bool IsBug => Error is not null;
+}
+
+/// <summary>
+/// Files that need attention for the same reason, as one card: one bug can fail hundreds of books, and a card each would
+/// bury everything else. A group of one reads as that file's own card; a bigger one lists its files when opened.
+/// </summary>
+public sealed partial class AttentionGroup(IReadOnlyList<AttentionRow> rows) : ObservableObject
+{
+    public IReadOnlyList<AttentionRow> Rows { get; } = rows;
+
+    public AttentionRow First => Rows[0];
+
+    public bool IsSingle => Rows.Count == 1;
+
+    public bool IsMany => Rows.Count > 1;
+
+    public string Heading => IsSingle ? First.Title : $"{Rows.Count:N0} files";
+
+    public string Detail => First.Detail;
+
+    /// <summary>Try again for the whole group: shown when any of its files can be tried again.</summary>
+    public bool CanRetry => Rows.Any(r => r.CanRetry);
+
+    public bool CanUnlock => IsSingle && First.CanUnlock;
+
+    public bool CanOpenElsewhere => IsSingle && First.CanOpenElsewhere;
+
+    public bool IsBug => First.IsBug;
+
+    /// <summary>Copy details put this card's bug on the clipboard.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyLabel))]
+    public partial bool Copied { get; set; }
+
+    public string CopyLabel => Copied ? "Copied" : "Copy details";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToggleLabel))]
+    public partial bool IsExpanded { get; set; }
+
+    public string ToggleLabel => IsExpanded ? "Hide the files" : $"Show the {Rows.Count:N0} files";
+
+    /// <summary>Rows with the same reason and access go together, in the order the first of each was listed.</summary>
+    public static List<AttentionGroup> Of(IEnumerable<AttentionRow> rows) =>
+        [.. rows.GroupBy(r => (r.Detail, r.Access)).Select(g => new AttentionGroup([.. g]))];
+
+    /// <summary>The same files for the same reason, so a refresh that changes nothing leaves the cards, and what's open, alone.</summary>
+    public bool SameAs(AttentionGroup other) => Rows.SequenceEqual(other.Rows);
 }
 
 /// <summary>
@@ -38,6 +91,7 @@ public sealed partial class NeedsReviewViewModel(
     IndexingService indexing,
     LibraryActivity activity,
     INavigationService navigation,
+    SettingsLinks links,
     ReaderWindows readers,
     CoverImages covers,
     BookTextActions text,
@@ -60,8 +114,19 @@ public sealed partial class NeedsReviewViewModel(
     /// </summary>
     public ObservableCollection<DecidedCardViewModel> Cards { get; } = [];
 
-    /// <summary>Files needing attention: a password to enter, a damaged download, a folder that can't be read, a file inside a ZIP that isn't read.</summary>
-    public ObservableCollection<AttentionRow> Files { get; } = [];
+    /// <summary>
+    /// Files needing attention: a password to enter, a damaged download, a folder that can't be read, a file inside a ZIP
+    /// that isn't read, a book the AI couldn't read. Files with the same reason share a card.
+    /// </summary>
+    public ObservableCollection<AttentionGroup> Files { get; } = [];
+
+    /// <summary>Every file listed, across the cards.</summary>
+    public IEnumerable<AttentionRow> FileRows => Files.SelectMany(g => g.Rows);
+
+    public int FileCount => Files.Sum(g => g.Rows.Count);
+
+    /// <summary>Try all again: at least one listed file can be tried again.</summary>
+    public bool CanRetryAll => Files.Any(g => g.CanRetry);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFilesTab))]
@@ -84,9 +149,9 @@ public sealed partial class NeedsReviewViewModel(
 
     public string SuggestionsTabLabel => $"Metadata suggestions  {Remaining:N0}";
 
-    public string FilesTabLabel => $"Files needing attention · {Files.Count:N0}";
+    public string FilesTabLabel => $"Files needing attention · {FileCount:N0}";
 
-    public string Subtitle => (Remaining, Files.Count) switch
+    public string Subtitle => (Remaining, FileCount) switch
     {
         (0, 0) => "Nothing needs a second look. Everything is ready to use.",
         (1, _) => "One suggestion worth a second look. The rest is ready to use.",
@@ -123,6 +188,7 @@ public sealed partial class NeedsReviewViewModel(
     {
         activity.Refreshed -= OnRefreshed;
         activity.Refreshed += OnRefreshed;
+        if (links.TakeFilesRequest()) IsFilesTab = true;
         if (!_loaded) await ReloadAsync();
         else CheckForUpdates();
         RefreshFiles();
@@ -192,17 +258,24 @@ public sealed partial class NeedsReviewViewModel(
         try
         {
             var rows = (await queries.GetAttentionAsync())
-                .Select(a => new AttentionRow(a.DocumentId, a.Title, $"{StageName(a.Stage)}: {a.Reason ?? "something went wrong"}",
-                    TextAccessReasons.Of(a.Status, a.Reason)))
+                .Select(Row)
                 .Concat(indexing.Unreadable.Select(u => new AttentionRow(null, Path.GetFileName(u.Path), $"Couldn't be read: {u.Reason}")))
                 .Concat((await library.GetProblemsAsync()).Select(p => new AttentionRow(null, Path.GetFileName(p.FullPath), $"Not read: {p.Problem} ({p.FullPath})")))
                 .ToList();
-            if (rows.SequenceEqual(Files)) return;
+            var groups = AttentionGroup.Of(rows);
+            if (groups.Count == Files.Count && groups.Zip(Files).All(p => p.First.SameAs(p.Second))) return;
+            // A card opened to its files stays open when the list is made again.
+            var open = Files.Where(g => g.IsExpanded).Select(g => (g.Detail, g.First.Access)).ToHashSet();
             Files.Clear();
-            foreach (var row in rows) Files.Add(row);
+            foreach (var group in groups)
+            {
+                group.IsExpanded = open.Contains((group.Detail, group.First.Access));
+                Files.Add(group);
+            }
             HasFiles = Files.Count > 0;
             OnPropertyChanged(nameof(FilesTabLabel));
             OnPropertyChanged(nameof(Subtitle));
+            OnPropertyChanged(nameof(CanRetryAll));
         }
         catch (Exception ex)
         {
@@ -210,12 +283,26 @@ public sealed partial class NeedsReviewViewModel(
         }
     }
 
+    /// <summary>A failed or blocked stage in words: a bug says so, and keeps what to paste into a report.</summary>
+    static AttentionRow Row(AttentionItem item)
+    {
+        var step = StageName(item.Stage);
+        var reason = item.Reason ?? "something went wrong";
+        if (reason.StartsWith(IndexingService.UnexpectedError, StringComparison.Ordinal))
+            return new AttentionRow(item.DocumentId, item.Title, $"{step}: Bibliotaph hit a bug ({reason[IndexingService.UnexpectedError.Length..]})",
+                Error: $"{item.Stage}: {reason}");
+        return new AttentionRow(item.DocumentId, item.Title, $"{step}: {reason}", TextAccessReasons.Of(item.Status, item.Reason));
+    }
+
     static string StageName(Stage stage) => stage switch
     {
         Stage.Probe => "Opening",
         Stage.Text => "Reading text",
         Stage.Covers => "Making a cover",
+        Stage.RuleHints => "Reading hints from its name",
         Stage.Ocr => "Reading scanned pages",
+        Stage.Classify => "Reading with AI",
+        Stage.Match => "Looking for other copies",
         _ => stage.ToString(),
     };
 
@@ -223,9 +310,50 @@ public sealed partial class NeedsReviewViewModel(
     async Task Retry(AttentionRow row)
     {
         if (row.DocumentId is not { } id) return;
-        await indexing.RetryAsync(id);
+        await RetryAsync([id]);
+    }
+
+    [RelayCommand]
+    static void ToggleFiles(AttentionGroup group) => group.IsExpanded = !group.IsExpanded;
+
+    /// <summary>Try again on a card of many: each of its files that can be tried again.</summary>
+    [RelayCommand]
+    Task RetryGroup(AttentionGroup group) => RetryAsync(group.Rows);
+
+    /// <summary>Try all again: every listed file that can be tried again, but not a locked or protected one.</summary>
+    [RelayCommand]
+    Task RetryAll() => RetryAsync(FileRows);
+
+    Task RetryAsync(IEnumerable<AttentionRow> rows) =>
+        RetryAsync([.. rows.Where(r => r.CanRetry).Select(r => r.DocumentId!.Value).Distinct()]);
+
+    async Task RetryAsync(IReadOnlyCollection<long> documentIds)
+    {
+        await indexing.RetryAsync(documentIds);
         activity.Invalidate();
         await RefreshFilesAsync();
+    }
+
+    /// <summary>
+    /// What to paste into a bug report: the version, the step and the error, and how many files it happened to. No titles
+    /// or paths, since a report may be public.
+    /// </summary>
+    [RelayCommand]
+    void CopyDetails(AttentionGroup group)
+    {
+        var details = string.Join(Environment.NewLine,
+            $"Bibliotaph {AboutInfo.ForThisApp().VersionText}",
+            group.First.Error,
+            $"Files: {group.Rows.Count:N0}");
+        try
+        {
+            Clipboard.SetText(details);
+            group.Copied = true;
+        }
+        catch (COMException ex)
+        {
+            log.LogWarning(ex, "The clipboard was busy");
+        }
     }
 
     /// <summary>A locked file: the reader asks for its password, and unlocking it makes its text searchable.</summary>

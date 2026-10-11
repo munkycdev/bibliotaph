@@ -88,6 +88,9 @@ public sealed class IndexingService(
     PackService? packs = null,
     IFileIdentity? identity = null) : BackgroundService
 {
+    /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
+    public const string UnexpectedError = "Unexpected error: ";
+
     readonly IndexingOptions _options = options ?? new IndexingOptions();
     readonly IFileIdentity _identity = identity ?? new FileIdentity();
     readonly ILogger _log = log ?? NullLogger<IndexingService>.Instance;
@@ -211,9 +214,13 @@ public sealed class IndexingService(
     }
 
     /// <summary>Gives a document's failed and blocked stages another go, as from Files needing attention.</summary>
-    public async Task RetryAsync(long documentId, CancellationToken ct = default)
+    public Task RetryAsync(long documentId, CancellationToken ct = default) => RetryAsync([documentId], ct);
+
+    /// <summary>Gives these documents' failed and blocked stages another go, as Files needing attention's Try all again does.</summary>
+    public async Task RetryAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
     {
-        await queue.RetryAsync(documentId, ct);
+        if (documentIds.Count == 0) return;
+        await queue.RetryAsync(documentIds, ct);
         foreach (var signal in _laneSignals.Values) signal.Set();
         RaiseChanged();
     }
@@ -837,7 +844,7 @@ public sealed class IndexingService(
         catch (Exception ex)
         {
             _log.LogError(ex, "{Stage} failed for document {DocumentId}", job.Stage, job.DocumentId);
-            outcome = new StageOutcome.Failed($"Unexpected error: {ex.Message}", Retry: true);
+            outcome = new StageOutcome.Failed(UnexpectedError + ex.Message, Retry: true);
         }
 
         if (outcome is not StageOutcome.Done { Status: StageStatus.Complete } and not StageOutcome.Later)

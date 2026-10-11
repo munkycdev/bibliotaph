@@ -66,6 +66,9 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
 
     [RelayCommand]
     void OpenAiReading() => links.OpenAiReading();
+
+    [RelayCommand]
+    void OpenFilesNeedingAttention() => links.OpenFilesNeedingAttention();
 }
 
 /// <summary>Settings > Appearance: light, dark, or as Windows is.</summary>
