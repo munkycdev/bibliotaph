@@ -31,12 +31,13 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
 }
 
 /// <summary>
-/// One classification request: the model, the two messages, the answer's schema and the context it needs, and at most how
-/// many tokens to answer with when that should be capped. With <paramref name="Progress"/>, the answer is streamed and
-/// reported as it comes (Built-in AI plan, choice 12).
+/// One request: the model, the two messages, the answer's schema and the context it needs, and at most how many tokens
+/// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is (Ask plan,
+/// choice 6). With <paramref name="Progress"/>, the answer is streamed and reported as it comes (Built-in AI plan,
+/// choice 12). <paramref name="SchemaName"/> names the schema for servers that want a name with it.
 /// </summary>
-public sealed record ModelRequest(string Model, string System, string User, string SchemaJson, int ContextTokens, int? MaxTokens = null,
-    IProgress<ModelProgress>? Progress = null);
+public sealed record ModelRequest(string Model, string System, string User, string? SchemaJson, int ContextTokens, int? MaxTokens = null,
+    IProgress<ModelProgress>? Progress = null, string SchemaName = "book_metadata");
 
 /// <summary>Where a streamed request has got to.</summary>
 public enum ModelStep
@@ -89,19 +90,31 @@ public interface IModelClient
     /// <exception cref="ModelEndpointException">It can't be reached or doesn't answer like a model server.</exception>
     Task<EndpointInfo> ConnectAsync(CancellationToken ct = default);
 
-    /// <summary>Asks the model for an answer in the request's schema and returns the answer's text.</summary>
+    /// <summary>Asks the model for an answer, in the request's schema when it has one, and returns the answer's text.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be reached or refused the request.</exception>
     /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
     Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default);
 }
 
 /// <summary>
+/// A server that turns text into vectors (Ask this book, choice 3), so pages can be found by what they mean as well as by
+/// their words. The same endpoint as the chat model, with an embedding model of its own.
+/// </summary>
+public interface IEmbeddingClient
+{
+    /// <summary>One vector per text, in the same order.</summary>
+    /// <exception cref="ModelEndpointException">The endpoint can't be reached, refused the request, or doesn't have the model.</exception>
+    /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
+    Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default);
+}
+
+/// <summary>
 /// One adapter over HttpClient and System.Text.Json, with no SDK (choice 8). It asks Ollama's own version call first;
 /// an endpoint that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
 /// OpenAI-compatible chat completions with a JSON-schema response format. It sends only what it is given: no tools,
-/// no functions, nothing from any other file.
+/// no functions, nothing from any other file. Embeddings go to Ollama's own embed call, or the OpenAI-compatible one.
 /// </summary>
-public sealed class LocalModelClient : IModelClient
+public sealed class LocalModelClient : IModelClient, IEmbeddingClient
 {
     readonly HttpClient _http;
     readonly Func<string?> _apiKey;
@@ -225,7 +238,7 @@ public sealed class LocalModelClient : IModelClient
     {
         _kind ??= (await ConnectAsync(ct)).Kind;
         var stream = request.Progress is not null;
-        var schema = JsonNode.Parse(request.SchemaJson)!;
+        var schema = request.SchemaJson is null ? null : JsonNode.Parse(request.SchemaJson)!;
         var messages = new JsonArray
         {
             new JsonObject { ["role"] = "system", ["content"] = request.System },
@@ -239,9 +252,9 @@ public sealed class LocalModelClient : IModelClient
                 ["model"] = request.Model,
                 ["messages"] = messages,
                 ["stream"] = stream,
-                ["format"] = schema,
                 ["options"] = new JsonObject { ["temperature"] = 0, ["num_ctx"] = request.ContextTokens },
             };
+            if (schema is not null) body["format"] = schema;
             if (request.MaxTokens is { } ollamaMax) body["options"]!["num_predict"] = ollamaMax;
             if (stream) return await StreamAsync(new Uri(Root, "api/chat"), body, request.Progress!, ollama: true, ct);
             using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), body, ct);
@@ -256,12 +269,15 @@ public sealed class LocalModelClient : IModelClient
             ["messages"] = messages,
             ["temperature"] = 0,
             ["stream"] = stream,
-            ["response_format"] = new JsonObject
+        };
+        if (schema is not null)
+        {
+            request1["response_format"] = new JsonObject
             {
                 ["type"] = "json_schema",
-                ["json_schema"] = new JsonObject { ["name"] = "book_metadata", ["strict"] = true, ["schema"] = schema },
-            },
-        };
+                ["json_schema"] = new JsonObject { ["name"] = request.SchemaName, ["strict"] = true, ["schema"] = schema },
+            };
+        }
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
         if (stream)
@@ -270,7 +286,7 @@ public sealed class LocalModelClient : IModelClient
             {
                 return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
             }
-            catch (ModelEndpointException ex) when (ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+            catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
             {
                 request1 = (JsonObject)request1.DeepClone();
                 request1["response_format"] = new JsonObject { ["type"] = "json_object" };
@@ -282,7 +298,7 @@ public sealed class LocalModelClient : IModelClient
         {
             completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), request1, ct);
         }
-        catch (ModelEndpointException ex) when (ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+        catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
         {
             // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
             // check doesn't care which.
@@ -296,6 +312,38 @@ public sealed class LocalModelClient : IModelClient
             return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
                 ?? throw new ClassifierAnswerException("The model's answer was empty.");
         }
+    }
+
+    public async Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default)
+    {
+        if (texts.Count == 0) return [];
+        _kind ??= (await ConnectAsync(ct)).Kind;
+        var input = new JsonArray([.. texts.Select(t => (JsonNode)t)]);
+        JsonNode? json;
+        IEnumerable<JsonNode?> vectors;
+        if (_kind == EndpointKind.Ollama)
+        {
+            // Ollama cuts a text that is too long for the model rather than refusing it.
+            var body = new JsonObject { ["model"] = model, ["input"] = input, ["truncate"] = true };
+            using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/embed"), body, ct);
+            json = await ReadJsonAsync(response, ct);
+            vectors = json?["embeddings"] as JsonArray ?? [];
+        }
+        else
+        {
+            var body = new JsonObject { ["model"] = model, ["input"] = input };
+            using var response = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "embeddings"), body, ct);
+            json = await ReadJsonAsync(response, ct);
+            vectors = (json?["data"] as JsonArray ?? []).OrderBy(d => d?["index"]?.GetValue<int>() ?? 0).Select(d => d?["embedding"]);
+        }
+        var result = new List<float[]>(texts.Count);
+        foreach (var vector in vectors)
+        {
+            if (vector is not JsonArray numbers || numbers.Count == 0) throw new ModelRequestException("The model server sent an empty vector.");
+            result.Add([.. numbers.Select(n => n?.GetValue<float>() ?? 0f)]);
+        }
+        return result.Count == texts.Count ? result
+            : throw new ModelRequestException($"The model server sent {result.Count} vectors for {texts.Count} texts. Is {model} an embedding model?");
     }
 
     /// <summary>

@@ -12,11 +12,13 @@ public partial class HomeView
         AddBookCommand(BookCommands.Open, m => m.OpenBookCommand);
         AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
         AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
+        AddBookCommand(BookCommands.Ask, m => m.AskBookCommand);
         AddBookCommand(BookCommands.ToggleFavorite, m => m.ToggleFavoriteCommand);
         AddBookCommand(BookCommands.TogglePin, m => m.TogglePinBookCommand);
         AddBookCommand(BookCommands.OpenElsewhere, m => m.OpenElsewhereCommand);
         AddBookCommand(BookCommands.ForgetText, m => m.ForgetTextCommand);
         AddBookCommand(BookCommands.ReadTextAgain, m => m.ReadTextAgainCommand);
+        AddBookCommand(BookCommands.CatalogedWrong, m => m.CatalogedWrongCommand);
         CommandBindings.Add(new CommandBinding(BookCommands.AddToCollection,
             (_, e) =>
             {

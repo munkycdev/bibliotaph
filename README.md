@@ -1,99 +1,102 @@
+<p align="center"><img src="src/Bibliotaph.App/Assets/Bibliotaph.svg" width="72" alt="Bibliotaph's icon"></p>
+
 # Bibliotaph
 
-A Windows desktop library for a game master's existing RPG files: it indexes PDFs, maps and handouts where they already are, proposes metadata, and finds the right book and the right page. It never moves or edits the original files.
+**Find the right book, and the right page, in the RPG library you already have.**
 
-Bibliotaph is in early development and not yet usable as a library. Nothing is released.
+Bibliotaph is a free Windows app for game masters. Point it at the folders where your PDFs, maps and handouts live, and
+it builds a catalog of them, right where they are. Then you can search every page of every book, filter by game system,
+type and level, and open a book at the page you need.
 
-- [docs/product-spec.md](docs/product-spec.md) is the product spec (v0.3).
-- [docs/architecture.md](docs/architecture.md) is the agreed design. Change it by pull request.
-- [docs/bibliotaph-ui-mockups.html](docs/bibliotaph-ui-mockups.html) is the visual target.
+It's for you if you have a few hundred (or a few thousand) bundle downloads, crowdfunding rewards and scanned
+handouts spread over folders, and you keep thinking "I own something for this, but where?"
 
-## Build and run
+- **Your files stay put.** Bibliotaph never moves, renames, edits or deletes them. It only reads them.
+- **It works offline.** Everything lives on your PC. There's no account, no subscription and no cloud service.
+- **AI is optional, and local.** If you want, an AI model running on your own PC fills in each book's system, type and
+  levels, quoting the page it found them on. Without it, everything else still works.
 
-Needs the .NET 11 SDK (release candidate until GA in November 2026) on Windows x64.
+> Bibliotaph is in early development. Early versions are for trying out: expect rough edges, and changes from one
+> version to the next.
 
-```powershell
-dotnet build Bibliotaph.slnx
-dotnet test --solution Bibliotaph.slnx
-dotnet run --project src\Bibliotaph.App
-```
+## Install
 
-The app keeps its databases and logs in `%LOCALAPPDATA%\Bibliotaph`. To try it against a throwaway folder instead:
+You need Windows 10 (version 1809 or later) or Windows 11, on a 64-bit PC.
 
-```powershell
-dotnet run --project src\Bibliotaph.App -- --data-root $env:TEMP\bibliotaph-scratch
-```
+1. Open the [latest release](https://github.com/munkycdev/bibliotaph/releases/latest) page.
+2. Under **Assets**, click **BibliotaphApp-win-Setup.exe** to download it.
+3. Run it. It installs for your Windows account only, so it doesn't ask for an administrator password, and opens
+   Bibliotaph when it's done.
 
-`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it; it does not replace looking at the app.
+Bibliotaph isn't code-signed yet, so Windows may say "Windows protected your PC". Click **More info**, then
+**Run anyway**. After that, open Bibliotaph from the Start menu like any other app.
 
-Before pushing, run the same checks as CI:
+Updates download by themselves. When one is ready, the sidebar says **Update ready: restart to update**; click it
+when it suits you. Nothing restarts in the middle of a game.
 
-```powershell
-./build/verify.ps1             # restore, build, test, smoke test, banned-API probe, Release build
-./build/verify.ps1 -SkipSmoke  # the same without opening the app's window
-```
+More in [Getting started](docs/guide/getting-started.md).
 
-CI runs each step of this script, so a green run here should mean a green run there. Off Windows the smoke test is skipped.
+<!-- Code signing policy: PR #70's "## Code signing policy" section goes here, after Install. -->
 
-## Layout
+## What it does
 
-| Folder | What |
-| --- | --- |
-| `src/Bibliotaph.Core` | Domain types and policies. References nothing, does no I/O. |
-| `src/Bibliotaph.Catalog` | `catalog.db` (the user's work): EF Core, migrations, backup before migrating. |
-| `src/Bibliotaph.Index` | `index.db` (derived, rebuildable): plain SQL, FTS5, the single writer. |
-| `src/Bibliotaph.Processing` | Scanner, job queue and pipeline (slice 1). The only reader of source files. |
-| `src/Bibliotaph.Classification` | Rule hints and AI adapters (slice 2). |
-| `src/Bibliotaph.Pdf.Contracts` | Messages between the app and the PDF worker. References nothing. |
-| `src/Bibliotaph.Pdf.Host` | Worker pool, job objects, restarts, poison-page tracking. |
-| `src/Bibliotaph.PdfWorker` | The only process that runs PDFium. Ships in the app's `pdfworker\` folder. |
-| `src/Bibliotaph.Viewer` | The page viewer (slice 1). |
-| `src/Bibliotaph.App` | The WPF shell, theme, fonts, icons and composition root. |
-| `tests/` | xUnit v3 on Microsoft Testing Platform. PDF tests build synthetic PDFs at run time. |
-| `tools/IconGen` | Turns the Lucide SVGs it holds into `src/Bibliotaph.App/Icons/Icons.xaml`. |
-| `tools/AppIcon` | Draws the app icon (`src/Bibliotaph.App/Assets/Bibliotaph.ico` and `.svg`) from the mockup's monogram. |
-| `spikes/pdf-feasibility` | The PDF spike, kept for reference. Its own solution; not built by CI. |
+**Indexes what you have, where it is.** Add your folders and Bibliotaph reads every PDF, JPG, PNG and WebP in them,
+ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
+network drives and OneDrive, and notices when files are added, moved or changed.
 
-## Rules the build enforces
+**Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while
+**Inside documents** shows the matching pages, with a snippet. Click a page and the book opens right there. Add
+`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel. With AI on,
+**Ask** takes a request in plain English, such as "a short heist for four players", and turns it into a search you can
+check. [Searching](docs/guide/searching.md)
 
-- Warnings are errors, with the `latest-recommended` analyzers.
-- Write-capable file APIs (`FileStream`, `File.Write*`, `File.Delete` and friends) are banned by `BannedSymbols.txt` everywhere except Processing, Pdf.Host, the PDF worker, tests and tools. CI proves it by adding `File.WriteAllText` to Core and expecting `RS0030`.
-- Package versions live only in `Directory.Packages.props`.
-- No fixture cut from a purchased book is ever committed. Test PDFs are generated with PDFsharp when the tests run.
+**Reads books inside the app.** A fast reader with contents, find in the book, zoom, page thumbnails and notes on
+pages. In an index or contents page, the printed page numbers become links. Open as many books in their own windows
+as you like. With AI on, **Ask this book** answers a question from the book's own pages, with every claim citing the
+page it came from. [Reading](docs/guide/reading.md)
 
-## Common tasks
+**Fills in the catalog for you.** Each book gets a title, game system, type, levels, players, duration, setting,
+themes and more, suggested from folder names, the file itself and, if you turn it on, AI. Every suggestion shows
+where it came from; your own corrections always win. Copies of the same book share one card, folders of maps become
+one image pack, and the adventures inside an anthology get cards of their own.
+[Cataloging](docs/guide/cataloging.md)
 
-Add a catalog migration (needs `dotnet tool install --global dotnet-ef`):
+**Keeps you organized.** Mark favorites, gather books into collections, save searches you use often, and pin any of
+them to the sidebar. [Collections, favorites and pins](docs/guide/organizing.md)
 
-```powershell
-dotnet ef migrations add <Name> --project src\Bibliotaph.Catalog --output-dir Migrations
-```
+**Gets a session ready.** A binder holds the books and pages for your next session, in order, with your notes. At the
+table, step through it with **Next** and **Previous**, and keep a rules binder at hand.
+[Binders](docs/guide/binders.md)
 
-The app copies `catalog.db` into `backups\` before applying a pending migration. `index.db` has no migrations: change `src\Bibliotaph.Index\Schema\index.sql`, bump `IndexSchema.Version` and the `user_version` at the end of the script, and the index is rebuilt on next start.
+**Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and sync with a second PC
+through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md)
 
-Add an icon: copy its SVG from the same `lucide-static` version into `tools\IconGen\lucide\`, then:
+## The guide
 
-```powershell
-dotnet run --project tools\IconGen
-```
+1. [Getting started](docs/guide/getting-started.md): install, add your folders, find your way around.
+2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, filters and saved searches.
+3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
+4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs and adventures.
+5. [Collections, favorites and pins](docs/guide/organizing.md)
+6. [Binders](docs/guide/binders.md): prepare a session and run it.
+7. [AI](docs/guide/ai.md): what it does, what it sends, and how to set it up.
+8. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
+9. [Questions and answers](docs/guide/faq.md)
 
-Redraw the app icon after changing the monogram (needs Python with `pip install pillow fonttools`):
+## Help and feedback
 
-```powershell
-python tools\AppIcon\make_icon.py
-```
-
-## To do when .NET 11 ships (November 2026)
-
-- Raise `global.json` to the GA SDK, set `DotNetPackagesVersion` in `Directory.Packages.props` to the GA packages, and change `dotnet-quality` in `.github/workflows/ci.yml` to `ga`.
-
-## Contributing
-
-Issues and ideas are welcome. Pull requests are not being taken yet while the architecture settles; open an issue
-first. Never attach or commit a file cut from a purchased book: tests build their own PDFs, and the repo ignores
-`*.pdf` for that reason.
+Found a bug or have an idea? [Open an issue](https://github.com/munkycdev/bibliotaph/issues) (you'll need a free
+GitHub account). **About Bibliotaph** in Settings has **Copy details**, which copies the version numbers to paste into
+it. Please never attach a PDF or a page from a book you bought.
 
 Security problems go through private vulnerability reporting; see [SECURITY.md](SECURITY.md).
+
+## For developers
+
+Bibliotaph is a WPF app on .NET 11, with PDFium in isolated worker processes and SQLite with FTS5 for search. Build
+steps, the verify script, the project layout and how to contribute are in [docs/developers.md](docs/developers.md).
+The design is in [docs/architecture.md](docs/architecture.md) and the product spec in
+[docs/product-spec.md](docs/product-spec.md).
 
 ## Code signing policy
 
@@ -120,8 +123,12 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
   a newer version if there is one.
 - **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
 - **An AI server you set up.** If you point Settings > AI at a model server instead of the built-in AI, Bibliotaph
-  sends text from your books to that server to catalogue them. A server on another machine or a hosted service is
-  your choice and is covered by that service's own terms.
+  sends it excerpts from your books to catalogue them, and what you type into Ask and Ask this book. A server on
+  another machine or a hosted service is your choice and is covered by its own terms; see
+  [AI](docs/guide/ai.md#what-it-sends-and-where).
+
+Library sync only writes a file to a folder you pick. If that folder is in OneDrive, OneDrive uploads it, not
+Bibliotaph.
 
 ## Licence
 
@@ -134,5 +141,3 @@ details. SPDX: `GPL-3.0-or-later`, with one additional permission under section 
 Windows SDK projection, which it uses for Windows' text recognition; see [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md).
 
 Fonts, icons and packages keep their own licences; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
-Any contribution is made under the same licence.

@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+    <!-- The page-reference detector, run on the smoke test's index book as PDFium extracts it. -->
+    <ProjectReference Include="..\..\src\Bibliotaph.Core\Bibliotaph.Core.csproj" />
     <BundledExe Include="..\..\src\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
     <BundledExe Include="..\Bibliotaph.Pdf.Host.TestHost\Bibliotaph.Pdf.Host.TestHost.csproj" Folder="testhost" />
   </ItemGroup>

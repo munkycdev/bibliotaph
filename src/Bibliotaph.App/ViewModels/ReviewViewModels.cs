@@ -22,6 +22,14 @@ public interface IReviewActions
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
     Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
     Task<Func<Task>?> UsePlaceAsync(RevisionPlace place);
+    Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId);
+    Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages);
+    Task<Func<Task>> RemovePartAsync(UnplacedPart part);
+    Task<(string? Problem, Func<Task>? Undo)> AcceptPartsAsync(PartProposalItem item, IReadOnlyList<ProposedPart> chosen);
+    Task<Func<Task>> NotSplitAsync(PartProposalItem item);
+    Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item);
+    void FixCorrection(CorrectionItem item);
+    Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -186,6 +194,7 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
     public string EditHint => Item.Issue.Field.Kind switch
     {
         FieldKind.Levels => "3, 1-5 or n/a",
+        FieldKind.Players => "4 or 3-5",
         FieldKind.Year => "2019",
         _ when Item.Issue.Field.Multiple => "Separate values with commas",
         _ => "",
@@ -418,6 +427,238 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
+}
+
+/// <summary>
+/// An adventure inside a file whose pages weren't found in the copy or new version the file opens now (slice 5 plan,
+/// choice 12). Set its pages types them as the file numbers them, starting from where they were; Remove adventure
+/// takes its card away. Until then its card opens the file at its first page.
+/// </summary>
+public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOnlyList<string?> labels, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public UnplacedPart Part { get; } = part;
+
+    public string Title => Part.Title;
+
+    public string Heading => $"The pages of {Part.Title} weren't found in the file {Part.FileTitle} opens now.";
+
+    public static string Detail => "It may be a new version of the file, with pages added or moved. Set its pages to say where it is now, or remove the adventure.";
+
+    /// <summary>Its pages being typed, inline on the card.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditing))]
+    public partial PartEditorViewModel? Editor { get; private set; }
+
+    public bool IsEditing => Editor is not null;
+
+    int? FindPage(string text) => Bibliotaph.Core.Reading.PageNumbers.Find(text, labels, labels.Count);
+
+    string Shown(int page) => Bibliotaph.Core.Reading.PageNumbers.Display(page, labels);
+
+    [RelayCommand]
+    void SetPages()
+    {
+        var was = Part.WasPages is { } p && p.Last < labels.Count ? p : (PartPages?)null;
+        var (from, to) = was is { } pages ? (Shown(pages.First), pages.Count == 1 ? "" : Shown(pages.Last)) : ("", "");
+        var editor = new PartEditorViewModel($"The pages of {Part.Title}", "Save pages", null, from, to, FindPage, async (_, pages) =>
+        {
+            var (problem, undo) = await Actions.SetPartPagesAsync(Part, pages);
+            if (problem is null) MarkDone($"{Part.Title} is on {pages.Describe(labels)} now.", undo ?? (() => Task.CompletedTask));
+            return problem;
+        });
+        editor.Closed += (_, _) =>
+        {
+            if (Editor == editor) Editor = null;
+        };
+        Editor = editor;
+    }
+
+    [RelayCommand]
+    Task RemovePart() => DecideAsync(() => Actions.RemovePartAsync(Part), $"Removed the adventure {Part.Title}. Its pages are only the file's again.");
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Part.DocumentId, Part.FileTitle);
+}
+
+/// <summary>
+/// "You said this book was cataloged wrong" (scenario review, row 8): Cataloged wrong… was closed without a change.
+/// Fix it opens the editor again; the card goes once a correction is made there, or with It's fine now.
+/// </summary>
+public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public CorrectionItem Item { get; } = item;
+
+    public string Title => Item.Title;
+
+    public string Heading { get; } = "You said this book was cataloged wrong.";
+
+    public string Detail { get; } = "Its details were closed without a change. Fix it opens them again, with the values Bibliotaph guessed marked.";
+
+    [RelayCommand]
+    void FixIt() => Actions.FixCorrection(Item);
+
+    [RelayCommand]
+    Task ItsFine() => DecideAsync(() => Actions.DismissCorrectionAsync(Item), $"Left {Title} as it is.");
+
+    [RelayCommand]
+    void OpenFile()
+    {
+        if (Item.DocumentId is { } id) Actions.OpenDocument(id, Title);
+    }
+}
+
+/// <summary>
+/// "This file looks like it holds 5 adventures" (slice 5 plan, choice 7): a ticked list of the adventures proposed,
+/// with their titles and pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not
+/// split" keeps the file as one book. Either is remembered, and can be undone.
+/// </summary>
+public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
+{
+    public PartProposalCardViewModel(PartProposalItem item, IReadOnlyList<string?> labels, IReviewActions actions) : base(actions)
+    {
+        Item = item;
+        Rows = [.. item.Parts.Select(p => new ProposedPartRow(this, p, labels))];
+    }
+
+    public PartProposalItem Item { get; }
+
+    public string Title => Item.FileTitle;
+
+    public string Heading => $"This file looks like it holds {LibraryItemViewModel.Adventures(Item.Parts.Count)}.";
+
+    public string Chip => Item.Source == PartProposalSource.Ai ? "Adventures? Read with AI" : "Adventures?";
+
+    public string Detail => Item.Source == PartProposalSource.Ai
+        ? "A model read its contents and the first page of each. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed."
+        : "Its bookmarks and the blurbs on their first pages say so. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+
+    public IReadOnlyList<ProposedPartRow> Rows { get; }
+
+    /// <summary>The titles and pages are text boxes.</summary>
+    [ObservableProperty]
+    public partial bool IsEditing { get; private set; }
+
+    /// <summary>Why Accept couldn't make the cards: pages that don't read, or overlap.</summary>
+    [ObservableProperty]
+    public partial string? Problem { get; private set; }
+
+    /// <summary>"Make 3 cards", for the ticked adventures.</summary>
+    public string AcceptLabel => Rows.Count(r => r.IsChecked) is var ticked && ticked == 1 ? "Make 1 card" : $"Make {ticked.ToString("N0", CultureInfo.CurrentCulture)} cards";
+
+    internal void Ticked() => OnPropertyChanged(nameof(AcceptLabel));
+
+    [RelayCommand]
+    void Edit() => IsEditing = !IsEditing;
+
+    [RelayCommand]
+    Task Accept() => RunAsync(async () =>
+    {
+        var chosen = new List<ProposedPart>();
+        foreach (var row in Rows.Where(r => r.IsChecked))
+        {
+            if (row.Read() is not { } part)
+            {
+                Problem = $"The pages of {(row.Title.Trim().Length > 0 ? row.Title.Trim() : "an adventure")} don't read as pages of this file.";
+                IsEditing = true;
+                return;
+            }
+            chosen.Add(part);
+        }
+        var (problem, undo) = await Actions.AcceptPartsAsync(Item, chosen);
+        Problem = problem;
+        if (problem is null) MarkDone($"{Item.FileTitle}: {LibraryItemViewModel.Adventures(chosen.Count)} with cards of their own.", undo ?? (() => Task.CompletedTask));
+    });
+
+    [RelayCommand]
+    Task NotSplit() => DecideAsync(() => Actions.NotSplitAsync(Item), $"Kept {Item.FileTitle} as one book.");
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Item.DocumentId, Item.FileTitle);
+}
+
+/// <summary>An adventure on a proposal card: ticked to make its card, and its title and pages as the file numbers them.</summary>
+public sealed partial class ProposedPartRow(PartProposalCardViewModel card, ProposedPart part, IReadOnlyList<string?> labels) : ObservableObject
+{
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string Title { get; set; } = part.Title;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PagesText), nameof(Summary))]
+    public partial string From { get; set; } = Bibliotaph.Core.Reading.PageNumbers.Display(part.Pages.First, labels);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PagesText), nameof(Summary))]
+    public partial string To { get; set; } = part.Pages.Count == 1 ? "" : Bibliotaph.Core.Reading.PageNumbers.Display(part.Pages.Last, labels);
+
+    /// <summary>"pp. 34–52", or what was typed when it doesn't read.</summary>
+    public string PagesText => Read()?.Pages.Describe(labels) ?? (To.Trim().Length == 0 ? $"p. {From}" : $"pp. {From}–{To}");
+
+    /// <summary>"Levels 1–3", from its blurb; empty when it gave none.</summary>
+    public string Levels => part.Levels is { } levels && LevelRange.TryParse(levels, out var range) ? range.Describe() : "";
+
+    /// <summary>"pp. 34–52 · Levels 1–3".</summary>
+    public string Summary => Levels.Length > 0 ? $"{PagesText} · {Levels}" : PagesText;
+
+    partial void OnIsCheckedChanged(bool value) => card.Ticked();
+
+    /// <summary>The adventure as the row reads now, or null when its pages don't read as the file's.</summary>
+    public ProposedPart? Read()
+    {
+        int? Find(string text) => Bibliotaph.Core.Reading.PageNumbers.Find(text, labels, labels.Count);
+        if (Title.Trim().Length == 0 || Find(From) is not { } first) return null;
+        var last = To.Trim().Length == 0 ? first : Find(To);
+        return last is { } l ? part with { Title = Title.Trim(), Pages = new PartPages(first, l) } : null;
+    }
+}
+
+/// <summary>
+/// A proposed folder rule (scenario review, row 8): the user set the same value on several books from one folder, so
+/// every file there could get it as a suggestion. Use this rule switches it on; No thanks keeps it off, and it isn't
+/// proposed again. Settings > Library lists the answered ones with a switch each.
+/// </summary>
+public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabulary vocabulary, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public FolderRuleInfo Rule { get; } = rule;
+
+    /// <summary>The folder's own name, or the library folder's for a rule on the whole of one.</summary>
+    public string FolderName => FolderRuleText.FolderName(Rule);
+
+    public string Title => $"A rule for “{FolderName}”";
+
+    public string Heading => $"You set {FolderRuleText.Describe(Rule, vocabulary)} on {Rule.Books.ToString("N0", CultureInfo.CurrentCulture)} books in this folder. "
+        + "Suggest it for every file in it?";
+
+    public string Detail { get; } = "Files in this folder and its subfolders, new ones too, get it as a suggestion. Anything you set on a book yourself stays. "
+        + "Settings > Library can switch the rule off.";
+
+    public string Path => FolderRuleText.FullPath(Rule);
+
+    [RelayCommand]
+    Task UseRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, true),
+        $"Files in “{FolderName}” now get {FolderRuleText.Describe(Rule, vocabulary)} as a suggestion.");
+
+    [RelayCommand]
+    Task NoRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, false), $"No rule for “{FolderName}”. Bibliotaph won't suggest this one again.");
+
+    [RelayCommand]
+    void ShowFolder() => Actions.ShowFolder(Path);
+}
+
+/// <summary>How a folder rule reads, on its Needs review card and in Settings > Library.</summary>
+public static class FolderRuleText
+{
+    public static string FolderName(FolderRuleInfo rule) =>
+        rule.Folder.Name is { Length: > 0 } name ? name : System.IO.Path.GetFileName(rule.RootPath.TrimEnd('\\', '/')) is { Length: > 0 } top ? top : rule.RootPath;
+
+    /// <summary>"system Pathfinder 2e", "types Adventure": the field in lower case, then the value as it reads.</summary>
+    public static string Describe(FolderRuleInfo rule, Vocabulary vocabulary) => MetadataFields.Find(rule.Field) is { } field
+        ? $"{field.Label.ToLower(CultureInfo.CurrentCulture)} {MetadataValueViewModel.Display(field, rule.Value, vocabulary)}"
+        : $"{rule.Field} {rule.Value}";
+
+    public static string FullPath(FolderRuleInfo rule) => rule.Folder.Folder.Length == 0 ? rule.RootPath : System.IO.Path.Combine(rule.RootPath, rule.Folder.Folder);
 }
 
 /// <summary>

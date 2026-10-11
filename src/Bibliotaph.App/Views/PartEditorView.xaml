@@ -1,0 +1,70 @@
+<UserControl x:Class="Bibliotaph.App.Views.PartEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:PartEditorViewModel}"
+             KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="{Binding Heading}">
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+    <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+  </UserControl.InputBindings>
+
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Margin" Value="0,14,0,5" />
+    </Style>
+  </UserControl.Resources>
+
+  <!-- An adventure inside a file (slice 5): its title when new, and its first and last pages as the file numbers them. -->
+  <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />
+    </Border.Effect>
+    <StackPanel Margin="28,22,28,22">
+      <DockPanel Margin="0,0,0,4">
+        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
+                ToolTip="Close (Esc)" AutomationProperties.Name="Close" Command="{Binding CancelCommand}" />
+        <StackPanel>
+          <TextBlock Text="ADVENTURE IN THIS FILE" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+          <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" />
+        </StackPanel>
+      </DockPanel>
+      <StackPanel Visibility="{Binding ShowsTitle, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="Title" Style="{StaticResource FieldLabel}" />
+        <TextBox x:Name="PartTitleBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.Name="Adventure title" />
+      </StackPanel>
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="16" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="First page" Style="{StaticResource FieldLabel}" />
+          <TextBox x:Name="PartFromBox" Style="{StaticResource Bt.TextBox}" Text="{Binding From, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First page" />
+        </StackPanel>
+        <StackPanel Grid.Column="2">
+          <TextBlock Text="Last page" Style="{StaticResource FieldLabel}" />
+          <TextBox x:Name="PartToBox" Style="{StaticResource Bt.TextBox}" Text="{Binding To, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last page" />
+        </StackPanel>
+      </Grid>
+      <TextBlock Text="{Binding PagesProblem}" Style="{StaticResource Text.Small}" Margin="0,6,0,0" TextWrapping="Wrap"
+                 Visibility="{Binding PagesProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      <TextBlock x:Name="PartProblem" Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Warm}" Margin="0,8,0,0" TextWrapping="Wrap"
+                 Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" AutomationProperties.LiveSetting="Assertive" />
+      <TextBlock Text="The file isn't changed: the adventure gets a card of its own that opens these pages." Style="{StaticResource Text.Small}"
+                 Margin="0,14,0,0" TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+        <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+        <Button x:Name="SavePartButton" Style="{StaticResource Bt.Button.Primary}" Content="{Binding ActionText}" Command="{Binding SaveCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

@@ -24,6 +24,7 @@ CREATE TABLE doc (
     meta_author     TEXT,
     meta_subject    TEXT,
     meta_keywords   TEXT,
+    meta_producer   TEXT,                          -- the software that made it, which can name the store that sold it
     folder_hint     TEXT,                          -- folder names above the file, for search
     cover           TEXT,                          -- cover file name in the cache folder, once made
     added_utc       TEXT    NOT NULL
@@ -92,6 +93,23 @@ CREATE TRIGGER page_au AFTER UPDATE OF text ON page BEGIN
     INSERT INTO page_fts (rowid, text) VALUES (new.id, new.text);
 END;
 
+-- Ask this book: one vector per page, made by the embedding model set in Settings > AI the first time the book is asked,
+-- so its pages can be found by meaning. model and version say what made it (EmbeddingText.Version); a vector of another
+-- model or version is stale, and is made again when the book is next asked. A page that goes, or whose text changes,
+-- takes its vector with it. vector is little-endian float32s.
+CREATE TABLE page_vec (
+    page_id  INTEGER PRIMARY KEY,
+    model    TEXT    NOT NULL,
+    version  INTEGER NOT NULL,
+    vector   BLOB    NOT NULL
+);
+CREATE TRIGGER page_vec_ad AFTER DELETE ON page BEGIN
+    DELETE FROM page_vec WHERE page_id = old.id;
+END;
+CREATE TRIGGER page_vec_au AFTER UPDATE OF text ON page WHEN new.text IS NOT old.text BEGIN
+    DELETE FROM page_vec WHERE page_id = old.id;
+END;
+
 -- Library cards: each entry and the document it shows (its current source), projected from catalog.db. A pack shows
 -- its first image. A book owned elsewhere has no document: queries join doc optionally.
 CREATE TABLE entry_doc (
@@ -101,10 +119,23 @@ CREATE TABLE entry_doc (
     copies       INTEGER NOT NULL DEFAULT 1,     -- how many files of the book the entry has: "2 copies"
     name         TEXT,                           -- a pack's name, from its folder or ZIP; the title until one is set
     members      INTEGER NOT NULL DEFAULT 0,     -- a pack's images: "120 images"
-    added_utc    TEXT                            -- when a book owned elsewhere was added; a file's card uses its document's
+    added_utc    TEXT,                           -- when a book owned elsewhere was added; a file's card uses its document's
+    parent_id    INTEGER,                        -- an adventure inside a file (slice 5): the file's entry
+    first_page   INTEGER,                        -- and its first and last PDF pages in document_id
+    last_page    INTEGER,
+    parts        INTEGER NOT NULL DEFAULT 0      -- a file's adventures: "5 adventures"
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
+CREATE INDEX entry_doc_parent ON entry_doc (parent_id) WHERE parent_id IS NOT NULL;
+
+-- The cover of an adventure inside a file (slice 5): its first page, drawn like a document's cover.
+CREATE TABLE page_cover (
+    document_id  INTEGER NOT NULL,
+    pdf_page     INTEGER NOT NULL,
+    cover        TEXT    NOT NULL,               -- cover file name in the cache folder
+    PRIMARY KEY (document_id, pdf_page)
+) WITHOUT ROWID;
 
 -- A pack's images in file name order, for its mosaic cover, its inspector grid and stepping through it in the viewer.
 -- member_entry_id is the image's own entry, hidden while it's in the pack.
@@ -141,6 +172,8 @@ CREATE TABLE entry_meta (
     level_min     INTEGER,
     level_max     INTEGER,
     level_state   TEXT    NOT NULL DEFAULT 'unknown' CHECK (level_state IN ('unknown', 'known', 'na')),
+    players_min   INTEGER,                       -- how many players it is for; both null when unknown
+    players_max   INTEGER,
     needs_review  INTEGER NOT NULL DEFAULT 0,    -- how many Needs review cards it has
     suggested     INTEGER NOT NULL DEFAULT 0,    -- shows a value nobody has confirmed
     tags          TEXT,                          -- the user's tags, joined with "; "
@@ -148,7 +181,7 @@ CREATE TABLE entry_meta (
     provisional_text TEXT                        -- and of suggested ones
 );
 
--- One row per value of a vocabulary field (system, edition, type, setting, theme, environment), for filters, facet
+-- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own, store), for filters, facet
 -- counts and field search. value is the term key.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
@@ -185,8 +218,8 @@ CREATE TABLE scope_name (
 ) WITHOUT ROWID;
 CREATE INDEX scope_name_name ON scope_name (name COLLATE NOCASE);
 
--- Each entry's own note (slice 3f), for the notes column of entry_fts, so a search finds the books whose note has the
--- words. Projected from catalog.db; page notes aren't searched yet.
+-- The text of each entry's notes (slice 3f), its own note and then its page notes, for the notes column of entry_fts,
+-- so a search finds the books whose notes have the words. Projected from catalog.db.
 CREATE TABLE entry_note (
     entry_id  INTEGER PRIMARY KEY,
     text      TEXT NOT NULL
@@ -257,4 +290,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 12;
+PRAGMA user_version = 16;

@@ -70,7 +70,7 @@ Library Q&A with page citations; optional detected sections such as encounters o
 
 Cloud sync, multi-user accounts, player portals, VTT integration, campaign authoring, character sheets, ebook conversion, source-file renaming or deletion, DRM removal, a plugin marketplace, and running a background server. No built-in storefront or recommendation engine for buying more books.
 
-Bibliotaph is a Windows desktop app. Phone and tablet apps, a web version and macOS or Linux builds are out of scope (decided by Dave on 10 October 2026); the core, data and PDFium layers stay portable in case that changes. Using one library on a second Windows PC is served by a library sync file: the user-work export of §10, written to a folder the user picks (such as OneDrive) and merged on the other PC by content hash, newest change per field winning. The SQLite files themselves never go in a synced folder. The sync file is planned, not built.
+Bibliotaph is a Windows desktop app. Phone and tablet apps, a web version and macOS or Linux builds are out of scope (decided by Dave on 10 October 2026); the core, data and PDFium layers stay portable in case that changes. Using one library on a second Windows PC is served by a library sync file (§10): each PC writes its user work to a folder the user picks (such as OneDrive) and merges the other PC's file, books matched by content hash, newest change per field winning. There is no sync service. The SQLite files themselves never go in a synced folder.
 
 ## 3. Information architecture
 
@@ -150,7 +150,7 @@ Bulk selection provides additive/removal tag operations, collection membership, 
 
 ### 5.3 Search and filters
 
-Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, theme, tag, and format.
+Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, players, duration, style, theme, store, tag, and format.
 
 Facet rules:
 
@@ -205,6 +205,14 @@ Settings areas: Sources, AI and privacy, Vocabulary, Processing, Appearance/acce
 
 Processing status provides pause/resume, current stage, queued count, failures, retry, and resource preference. Start with conservative resource use. OCR and AI can be paused independently of discovery and browsing. When the app closes, active work checkpoints safely; optional tray operation is a later enhancement, not the default.
 
+### 5.8 Adventures inside a file (slice 5)
+
+A compilation file can hold several adventures, and each can be a card of its own: marked by hand from a bookmark in the reader's Contents panel, from Mark as adventure in the reader, or from "Adventures in this file" in the file's details, as a first and last page typed as the file prints them. The file is never split or changed. An adventure's card has its first page as cover and says which file and pages it is in; it has its own title, type, levels and other values, and takes the file's system, edition, publisher, series, year and setting unless it has its own. The file's card counts its adventures, and the Library can hide them. A page found inside an adventure is listed under it. Opening one opens the file at its first page, with its pages marked in Contents, "page 3 of 19 of this adventure" in the toolbar, and Find limited to it unless Whole file is ticked. Copies of the file share its adventures, and a new version finds each by its first page; one it can't find goes to Needs Review.
+
+Bibliotaph also proposes a file's adventures from its bookmarks and the blurbs on their first pages ("for four characters of 3rd level"), leaving out credits, introductions, appendices, indexes and the licence. A proposal never makes cards by itself: Needs Review shows one card per file, "This file looks like it holds 5 adventures", with a ticked list of titles and pages, Edit, Accept and Not split. The answer is remembered, so the file isn't proposed again.
+
+When AI is set up and the rules find nothing, the model that classifies the file is also shown its bookmarks, its contents page and the first page of each bookmarked section, and asked which are self-contained adventures, with their titles and levels. Each answer needs a quote found on that section's pages, as for every AI value; what passes is the same Needs Review card, marked as read with AI. Every adventure with a card, however it was marked, is then classified by AI on its own pages, so its type, levels, themes and the rest come from its pages rather than the whole book's.
+
 ## 6. Metadata and classification requirements
 
 ### Metadata dimensions
@@ -217,13 +225,15 @@ Processing status provides pause/resume, current stage, queued count, failures, 
 | Edition / compatibility | Explicit edition and separately sourced compatibility claims |
 | Document types | Adventure, rulebook, bestiary, setting, supplement, map pack, handout; multiple allowed |
 | Levels | Optional system-scoped min/max; unknown and not applicable are distinct |
-| Intended party | Optional stated party size and constraints |
-| Duration | Stated or estimated minutes/sessions, with origin; never assume all one-shots last three hours |
+| Players | Optional stated party size as a minimum–maximum ("for 4–6 characters"), usually from the cover or back cover |
+| Duration | Stated length in sessions: one-shot, short (2–3 sessions), long (4 or more), campaign; with origin; never assume all one-shots last three hours |
 | Setting | Named settings; multiple or unknown |
-| Environments | Urban, forest, coastal, underground, arctic |
-| Themes and tone | Horror, mystery, political intrigue, comedic |
+| Environments | Urban, forest, coastal, underground, arctic, jungle, ruins, space, station, starship, alien world |
+| Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation, monster hunt, wilderness |
+| Themes and tone | Horror, mystery, political intrigue, comedic, fey; the kind of adventure is Style |
 | Content features | Maps, monsters, NPCs, tables, player options, spells, items |
 | Map properties | Grid/gridless, scale, dimensions, location type; unknown unless evidenced |
+| Get it from | Where the book can be got again: one or more stores (Kickstarter, BackerKit, DriveThruRPG, itch.io, a bundle, the publisher's site, Bundle of Holding, Game On Tabletop, other), each with an optional link; shared by every copy and version; a watermark gives only its store, never the buyer's name or order number |
 | User tags | Flexible labels that supplement structured dimensions |
 | Description | Short sourced summary; generated summaries labeled accordingly |
 | File facts | Size, page count, content hash, paths, timestamps, language, capabilities |
@@ -299,6 +309,8 @@ Keep user-authored catalog data separate from rebuildable derived content. A ful
 Backup includes the catalog and user work, with optional derived data. Source PDFs/images are excluded unless a future explicit archive feature is added. Restore previews required root-path remapping and missing resources. Secrets are excluded and re-entered after restore.
 
 Export documented JSON for full catalog portability and CSV for flat metadata. Include stable IDs, relative/source paths, hashes, provenance, collection memberships, and page-reference conventions in the structured export. Do not imply CSV alone can preserve every nested structure.
+
+Sync with another PC (Settings > Backup): each PC writes its user work to `<folder>\Bibliotaph sync\<PC name>.json` in a folder the user picks, a few seconds after the work changes and at close, and merges the other PCs' files at start, when one changes, and on Sync now. Per field the newer change wins, so two PCs editing different things both keep them, and deletions reach the other PC. Books are matched by content hash, what the user made (collections, binders, saved searches, notes) by a stable id; work on a book only the other PC has waits and is applied when the same file shows up. Library files, folder locations, reading places and settings stay on their PC. The databases never go in the folder: Settings says so and refuses Bibliotaph's own data folder. A status line says when the other PC's work was last merged, or what went wrong (folder offline, an unreadable file, two PCs with the same name).
 
 Database migrations require a pre-migration backup and a recovery path. Failed upgrades must not destroy the only copy of user-created catalog data.
 

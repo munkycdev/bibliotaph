@@ -251,6 +251,31 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             return documents.Count;
         }, ct);
 
+    /// <summary>
+    /// Runs <paramref name="stage"/> again for one document that has finished it at the current version, as when an
+    /// adventure is marked in it and Classify has its pages to read. Returns whether it was queued.
+    /// </summary>
+    public Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var queued = c.Execute(
+                """
+                UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL
+                WHERE document_id = @documentId AND stage = @stage AND stage_version = @version AND status IN ('done', 'failed')
+                """, new { documentId, stage = stage.ToString(), version = Pipeline.Version(stage) }, t);
+            if (queued > 0) SetStatus(c, t, documentId, stage, StageStatus.Pending, null, Now());
+            return queued > 0;
+        }, ct);
+
+    /// <summary>Whether a lane is running <paramref name="stage"/> for the document now.</summary>
+    public async Task<bool> IsRunningAsync(Stage stage, long documentId, CancellationToken ct = default)
+    {
+        await using var c = database.OpenRead();
+        return await c.ExecuteScalarAsync<long>(new CommandDefinition(
+            "SELECT count(*) FROM job WHERE document_id = @documentId AND stage = @stage AND status = 'leased'",
+            new { documentId, stage = stage.ToString() }, cancellationToken: ct)) > 0;
+    }
+
     /// <summary>Documents with a job blocked for exactly <paramref name="reason"/>.</summary>
     public async Task<IReadOnlyList<long>> BlockedForAsync(string reason, CancellationToken ct = default)
     {
@@ -281,6 +306,30 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             }
             return released;
         }, ct);
+
+    /// <summary>
+    /// Those of <paramref name="documentIds"/> that are done with their file for now: each has been queued, and none of
+    /// its jobs for <paramref name="stages"/> is waiting or running. Blocked and failed stages don't keep it, since they
+    /// run again only when the user asks; a job waiting to try again after a failure does. A document hashed but not yet
+    /// queued isn't done, as its stages haven't started.
+    /// </summary>
+    public async Task<IReadOnlySet<long>> DoneReadingAsync(IReadOnlyCollection<long> documentIds, IReadOnlyCollection<Stage> stages,
+        CancellationToken ct = default)
+    {
+        var done = new HashSet<long>();
+        if (documentIds.Count == 0) return done;
+        var names = stages.Select(s => s.ToString()).ToArray();
+        await using var c = database.OpenRead();
+        foreach (var ids in documentIds.Distinct().Chunk(500))
+            done.UnionWith(await c.QueryAsync<long>(new CommandDefinition(
+                """
+                SELECT document_id FROM job
+                WHERE document_id IN @ids
+                GROUP BY document_id
+                HAVING sum(status IN ('pending', 'leased') AND stage IN @names) = 0
+                """, new { ids, names }, cancellationToken: ct)));
+        return done;
+    }
 
     /// <summary>The earliest time a waiting job becomes ready, so an idle lane knows when to look again.</summary>
     public async Task<DateTimeOffset?> NextReadyAsync(IReadOnlyCollection<Stage> stages, CancellationToken ct = default)

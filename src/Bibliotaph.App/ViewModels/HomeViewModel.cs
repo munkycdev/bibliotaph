@@ -19,7 +19,7 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    PinDirectory pins, PinOpener opener, BookTextActions text, ILogger<HomeViewModel> log)
+    PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
@@ -147,6 +147,10 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand]
     void OpenDetails(LibraryItemViewModel item) => pages.ShowDetails(item.EntryId);
 
+    /// <summary>Cataloged wrong…, from a cover's menu: the Library with the book's editor open to correct it.</summary>
+    [RelayCommand]
+    void CatalogedWrong(LibraryItemViewModel item) => pages.ShowCorrection(item.EntryId);
+
     /// <summary>Opens a book where it was left (choice 6), from a cover's menu or Enter on it.</summary>
     [RelayCommand(CanExecute = nameof(CanOpenBook))]
     async Task OpenBook(LibraryItemViewModel item)
@@ -161,6 +165,12 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     }
 
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
+
+    /// <summary>"Ask this book", from a cover's menu: opens the PDF with its Ask panel showing (Ask plan, choice 11).</summary>
+    [RelayCommand(CanExecute = nameof(CanAskBook))]
+    void AskBook(LibraryItemViewModel item) => readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title) { Resume = true, Ask = true });
+
+    bool CanAskBook(LibraryItemViewModel? item) => item is { CanAsk: true } && ask.IsOn;
 
     /// <summary>Open in another app, from the menu of a cover whose file Bibliotaph can't read (slice 4i plan, choice 4).</summary>
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenElsewhere))]
@@ -190,7 +200,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     /// <summary>A book at the page it was left at; a pack at its first image, with the rest to step through.</summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item)
     {
-        if (!item.IsPack) return new ViewerRequest(item.DocumentId, item.Title) { Resume = true };
+        if (!item.IsPack) return item.BookRequest();
         var images = await Task.Run(() => queries.GetPackImagesAsync(item.EntryId));
         if (images.Count == 0) return null;
         var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();

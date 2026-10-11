@@ -59,8 +59,9 @@ public sealed record EffectiveField(MetadataField Field, IReadOnlyList<Effective
 /// <list type="bullet">
 /// <item>A confirmed value wins and is never replaced by a suggestion (A04). Rejected values never apply, from any
 /// source (a rejection is a document, field and normalised value).</item>
-/// <item>A single-value field otherwise takes the highest-priority suggestion: AI over rule hints, and among hints the
-/// PDF's own information over folder names over the file name; the newest wins a tie.</item>
+/// <item>A single-value field otherwise takes the highest-priority suggestion: a folder rule the user agreed to, then AI,
+/// then rule hints, and among hints the PDF's own information over folder names over the file name; the newest wins a
+/// tie.</item>
 /// <item>A multi-value field is judged value by value: confirmed values, plus the suggestions of the highest-priority
 /// source that has any. Lower sources' extra values are alternatives, not values. Once the user has decided the field,
 /// only suggestions that arrived after that decision are added; the older ones stay alternatives, so confirming the
@@ -86,6 +87,7 @@ public sealed class EffectiveMetadata
     public static int Priority(AssertionOrigin origin) => origin switch
     {
         AssertionOrigin.User => 100,
+        AssertionOrigin.FolderRule => 60,
         AssertionOrigin.Ai => 50,
         AssertionOrigin.Rule => 30,
         AssertionOrigin.Embedded => 20,

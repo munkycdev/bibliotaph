@@ -14,7 +14,7 @@ public sealed record AboutInfo(string Version, string? Commit, string Runtime, s
     public const string IssuesUrl = SourceUrl + "/issues";
     public const string Copyright = "Copyright © 2026 munkycdev";
 
-    /// <summary>"0.4.0 (4578ab9)", or just the version for a build made outside git.</summary>
+    /// <summary>"1.0.0 (4578ab9)", or just the version for a build made outside git.</summary>
     public string VersionText => Commit is null ? Version : $"{Version} ({Commit})";
 
     public string Details => string.Join(Environment.NewLine,
@@ -32,7 +32,7 @@ public sealed record AboutInfo(string Version, string? Commit, string Runtime, s
     }
 
     /// <summary>
-    /// Splits the SDK's informational version, "0.4.0+4578ab9c…" (the commit is appended at build time), into the
+    /// Splits the SDK's informational version, "1.0.0+4578ab9c…" (the commit is appended at build time), into the
     /// version and the commit's first seven characters.
     /// </summary>
     public static (string Version, string? Commit) ParseVersion(string informational)

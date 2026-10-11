@@ -133,6 +133,20 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_opened"));
         // Version 11: the collections' names, for collection:"name".
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM scope_name"));
+        // Version 12: each entry's own note.
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_note"));
+        // Version 13: how many players each book is for.
+        Assert.Equal(2, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('entry_meta') WHERE name IN ('players_min', 'players_max')"));
+        // Version 14: the software each PDF says made it, which can name the store that sold it.
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('doc') WHERE name = 'meta_producer'"));
+        // Version 15: adventures inside a file know it and their pages; a file counts them; their first pages have covers.
+        Assert.Equal(((long?)null, (long?)null, (long?)null, 0L),
+            read.QuerySingle<(long?, long?, long?, long)>("SELECT parent_id, first_page, last_page, parts FROM entry_doc"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM page_cover"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = 'entry_doc_parent'"));
+        // Version 16: Ask this book's page vectors, which go when their page or its text does.
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM page_vec"));
+        Assert.Equal(2, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name IN ('page_vec_ad', 'page_vec_au')"));
     }
 
     [Fact]

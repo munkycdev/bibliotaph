@@ -88,6 +88,11 @@
       <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <!-- Mark as adventure (slice 5): pages of this file as an adventure with a card of its own. -->
+        <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
+                Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"
+                AutomationProperties.Name="Mark pages as an adventure"
+                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <!-- Note (slice 3f): a note on the page in view, or on the page with selected text. -->
         <Button x:Name="AddNote" Content="Note" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Click="AddNote_Click"
                 ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
@@ -125,6 +130,10 @@
                     AutomationProperties.Name="Contents" Command="{Binding ToggleOutlineCommand}" />
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
+          <!-- Page thumbnails along the bottom of the pages; hidden at launch, then kept as last left for the sitting. -->
+          <Button x:Name="ToggleStrip" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelBottom}" c:Ui.IsActive="{Binding ShowStrip}"
+                  ToolTip="{Binding StripAction}" AutomationProperties.Name="Page thumbnails" Command="{Binding ToggleStripCommand}" />
+          <Border Style="{StaticResource Divider}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
                   AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
           <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
@@ -136,6 +145,9 @@
             </TextBox.InputBindings>
           </TextBox>
           <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
+          <!-- Opened from an adventure's card (slice 5): where the page in view is in it. -->
+          <TextBlock x:Name="PartPosition" Text="{Binding PartPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,6,0"
+                     Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
                   AutomationProperties.Name="Next page" Command="{Binding NextPageCommand}" />
           <!-- After following a link in the book, as from its index: the way back to where it was clicked. -->
@@ -148,6 +160,13 @@
           <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding NotesLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                   Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
           <Border Style="{StaticResource Divider}" />
+          <!-- Ask this book: only while AI is on (Ask plan, choice 12). -->
+          <StackPanel Orientation="Horizontal" Visibility="{Binding Ask.IsOn, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="ToggleAsk" Style="{StaticResource Bt.Link}" Content="Ask" c:Ui.Icon="{StaticResource Icon.Sparkles}"
+                    Command="{Binding ToggleAskCommand}" ToolTip="Ask this book a question" AutomationProperties.Name="Ask this book"
+                    VerticalAlignment="Center" />
+            <Border Style="{StaticResource Divider}" />
+          </StackPanel>
         </StackPanel>
         <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
         <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
@@ -210,6 +229,10 @@
                   ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding FindPreviousCommand}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
                   ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding FindNextCommand}" />
+          <!-- Reading an adventure inside the file, Find looks in its pages unless this is ticked (slice 5). -->
+          <CheckBox x:Name="FindWholeFile" Content="Whole file" IsChecked="{Binding FindWholeFile}" Foreground="{DynamicResource Bt.Text}" FontSize="11"
+                    VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Find in the whole file, not only this adventure's pages"
+                    Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
         <TextBlock Text="{Binding FindStatus}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="8,0,0,4"
                    Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -235,12 +258,25 @@
               </ListBox.ItemContainerStyle>
               <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:OutlineEntry}">
-                  <DockPanel x:Name="Row" Margin="{Binding Indent}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
-                    <TextBlock DockPanel.Dock="Right" Text="{Binding Page}" Style="{StaticResource Text.Small}" Margin="8,5,6,5" VerticalAlignment="Top" />
-                    <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
-                               Margin="6,5,0,5" />
-                  </DockPanel>
+                  <!-- A bookmark inside the adventure being read stands out (slice 5); any can be indexed as an adventure. -->
+                  <Border x:Name="Shade" BorderThickness="0">
+                    <DockPanel x:Name="Row" Margin="{Binding Indent}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
+                      <DockPanel.ContextMenu>
+                        <ContextMenu Style="{StaticResource Bt.Menu}">
+                          <MenuItem Header="Index as its own adventure…" Click="IndexBookmark_Click" />
+                        </ContextMenu>
+                      </DockPanel.ContextMenu>
+                      <TextBlock DockPanel.Dock="Right" Text="{Binding Page}" Style="{StaticResource Text.Small}" Margin="8,5,6,5" VerticalAlignment="Top" />
+                      <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
+                                 Margin="6,5,0,5" />
+                    </DockPanel>
+                  </Border>
                   <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding InPart}" Value="True">
+                      <Setter TargetName="Shade" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                      <Setter TargetName="Shade" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                      <Setter TargetName="Shade" Property="BorderThickness" Value="2,0,0,0" />
+                    </DataTrigger>
                     <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
                       <Setter TargetName="Row" Property="Background" Value="{DynamicResource Bt.Soft}" />
                     </Trigger>
@@ -249,6 +285,101 @@
               </ListBox.ItemTemplate>
             </ListBox>
           </DockPanel>
+        </Border>
+        <!-- Ask this book (Ask plan): a question, the answer with its citations as links, and the pages it was read from, each opening its page. -->
+        <Border x:Name="AskPanel" DockPanel.Dock="Right" Width="320" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                BorderThickness="1,0,0,0" DataContext="{Binding Ask}">
+          <Border.Style>
+            <Style TargetType="Border">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding DataContext.AskVisible, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                    <Condition Binding="{Binding DataContext.IsPdf, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                    <Condition Binding="{Binding IsOn}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="14,14,14,12">
+              <TextBlock Text="ASK THIS BOOK" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
+              <TextBox x:Name="AskBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap"
+                       AutomationProperties.Name="Your question about this book" ToolTip="Ask about something in this book, then press Enter">
+                <TextBox.InputBindings>
+                  <KeyBinding Key="Enter" Command="{Binding AskCommand}" />
+                </TextBox.InputBindings>
+              </TextBox>
+              <DockPanel Margin="0,8,0,0">
+                <Button x:Name="AskButton" DockPanel.Dock="Left" Style="{StaticResource Bt.Button.Primary}" Content="Ask" Command="{Binding AskCommand}"
+                        AutomationProperties.Name="Ask" />
+                <Button x:Name="AskStop" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Stop" Command="{Binding StopCommand}"
+                        ToolTip="Stop the answer here" AutomationProperties.Name="Stop answering"
+                        Visibility="{Binding IsAnswering, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="AskStep" Text="{Binding Step}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="10,0,0,0"
+                           TextTrimming="CharacterEllipsis" Visibility="{Binding Step, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              </DockPanel>
+              <!-- The book's conversation so far (Ask plan, Q3), and New conversation to start again. -->
+              <DockPanel Margin="0,14,0,0" Visibility="{Binding CanStartOver, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <Button x:Name="AskNewConversation" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="New conversation"
+                        Command="{Binding NewConversationCommand}" ToolTip="Forget the questions asked of this book so far, and start again"
+                        AutomationProperties.Name="Start a new conversation" />
+                <TextBlock Text="Earlier in this conversation" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center"
+                           Visibility="{Binding HasHistory, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </DockPanel>
+              <ItemsControl x:Name="AskHistory" ItemsSource="{Binding History}" Focusable="False" AutomationProperties.Name="Earlier in this conversation"
+                            KeyboardNavigation.TabNavigation="Continue" Margin="0,6,0,0" Visibility="{Binding HasHistory, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:AskTurnRow}">
+                    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,0,0,8" Margin="0,0,0,8">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Question}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding LookedFor}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Visibility="{Binding LookedFor, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                        <TextBlock c:AnswerText.Parts="{Binding Answer}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   c:AnswerText.Command="{Binding DataContext.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding Asked}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,14,0,0"
+                         Visibility="{Binding Asked, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock x:Name="AskLookedFor" Text="{Binding LookedFor}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,2,0,0"
+                         Visibility="{Binding LookedFor, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <!-- The answer, checked as it streams: each [p. N] opens its page; a quotation not on its page is in italics, without its marks. -->
+              <TextBlock x:Name="AskAnswer" c:AnswerText.Parts="{Binding Answer}" c:AnswerText.Command="{Binding OpenCitationCommand}" FontSize="13"
+                         Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" LineHeight="19" Margin="0,8,0,0" AutomationProperties.Name="The answer"
+                         Visibility="{Binding HasAnswer, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="AskMessage" Text="{Binding Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,8,0,0"
+                         Visibility="{Binding Message, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock x:Name="AskPassagesHeading" Text="{Binding PassagesHeading}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Muted}"
+                         TextWrapping="Wrap" Margin="0,14,0,6" Visibility="{Binding HasPassages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <ItemsControl x:Name="AskPassages" ItemsSource="{Binding Passages}" Focusable="False" AutomationProperties.Name="Pages that look like they answer it"
+                            KeyboardNavigation.TabNavigation="Continue">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:AskPassageRow}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                      <StackPanel>
+                        <Button x:Name="AskPassageLink" Style="{StaticResource Bt.Link}" Content="{Binding Link}" HorizontalAlignment="Left"
+                                ToolTip="Open this page, with the matching word marked" AutomationProperties.Name="{Binding AccessibleName}"
+                                Command="{Binding DataContext.GoToCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                        <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding Found}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock x:Name="AskMeaning" Text="{Binding MeaningText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,8,0,0"
+                         Visibility="{Binding MeaningText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock x:Name="AskCoverage" Text="{Binding CoverageText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0"
+                         Visibility="{Binding CoverageText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+          </ScrollViewer>
         </Border>
         <!-- Notes on this book's pages (slice 3f): each goes to its pages, and can be changed or deleted. -->
         <Border x:Name="NotesPanel" DockPanel.Dock="Right" Width="280" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
@@ -308,6 +439,67 @@
               </ItemsControl>
             </ScrollViewer>
           </DockPanel>
+        </Border>
+        <!--
+          Page thumbnails: a picture of every page, scrolled sideways (the wheel too) and opened with a click or Enter. The
+          page in view is outlined, a page with notes has a badge, and a binder item's pages have a bar over them. Only the
+          thumbnails near the strip's view are drawn, after the pages on screen.
+        -->
+        <Border x:Name="StripPanel" DockPanel.Dock="Bottom" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0"
+                Visibility="{Binding StripVisible, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <ListBox x:Name="PageStrip" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Strip.Pages}" AutomationProperties.Name="Page thumbnails"
+                   c:ItemActivation.Command="{Binding Strip.GoToPageCommand}" Padding="6,2,6,0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                   VirtualizingPanel.ScrollUnit="Item" VirtualizingPanel.CacheLength="4" VirtualizingPanel.CacheLengthUnit="Item"
+                   ScrollViewer.ScrollChanged="PageStrip_ScrollChanged" PreviewMouseWheel="PageStrip_PreviewMouseWheel">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem" BasedOn="{StaticResource Bt.PlainItem}">
+                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+                <Setter Property="Margin" Value="3,4,3,4" />
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:PageThumbnail}">
+                <StackPanel x:Name="Thumb" Width="{Binding Width}" Margin="3,0" Background="Transparent" Cursor="Hand" ToolTip="{Binding AccessibleName}">
+                  <!-- Over the pages of the binder item in hand. -->
+                  <Border x:Name="ItemBar" Height="3" CornerRadius="1.5" Margin="0,0,0,3" Background="Transparent" />
+                  <Border x:Name="Frame" Height="{Binding Height}" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}"
+                          BorderThickness="1" CornerRadius="2" SnapsToDevicePixels="True">
+                    <Grid>
+                      <TextBlock Text="{Binding Page}" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Image Source="{Binding Image}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                      <Border x:Name="NoteBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,3,0" Width="18" Height="18" CornerRadius="9"
+                              Background="{DynamicResource Bt.Accent}" Visibility="{Binding HasNotes, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                        <c:LucideIcon Data="{StaticResource Icon.NotebookPen}" Size="11" Foreground="{DynamicResource Bt.AccentText}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                    </Grid>
+                  </Border>
+                  <TextBlock x:Name="Number" Text="{Binding Page}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" HorizontalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                </StackPanel>
+                <DataTemplate.Triggers>
+                  <Trigger SourceName="Thumb" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Bt.Muted}" />
+                  </Trigger>
+                  <DataTrigger Binding="{Binding InItem}" Value="True">
+                    <Setter TargetName="ItemBar" Property="Background" Value="{DynamicResource Bt.Accent}" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                    <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
+                    <Setter TargetName="Number" Property="Foreground" Value="{DynamicResource Bt.Text}" />
+                    <Setter TargetName="Number" Property="FontWeight" Value="SemiBold" />
+                  </DataTrigger>
+                </DataTemplate.Triggers>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
         </Border>
         <Grid>
           <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
@@ -373,7 +565,8 @@
 
     <ScrollViewer Grid.Row="1" Grid.RowSpan="3" VerticalScrollBarVisibility="Auto" Focusable="False"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.VisibleWhenTrue}}">
-      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}" />
+      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}"
+                    SecondaryText="{Binding EmptySecondaryText}" SecondaryCommand="{Binding EmptySecondaryCommand}" />
     </ScrollViewer>
 
     <!-- Add pages… and naming a new session, as a dialog over the reader. Esc or Cancel closes it. -->
@@ -391,6 +584,14 @@
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding NoteDialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Pages marked as an adventure (slice 5), as a dialog over the reader. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="4" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Background="{DynamicResource Bt.Shadow}" />
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:PartEditorView x:Name="PartEditorDialog" DataContext="{Binding PartEditor}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
       </ScrollViewer>
     </Grid>
   </Grid>

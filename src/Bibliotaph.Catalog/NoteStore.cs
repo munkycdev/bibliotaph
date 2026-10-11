@@ -24,17 +24,25 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
         return await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct);
     }
 
-    /// <summary>The own notes of these entries, or of every entry when <paramref name="entryIds"/> is null, for search.</summary>
-    public async Task<IReadOnlyDictionary<EntryId, string>> GetEntryNotesAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
+    /// <summary>
+    /// What search finds these entries by in their notes, or every entry's when <paramref name="entryIds"/> is null: the
+    /// entry's own note, then its page notes in page order, a blank line between them. An entry with no notes isn't listed.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<EntryId, string>> GetSearchTextAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var query = db.Notes.AsNoTracking().Where(n => n.PageRefId == null);
+        var query = db.Notes.AsNoTracking();
         if (entryIds is not null)
         {
             var ids = entryIds.Select(e => e.Value).ToList();
             query = query.Where(n => ids.Contains(n.EntryId));
         }
-        return (await query.Select(n => new { n.EntryId, n.Text }).ToListAsync(ct)).ToDictionary(n => new EntryId(n.EntryId), n => n.Text);
+        var notes = await query
+            .Select(n => new { n.Id, n.EntryId, n.Text, First = n.PageRef == null ? -1 : n.PageRef.FirstPdfPage, Last = n.PageRef == null ? -1 : n.PageRef.LastPdfPage })
+            .ToListAsync(ct);
+        // The own note has no pages, so it sorts first.
+        return notes.GroupBy(n => n.EntryId).ToDictionary(g => new EntryId(g.Key),
+            g => string.Join("\n\n", g.OrderBy(n => n.First).ThenBy(n => n.Last).ThenBy(n => n.Id).Select(n => n.Text)));
     }
 
     /// <summary>Saves the entry's own note as typed; blank deletes it. Returns whether anything changed.</summary>

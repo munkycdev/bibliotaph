@@ -29,6 +29,8 @@ public static class KeyboardShortcuts
             new("Ctrl+Space", "Show the search guide"),
             new("Down, Up", "Open the search guide and move through it"),
             new("Enter or Tab", "Use the highlighted suggestion"),
+            new("Enter, in Ask", "Read what you typed as a search"),
+            new("Esc, in Ask", "Leave Ask, keeping what you typed"),
         ]),
         new("Library",
         [
