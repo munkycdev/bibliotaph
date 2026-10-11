@@ -102,6 +102,11 @@ public sealed class Entry
     /// </summary>
     public long? MergedIntoEntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
+    /// <summary>
+    /// Names a book owned elsewhere in the library sync file (library sync plan, choice 4), which has no content hash to
+    /// be named by; a book with files is named by its files' hashes instead. Made once, and the same on every PC it reaches.
+    /// </summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
     public List<EntrySource> Sources { get; set; } = [];
     public List<Assertion> Assertions { get; set; } = [];
     public List<Rejection> Rejections { get; set; } = [];
@@ -373,6 +378,8 @@ public sealed class CollectionNode
     public DateTime CreatedUtc { get; set; }
     /// <summary>When a book was last added to it or it was made: the menu's recent collections.</summary>
     public DateTime UsedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
@@ -386,6 +393,8 @@ public sealed class SmartView
     public required string Definition { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
@@ -419,6 +428,8 @@ public sealed class Note
     public required string Text { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>An entry added to a collection (choice 10).</summary>
@@ -467,6 +478,8 @@ public sealed class SessionPack
     public bool KeepAtHand { get; set; }
     /// <summary>The game system its references are for, as a system vocabulary key; null for any system.</summary>
     public string? GameSystem { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>A heading in a pack ("Maps"), in the pack's order. Items without one come first.</summary>
@@ -476,6 +489,8 @@ public sealed class SessionSection
     public long PackId { get; set; }
     public required string Name { get; set; }
     public int Position { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
@@ -497,6 +512,31 @@ public sealed class SessionItem
     public string? Label { get; set; }
     public string? Note { get; set; }
     public DateTime AddedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
+}
+
+/// <summary>
+/// What this PC knows of one record of the library sync file (library sync plan, choice 3): each field's value as it
+/// was last seen or merged and when it changed, a tombstone if it was deleted, and whether it came from another PC but
+/// can't be used here yet (its book isn't in this library, say). The catalog's own tables stay as they are; comparing
+/// them with these rows is how a change made on this PC is noticed and timed, whichever page made it.
+/// </summary>
+public sealed class SyncState
+{
+    /// <summary>The record's key (<see cref="Core.Sync.SyncKeys"/>).</summary>
+    public required string Key { get; set; }
+
+    /// <summary>The fields: name to value (compact JSON, or null when cleared) and change time, as JSON.</summary>
+    public required string FieldsJson { get; set; }
+
+    /// <summary>A book's other keys, as a JSON array: the hashes of its other copies.</summary>
+    public string? AliasesJson { get; set; }
+
+    public DateTime? DeletedUtc { get; set; }
+
+    /// <summary>From another PC, and not in this catalog: kept, and used once what it needs shows up here.</summary>
+    public bool Pending { get; set; }
 }
 
 public sealed class Setting

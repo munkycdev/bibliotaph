@@ -46,6 +46,15 @@ public static class SettingKeys
 
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
     public const string StartPage = "start-page";
+
+    /// <summary>The folder library sync writes this PC's sync file to and reads the other PCs' from; empty or missing while sync is off.</summary>
+    public const string SyncFolder = "sync.folder";
+
+    /// <summary>This PC's id in its sync file, so a second PC with the same name writing to the same folder is noticed.</summary>
+    public const string SyncMachineId = "sync.machine-id";
+
+    /// <summary>Which PC's work was last merged, and when, as JSON, for Settings to show after a restart.</summary>
+    public const string SyncLastMerge = "sync.last-merge";
 }
 
 /// <summary>Key-value settings in catalog.db, so they travel with backups.</summary>
