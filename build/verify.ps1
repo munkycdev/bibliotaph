@@ -28,7 +28,7 @@ param(
     [ValidateSet('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release')]
     [string[]] $Step = @('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'),
 
-    # Leaves out the smoke test, which opens the app's window for about a minute.
+    # Leaves out the smoke test, which opens the app's window for a few minutes.
     [switch] $SkipSmoke
 )
 
@@ -79,7 +79,13 @@ function Invoke-Smoke {
     Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-book.pdf'), (Join-Path $root 'tests/fixtures/smoke/smoke-map.png') $files
 
     $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"", '--smoke-files', "`"$files`"" -PassThru
-    if (-not $app.WaitForExit(120000)) { $app.Kill(); throw 'Smoke test did not finish within 2 minutes.' }
+    # The checks take about two minutes on a developer's PC and grow with each feature, so the limit leaves room: it is
+    # there to stop a hung window, not to time the checks.
+    if (-not $app.WaitForExit(600000)) {
+        $app.Kill()
+        @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log -ErrorAction SilentlyContinue | Get-Content) | Select-Object -Last 20
+        throw 'Smoke test did not finish within 10 minutes.'
+    }
     $log = @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content)
     if ($app.ExitCode -eq 0) {
         if ($inCi) { $log }
