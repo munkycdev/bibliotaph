@@ -120,8 +120,8 @@ static partial class SmokeTest
                 () => $"The page link left page {pages.CurrentPageIndex} in view with Find saying “{viewer.FindStatus}”.");
 
             // The same question again stood on its own, so it wasn't rewritten; the first answer is now the conversation's.
-            if (viewer.Ask.History.Count != 1 || viewer.Ask.LookedFor is not null || !Shown(window, "AskHistory"))
-                throw new InvalidOperationException($"After asking twice the panel lists {viewer.Ask.History.Count} earlier turns, looking for “{viewer.Ask.LookedFor}”.");
+            await WaitUntilAsync(window, () => viewer.Ask.History.Count == 1 && viewer.Ask.LookedFor is null && Visible(window, "AskHistory"),
+                () => $"After asking twice the panel lists {viewer.Ask.History.Count} earlier turns, looking for “{viewer.Ask.LookedFor}”.");
 
             // A follow-up is rewritten to stand on its own, then answered from the page that question finds.
             Descendants<TextBox>(window).First(t => t.Name == "AskBox").Text = "And the mill?";
@@ -129,7 +129,7 @@ static partial class SmokeTest
                 () => "The Ask button isn't shown and enabled with a follow-up typed.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskButton"), "the panel's Ask, for a follow-up");
             await WaitUntilAsync(window, () => !viewer.Ask.IsAsking && viewer.Ask.Answered is not null && viewer.Ask.History.Count == 2
-                    && viewer.Ask.LookedFor == "Looked for: And the mill? (Where does the dragon sleep?)" && Shown(window, "AskLookedFor")
+                    && viewer.Ask.LookedFor == "Looked for: And the mill? (Where does the dragon sleep?)" && Visible(window, "AskLookedFor")
                     && viewer.Ask.Answer.FirstOrDefault(p => p.Kind == AnswerPartKind.Citation) is { PdfPage: 1 },
                 () => $"The follow-up wasn't rewritten and answered: {viewer.Ask.Message ?? viewer.Ask.LookedFor ?? "nothing looked for"}.");
             await AuditAsync(window, "the reader's Ask panel with a conversation");
@@ -144,11 +144,11 @@ static partial class SmokeTest
             await WaitUntilAsync(window, () => library.Inspector is not null && Shown(window, "AskBook"), () => "The smoke PDF's details don't offer Ask this book.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskBook"), "the details' Ask this book, again");
             await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { AskVisible: true } reopened
-                    && reopened.Ask.History.Count == 3 && Shown(window, "AskHistory") && Shown(window, "AskNewConversation"),
+                    && reopened.Ask.History.Count == 3 && Visible(window, "AskHistory") && Shown(window, "AskNewConversation"),
                 () => "Reopening the book didn't list its conversation.");
             viewer = (ViewerViewModel)shell.CurrentPage!;
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskNewConversation"), "the panel's New conversation");
-            await WaitUntilAsync(window, () => viewer.Ask.History.Count == 0 && !Shown(window, "AskHistory") && !Shown(window, "AskNewConversation"),
+            await WaitUntilAsync(window, () => viewer.Ask.History.Count == 0 && !Visible(window, "AskHistory") && !Shown(window, "AskNewConversation"),
                 () => "New conversation didn't clear the panel.");
             if ((await ask.HistoryAsync(documentId)).Count != 0) throw new InvalidOperationException("New conversation didn't forget the conversation.");
 
@@ -179,4 +179,7 @@ static partial class SmokeTest
         viewer.GoToPageCommand.Execute(null);
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
     }
+
+    /// <summary>Whether the control named <paramref name="name"/> is showing, whatever kind it is (<see cref="Shown"/> looks only at buttons).</summary>
+    static bool Visible(Window window, string name) => Descendants<FrameworkElement>(window).Any(e => e.Name == name && e.IsVisible);
 }
