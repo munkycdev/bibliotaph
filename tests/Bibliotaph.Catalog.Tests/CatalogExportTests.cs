@@ -131,6 +131,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.Notes.AddRange(
             new Note { EntryId = entry.Id, Text = "The owlbear is a red herring.", CreatedUtc = now, UpdatedUtc = now },
             new Note { EntryId = entry.Id, PageRefId = notePages.Id, Text = "Read this aloud.", CreatedUtc = now, UpdatedUtc = now });
+        db.AskTurns.Add(new AskTurn { EntryId = entry.Id, AskedUtc = now, Question = "Where is the owlbear?", Answer = "In the cave [p. 3].", Parts = "[]", CitedPages = "[2]", Model = "test" });
         var section = new SessionSection { PackId = session.Id, Name = "Maps", Position = 0 };
         db.SessionSections.Add(section);
         db.VocabularyAliases.Add(new VocabularyAlias { TermId = term.Id, Text = "TS", Normalized = "ts" });

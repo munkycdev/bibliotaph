@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
 using Bibliotaph.Core.Reading;
@@ -55,6 +57,13 @@ public sealed record AskFindings(string Question, IReadOnlyList<AskPassage> Pass
 /// </summary>
 public sealed record AskAnswer(string Question, string Text, CheckedAnswer Checked, string Model, IReadOnlyList<AskPromptPage> Pages);
 
+/// <summary>A turn of a book's conversation as the panel shows it: as kept in catalog.db, with its answer's checked pieces.</summary>
+public sealed record AskTurnView(AskTurnInfo Info, IReadOnlyList<AnswerPart> Parts)
+{
+    /// <summary>The turn as it goes with a follow-up: the question that found its pages, and its answer.</summary>
+    public AskEarlierTurn Earlier => new(Info.Rewritten ?? Info.Question, Info.Answer);
+}
+
 /// <summary>A book's vectors being made: how many of its pages with text have one, whether it is still going, and why it stopped if it failed.</summary>
 public sealed record AskFill(int Done, int Total, bool Running, string? Problem);
 
@@ -67,9 +76,12 @@ public sealed record AskFill(int Done, int Total, bool Running, string? Problem)
 /// from a folder kept from AI. The log gets counts, never text.
 /// </summary>
 public sealed class AskService(
-    AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, ILogger<AskService>? log = null,
-    AskRetrievalOptions? options = null) : IDisposable
+    AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, EntryStore entries, AskHistoryStore history,
+    ILogger<AskService>? log = null, AskRetrievalOptions? options = null) : IDisposable
 {
+    /// <summary>A turn's checked pieces as kept: kinds by name, so catalog.db reads sensibly in any SQLite tool.</summary>
+    static readonly JsonSerializerOptions PartsJson = new() { Converters = { new JsonStringEnumConverter() } };
+
     /// <summary>Pages sent to the embedding model at a time: few enough that a slow server reports progress often.</summary>
     public const int FillBatch = 8;
 
@@ -198,7 +210,8 @@ public sealed class AskService(
     /// </summary>
     /// <exception cref="AskUnavailableException">AI is off, or the book's folder is kept from AI.</exception>
     /// <exception cref="ModelEndpointException">The model server couldn't be reached, refused, or failed while answering.</exception>
-    public async Task<AskAnswer> AnswerAsync(long documentId, AskFindings findings, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
+    public async Task<AskAnswer> AnswerAsync(long documentId, AskFindings findings, IProgress<ModelProgress>? progress = null,
+        IReadOnlyList<AskEarlierTurn>? earlier = null, CancellationToken ct = default)
     {
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
         var client = ai.Chat;
@@ -206,7 +219,7 @@ public sealed class AskService(
         if (client is null || model is null) throw new AskUnavailableException("Ask this book uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
         var pages = PromptPages(findings);
-        var user = AskPrompt.UserMessage(findings.Question, pages);
+        var user = AskPrompt.UserMessage(findings.Question, pages, earlier);
         var started = Stopwatch.GetTimestamp();
         var text = await client.CompleteAsync(
             new ModelRequest(model, AskPrompt.SystemMessage, user, null, AskPrompt.ContextTokens, AskPrompt.AnswerTokens, progress), ct);
@@ -216,6 +229,70 @@ public sealed class AskService(
             documentId, model, pages.Count, (AskPrompt.SystemMessage.Length + user.Length) / 4, text.Length / 4,
             answer.NotAnswered ? ", saying the pages don't answer it" : "", AskAnswerCheck.Counts(answer), Stopwatch.GetElapsedTime(started).TotalSeconds);
         return new AskAnswer(findings.Question, text, answer, model, pages);
+    }
+
+    /// <summary>
+    /// A follow-up rewritten by the model to stand on its own (choice 10), from the conversation's last few turns, so its
+    /// pages can be found afresh: "what about its lair?" becomes "where is the red dragon's lair?". The first question of
+    /// a conversation, or one the model can't rewrite, is used as typed.
+    /// </summary>
+    /// <exception cref="AskUnavailableException">AI is off, or the book's folder is kept from AI.</exception>
+    public async Task<(string Question, bool Rewritten)> RewriteAsync(long documentId, string followUp, IReadOnlyList<AskEarlierTurn> earlier,
+        CancellationToken ct = default)
+    {
+        if (earlier.Count == 0) return (followUp, false);
+        if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
+        if (ai.Chat is not { } client || ai.Setup.ModelName is not { } model) return (followUp, false);
+        try
+        {
+            var reply = await client.CompleteAsync(new ModelRequest(model, AskPrompt.RewriteSystemMessage, AskPrompt.RewriteUserMessage(earlier, followUp), null,
+                AskPrompt.RewriteContextTokens, AskPrompt.RewriteTokens), ct);
+            var rewritten = AskPrompt.ReadRewrite(reply);
+            var changed = rewritten is not null && !string.Equals(rewritten, followUp.Trim(), StringComparison.OrdinalIgnoreCase);
+            _log.LogInformation("Rewrote a follow-up on document {DocumentId} with {Model} from {Turns} earlier turns{Changed}",
+                documentId, model, Math.Min(earlier.Count, AskPrompt.EarlierTurns), changed ? "" : ", leaving it as it was");
+            return changed ? (rewritten!, true) : (followUp, false);
+        }
+        catch (Exception ex) when (ex is ModelEndpointException or ClassifierAnswerException)
+        {
+            // The follow-up as typed still finds pages; the answer has the earlier turns to make sense of it.
+            _log.LogWarning("Couldn't rewrite a follow-up on document {DocumentId} with {Model}: {Reason}", documentId, model, ex.Message);
+            return (followUp, false);
+        }
+    }
+
+    /// <summary>The book's conversation, oldest first: empty for a book the catalog doesn't know.</summary>
+    public async Task<IReadOnlyList<AskTurnView>> HistoryAsync(long documentId, CancellationToken ct = default)
+    {
+        if (await entries.GetCardAsync(documentId, ct) is not { } entry) return [];
+        return [.. (await history.GetAsync(entry, ct)).Select(t => new AskTurnView(t, ReadParts(t.Parts)))];
+    }
+
+    /// <summary>Keeps a question and its answer, as checked, in the book's conversation. Null for a book the catalog doesn't know.</summary>
+    public async Task<AskTurnView?> SaveTurnAsync(long documentId, string question, string? rewritten, AskAnswer answer, CancellationToken ct = default)
+    {
+        if (await entries.GetCardAsync(documentId, ct) is not { } entry) return null;
+        var parts = answer.Checked.NotAnswered ? [new AnswerPart(AnswerPartKind.Text, AskPrompt.NotAnswered)] : answer.Checked.Parts;
+        var json = JsonSerializer.Serialize(parts, PartsJson);
+        var kept = await history.AddAsync(entry, question, rewritten, answer.Checked.NotAnswered ? AskPrompt.NotAnswered : answer.Checked.Text, json,
+            answer.Checked.CitedPages, answer.Model, answer.Checked.NotAnswered, ct);
+        return new AskTurnView(kept, parts);
+    }
+
+    /// <summary>Starts the book's conversation again: New conversation. Returns how many turns went.</summary>
+    public async Task<int> ClearHistoryAsync(long documentId, CancellationToken ct = default) =>
+        await entries.GetCardAsync(documentId, ct) is { } entry ? await history.ClearAsync(entry, ct) : 0;
+
+    static AnswerPart[] ReadParts(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<AnswerPart[]>(json, PartsJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     /// <summary>

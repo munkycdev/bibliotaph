@@ -9,8 +9,9 @@ namespace Bibliotaph.Processing;
 /// <summary>
 /// "Forget its text" and "Read it again" (slice 4i plan, choice 6), the spec's purge of derived content, for a book
 /// the user would rather not have readable on disk. Forgetting removes what reading the book made (its pages and their
-/// search text, its cover and the AI's results) and stops indexing it; the user's decision is kept in catalog.db, so
-/// it outlasts a rebuilt index. The file itself is never touched, and the book keeps its card and catalog details.
+/// search text, its cover, the AI's results and Ask this book's conversation) and stops indexing it; the user's
+/// decision is kept in catalog.db, so it outlasts a rebuilt index. The file itself is never touched, and the book
+/// keeps its card and catalog details.
 /// </summary>
 public sealed class ForgetText(
     EntryStore entries,
@@ -21,6 +22,7 @@ public sealed class ForgetText(
     ClassificationStore classifications,
     MetadataStore metadata,
     MetadataProjector projector,
+    AskHistoryStore askHistory,
     ILogger<ForgetText>? log = null)
 {
     readonly ILogger _log = log ?? NullLogger<ForgetText>.Instance;
@@ -48,6 +50,8 @@ public sealed class ForgetText(
         foreach (var hash in hashes) DeleteCover(hash);
         await classifications.ForgetAsync(hashes, ct);
         await metadata.ForgetAiAsync(entryId, hashes, ct);
+        // Ask this book's conversation quotes the book, so it goes with the text.
+        await askHistory.ClearAsync(entryId, ct);
         await projector.ProjectAsync([entryId], ct);
         _log.LogInformation("Forgot the text of entry {EntryId} ({Count} copies)", entryId.Value, documentIds.Count);
         return purged;

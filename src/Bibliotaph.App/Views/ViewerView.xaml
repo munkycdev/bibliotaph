@@ -293,8 +293,34 @@
                 <TextBlock x:Name="AskStep" Text="{Binding Step}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="10,0,0,0"
                            TextTrimming="CharacterEllipsis" Visibility="{Binding Step, Converter={StaticResource Bt.VisibleWhenSet}}" />
               </DockPanel>
+              <!-- The book's conversation so far (Ask plan, Q3), and New conversation to start again. -->
+              <DockPanel Margin="0,14,0,0" Visibility="{Binding CanStartOver, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <Button x:Name="AskNewConversation" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="New conversation"
+                        Command="{Binding NewConversationCommand}" ToolTip="Forget the questions asked of this book so far, and start again"
+                        AutomationProperties.Name="Start a new conversation" />
+                <TextBlock Text="Earlier in this conversation" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center"
+                           Visibility="{Binding HasHistory, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </DockPanel>
+              <ItemsControl x:Name="AskHistory" ItemsSource="{Binding History}" Focusable="False" AutomationProperties.Name="Earlier in this conversation"
+                            KeyboardNavigation.TabNavigation="Continue" Margin="0,6,0,0" Visibility="{Binding HasHistory, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:AskTurnRow}">
+                    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,0,0,8" Margin="0,0,0,8">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Question}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding LookedFor}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Visibility="{Binding LookedFor, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                        <TextBlock c:AnswerText.Parts="{Binding Answer}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   c:AnswerText.Command="{Binding DataContext.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <TextBlock Text="{Binding Asked}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,14,0,0"
                          Visibility="{Binding Asked, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock x:Name="AskLookedFor" Text="{Binding LookedFor}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,2,0,0"
+                         Visibility="{Binding LookedFor, Converter={StaticResource Bt.VisibleWhenSet}}" />
               <!-- The answer, checked as it streams: each [p. N] opens its page; a quotation not on its page is in italics, without its marks. -->
               <TextBlock x:Name="AskAnswer" c:AnswerText.Parts="{Binding Answer}" c:AnswerText.Command="{Binding OpenCitationCommand}" FontSize="13"
                          Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" LineHeight="19" Margin="0,8,0,0" AutomationProperties.Name="The answer"

@@ -15,12 +15,67 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011022641_CatalogPins";
+    public override string LastMigrationId => "20261011063804_CatalogAskHistory";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
         modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.1.26425.128");
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.AskTurn", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<string>("Answer")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("answer");
+
+                b.Property<DateTime>("AskedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("asked_utc");
+
+                b.Property<string>("CitedPages")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("cited_pages");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.Property<string>("Model")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("model");
+
+                b.Property<bool>("NotAnswered")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("not_answered");
+
+                b.Property<string>("Parts")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("parts");
+
+                b.Property<string>("Question")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("question");
+
+                b.Property<string>("Rewritten")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("rewritten");
+
+                b.HasKey("Id");
+
+                b.HasIndex("EntryId");
+
+                b.ToTable("ask_turn");
+            });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Assertion", b =>
             {
@@ -1159,6 +1214,15 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("vocabulary_term");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.AskTurn", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Assertion", b =>

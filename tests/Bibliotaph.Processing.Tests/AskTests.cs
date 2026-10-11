@@ -14,7 +14,9 @@ namespace Bibliotaph.Processing.Tests;
 /// <summary>
 /// Ask this book, Q1: pages found by words alone without an embedding model, by words and meaning with one, the
 /// book's vectors made on the first ask and made again when the model changes, the weak-signal guard, and the books
-/// and setups that can't be asked. The model server is a stand-in that counts what it is sent.
+/// and setups that can't be asked; Q2, answers written from those pages and checked; Q3, follow-ups rewritten and
+/// answered with the conversation, which is kept on the book's entry. The model server is a stand-in that counts what
+/// it is sent.
 /// </summary>
 [Collection(SqlitePools.Name)]
 public sealed class AskTests : IAsyncLifetime
@@ -28,6 +30,7 @@ public sealed class AskTests : IAsyncLifetime
     AskService _ask = null!;
     long _rootId;
     long _book;
+    EntryId _entry;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -45,6 +48,9 @@ public sealed class AskTests : IAsyncLifetime
 
         public string Answer { get; set; } = "";
 
+        /// <summary>What a follow-up's rewrite comes back as; null to fail it as if the server stopped answering.</summary>
+        public string? Rewrite { get; set; }
+
         public volatile bool Down;
 
         public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) =>
@@ -54,6 +60,8 @@ public sealed class AskTests : IAsyncLifetime
         {
             if (Down) throw new ModelEndpointException("Nothing is answering at http://localhost:11434/. Is the model server running?");
             Asked.Enqueue(request);
+            if (request.System == AskPrompt.RewriteSystemMessage)
+                return Rewrite is { } rewrite ? Task.FromResult(rewrite) : throw new ModelEndpointException("The model server stopped answering.");
             if (request.Progress is { } progress)
             {
                 progress.Report(new ModelProgress(ModelStep.Waiting, ""));
@@ -96,7 +104,8 @@ public sealed class AskTests : IAsyncLifetime
         await _writer.StartAsync(Ct);
         var store = new IndexStore(_writer);
         _ai = new AiSettings(new SettingsStore(contexts), new NoApiKeys(), _ => _server);
-        _ask = new AskService(_ai, new LibraryStore(contexts), new AskQueries(_index), new IndexQueries(_index), store);
+        _ask = new AskService(_ai, new LibraryStore(contexts), new AskQueries(_index), new IndexQueries(_index), store, new EntryStore(contexts),
+            new AskHistoryStore(contexts));
 
         // An invented book in an invented folder: a page waiting for OCR, then three with text under two bookmarks.
         await using (var db = _catalog.CreateContext())
@@ -105,8 +114,11 @@ public sealed class AskTests : IAsyncLifetime
             var document = db.Documents.Add(new Document { ContentHash = new string('a', 64), Format = "pdf", CreatedUtc = DateTime.UtcNow }).Entity;
             await db.SaveChangesAsync(Ct);
             db.FileLocations.Add(new FileLocation { SourceRootId = root.Id, RelativePath = "Mill Road.pdf", DocumentId = document.Id, ContentHash = document.ContentHash });
+            var entry = db.Entries.Add(new Entry { Kind = EntryKind.Whole, CreatedUtc = DateTime.UtcNow }).Entity;
             await db.SaveChangesAsync(Ct);
-            (_rootId, _book) = (root.Id, document.Id);
+            db.EntrySources.Add(new EntrySource { EntryId = entry.Id, DocumentId = document.Id, IsCurrent = true });
+            await db.SaveChangesAsync(Ct);
+            (_rootId, _book, _entry) = (root.Id, document.Id, new EntryId(entry.Id));
         }
         string[] texts =
         [
@@ -347,7 +359,7 @@ public sealed class AskTests : IAsyncLifetime
         var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
         var reports = new Reports();
 
-        var answer = await _ask.AnswerAsync(_book, found, reports, Ct);
+        var answer = await _ask.AnswerAsync(_book, found, reports, ct: Ct);
 
         var request = Assert.Single(_server.Asked);
         Assert.Equal(("chat-8b", (string?)null, AskPrompt.ContextTokens, AskPrompt.SystemMessage), (request.Model, request.SchemaJson, request.ContextTokens, request.System));
@@ -372,11 +384,11 @@ public sealed class AskTests : IAsyncLifetime
         await SetUpAsync(null);
         _server.Answer = AskPrompt.NotAnswered;
         var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
-        Assert.True((await _ask.AnswerAsync(_book, found, null, Ct)).Checked.NotAnswered);
+        Assert.True((await _ask.AnswerAsync(_book, found, ct: Ct)).Checked.NotAnswered);
 
         var weak = await _ask.FindAsync(_book, "How fast is the starship's warp engine?", Ct);
         Assert.True(weak.Weak);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _ask.AnswerAsync(_book, weak, null, Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _ask.AnswerAsync(_book, weak, ct: Ct));
         Assert.Single(_server.Asked);
     }
 
@@ -387,15 +399,97 @@ public sealed class AskTests : IAsyncLifetime
         var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
 
         _server.Down = true;
-        var down = await Assert.ThrowsAsync<ModelEndpointException>(() => _ask.AnswerAsync(_book, found, null, Ct));
+        var down = await Assert.ThrowsAsync<ModelEndpointException>(() => _ask.AnswerAsync(_book, found, ct: Ct));
         Assert.Contains("Nothing is answering", down.Message, StringComparison.Ordinal);
         _server.Down = false;
 
         await SetUpAsync(null, skipped: new HashSet<long> { _rootId });
-        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.AnswerAsync(_book, found, null, Ct));
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.AnswerAsync(_book, found, ct: Ct));
         await SetUpAsync(null, enabled: false);
         Assert.False(_ask.CanAnswer);
-        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.AnswerAsync(_book, found, null, Ct));
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.AnswerAsync(_book, found, ct: Ct));
         Assert.Empty(_server.Asked);
+    }
+
+    [Fact]
+    public async Task A_follow_up_is_rewritten_to_stand_on_its_own_found_by_that_and_answered_with_the_earlier_turns()
+    {
+        await SetUpAsync(null);
+        _server.Answer = "It sleeps beneath the old mill [p. 1].";
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        var first = await _ask.AnswerAsync(_book, found, ct: Ct);
+        var kept = await _ask.SaveTurnAsync(_book, "Where does the dragon sleep?", null, first, Ct);
+        Assert.NotNull(kept);
+
+        _server.Rewrite = "Follow-up: Where is the secret door of the inn?";
+        var (question, rewritten) = await _ask.RewriteAsync(_book, "And the door?", [kept.Earlier], Ct);
+
+        Assert.Equal(("Where is the secret door of the inn?", true), (question, rewritten));
+        var rewrite = _server.Asked.Last();
+        Assert.Equal(((string?)null, AskPrompt.RewriteContextTokens, (int?)AskPrompt.RewriteTokens), (rewrite.SchemaJson, rewrite.ContextTokens, rewrite.MaxTokens));
+        Assert.Contains("Q: Where does the dragon sleep?", rewrite.User, StringComparison.Ordinal);
+        // The earlier answer goes without its citations, and no page of the book goes with a rewrite.
+        Assert.Contains("A: It sleeps beneath the old mill.", rewrite.User, StringComparison.Ordinal);
+        Assert.DoesNotContain(ClassifierPrompt.ExcerptTag, rewrite.User, StringComparison.Ordinal);
+        Assert.EndsWith("Follow-up: And the door?", rewrite.User.TrimEnd(), StringComparison.Ordinal);
+
+        var next = await _ask.FindAsync(_book, question, Ct);
+        Assert.Equal(3, next.Evidence[0].PdfPage);
+        _server.Answer = "Behind the bar [p. 3].";
+        await _ask.AnswerAsync(_book, next, earlier: [kept.Earlier], ct: Ct);
+        var answer = _server.Asked.Last();
+        Assert.Contains("Earlier in this conversation:", answer.User, StringComparison.Ordinal);
+        Assert.Contains("Question: Where is the secret door of the inn?", answer.User, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_first_question_goes_as_typed_and_a_rewrite_that_fails_or_says_nothing_leaves_the_follow_up_as_it_was()
+    {
+        await SetUpAsync(null);
+        var earlier = new AskEarlierTurn("Where does the dragon sleep?", "Beneath the old mill [p. 1].");
+
+        Assert.Equal(("And the door?", false), await _ask.RewriteAsync(_book, "And the door?", [], Ct));
+        Assert.Empty(_server.Asked);
+
+        _server.Rewrite = null;
+        Assert.Equal(("And the door?", false), await _ask.RewriteAsync(_book, "And the door?", [earlier], Ct));
+        _server.Rewrite = "\n";
+        Assert.Equal(("And the door?", false), await _ask.RewriteAsync(_book, "And the door?", [earlier], Ct));
+        _server.Rewrite = "And the door?";
+        Assert.Equal(("And the door?", false), await _ask.RewriteAsync(_book, "And the door?", [earlier], Ct));
+
+        await SetUpAsync(null, skipped: new HashSet<long> { _rootId });
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.RewriteAsync(_book, "And the door?", [earlier], Ct));
+        Assert.Equal(3, _server.Asked.Count);
+    }
+
+    [Fact]
+    public async Task The_conversation_is_kept_on_the_books_entry_with_its_checked_answers_and_starts_again_when_asked()
+    {
+        await SetUpAsync(null);
+        _server.Answer = "The book says \"the red dragon sleeps beneath the old mill\" [p. 1]. Its lair has nine exits [p. 7].";
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        await _ask.SaveTurnAsync(_book, "Where does the dragon sleep?", null, await _ask.AnswerAsync(_book, found, ct: Ct), Ct);
+        _server.Answer = AskPrompt.NotAnswered;
+        await _ask.SaveTurnAsync(_book, "And its hoard?", "Where is the red dragon's hoard?", await _ask.AnswerAsync(_book, found, ct: Ct), Ct);
+
+        var history = await _ask.HistoryAsync(_book, Ct);
+        Assert.Equal(["Where does the dragon sleep?", "And its hoard?"], history.Select(t => t.Info.Question));
+        // The checked pieces come back as they were shown: a quote found on its page, and a claim with no page it read.
+        Assert.Contains(history[0].Parts, p => p.Kind == AnswerPartKind.Quote);
+        Assert.Contains(history[0].Parts, p => p is { Kind: AnswerPartKind.Citation, PdfPage: 1 });
+        Assert.Contains(history[0].Parts, p => p.Kind == AnswerPartKind.Unsupported);
+        Assert.Equal([1], history[0].Info.CitedPages);
+        Assert.Equal("chat-8b", history[0].Info.Model);
+        Assert.True(history[1].Info.NotAnswered);
+        Assert.Equal(new AskEarlierTurn("Where is the red dragon's hoard?", AskPrompt.NotAnswered), history[1].Earlier);
+        Assert.Equal(AskPrompt.NotAnswered, Assert.Single(history[1].Parts).Text);
+        Assert.Equal(2, (await new AskHistoryStore(new Factory(_catalog)).GetAsync(_entry, Ct)).Count);
+
+        Assert.Equal(2, await _ask.ClearHistoryAsync(_book, Ct));
+        Assert.Empty(await _ask.HistoryAsync(_book, Ct));
+        // A book the catalog has no card for has no conversation to keep.
+        Assert.Empty(await _ask.HistoryAsync(9999, Ct));
+        Assert.Null(await _ask.SaveTurnAsync(9999, "Anyone?", null, await _ask.AnswerAsync(_book, found, ct: Ct), Ct));
     }
 }

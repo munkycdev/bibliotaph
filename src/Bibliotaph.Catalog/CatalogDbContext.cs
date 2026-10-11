@@ -34,6 +34,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<VocabularyAlias> VocabularyAliases => Set<VocabularyAlias>();
     public DbSet<ClassificationRun> ClassificationRuns => Set<ClassificationRun>();
     public DbSet<IgnoredFolderLabel> IgnoredFolderLabels => Set<IgnoredFolderLabel>();
+    public DbSet<AskTurn> AskTurns => Set<AskTurn>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -240,6 +241,13 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));
+
+        // Ask this book's conversations (Ask plan, choice 10): a book's turns go with its entry.
+        modelBuilder.Entity<AskTurn>(e =>
+        {
+            e.HasIndex(t => t.EntryId);
+            e.HasOne<Entry>().WithMany().HasForeignKey(t => t.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         UseSnakeCaseNames(modelBuilder);
         // The class can't be called Collection (CA1711), but the table can.
