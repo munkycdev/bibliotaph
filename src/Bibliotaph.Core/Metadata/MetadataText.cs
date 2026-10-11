@@ -12,7 +12,7 @@ public static class MetadataText
 {
     public static string Normalize(string text)
     {
-        var decomposed = text.Normalize(NormalizationForm.FormKD);
+        var decomposed = UnicodeForm(text, NormalizationForm.FormKD);
         var builder = new StringBuilder(decomposed.Length);
         var space = false;
         foreach (var c in decomposed)
@@ -27,6 +27,32 @@ public static class MetadataText
             else space = true;
         }
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// <paramref name="text"/> in a Unicode normalization form. Text read from a PDF can hold half of a surrogate pair,
+    /// which <see cref="string.Normalize(NormalizationForm)"/> refuses with an exception, so each one becomes U+FFFD
+    /// first: it is neither a letter nor a digit, so it drops out of the comparison forms like any other symbol.
+    /// </summary>
+    public static string UnicodeForm(string text, NormalizationForm form)
+    {
+        var lone = LoneSurrogate(text, 0);
+        if (lone < 0) return text.Normalize(form);
+        var repaired = text.ToCharArray();
+        for (; lone >= 0; lone = LoneSurrogate(text, lone + 1)) repaired[lone] = '\uFFFD';
+        return new string(repaired).Normalize(form);
+    }
+
+    /// <summary>The index of the first unpaired surrogate at or after <paramref name="start"/>, or -1.</summary>
+    static int LoneSurrogate(string text, int start)
+    {
+        for (var i = start; i < text.Length; i++)
+        {
+            if (!char.IsSurrogate(text[i])) continue;
+            if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1])) i++;
+            else return i;
+        }
+        return -1;
     }
 
     /// <summary>The words of a normalised text, for phrase matching.</summary>

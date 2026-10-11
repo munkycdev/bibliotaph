@@ -212,7 +212,7 @@ public static partial class EvidenceCheck
 
     /// <summary>The quote names the term, by any of its names, or a game system through one of its editions.</summary>
     static bool Names(string quote, Term term, Vocabulary vocabulary) =>
-        vocabulary.Match(quote.Normalize(NormalizationForm.FormKC)).Any(m =>
+        vocabulary.Match(MetadataText.UnicodeForm(quote, NormalizationForm.FormKC)).Any(m =>
             (m.Term.Vocabulary == term.Vocabulary && m.Term.Key == term.Key)
             || (term.Vocabulary == "system" && m.Term.Vocabulary == "edition" && m.Term.ParentKey == term.Key));
 
@@ -258,7 +258,7 @@ public static partial class EvidenceCheck
     /// </summary>
     public static string Comparable(string text)
     {
-        var decomposed = text.Normalize(NormalizationForm.FormKD);
+        var decomposed = MetadataText.UnicodeForm(text, NormalizationForm.FormKD);
         var builder = new StringBuilder(decomposed.Length);
         foreach (var c in decomposed)
             if (char.IsLetterOrDigit(c) && CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
