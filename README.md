@@ -46,12 +46,14 @@ network drives and OneDrive, and notices when files are added, moved or changed.
 
 **Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while
 **Inside documents** shows the matching pages, with a snippet. Click a page and the book opens right there. Add
-`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel.
-[Searching](docs/guide/searching.md)
+`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel. With AI on,
+**Ask** takes a request in plain English, such as "a short heist for four players", and turns it into a search you can
+check. [Searching](docs/guide/searching.md)
 
 **Reads books inside the app.** A fast reader with contents, find in the book, zoom, page thumbnails and notes on
 pages. In an index or contents page, the printed page numbers become links. Open as many books in their own windows
-as you like. [Reading](docs/guide/reading.md)
+as you like. With AI on, **Ask this book** answers a question from the book's own pages, with every claim citing the
+page it came from. [Reading](docs/guide/reading.md)
 
 **Fills in the catalog for you.** Each book gets a title, game system, type, levels, players, duration, setting,
 themes and more, suggested from folder names, the file itself and, if you turn it on, AI. Every suggestion shows
@@ -72,8 +74,8 @@ through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guid
 ## The guide
 
 1. [Getting started](docs/guide/getting-started.md): install, add your folders, find your way around.
-2. [Searching](docs/guide/searching.md): search words, fields, filters and saved searches.
-3. [Reading](docs/guide/reading.md): the reader, notes and pop-out windows.
+2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, filters and saved searches.
+3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
 4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs and adventures.
 5. [Collections, favorites and pins](docs/guide/organizing.md)
 6. [Binders](docs/guide/binders.md): prepare a session and run it.

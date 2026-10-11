@@ -19,6 +19,10 @@ year, setting, themes and environments.
   examples of how you catalog.
 - **It finds adventures inside anthologies**, and reads each one on its own pages. See
   [Cataloging](cataloging.md#adventures-inside-a-file).
+- **It reads requests in plain English** in the search box's **Ask** mode. See
+  [Searching](searching.md#ask-in-plain-english).
+- **It answers questions about a book** from the book's own pages, citing and checking each one. See
+  [Reading](reading.md#ask-this-book).
 - **Book text can't give it orders.** Text in a PDF is treated as text to read, never as instructions, and an answer
   can only fill in suggestions.
 
@@ -29,7 +33,9 @@ Nothing leaves your PC unless you set it up that way.
 - **Built in**: Bibliotaph downloads a model once and runs it itself, on your PC. Nothing is sent anywhere.
 - **A model server**: a program such as Ollama or LM Studio that you install and run yourself. Bibliotaph sends each
   book's excerpt (a few thousand words of its text) to that server. If the server is on another computer outside your
-  network, Settings says so, and you have to tick **Send excerpts to this server** first.
+  network, Settings says so, and you have to tick **Send excerpts to this server** first. **Ask** sends it what you
+  typed, and **Ask this book** sends your question with the few pages that answer it (and, with an embedding model,
+  each page's text once, to find pages by meaning).
 
 Bibliotaph never switches to a cloud service by itself.
 

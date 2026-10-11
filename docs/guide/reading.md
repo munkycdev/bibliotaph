@@ -35,6 +35,33 @@ delete (with **Undo**). The book's details have a **Notes** tab with the same li
 A search finds a book by the words in any of its notes. If you get a new version of a book, or read another copy of
 it, notes follow their page by its text, even when the page number has changed.
 
+## Ask this book
+
+With AI set up, **Ask** in the reader's toolbar opens a panel where you can ask the open book a question, such as
+"What does the miller know about the cult?". **Ask this book** on a card's menu, or in a book's details, opens the book
+with the panel showing. It's offered for PDFs with text.
+
+Bibliotaph finds the pages most likely to answer, and the AI answers from those pages only:
+
+- **Every claim cites its page**, as [p. 112]. Click a citation and the book opens at that page with the quotation
+  marked.
+- **Quotations are checked.** Bibliotaph looks for each quotation on the pages it cites. One that isn't there is
+  shown in italics without its quotation marks, and a sentence whose citation pointed at a page the AI wasn't given is
+  marked "(not on the pages it read)".
+- **"The pages I was given don't answer that."** is what you'll see when the book doesn't seem to cover your
+  question. The panel then lists the pages that came closest.
+
+Under the answer, the passages it read are listed as links. **Stop** ends an answer early.
+
+You can ask follow-up questions: "And where is his mill?" is understood in the light of the questions before it, and
+the panel shows "Looked for: …" when it reworded your question to search. Each book keeps its conversation (its last
+50 questions), and lists it again when you reopen the book. **New conversation** starts afresh.
+
+Ask finds pages by their words. With an embedding model, it also finds them by meaning, so "who's behind the
+disappearances" can find a page that never says "disappearances". Set one up under **Ask this book** in
+**Settings > AI**: download one for the built-in AI, or name one such as nomic-embed-text on your model server. The
+first time you ask a book, its pages are prepared in the background, and the panel says how far it has got.
+
 ## Windows of their own
 
 Right-click a book and choose **Open in new window** (or press **Shift+Enter**, or middle-click a cover) to read it in

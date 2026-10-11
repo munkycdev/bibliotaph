@@ -66,6 +66,22 @@ A level filter only matches books whose levels are known, unless you say otherwi
 
 If something you type can't be understood, the search says what and where, and keeps what you typed.
 
+## Ask in plain English
+
+With AI set up, the sparkle button beside the search box switches it to **Ask**. Type what you're after the way you'd
+say it, for example "Mothership, level 4, jungle world with terraforming", and press **Enter**. Typing doesn't search
+while Ask is on; nothing happens until you press **Enter**.
+
+The AI turns your request into a search, and a panel under the top bar shows what it made of it as chips: each field
+with its value, which you can change, and the words it kept, each with an × to drop it. When it had to change
+something, it says what and why, for example "Mothership has no character levels in your library, so level 4 was
+ignored." Click **Search** and the chips go into the search box as an ordinary search, which you can then edit like
+any other.
+
+Ask only uses fields and words you could have typed yourself, and only your own words: it never adds a game system,
+level or tag you didn't ask for. Click the button again to go back to ordinary searching. Without AI, Ask says it
+needs AI, with a link to [set it up](ai.md).
+
 ## Filters
 
 **Filters** in the Library's toolbar opens a panel with drop-downs for the same things: kind (books, images, image
@@ -93,5 +109,5 @@ same for the books in a binder.
 
 ## Next
 
-- [Reading](reading.md): what to do once a book is open.
+- [Reading](reading.md): what to do once a book is open, including asking a book a question.
 - [Collections, favorites and pins](organizing.md)
