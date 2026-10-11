@@ -131,9 +131,14 @@ static partial class SmokeTest
         var shell = services.GetRequiredService<ShellViewModel>();
         services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
         var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        // Opening the page may still be loading it, and Reload does nothing while it is; the card is for the file's
+        // card, through whichever copy of the file the proposal names.
+        await WaitUntilAsync(window, () => !page.IsLoading, () => "Needs review didn't finish loading.");
         await page.ReloadCommand.ExecuteAsync(null);
-        var card = page.Cards.OfType<PartProposalCardViewModel>().SingleOrDefault(c => c.Item.DocumentId == documentId)
-            ?? throw new InvalidOperationException("The proposal isn't a card in Needs review.");
+        PartProposalCardViewModel? Proposal() => page.Cards.OfType<PartProposalCardViewModel>().SingleOrDefault(c => c.Item.FileEntryId == entry.EntryId);
+        await WaitUntilAsync(window, () => !page.IsLoading && Proposal() is not null,
+            () => $"The proposal isn't a card in Needs review (proposal cards: {string.Join(", ", page.Cards.OfType<PartProposalCardViewModel>().Select(c => c.Item.FileTitle))}).");
+        var card = Proposal()!;
         if (card.Heading != "This file looks like it holds 2 adventures." || card.Rows is not [{ Summary: "p. i" }, { Summary: "p. 1 · Level 2" }])
             throw new InvalidOperationException($"The card says “{card.Heading}”, {string.Join(", ", card.Rows.Select(r => r.Summary))}.");
         Button? On(string name, System.Windows.Input.ICommand command) => Descendants<Button>(window).FirstOrDefault(b => b.Name == name && b.Command == command);
