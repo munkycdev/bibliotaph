@@ -78,6 +78,9 @@ public sealed record EntryMetaRow
     public int? LevelMin { get; init; }
     public int? LevelMax { get; init; }
     public LevelState Levels { get; init; }
+    /// <summary>How many players it is for, both null when nobody knows.</summary>
+    public int? PlayersMin { get; init; }
+    public int? PlayersMax { get; init; }
     /// <summary>How many Needs review cards the entry has (<see cref="Core.Metadata.MetadataReview"/>).</summary>
     public int Reviews { get; init; }
     public bool Suggested { get; init; }
@@ -311,13 +314,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 c.Execute(
                     """
                     INSERT INTO entry_meta (entry_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
-                                          level_state, needs_review, suggested, tags, confirmed_text, provisional_text)
+                                          level_state, players_min, players_max, needs_review, suggested, tags, confirmed_text, provisional_text)
                     VALUES (@entryId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
-                            @levelState, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
+                            @levelState, @PlayersMin, @PlayersMax, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
                     ON CONFLICT (entry_id) DO UPDATE SET
                         title = excluded.title, publisher = excluded.publisher, series = excluded.series, authors = excluded.authors,
                         year = excluded.year, system_label = excluded.system_label, kind_label = excluded.kind_label,
                         level_min = excluded.level_min, level_max = excluded.level_max, level_state = excluded.level_state,
+                        players_min = excluded.players_min, players_max = excluded.players_max,
                         needs_review = excluded.needs_review, suggested = excluded.suggested, tags = excluded.tags,
                         confirmed_text = excluded.confirmed_text, provisional_text = excluded.provisional_text
                     """,
@@ -334,6 +338,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.LevelMin,
                         row.LevelMax,
                         levelState = LevelStateText(row.Levels),
+                        row.PlayersMin,
+                        row.PlayersMax,
                         row.Reviews,
                         row.Suggested,
                         row.Tags,

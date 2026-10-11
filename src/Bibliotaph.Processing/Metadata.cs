@@ -219,6 +219,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             facets.Add(new FacetRow("system", parent, vocabulary.Label("system", parent), edition!.Confirmed));
 
         var levels = effective[MetadataFields.Levels].First is { } l && LevelRange.TryParse(l.Value, out var range) ? range : (LevelRange?)null;
+        var players = effective[MetadataFields.Players].First is { } p && PlayerRange.TryParse(p.Value, out var party) ? party : (PlayerRange?)null;
 
         return new EntryMetaRow
         {
@@ -234,6 +235,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             LevelMin = levels is { NotApplicable: false } known ? known.Min : null,
             LevelMax = levels is { NotApplicable: false } known2 ? known2.Max : null,
             Levels = levels is null ? LevelState.Unknown : levels.Value.NotApplicable ? LevelState.NotApplicable : LevelState.Known,
+            PlayersMin = players?.Min,
+            PlayersMax = players?.Max,
             Reviews = MetadataReview.Find(effective, reviewAll).Count,
             Suggested = effective.Fields.Any(f => f.Field.IsClosed && f.Values.Any(v => !v.Confirmed)),
             Tags = Joined(MetadataFields.Tags),

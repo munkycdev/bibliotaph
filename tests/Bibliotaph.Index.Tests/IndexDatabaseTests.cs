@@ -133,6 +133,8 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_opened"));
         // Version 11: the collections' names, for collection:"name".
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM scope_name"));
+        // Version 13: how many players each book is for.
+        Assert.Equal(2, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('entry_meta') WHERE name IN ('players_min', 'players_max')"));
     }
 
     [Fact]

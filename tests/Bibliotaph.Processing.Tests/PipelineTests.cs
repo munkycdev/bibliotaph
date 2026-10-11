@@ -315,6 +315,30 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Party_size_style_and_duration_from_names_are_searchable_and_the_users_party_size_wins()
+    {
+        Copy(pdfs.KnownText, "Heists/One-shots/Vault Job (for 4-6 players).pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        var search = new LibraryQueries(_index);
+        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        async Task<bool> FindsAsync(string query) =>
+            (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Any(e => e.EntryId == entry.EntryId);
+        Assert.True(await FindsAsync("players:5 style:heist duration:one-shot"));
+        Assert.True(await FindsAsync("style:caper duration:\"one shot\""));
+        Assert.False(await FindsAsync("theme:heist"));
+        Assert.Single(await search.ListAsync(new LibraryFilter(Players: 6, Styles: ["heist"], Durations: ["one-shot"]), ct: Ct));
+
+        // The user says it is for three players.
+        Assert.Null(await _metadata.SetAsync(entry.EntryId, Core.Metadata.MetadataFields.Players, "3 players", Ct));
+        Assert.False(await FindsAsync("players:5"));
+        Assert.True(await FindsAsync("players:3"));
+        Assert.Equal("3", (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[Core.Metadata.MetadataFields.Players].First!.Value);
+    }
+
+    [Fact]
     public async Task Reprocessing_reads_the_file_again_keeps_the_book_searchable_and_keeps_what_the_user_said()
     {
         Copy(pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");

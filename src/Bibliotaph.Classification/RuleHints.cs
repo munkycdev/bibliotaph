@@ -27,8 +27,8 @@ public sealed record FolderLabel(string Folder, Term Term);
 /// and the Adventure type. Deeper folders win for single-value fields. A label the user switched off is skipped.</item>
 /// <item>The PDF's title and authors are used unless they look like leftovers from the software that made it
 /// ("Microsoft Word - draft3.docx", "Administrator"). Its keywords count only through the vocabulary.</item>
-/// <item>The file name gives a title, and level ranges written out in a PDF's name, title or subject ("Levels 1-4",
-/// "3rd-level") become a rule suggestion.</item>
+/// <item>The file name gives a title, and level ranges and party sizes written out in a PDF's name, title or subject
+/// ("Levels 1-4", "3rd-level", "for 4-6 players") become rule suggestions.</item>
 /// </list>
 /// </summary>
 public static partial class RuleHints
@@ -40,6 +40,8 @@ public static partial class RuleHints
         "edition" => MetadataFields.Edition,
         "type" => MetadataFields.Types,
         "setting" => MetadataFields.Settings,
+        "duration" => MetadataFields.Duration,
+        "style" => MetadataFields.Styles,
         "theme" => MetadataFields.Themes,
         "environment" => MetadataFields.Environments,
         "publisher" => MetadataFields.Publisher,
@@ -83,8 +85,11 @@ public static partial class RuleHints
         // out, and so are folder names: there "Level 2" is far more often a dungeon level than a character level.
         if (!SourceFormats.IsImage(SourceFormats.FromFileName(fileName) ?? ""))
             foreach (var text in new[] { source.EmbeddedSubject, source.EmbeddedTitle, Path.GetFileNameWithoutExtension(fileName) })
-                if (Clean(text) is { } t && FindLevels(t) is { } levels)
-                    Add(new MetadataProposal(MetadataFields.Levels, levels.Range.ToString(), AssertionOrigin.Rule, levels.Quote));
+                if (Clean(text) is { } t)
+                {
+                    if (FindLevels(t) is { } levels) Add(new MetadataProposal(MetadataFields.Levels, levels.Range.ToString(), AssertionOrigin.Rule, levels.Quote));
+                    if (FindPlayers(t) is { } players) Add(new MetadataProposal(MetadataFields.Players, players.Range.ToString(), AssertionOrigin.Rule, players.Quote));
+                }
 
         return [.. single.Values, .. multi.DistinctBy(p => (p.Field, p.Normalized, p.Origin))];
     }
@@ -156,6 +161,38 @@ public static partial class RuleHints
 
     [GeneratedRegex(@"\b(\d{1,2})(?:st|nd|rd|th)(?:\s*(?:-|–|—|to|through)\s*(\d{1,2})(?:st|nd|rd|th))?[\s-]*levels?\b", RegexOptions.IgnoreCase)]
     private static partial Regex OrdinalLevel();
+
+    const string Count = @"\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
+
+    [GeneratedRegex(@"\b(" + Count + @")(?:\s*(?:-|–|—|to|or)\s*(" + Count + @"))?\s+(?:players?|pcs?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PlayerCount();
+
+    /// <summary>"The Seven Heroes" is a title, so characters and heroes count only after "for".</summary>
+    [GeneratedRegex(@"\bfor (" + Count + @")(?:\s*(?:-|–|—|to|or)\s*(" + Count + @"))?\s+(?:characters?|adventurers|heroes)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ForCharacters();
+
+    [GeneratedRegex(@"\b(?:party|group) of (" + Count + @")(?:\s*(?:-|–|—|to|or)\s*(" + Count + @"))?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PartyOf();
+
+    [GeneratedRegex(@"\b(?:solo|single[- ]player|one[- ]player)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex Solo();
+
+    /// <summary>
+    /// A party size written out: "for 4-6 players", "for four to six characters", "a party of 4", "solo". "3rd-level
+    /// characters" is a level, not a count, so only plain numbers count.
+    /// </summary>
+    internal static (PlayerRange Range, string Quote)? FindPlayers(string text)
+    {
+        var spaced = text.Replace('_', ' ');
+        foreach (var pattern in new[] { PlayerCount(), ForCharacters(), PartyOf() })
+        {
+            var match = pattern.Match(spaced);
+            if (!match.Success) continue;
+            var range = match.Groups[2].Success ? $"{match.Groups[1].Value} to {match.Groups[2].Value}" : match.Groups[1].Value;
+            if (PlayerRange.TryParse(range, out var players)) return (players, match.Value.Trim());
+        }
+        return Solo().Match(spaced) is { Success: true } solo ? (new PlayerRange(1, 1), solo.Value) : null;
+    }
 
     /// <summary>A level range written out in a name: "Levels 1-4", "Lvl 3", "for 5th-level characters", "1st to 4th level".</summary>
     internal static (LevelRange Range, string Quote)? FindLevels(string text)

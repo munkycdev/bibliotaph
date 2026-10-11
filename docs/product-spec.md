@@ -150,7 +150,7 @@ Bulk selection provides additive/removal tag operations, collection membership, 
 
 ### 5.3 Search and filters
 
-Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, theme, tag, and format.
+Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, players, duration, style, theme, tag, and format.
 
 Facet rules:
 
@@ -217,11 +217,12 @@ Processing status provides pause/resume, current stage, queued count, failures, 
 | Edition / compatibility | Explicit edition and separately sourced compatibility claims |
 | Document types | Adventure, rulebook, bestiary, setting, supplement, map pack, handout; multiple allowed |
 | Levels | Optional system-scoped min/max; unknown and not applicable are distinct |
-| Intended party | Optional stated party size and constraints |
-| Duration | Stated or estimated minutes/sessions, with origin; never assume all one-shots last three hours |
+| Players | Optional stated party size as a minimum–maximum ("for 4–6 characters"), usually from the cover or back cover |
+| Duration | Stated length in sessions: one-shot, short (2–3 sessions), long (4 or more), campaign; with origin; never assume all one-shots last three hours |
 | Setting | Named settings; multiple or unknown |
-| Environments | Urban, forest, coastal, underground, arctic |
-| Themes and tone | Horror, mystery, political intrigue, comedic |
+| Environments | Urban, forest, coastal, underground, arctic, jungle, ruins, space, station, starship, alien world |
+| Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation, monster hunt, wilderness |
+| Themes and tone | Horror, mystery, political intrigue, comedic, fey; the kind of adventure is Style |
 | Content features | Maps, monsters, NPCs, tables, player options, spells, items |
 | Map properties | Grid/gridless, scale, dimensions, location type; unknown unless evidenced |
 | User tags | Flexible labels that supplement structured dimensions |

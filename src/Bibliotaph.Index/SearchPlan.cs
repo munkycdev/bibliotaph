@@ -23,6 +23,9 @@ public sealed record ScopeCondition(string Scope, bool Negated = false, bool ByN
 /// <summary><c>level:</c> a stored level value ("3", "1-5", "n/a") or unknown.</summary>
 public sealed record LevelCondition(string Value, bool Negated = false);
 
+/// <summary><c>players:</c> a stored players value ("4", "3-5") or unknown.</summary>
+public sealed record PlayersCondition(string Value, bool Negated = false);
+
 /// <summary>
 /// A parsed query turned into the pieces the SQL needs. FTS5 text is assembled only from quoted strings, the
 /// operators AND, OR, NOT and *, and the fixed entry_fts column names in <see cref="Column"/>, so nothing the user types
@@ -58,12 +61,13 @@ public sealed record SearchPlan
     public IReadOnlyList<string> ExcludedFolders { get; init; } = [];
     public IReadOnlyList<FacetCondition> Facets { get; init; } = [];
     public IReadOnlyList<LevelCondition> Levels { get; init; } = [];
+    public IReadOnlyList<PlayersCondition> Players { get; init; } = [];
     public IReadOnlyList<ScopeCondition> Scopes { get; init; } = [];
 
     /// <summary>True when the query asks for nothing at all, so the library shows everything.</summary>
     public bool IsEmpty => TextMatch is null && TextExclude is null && FieldMatch is null && FieldExclude is null
         && Formats.Count == 0 && ExcludedFormats.Count == 0 && Folders.Count == 0 && ExcludedFolders.Count == 0
-        && Facets.Count == 0 && Levels.Count == 0 && Scopes.Count == 0;
+        && Facets.Count == 0 && Levels.Count == 0 && Players.Count == 0 && Scopes.Count == 0;
 
     /// <summary>Documents found by title and metadata: the text and text-field parts together.</summary>
     public string? DocumentMatch => (TextMatch, FieldMatch) switch
@@ -93,6 +97,8 @@ public sealed record SearchPlan
         SearchField.Type => ["type"],
         SearchField.Setting => ["setting"],
         SearchField.Theme => ["theme"],
+        SearchField.Style => ["style"],
+        SearchField.Duration => ["duration"],
         SearchField.Environment => ["environment"],
         SearchField.Own => ["own"],
         _ => null,
@@ -109,6 +115,7 @@ public sealed record SearchPlan
         var excludedFields = new List<string>();
         var facets = new List<FacetCondition>();
         var levels = new List<LevelCondition>();
+        var players = new List<PlayersCondition>();
         var scopes = new List<ScopeCondition>();
         var formats = new List<string>();
         var excludedFormats = new List<string>();
@@ -135,6 +142,9 @@ public sealed record SearchPlan
                 {
                     case SearchField.Level:
                         levels.Add(new LevelCondition(value, negated));
+                        break;
+                    case SearchField.Players:
+                        players.Add(new PlayersCondition(value, negated));
                         break;
                     case SearchField.Format:
                         (negated ? excludedFormats : formats).AddRange(value == "image" ? SourceFormats.Images : [value]);
@@ -170,6 +180,7 @@ public sealed record SearchPlan
             ExcludedFolders = excludedFolders,
             Facets = facets,
             Levels = levels,
+            Players = players,
             Scopes = scopes,
         };
     }

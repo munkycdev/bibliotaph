@@ -91,6 +91,13 @@ public class SearchQueryTests
     [InlineData("-favorite:yes", "-favorite:yes")]
     [InlineData("collection:\"Winter campaign\" maps", "AND(collection:\"Winter campaign\", maps)")]
     [InlineData("collections:wint*", "collection:wint*")]
+    [InlineData("players:4", "players:4")]
+    [InlineData("player:\"4 to 6\"", "players:4-6")]
+    [InlineData("players:3–5 heist", "AND(players:3-5, heist)")]
+    [InlineData("players:unknown", "players:unknown")]
+    [InlineData("-players:1", "-players:1")]
+    [InlineData("duration:one-shot style:heist", "AND(duration:one-shot, style:heist)")]
+    [InlineData("duration:\"one shot\" style:dungeon*", "AND(duration:\"one shot\", style:dungeon*)")]
     public void Parses_metadata_fields(string text, string expected) => Assert.Equal(expected, Tree(text));
 
     [Theory]
@@ -111,6 +118,15 @@ public class SearchQueryTests
     [InlineData("level:40")]
     public void A_level_that_isnt_one_is_reported(string text) =>
         Assert.Contains("level: can be", OnlyIssue(text).Message, StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("players:many")]
+    [InlineData("players:4*")]
+    [InlineData("players:6-4")]
+    [InlineData("players:0")]
+    [InlineData("players:40")]
+    public void A_number_of_players_that_isnt_one_is_reported(string text) =>
+        Assert.Contains("players: can be", OnlyIssue(text).Message, StringComparison.Ordinal);
 
     [Theory]
     [InlineData("favorite:maybe")]

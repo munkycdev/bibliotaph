@@ -141,6 +141,8 @@ CREATE TABLE entry_meta (
     level_min     INTEGER,
     level_max     INTEGER,
     level_state   TEXT    NOT NULL DEFAULT 'unknown' CHECK (level_state IN ('unknown', 'known', 'na')),
+    players_min   INTEGER,                       -- how many players it is for; both null when unknown
+    players_max   INTEGER,
     needs_review  INTEGER NOT NULL DEFAULT 0,    -- how many Needs review cards it has
     suggested     INTEGER NOT NULL DEFAULT 0,    -- shows a value nobody has confirmed
     tags          TEXT,                          -- the user's tags, joined with "; "
@@ -148,7 +150,7 @@ CREATE TABLE entry_meta (
     provisional_text TEXT                        -- and of suggested ones
 );
 
--- One row per value of a vocabulary field (system, edition, type, setting, theme, environment), for filters, facet
+-- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own), for filters, facet
 -- counts and field search. value is the term key.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
@@ -257,4 +259,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 12;
+PRAGMA user_version = 13;

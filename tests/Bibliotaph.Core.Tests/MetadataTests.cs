@@ -72,6 +72,47 @@ public class MetadataTextTests
     }
 
     [Theory]
+    [InlineData("4", 4, 4)]
+    [InlineData("4-6", 4, 6)]
+    [InlineData("4–6 players", 4, 6)]
+    [InlineData("for 4 to 6 characters", 4, 6)]
+    [InlineData("for four to six player characters", 4, 6)]
+    [InlineData("a party of 5", 5, 5)]
+    [InlineData("3 or 4 PCs", 3, 4)]
+    [InlineData("solo", 1, 1)]
+    [InlineData("1 player", 1, 1)]
+    public void Parses_party_sizes(string text, int min, int max)
+    {
+        Assert.True(PlayerRange.TryParse(text, out var range));
+        Assert.Equal(new PlayerRange(min, max), range);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("many")]
+    [InlineData("0")]
+    [InlineData("6-4")]
+    [InlineData("21")]
+    [InlineData("3 to 5 characters of levels 2")]
+    [InlineData("levels 3-5")]
+    public void Rejects_what_isnt_a_party_size(string text) => Assert.False(PlayerRange.TryParse(text, out _));
+
+    [Fact]
+    public void Party_sizes_read_and_store_plainly()
+    {
+        Assert.Equal("4-6", new PlayerRange(4, 6).ToString());
+        Assert.Equal("4", new PlayerRange(4, 4).ToString());
+        Assert.Equal("4–6 players", new PlayerRange(4, 6).Describe());
+        Assert.Equal("1 player", new PlayerRange(1, 1).Describe());
+        Assert.True(new PlayerRange(4, 6).Contains(5));
+        Assert.True(new PlayerRange(4, 6).Overlaps(6, 8));
+        Assert.False(new PlayerRange(4, 6).Overlaps(1, 3));
+        Assert.True(MetadataFields.Players.IsClosed);
+    }
+
+    [Theory]
+    [InlineData("players", "for 3 to 5 players", "3-5", null)]
+    [InlineData("players", "lots", null, "Players look like")]
     [InlineData("levels", "Levels 1 to 4", "1-4", null)]
     [InlineData("levels", "eleven", null, "Levels look like")]
     [InlineData("year", "2019", "2019", null)]
