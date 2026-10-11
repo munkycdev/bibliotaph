@@ -2,6 +2,8 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Processing;
 
@@ -20,18 +22,36 @@ public sealed record ElsewhereItem(PendingElsewhere Match, string BookTitle, str
 
 /// <summary>
 /// Books the user owns elsewhere, in print or on a VTT (F5 plan, choices 1 to 6): adding one, removing it again, and
-/// the Needs review cards that offer a new file as its. Their metadata are the user's own values, set through
+/// the Needs review cards that offer a file as its. Their metadata are the user's own values, set through
 /// <see cref="MetadataService"/> as the inspector sets them, so bulk edit, search and Undo treat them as any card's.
+/// Match asks about a file when it is new or read again; a book added, or a title or publisher changed on either
+/// side, has the files already in the library checked here by the same rule.
 /// </summary>
 public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches, MetadataService metadata, VocabularyStore vocabularies,
-    MetadataProjector projector, LibraryStore library, IndexQueries queries, LibraryQueries cards)
+    MetadataProjector projector, LibraryStore library, IndexQueries queries, LibraryQueries cards, ILogger<ElsewhereService>? log = null)
+    : IDisposable
 {
+    readonly ILogger _log = log ?? NullLogger<ElsewhereService>.Instance;
+
+    /// <summary>
+    /// One check at a time, and none while a book is being added: a check run after its title is set, before its
+    /// publisher is, could ask about a file whose publisher says otherwise.
+    /// </summary>
+    readonly SemaphoreSlim _checking = new(1, 1);
+
+    readonly Lock _queueLock = new();
+
+    /// <summary>Entries projected since the queued check took its own: null while no check is queued or running.</summary>
+    HashSet<EntryId>? _queued;
+
+    public void Dispose() => _checking.Dispose();
+
     /// <summary>The terms the dialog offers: game systems, types and places to own a book.</summary>
     public Task<Vocabulary> GetVocabularyAsync(CancellationToken ct = default) => vocabularies.GetAsync(ct);
 
     /// <summary>
     /// Makes the card. Every value is checked first, so nothing is made when one can't be stored: the problem comes
-    /// back instead.
+    /// back instead. The files already in the library that could be the book's are then offered in Needs review.
     /// </summary>
     public async Task<(EntryId? EntryId, MetadataProblem? Problem)> AddAsync(ElsewhereDraft draft, CancellationToken ct = default)
     {
@@ -41,10 +61,105 @@ public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches,
             foreach (var part in MetadataValues.Split(field, typed))
                 if (MetadataService.Check(field, part) is { } problem) return (null, problem);
 
-        var entryId = await entries.AddElsewhereAsync(ct);
-        foreach (var (field, typed) in fields)
-            if (await metadata.SetAsync(entryId, field, typed, ct) is { } problem) return (entryId, problem);
-        return (entryId, null);
+        await _checking.WaitAsync(ct);
+        try
+        {
+            var entryId = await entries.AddElsewhereAsync(ct);
+            foreach (var (field, typed) in fields)
+                if (await metadata.SetAsync(entryId, field, typed, ct) is { } problem) return (entryId, problem);
+            await ProposeFilesAsync([entryId], ct);
+            return (entryId, null);
+        }
+        finally
+        {
+            _checking.Release();
+        }
+    }
+
+    /// <summary>
+    /// Checks the files already in the library against those of <paramref name="entryIds"/> that are books owned
+    /// elsewhere, and those of them that are files against every such book, and offers each match in Needs review as
+    /// Match does. A pair asked about before isn't asked again. Returns how many cards were added.
+    /// </summary>
+    public async Task<int> CheckFilesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        await _checking.WaitAsync(ct);
+        try
+        {
+            return await ProposeFilesAsync(entryIds, ct);
+        }
+        finally
+        {
+            _checking.Release();
+        }
+    }
+
+    async Task<int> ProposeFilesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct)
+    {
+        if (entryIds.Count == 0) return 0;
+        var asked = entryIds.ToHashSet();
+        List<EntryId> proposed = [];
+        foreach (var (book, file, documentId) in await queries.GetElsewhereFilesAsync(ct))
+        {
+            if (!asked.Contains(book) && !asked.Contains(file)) continue;
+            if (!await matches.ProposeAsync(book, documentId, ct)) continue;
+            _log.LogInformation("Document {Document} has the title of entry {Entry}, owned elsewhere; proposed as its file", documentId, book);
+            proposed.Add(book);
+        }
+        // Projecting the books' marks tells the library, and so Needs review's count, that something changed.
+        if (proposed.Count > 0) await projector.ProjectMarksAsync([.. proposed.Distinct()], ct);
+        return proposed.Count;
+    }
+
+    /// <summary>
+    /// Checks the files again whenever cards' metadata are projected: after an edit to a title or publisher, a file
+    /// read, and at startup, which covers books added before this check existed. Called once, at startup.
+    /// </summary>
+    public void CheckFilesWhenProjected() => projector.Projected += (_, entryIds) => Queue(entryIds);
+
+    /// <summary>
+    /// Queues a check of <paramref name="entryIds"/> off the projecting thread. Entries projected while a check runs
+    /// wait for one more check together, so a burst of projections while files are read costs a check or two, not one each.
+    /// </summary>
+    void Queue(IReadOnlyCollection<EntryId> entryIds)
+    {
+        if (entryIds.Count == 0) return;
+        lock (_queueLock)
+        {
+            if (_queued is not null)
+            {
+                _queued.UnionWith(entryIds);
+                return;
+            }
+            _queued = [.. entryIds];
+        }
+        _ = Task.Run(CheckQueuedAsync);
+    }
+
+    async Task CheckQueuedAsync()
+    {
+        while (true)
+        {
+            HashSet<EntryId> entryIds;
+            lock (_queueLock)
+            {
+                entryIds = _queued!;
+                if (entryIds.Count == 0)
+                {
+                    _queued = null;
+                    return;
+                }
+                _queued = [];
+            }
+            try
+            {
+                await CheckFilesAsync(entryIds);
+            }
+            catch (Exception e)
+            {
+                _log.LogWarning(e, "Couldn't check the library's files against the books owned elsewhere");
+            }
+        }
     }
 
     /// <summary>

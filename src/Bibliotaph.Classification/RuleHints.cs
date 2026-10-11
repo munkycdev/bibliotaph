@@ -8,6 +8,7 @@ namespace Bibliotaph.Classification;
 /// What the Hints from names stage reads for one document: where its file is under its source folder, the PDF's own
 /// document information (null for images, and for PDFs that don't fill it in), and its watermark lines once its text
 /// has been read (<see cref="Watermarks.Find"/>). Watermark lines name the buyer, so only the store they name is kept.
+/// <see cref="Rules"/> are the folder rules switched on in its library folder (scenario review, row 8).
 /// </summary>
 public sealed record HintSource(
     string RelativePath,
@@ -16,7 +17,14 @@ public sealed record HintSource(
     string? EmbeddedSubject = null,
     string? EmbeddedKeywords = null,
     string? EmbeddedProducer = null,
-    IReadOnlyList<string>? WatermarkLines = null);
+    IReadOnlyList<string>? WatermarkLines = null,
+    IReadOnlyList<FolderRuleHint>? Rules = null);
+
+/// <summary>
+/// A folder rule the user switched on (scenario review, row 8): files in <see cref="Folder"/> (a path under their
+/// library folder, "" for all of it) and its subfolders get <see cref="Value"/>, in stored form, as a suggestion.
+/// </summary>
+public sealed record FolderRuleHint(string Folder, MetadataField Field, string Value);
 
 /// <summary>A vocabulary term a folder name stands for, as Settings > Library lists it.</summary>
 public sealed record FolderLabel(string Folder, Term Term);
@@ -35,6 +43,8 @@ public sealed record FolderLabel(string Folder, Term Term);
 /// <item>Where to get it (scenario review, row 7) comes from a store named in a folder name, the file name, the PDF's
 /// producer or a watermark line. Only the store is kept: the quote is the store's name as matched, never the line it
 /// was in, which holds the buyer's name and order number.</item>
+/// <item>A folder rule the user switched on gives its value to every file in its folder and below; for a field with one
+/// value, the deepest folder's rule wins. Its quote is the folder's name.</item>
 /// </list>
 /// </summary>
 public static partial class RuleHints
@@ -73,6 +83,11 @@ public static partial class RuleHints
                 foreach (var proposal in TermProposals(label.Term, vocabulary, AssertionOrigin.Folder, folder))
                     Add(proposal);
         }
+
+        // Shallow rules first, so a deeper folder's wins for a field with one value.
+        foreach (var rule in (source.Rules ?? []).Where(r => new FolderKey(0, r.Folder).Holds(0, source.RelativePath))
+                     .OrderBy(r => r.Folder.Length == 0 ? 0 : r.Folder.Count(c => c is '\\' or '/') + 1))
+            Add(new MetadataProposal(rule.Field, rule.Value, AssertionOrigin.FolderRule, new FolderKey(0, rule.Folder).Name is { Length: > 0 } name ? name : null));
 
         var fileName = Path.GetFileName(source.RelativePath);
         Add(new MetadataProposal(MetadataFields.Title, DisplayTitle.FromFileName(fileName), AssertionOrigin.Filename, fileName));

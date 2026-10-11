@@ -56,6 +56,12 @@ public sealed class FileLocation
 
     /// <summary>Why a member isn't read (a ZIP inside the ZIP, a password, too big, damaged), for Files needing attention.</summary>
     public string? Problem { get; set; }
+
+    /// <summary>
+    /// The file was online-only when Bibliotaph read it, so reading it downloaded it: once nothing left needs its
+    /// content, it goes back to online-only (Dale's review, row 2). Cleared when it has gone back, or when it changes.
+    /// </summary>
+    public bool ReturnToOnlineOnly { get; set; }
 }
 
 /// <summary>One row per content version.</summary>
@@ -102,6 +108,11 @@ public sealed class Entry
     /// </summary>
     public long? MergedIntoEntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
+    /// <summary>
+    /// Names a book owned elsewhere in the library sync file (library sync plan, choice 4), which has no content hash to
+    /// be named by; a book with files is named by its files' hashes instead. Made once, and the same on every PC it reaches.
+    /// </summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
     public List<EntrySource> Sources { get; set; } = [];
     public List<Assertion> Assertions { get; set; } = [];
     public List<Rejection> Rejections { get; set; } = [];
@@ -317,6 +328,38 @@ public sealed class ClassificationRun
     public string? Outcome { get; set; }
 }
 
+/// <summary>
+/// "You said this book was cataloged wrong" (scenario review, row 8): the user opened the editor with Cataloged wrong…
+/// and closed it without changing or confirming anything, so Needs review keeps a card that opens it again.
+/// </summary>
+public sealed class CorrectionRequest
+{
+    public long Id { get; set; }
+    public long EntryId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// A folder rule (scenario review, row 8): files in one folder of a library folder, and its subfolders, get a field's
+/// value as a suggestion. Proposed after the user set that value on several books from the folder; each answer is
+/// kept, so a declined rule isn't proposed again.
+/// </summary>
+public sealed class FolderRule
+{
+    public long Id { get; set; }
+    public long SourceRootId { get; set; }
+    /// <summary>The folder's path under the library folder, as the file locations spell it; "" for the library folder itself.</summary>
+    public required string Folder { get; set; }
+    public required string Field { get; set; }
+    /// <summary>The value in stored form: a term's key, "1-5", text as written.</summary>
+    public required string Value { get; set; }
+    public FolderRuleState State { get; set; }
+    /// <summary>How many books from the folder the user had set it on when it was proposed.</summary>
+    public int Books { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime? DecidedUtc { get; set; }
+}
+
 /// <summary>A folder label the user switched off in Settings > Library: that folder name no longer suggests that term.</summary>
 public sealed class IgnoredFolderLabel
 {
@@ -373,6 +416,8 @@ public sealed class CollectionNode
     public DateTime CreatedUtc { get; set; }
     /// <summary>When a book was last added to it or it was made: the menu's recent collections.</summary>
     public DateTime UsedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
@@ -386,6 +431,8 @@ public sealed class SmartView
     public required string Definition { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
@@ -419,6 +466,8 @@ public sealed class Note
     public required string Text { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>An entry added to a collection (choice 10).</summary>
@@ -467,6 +516,8 @@ public sealed class SessionPack
     public bool KeepAtHand { get; set; }
     /// <summary>The game system its references are for, as a system vocabulary key; null for any system.</summary>
     public string? GameSystem { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>A heading in a pack ("Maps"), in the pack's order. Items without one come first.</summary>
@@ -476,6 +527,8 @@ public sealed class SessionSection
     public long PackId { get; set; }
     public required string Name { get; set; }
     public int Position { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
@@ -497,6 +550,31 @@ public sealed class SessionItem
     public string? Label { get; set; }
     public string? Note { get; set; }
     public DateTime AddedUtc { get; set; }
+    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
+}
+
+/// <summary>
+/// What this PC knows of one record of the library sync file (library sync plan, choice 3): each field's value as it
+/// was last seen or merged and when it changed, a tombstone if it was deleted, and whether it came from another PC but
+/// can't be used here yet (its book isn't in this library, say). The catalog's own tables stay as they are; comparing
+/// them with these rows is how a change made on this PC is noticed and timed, whichever page made it.
+/// </summary>
+public sealed class SyncState
+{
+    /// <summary>The record's key (<see cref="Core.Sync.SyncKeys"/>).</summary>
+    public required string Key { get; set; }
+
+    /// <summary>The fields: name to value (compact JSON, or null when cleared) and change time, as JSON.</summary>
+    public required string FieldsJson { get; set; }
+
+    /// <summary>A book's other keys, as a JSON array: the hashes of its other copies.</summary>
+    public string? AliasesJson { get; set; }
+
+    public DateTime? DeletedUtc { get; set; }
+
+    /// <summary>From another PC, and not in this catalog: kept, and used once what it needs shows up here.</summary>
+    public bool Pending { get; set; }
 }
 
 public sealed class Setting

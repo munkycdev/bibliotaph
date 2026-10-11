@@ -69,6 +69,7 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
             AssertionOrigin.Filename => "From the file name" + quote,
             AssertionOrigin.Embedded => "From the PDF's own information" + quote,
             AssertionOrigin.Rule => (claim.Field == MetadataFields.GetItFrom.Key ? "Named in the file's watermark" : "Written in the file's name or title") + quote,
+            AssertionOrigin.FolderRule => string.IsNullOrWhiteSpace(claim.Quote) ? "From your rule for this library folder" : $"From your rule for the folder “{claim.Quote}”",
             AssertionOrigin.Ai => "Suggested by the AI model" + quote + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
             _ => claim.Origin.ToString(),
         };
@@ -155,6 +156,14 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool ShowEvidence { get; set; }
+
+    /// <summary>Cataloged wrong… is open: a value nobody confirmed carries a "Guessed" mark, so the guesses stand out.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsGuessed))]
+    public partial bool MarksGuesses { get; set; }
+
+    /// <summary>The "Guessed" mark: shown while correcting, on a field whose value is only suggested.</summary>
+    public bool ShowsGuessed => MarksGuesses && IsKnown && IsSuggested;
 
     [ObservableProperty]
     public partial bool IsEditing { get; set; }

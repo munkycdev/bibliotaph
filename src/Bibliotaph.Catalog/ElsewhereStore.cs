@@ -31,8 +31,18 @@ public sealed class ElsewhereStore(IDbContextFactory<CatalogDbContext> contexts,
         if (!await db.Entries.AnyAsync(e => e.Id == entryId.Value && e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null, ct)) return false;
         if (await db.ElsewhereMatches.AnyAsync(m => m.EntryId == entryId.Value && m.DocumentId == documentId, ct)) return false;
         db.ElsewhereMatches.Add(new ElsewhereMatch { EntryId = entryId.Value, DocumentId = documentId, CreatedUtc = _clock.GetUtcNow().UtcDateTime });
-        await db.SaveChangesAsync(ct);
-        return true;
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            // Match and a check of the files already in the library can propose the same pair at once.
+            await using var again = await contexts.CreateDbContextAsync(ct);
+            if (await again.ElsewhereMatches.AnyAsync(m => m.EntryId == entryId.Value && m.DocumentId == documentId, ct)) return false;
+            throw;
+        }
     }
 
     /// <summary>

@@ -42,6 +42,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     readonly AiReadingFeed _aiReading = new();
     readonly FakeModel _model = new();
     readonly FakeIdentity _identity = new();
+    readonly FakeCloud _cloud = new();
+    readonly FakeDisk _disk = new();
+    OnlineOnlyReturns _returns = null!;
     AiSettings _ai = null!;
     ClassificationStore _runs = null!;
     CopiesService _copies = null!;
@@ -57,6 +60,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     readonly HeldStage.Gate _matchGate = new();
     readonly TestPasswords _passwords = new();
     IndexStore _indexStore = null!;
+    CorrectionStore _correctionStore = null!;
+    FolderRules _folderRules = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -80,7 +85,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var library = _libraryStore = new LibraryStore(contexts);
         var entries = _entries = new EntryStore(contexts);
         var queue = new JobBoard(_writer, _index);
-        var reader = new SourceFileReader();
+        // Reading a file the stand-in cloud has as online-only downloads it, as OneDrive does.
+        var reader = new DownloadingReader(new SourceFileReader(), _cloud);
         var index = _indexStore = new IndexStore(_writer);
         var archives = new ArchiveReader(reader);
         _sources = new SourceFiles(_paths, archives, new DiskSpace());
@@ -97,7 +103,11 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
             favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes);
         var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector);
-        _metadata = new MetadataService(_metadataStore, vocabulary, projector);
+        var packStore = new PackStore(contexts);
+        _correctionStore = new CorrectionStore(contexts);
+        var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore, _correctionStore);
+        _folderRules = new FolderRules(_correctionStore, library, _metadataStore, vocabulary, hints);
+        _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
         _pageRefs = new PageRefStore(contexts);
@@ -105,27 +115,27 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _copies = new CopiesService(entries, versions, library, _queries, projector, _places);
         var elsewhere = new ElsewhereStore(contexts, entries);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
-        var packStore = new PackStore(contexts);
-        var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading);
+        _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints), _matchGate),
             ],
-            new FileHasher(reader), new DiskSpace(), archives,
+            new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
-            packs: _packs = new PackService(packStore, projector, hints), identity: _identity);
+            packs: _packs = new PackService(packStore, projector, hints), identity: _identity, returns: _returns);
     }
 
     public async ValueTask DisposeAsync()
     {
         await _service.StopAsync(CancellationToken.None);
         _service.Dispose();
+        _elsewhere.Dispose();
         await _writer.StopAsync(CancellationToken.None);
         _writer.Dispose();
         await _workers.DisposeAsync();
@@ -140,7 +150,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         File.Copy(source, target);
     }
 
-    /// <summary>Waits until nothing is waiting to be scanned, hashed or processed.</summary>
+    /// <summary>Waits until nothing is waiting to be scanned, hashed, packed or processed.</summary>
     async Task<IndexProgress> SettleAsync()
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
@@ -153,8 +163,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             var counts = await _libraryStore.GetCountsAsync(timeout.Token);
             // Hashing attaches a document in catalog.db before it queues the document's jobs in index.db, so idle
             // also means every catalog document has reached index.db.
+            // Packs are made just after hashing, so idle also waits for the pack cards hashing called for.
             if (!_service.IsScanning && counts.Files > 0 && counts.Unhashed == 0 && progress.Documents == counts.Documents
-                && summary.IsIdle && progress.Processing == 0) return progress;
+                && summary.IsIdle && progress.Processing == 0 && !_service.PacksPending) return progress;
         }
     }
 

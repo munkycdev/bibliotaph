@@ -27,7 +27,9 @@ public sealed class SourceChangedException(string message) : IOException(message
 /// <summary>
 /// Gives stages and the viewer a file they can open by path (F3 plan, choice 6). A loose file is itself; a file inside a
 /// ZIP is extracted to the extract cache, named by its content hash, checked against that hash, and reused by every
-/// reader after. Files in use are kept; once the cache passes its limit, the least recently used go.
+/// reader after. Files in use are kept; once the cache passes its limit, the least recently used go. It also knows which
+/// library files are open through it, a book in the reader or a ZIP being extracted, so none goes back to online-only
+/// while it is in use (<see cref="OnlineOnlyReturns"/>).
 /// </summary>
 public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpace disk, IndexingOptions? options = null, long limitBytes = SourceFiles.DefaultLimitBytes)
 {
@@ -36,6 +38,8 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     readonly long _reserveBytes = (options ?? new IndexingOptions()).OnlineOnlyReserveBytes;
     readonly Lock _lock = new();
     readonly Dictionary<string, int> _inUse = [with(StringComparer.OrdinalIgnoreCase)];
+    /// <summary>Library files open through here, by full path, with how many hold each.</summary>
+    readonly Dictionary<string, int> _open = [with(StringComparer.OrdinalIgnoreCase)];
     readonly ConcurrentDictionary<string, SemaphoreSlim> _extracting = new(StringComparer.OrdinalIgnoreCase);
     bool _cleaned;
 
@@ -48,7 +52,12 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     /// </summary>
     public async Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct = default)
     {
-        if (!source.InArchive) return new LocalFile(source.FullPath, null);
+        if (!source.InArchive)
+        {
+            var path = source.FullPath;
+            Track(path, +1);
+            return new LocalFile(path, () => Track(path, -1));
+        }
         var name = source.ContentHash.ToLowerInvariant() + Path.GetExtension(source.EntryPath!).ToLowerInvariant();
         var target = Path.Combine(Folder, name);
         Hold(name);
@@ -79,7 +88,21 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     async Task ExtractAsync(DocumentSource source, string target, CancellationToken ct)
     {
         Directory.CreateDirectory(Folder);
-        using var zip = archives.Open(source.ArchivePath!);
+        var archive = source.ArchivePath!;
+        Track(archive, +1);
+        try
+        {
+            await ExtractFromAsync(archive, source, target, ct);
+        }
+        finally
+        {
+            Track(archive, -1);
+        }
+    }
+
+    async Task ExtractFromAsync(string archive, DocumentSource source, string target, CancellationToken ct)
+    {
+        using var zip = archives.Open(archive);
         await using var input = ArchiveReader.OpenMember(zip, source.EntryPath!);
         if (disk.FreeBytes(Folder) is { } free && free - input.Length < _reserveBytes)
             throw new IOException("There isn't enough free disk space to read this file from its ZIP.");
@@ -130,6 +153,22 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
         {
             if (_inUse.GetValueOrDefault(name) <= 1) _inUse.Remove(name);
             else _inUse[name]--;
+        }
+    }
+
+    /// <summary>Whether a library file is open through here: a book being read, or a ZIP a file is being extracted from.</summary>
+    public bool IsInUse(string path)
+    {
+        lock (_lock) return _open.ContainsKey(path);
+    }
+
+    void Track(string path, int change)
+    {
+        lock (_lock)
+        {
+            var count = _open.GetValueOrDefault(path) + change;
+            if (count <= 0) _open.Remove(path);
+            else _open[path] = count;
         }
     }
 

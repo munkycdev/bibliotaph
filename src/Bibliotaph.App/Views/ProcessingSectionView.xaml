@@ -184,6 +184,16 @@
       </StackPanel>
     </Border>
 
+    <!-- Dale's review, row 2: files indexing downloaded from OneDrive go back to online-only, so a big cloud library fits. -->
+    <CheckBox x:Name="ReturnOnlineOnly" Margin="0,20,0,0" IsChecked="{Binding ReturnOnlineOnly}" VerticalContentAlignment="Top"
+              Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Return files to online-only after indexing">
+      <StackPanel Margin="4,0,0,0">
+        <TextBlock Text="Return files to online-only after indexing" FontSize="12" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                   Text="Online-only OneDrive files download while Bibliotaph reads them. Once read, each goes back to online-only, as Free up space does in File Explorer, so a library bigger than your disk still fits. Files you keep on this device stay. Opening a book downloads it again." />
+      </StackPanel>
+    </CheckBox>
+
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,24,0,0" Text="Your files, notes and collections stay on this device." />
   </StackPanel>
 </UserControl>

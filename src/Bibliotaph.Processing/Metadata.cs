@@ -12,8 +12,8 @@ namespace Bibliotaph.Processing;
 /// Copies the library's cards from catalog.db into index.db: which document each entry shows (entry_doc), and its
 /// effective metadata (entry_meta, entry_facet, entry_fts, term_alias), where the library lists, filters and searches
 /// it, and which entries a model has read (entry_ai), for the AI badge and filter. It also copies the user's marks: the
-/// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name) and
-/// when it was last opened (entry_opened). index.db holds
+/// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name),
+/// when it was last opened (entry_opened) and the text of its notes, its own and its pages', for search (entry_note). index.db holds
 /// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
@@ -51,8 +51,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
-    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened, their own
-    /// note), after one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
+    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened, their
+    /// notes), after one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
     /// </summary>
     public async Task ProjectMarksAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -101,7 +101,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             await index.SetScopesAsync(entryIds, scopes, ct);
         }
         if (reading is not null) await index.SetOpenedAsync(entryIds, await reading.GetOpenedAsync(entryIds, ct), ct);
-        if (notes is not null) await index.SetNotesAsync(entryIds, await notes.GetEntryNotesAsync(entryIds, ct), ct);
+        if (notes is not null) await index.SetNotesAsync(entryIds, await notes.GetSearchTextAsync(entryIds, ct), ct);
         if (entryIds is null) await WriteCollectionNamesAsync(ct);
     }
 
@@ -273,10 +273,11 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
 /// <summary>
 /// Rule hints for documents: reads where the file is and what the PDF says about itself, stores the suggestions in
 /// catalog.db on the document's entry and projects the result. Packs get theirs from their folder's names. Also lists
-/// and switches the folder labels Settings shows.
+/// and switches the folder labels Settings shows, and gives files the folder rules switched on where they are
+/// (scenario review, row 8).
 /// </summary>
 public sealed class MetadataHints(LibraryStore library, EntryStore entries, IndexQueries queries, MetadataStore metadata, VocabularyStore vocabularies,
-    MetadataProjector projector, PackStore packs)
+    MetadataProjector projector, PackStore packs, CorrectionStore? rules = null)
 {
     /// <summary>
     /// Stores packs' hints from their folder's names (F4 plan, choice 9): every folder down to the pack's own, or its
@@ -326,14 +327,35 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
     /// </summary>
     async Task<(EntryId Entry, bool Changed)?> StoreAsync(long documentId, CancellationToken ct)
     {
-        var path = await library.GetRelativePathAsync(documentId, ct);
-        if (path is null || await entries.GetEntryAsync(documentId, ct) is not { } entry) return null;
+        var place = await library.GetHintPathAsync(documentId, ct);
+        if (place is not var (rootId, path) || await entries.GetEntryAsync(documentId, ct) is not { } entry) return null;
         var info = await queries.GetEmbeddedInfoAsync(documentId, ct);
         // The watermark lines are read here, matched against the store names and dropped: never stored or logged.
         var watermarks = Watermarks.Find(await queries.GetAllPageTextsAsync(documentId, ct));
-        var source = new HintSource(path, info?.Title, info?.Author, info?.Subject, info?.Keywords, info?.Producer, watermarks);
+        var source = new HintSource(path, info?.Title, info?.Author, info?.Subject, info?.Keywords, info?.Producer, watermarks, await RulesAsync(rootId, ct));
         var proposals = RuleHints.Propose(source, await vocabularies.GetAsync(ct), await vocabularies.GetIgnoredFolderLabelsAsync(ct));
         return (entry.EntryId, await metadata.ReplaceHintsAsync(entry.EntryId, entry.ContentHash, proposals, ct));
+    }
+
+    /// <summary>The folder rules switched on in one library folder.</summary>
+    async Task<IReadOnlyList<FolderRuleHint>> RulesAsync(long rootId, CancellationToken ct)
+    {
+        if (rules is null) return [];
+        return [.. (await rules.GetRulesAsync(FolderRuleState.On, ct))
+            .Where(r => r.Folder.RootId == rootId && MetadataFields.Find(r.Field) is not null)
+            .Select(r => new FolderRuleHint(r.Folder.Folder, MetadataFields.Get(r.Field), r.Value))];
+    }
+
+    /// <summary>
+    /// Reads the hints again for every file in a folder and below, after one of its folder rules was switched on or
+    /// off, and projects their cards.
+    /// </summary>
+    public async Task RefreshFolderAsync(FolderKey folder, CancellationToken ct = default)
+    {
+        var stored = new List<EntryId>();
+        foreach (var documentId in await library.GetDocumentsUnderAsync(folder, ct))
+            if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry.Entry);
+        await projector.ProjectAsync([.. stored.Distinct()], ct);
     }
 
     /// <summary>
@@ -392,9 +414,10 @@ public sealed record MetadataProblem(MetadataField Field, string Message);
 
 /// <summary>
 /// The inspector's metadata: what an entry's fields show and why, and the user's edits. Every change goes to
-/// catalog.db as an assertion state or a rejection, then the entry is projected again.
+/// catalog.db as an assertion state or a rejection, then the entry is projected again. A value the user sets may
+/// make a folder rule worth proposing (scenario review, row 8), which <paramref name="rules"/> looks into.
 /// </summary>
-public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector)
+public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector, FolderRules? rules = null)
 {
     public async Task<(EffectiveMetadata Metadata, Vocabulary Vocabulary)> GetAsync(EntryId entryId, CancellationToken ct = default) =>
         ((await metadata.GetAsync(entryId, ct)).Compute(), await vocabularies.GetAsync(ct));
@@ -418,6 +441,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         await metadata.SetValuesAsync(entryId, field, values, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([entryId], ct);
+        if (rules is not null && values.Count > 0) await rules.ConsiderAsync([entryId], [field], ct);
         return null;
     }
 
@@ -459,12 +483,14 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         IReadOnlyList<string> values = field.Multiple ? [.. current.Values.Select(v => v.Value), value] : [value];
         await metadata.SetValuesAsync(entryId, field, values, ct);
         await projector.ProjectAsync([entryId], ct);
+        if (rules is not null) await rules.ConsiderAsync([entryId], [field], ct);
     }
 
     public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
         await metadata.ConfirmAsync(entryId, field, ct);
         await projector.ProjectAsync([entryId], ct);
+        if (rules is not null) await rules.ConsiderAsync([entryId], [field], ct);
     }
 
     public async Task RejectAsync(EntryId entryId, MetadataField field, string normalized, CancellationToken ct = default)
@@ -520,6 +546,8 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         var undo = await metadata.ApplyBulkAsync(entryIds, stored, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
         await ProjectAsync([.. undo.Select(s => s.EntryId).Distinct()], progress, ct);
+        var set = stored.Where(c => c.Action is BulkAction.Set or BulkAction.Add).Select(c => c.Field).Distinct().ToList();
+        if (rules is not null && set.Count > 0 && undo.Count > 0) await rules.ConsiderAsync([.. undo.Select(s => s.EntryId).Distinct()], set, ct);
         return (null, undo);
     }
 
