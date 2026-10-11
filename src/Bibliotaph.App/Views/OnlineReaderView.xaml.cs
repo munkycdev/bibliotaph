@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -16,6 +17,7 @@ namespace Bibliotaph.App.Views;
 public partial class OnlineReaderView
 {
     bool _started;
+    string? _readingScript;
 
     public OnlineReaderView()
     {
@@ -23,7 +25,11 @@ public partial class OnlineReaderView
         Loaded += async (_, _) => await StartAsync();
         Unloaded += (_, _) =>
         {
-            if (Model is { } model) model.Sessions.PropertyChanged -= Sessions_PropertyChanged;
+            if (Model is { } model)
+            {
+                model.Sessions.PropertyChanged -= Sessions_PropertyChanged;
+                model.PropertyChanged -= Model_PropertyChanged;
+            }
             Web.Dispose();
         };
     }
@@ -83,8 +89,60 @@ public partial class OnlineReaderView
             };
         };
         core.HistoryChanged += (_, _) => (model.CanGoBack, model.CanGoForward) = (core.CanGoBack, core.CanGoForward);
+        model.PropertyChanged += Model_PropertyChanged;
+        await ShowReadingModeAsync(core, model);
         core.Navigate(model.Start.AbsoluteUri);
     }
+
+    async void Model_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OnlineReaderViewModel.ReadingMode) && Web.CoreWebView2 is { } core && Model is { } model)
+            await ShowReadingModeAsync(core, model);
+    }
+
+    /// <summary>
+    /// Puts Reading mode's stylesheet on every page of the service from now on, and on the page in view, or takes it
+    /// off both. It goes only on the service's own site, not the sites it signs in on.
+    /// </summary>
+    async Task ShowReadingModeAsync(CoreWebView2 core, OnlineReaderViewModel model)
+    {
+        try
+        {
+            if (_readingScript is { } id)
+            {
+                core.RemoveScriptToExecuteOnDocumentCreated(id);
+                _readingScript = null;
+            }
+            if (model.ReadingMode && model.ReadingStyle is { } style && Services.OnlineReaders.SiteOf(model.Request.Link) is { } site)
+            {
+                var script = ReadingScript(style, site);
+                _readingScript = await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
+                await core.ExecuteScriptAsync(script);
+            }
+            else await core.ExecuteScriptAsync("document.getElementById('bibliotaph-reading')?.remove()");
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        {
+            // The browser closed meanwhile.
+        }
+    }
+
+    static string ReadingScript(string style, string site) => $$"""
+        (() => {
+          const site = {{JsonSerializer.Serialize(site)}};
+          const host = location.hostname.replace(/^www\./, '');
+          if (host !== site && !host.endsWith('.' + site)) return;
+          const add = () => {
+            if (document.getElementById('bibliotaph-reading')) return;
+            const style = document.createElement('style');
+            style.id = 'bibliotaph-reading';
+            style.textContent = {{JsonSerializer.Serialize(style)}};
+            (document.head ?? document.documentElement).appendChild(style);
+          };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add);
+          else add();
+        })();
+        """;
 
     /// <summary>The browser draws over the binder dialog, so it is hidden while the dialog is open.</summary>
     void Sessions_PropertyChanged(object? sender, PropertyChangedEventArgs e)

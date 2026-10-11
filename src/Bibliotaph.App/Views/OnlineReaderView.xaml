@@ -39,6 +39,10 @@
                 ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" Command="{Binding TogglePinCommand}" />
         <Button x:Name="OnlineNote" Style="{StaticResource Bt.Link}" Content="{Binding NoteLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                 Command="{Binding ToggleNoteCommand}" ToolTip="The book's own note, beside the page" Margin="8,0,0,0" />
+        <!-- Reading mode (choice 24): the service's pages without its menus, ads and footer. -->
+        <Button x:Name="OnlineReadingMode" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.BookOpen}" c:Ui.IsActive="{Binding ReadingMode}"
+                Command="{Binding ToggleReadingModeCommand}" ToolTip="{Binding ReadingModeAction}" AutomationProperties.Name="Reading mode" Margin="8,0,0,0"
+                Visibility="{Binding HasReadingMode, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <Border Style="{StaticResource Divider}" />
         <!-- Add this page (choice 20): the page in view, as a link in a binder. -->
         <Button x:Name="OnlineAddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add this page" c:Ui.Icon="{StaticResource Icon.Plus}"

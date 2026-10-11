@@ -167,6 +167,25 @@ public sealed class OnlineLibrariesTests
                 .Select(r => r.Key));
     }
 
+    [Theory]
+    [InlineData("The Vault Door - The Ember Vault - Dungeons & Dragons - Sources - D&D Beyond", "The Vault Door")]
+    [InlineData("The Ember Vault - Dungeons & Dragons - Sources - D&D Beyond", "The Ember Vault")]
+    [InlineData("Goblins - Monsters - D&D Beyond", "Goblins - Monsters")]
+    [InlineData("Appendix A: Masks - THE EMBER VAULT - Sources - D&D Beyond", "Appendix A: Masks")]
+    [InlineData("  ", null)]
+    public void A_page_in_a_binder_is_labelled_with_its_own_name(string title, string? label) =>
+        Assert.Equal(label, OnlinePages.LabelOf(title, "D&D Beyond", "The Ember Vault", OnlinePages.ServiceOf("https://www.dndbeyond.com/sources/dnd/ember-vault")));
+
+    [Fact]
+    public void A_page_of_another_service_loses_only_the_place_after_it()
+    {
+        Assert.Equal("Chapter 2 - Sources", OnlinePages.LabelOf("Chapter 2 - Sources | Demiplane", "Demiplane", "Ember Isles Core Rules", OnlinePages.ServiceOf("https://app.demiplane.com/nexus/emberisles")));
+        Assert.Equal("Notes - Ember", OnlinePages.LabelOf("Notes - Ember", null));
+        Assert.Null(OnlinePages.ServiceOf("https://example.com/book"));
+        Assert.NotNull(((IOnlineLibraryReader)new DndBeyondReader()).ReadingStyle);
+        Assert.Null(((IOnlineLibraryReader)new DemiplaneReader()).ReadingStyle);
+    }
+
     [Fact]
     public async Task A_saved_page_replaces_the_file_chosen_and_leaves_nothing_beside_it()
     {

@@ -79,6 +79,72 @@ public interface IOnlineLibraryReader
     /// Platform"); null for the usual line.
     /// </summary>
     string? Hint(string html) => null;
+
+    /// <summary>
+    /// What a page title on the service carries after the page's own and the book's, besides the service's name, last
+    /// first: D&amp;D Beyond's "… - Dungeons &amp; Dragons - Sources - D&amp;D Beyond".
+    /// </summary>
+    IReadOnlyList<string> TitleTail => [];
+
+    /// <summary>
+    /// Reading mode's stylesheet for the service's pages in the online reader (choice 24): it hides what isn't the book,
+    /// such as menus, ads and footers, and leaves the page's own contents. Null for a service without one.
+    /// </summary>
+    string? ReadingStyle => null;
+}
+
+/// <summary>Pages of books owned online, as the online reader and binders name them.</summary>
+public static class OnlinePages
+{
+    static readonly string[] Separators = [" - ", " | ", " – ", " — "];
+
+    /// <summary>The service a page is on, by its site or a site it signs in on; null for none Bibliotaph knows.</summary>
+    public static IOnlineLibraryReader? ServiceOf(string link) =>
+        SiteOf(link) is { } site
+            ? OnlineImports.Services.FirstOrDefault(r => SiteOf(r.LibraryPage.AbsoluteUri) == site)
+            : null;
+
+    /// <summary>A page's site: its host without "www.", lowercase; null for a link that isn't on the web.</summary>
+    public static string? SiteOf(string link) =>
+        Uri.TryCreate(link, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"
+            ? (uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host).ToLowerInvariant()
+            : null;
+
+    /// <summary>
+    /// A binder item's label for a page: its title without what follows the page's own name, the place ("D&amp;D
+    /// Beyond"), the service's own tail ("Sources", "Dungeons &amp; Dragons") and the book's title, so "The Vault Door -
+    /// The Ember Vault - Dungeons &amp; Dragons - Sources - D&amp;D Beyond" gives "The Vault Door". The book's own page
+    /// keeps the book's title. Null when the page has no title.
+    /// </summary>
+    public static string? LabelOf(string? pageTitle, string? place, string? bookTitle = null, IOnlineLibraryReader? service = null)
+    {
+        var label = pageTitle?.Trim();
+        if (string.IsNullOrEmpty(label)) return null;
+        string[] tails = [.. place is null ? [] : new[] { place }, .. service is null ? [] : new[] { service.Name }, .. service?.TitleTail ?? []];
+        for (var cut = true; cut;)
+        {
+            cut = false;
+            foreach (var tail in tails)
+                if (WithoutLast(label, tail) is { } shorter)
+                    (label, cut) = (shorter, true);
+        }
+        return bookTitle is not null && WithoutLast(label, bookTitle) is { } chapter ? chapter : label;
+    }
+
+    /// <summary>The title without its last part when that part is <paramref name="part"/>, matched as titles are; else null.</summary>
+    static string? WithoutLast(string title, string part)
+    {
+        var key = OnlineImports.TitleKey(part);
+        if (key.Length == 0) return null;
+        foreach (var separator in Separators)
+        {
+            for (var at = title.LastIndexOf(separator, StringComparison.Ordinal); at > 0; at = title.LastIndexOf(separator, at - 1, StringComparison.Ordinal))
+            {
+                if (OnlineImports.TitleKey(title[(at + separator.Length)..]) == key) return title[..at].Trim();
+            }
+        }
+        return null;
+    }
 }
 
 /// <summary>
@@ -100,6 +166,17 @@ public sealed partial class DndBeyondReader : IOnlineLibraryReader
 
     /// <summary>D&amp;D Beyond's sign-in with a Wizards account goes through Wizards of the Coast's site.</summary>
     public IReadOnlyList<string> SignInSites { get; } = ["wizards.com"];
+
+    public IReadOnlyList<string> TitleTail { get; } = ["Sources", "Dungeons & Dragons"];
+
+    /// <summary>
+    /// Hides the site's menus, ads, page-header extras, quick actions and footer; the book's contents and its table of
+    /// contents stay.
+    /// </summary>
+    public string ReadingStyle => """
+        #mega-menu-target, .ad-container, .page-header__extras, .compendium-quick-actions, #footer-push, .ddb-footer,
+        .site-overlay { display: none !important; }
+        """;
 
     public OnlinePage? Read(string html)
     {
