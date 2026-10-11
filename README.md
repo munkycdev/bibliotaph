@@ -95,6 +95,34 @@ first. Never attach or commit a file cut from a purchased book: tests build thei
 
 Security problems go through private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+Releases are built only by the Release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)), on
+GitHub-hosted runners, from a version tag in this repository. The workflow sends the installer it built,
+`BibliotaphApp-win-Setup.exe`, to SignPath, and a maintainer approves each signing request by hand. The programs the
+installer carries from other projects (the .NET runtime, PDFium, llama.cpp's `llama-server` and Velopack's updater)
+keep their own publishers' signatures, or none, and aren't signed as Bibliotaph's.
+
+Team roles:
+
+- Committers and reviewers: [munkycdev](https://github.com/munkycdev)
+- Approvers: [munkycdev](https://github.com/munkycdev)
+
+### Privacy
+
+Bibliotaph collects nothing about you or your library and sends nothing to its maintainers. It indexes your files on
+your PC, and the built-in AI runs there too. It connects to the internet only for these:
+
+- **Updates.** An installed copy checks this repository's GitHub Releases when it starts and once a day, and downloads
+  a newer version if there is one.
+- **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
+- **An AI server you set up.** If you point Settings > AI at a model server instead of the built-in AI, Bibliotaph
+  sends text from your books to that server to catalogue them. A server on another machine or a hosted service is
+  your choice and is covered by that service's own terms.
+
 ## Licence
 
 Copyright (C) 2026 munkycdev.
