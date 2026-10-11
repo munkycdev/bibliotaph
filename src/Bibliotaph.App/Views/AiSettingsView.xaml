@@ -146,6 +146,21 @@
       </WrapPanel>
       <TextBlock Text="{Binding Note}" Style="{StaticResource Note}" Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
       <TextBlock Text="{Binding Problem}" Style="{StaticResource Problem}" Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+      <!-- Ask this book's embedding model, run by a second engine (Ask plan, choice 3) -->
+      <TextBlock Text="Ask this book" Style="{StaticResource Text.Row}" Margin="0,18,0,4" />
+      <TextBlock x:Name="BuiltInEmbeddingText" Text="{Binding EmbeddingText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+      <StackPanel Visibility="{Binding CanOfferEmbedding, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Style="{StaticResource Note}">
+          <Run Text="{Binding EmbeddingLicenceText, Mode=OneWay}" />
+          <Hyperlink Command="{Binding OpenEmbeddingLicenceCommand}" Foreground="{DynamicResource Bt.Accent}">Read the licence</Hyperlink>
+        </TextBlock>
+        <WrapPanel Margin="0,10,0,0">
+          <Button Content="{Binding EmbeddingDownloadLabel}" Command="{Binding DownloadEmbeddingCommand}" Margin="0,0,8,0"
+                  AutomationProperties.Name="Download the embedding model" />
+          <Button Content="Delete embedding model" Command="{Binding DeleteEmbeddingCommand}" />
+        </WrapPanel>
+      </StackPanel>
     </StackPanel>
 
     <!-- The model server -->
@@ -168,7 +183,7 @@
 
     <StackPanel Visibility="{Binding IsRemote, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,12,0,0">
       <TextBlock Style="{StaticResource Problem}" Margin="0"
-                 Text="This address isn't on this computer or your network. Each book's excerpt, a few thousand words of its text, would be sent there." />
+                 Text="This address isn't on this computer or your network. Each book's excerpt, a few thousand words of its text, would be sent there, and so would the pages of a book you ask a question." />
       <CheckBox IsChecked="{Binding RemoteAllowed}" Foreground="{DynamicResource Bt.Text}" Margin="0,8,0,0" Content="Send excerpts to this server" />
     </StackPanel>
 
@@ -179,6 +194,16 @@
              Visibility="{Binding HasModels, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
     <TextBlock Style="{StaticResource Note}"
                Text="On a graphics card with 8 GB, a model of 7 to 9 billion parameters fits. Bigger ones run, but slowly." />
+
+    <!-- Ask this book's embedding model (Ask plan, choice 3) -->
+    <TextBlock Text="Embedding model, for Ask this book" Style="{StaticResource FieldLabel}" Margin="0,16,0,5" />
+    <ComboBox x:Name="EmbeddingModelChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding EmbeddingChoices}" SelectedValuePath="Value"
+              SelectedValue="{Binding EmbeddingModel}" HorizontalAlignment="Stretch" AutomationProperties.Name="Embedding model"
+              Visibility="{Binding HasModels, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+    <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding EmbeddingModel, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Embedding model name"
+             Visibility="{Binding HasModels, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+    <TextBlock Style="{StaticResource Note}"
+               Text="Lets Ask this book find passages by what they mean, not only by their words. nomic-embed-text (Apache-2.0) and bge-m3 (MIT) work well: download one on the server first. Leave it empty to find passages by their words." />
 
     <TextBlock Text="Key, only if the server needs one" Style="{StaticResource FieldLabel}" Margin="0,16,0,5" />
     <DockPanel>

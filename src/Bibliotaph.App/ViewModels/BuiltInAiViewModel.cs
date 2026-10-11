@@ -5,6 +5,7 @@ using Bibliotaph.App.Services;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -42,9 +43,78 @@ public sealed partial class BuiltInModelItem(BuiltInModel model, bool suggested)
 /// been closed by then; a model already downloaded is used as soon as it is chosen.
 /// </summary>
 public sealed partial class BuiltInAiViewModel(
-    AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester)
+    AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester,
+    [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine)
     : ObservableObject
 {
+    // Ask this book's embedding model (Ask plan, choice 3), downloaded like a chat model and run by a second engine.
+
+    readonly BuiltInModel _embedding = BuiltInModels.Embedding;
+
+    /// <summary>The embedding model can be downloaded: its file is pinned. Until then Ask finds passages by their words.</summary>
+    public bool CanOfferEmbedding => _embedding.IsPinned;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EmbeddingText), nameof(EmbeddingDownloadLabel))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadEmbeddingCommand), nameof(DeleteEmbeddingCommand))]
+    public partial BuiltInModelState EmbeddingState { get; private set; }
+
+    public string EmbeddingText
+    {
+        get
+        {
+            var model = BuiltInModels.Embedding;
+            if (!model.IsPinned)
+                return "Ask this book finds passages by their words. Finding them by what they mean as well needs an embedding model, which this version of Bibliotaph can't download yet.";
+            return EmbeddingState == BuiltInModelState.Downloaded
+                ? $"{model.Name} is downloaded, so Ask this book finds passages by what they mean as well as by their words."
+                : $"Download {model.Name} ({BuiltInModelDownloads.Gb(model.Bytes)}) so Ask this book finds passages by what they mean as well as by their words.";
+        }
+    }
+
+    public string EmbeddingLicenceText => $"{_embedding.Name} is shared by its makers under the {_embedding.Licence} licence.";
+
+    public string EmbeddingDownloadLabel => EmbeddingState == BuiltInModelState.Partial ? "Carry on downloading the embedding model" : "Download the embedding model";
+
+    bool CanDownloadEmbedding() => CanOfferEmbedding && !IsDownloading && EmbeddingState != BuiltInModelState.Downloaded;
+
+    /// <summary>Sets Ask to use the embedding model once it is here, and downloads it in the background.</summary>
+    [RelayCommand(CanExecute = nameof(CanDownloadEmbedding))]
+    async Task DownloadEmbeddingAsync()
+    {
+        var model = BuiltInModels.Embedding;
+        Problem = null;
+        await ai.SaveAsync(ai.Setup with { BuiltInEmbeddingModel = model.Id });
+        Note = "Ask this book finds passages by meaning as soon as the download finishes.";
+        _ = downloads.DownloadAsync(model);
+    }
+
+    bool CanDeleteEmbedding() => EmbeddingState == BuiltInModelState.Downloaded && downloads.Current?.Model != BuiltInModels.Embedding;
+
+    [RelayCommand(CanExecute = nameof(CanDeleteEmbedding))]
+    async Task DeleteEmbeddingAsync()
+    {
+        var model = BuiltInModels.Embedding;
+        // The embedding engine holds the file open while it runs.
+        await embeddingEngine.StopAsync();
+        try
+        {
+            downloads.Delete(model);
+        }
+        catch (System.IO.IOException ex)
+        {
+            Problem = $"{model.Name} couldn't be deleted: {ex.Message}";
+            return;
+        }
+        await ai.SaveAsync(ai.Setup with { BuiltInEmbeddingModel = null });
+        Note = $"Deleted {model.Name}. Ask this book finds passages by their words.";
+        Refresh();
+    }
+
+    [RelayCommand]
+    void OpenEmbeddingLicence() =>
+        Process.Start(new ProcessStartInfo(_embedding.LicenceUrl.ToString()) { UseShellExecute = true })?.Dispose();
+
     public ObservableCollection<BuiltInModelItem> Models { get; } = [];
 
     [ObservableProperty]
@@ -124,6 +194,7 @@ public sealed partial class BuiltInAiViewModel(
     void Refresh()
     {
         foreach (var item in Models) item.State = downloads.StateOf(item.Model);
+        EmbeddingState = downloads.StateOf(BuiltInModels.Embedding);
         var current = downloads.Current;
         IsDownloading = current is not null;
         DownloadPercent = (current?.Fraction ?? 0) * 100;
@@ -139,6 +210,8 @@ public sealed partial class BuiltInAiViewModel(
         CancelCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
         TestCommand.NotifyCanExecuteChanged();
+        DownloadEmbeddingCommand.NotifyCanExecuteChanged();
+        DeleteEmbeddingCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnChosenChanged(BuiltInModelItem? value)

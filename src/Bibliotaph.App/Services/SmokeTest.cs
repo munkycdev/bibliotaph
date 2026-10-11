@@ -132,6 +132,8 @@ static partial class SmokeTest
                 await Check("a binder kept at hand listed under At hand, and one of its pages opened in a window from another binder's At hand",
                     () => UseAtHandBinderAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
+                await Check("a PDF asked a question in the reader's Ask panel, its page found by words and then by meaning, opened from the panel with the word marked, and Ask hidden with AI off",
+                    () => AskBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));

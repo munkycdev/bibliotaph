@@ -66,6 +66,10 @@ public partial class ViewerView
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PagesView.Focus());
                 CommandManager.InvalidateRequerySuggested();
                 break;
+            case nameof(ViewerViewModel.AskVisible) when _model?.AskVisible == true:
+                // Opening Ask is for typing a question.
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, () => AskBox.Focus());
+                break;
             case nameof(ViewerViewModel.IsPdf) or nameof(ViewerViewModel.IsImage):
                 // The zoom buttons and keys follow what's open.
                 CommandManager.InvalidateRequerySuggested();

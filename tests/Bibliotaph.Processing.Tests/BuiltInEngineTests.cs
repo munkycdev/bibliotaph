@@ -221,6 +221,38 @@ public sealed class BuiltInEngineTests : IDisposable
     }
 
     [Fact]
+    public void The_embedding_engine_starts_in_embedding_mode_reading_a_page_in_one_batch()
+    {
+        var chat = new EngineStart("llama-server.exe", _model, 16_384, 5_000, "key");
+        var embedding = chat with { ContextTokens = 2_048, Embedding = true };
+
+        Assert.Contains("--jinja", chat.Arguments);
+        Assert.DoesNotContain("--embedding", chat.Arguments);
+        Assert.DoesNotContain("--jinja", embedding.Arguments);
+        Assert.Equal(["--embedding", "--batch-size", "2048", "--ubatch-size", "2048"], embedding.Arguments.SkipWhile(a => a != "--embedding").Take(5));
+    }
+
+    [Fact]
+    public void The_embedding_model_is_named_and_found_as_the_chat_models_are_and_isnt_offered_until_it_is_pinned()
+    {
+        var folder = Path.Combine(_folder, "models");
+        var embedding = BuiltInModels.Embedding;
+
+        Assert.Equal($"{embedding.Name} (built in)", BuiltInModels.NameFor(embedding.Id));
+        Assert.Equal(Path.Combine(folder, embedding.File), BuiltInModels.PathFor(embedding.Id, folder));
+        Assert.Same(embedding, BuiltInModels.FindEmbedding(embedding.Id));
+        Assert.Null(BuiltInModels.FindEmbedding("qwen3-8b"));
+        Assert.DoesNotContain(embedding, BuiltInModels.All);
+        Assert.Equal(embedding.Sha256.Length == 64 && embedding.Bytes > 0 && embedding.Revision.Length > 0, embedding.IsPinned);
+        Assert.All(BuiltInModels.All, m => Assert.True(m.IsPinned));
+
+        var setup = AiSetup.Off with { Enabled = true, BuiltIn = true, BuiltInModel = "qwen3-4b", BuiltInEmbeddingModel = embedding.Id, EmbeddingModel = "server-embed" };
+        Assert.Equal($"{embedding.Name} (built in)", setup.EmbeddingName);
+        Assert.Equal("server-embed", (setup with { BuiltIn = false }).EmbeddingName);
+        Assert.Null((setup with { BuiltInEmbeddingModel = null }).EmbeddingName);
+    }
+
+    [Fact]
     public void A_built_in_setup_keeps_the_model_server_for_a_switch_back()
     {
         var server = new AiSetup("http://localhost:11434", "qwen3:8b", "ollama", true, false, new HashSet<long>());

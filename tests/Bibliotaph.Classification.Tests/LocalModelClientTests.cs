@@ -387,4 +387,62 @@ public class LocalModelClientTests
     [InlineData("Sorry, I can't", "")]
     public void Reads_the_fields_of_an_answer_still_being_written(string answer, string expected) =>
         Assert.Equal(expected, string.Join("|", PartialAnswer.Read(answer).Select(f => $"{f.Name}:{string.Join(",", f.Values)}")));
+
+    [Fact]
+    public async Task Embeds_with_ollamas_own_call_asking_it_to_cut_long_texts()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[{"name":"nomic-embed-text"}]}"""),
+            "/api/embed" => Ok("""{"embeddings":[[0.5,-1],[2,0.25]]}"""),
+            _ => NotFound,
+        });
+
+        var vectors = await client.EmbedAsync("nomic-embed-text", ["one", "two"], TestContext.Current.CancellationToken);
+
+        Assert.Equal([0.5f, -1f], vectors[0]);
+        Assert.Equal([2f, 0.25f], vectors[1]);
+        var body = server.Requests.Single(r => r.Path == "/api/embed").Body!;
+        Assert.Equal("nomic-embed-text", (string?)body["model"]);
+        Assert.Equal(["one", "two"], body["input"]!.AsArray().Select(t => (string?)t));
+        Assert.True((bool?)body["truncate"]);
+        Assert.Empty(await client.EmbedAsync("nomic-embed-text", [], TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Embeds_with_openai_embeddings_putting_the_vectors_back_in_the_texts_order()
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"bge-m3"}]}"""),
+            "/v1/embeddings" => Ok("""{"data":[{"index":1,"embedding":[3,4]},{"index":0,"embedding":[1,2]}]}"""),
+            _ => NotFound,
+        }, key: "sk-test");
+
+        var vectors = await client.EmbedAsync("bge-m3", ["first", "second"], TestContext.Current.CancellationToken);
+
+        Assert.Equal([1f, 2f], vectors[0]);
+        Assert.Equal([3f, 4f], vectors[1]);
+        var request = server.Requests.Single(r => r.Path == "/v1/embeddings");
+        Assert.Equal("sk-test", request.Key);
+        Assert.Null(request.Body!["truncate"]);
+    }
+
+    [Fact]
+    public async Task A_chat_model_asked_for_vectors_is_a_failed_request_that_says_so()
+    {
+        var (client, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/embed" => Ok("""{"embeddings":[]}"""),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ModelRequestException>(() =>
+            client.EmbedAsync("qwen3:8b", ["one"], TestContext.Current.CancellationToken));
+
+        Assert.Contains("Is qwen3:8b an embedding model?", ex.Message, StringComparison.Ordinal);
+    }
 }

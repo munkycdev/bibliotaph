@@ -199,8 +199,17 @@ public partial class App : Application
             new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInModelDownloads>>()));
         builder.Services.AddSingleton<GraphicsMemory>();
-        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(), null,
-            sp.GetRequiredService<BuiltInEngine>()));
+        // A second, small engine in embedding mode, for finding pages by meaning in Ask this book.
+        builder.Services.AddKeyedSingleton(BuiltInEngine.EmbeddingKey, (sp, _) => new BuiltInEngine(
+            sp.GetRequiredService<BuiltInEngineOptions>() with { Embedding = true, MinContextTokens = 2_048 },
+            new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
+        // The smoke test has a stand-in model server of its own, for Ask this book (SmokeModel).
+        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(),
+            smokeTest ? SmokeModel.ClientsFor(sp.GetRequiredService<IApiKeyStore>()) : null,
+            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey)));
+        builder.Services.AddSingleton<AskQueries>();
+        builder.Services.AddSingleton<AskService>();
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
@@ -339,6 +348,7 @@ public partial class App : Application
         await ai.LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
+        services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
         services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
         services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);
 

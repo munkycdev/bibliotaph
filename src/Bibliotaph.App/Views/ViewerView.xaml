@@ -148,6 +148,13 @@
           <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding NotesLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                   Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
           <Border Style="{StaticResource Divider}" />
+          <!-- Ask this book: only while AI is on (Ask plan, choice 12). -->
+          <StackPanel Orientation="Horizontal" Visibility="{Binding Ask.IsOn, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="ToggleAsk" Style="{StaticResource Bt.Link}" Content="Ask" c:Ui.Icon="{StaticResource Icon.Sparkles}"
+                    Command="{Binding ToggleAskCommand}" ToolTip="Ask this book a question" AutomationProperties.Name="Ask this book"
+                    VerticalAlignment="Center" />
+            <Border Style="{StaticResource Divider}" />
+          </StackPanel>
         </StackPanel>
         <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
         <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
@@ -249,6 +256,68 @@
               </ListBox.ItemTemplate>
             </ListBox>
           </DockPanel>
+        </Border>
+        <!-- Ask this book (Ask plan, Q1): a question, and the pages that look like they answer it, each opening its page. -->
+        <Border x:Name="AskPanel" DockPanel.Dock="Right" Width="320" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                BorderThickness="1,0,0,0" DataContext="{Binding Ask}">
+          <Border.Style>
+            <Style TargetType="Border">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding DataContext.AskVisible, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                    <Condition Binding="{Binding DataContext.IsPdf, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                    <Condition Binding="{Binding IsOn}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="14,14,14,12">
+              <TextBlock Text="ASK THIS BOOK" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
+              <TextBox x:Name="AskBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap"
+                       AutomationProperties.Name="Your question about this book" ToolTip="Ask about something in this book, then press Enter">
+                <TextBox.InputBindings>
+                  <KeyBinding Key="Enter" Command="{Binding AskCommand}" />
+                </TextBox.InputBindings>
+              </TextBox>
+              <DockPanel Margin="0,8,0,0">
+                <Button x:Name="AskButton" DockPanel.Dock="Left" Style="{StaticResource Bt.Button.Primary}" Content="Ask" Command="{Binding AskCommand}"
+                        AutomationProperties.Name="Ask" />
+                <TextBlock Text="Looking through the book…" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="10,0,0,0"
+                           Visibility="{Binding IsAsking, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </DockPanel>
+              <TextBlock Text="{Binding Asked}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,14,0,0"
+                         Visibility="{Binding Asked, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock x:Name="AskMessage" Text="{Binding Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,8,0,0"
+                         Visibility="{Binding Message, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock Text="PAGES THAT LOOK LIKE THEY ANSWER IT" Style="{StaticResource Text.Eyebrow}" Margin="0,12,0,6"
+                         Visibility="{Binding HasPassages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <ItemsControl x:Name="AskPassages" ItemsSource="{Binding Passages}" Focusable="False" AutomationProperties.Name="Pages that look like they answer it"
+                            KeyboardNavigation.TabNavigation="Continue">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:AskPassageRow}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                      <StackPanel>
+                        <Button x:Name="AskPassageLink" Style="{StaticResource Bt.Link}" Content="{Binding Link}" HorizontalAlignment="Left"
+                                ToolTip="Open this page, with the matching word marked" AutomationProperties.Name="{Binding AccessibleName}"
+                                Command="{Binding DataContext.GoToCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                        <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding Found}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock x:Name="AskMeaning" Text="{Binding MeaningText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,8,0,0"
+                         Visibility="{Binding MeaningText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock x:Name="AskCoverage" Text="{Binding CoverageText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0"
+                         Visibility="{Binding CoverageText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+          </ScrollViewer>
         </Border>
         <!-- Notes on this book's pages (slice 3f): each goes to its pages, and can be changed or deleted. -->
         <Border x:Name="NotesPanel" DockPanel.Dock="Right" Width="280" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"

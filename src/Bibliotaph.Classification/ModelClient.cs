@@ -96,12 +96,24 @@ public interface IModelClient
 }
 
 /// <summary>
+/// A server that turns text into vectors (Ask this book, choice 3), so pages can be found by what they mean as well as by
+/// their words. The same endpoint as the chat model, with an embedding model of its own.
+/// </summary>
+public interface IEmbeddingClient
+{
+    /// <summary>One vector per text, in the same order.</summary>
+    /// <exception cref="ModelEndpointException">The endpoint can't be reached, refused the request, or doesn't have the model.</exception>
+    /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
+    Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default);
+}
+
+/// <summary>
 /// One adapter over HttpClient and System.Text.Json, with no SDK (choice 8). It asks Ollama's own version call first;
 /// an endpoint that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
 /// OpenAI-compatible chat completions with a JSON-schema response format. It sends only what it is given: no tools,
-/// no functions, nothing from any other file.
+/// no functions, nothing from any other file. Embeddings go to Ollama's own embed call, or the OpenAI-compatible one.
 /// </summary>
-public sealed class LocalModelClient : IModelClient
+public sealed class LocalModelClient : IModelClient, IEmbeddingClient
 {
     readonly HttpClient _http;
     readonly Func<string?> _apiKey;
@@ -296,6 +308,38 @@ public sealed class LocalModelClient : IModelClient
             return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
                 ?? throw new ClassifierAnswerException("The model's answer was empty.");
         }
+    }
+
+    public async Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default)
+    {
+        if (texts.Count == 0) return [];
+        _kind ??= (await ConnectAsync(ct)).Kind;
+        var input = new JsonArray([.. texts.Select(t => (JsonNode)t)]);
+        JsonNode? json;
+        IEnumerable<JsonNode?> vectors;
+        if (_kind == EndpointKind.Ollama)
+        {
+            // Ollama cuts a text that is too long for the model rather than refusing it.
+            var body = new JsonObject { ["model"] = model, ["input"] = input, ["truncate"] = true };
+            using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/embed"), body, ct);
+            json = await ReadJsonAsync(response, ct);
+            vectors = json?["embeddings"] as JsonArray ?? [];
+        }
+        else
+        {
+            var body = new JsonObject { ["model"] = model, ["input"] = input };
+            using var response = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "embeddings"), body, ct);
+            json = await ReadJsonAsync(response, ct);
+            vectors = (json?["data"] as JsonArray ?? []).OrderBy(d => d?["index"]?.GetValue<int>() ?? 0).Select(d => d?["embedding"]);
+        }
+        var result = new List<float[]>(texts.Count);
+        foreach (var vector in vectors)
+        {
+            if (vector is not JsonArray numbers || numbers.Count == 0) throw new ModelRequestException("The model server sent an empty vector.");
+            result.Add([.. numbers.Select(n => n?.GetValue<float>() ?? 0f)]);
+        }
+        return result.Count == texts.Count ? result
+            : throw new ModelRequestException($"The model server sent {result.Count} vectors for {texts.Count} texts. Is {model} an embedding model?");
     }
 
     /// <summary>

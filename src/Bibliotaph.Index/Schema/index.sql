@@ -92,6 +92,23 @@ CREATE TRIGGER page_au AFTER UPDATE OF text ON page BEGIN
     INSERT INTO page_fts (rowid, text) VALUES (new.id, new.text);
 END;
 
+-- Ask this book: one vector per page, made by the embedding model set in Settings > AI the first time the book is asked,
+-- so its pages can be found by meaning. model and version say what made it (EmbeddingText.Version); a vector of another
+-- model or version is stale, and is made again when the book is next asked. A page that goes, or whose text changes,
+-- takes its vector with it. vector is little-endian float32s.
+CREATE TABLE page_vec (
+    page_id  INTEGER PRIMARY KEY,
+    model    TEXT    NOT NULL,
+    version  INTEGER NOT NULL,
+    vector   BLOB    NOT NULL
+);
+CREATE TRIGGER page_vec_ad AFTER DELETE ON page BEGIN
+    DELETE FROM page_vec WHERE page_id = old.id;
+END;
+CREATE TRIGGER page_vec_au AFTER UPDATE OF text ON page WHEN new.text IS NOT old.text BEGIN
+    DELETE FROM page_vec WHERE page_id = old.id;
+END;
+
 -- Library cards: each entry and the document it shows (its current source), projected from catalog.db. A pack shows
 -- its first image. A book owned elsewhere has no document: queries join doc optionally.
 CREATE TABLE entry_doc (
@@ -257,4 +274,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 12;
+PRAGMA user_version = 13;

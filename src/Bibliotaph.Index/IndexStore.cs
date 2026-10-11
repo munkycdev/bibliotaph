@@ -234,6 +234,30 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute("UPDATE page SET needs_ocr = 0, error = @error WHERE document_id = @documentId AND pdf_page = @pdfPage",
                 new { documentId, pdfPage, error }, t), ct);
 
+    /// <summary>
+    /// Keeps pages' vectors from the embedding model <paramref name="model"/> (Ask this book), replacing any a page had.
+    /// A page that has gone since its text was read is passed over.
+    /// </summary>
+    public Task SaveVectorsAsync(string model, int version, IReadOnlyList<(long PageId, float[] Vector)> vectors, CancellationToken ct = default) =>
+        vectors.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+            c.Execute(
+                """
+                INSERT OR REPLACE INTO page_vec (page_id, model, version, vector)
+                SELECT @PageId, @model, @version, @Vector WHERE EXISTS (SELECT 1 FROM page WHERE id = @PageId)
+                """,
+                vectors.Select(v => new { v.PageId, model, version, Vector = VectorBlob.ToBytes(v.Vector) }), t), ct);
+
+    /// <summary>
+    /// Drops a book's vectors that another embedding model, or another version of the text sent, made: changing the
+    /// model in Settings makes them stale, and they are made again as the book is filled.
+    /// </summary>
+    public Task DeleteStaleVectorsAsync(long documentId, string model, int version, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) => c.Execute(
+            """
+            DELETE FROM page_vec WHERE (model <> @model OR version <> @version)
+              AND page_id IN (SELECT id FROM page WHERE document_id = @documentId)
+            """, new { documentId, model, version }, t), ct);
+
     public Task SetCoverAsync(long documentId, string? cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
