@@ -133,6 +133,11 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_opened"));
         // Version 11: the collections' names, for collection:"name".
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM scope_name"));
+        // Version 13: adventures inside a file know it and their pages; a file counts them; their first pages have covers.
+        Assert.Equal(((long?)null, (long?)null, (long?)null, 0L),
+            read.QuerySingle<(long?, long?, long?, long)>("SELECT parent_id, first_page, last_page, parts FROM entry_doc"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM page_cover"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'index' AND name = 'entry_doc_parent'"));
     }
 
     [Fact]

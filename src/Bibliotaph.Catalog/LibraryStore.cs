@@ -592,7 +592,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .Select(s => new
             {
                 s.EntryId,
-                s.Entry.ParentEntryId,
+                // An image's pack; an adventure inside a file (slice 5) goes by its own pages, not its file's card.
+                ParentEntryId = s.Entry.ParentEntry != null && s.Entry.ParentEntry.Kind == EntryKind.Pack ? s.Entry.ParentEntryId : null,
                 Offline = s.Document.Locations.Any(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability == SourceRootAvailability.Offline),
             })
             .ToListAsync(ct);

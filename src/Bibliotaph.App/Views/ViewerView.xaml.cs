@@ -133,4 +133,7 @@ public partial class ViewerView
 
     /// <summary>Note: on the page with selected text, if there is a selection, else the page in view.</summary>
     void AddNote_Click(object sender, RoutedEventArgs e) => _model?.AddNoteCommand.Execute(PagesView.SelectionPageIndex);
+
+    /// <summary>A bookmark's Index as its own adventure (slice 5): the menu's row is the bookmark.</summary>
+    void IndexBookmark_Click(object sender, RoutedEventArgs e) => _model?.IndexBookmarkCommand.Execute((sender as FrameworkElement)?.DataContext as OutlineEntry);
 }

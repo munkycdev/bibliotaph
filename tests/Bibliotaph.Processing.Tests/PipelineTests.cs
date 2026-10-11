@@ -57,6 +57,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     readonly HeldStage.Gate _matchGate = new();
     readonly TestPasswords _passwords = new();
     IndexStore _indexStore = null!;
+    PartStore _partStore = null!;
+    PartsService _parts = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -96,13 +98,16 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _notes = new NoteStore(contexts);
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
             favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes);
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector);
+        _partStore = new PartStore(contexts);
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
+            _partStore);
+        _parts = new PartsService(_partStore, entries, _queries, projector, services);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
         _pageRefs = new PageRefStore(contexts);
         _places = new PagePlaces(_pageRefs, entries, library, _queries, _reading);
-        _copies = new CopiesService(entries, versions, library, _queries, projector, _places);
+        _copies = new CopiesService(entries, versions, library, _queries, projector, _places, _parts);
         var elsewhere = new ElsewhereStore(contexts, entries);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
         var packStore = new PackStore(contexts);
@@ -115,7 +120,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
-                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places), _matchGate),
+                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, parts: _parts), _matchGate),
             ],
             new FileHasher(reader), new DiskSpace(), archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },

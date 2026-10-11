@@ -35,6 +35,20 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
 
     /// <summary>A page note opened at its pages, which may have moved or changed in the book as it is now (slice 4h plan, choice 2).</summary>
     public PageNoteOpen? PageNote { get; init; }
+
+    /// <summary>
+    /// An adventure inside a file, opened from its card (slice 5 plan, choice 11): the file opens at the adventure's
+    /// first page, its pages stand out in the Contents panel, and Find looks in them unless told to look in the whole file.
+    /// </summary>
+    public PartOpen? Part { get; init; }
+}
+
+/// <summary>An adventure inside a file being read: its card, the file's title, and its pages in the file that opens.</summary>
+public sealed record PartOpen(Bibliotaph.Core.EntryId EntryId, string FileTitle, Bibliotaph.Core.PartPages Pages)
+{
+    /// <summary>The request that opens it from its card, at its first page.</summary>
+    public static ViewerRequest Open(long documentId, string title, Bibliotaph.Core.EntryId entryId, string? fileTitle, Bibliotaph.Core.PartPages pages) =>
+        new(documentId, title, pages.First) { Part = new PartOpen(entryId, fileTitle ?? "its file", pages) };
 }
 
 /// <summary>

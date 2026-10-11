@@ -19,7 +19,9 @@ namespace Bibliotaph.Index;
 /// elsewhere (<see cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/>
 /// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/>
 /// is a heart on it (slice 3), and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/>
-/// says when its text won't be read by itself: it is locked, protected or forgotten (slice 4i).
+/// says when its text won't be read by itself: it is locked, protected or forgotten (slice 4i). An adventure inside a
+/// file (<see cref="IsPart"/>, slice 5) opens its file's document at its first page; its cover is that page and its
+/// page count its own pages.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
@@ -35,6 +37,29 @@ public sealed record LibraryEntry(
 
     /// <summary>The cover file names of a pack's first four images that have one.</summary>
     public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
+
+    /// <summary>An adventure inside a file (slice 5): a card of its own for some of the file's pages.</summary>
+    public bool IsPart => EntryKind == EntryKind.Part;
+
+    /// <summary>For an adventure inside a file, the file's entry.</summary>
+    public EntryId? ParentEntryId { get; init; }
+
+    /// <summary>For an adventure inside a file, the title of the file it is in.</summary>
+    public string? ParentTitle { get; init; }
+
+    /// <summary>For an adventure inside a file, its first and last PDF pages in <see cref="DocumentId"/>.</summary>
+    public PartPages? Pages { get; init; }
+
+    /// <summary>For an adventure inside a file, the printed labels of its first and last pages, when the file has them.</summary>
+    public string? FirstLabel { get; init; }
+
+    public string? LastLabel { get; init; }
+
+    /// <summary>For a file, how many adventures are marked in it: "5 adventures" (slice 5 plan, choice 9).</summary>
+    public int Parts { get; init; }
+
+    /// <summary>"in The Big Compilation · pp. 34–52", for an adventure's card; null for any other.</summary>
+    public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
 
 /// <summary>An image in a pack, in file name order: the document it shows, its own entry, its name and its cover.</summary>
@@ -81,6 +106,8 @@ public enum AiFilter
 /// has or hasn't read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in
 /// any of those places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of
 /// entry_scope, such as the favourites (slice 3), and <see cref="OnlyOpened"/> those that have been opened.
+/// <see cref="HideParts"/> leaves out the adventures inside files (slice 5 plan, choice 9: "Adventures inside files:
+/// Hide"), whose page hits then go with their files.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -94,7 +121,8 @@ public sealed record LibraryFilter(
     bool OnlyWithCopies = false,
     IReadOnlyCollection<string>? Owns = null,
     string? Group = null,
-    bool OnlyOpened = false);
+    bool OnlyOpened = false,
+    bool HideParts = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -140,7 +168,11 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     const string EntryColumns = """
         e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, coalesce(m.title, e.name, d.display_title, '') AS Title, coalesce(d.format, '') AS Format,
-        d.page_count AS PageCount, d.cover AS Cover, d.folder_hint AS FolderHint, coalesce(d.added_utc, e.added_utc, '') AS AddedUtc,
+        CASE WHEN e.kind = 'Part' THEN e.last_page - e.first_page + 1 ELSE d.page_count END AS PageCount,
+        CASE WHEN e.kind = 'Part' THEN coalesce(
+            (SELECT pc.cover FROM page_cover pc WHERE pc.document_id = e.document_id AND pc.pdf_page = e.first_page),
+            CASE WHEN e.first_page = 0 THEN d.cover END) ELSE d.cover END AS Cover,
+        d.folder_hint AS FolderHint, coalesce(d.added_utc, e.added_utc, '') AS AddedUtc,
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable, s.status AS TextStatus, s.reason AS TextReason,
         ps.status AS ProbeStatus, ps.reason AS ProbeReason,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
@@ -151,7 +183,14 @@ public sealed class LibraryQueries(IndexDatabase database)
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
         (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn,
-        EXISTS (SELECT 1 FROM entry_scope fs WHERE fs.scope = 'favorite' AND fs.entry_id = e.entry_id) AS Favorite, o.opened_utc AS OpenedUtc
+        EXISTS (SELECT 1 FROM entry_scope fs WHERE fs.scope = 'favorite' AND fs.entry_id = e.entry_id) AS Favorite, o.opened_utc AS OpenedUtc,
+        e.parent_id AS ParentId, e.first_page AS FirstPage, e.last_page AS LastPage, e.parts AS Parts,
+        CASE WHEN e.parent_id IS NOT NULL THEN (
+            SELECT coalesce(pm.title, pe.name, pd.display_title) FROM entry_doc pe
+            LEFT JOIN entry_meta pm ON pm.entry_id = pe.entry_id LEFT JOIN doc pd ON pd.document_id = pe.document_id
+            WHERE pe.entry_id = e.parent_id) END AS ParentTitle,
+        CASE WHEN e.kind = 'Part' THEN (SELECT fp.label FROM page fp WHERE fp.document_id = e.document_id AND fp.pdf_page = e.first_page) END AS FirstLabel,
+        CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel
         """;
 
     /// <summary>
@@ -309,10 +348,19 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE copies > 1", cancellationToken: ct));
     }
 
+    /// <summary>How many adventures inside files there are (slice 5), so the Library offers to hide them once there are some.</summary>
+    public async Task<long> CountPartsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE kind = 'Part'", cancellationToken: ct));
+    }
+
     /// <summary>
     /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most
     /// <paramref name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other
-    /// copies of a book don't repeat its hits. Snippets are made only for the pages returned.
+    /// copies of a book don't repeat its hits. A page inside an adventure marked in a file goes with the adventure, and
+    /// with the file only when the adventure is filtered out (slice 5 plan, choice 10). Snippets are made only for the
+    /// pages returned.
     /// Exclusions alone find no pages, so a query like <c>-maps</c> returns nothing here.
     /// </summary>
     public async Task<PageResults> SearchPagesAsync(
@@ -325,17 +373,24 @@ public sealed class LibraryQueries(IndexDatabase database)
         where.Parameters.Add("perDocument", pagesPerDocument);
         var sql = $"""
             WITH matched AS (
-                SELECT p.document_id AS doc, p.id AS page_id, page_fts.rank AS score
+                SELECT p.document_id AS doc, p.pdf_page AS pdf_page, p.id AS page_id, page_fts.rank AS score
                 FROM page_fts JOIN page p ON p.id = page_fts.rowid
                 WHERE page_fts MATCH @match
             ),
-            ranked AS (
-                SELECT e.entry_id AS entry, m.page_id,
-                       row_number() OVER (PARTITION BY e.entry_id ORDER BY m.score, m.page_id) AS n,
-                       min(m.score) OVER (PARTITION BY e.entry_id) AS best,
-                       count(*) OVER (PARTITION BY e.entry_id) AS pages
-                FROM matched m JOIN entry_doc e ON e.document_id = m.doc JOIN doc d ON d.document_id = e.document_id
+            claimed AS (
+                SELECT e.entry_id AS entry, m.page_id, m.score,
+                       row_number() OVER (PARTITION BY m.page_id ORDER BY e.kind <> 'Part', e.entry_id) AS k
+                FROM matched m
+                JOIN entry_doc e ON e.document_id = m.doc AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
+                JOIN doc d ON d.document_id = e.document_id
                 WHERE {where.Sql}
+            ),
+            ranked AS (
+                SELECT entry, page_id,
+                       row_number() OVER (PARTITION BY entry ORDER BY score, page_id) AS n,
+                       min(score) OVER (PARTITION BY entry) AS best,
+                       count(*) OVER (PARTITION BY entry) AS pages
+                FROM claimed WHERE k = 1
             )
             SELECT entry AS Entry, page_id AS PageId, pages AS Pages FROM ranked WHERE n <= @perDocument ORDER BY best, entry, n
             """;
@@ -492,7 +547,15 @@ public sealed class LibraryQueries(IndexDatabase database)
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
             r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn, r.Favorite != 0, r.OpenedUtc is { Length: > 0 } opened ? Utc(opened) : null,
-            Access(r)))];
+            Access(r))
+        {
+            ParentEntryId = r.ParentId is { } parent ? new EntryId(parent) : null,
+            ParentTitle = r.ParentTitle,
+            Pages = r.FirstPage is { } first && r.LastPage is { } last ? new PartPages((int)first, (int)last) : null,
+            FirstLabel = r.FirstLabel,
+            LastLabel = r.LastLabel,
+            Parts = (int)r.Parts,
+        })];
 
     /// <summary>
     /// Whether a card's text is locked, protected or forgotten, from how its document's Probe stage stopped, or its Text
@@ -558,6 +621,13 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? AlsoOwn { get; init; }
         public long Favorite { get; init; }
         public string? OpenedUtc { get; init; }
+        public long? ParentId { get; init; }
+        public long? FirstPage { get; init; }
+        public long? LastPage { get; init; }
+        public long Parts { get; init; }
+        public string? ParentTitle { get; init; }
+        public string? FirstLabel { get; init; }
+        public string? LastLabel { get; init; }
     }
 
     sealed class HitRow
@@ -623,6 +693,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             }
 
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
+            if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
 
             if (filter.Ai != AiFilter.All)
                 _sql.Append($" AND e.entry_id {(filter.Ai == AiFilter.Read ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_ai)");

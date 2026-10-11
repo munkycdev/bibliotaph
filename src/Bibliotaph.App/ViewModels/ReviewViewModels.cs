@@ -22,6 +22,9 @@ public interface IReviewActions
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
     Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
     Task<Func<Task>?> UsePlaceAsync(RevisionPlace place);
+    Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId);
+    Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages);
+    Task<Func<Task>> RemovePartAsync(UnplacedPart part);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -418,6 +421,57 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
+}
+
+/// <summary>
+/// An adventure inside a file whose pages weren't found in the copy or new version the file opens now (slice 5 plan,
+/// choice 12). Set its pages types them as the file numbers them, starting from where they were; Remove adventure
+/// takes its card away. Until then its card opens the file at its first page.
+/// </summary>
+public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOnlyList<string?> labels, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public UnplacedPart Part { get; } = part;
+
+    public string Title => Part.Title;
+
+    public string Heading => $"The pages of {Part.Title} weren't found in the file {Part.FileTitle} opens now.";
+
+    public static string Detail => "It may be a new version of the file, with pages added or moved. Set its pages to say where it is now, or remove the adventure.";
+
+    /// <summary>Its pages being typed, inline on the card.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditing))]
+    public partial PartEditorViewModel? Editor { get; private set; }
+
+    public bool IsEditing => Editor is not null;
+
+    int? FindPage(string text) => Bibliotaph.Core.Reading.PageNumbers.Find(text, labels, labels.Count);
+
+    string Shown(int page) => Bibliotaph.Core.Reading.PageNumbers.Display(page, labels);
+
+    [RelayCommand]
+    void SetPages()
+    {
+        var was = Part.WasPages is { } p && p.Last < labels.Count ? p : (PartPages?)null;
+        var (from, to) = was is { } pages ? (Shown(pages.First), pages.Count == 1 ? "" : Shown(pages.Last)) : ("", "");
+        var editor = new PartEditorViewModel($"The pages of {Part.Title}", "Save pages", null, from, to, FindPage, async (_, pages) =>
+        {
+            var (problem, undo) = await Actions.SetPartPagesAsync(Part, pages);
+            if (problem is null) MarkDone($"{Part.Title} is on {pages.Describe(labels)} now.", undo ?? (() => Task.CompletedTask));
+            return problem;
+        });
+        editor.Closed += (_, _) =>
+        {
+            if (Editor == editor) Editor = null;
+        };
+        Editor = editor;
+    }
+
+    [RelayCommand]
+    Task RemovePart() => DecideAsync(() => Actions.RemovePartAsync(Part), $"Removed the adventure {Part.Title}. Its pages are only the file's again.");
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Part.DocumentId, Part.FileTitle);
 }
 
 /// <summary>

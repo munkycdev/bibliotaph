@@ -282,6 +282,12 @@
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
                         AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
             </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowPartsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
+              <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PartsChoices}" SelectedItem="{Binding PartsChoice}"
+                        AutomationProperties.Name="Adventures inside files" MinWidth="150"
+                        ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
+            </StackPanel>
             <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding OwnChoices}" SelectedItem="{Binding OwnChoice}"
@@ -981,6 +987,74 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!--
+              Adventures inside a compilation (slice 5): a file lists those marked in it, each a card of its own, with Add,
+              Edit range and Remove; an adventure says which file it is in. Pages are typed as the file numbers them.
+            -->
+            <StackPanel x:Name="FileParts" Visibility="{Binding CanMarkParts, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <DockPanel>
+                <Button x:Name="AddPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}"
+                        VerticalAlignment="Bottom" Margin="0,0,0,10" Command="{Binding AddPartCommand}"
+                        ToolTip="Give pages of this file a card of their own, as an adventure" AutomationProperties.Name="Add an adventure in this file" />
+                <TextBlock Text="{Binding PartsHeading}" Style="{StaticResource SectionHead}" />
+              </DockPanel>
+              <TextBlock Text="A compilation's adventures can each have a card of their own that opens at their pages. The file isn't changed."
+                         Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
+                         Visibility="{Binding HasParts, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              <ItemsControl ItemsSource="{Binding Parts}" Focusable="False" AutomationProperties.Name="Adventures in this file">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:InspectorPart}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8" AutomationProperties.Name="{Binding Title}">
+                      <StackPanel>
+                        <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" HorizontalAlignment="Left"
+                                AutomationProperties.Name="{Binding Title, StringFormat='Details for {0}'}"
+                                Command="{Binding DataContext.ShowPartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                        <TextBlock Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                        <WrapPanel Margin="0,10,0,0">
+                          <Button Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Edit the pages of {0}'}"
+                                  Command="{Binding DataContext.EditPartRangeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                          <Button Content="Remove" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Its card goes; its pages are only the file's again"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Remove the adventure {0}'}"
+                                  Command="{Binding DataContext.RemovePartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                        </WrapPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel x:Name="PartOfFile" Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="IN A FILE" Style="{StaticResource SectionHead}" />
+              <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                <StackPanel>
+                  <TextBlock x:Name="PartOfText" Text="{Binding PartOf}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
+                  <TextBlock Text="Values set on the file, such as its system and publisher, are this adventure's too unless it has its own."
+                             Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  <WrapPanel Margin="0,10,0,0">
+                    <Button x:Name="ShowPartFile" Content="Show the file" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
+                            Command="{Binding ShowPartFileCommand}" AutomationProperties.Name="Show the file this adventure is in" />
+                    <Button x:Name="EditOwnRange" Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,8"
+                            Command="{Binding EditPartRangeCommand}" AutomationProperties.Name="Edit this adventure's pages" />
+                    <Button x:Name="RemoveThisPart" Content="Remove adventure" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
+                            ToolTip="This card goes; its pages are only the file's again" Command="{Binding RemoveThisPartCommand}" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <Border Margin="0,0,0,8" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <v:PartEditorView x:Name="InspectorPartEditor" DataContext="{Binding PartEditor}" />
+            </Border>
+            <DockPanel Margin="0,0,0,8" Visibility="{Binding PartMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                      ToolTip="Dismiss" AutomationProperties.Name="Dismiss" Command="{Binding DismissPartMessageCommand}" />
+              <Button x:Name="UndoPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                      Command="{Binding UndoPartCommand}" AutomationProperties.Name="Undo the change to the adventures"
+                      Visibility="{Binding HasPartUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="PartMessage" Text="{Binding PartMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
+                         AutomationProperties.LiveSetting="Polite" />
+            </DockPanel>
 
             <TextBlock Text="{Binding FactsHeading}" Style="{StaticResource SectionHead}" />
             <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Grid.IsSharedSizeScope="True">

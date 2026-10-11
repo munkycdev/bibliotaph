@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011022641_CatalogPins";
+    public override string LastMigrationId => "20261011044120_CatalogParts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -413,6 +413,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("entry_id");
 
+                b.Property<string>("FirstFingerprint")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("first_fingerprint");
+
                 b.Property<int?>("FirstPdfPage")
                     .HasColumnType("INTEGER")
                     .HasColumnName("first_pdf_page");
@@ -420,6 +424,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Property<bool>("IsCurrent")
                     .HasColumnType("INTEGER")
                     .HasColumnName("is_current");
+
+                b.Property<string>("LastFingerprint")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("last_fingerprint");
 
                 b.Property<int?>("LastPdfPage")
                     .HasColumnType("INTEGER")

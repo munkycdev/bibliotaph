@@ -205,6 +205,10 @@ Settings areas: Sources, AI and privacy, Vocabulary, Processing, Appearance/acce
 
 Processing status provides pause/resume, current stage, queued count, failures, retry, and resource preference. Start with conservative resource use. OCR and AI can be paused independently of discovery and browsing. When the app closes, active work checkpoints safely; optional tray operation is a later enhancement, not the default.
 
+### 5.8 Adventures inside a file (slice 5)
+
+A compilation file can hold several adventures, and each can be a card of its own: marked by hand from a bookmark in the reader's Contents panel, from Mark as adventure in the reader, or from "Adventures in this file" in the file's details, as a first and last page typed as the file prints them. The file is never split or changed. An adventure's card has its first page as cover and says which file and pages it is in; it has its own title, type, levels and other values, and takes the file's system, edition, publisher, series, year and setting unless it has its own. The file's card counts its adventures, and the Library can hide them. A page found inside an adventure is listed under it. Opening one opens the file at its first page, with its pages marked in Contents, "page 3 of 19 of this adventure" in the toolbar, and Find limited to it unless Whole file is ticked. Copies of the file share its adventures, and a new version finds each by its first page; one it can't find goes to Needs Review.
+
 ## 6. Metadata and classification requirements
 
 ### Metadata dimensions

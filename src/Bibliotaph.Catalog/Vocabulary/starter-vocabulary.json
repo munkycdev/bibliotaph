@@ -1,6 +1,6 @@
 {
   "comment": "Starter vocabularies, seeded into catalog.db by version. A term or alias is added only when the stored seed version is below its 'since' (default 1), and never overwrites a term the user has changed. Add new terms with a higher 'since' and bump 'version'. Keys are stable: never rename one.",
-  "version": 2,
+  "version": 3,
   "terms": [
     { "vocabulary": "system", "key": "dnd", "label": "Dungeons & Dragons", "short": "D&D", "aliases": ["D&D", "DnD", "D and D", "Dungeons and Dragons", "AD&D", "ADnD"] },
     { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "short": "OD&D", "aliases": ["OD&D", "ODnD", "Original D&D", "0e"] },
@@ -58,6 +58,7 @@
     { "vocabulary": "type", "key": "map-pack", "label": "Map pack", "aliases": ["map pack", "map packs", "maps", "battlemaps", "battle maps", "battlemap", "battle map", "dungeon maps", "city maps", "world maps", "map"] },
     { "vocabulary": "type", "key": "handout", "label": "Handout", "aliases": ["handouts", "player handouts", "props"] },
     { "vocabulary": "type", "key": "magazine", "label": "Magazine", "aliases": ["magazines", "zine", "zines", "fanzine", "dragon magazine", "dungeon magazine"] },
+    { "vocabulary": "type", "key": "anthology", "label": "Anthology", "aliases": ["anthologies", "compilation", "compilations", "collection of adventures", "adventure anthology", "adventure collection"], "since": 3 },
 
     { "vocabulary": "setting", "key": "forgotten-realms", "label": "Forgotten Realms", "aliases": ["FR", "Faerun", "Faerûn", "Sword Coast"] },
     { "vocabulary": "setting", "key": "greyhawk", "label": "Greyhawk", "aliases": ["World of Greyhawk", "Oerth"] },

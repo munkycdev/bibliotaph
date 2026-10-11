@@ -39,15 +39,16 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     {
         if (entryIds.Count == 0) return;
         await _gate.WaitAsync(ct);
+        IReadOnlyCollection<EntryId> projected;
         try
         {
-            await WriteAsync(entryIds, ct);
+            projected = await WriteAsync(entryIds, ct);
         }
         finally
         {
             _gate.Release();
         }
-        Projected?.Invoke(this, entryIds);
+        Projected?.Invoke(this, projected);
     }
 
     /// <summary>
@@ -129,8 +130,13 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         }
     }
 
-    async Task WriteAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct)
+    /// <summary>
+    /// Projects these entries and the adventures marked in their files (slice 5), whose cards show their file's title
+    /// and take its game system, publisher and the rest. Returns every entry projected.
+    /// </summary>
+    async Task<IReadOnlyCollection<EntryId>> WriteAsync(IReadOnlyCollection<EntryId> requested, CancellationToken ct)
     {
+        IReadOnlyCollection<EntryId> entryIds = [.. requested.Union(await entries.GetPartIdsAsync(requested, ct))];
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
         var current = await entries.GetCurrentAsync(entryIds, ct);
@@ -143,6 +149,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.ClearMetadataAsync([.. shown.Where(id => !all.ContainsKey(id))], ct);
         if (runs is not null) await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
         await WriteMarksAsync(shown, ct);
+        return entryIds;
     }
 
     internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
@@ -150,6 +157,9 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         Name = entry.Name,
         AddedUtc = entry.AddedUtc,
         Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
+        ParentEntryId = entry.ParentEntryId,
+        Pages = entry.Pages,
+        Parts = entry.Parts,
     };
 
     /// <summary>Copies every name of every term into index.db, for field search. Run when a term is added.</summary>

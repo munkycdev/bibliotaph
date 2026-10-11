@@ -237,7 +237,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
+    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
+        : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -286,7 +287,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers)
+        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
+        Microsoft.Extensions.Logging.ILogger log)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -309,10 +311,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             locations = [.. (await library.GetLocationsAsync(item.DocumentId))
                 .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath,
                     IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online))];
-            copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
+            // An adventure inside a file is in the file's copies; its file's details list them.
+            if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere);
         await inspector.ReloadMetadataAsync(changed: false);
+        await inspector.LoadPartsAsync(parts, log);
         return inspector;
     }
 

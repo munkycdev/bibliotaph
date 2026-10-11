@@ -121,6 +121,13 @@ public sealed class EntrySource
     /// <summary>A part's first PDF page in this document; null for the whole document.</summary>
     public int? FirstPdfPage { get; set; }
     public int? LastPdfPage { get; set; }
+    /// <summary>
+    /// A part's first and last page-text fingerprints (<see cref="Core.PageFingerprints"/>) in this document, so its
+    /// pages can be found in another copy or a new version of the file (slice 5 plan, choice 12); null for the whole
+    /// document, or for a page with too little text.
+    /// </summary>
+    public string? FirstFingerprint { get; set; }
+    public string? LastFingerprint { get; set; }
     public bool IsCurrent { get; set; }
 }
 
