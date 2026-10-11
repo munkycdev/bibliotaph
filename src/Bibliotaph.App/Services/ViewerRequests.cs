@@ -33,6 +33,9 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// <summary>A session item opened from its pack: it opens at its first page and, like a search hit, keeps no reading position.</summary>
     public SessionItemOpen? SessionItem { get; init; }
 
+    /// <summary>"Ask this book" from a card's menu or the details (Ask plan, choice 11): the book opens with its Ask panel showing.</summary>
+    public bool Ask { get; init; }
+
     /// <summary>A page note opened at its pages, which may have moved or changed in the book as it is now (slice 4h plan, choice 2).</summary>
     public PageNoteOpen? PageNote { get; init; }
 

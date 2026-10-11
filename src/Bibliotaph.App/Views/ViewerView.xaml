@@ -286,7 +286,7 @@
             </ListBox>
           </DockPanel>
         </Border>
-        <!-- Ask this book (Ask plan, Q1): a question, and the pages that look like they answer it, each opening its page. -->
+        <!-- Ask this book (Ask plan): a question, the answer with its citations as links, and the pages it was read from, each opening its page. -->
         <Border x:Name="AskPanel" DockPanel.Dock="Right" Width="320" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
                 BorderThickness="1,0,0,0" DataContext="{Binding Ask}">
           <Border.Style>
@@ -316,15 +316,22 @@
               <DockPanel Margin="0,8,0,0">
                 <Button x:Name="AskButton" DockPanel.Dock="Left" Style="{StaticResource Bt.Button.Primary}" Content="Ask" Command="{Binding AskCommand}"
                         AutomationProperties.Name="Ask" />
-                <TextBlock Text="Looking through the book…" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="10,0,0,0"
-                           Visibility="{Binding IsAsking, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <Button x:Name="AskStop" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Stop" Command="{Binding StopCommand}"
+                        ToolTip="Stop the answer here" AutomationProperties.Name="Stop answering"
+                        Visibility="{Binding IsAnswering, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="AskStep" Text="{Binding Step}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="10,0,0,0"
+                           TextTrimming="CharacterEllipsis" Visibility="{Binding Step, Converter={StaticResource Bt.VisibleWhenSet}}" />
               </DockPanel>
               <TextBlock Text="{Binding Asked}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,14,0,0"
                          Visibility="{Binding Asked, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <!-- The answer, checked as it streams: each [p. N] opens its page; a quotation not on its page is in italics, without its marks. -->
+              <TextBlock x:Name="AskAnswer" c:AnswerText.Parts="{Binding Answer}" c:AnswerText.Command="{Binding OpenCitationCommand}" FontSize="13"
+                         Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" LineHeight="19" Margin="0,8,0,0" AutomationProperties.Name="The answer"
+                         Visibility="{Binding HasAnswer, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               <TextBlock x:Name="AskMessage" Text="{Binding Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,8,0,0"
                          Visibility="{Binding Message, Converter={StaticResource Bt.VisibleWhenSet}}" />
-              <TextBlock Text="PAGES THAT LOOK LIKE THEY ANSWER IT" Style="{StaticResource Text.Eyebrow}" Margin="0,12,0,6"
-                         Visibility="{Binding HasPassages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="AskPassagesHeading" Text="{Binding PassagesHeading}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Muted}"
+                         TextWrapping="Wrap" Margin="0,14,0,6" Visibility="{Binding HasPassages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               <ItemsControl x:Name="AskPassages" ItemsSource="{Binding Passages}" Focusable="False" AutomationProperties.Name="Pages that look like they answer it"
                             KeyboardNavigation.TabNavigation="Continue">
                 <ItemsControl.ItemTemplate>

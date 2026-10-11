@@ -1392,6 +1392,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
             Ask.Attach(source.DocumentId);
+            if (request.Ask && Ask.IsOn) AskVisible = true;
             _ = LoadPageNotesAsync();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");

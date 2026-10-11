@@ -77,6 +77,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly DispatcherTimer _staleTimer;
     readonly NotesService _notes;
     readonly ExportService _export;
+    readonly AskService _ask;
     readonly CorrectionService _corrections;
     int _version;
     bool _loaded;
@@ -87,11 +88,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, ILogger<LibraryViewModel> log)
+        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _parts = parts;
         _export = export;
+        _ask = ask;
         _corrections = corrections;
         Pins = pins;
         Views = views;
@@ -1146,6 +1148,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     static bool CanReadTextAgain(LibraryItemViewModel? item) => item is { CanReadAgain: true };
+
+    /// <summary>"Ask this book", from a card's menu or the details: opens the PDF with its Ask panel showing (Ask plan, choice 11).</summary>
+    [RelayCommand(CanExecute = nameof(CanAskBook))]
+    void AskBook(LibraryItemViewModel item) => _readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title) { Resume = true, Ask = true });
+
+    bool CanAskBook(LibraryItemViewModel? item) => item is { CanAsk: true } && _ask.IsOn;
 
     /// <summary>Opens a book in a window of its own, from a card's menu, the inspector, Shift+Enter or middle-click.</summary>
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenBook))]

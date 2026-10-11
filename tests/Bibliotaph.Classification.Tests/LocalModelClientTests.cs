@@ -445,4 +445,44 @@ public class LocalModelClientTests
 
         Assert.Contains("Is qwen3:8b an embedding model?", ex.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task A_request_without_a_schema_streams_prose_from_ollama_with_no_format()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""
+                {"message":{"content":"The dragon sleeps "},"done":false}
+                {"message":{"content":"under the mill [p. 12]."},"done":true}
+                """),
+            _ => NotFound,
+        });
+        var reports = new Reports();
+
+        var answer = await client.CompleteAsync(Request with { SchemaJson = null, Progress = reports }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("The dragon sleeps under the mill [p. 12].", answer);
+        Assert.Equal(["", "The dragon sleeps ", "The dragon sleeps under the mill [p. 12]."], reports.All.Select(r => r.Answer));
+        var body = server.Requests.Single(r => r.Path == "/api/chat").Body!;
+        Assert.Null(body["format"]);
+        Assert.True((bool?)body["stream"]);
+    }
+
+    [Fact]
+    public async Task A_request_without_a_schema_asks_openai_chat_completions_for_no_response_format_and_doesnt_retry_a_refusal()
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest, """{"error":{"message":"context too long"}}"""),
+            _ => NotFound,
+        });
+
+        await Assert.ThrowsAsync<ModelEndpointException>(() => client.CompleteAsync(Request with { SchemaJson = null }, TestContext.Current.CancellationToken));
+
+        var chat = Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions").Body!;
+        Assert.Null(chat["response_format"]);
+    }
 }

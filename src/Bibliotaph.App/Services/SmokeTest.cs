@@ -146,7 +146,7 @@ static partial class SmokeTest
                     () => UsePartsAsync(services, window, reprocessed.Pdf));
                 await Check("a proposal of a file's adventures in Needs review: Not split and Undo, edited, accepted as one card, undone, and kept as one book",
                     () => ReviewPartProposalAsync(services, window, reprocessed.Pdf));
-                await Check("a PDF asked a question in the reader's Ask panel, its page found by words and then by meaning, opened from the panel with the word marked, and Ask hidden with AI off",
+                await Check("a PDF opened from Ask this book in its details and asked a question: the answer streamed with its citations checked and opening the page with the quotation marked, the page found by meaning on asking again, and Ask hidden with AI off",
                     () => AskBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a binder's next page in another book opened ahead of time with its page drawn, and shown from it by Next",

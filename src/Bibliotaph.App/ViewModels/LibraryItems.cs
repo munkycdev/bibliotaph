@@ -28,6 +28,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>The card has a file to open.</summary>
     public bool CanOpen => !IsElsewhere;
 
+    /// <summary>A PDF whose text Bibliotaph can read, so it can be asked a question (Ask plan, choice 11).</summary>
+    public bool CanAsk => CanOpen && !Entry.IsPack && string.Equals(Entry.Format, "pdf", StringComparison.OrdinalIgnoreCase) && TextAccess == TextAccess.Readable;
+
     public string Title => Entry.Title;
 
     /// <summary>

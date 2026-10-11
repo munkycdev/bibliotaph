@@ -49,6 +49,12 @@ public enum AskMeaning
 public sealed record AskFindings(string Question, IReadOnlyList<AskPassage> Passages, IReadOnlyList<AskEvidence> Evidence, bool Weak,
     IReadOnlyList<string> LookedAt, PageCoverage Coverage, AskMeaning Meaning, string? MeaningProblem);
 
+/// <summary>
+/// An answer to a question (Ask plan, steps 4 and 5): as the model wrote it, as checked against the pages sent, the
+/// model that wrote it, and the pages it was sent with the numbers they were cited by.
+/// </summary>
+public sealed record AskAnswer(string Question, string Text, CheckedAnswer Checked, string Model, IReadOnlyList<AskPromptPage> Pages);
+
 /// <summary>A book's vectors being made: how many of its pages with text have one, whether it is still going, and why it stopped if it failed.</summary>
 public sealed record AskFill(int Done, int Total, bool Running, string? Problem);
 
@@ -78,6 +84,9 @@ public sealed class AskService(
 
     /// <summary>Whether pages can be found by meaning: an embedding model is set up for the current AI.</summary>
     public bool HasEmbeddingModel => ai.Embedder is not null && ai.Setup.EmbeddingName is not null;
+
+    /// <summary>Whether a question can be answered, as well as its pages found: AI is ready with a chat model.</summary>
+    public bool CanAnswer => ai.Chat is not null && ai.Setup.ModelName is not null;
 
     /// <summary>Raised, on any thread, when AI's setup changes, which can show or hide Ask.</summary>
     public event EventHandler? Changed
@@ -174,6 +183,39 @@ public sealed class AskService(
             documentId, wordHits.Count, meaning?.Count ?? 0, evidence.Count, weak ? ", signals too weak to answer" : "",
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return new AskFindings(question, passages, evidence, weak, lookedAt, coverage, meaningState, problem);
+    }
+
+    /// <summary>The evidence as it is sent: each page with the number it is cited by.</summary>
+    public static IReadOnlyList<AskPromptPage> PromptPages(AskFindings findings)
+    {
+        var markers = AskPrompt.Markers([.. findings.Evidence.Select(e => (e.PdfPage, e.Page))]);
+        return [.. findings.Evidence.Select((e, i) => new AskPromptPage(markers[i], e.PdfPage, e.Heading, e.Text))];
+    }
+
+    /// <summary>
+    /// Asks the model to answer the question from the pages <see cref="FindAsync"/> chose (Ask plan, step 4), streaming
+    /// its answer to <paramref name="progress"/>, and checks its citations and quotes against those pages (step 5).
+    /// </summary>
+    /// <exception cref="AskUnavailableException">AI is off, or the book's folder is kept from AI.</exception>
+    /// <exception cref="ModelEndpointException">The model server couldn't be reached, refused, or failed while answering.</exception>
+    public async Task<AskAnswer> AnswerAsync(long documentId, AskFindings findings, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
+    {
+        if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
+        var client = ai.Chat;
+        var model = ai.Setup.ModelName;
+        if (client is null || model is null) throw new AskUnavailableException("Ask this book uses AI, which is off. Set it up in Settings > AI.");
+        if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
+        var pages = PromptPages(findings);
+        var user = AskPrompt.UserMessage(findings.Question, pages);
+        var started = Stopwatch.GetTimestamp();
+        var text = await client.CompleteAsync(
+            new ModelRequest(model, AskPrompt.SystemMessage, user, null, AskPrompt.ContextTokens, AskPrompt.AnswerTokens, progress), ct);
+        var answer = AskAnswerCheck.Check(text, pages);
+        _log.LogInformation(
+            "Answered a question on document {DocumentId} with {Model}: {Pages} pages sent, about {PromptTokens} tokens; about {AnswerTokens} tokens back{NotAnswered}, {Checks}, in {Seconds:0.0} s",
+            documentId, model, pages.Count, (AskPrompt.SystemMessage.Length + user.Length) / 4, text.Length / 4,
+            answer.NotAnswered ? ", saying the pages don't answer it" : "", AskAnswerCheck.Counts(answer), Stopwatch.GetElapsedTime(started).TotalSeconds);
+        return new AskAnswer(findings.Question, text, answer, model, pages);
     }
 
     /// <summary>
