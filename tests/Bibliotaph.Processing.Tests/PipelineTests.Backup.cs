@@ -163,11 +163,12 @@ public sealed partial class PipelineTests
         // The CSV lists every card with where its file is now, or was, and the JSON has every table.
         var export = new ExportService(_libraryStore, _entries, _metadataStore, _vocabulary, new PackStore(new Factory(_catalog)), new CatalogExport(new Factory(_catalog)));
         var rows = await export.GetCsvRowsAsync(ct: Ct);
+        static int Column(string name) => ExportService.CsvHeader.ToList().IndexOf(name);
         Assert.Equal(cards.Count, rows.Count);
-        Assert.Equal(Path.Combine(moved, "Adventures", "Known Text.pdf"), rows.Single(r => r[5] == "Friday game")[7]);
-        Assert.Equal("Winter campaign", rows.Single(r => r[5] == "Friday game")[6]);
-        Assert.Equal(Path.Combine(maps, "Harbor Map.png"), rows.Single(r => r[0] == "Harbor Map")[7]);
-        Assert.Null(rows.Single(r => r[0] == "Boxed Set of the Marches")[7]);
+        Assert.Equal(Path.Combine(moved, "Adventures", "Known Text.pdf"), rows.Single(r => r[Column("Tags")] == "Friday game")[Column("Path")]);
+        Assert.Equal("Winter campaign", rows.Single(r => r[Column("Tags")] == "Friday game")[Column("Collections")]);
+        Assert.Equal(Path.Combine(maps, "Harbor Map.png"), rows.Single(r => r[0] == "Harbor Map")[Column("Path")]);
+        Assert.Null(rows.Single(r => r[0] == "Boxed Set of the Marches")[Column("Path")]);
         var json = Path.Combine(_dir, "library.json");
         await export.WriteJsonAsync(json, Ct);
         using var exported = JsonDocument.Parse(await File.ReadAllBytesAsync(json, Ct));

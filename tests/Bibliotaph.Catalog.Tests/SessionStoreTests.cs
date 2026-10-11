@@ -67,6 +67,9 @@ public sealed class SessionStoreTests : IAsyncLifetime
         Assert.Equal(new PageRange(abbeyDoc, 41, 44, "42", "45", "f1", "f4"), contents.Items[0].Range! with { RefId = 0 });
         Assert.Null(contents.Items[1].Range);
         Assert.Equal("Keep it handy", contents.Items[2].Note);
+        // One item alone, as a reader that has it open asks for it, is the same as in its pack.
+        Assert.Equal(contents.Items[0], await _sessions.GetItemAsync(contents.Items[0].Id, Ct));
+        Assert.Null(await _sessions.GetItemAsync(-1, Ct));
         Assert.Equal(3, contents.Pack.ItemCount);
         Assert.Equal([abbey, tomb], contents.Pack.FirstEntries);
         Assert.Equal(new DateOnly(2026, 10, 17), contents.Pack.Date);

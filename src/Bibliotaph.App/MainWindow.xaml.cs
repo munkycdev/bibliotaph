@@ -39,6 +39,7 @@ public partial class MainWindow : Window
         SearchGuide.DataContext = guide;
         DataContext = shell;
         shell.FocusPinRequested += (_, target) => FocusPin(target);
+        shell.PlainSearch.PropertyChanged += OnPlainSearchChanged;
         _about = about;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
         CommandBindings.Add(new CommandBinding(ShellCommands.ShowShortcuts, (_, _) => shortcuts.Show(this)));
@@ -61,10 +62,26 @@ public partial class MainWindow : Window
     }
 
     // Enter searches at once; Esc clears the search and leaves the box. With the field guide open, the arrow keys
-    // move its highlight, Enter or Tab picks it, and Esc closes the guide first.
+    // move its highlight, Enter or Tab picks it, and Esc closes the guide first. In Ask mode, Enter reads the request
+    // and Esc leaves Ask, keeping the text.
     void Search_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (DataContext is not ShellViewModel shell) return;
+        if (shell.PlainSearch.IsOn)
+        {
+            if (Keyboard.Modifiers != ModifierKeys.None) return;
+            if (e.Key == Key.Enter)
+            {
+                _ = shell.PlainSearch.InterpretAsync(shell.SearchText);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                shell.PlainSearch.IsOn = false;
+                e.Handled = true;
+            }
+            return;
+        }
         if (GuideKey(e))
         {
             e.Handled = true;
@@ -87,9 +104,15 @@ public partial class MainWindow : Window
 
     // ---- The search box's field guide -----------------------------------------------------------------------------
 
+    /// <summary>The guide offers search syntax, which a request in plain English doesn't use, so it stays shut in Ask mode.</summary>
+    bool InPlainSearch => DataContext is ShellViewModel { PlainSearch.IsOn: true };
+
     void HookUpSearchGuide()
     {
-        Search.GotKeyboardFocus += (_, _) => _guide.Focused(Search.Text, Search.CaretIndex);
+        Search.GotKeyboardFocus += (_, _) =>
+        {
+            if (!InPlainSearch) _guide.Focused(Search.Text, Search.CaretIndex);
+        };
         Search.LostKeyboardFocus += (_, _) =>
             // Wait for focus to settle: it may only be passing through, and a click on the guide leaves it in the box.
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
@@ -99,11 +122,11 @@ public partial class MainWindow : Window
         // Only typing steers the guide: a page clearing the search changes the text too, with the box elsewhere.
         Search.TextChanged += (_, _) =>
         {
-            if (!_applyingGuide && Search.IsKeyboardFocused) _guide.TextChanged(Search.Text, Search.CaretIndex);
+            if (!_applyingGuide && !InPlainSearch && Search.IsKeyboardFocused) _guide.TextChanged(Search.Text, Search.CaretIndex);
         };
         Search.SelectionChanged += (_, _) =>
         {
-            if (!_applyingGuide && Search.IsKeyboardFocused) _guide.CaretMoved(Search.Text, Search.CaretIndex);
+            if (!_applyingGuide && !InPlainSearch && Search.IsKeyboardFocused) _guide.CaretMoved(Search.Text, Search.CaretIndex);
         };
         // A popup doesn't move with its window, so it closes instead. A click elsewhere closes it too, even one on
         // something that doesn't take focus. (Clicks in the popup route here through it, and keep it open.)
@@ -177,6 +200,18 @@ public partial class MainWindow : Window
         if (announcement.Length == 0) return;
         var peer = UIElementAutomationPeer.FromElement(SearchGuideAnnouncement) ?? UIElementAutomationPeer.CreatePeerForElement(SearchGuideAnnouncement);
         peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    /// <summary>Ask switched on puts the keyboard in the box for the request, with the guide shut.</summary>
+    void OnPlainSearchChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(PlainSearchViewModel.IsOn) || !InPlainSearch) return;
+        _guide.Close();
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            Search.Focus();
+            Search.SelectAll();
+        });
     }
 
     // ---- Pins: dragging to a new place, and the keyboard staying on a pin that moved (Pinned Views plan, choice 8) ----

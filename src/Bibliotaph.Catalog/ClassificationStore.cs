@@ -26,11 +26,26 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
 
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
-    /// <summary>Whether <paramref name="model"/> and this prompt version have already classified this content.</summary>
+    /// <summary>
+    /// Whether <paramref name="model"/> and this prompt version have already classified this content as a whole. The
+    /// runs that read an adventure inside it, on its own pages, don't count.
+    /// </summary>
     public async Task<bool> HasRunAsync(string contentHash, string model, int promptVersion, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        return await db.ClassificationRuns.AnyAsync(r => r.ContentHash == contentHash && r.Model == model && r.PromptVersion == promptVersion && r.Outcome == Complete, ct);
+        return await db.ClassificationRuns.AnyAsync(r => r.ContentHash == contentHash && r.Model == model && r.PromptVersion == promptVersion
+            && r.Outcome == Complete && r.Entry.Kind != EntryKind.Part, ct);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="model"/> and this prompt version have already classified the adventure
+    /// <paramref name="partId"/> on its own pages, in any copy of its file (slice 5 plan, choice 6).
+    /// </summary>
+    public async Task<bool> HasRunOnAsync(EntryId partId, string model, int promptVersion, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.ClassificationRuns.AnyAsync(r => r.EntryId == partId.Value && r.Model == model && r.PromptVersion == promptVersion
+            && r.Outcome == Complete, ct);
     }
 
     /// <summary>Records a run and returns its id, which the assertions it produced point at.</summary>
@@ -87,12 +102,12 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     /// <summary>
     /// Content classified by <paramref name="model"/> with this prompt version, and content classified only by
     /// another model or an earlier prompt: the count "Reclassify N documents" offers. Runs are counted by the copy
-    /// they read, since Reclassify queues documents.
+    /// they read, since Reclassify queues documents; the runs over an adventure inside a file don't count.
     /// </summary>
     public async Task<ClassificationSummary> SummarizeAsync(string model, int promptVersion, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var runs = await db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete)
+        var runs = await db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete && r.Entry.Kind != EntryKind.Part)
             .Select(r => new { r.ContentHash, Current = r.Model == model && r.PromptVersion == promptVersion }).ToListAsync(ct);
         var byDocument = runs.GroupBy(r => r.ContentHash).Select(g => g.Any(r => r.Current)).ToList();
         return new ClassificationSummary(byDocument.Count(c => c), byDocument.Count(c => !c));
