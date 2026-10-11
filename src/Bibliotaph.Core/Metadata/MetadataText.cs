@@ -30,24 +30,28 @@ public static class MetadataText
     }
 
     /// <summary>
-    /// <paramref name="text"/> in a Unicode normalization form. Text read from a PDF can hold half of a surrogate pair,
-    /// which <see cref="string.Normalize(NormalizationForm)"/> refuses with an exception, so each one becomes U+FFFD
-    /// first: it is neither a letter nor a digit, so it drops out of the comparison forms like any other symbol.
+    /// <paramref name="text"/> in a Unicode normalization form. Text read from a PDF can hold half of a surrogate pair or
+    /// U+FFFE, which <see cref="string.Normalize(NormalizationForm)"/> refuses with an exception, so each one becomes
+    /// U+FFFD first: it is neither a letter nor a digit, so it drops out of the comparison forms like any other symbol.
     /// </summary>
     public static string UnicodeForm(string text, NormalizationForm form)
     {
-        var lone = LoneSurrogate(text, 0);
-        if (lone < 0) return text.Normalize(form);
+        var refused = Refused(text, 0);
+        if (refused < 0) return text.Normalize(form);
         var repaired = text.ToCharArray();
-        for (; lone >= 0; lone = LoneSurrogate(text, lone + 1)) repaired[lone] = '\uFFFD';
+        for (; refused >= 0; refused = Refused(text, refused + 1)) repaired[refused] = '\uFFFD';
         return new string(repaired).Normalize(form);
     }
 
-    /// <summary>The index of the first unpaired surrogate at or after <paramref name="start"/>, or -1.</summary>
-    static int LoneSurrogate(string text, int start)
+    /// <summary>
+    /// The index of the first character at or after <paramref name="start"/> that normalizing refuses, or -1: an unpaired
+    /// surrogate, or U+FFFE, a noncharacter .NET rejects though Unicode allows it.
+    /// </summary>
+    static int Refused(string text, int start)
     {
         for (var i = start; i < text.Length; i++)
         {
+            if (text[i] == '\uFFFE') return i;
             if (!char.IsSurrogate(text[i])) continue;
             if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1])) i++;
             else return i;

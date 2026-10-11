@@ -23,6 +23,19 @@ public class MetadataTextTests
         Assert.Equal("\uFFFDA\uFFFD", MetadataText.UnicodeForm("\uDC00\uD835\uDC00\uD835", System.Text.NormalizationForm.FormKC));
     }
 
+    [Fact]
+    public void Normalizes_text_holding_any_character_at_all()
+    {
+        // U+FFFE is the other character string.Normalize refuses; every other one, alone or before a letter, has to pass too.
+        Assert.Equal("kobold press", MetadataText.Normalize("Kobold\uFFFEPress"));
+        for (var c = 0; c <= char.MaxValue; c++)
+        {
+            var text = $"{(char)c}a{(char)c}";
+            foreach (var form in new[] { System.Text.NormalizationForm.FormKC, System.Text.NormalizationForm.FormKD })
+                Assert.NotNull(MetadataText.UnicodeForm(text, form));
+        }
+    }
+
     [Theory]
     [InlineData("3", 3, 3, false)]
     [InlineData("1-5", 1, 5, false)]
