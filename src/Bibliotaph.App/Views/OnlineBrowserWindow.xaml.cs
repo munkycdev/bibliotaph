@@ -43,7 +43,7 @@ public partial class OnlineBrowserWindow
     {
         InitializeComponent();
         (_browsers, _reader, _start, _read, _log) = (browsers, reader, start, read, log);
-        State = new OnlineBrowserState(reader.Name) { Downloads = browsers.Downloads.Items };
+        State = new OnlineBrowserState(reader.Name) { ReadsLibrary = reader.ReadsLibrary, Downloads = browsers.Downloads.Items };
         DataContext = State;
         Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => Web.Dispose();
@@ -88,13 +88,20 @@ public partial class OnlineBrowserWindow
         core.FaviconChanged += async (_, _) => await KeepIconAsync(core);
         core.WebResourceResponseReceived += async (_, e) => await KeepImageAsync(e);
         core.DownloadStarting += async (_, e) => await _browsers.Downloads.TakeAsync(e, _reader.Name);
-        State.Status = $"Sign in on {_reader.Name}'s own page if it asks, and open your library. Read this page lights up when the page lists your books.";
+        core.NewWindowRequested += async (_, e) => await OnlinePopupWindow.HostAsync(e, this, _browsers, _reader.Name, _log);
+        State.Status = _reader.ReadsLibrary
+            ? $"Sign in on {_reader.Name}'s own page if it asks, and open your library. Read this page lights up when the page lists your books."
+            : await _browsers.Downloads.FolderAsync() is null
+                ? $"Sign in on {_reader.Name}'s own page if it asks. Its Download buttons save to your Downloads folder; choose a downloads folder on the Online libraries page to have Bibliotaph read what you download."
+                : $"Sign in on {_reader.Name}'s own page if it asks. Its Download buttons save into your downloads folder, and Bibliotaph reads each file.";
         core.Navigate(_start.AbsoluteUri);
     }
 
     /// <summary>Looks at the page once it has settled: a page still drawing is looked at again when it is done.</summary>
     async void CheckSoon()
     {
+        // A store whose library page isn't read yet is only for signing in and downloading.
+        if (!_reader.ReadsLibrary) return;
         var mine = ++_checks;
         await Task.Delay(400);
         if (mine != _checks || Web.CoreWebView2 is not { } core) return;
@@ -219,6 +226,9 @@ public sealed partial class OnlineBrowserState(string serviceName) : ObservableO
     public string ServiceName { get; } = serviceName;
 
     public string WindowTitle => $"{ServiceName} · Bibliotaph";
+
+    /// <summary>False for a store whose library page isn't read yet: no Read this page.</summary>
+    public bool ReadsLibrary { get; init; } = true;
 
     [ObservableProperty]
     public partial string Address { get; set; } = "";

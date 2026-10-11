@@ -35,7 +35,8 @@ static partial class SmokeTest
         await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
         await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open its page.");
         var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
-        if (page.Services is not [{ Name: "D&D Beyond" }]) throw new InvalidOperationException("Online libraries doesn't list D&D Beyond.");
+        if (page.Services is not [{ Name: "D&D Beyond", ReadsLibrary: true }, ..] || page.Services.Where(s => !s.ReadsLibrary).Select(s => s.Name).ToList() is not ["Humble Bundle", "DriveThruRPG", "DMs Guild"])
+            throw new InvalidOperationException($"Online libraries lists {string.Join(", ", page.Services.Select(s => s.Name))}.");
 
         // The file picker can't be driven here, so the page is read as the picker would read it.
         await page.ReadSavedPageAsync(saved);
@@ -244,15 +245,20 @@ static partial class SmokeTest
         await AuditAsync(window, "Online libraries with a downloads folder");
 
         var downloads = services.GetRequiredService<OnlineDownloads>();
-        var browser = page.OpenBrowser(page.Services[0].Reader, new Uri(saved)) ?? throw new InvalidOperationException($"The browser didn't open: {page.Problem}");
+        // A store's row: its browser is for signing in and downloading, so it has no Read this page.
+        var store = page.Services.First(s => s.Name == "Humble Bundle").Reader;
+        var browser = page.OpenBrowser(store, new Uri(saved)) ?? throw new InvalidOperationException($"The browser didn't open: {page.Problem}");
         try
         {
             var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency * 60;
-            while (Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(browser).FirstOrDefault()?.CoreWebView2 is null || !browser.State.CanRead)
+            while (Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(browser).FirstOrDefault()?.CoreWebView2 is not { DocumentTitle.Length: > 0 })
             {
                 if (System.Diagnostics.Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException($"The made-up page didn't load: “{browser.State.Status}”");
                 await Task.Delay(200);
             }
+            await Task.Delay(800);
+            if (browser.State.CanRead || browser.ReadPage.IsVisible) throw new InvalidOperationException("A store's browser offers Read this page.");
+            if (!browser.State.Status.Contains("downloads folder", StringComparison.Ordinal)) throw new InvalidOperationException($"A store's browser says “{browser.State.Status}”.");
             var web = Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(browser).First().CoreWebView2;
             var pdf = Convert.ToBase64String(SmokePdf("Smoke store download"));
             await web.ExecuteScriptAsync(
@@ -267,6 +273,20 @@ static partial class SmokeTest
                 throw new InvalidOperationException($"The download went to {download.Path} ({download.Status}), not the downloads folder.");
             if (!browser.State.HasDownloads) throw new InvalidOperationException("The browser window doesn't list the download.");
             await AuditAsync(browser, "the in-app browser with a download");
+
+            // A Download button that opens a new tab: Bibliotaph hosts the tab, saves the file to the downloads folder
+            // too, and the tab, showing nothing, goes away.
+            await web.ExecuteScriptAsync(
+                "(() => { const w = window.open('', '_blank'); setTimeout(() => { const a = w.document.createElement('a'); a.href = 'data:application/pdf;base64," + pdf
+                + "'; a.download = 'Smoke tab download.pdf'; w.document.body.appendChild(a); a.click(); }, 1500); })();");
+            static bool InTab(OnlineDownload d) => d.Name.StartsWith("Smoke tab download", StringComparison.Ordinal);
+            await WaitUntilAsync(browser, () => downloads.Items.FirstOrDefault(InTab) is { InProgress: false },
+                () => $"The download from a new tab didn't finish ({string.Join("; ", downloads.Items.Select(d => $"{d.Name}: {d.Status}"))}).");
+            var tab = downloads.Items.First(InTab);
+            if (!tab.Saved || !string.Equals(System.IO.Path.GetDirectoryName(tab.Path), inside, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"The download from a new tab went to {tab.Path} ({tab.Status}), not the downloads folder.");
+            await WaitUntilAsync(browser, () => !Application.Current.Windows.OfType<Views.OnlinePopupWindow>().Any(),
+                () => "The new tab that only downloaded stayed open.");
 
             var relative = System.IO.Path.GetRelativePath(root.Path, download.Path);
             var library = services.GetRequiredService<LibraryStore>();

@@ -78,4 +78,15 @@ public sealed class OnlineLibrariesTests
         Assert.NotNull(page);
         Assert.Empty(page.Books);
     }
+
+    [Fact]
+    public void A_store_whose_library_isnt_read_yet_recognises_no_page()
+    {
+        IOnlineLibraryReader store = StoreOnlyLibrary.HumbleBundle;
+
+        Assert.False(store.ReadsLibrary);
+        Assert.Null(store.Read(File.ReadAllText(Fixture)));
+        Assert.True(((IOnlineLibraryReader)new DndBeyondReader()).ReadsLibrary);
+        Assert.Equal(["bundle", "drivethrurpg", "dmsguild"], new[] { StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild }.Select(s => s.Key));
+    }
 }

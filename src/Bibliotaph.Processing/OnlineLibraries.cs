@@ -66,6 +66,37 @@ public interface IOnlineLibraryReader
 
     /// <summary>Other sites the service signs in on, which the online reader follows as it follows the service's own.</summary>
     IReadOnlyList<string> SignInSites => [];
+
+    /// <summary>
+    /// False for a store whose library page isn't read yet (<see cref="StoreOnlyLibrary"/>): its browser window is for
+    /// signing in and downloading only, with no Read this page and no saved page to import.
+    /// </summary>
+    bool ReadsLibrary => true;
+}
+
+/// <summary>
+/// A store whose library page Bibliotaph can't read yet (online libraries, O5): its row on the Online libraries page opens
+/// the store in Bibliotaph's browser, where the user signs in and presses the store's own Download buttons, so the files
+/// land in the downloads folder. Each store gets a reader of its own (O4) once one is built against a real library page;
+/// until then <see cref="Read"/> recognises nothing. <see cref="Key"/> is the store's key in Get it from.
+/// </summary>
+public sealed class StoreOnlyLibrary(string key, string name, string libraryPage) : IOnlineLibraryReader
+{
+    public static StoreOnlyLibrary HumbleBundle { get; } = new("bundle", "Humble Bundle", "https://www.humblebundle.com/home/library");
+
+    public static StoreOnlyLibrary DriveThruRpg { get; } = new("drivethrurpg", "DriveThruRPG", "https://www.drivethrurpg.com/en/library");
+
+    public static StoreOnlyLibrary DmsGuild { get; } = new("dmsguild", "DMs Guild", "https://www.dmsguild.com/en/library");
+
+    public string Key { get; } = key;
+
+    public string Name { get; } = name;
+
+    public Uri LibraryPage { get; } = new(libraryPage);
+
+    public bool ReadsLibrary => false;
+
+    public OnlinePage? Read(string html) => null;
 }
 
 /// <summary>

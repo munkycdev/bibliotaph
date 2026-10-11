@@ -359,8 +359,14 @@ public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, 
 
     public string OpenLabel => $"Open {Name}";
 
-    public string Explanation => $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page. "
-        + "Only books you own are imported, and Bibliotaph never sees your password. A page saved with Save as (Webpage, complete) works too.";
+    public string Explanation => Reader.ReadsLibrary
+        ? $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page. "
+            + "Only books you own are imported, and Bibliotaph never sees your password. A page saved with Save as (Webpage, complete) works too."
+        : $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, and its own Download buttons save into your downloads folder below, "
+            + "where Bibliotaph reads each file. Bringing in the list of what you own there comes later.";
+
+    /// <summary>Import a saved page shows only for a service whose library page is read.</summary>
+    public bool ReadsLibrary => Reader.ReadsLibrary;
 
     [RelayCommand]
     void Open() => page.OpenBrowser(Reader);

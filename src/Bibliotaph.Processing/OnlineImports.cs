@@ -69,7 +69,8 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     const int MaxCoverBytes = 8 * 1024 * 1024;
 
     /// <summary>The services a library page can be read from, in the order the Online libraries page lists them.</summary>
-    public IReadOnlyList<IOnlineLibraryReader> Readers { get; } = [new DndBeyondReader()];
+    public IReadOnlyList<IOnlineLibraryReader> Readers { get; } =
+        [new DndBeyondReader(), StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild];
 
     /// <summary>
     /// A library page saved with Save as, Webpage complete (choice 1's fallback), read by whichever reader recognises
