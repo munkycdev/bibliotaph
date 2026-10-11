@@ -83,7 +83,7 @@ public enum AiFilter
 /// entry_scope, such as the favourites (slice 3), and <see cref="OnlyOpened"/> those that have been opened.
 /// <see cref="Styles"/> and <see cref="Durations"/> keep books with any of those terms (unknown is none), and
 /// <see cref="Players"/> books written for that many players; as for levels, books nobody has counted players for don't
-/// match.
+/// match. <see cref="Stores"/> keeps books to get from any of those stores (scenario review, row 7).
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -100,7 +100,8 @@ public sealed record LibraryFilter(
     bool OnlyOpened = false,
     IReadOnlyCollection<string>? Styles = null,
     IReadOnlyCollection<string>? Durations = null,
-    int? Players = null);
+    int? Players = null,
+    IReadOnlyCollection<string>? Stores = null);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -659,6 +660,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             if (filter.Owns is { Count: > 0 } owns) AddChoice("own", owns, "owns");
             if (filter.Styles is { Count: > 0 } styles) AddChoice("style", styles, "styles");
             if (filter.Durations is { Count: > 0 } durations) AddChoice("duration", durations, "durations");
+            if (filter.Stores is { Count: > 0 } stores) AddChoice("store", stores, "stores");
             if (filter.Players is { } players)
                 Add("EXISTS (SELECT 1 FROM entry_meta pm WHERE pm.entry_id = e.entry_id AND pm.players_min <= @players AND pm.players_max >= @players)",
                     "players", players);

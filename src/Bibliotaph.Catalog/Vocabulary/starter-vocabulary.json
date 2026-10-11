@@ -1,6 +1,6 @@
 {
   "comment": "Starter vocabularies, seeded into catalog.db by version. A term or alias is added only when the stored seed version is below its 'since' (default 1), and never overwrites a term the user has changed. Add new terms with a higher 'since' and bump 'version'. Keys are stable: never rename one.",
-  "version": 3,
+  "version": 4,
   "terms": [
     { "vocabulary": "system", "key": "dnd", "label": "Dungeons & Dragons", "short": "D&D", "aliases": ["D&D", "DnD", "D and D", "Dungeons and Dragons", "AD&D", "ADnD"] },
     { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "short": "OD&D", "aliases": ["OD&D", "ODnD", "Original D&D", "0e"] },
@@ -159,6 +159,16 @@
     { "vocabulary": "own", "key": "roll20", "label": "Roll20", "aliases": ["Roll 20"], "since": 2 },
     { "vocabulary": "own", "key": "dnd-beyond", "label": "D&D Beyond", "aliases": ["DnD Beyond", "DDB"], "since": 2 },
     { "vocabulary": "own", "key": "fantasy-grounds", "label": "Fantasy Grounds", "aliases": ["FG", "FGU", "Fantasy Grounds Unity"], "since": 2 },
-    { "vocabulary": "own", "key": "alchemy", "label": "Alchemy", "aliases": ["Alchemy RPG", "Alchemy VTT"], "since": 2 }
+    { "vocabulary": "own", "key": "alchemy", "label": "Alchemy", "aliases": ["Alchemy RPG", "Alchemy VTT"], "since": 2 },
+
+    { "vocabulary": "store", "key": "kickstarter", "label": "Kickstarter", "aliases": ["kickstarter.com", "Kickstarter backer", "Kickstarter rewards", "Kickstarter PDFs"], "since": 4 },
+    { "vocabulary": "store", "key": "backerkit", "label": "BackerKit", "aliases": ["Backer Kit", "backerkit.com"], "since": 4 },
+    { "vocabulary": "store", "key": "drivethrurpg", "label": "DriveThruRPG", "aliases": ["DriveThru RPG", "Drive Thru RPG", "DriveThru", "DTRPG", "drivethrurpg.com", "RPGNow", "rpgnow.com"], "since": 4 },
+    { "vocabulary": "store", "key": "itch-io", "label": "itch.io", "aliases": ["itch", "itchio"], "since": 4 },
+    { "vocabulary": "store", "key": "bundle", "label": "Humble Bundle or another bundle", "short": "Bundle", "aliases": ["Humble Bundle", "HumbleBundle", "humblebundle.com", "bundles", "StoryBundle", "storybundle.com"], "since": 4 },
+    { "vocabulary": "store", "key": "publisher-site", "label": "Publisher's site", "aliases": ["publisher site", "publisher's store", "publisher store", "publisher's website", "direct from the publisher"], "since": 4 },
+    { "vocabulary": "store", "key": "bundle-of-holding", "label": "Bundle of Holding", "aliases": ["bundleofholding.com"], "since": 4 },
+    { "vocabulary": "store", "key": "game-on-tabletop", "label": "Game On Tabletop", "aliases": ["GameOn Tabletop", "gameontabletop.com"], "since": 4 },
+    { "vocabulary": "store", "key": "other-store", "label": "Other store", "aliases": ["another store"], "since": 4 }
   ]
 }

@@ -150,7 +150,7 @@ Bulk selection provides additive/removal tag operations, collection membership, 
 
 ### 5.3 Search and filters
 
-Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, players, duration, style, theme, tag, and format.
+Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, players, duration, style, theme, store, tag, and format.
 
 Facet rules:
 
@@ -225,6 +225,7 @@ Processing status provides pause/resume, current stage, queued count, failures, 
 | Themes and tone | Horror, mystery, political intrigue, comedic, fey; the kind of adventure is Style |
 | Content features | Maps, monsters, NPCs, tables, player options, spells, items |
 | Map properties | Grid/gridless, scale, dimensions, location type; unknown unless evidenced |
+| Get it from | Where the book can be got again: one or more stores (Kickstarter, BackerKit, DriveThruRPG, itch.io, a bundle, the publisher's site, Bundle of Holding, Game On Tabletop, other), each with an optional link; shared by every copy and version; a watermark gives only its store, never the buyer's name or order number |
 | User tags | Flexible labels that supplement structured dimensions |
 | Description | Short sourced summary; generated summaries labeled accordingly |
 | File facts | Size, page count, content hash, paths, timestamps, language, capabilities |

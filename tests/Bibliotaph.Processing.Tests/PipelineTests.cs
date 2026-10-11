@@ -120,7 +120,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
-                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places), _matchGate),
+                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints), _matchGate),
             ],
             new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
@@ -343,6 +343,45 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         Assert.False(await FindsAsync("players:5"));
         Assert.True(await FindsAsync("players:3"));
         Assert.Equal("3", (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[Core.Metadata.MetadataFields.Players].First!.Value);
+    }
+
+    [Fact]
+    public async Task Where_to_get_it_takes_a_store_and_its_link_and_is_searched_filtered_and_exported_by_store()
+    {
+        Copy(pdfs.KnownText, Path.Combine("Kickstarter", "Vault Job.pdf"));
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+
+        var search = new LibraryQueries(_index);
+        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        async Task<bool> FindsAsync(string query) =>
+            (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Any(e => e.EntryId == entry.EntryId);
+        var field = Core.Metadata.MetadataFields.GetItFrom;
+        async Task<IEnumerable<string>> StoresAsync() => (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[field].Values.Select(v => v.Value);
+
+        // The folder says Kickstarter.
+        Assert.Equal(["kickstarter"], await StoresAsync());
+        Assert.True(await FindsAsync("store:kickstarter"));
+
+        // The user adds where they can get it again: a store by another name with its link, and a link on its own.
+        Assert.Null(await _metadata.SetAsync(entry.EntryId, field,
+            "Kickstarter, DTRPG https://www.drivethrurpg.com/en/product/1/vault-job, https://lanternworks.example/shop/vault?a=1,2", Ct));
+        Assert.Equal(["drivethrurpg https://www.drivethrurpg.com/en/product/1/vault-job", "kickstarter", "other-store https://lanternworks.example/shop/vault?a=1,2"],
+            (await StoresAsync()).Order(StringComparer.Ordinal));
+        Assert.True(await FindsAsync("store:drivethrurpg store:other*"));
+        Assert.Single(await search.ListAsync(new LibraryFilter(Stores: ["drivethrurpg"]), ct: Ct));
+        Assert.Equal(3, (await search.GetFacetCountsAsync("store", new LibraryFilter(), ct: Ct)).Count(c => c.Value != SearchQuery.Unknown));
+
+        // A store the vocabulary doesn't know becomes the user's own; a link that isn't a web address is refused.
+        Assert.Null(await _metadata.SetAsync(entry.EntryId, field, "Lantern Works shop https://lanternworks.example/shop", Ct));
+        Assert.Equal(["lantern-works-shop https://lanternworks.example/shop"], await StoresAsync());
+        Assert.NotNull(await _metadata.SetAsync(entry.EntryId, field, "Kickstarter file:///C:/Books/vault.pdf", Ct));
+
+        // The CSV says where to get it, with the link.
+        var export = new ExportService(_libraryStore, _entries, _metadataStore, _vocabulary, new PackStore(new Factory(_catalog)), new CatalogExport(new Factory(_catalog)));
+        var row = Assert.Single(await export.GetCsvRowsAsync(ct: Ct));
+        Assert.Equal("Lantern Works shop (https://lanternworks.example/shop)", row[ExportService.CsvHeader.ToList().IndexOf("Get it from")]);
     }
 
     [Fact]

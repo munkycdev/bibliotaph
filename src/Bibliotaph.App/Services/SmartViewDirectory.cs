@@ -30,7 +30,8 @@ public sealed record SmartViewDefinition(
     ResultsTab Tab = ResultsTab.Documents,
     string? Style = null,
     string? Duration = null,
-    int? Players = null)
+    int? Players = null,
+    string? Store = null)
 {
     public const int CurrentVersion = 1;
 

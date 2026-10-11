@@ -21,6 +21,8 @@ public sealed record DocRow
     public string? MetaAuthor { get; init; }
     public string? MetaSubject { get; init; }
     public string? MetaKeywords { get; init; }
+    /// <summary>The software the PDF says made it, which can name the store that sold it ("…DriveThruRPG…").</summary>
+    public string? MetaProducer { get; init; }
     public string? FolderHint { get; init; }
 }
 
@@ -112,15 +114,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute(
                 """
                 INSERT INTO doc (document_id, content_hash, format, display_title, page_count, width_px, height_px, encrypted, can_copy,
-                                 meta_title, meta_author, meta_subject, meta_keywords, folder_hint, added_utc)
+                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, folder_hint, added_utc)
                 VALUES (@DocumentId, @ContentHash, @Format, @DisplayTitle, @PageCount, @WidthPx, @HeightPx, @Encrypted, @CanCopy,
-                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @FolderHint, @now)
+                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @FolderHint, @now)
                 ON CONFLICT (document_id) DO UPDATE SET
                     content_hash = excluded.content_hash, format = excluded.format, display_title = excluded.display_title,
                     page_count = excluded.page_count, width_px = excluded.width_px, height_px = excluded.height_px,
                     encrypted = excluded.encrypted, can_copy = excluded.can_copy, meta_title = excluded.meta_title,
                     meta_author = excluded.meta_author, meta_subject = excluded.meta_subject, meta_keywords = excluded.meta_keywords,
-                    folder_hint = excluded.folder_hint
+                    meta_producer = excluded.meta_producer, folder_hint = excluded.folder_hint
                 """,
                 new
                 {
@@ -137,6 +139,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.MetaAuthor,
                     doc.MetaSubject,
                     doc.MetaKeywords,
+                    doc.MetaProducer,
                     doc.FolderHint,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);

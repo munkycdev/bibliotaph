@@ -1496,20 +1496,9 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     void OpenWebLink(string uri)
     {
-        var owner = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>().FirstOrDefault(w => w.IsActive)
-            ?? System.Windows.Application.Current.MainWindow;
-        var answer = System.Windows.MessageBox.Show(owner, $"This link goes to a web page:\n\n{uri}\n\nOpen it in your browser?", "Open a web link?",
-            System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.Cancel);
-        if (answer != System.Windows.MessageBoxResult.OK) return;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            _log.LogWarning(ex, "Opening a web link failed");
-            ShowNotice("Windows couldn't open that link.");
-        }
+        if (WebLinks.AskAndOpen(uri, out var failed) || failed is null) return;
+        _log.LogWarning(failed, "Opening a web link failed");
+        ShowNotice("Windows couldn't open that link.");
     }
 
     public void ShowNotice(string text)

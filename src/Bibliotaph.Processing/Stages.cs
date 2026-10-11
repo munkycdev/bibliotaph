@@ -255,6 +255,8 @@ public sealed class ProbeStage(StageServices s) : IStage
                 MetaAuthor = doc.Metadata.Author,
                 MetaSubject = doc.Metadata.Subject,
                 MetaKeywords = doc.Metadata.Keywords,
+                // Kept for the store it may name; one that reads like a watermark (a buyer, an order number) isn't kept.
+                MetaProducer = doc.Metadata.Producer is { } producer && !Watermarks.ReadsLikeOne(producer) ? producer : null,
             },
             [.. doc.PageSizes.Select((size, i) => new PageRow(i, doc.PageLabels.ElementAtOrDefault(i), size.Width, size.Height))],
             [.. doc.Outline.Select(o => new OutlineRow(o.Title, o.PageIndex, o.Depth))], ct);

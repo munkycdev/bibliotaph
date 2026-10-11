@@ -53,6 +53,9 @@ public enum SearchField
     /// <summary><c>own:</c>, where else the book is owned: print, foundry.</summary>
     Own,
 
+    /// <summary><c>store:</c>, where to get it: kickstarter, drivethrurpg.</summary>
+    Store,
+
     /// <summary><c>level:</c> 3, 1-5, none (levels don't apply) or unknown. A range matches books whose levels overlap it.</summary>
     Level,
 

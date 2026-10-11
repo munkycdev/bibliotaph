@@ -287,6 +287,11 @@
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding DurationChoices}" SelectedItem="{Binding DurationChoice}"
                         AutomationProperties.Name="Duration" MinWidth="150" ToolTip="How long it takes to play: a one-shot, a few sessions, a campaign" />
             </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStoreChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Get it from" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StoreChoices}" SelectedItem="{Binding StoreChoice}"
+                        AutomationProperties.Name="Get it from" MinWidth="150" ToolTip="Where you got it, or can get it again" />
+            </StackPanel>
             <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
@@ -878,6 +883,19 @@
                                     AutomationProperties.Name="{Binding Label, StringFormat='Where {0} came from'}"
                                     Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                           </WrapPanel>
+                          <!-- Get it from: each store's link, opened in the browser once the user says yes. -->
+                          <ItemsControl ItemsSource="{Binding Links}" Focusable="False" Margin="0,2,0,0"
+                                        Visibility="{Binding HasLinks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
+                                <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Padding="0" Margin="0,3,0,0"
+                                        HorizontalAlignment="Left" Content="{Binding LinkText}" ToolTip="{Binding Url}"
+                                        AutomationProperties.Name="{Binding Text, StringFormat='Open the {0} link'}"
+                                        Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
                         </StackPanel>
                       </DockPanel>
 

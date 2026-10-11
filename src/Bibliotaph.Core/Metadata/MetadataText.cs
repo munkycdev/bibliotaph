@@ -172,10 +172,10 @@ public static class MetadataValues
     public const int EarliestYear = 1970;
     public const int LatestYear = 2100;
 
-    /// <summary>The comparison form of a stored value: a term's key as is, everything else normalised.</summary>
+    /// <summary>The comparison form of a stored value: a term's key (and a store's link) as is, everything else normalised.</summary>
     public static string Normalize(MetadataField field, string value) => field.Kind switch
     {
-        FieldKind.Term => value,
+        FieldKind.Term or FieldKind.Store => value,
         FieldKind.Levels => LevelRange.TryParse(value, out var range) ? range.ToString() : MetadataText.Normalize(value),
         FieldKind.Players => PlayerRange.TryParse(value, out var players) ? players.ToString() : MetadataText.Normalize(value),
         _ => MetadataText.Normalize(value),
@@ -183,7 +183,8 @@ public static class MetadataValues
 
     /// <summary>
     /// The stored form of a Text, Levels, Players or Year value, or null with a reason when it isn't one. Term values are
-    /// resolved against the vocabulary instead (<see cref="Vocabulary.Resolve"/>).
+    /// resolved against the vocabulary instead (<see cref="Vocabulary.Resolve"/>); a Store value is only checked here,
+    /// for a name or a web link, and resolved with <see cref="StoreLink.Read"/>.
     /// </summary>
     public static (string? Value, string? Problem) Parse(MetadataField field, string text)
     {
@@ -198,6 +199,11 @@ public static class MetadataValues
                 return PlayerRange.TryParse(tidy, out var players)
                     ? (players.ToString(), null)
                     : (null, $"Players look like 4 or 3-5, from 1 to {PlayerRange.Highest}.");
+            case FieldKind.Store:
+                var (name, url, problem) = StoreLink.Split(tidy);
+                return problem is not null ? (null, problem)
+                    : MetadataText.Normalize(name).Length == 0 && url is null ? (null, $"{field.Label} needs a store's name or a web link.")
+                    : (tidy, null);
             case FieldKind.Year:
                 return int.TryParse(tidy, NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year is >= EarliestYear and <= LatestYear
                     ? (year.ToString(CultureInfo.InvariantCulture), null)
@@ -207,9 +213,12 @@ public static class MetadataValues
         }
     }
 
-    /// <summary>Splits what was typed into a multi-value field: commas or semicolons separate values.</summary>
+    /// <summary>
+    /// Splits what was typed into a multi-value field: commas or semicolons separate values. In a Store field a web link
+    /// keeps its own commas and semicolons, up to the next space.
+    /// </summary>
     public static IReadOnlyList<string> Split(MetadataField field, string text) =>
-        field.Multiple
-            ? [.. text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(v => v.Length > 0)]
-            : string.IsNullOrWhiteSpace(text) ? [] : [text.Trim()];
+        !field.Multiple ? string.IsNullOrWhiteSpace(text) ? [] : [text.Trim()]
+        : field.Kind == FieldKind.Store ? StoreLink.SplitList(text)
+        : [.. text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(v => v.Length > 0)];
 }

@@ -5,15 +5,18 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Classification;
 
 /// <summary>
-/// What the Hints from names stage reads for one document: where its file is under its source folder, and the PDF's
-/// own document information (null for images, and for PDFs that don't fill it in).
+/// What the Hints from names stage reads for one document: where its file is under its source folder, the PDF's own
+/// document information (null for images, and for PDFs that don't fill it in), and its watermark lines once its text
+/// has been read (<see cref="Watermarks.Find"/>). Watermark lines name the buyer, so only the store they name is kept.
 /// </summary>
 public sealed record HintSource(
     string RelativePath,
     string? EmbeddedTitle = null,
     string? EmbeddedAuthor = null,
     string? EmbeddedSubject = null,
-    string? EmbeddedKeywords = null);
+    string? EmbeddedKeywords = null,
+    string? EmbeddedProducer = null,
+    IReadOnlyList<string>? WatermarkLines = null);
 
 /// <summary>A vocabulary term a folder name stands for, as Settings > Library lists it.</summary>
 public sealed record FolderLabel(string Folder, Term Term);
@@ -29,6 +32,9 @@ public sealed record FolderLabel(string Folder, Term Term);
 /// ("Microsoft Word - draft3.docx", "Administrator"). Its keywords count only through the vocabulary.</item>
 /// <item>The file name gives a title, and level ranges and party sizes written out in a PDF's name, title or subject
 /// ("Levels 1-4", "3rd-level", "for 4-6 players") become rule suggestions.</item>
+/// <item>Where to get it (scenario review, row 7) comes from a store named in a folder name, the file name, the PDF's
+/// producer or a watermark line. Only the store is kept: the quote is the store's name as matched, never the line it
+/// was in, which holds the buyer's name and order number.</item>
 /// </list>
 /// </summary>
 public static partial class RuleHints
@@ -45,6 +51,7 @@ public static partial class RuleHints
         "theme" => MetadataFields.Themes,
         "environment" => MetadataFields.Environments,
         "publisher" => MetadataFields.Publisher,
+        "store" => MetadataFields.GetItFrom,
         _ => null,
     };
 
@@ -91,7 +98,26 @@ public static partial class RuleHints
                     if (FindPlayers(t) is { } players) Add(new MetadataProposal(MetadataFields.Players, players.Range.ToString(), AssertionOrigin.Rule, players.Quote));
                 }
 
+        // Where to get it: from the file name, the PDF's producer and the watermark, by the store's name only.
+        foreach (var store in Stores(Path.GetFileNameWithoutExtension(fileName), vocabulary))
+            Add(new MetadataProposal(MetadataFields.GetItFrom, store.Term.Key, AssertionOrigin.Filename, store.Matched));
+        foreach (var store in Stores(source.EmbeddedProducer, vocabulary))
+            Add(new MetadataProposal(MetadataFields.GetItFrom, store.Term.Key, AssertionOrigin.Embedded, store.Matched));
+        foreach (var store in (source.WatermarkLines ?? []).SelectMany(line => Stores(line, vocabulary)))
+            Add(new MetadataProposal(MetadataFields.GetItFrom, store.Term.Key, AssertionOrigin.Rule, store.Matched));
+
         return [.. single.Values, .. multi.DistinctBy(p => (p.Field, p.Normalized, p.Origin))];
+    }
+
+    /// <summary>
+    /// The stores a text names, each with the words that named it and nothing more, so a watermark's buyer and order
+    /// number never become a quote. A site name in a link counts: "www.drivethrurpg.com".
+    /// </summary>
+    internal static IEnumerable<TermMatch> Stores(string? text, Vocabulary vocabulary)
+    {
+        if (Clean(text) is not { } clean) return [];
+        var store = MetadataFields.GetItFrom.Vocabulary!;
+        return vocabulary.Match(clean).Where(m => m.Term.Vocabulary == store).DistinctBy(m => m.Term.Key);
     }
 
     /// <summary>The folders between the source folder and the file, outermost first.</summary>
@@ -114,7 +140,7 @@ public static partial class RuleHints
         if (term.Vocabulary == "edition" && term.ParentKey is { } parent && vocabulary.Find("system", parent) is not null)
             yield return new MetadataProposal(MetadataFields.System, parent, origin, quote);
         // A publisher is free text that the vocabulary only tidies, so it is stored by name rather than key.
-        yield return new MetadataProposal(field, field.Kind == FieldKind.Term ? term.Key : term.Label, origin, quote);
+        yield return new MetadataProposal(field, field.Kind is FieldKind.Term or FieldKind.Store ? term.Key : term.Label, origin, quote);
     }
 
     static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : MetadataText.Tidy(text);
