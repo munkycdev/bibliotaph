@@ -298,6 +298,27 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     public async Task<Func<Task>?> UseAsync(PlacedPages place, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         var before = await refs.UseAsync(place.Range.RefId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);
-        return before is null ? null : () => refs.RestoreAsync(before);
+        if (before is null) return null;
+        Moved(place);
+        return async () =>
+        {
+            await refs.RestoreAsync(before);
+            Moved(place);
+        };
+    }
+
+    /// <summary>
+    /// Raised after Use this page on a Needs review card, or its Undo, moved a session item's pages, on the thread that
+    /// moved them. <see cref="SessionsService.Changed"/> passes it on, so an open binder or reader follows the item.
+    /// </summary>
+    public event EventHandler? SessionItemMoved;
+
+    /// <summary>As <see cref="SessionItemMoved"/>, for a page note, with its book; <see cref="NotesService.PageNotesChanged"/> passes it on.</summary>
+    public event EventHandler<EntryId>? PageNoteMoved;
+
+    void Moved(PlacedPages place)
+    {
+        if (place.Kind == PlaceKind.SessionItem) SessionItemMoved?.Invoke(this, EventArgs.Empty);
+        else PageNoteMoved?.Invoke(this, place.EntryId);
     }
 }

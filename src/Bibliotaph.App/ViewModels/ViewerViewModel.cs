@@ -437,6 +437,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_windowClosed) return;
         _pins.Changed -= OnPinsChanged;
         _pins.Changed += OnPinsChanged;
+        _sessions.Changed -= OnSessionsChanged;
+        if (request.SessionItem is not null && !InBinder) _sessions.Changed += OnSessionsChanged;
         var version = ++_version;
         // Stepping through a pack keeps the image in view until the next one is ready.
         if (!(IsInPack && Mode == ViewerMode.Image)) Mode = ViewerMode.Opening;
@@ -454,6 +456,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             _ = PrioritizeAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
             else await OpenPdfAsync(_source, request, version);
+            // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
+            if (version == _version && request.SessionItem is not null && !InBinder) await FollowSessionItemAsync();
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
         {
@@ -485,6 +489,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         NoteUndo = null;
         _notes.PageNotesChanged -= OnPageNotesChanged;
         _pins.Changed -= OnPinsChanged;
+        _sessions.Changed -= OnSessionsChanged;
         PageNotes.Clear();
         HasPageNotes = false;
         OnPropertyChanged(nameof(NotesLabel));
@@ -741,6 +746,56 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
     }
 
+    /// <summary>
+    /// The binder item open here was moved, as by Use this page on a Needs review card or its Undo (slice 4h's known
+    /// limit): while it is still in the open file, the banner and Use this page follow it and the reader stays on its
+    /// page; in another file, it opens there.
+    /// </summary>
+    public async Task FollowAsync(ViewerRequest moved)
+    {
+        if (_request is { } open && open.DocumentId == moved.DocumentId && Mode is ViewerMode.Pdf or ViewerMode.Image) ShowPlace(moved);
+        else await ShowAsync(moved);
+    }
+
+    /// <summary>The session item's or page note's new place in the open file: its banner and Use this page, without moving the reader.</summary>
+    void ShowPlace(ViewerRequest moved)
+    {
+        if (_request is not { } open || (open.SessionItem == moved.SessionItem && open.PageNote == moved.PageNote)) return;
+        _request = open with { SessionItem = moved.SessionItem, PageNote = moved.PageNote };
+        ShowSessionBanner();
+    }
+
+    void OnSessionsChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(FollowSessionItemAsync);
+
+    /// <summary>
+    /// The session item open here, outside a binder (whose list does this itself), where it opens now: its banner
+    /// follows it while it is in the open file. Opening it in another file is left to the next time it's opened, so a
+    /// reader Needs review opened at a suggested page isn't taken back to the file the pages were added from.
+    /// </summary>
+    async Task FollowSessionItemAsync()
+    {
+        if (InBinder || _request is not { SessionItem: { } item } request) return;
+        var version = _version;
+        try
+        {
+            var target = await Task.Run(() => _sessions.ResolveItemAsync(item.ItemId));
+            if (version != _version || !ReferenceEquals(_request, request) || target is not { DocumentId: { } documentId } || documentId != request.DocumentId) return;
+            ShowPlace(request with { SessionItem = item with { State = target.State, Reason = target.Reason, FirstPage = target.FirstPage, LastPage = target.LastPage } });
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogWarning(ex, "Following session item {ItemId} failed", item.ItemId);
+        }
+    }
+
+    /// <summary>As <see cref="FollowSessionItemAsync"/>, for the page note open here, once the book's notes have been read again.</summary>
+    void FollowPageNote()
+    {
+        if (_request is not { PageNote: { } note } request || PageNotes.FirstOrDefault(r => r.Id == note.NoteId)?.Place is not { } place
+            || place.DocumentId != request.DocumentId) return;
+        ShowPlace(request with { PageNote = note with { State = place.State, Reason = place.Reason, FirstPage = place.FirstPage, LastPage = place.LastPage } });
+    }
+
     [RelayCommand]
     void DismissSessionBanner()
     {
@@ -929,6 +984,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             foreach (var note in notes) PageNotes.Add(new PageNoteRow(note, places.GetValueOrDefault(note.Id)));
             HasPageNotes = PageNotes.Count > 0;
             OnPropertyChanged(nameof(NotesLabel));
+            FollowPageNote();
         }
         catch (Exception ex)
         {

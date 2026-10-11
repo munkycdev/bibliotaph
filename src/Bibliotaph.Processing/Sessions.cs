@@ -53,8 +53,25 @@ public sealed record SessionItemTarget(long? DocumentId, int FirstPage, int Last
 public sealed class SessionsService(SessionStore sessions, EntryStore entries, LibraryStore library, IndexQueries index, MetadataProjector projector,
     PagePlaces places)
 {
-    /// <summary>Raised after any pack changed, on the thread that changed it.</summary>
-    public event EventHandler? Changed;
+    EventHandler? _changed;
+
+    /// <summary>
+    /// Raised after any pack changed, on the thread that changed it, including an item's pages taken with Use this page
+    /// on a Needs review card (<see cref="PagePlaces.SessionItemMoved"/>), so an open binder or reader shows where it opens now.
+    /// </summary>
+    public event EventHandler? Changed
+    {
+        add
+        {
+            _changed += value;
+            places.SessionItemMoved += value;
+        }
+        remove
+        {
+            _changed -= value;
+            places.SessionItemMoved -= value;
+        }
+    }
 
     public Task<IReadOnlyList<SessionPackInfo>> ListAsync(CancellationToken ct = default) => sessions.ListAsync(ct);
 
@@ -64,7 +81,7 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
     public async Task<SessionPackContents?> OpenAsync(long packId, CancellationToken ct = default)
     {
         if (!await sessions.TouchAsync(packId, ct)) return null;
-        Changed?.Invoke(this, EventArgs.Empty);
+        _changed?.Invoke(this, EventArgs.Empty);
         return await sessions.GetAsync(packId, ct);
     }
 
@@ -74,13 +91,13 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
     public async Task<SessionPackInfo> CreateAsync(string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
         var created = await sessions.CreateAsync(title, date, keepAtHand, gameSystem, ct);
-        Changed?.Invoke(this, EventArgs.Empty);
+        _changed?.Invoke(this, EventArgs.Empty);
         return created;
     }
 
     public async Task UpdateAsync(long packId, string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
-        if (await sessions.UpdateAsync(packId, title, date, keepAtHand, gameSystem, ct)) Changed?.Invoke(this, EventArgs.Empty);
+        if (await sessions.UpdateAsync(packId, title, date, keepAtHand, gameSystem, ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>The pack's notes, saved as they are typed. Raises no <see cref="Changed"/>: nothing else shows them.</summary>
@@ -155,44 +172,44 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
 
     public async Task UpdateItemAsync(long itemId, string? label, string? note, CancellationToken ct = default)
     {
-        if (await sessions.UpdateItemAsync(itemId, label, note, ct)) Changed?.Invoke(this, EventArgs.Empty);
+        if (await sessions.UpdateItemAsync(itemId, label, note, ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task<bool> MoveItemAsync(long itemId, int by, CancellationToken ct = default)
     {
         var moved = await sessions.MoveItemAsync(itemId, by, ct);
-        if (moved) Changed?.Invoke(this, EventArgs.Empty);
+        if (moved) _changed?.Invoke(this, EventArgs.Empty);
         return moved;
     }
 
     public async Task<bool> MoveItemToAsync(long itemId, long sectionId, int index, CancellationToken ct = default)
     {
         var moved = await sessions.MoveItemToAsync(itemId, sectionId, index, ct);
-        if (moved) Changed?.Invoke(this, EventArgs.Empty);
+        if (moved) _changed?.Invoke(this, EventArgs.Empty);
         return moved;
     }
 
     public async Task<SessionSectionInfo> AddSectionAsync(long packId, string name, CancellationToken ct = default)
     {
         var section = await sessions.AddSectionAsync(packId, name, ct);
-        Changed?.Invoke(this, EventArgs.Empty);
+        _changed?.Invoke(this, EventArgs.Empty);
         return section;
     }
 
     public async Task RenameSectionAsync(long sectionId, string name, CancellationToken ct = default)
     {
-        if (await sessions.RenameSectionAsync(sectionId, name, ct)) Changed?.Invoke(this, EventArgs.Empty);
+        if (await sessions.RenameSectionAsync(sectionId, name, ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task DeleteSectionAsync(long sectionId, CancellationToken ct = default)
     {
-        if (await sessions.DeleteSectionAsync(sectionId, ct)) Changed?.Invoke(this, EventArgs.Empty);
+        if (await sessions.DeleteSectionAsync(sectionId, ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>"Use this page" (choice 14): the item points at these pages of the document the reader has open from now on, checked.</summary>
     public async Task RepointAsync(long itemId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
-        if (await sessions.RepointAsync(itemId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct)) Changed?.Invoke(this, EventArgs.Empty);
+        if (await sessions.RepointAsync(itemId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -222,6 +239,10 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
         return result;
     }
 
+    /// <summary>Where one item opens now, for a reader that has it open; null when the item is gone.</summary>
+    public async Task<SessionItemTarget?> ResolveItemAsync(long itemId, CancellationToken ct = default) =>
+        await sessions.GetItemAsync(itemId, ct) is { } item ? (await ResolveAsync([item], ct))[item.Id] : null;
+
     static SessionItemTarget ToTarget(PagePlace place) => new(place.DocumentId, place.FirstPage, place.LastPage, place.State switch
     {
         PagePlaceState.Ready => SessionItemState.Ready,
@@ -235,6 +256,6 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
     async Task ProjectAsync(IReadOnlyCollection<EntryId> changed, CancellationToken ct)
     {
         await projector.ProjectMarksAsync([.. changed.Distinct()], ct);
-        Changed?.Invoke(this, EventArgs.Empty);
+        _changed?.Invoke(this, EventArgs.Empty);
     }
 }

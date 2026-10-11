@@ -118,7 +118,7 @@ static partial class SmokeTest
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
-            await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone",
+            await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
                 () => ReviewRevisionAsync(services, window));
             await Check("two cards ticked and joined as one book with Same book, opening the file chosen, and taken apart again with Undo",
                 () => JoinAsOneBookAsync(services, window, books));
@@ -1273,8 +1273,9 @@ static partial class SmokeTest
 
     /// <summary>
     /// Slice 4h: a session item made in the lairs' other copy, whose page wasn't found in the copy the book opens now,
-    /// is a "new version" card in Needs review; Use this page on the card checks it, and Undo puts it back. The
-    /// session is deleted at the end, so later checks see the library as it was. What was found is seeded, since the
+    /// is a "new version" card in Needs review; Use this page on the card checks it, and Undo puts it back, while the
+    /// binder, popped out into a window, follows each change without being opened again. The session is deleted at the
+    /// end, so later checks see the library as it was. What was found is seeded, since the
     /// made-up books have no pages to fingerprint.
     /// </summary>
     static async Task ReviewRevisionAsync(IServiceProvider services, Window window)
@@ -1284,6 +1285,7 @@ static partial class SmokeTest
         var current = copies.Single(c => c.IsCurrent).DocumentId;
         var other = copies.First(c => !c.IsCurrent).DocumentId;
         var sessions = services.GetRequiredService<SessionsService>();
+        var windows = services.GetRequiredService<ReaderWindows>();
         var pack = await sessions.CreateAsync("Smoke revision");
         try
         {
@@ -1293,7 +1295,17 @@ static partial class SmokeTest
             var places = services.GetRequiredService<PagePlaces>();
             if (await places.CountRevisionsAsync() != 1) throw new InvalidOperationException("The place that needs a look isn't counted for Needs review.");
 
+            // The binder stays open in a window of its own, at the item: the file its pages were added from, while they need a look.
             var shell = services.GetRequiredService<ShellViewModel>();
+            var binders = services.GetRequiredService<SessionPages>();
+            binders.Open(pack.Id);
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, Current: not null } open && open.PackId == pack.Id,
+                () => "The binder didn't open at its item.");
+            var binder = (SessionReaderViewModel)shell.CurrentPage!;
+            await binders.PopOutAsync(binder);
+            await WaitUntilAsync(window, () => windows.Windows.Any(w => ReferenceEquals(w.Model, binder)) && binder.Current is { Target: { State: SessionItemState.Original } open } && open.DocumentId == other,
+                () => $"The popped-out binder's item opens {binder.Current?.Target.State} in document {binder.Current?.Target.DocumentId}, not the file its pages were added from.");
+
             services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
             var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
             await page.ReloadCommand.ExecuteAsync(null);
@@ -1309,13 +1321,19 @@ static partial class SmokeTest
             if (await places.CountRevisionsAsync() != 0) throw new InvalidOperationException("A checked new version is still counted for Needs review.");
             if ((await sessions.GetAsync(pack.Id))!.Items.Single().Range is not { DocumentId: var used, Check.Outcome: PageCheck.Checked } || used != current)
                 throw new InvalidOperationException("Use this page didn't point the item at the copy the book opens.");
+            // The open binder follows without being opened again: its item opens at the page taken, in the copy the book opens.
+            await WaitUntilAsync(window, () => binder.Current is { Target: { State: SessionItemState.Ready } open } && open.DocumentId == current,
+                () => $"The open binder's item still opens {binder.Current?.Target.State} in document {binder.Current?.Target.DocumentId} after Use this page.");
 
             await card.UndoCommand.ExecuteAsync(null);
             await WaitUntilAsync(window, () => !card.IsDone && row.CanUse && card.Heading == Heading, () => "Undo didn't put the place back to be checked.");
             if (await places.CountRevisionsAsync() != 1) throw new InvalidOperationException("Undo didn't bring the new version back to Needs review.");
+            await WaitUntilAsync(window, () => binder.Current is { Target: { State: SessionItemState.Original } open } && open.DocumentId == other,
+                () => "The open binder's item didn't go back to the file its pages were added from after Undo.");
         }
         finally
         {
+            windows.CloseAll();
             await sessions.DeleteAsync(pack.Id);
         }
         if (await services.GetRequiredService<PagePlaces>().CountRevisionsAsync() != 0)

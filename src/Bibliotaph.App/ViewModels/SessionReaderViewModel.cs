@@ -326,7 +326,11 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             else if (Current is { } current && items.FirstOrDefault(i => i.Id == current.Id) is { } same)
             {
                 Current = same;
-                if (reopen) await OpenAsync(same);
+                var moved = Moved(current.Target, same.Target);
+                if (reopen || (moved && !same.CanOpen)) await OpenAsync(same);
+                // Its pages moved, as with Use this page on a Needs review card: the reader follows without reopening the binder.
+                else if (moved && await SessionPackRows.RequestAsync(same, Pack?.Title ?? "", _queries) is { } request && Current == same)
+                    await Viewer.FollowAsync(request);
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
             else
@@ -342,6 +346,10 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             _log.LogError(ex, "Showing binder {PackId} failed", PackId);
         }
     }
+
+    /// <summary>Whether an item opens somewhere else than it did: another file or pages, or another way of finding them.</summary>
+    static bool Moved(SessionItemTarget before, SessionItemTarget after) =>
+        (before.DocumentId, before.FirstPage, before.LastPage, before.State) != (after.DocumentId, after.FirstPage, after.LastPage, after.State);
 
     /// <summary>A click or Enter on an item in the list.</summary>
     [RelayCommand]

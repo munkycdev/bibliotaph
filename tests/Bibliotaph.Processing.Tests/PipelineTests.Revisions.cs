@@ -111,13 +111,28 @@ public sealed partial class PipelineTests
         Assert.Equal((revised, 3), await _reading.GetPlaceAsync(revised, Ct));
         Assert.Equal(3, await reading.GetPositionAsync(revised, Ct));
 
-        // Use this page on the card for the item, and in the reader for the note, at the page the user went to.
+        // Use this page on the card for the item, and in the reader for the note, at the page the user went to. Each
+        // says so, so a binder or reader showing the place follows it.
+        var binderChanges = 0;
+        var notesChanged = new List<EntryId>();
+        sessions.Changed += (_, _) => binderChanges++;
+        notes.PageNotesChanged += (_, entry) => notesChanged.Add(entry);
         var undo = await review.UsePlaceAsync(card.Places[0], Ct);
         Assert.NotNull(undo);
+        Assert.Equal(1, binderChanges);
         Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Ready), (await ItemsAsync())[crypt]);
+        Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Ready), await sessions.ResolveItemAsync(crypt, Ct));
         card = Assert.Single((await review.GetQueueAsync(Ct)).Revisions!);
         Assert.Equal((2, 1), (card.Found, card.NeedLook));
         Assert.Equal(PageCheck.Checked, card.Places.Single(p => p.Place.OwnerId == crypt && p.Place.Kind == PlaceKind.SessionItem).Outcome);
+
+        // The note's place taken on the card and undone there says so too.
+        var noteUndo = await review.UsePlaceAsync(card.Places.Single(p => p.Place.OwnerId == cryptNote.Id && p.Place.Kind == PlaceKind.PageNote), Ct);
+        Assert.Equal([book.EntryId], notesChanged);
+        await noteUndo!();
+        Assert.Equal([book.EntryId, book.EntryId], notesChanged);
+        Assert.Equal(1, binderChanges);
+        Assert.Equal(new PagePlace(revised, 3, 3, PagePlaceState.Changed, PagePlaces.ChangedReason), (await NotesAsync())[cryptNote.Id]);
         Assert.NotNull(await notes.UsePageAsync(cryptNote.Id, revised, 4, 4, Ct));
         Assert.Equal(new PagePlace(revised, 4, 4, PagePlaceState.Ready), (await NotesAsync())[cryptNote.Id]);
         Assert.Empty((await review.GetQueueAsync(Ct)).Revisions!);
@@ -125,6 +140,7 @@ public sealed partial class PipelineTests
 
         // Undo puts the item back as it was, needing a look, and the card with it.
         await undo();
+        Assert.Equal(2, binderChanges);
         Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Changed, PagePlaces.ChangedReason), (await ItemsAsync())[crypt]);
         card = Assert.Single((await review.GetQueueAsync(Ct)).Revisions!);
         Assert.Equal((2, 1), (card.Found, card.NeedLook));

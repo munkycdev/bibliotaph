@@ -10,8 +10,25 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
 {
-    /// <summary>Raised after a page note was added, changed or deleted, with the book it is on, on the thread that changed it.</summary>
-    public event EventHandler<EntryId>? PageNotesChanged;
+    EventHandler<EntryId>? _pageNotesChanged;
+
+    /// <summary>
+    /// Raised after a page note was added, changed or deleted, with the book it is on, on the thread that changed it;
+    /// also after Use this page on a Needs review card moved one (<see cref="PagePlaces.PageNoteMoved"/>).
+    /// </summary>
+    public event EventHandler<EntryId>? PageNotesChanged
+    {
+        add
+        {
+            _pageNotesChanged += value;
+            places.PageNoteMoved += value;
+        }
+        remove
+        {
+            _pageNotesChanged -= value;
+            places.PageNoteMoved -= value;
+        }
+    }
 
     public Task<string?> GetEntryNoteAsync(EntryId entryId, CancellationToken ct = default) => notes.GetEntryNoteAsync(entryId, ct);
 
@@ -35,7 +52,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
     {
         if (await entries.GetEntryAsync(documentId, ct) is not { } entry) return null;
         var added = await notes.AddPageNoteAsync(entry.EntryId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), text, ct);
-        if (added is not null) PageNotesChanged?.Invoke(this, entry.EntryId);
+        if (added is not null) _pageNotesChanged?.Invoke(this, entry.EntryId);
         return added;
     }
 
@@ -48,7 +65,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         var same = documentId == note.Range.DocumentId && firstPage == note.Range.FirstPdfPage && lastPage == note.Range.LastPdfPage;
         var range = same ? null : await MakeRangeAsync(documentId, firstPage, lastPage, ct);
         var updated = await notes.UpdatePageNoteAsync(note.Id, text, range, ct);
-        if (updated is not null) PageNotesChanged?.Invoke(this, note.EntryId);
+        if (updated is not null) _pageNotesChanged?.Invoke(this, note.EntryId);
         return updated;
     }
 
@@ -65,21 +82,21 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
     public async Task<PageNoteInfo?> UsePageAsync(long noteId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         var used = await notes.RepointAsync(noteId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);
-        if (used is not null) PageNotesChanged?.Invoke(this, used.EntryId);
+        if (used is not null) _pageNotesChanged?.Invoke(this, used.EntryId);
         return used;
     }
 
     public async Task<PageNoteInfo?> DeletePageNoteAsync(long noteId, CancellationToken ct = default)
     {
         var deleted = await notes.DeletePageNoteAsync(noteId, ct);
-        if (deleted is not null) PageNotesChanged?.Invoke(this, deleted.EntryId);
+        if (deleted is not null) _pageNotesChanged?.Invoke(this, deleted.EntryId);
         return deleted;
     }
 
     public async Task<PageNoteInfo?> RestorePageNoteAsync(PageNoteInfo deleted, CancellationToken ct = default)
     {
         var restored = await notes.RestorePageNoteAsync(deleted, ct);
-        if (restored is not null) PageNotesChanged?.Invoke(this, deleted.EntryId);
+        if (restored is not null) _pageNotesChanged?.Invoke(this, deleted.EntryId);
         return restored;
     }
 
