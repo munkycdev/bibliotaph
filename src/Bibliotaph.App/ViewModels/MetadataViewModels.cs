@@ -23,7 +23,7 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
 
     public MetadataField Field { get; } = field;
 
-    /// <summary>As it reads: a term's label, "Levels 1–5", the text itself.</summary>
+    /// <summary>As it reads: a term's label, "Levels 1–5", "4–6 players", the text itself.</summary>
     public string Text { get; } = Display(field, value.Value, vocabulary);
 
     public bool Confirmed => Value.Confirmed;
@@ -35,6 +35,7 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
     {
         FieldKind.Term => vocabulary.Label(field.Vocabulary!, value),
         FieldKind.Levels when LevelRange.TryParse(value, out var range) => range.Describe(),
+        FieldKind.Players when PlayerRange.TryParse(value, out var players) => players.Describe(),
         _ => value,
     };
 
@@ -118,6 +119,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     public string EditHint => Field.Kind switch
     {
         FieldKind.Levels => "3, 1-5 or n/a",
+        FieldKind.Players => "4 or 3-5",
         FieldKind.Year => "2019",
         _ when Field.Multiple => "Separate values with commas",
         _ => "",

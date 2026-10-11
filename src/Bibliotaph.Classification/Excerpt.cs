@@ -15,6 +15,9 @@ public enum ExcerptPart
     Opening,
     Contents,
     Introduction,
+
+    /// <summary>The last pages: the back cover, where "for 4–6 characters of levels 3–5" and the blurb usually are.</summary>
+    BackCover,
     Sampled,
 }
 
@@ -22,8 +25,9 @@ public enum ExcerptPart
 public sealed record ExcerptPage(int PdfPage, string Text, ExcerptPart Part);
 
 /// <summary>
-/// The bounded part of a book the classifier reads (slice 2 plan, choice 9): its opening pages, its contents, its
-/// introduction, its headings, then pages sampled evenly across the rest, each tagged with its PDF page number.
+/// The bounded part of a book the classifier reads (slice 2 plan, choice 9): its opening pages, its back cover, its
+/// contents, its introduction, its headings, then pages sampled evenly across the rest, each tagged with its PDF page
+/// number.
 /// </summary>
 public sealed record Excerpt(IReadOnlyList<ExcerptPage> Pages, IReadOnlyList<BookHeading> Headings, int PageCount)
 {
@@ -44,6 +48,9 @@ public sealed record ExcerptOptions
 
     public int OpeningPages { get; init; } = 3;
 
+    /// <summary>The last pages with text, always read: the back cover says who a book is for (scenario review, row 6).</summary>
+    public int ClosingPages { get; init; } = 2;
+
     /// <summary>A page that opens the book, or holds its contents or introduction, gives at most this much.</summary>
     public int KeyPageCharacters { get; init; } = 2_400;
 
@@ -61,6 +68,9 @@ public static partial class ExcerptBuilder
 {
     /// <summary>The opening pages are looked for among this many, so a book that starts with blank covers still has some.</summary>
     const int OpeningSearch = 8;
+
+    /// <summary>The back cover is looked for among this many last pages, so a blank page at the very end doesn't hide it.</summary>
+    const int ClosingSearch = 4;
 
     /// <summary>Contents and introductions come early; later pages that look like them are usually indexes or chapters.</summary>
     const int FrontMatter = 24;
@@ -88,6 +98,9 @@ public static partial class ExcerptBuilder
 
         foreach (var page in texts.Keys.Where(p => p < OpeningSearch).Order().Take(options.OpeningPages))
             Take(page, ExcerptPart.Opening, options.KeyPageCharacters);
+
+        foreach (var page in texts.Keys.Where(p => p >= pageCount - ClosingSearch).OrderDescending().Take(options.ClosingPages))
+            Take(page, ExcerptPart.BackCover, options.KeyPageCharacters);
 
         foreach (var page in texts.Where(t => t.Key < FrontMatter && LooksLikeContents(t.Value)).Select(t => t.Key).Order().Take(2))
             Take(page, ExcerptPart.Contents, options.KeyPageCharacters);

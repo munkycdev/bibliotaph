@@ -2,7 +2,7 @@ using Bibliotaph.Core.Search;
 
 namespace Bibliotaph.Index.Tests;
 
-/// <summary>Projected metadata in the library: titles, card labels, field search, filters, facet counts and levels.</summary>
+/// <summary>Projected metadata in the library: titles, card labels, field search, filters, facet counts, levels and players.</summary>
 public sealed class MetadataSearchTests : IndexFixture
 {
     const long Tomb = 1, Citadel = 2, Bestiary = 3, Map = 4, Unknown = 5;
@@ -28,19 +28,23 @@ public sealed class MetadataSearchTests : IndexFixture
             [
                 new("system", "d&d", "dnd"), new("system", "dnd", "dnd"), new("edition", "5e", "dnd-5e"), new("edition", "d&d 5e", "dnd-5e"),
                 new("edition", "pf2e", "pathfinder-2e"), new("system", "pathfinder", "pathfinder"), new("type", "module", "adventure"),
+                new("style", "dungeon crawl", "dungeon-crawl"), new("style", "caper", "heist"), new("duration", "one shot", "one-shot"),
             ], Ct);
         await _store.SetMetadataAsync(
             [
                 new EntryMetaRow
                 {
                     EntryId = EntryOf(Tomb), Title = "Tomb of Horrors", Publisher = "TSR", Authors = "Gary Gygax", SystemLabel = "D&D 5e", KindLabel = "Adventure",
-                    LevelMin = 10, LevelMax = 14, Levels = LevelState.Known, ConfirmedText = "5th edition · 5e",
-                    Facets = [new("system", "dnd", "Dungeons & Dragons", true), new("edition", "dnd-5e", "5th edition", true), new("type", "adventure", "Adventure", false), new("theme", "horror", "Horror", false)],
+                    LevelMin = 10, LevelMax = 14, Levels = LevelState.Known, PlayersMin = 4, PlayersMax = 6, ConfirmedText = "5th edition · 5e",
+                    Facets = [new("system", "dnd", "Dungeons & Dragons", true), new("edition", "dnd-5e", "5th edition", true), new("type", "adventure", "Adventure", false), new("theme", "horror", "Horror", false),
+                        new("style", "dungeon-crawl", "Dungeon crawl", false), new("duration", "one-shot", "One-shot", true)],
                 },
                 new EntryMetaRow
                 {
                     EntryId = EntryOf(Citadel), Publisher = "Wizards of the Coast", SystemLabel = "D&D 5e", KindLabel = "Adventure", LevelMin = 1, LevelMax = 3, Levels = LevelState.Known,
-                    Facets = [new("system", "dnd", "Dungeons & Dragons", false), new("edition", "dnd-5e", "5th edition", false), new("type", "adventure", "Adventure", false)],
+                    PlayersMin = 4, PlayersMax = 4,
+                    Facets = [new("system", "dnd", "Dungeons & Dragons", false), new("edition", "dnd-5e", "5th edition", false), new("type", "adventure", "Adventure", false),
+                        new("style", "heist", "Heist", false), new("duration", "short", "Short (2–3 sessions)", false)],
                 },
                 new EntryMetaRow
                 {
@@ -119,6 +123,41 @@ public sealed class MetadataSearchTests : IndexFixture
     [InlineData("-level:12", new[] { Citadel, Bestiary, Map, Unknown })]
     public async Task Levels_match_by_overlap_and_unknown_is_its_own_value(string query, long[] expected) =>
         Assert.Equal(expected, await FindAsync(query));
+
+    [Theory]
+    [InlineData("players:4", new[] { Tomb, Citadel })]
+    [InlineData("players:5", new[] { Tomb })]
+    [InlineData("players:5-8", new[] { Tomb })]
+    [InlineData("players:\"four to six\"", new[] { Tomb, Citadel })]
+    [InlineData("players:unknown", new[] { Bestiary, Map, Unknown })]
+    [InlineData("-players:unknown", new[] { Tomb, Citadel })]
+    [InlineData("-players:5", new[] { Citadel, Bestiary, Map, Unknown })]
+    public async Task Players_match_by_overlap_and_unknown_is_its_own_value(string query, long[] expected) =>
+        Assert.Equal(expected, await FindAsync(query));
+
+    [Theory]
+    [InlineData("style:heist", new[] { Citadel })]
+    [InlineData("style:caper", new[] { Citadel })]
+    [InlineData("style:\"dungeon crawl\"", new[] { Tomb })]
+    [InlineData("style:dungeon*", new[] { Tomb })]
+    [InlineData("style:unknown", new[] { Bestiary, Map, Unknown })]
+    [InlineData("duration:one-shot", new[] { Tomb })]
+    [InlineData("duration:\"one shot\"", new[] { Tomb })]
+    [InlineData("duration:short", new[] { Citadel })]
+    [InlineData("-duration:unknown theme:horror", new[] { Tomb })]
+    public async Task Style_and_duration_match_any_name_of_a_term(string query, long[] expected) =>
+        Assert.Equal(expected, await FindAsync(query));
+
+    [Fact]
+    public async Task Filters_choose_players_styles_and_durations()
+    {
+        Assert.Equal([Tomb], (await _library.ListAsync(new LibraryFilter(Players: 6), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([Tomb, Citadel], (await _library.ListAsync(new LibraryFilter(Players: 4), ct: Ct)).Select(e => e.DocumentId).Order());
+        Assert.Equal([Citadel], (await _library.ListAsync(new LibraryFilter(Styles: ["heist"]), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([Bestiary, Map, Unknown], (await _library.ListAsync(new LibraryFilter(Durations: [SearchQuery.Unknown]), ct: Ct)).Select(e => e.DocumentId).Order());
+        var styles = await _library.GetFacetCountsAsync("style", new LibraryFilter(Players: 6), ct: Ct);
+        Assert.Equal([("dungeon-crawl", 1L)], styles.Select(c => (c.Value, c.Count)));
+    }
 
     [Fact]
     public async Task A12_a_level_filter_leaves_out_unknown_levels_unless_asked()

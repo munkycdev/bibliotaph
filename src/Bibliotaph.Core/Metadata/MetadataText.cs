@@ -110,6 +110,62 @@ public readonly record struct LevelRange(int Min, int Max, bool NotApplicable = 
         NotApplicable ? "No levels" : Min == Max ? $"Level {Min.ToString(CultureInfo.CurrentCulture)}" : $"Levels {Min.ToString(CultureInfo.CurrentCulture)}–{Max.ToString(CultureInfo.CurrentCulture)}";
 }
 
+/// <summary>
+/// How many players a book is written for, as stored: "4" or "4-6". Books say it as "for 4–6 characters", "four to six
+/// players" or "a party of 4", so those read too. Unknown is the absence of a value, never a stored one.
+/// </summary>
+public readonly record struct PlayerRange(int Min, int Max)
+{
+    public const int Highest = 20;
+
+    /// <summary>Words around the numbers that say nothing more: "for 4 to 6 player characters".</summary>
+    static readonly HashSet<string> Filler =
+    [
+        with(StringComparer.Ordinal),
+        "for", "a", "an", "party", "group", "of", "to", "or", "and", "up", "between", "from", "about", "players", "player", "characters",
+        "character", "pcs", "pc", "people", "persons", "adventurers", "heroes", "the",
+    ];
+
+    static readonly string[] NumberWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+
+    /// <summary>The number a word in comparison form spells, from one to twelve, or null: "four" is 4.</summary>
+    public static int? FromWord(string word) => Array.IndexOf(NumberWords, word) is var n and > 0 ? n : null;
+
+    /// <summary>"4", "4-6", "4–6 players", "for four to six characters", "a party of 4", "solo".</summary>
+    public static bool TryParse(string? text, out PlayerRange range)
+    {
+        range = default;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var numbers = new List<int>();
+        foreach (var word in MetadataText.Words(MetadataText.Normalize(text)))
+        {
+            if (Filler.Contains(word)) continue;
+            if (word is "solo" or "single") numbers.Add(1);
+            else if (FromWord(word) is { } named) numbers.Add(named);
+            else if (int.TryParse(word, NumberStyles.None, CultureInfo.InvariantCulture, out var number)) numbers.Add(number);
+            else return false;
+        }
+        if (numbers.Count is 0 or > 2) return false;
+        var (min, max) = (numbers[0], numbers[^1]);
+        if (min < 1 || max > Highest || min > max) return false;
+        range = new PlayerRange(min, max);
+        return true;
+    }
+
+    public bool Contains(int players) => Min <= players && players <= Max;
+
+    public bool Overlaps(int min, int max) => Min <= max && min <= Max;
+
+    /// <summary>The stored form: "4", "4-6".</summary>
+    public override string ToString() =>
+        Min == Max ? Min.ToString(CultureInfo.InvariantCulture) : $"{Min.ToString(CultureInfo.InvariantCulture)}-{Max.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>"4–6 players", "1 player".</summary>
+    public string Describe() =>
+        Min == Max ? $"{Min.ToString(CultureInfo.CurrentCulture)} {(Min == 1 ? "player" : "players")}"
+        : $"{Min.ToString(CultureInfo.CurrentCulture)}–{Max.ToString(CultureInfo.CurrentCulture)} players";
+}
+
 /// <summary>Turning what someone typed, or a source proposed, into a field's stored and comparison forms.</summary>
 public static class MetadataValues
 {
@@ -121,11 +177,12 @@ public static class MetadataValues
     {
         FieldKind.Term => value,
         FieldKind.Levels => LevelRange.TryParse(value, out var range) ? range.ToString() : MetadataText.Normalize(value),
+        FieldKind.Players => PlayerRange.TryParse(value, out var players) ? players.ToString() : MetadataText.Normalize(value),
         _ => MetadataText.Normalize(value),
     };
 
     /// <summary>
-    /// The stored form of a Text, Levels or Year value, or null with a reason when it isn't one. Term values are
+    /// The stored form of a Text, Levels, Players or Year value, or null with a reason when it isn't one. Term values are
     /// resolved against the vocabulary instead (<see cref="Vocabulary.Resolve"/>).
     /// </summary>
     public static (string? Value, string? Problem) Parse(MetadataField field, string text)
@@ -137,6 +194,10 @@ public static class MetadataValues
                 return LevelRange.TryParse(tidy, out var range)
                     ? (range.ToString(), null)
                     : (null, $"Levels look like 3, 1-5 or n/a, from 0 to {LevelRange.Highest}.");
+            case FieldKind.Players:
+                return PlayerRange.TryParse(tidy, out var players)
+                    ? (players.ToString(), null)
+                    : (null, $"Players look like 4 or 3-5, from 1 to {PlayerRange.Highest}.");
             case FieldKind.Year:
                 return int.TryParse(tidy, NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year is >= EarliestYear and <= LatestYear
                     ? (year.ToString(CultureInfo.InvariantCulture), null)

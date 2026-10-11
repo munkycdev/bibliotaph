@@ -47,6 +47,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     static readonly Choice<string?> AllTypes = new(null, "All types");
     static readonly Choice<int?> AnyLevel = new(null, "Any level");
     static readonly Choice<string?> AnyOwn = new(null, "Also own: any");
+    static readonly Choice<string?> AnyStyle = new(null, "Any style");
+    static readonly Choice<string?> AnyDuration = new(null, "Any length");
+    static readonly Choice<int?> AnyPlayers = new(null, "Any number");
     static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
     static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
 
@@ -116,6 +119,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         TypeChoice = AllTypes;
         LevelChoice = AnyLevel;
         OwnChoice = AnyOwn;
+        StyleChoice = AnyStyle;
+        DurationChoice = AnyDuration;
+        PlayersChoice = AnyPlayers;
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
         _staleTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RefreshIfStaleAsync(),
             Dispatcher.CurrentDispatcher);
@@ -213,6 +219,33 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowOwnChoice { get; private set; }
+
+    /// <summary>
+    /// The kind of adventure (heist, dungeon crawl) with how many books each has, and how long they take to play
+    /// (scenario review, row 6). Each is shown once some book has a value, or while one is chosen.
+    /// </summary>
+    public ObservableCollection<Choice<string?>> StyleChoices { get; } = [AnyStyle];
+
+    [ObservableProperty]
+    public partial Choice<string?> StyleChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowStyleChoice { get; private set; }
+
+    public ObservableCollection<Choice<string?>> DurationChoices { get; } = [AnyDuration];
+
+    [ObservableProperty]
+    public partial Choice<string?> DurationChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowDurationChoice { get; private set; }
+
+    /// <summary>How many players: books whose stated party size includes the number chosen.</summary>
+    public IReadOnlyList<Choice<int?>> PlayersChoices { get; } =
+        [AnyPlayers, new Choice<int?>(1, "1 player"), .. Enumerable.Range(2, 9).Select(n => new Choice<int?>(n, $"{n.ToString(CultureInfo.CurrentCulture)} players"))];
+
+    [ObservableProperty]
+    public partial Choice<int?> PlayersChoice { get; set; }
 
     /// <summary>Books a model has read (2c): shown once there are some, or while a choice is made.</summary>
     public IReadOnlyList<Choice<AiFilter>> AiChoices { get; } =
@@ -525,6 +558,24 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Refresh();
     }
 
+    partial void OnStyleChoiceChanged(Choice<string?> value)
+    {
+        if (value is null) StyleChoice = AnyStyle;
+        else Refresh();
+    }
+
+    partial void OnDurationChoiceChanged(Choice<string?> value)
+    {
+        if (value is null) DurationChoice = AnyDuration;
+        else Refresh();
+    }
+
+    partial void OnPlayersChoiceChanged(Choice<int?> value)
+    {
+        if (value is null) PlayersChoice = AnyPlayers;
+        else Refresh();
+    }
+
     partial void OnLevelChoiceChanged(Choice<int?> value)
     {
         if (value is null) LevelChoice = AnyLevel;
@@ -563,7 +614,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
             var away = await _library.GetUnavailableAsync();
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group);
+                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
+                Durations: Selected(DurationChoice), Players: PlayersChoice.Value);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             if (version == _version)
@@ -604,23 +656,34 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     static string[]? Selected(Choice<string?> choice) => choice.Value is { } value ? [value] : null;
 
-    /// <summary>
-    /// How many books each system and type would show. Each menu is counted without its own choice, so picking a
-    /// system still shows how many books the other systems have.
-    /// </summary>
-    Task<(IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns)> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan) =>
-        Task.Run(async () =>
-            (await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
-                await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan),
-                await _queries.GetFacetCountsAsync("own", filter with { Owns = null }, plan)));
+    /// <summary>The counted choices of the filter panel's menus.</summary>
+    sealed record FacetMenus(
+        IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns, IReadOnlyList<FacetCount> Styles,
+        IReadOnlyList<FacetCount> Durations);
 
-    void ShowFacets((IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns) facets)
+    /// <summary>
+    /// How many books each system, type and the rest would show. Each menu is counted without its own choice, so
+    /// picking a system still shows how many books the other systems have.
+    /// </summary>
+    Task<FacetMenus> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan) =>
+        Task.Run(async () => new FacetMenus(
+            await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
+            await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan),
+            await _queries.GetFacetCountsAsync("own", filter with { Owns = null }, plan),
+            await _queries.GetFacetCountsAsync("style", filter with { Styles = null }, plan),
+            await _queries.GetFacetCountsAsync("duration", filter with { Durations = null }, plan)));
+
+    void ShowFacets(FacetMenus facets)
     {
         _holdRefresh = true;
         SystemChoice = ShowChoices(SystemChoices, AllSystems, facets.Systems, SystemChoice);
         TypeChoice = ShowChoices(TypeChoices, AllTypes, facets.Types, TypeChoice);
         OwnChoice = ShowChoices(OwnChoices, AnyOwn, facets.Owns, OwnChoice);
         ShowOwnChoice = facets.Owns.Any(c => c.Value != SearchQuery.Unknown) || OwnChoice.Value is not null;
+        StyleChoice = ShowChoices(StyleChoices, AnyStyle, facets.Styles, StyleChoice);
+        ShowStyleChoice = facets.Styles.Any(c => c.Value != SearchQuery.Unknown) || StyleChoice.Value is not null;
+        DurationChoice = ShowChoices(DurationChoices, AnyDuration, facets.Durations, DurationChoice);
+        ShowDurationChoice = facets.Durations.Any(c => c.Value != SearchQuery.Unknown) || DurationChoice.Value is not null;
         _holdRefresh = false;
     }
 
@@ -645,7 +708,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
         var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
-            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null;
+            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
+            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -771,6 +835,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         TypeChoice = AllTypes;
         LevelChoice = AnyLevel;
         OwnChoice = AnyOwn;
+        StyleChoice = AnyStyle;
+        DurationChoice = AnyDuration;
+        PlayersChoice = AnyPlayers;
         IncludeUnknownLevels = false;
         _holdRefresh = false;
         Refresh();
@@ -1760,7 +1827,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>What the Library shows now, as a Smart View would keep it.</summary>
     public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
         SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
-        OwnChoice.Value, SortChoice.Value, Layout, Tab);
+        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value);
 
     void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
     {
@@ -1816,6 +1883,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             SystemChoice = Pick(SystemChoices, AllSystems, view.System);
             TypeChoice = Pick(TypeChoices, AllTypes, view.Type);
             OwnChoice = Pick(OwnChoices, AnyOwn, view.Own);
+            StyleChoice = Pick(StyleChoices, AnyStyle, view.Style);
+            DurationChoice = Pick(DurationChoices, AnyDuration, view.Duration);
+            PlayersChoice = PlayersChoices.FirstOrDefault(c => c.Value == view.Players) ?? AnyPlayers;
             LevelChoice = LevelChoices.FirstOrDefault(c => c.Value == view.Level) ?? AnyLevel;
             IncludeUnknownLevels = view.IncludeUnknownLevels;
             Layout = view.Layout;

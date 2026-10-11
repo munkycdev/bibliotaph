@@ -54,7 +54,8 @@ public sealed class ExportService(LibraryStore library, EntryStore entries, Meta
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
-    public static IReadOnlyList<string> CsvHeader { get; } = ["Title", "System", "Type", "Levels", "Publisher", "Tags", "Collections", "Path"];
+    public static IReadOnlyList<string> CsvHeader { get; } =
+        ["Title", "System", "Type", "Levels", "Players", "Duration", "Style", "Publisher", "Tags", "Collections", "Path"];
 
     /// <summary>
     /// The CSV: a row per book the Library shows, or per one of <paramref name="entryIds"/>, by title, with its values as
@@ -91,11 +92,17 @@ public sealed class ExportService(LibraryStore library, EntryStore entries, Meta
                 LevelState.Known when meta.LevelMin is { } min && meta.LevelMax is { } max => new LevelRange(min, max).Describe(),
                 _ => null,
             };
-            rows.Add((title, [title, meta?.SystemLabel, meta?.KindLabel, levels, meta?.Publisher, meta?.Tags,
+            var players = meta is { PlayersMin: { } fewest, PlayersMax: { } most } ? new PlayerRange(fewest, most).Describe() : null;
+            rows.Add((title, [title, meta?.SystemLabel, meta?.KindLabel, levels, players, Labels(meta, MetadataFields.Duration), Labels(meta, MetadataFields.Styles),
+                meta?.Publisher, meta?.Tags,
                 collections.TryGetValue(book.EntryId, out var names) ? string.Join("; ", names) : null, path]));
         }
         return [.. rows.OrderBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase).Select(r => r.Row)];
     }
+
+    /// <summary>A term field's values as the card's labels, joined: "Heist; Dungeon crawl".</summary>
+    static string? Labels(EntryMetaRow? meta, MetadataField field) =>
+        meta?.Facets.Where(f => f.Field == field.Key).Select(f => f.Label).ToList() is { Count: > 0 } labels ? string.Join("; ", labels) : null;
 
     /// <summary>The JSON: every table of catalog.db, with a header that says how to read it (<see cref="CatalogExport"/>).</summary>
     public async Task WriteJsonAsync(string path, CancellationToken ct = default)

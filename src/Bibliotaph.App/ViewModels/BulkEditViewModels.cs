@@ -273,6 +273,7 @@ public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
     public string EditHint => Field.Kind switch
     {
         FieldKind.Levels => "3, 1-5 or n/a",
+        FieldKind.Players => "4 or 3-5",
         FieldKind.Year => "2019",
         _ => "",
     };

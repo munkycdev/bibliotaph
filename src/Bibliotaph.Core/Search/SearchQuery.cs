@@ -38,8 +38,14 @@ public enum SearchField
     /// <summary><c>setting:</c>, a campaign setting.</summary>
     Setting,
 
-    /// <summary><c>theme:</c>, a theme such as horror or heist.</summary>
+    /// <summary><c>theme:</c>, a theme or tone such as horror or fey.</summary>
     Theme,
+
+    /// <summary><c>style:</c>, the kind of adventure: heist, dungeon crawl, hexcrawl.</summary>
+    Style,
+
+    /// <summary><c>duration:</c>, how long it takes to play: one-shot, short, long, campaign.</summary>
+    Duration,
 
     /// <summary><c>environment:</c>, where it happens: urban, underground.</summary>
     Environment,
@@ -49,6 +55,9 @@ public enum SearchField
 
     /// <summary><c>level:</c> 3, 1-5, none (levels don't apply) or unknown. A range matches books whose levels overlap it.</summary>
     Level,
+
+    /// <summary><c>players:</c> 4, 3-5 or unknown. A number matches books written for it; a range, books whose range overlaps it.</summary>
+    Players,
 
     /// <summary><c>favorite:</c> yes or no: the books marked with a heart (slice 3 plan, choice 5).</summary>
     Favorite,
@@ -363,6 +372,15 @@ sealed class QueryParser(string text)
             }
             value = new TermNode(level);
         }
+        if (field == SearchField.Players)
+        {
+            if (value is TermNode { Prefix: true } || NormalizePlayers(ValueText(value)) is not { } players)
+            {
+                Issue("players: can be a number like 4, a range like 3-5, or unknown.", Span(token, valueToken));
+                return null;
+            }
+            value = new TermNode(players);
+        }
         if (field == SearchField.Favorite)
         {
             if (value is not TermNode { Prefix: false } answer || NormalizeYesNo(answer.Text) is not { } yesNo)
@@ -386,6 +404,12 @@ sealed class QueryParser(string text)
     static string? NormalizeLevel(string value) =>
         MetadataText.Normalize(value) is "unknown" or "unknown levels" ? SearchQuery.Unknown
         : LevelRange.TryParse(value, out var range) ? range.ToString()
+        : null;
+
+    /// <summary>The stored form of a players value: "4", "3-5", or "unknown".</summary>
+    static string? NormalizePlayers(string value) =>
+        MetadataText.Normalize(value) is "unknown" ? SearchQuery.Unknown
+        : PlayerRange.TryParse(value, out var range) ? range.ToString()
         : null;
 
     /// <summary>"yes" or "no", for a field that is one or the other.</summary>

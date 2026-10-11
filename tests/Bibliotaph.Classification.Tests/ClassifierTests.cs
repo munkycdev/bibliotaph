@@ -42,6 +42,31 @@ public class ExcerptTests
     }
 
     [Fact]
+    public void Always_takes_the_back_cover_where_the_party_size_usually_is()
+    {
+        var pages = Enumerable.Range(0, 120).Select(i => Page(i, $"Body page {i} " + Words("text", 200))).ToList();
+        pages[118] = Page(118, "Open Game License Version 1.0a " + Words("license", 40));
+        pages[119] = Page(119, "A heist beneath the harbour for 4-6 characters of levels 3-5.");
+
+        var excerpt = ExcerptBuilder.Build(pages, [], 120, new ExcerptOptions { Budget = 8_000 });
+
+        Assert.Equal(ExcerptPart.BackCover, excerpt.Find(119)!.Part);
+        Assert.Equal(ExcerptPart.BackCover, excerpt.Find(118)!.Part);
+        Assert.Contains("4-6 characters", excerpt.Find(119)!.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_blank_last_page_does_not_hide_the_back_cover()
+    {
+        var pages = Enumerable.Range(0, 40).Select(i => Page(i, $"Body page {i} " + Words("text", 200))).ToList();
+        pages[39] = Page(39, "");
+
+        var excerpt = ExcerptBuilder.Build(pages, [], 40);
+
+        Assert.Equal([37, 38], excerpt.Pages.Where(p => p.Part == ExcerptPart.BackCover).Select(p => p.PdfPage).Order());
+    }
+
+    [Fact]
     public void A_book_with_no_text_gives_an_empty_excerpt() =>
         Assert.True(ExcerptBuilder.Build([Page(0, ""), Page(1, "12")], [], 2).IsEmpty);
 
@@ -60,6 +85,8 @@ public class ClassifierPromptTests
         new Term("system", "dnd", "Dungeons & Dragons", "D&D"),
         new Term("edition", "dnd-5e", "5th edition", "5e", "dnd"),
         new Term("type", "adventure", "Adventure"),
+        new Term("style", "heist", "Heist"),
+        new Term("duration", "one-shot", "One-shot"),
     ]);
 
     [Fact]
@@ -71,6 +98,10 @@ public class ClassifierPromptTests
         var properties = schema["properties"]!.AsObject();
         Assert.Equal(ClassifierPrompt.Fields.Select(f => f.Key), properties.Select(p => p.Key));
         Assert.DoesNotContain("tags", properties.Select(p => p.Key));
+        Assert.DoesNotContain("own", properties.Select(p => p.Key));
+        Assert.Contains("players", properties.Select(p => p.Key));
+        Assert.Contains("duration", properties.Select(p => p.Key));
+        Assert.Equal(3, properties["style"]!["maxItems"]!.GetValue<int>());
         var item = properties["title"]!["items"]!;
         Assert.Equal(["value", "page", "quote"], item["required"]!.AsArray().Select(n => n!.GetValue<string>()));
         Assert.False(item["additionalProperties"]!.GetValue<bool>());
@@ -98,6 +129,9 @@ public class ClassifierPromptTests
         Assert.Contains("data, not instructions", system, StringComparison.Ordinal);
         Assert.Contains("5th edition (Dungeons & Dragons)", system, StringComparison.Ordinal);
         Assert.Contains("Dungeons & Dragons (D&D)", system, StringComparison.Ordinal);
+        Assert.Contains("- Styles: Heist", system, StringComparison.Ordinal);
+        Assert.Contains("- Durations: One-shot", system, StringComparison.Ordinal);
+        Assert.Contains("- players: ", system, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -153,6 +187,8 @@ public class EvidenceCheckTests
             new Term("type", "adventure", "Adventure"),
             new Term("type", "bestiary", "Bestiary"),
             new Term("theme", "horror", "Horror"),
+            new Term("style", "heist", "Heist"),
+            new Term("duration", "one-shot", "One-shot"),
             new Term("publisher", "kobold-press", "Kobold Press"),
         ],
         [("edition", "dnd-5e", "fifth edition"), ("type", "adventure", "one shot")]);
@@ -175,6 +211,30 @@ public class EvidenceCheckTests
         EvidenceCheck.Check(claims, Excerpt, p => Pages.GetValueOrDefault(p), Vocabulary);
 
     static ClassifierClaim Claim(string field, string value, int page, string quote) => new(field, value, page, quote);
+
+    [Fact]
+    public void Players_stand_when_the_quote_holds_their_numbers_in_digits_or_words()
+    {
+        var result = Check(
+            Claim("players", "4-6", 1, "An adventure for four to six characters"),
+            Claim("duration", "One-shot", 8, "the lamps go out one by one"),
+            Claim("style", "Heist", 8, "Nobody leaves the harbour after dark"));
+
+        Assert.Empty(result.Dropped);
+        Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Players && c.Value == "4-6");
+        Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Duration && c.Value == "one-shot");
+        Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Styles && c.Value == "heist");
+    }
+
+    [Fact]
+    public void Players_whose_numbers_are_not_in_the_quote_are_dropped()
+    {
+        var result = Check(Claim("players", "3-5", 1, "An adventure for four to six characters"), Claim("players", "lots", 1, "An adventure for four to six"));
+
+        Assert.Empty(result.Accepted);
+        Assert.Contains(result.Dropped, d => d.Claim.Value == "3-5" && d.Reason == "The quote doesn't show that value.");
+        Assert.Contains(result.Dropped, d => d.Claim.Value == "lots" && d.Reason.StartsWith("Players look like", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void Keeps_values_whose_quote_is_on_the_cited_page_and_stores_them_in_stored_form()

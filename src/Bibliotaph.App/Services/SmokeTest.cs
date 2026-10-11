@@ -537,6 +537,24 @@ static partial class SmokeTest
             throw new InvalidOperationException("After saving, the title can't be reset or the evidence closed.");
         await Field(MetadataFields.Title).ResetCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == "Haunted Inn"), () => "Resetting the title didn't bring back the suggestion.");
+
+        // Players, typed the way a book says it, read back as a party size, kept by the Players filter, and reset.
+        if (inspector.Fields.All(f => f.Field != MetadataFields.Styles) || inspector.Fields.All(f => f.Field != MetadataFields.Duration))
+            throw new InvalidOperationException("The inspector has no Style or Duration field.");
+        var players = Field(MetadataFields.Players);
+        players.EditCommand.Execute(null);
+        await Settle(window);
+        players.EditText = "for 4 to 6 players";
+        await players.SaveCommand.ExecuteAsync(null);
+        if (players.Problem is not null) throw new InvalidOperationException($"Saving players said: {players.Problem}");
+        await WaitUntilAsync(window, () => Field(MetadataFields.Players) is { Display: "4–6 players", IsSuggested: false },
+            () => $"The players field says {Field(MetadataFields.Players).Display}, not 4–6 players.");
+        page.PlayersChoice = page.PlayersChoices.First(c => c.Value == 5);
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by 5 players shows {page.Items.Count} books, not 1.");
+        page.ClearFiltersCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the players filter didn't bring back all {books} books.");
+        await Field(MetadataFields.Players).ResetCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !Field(MetadataFields.Players).IsKnown, () => "Resetting players didn't leave them unknown.");
         page.CloseDetailsCommand.Execute(null);
         await Settle(window);
     }

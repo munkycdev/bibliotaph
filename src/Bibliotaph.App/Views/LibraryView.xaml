@@ -272,6 +272,21 @@
                           Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </StackPanel>
             </StackPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Players" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding PlayersChoices}" SelectedItem="{Binding PlayersChoice}"
+                        AutomationProperties.Name="Players" MinWidth="130" ToolTip="Books written for this many players" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStyleChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Style" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StyleChoices}" SelectedItem="{Binding StyleChoice}"
+                        AutomationProperties.Name="Style" MinWidth="150" ToolTip="The kind of adventure: a heist, a dungeon crawl, a hexcrawl" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowDurationChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Duration" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding DurationChoices}" SelectedItem="{Binding DurationChoice}"
+                        AutomationProperties.Name="Duration" MinWidth="150" ToolTip="How long it takes to play: a one-shot, a few sessions, a campaign" />
+            </StackPanel>
             <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"

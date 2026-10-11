@@ -81,6 +81,9 @@ public enum AiFilter
 /// has or hasn't read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in
 /// any of those places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of
 /// entry_scope, such as the favourites (slice 3), and <see cref="OnlyOpened"/> those that have been opened.
+/// <see cref="Styles"/> and <see cref="Durations"/> keep books with any of those terms (unknown is none), and
+/// <see cref="Players"/> books written for that many players; as for levels, books nobody has counted players for don't
+/// match.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -94,7 +97,10 @@ public sealed record LibraryFilter(
     bool OnlyWithCopies = false,
     IReadOnlyCollection<string>? Owns = null,
     string? Group = null,
-    bool OnlyOpened = false);
+    bool OnlyOpened = false,
+    IReadOnlyCollection<string>? Styles = null,
+    IReadOnlyCollection<string>? Durations = null,
+    int? Players = null);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -646,10 +652,16 @@ public sealed class LibraryQueries(IndexDatabase database)
 
             for (var i = 0; i < plan.Facets.Count; i++) AddFacet(plan.Facets[i], i);
             for (var i = 0; i < plan.Levels.Count; i++) AddLevel(plan.Levels[i], i);
+            for (var i = 0; i < plan.Players.Count; i++) AddPlayers(plan.Players[i], i);
 
             if (filter.Systems is { Count: > 0 } systems) AddChoice("system", systems, "systems");
             if (filter.Types is { Count: > 0 } types) AddChoice("type", types, "types");
             if (filter.Owns is { Count: > 0 } owns) AddChoice("own", owns, "owns");
+            if (filter.Styles is { Count: > 0 } styles) AddChoice("style", styles, "styles");
+            if (filter.Durations is { Count: > 0 } durations) AddChoice("duration", durations, "durations");
+            if (filter.Players is { } players)
+                Add("EXISTS (SELECT 1 FROM entry_meta pm WHERE pm.entry_id = e.entry_id AND pm.players_min <= @players AND pm.players_max >= @players)",
+                    "players", players);
             if (filter.Level is { } level)
             {
                 var known = "EXISTS (SELECT 1 FROM entry_meta lm WHERE lm.entry_id = e.entry_id AND lm.level_state = 'known' AND lm.level_min <= @level AND lm.level_max >= @level)";
@@ -713,6 +725,23 @@ public sealed class LibraryQueries(IndexDatabase database)
             var exists = level.Value == SearchQuery.Unknown ? !level.Negated : level.Negated;
             _sql.Append(" AND ").Append(exists ? "NOT EXISTS" : "EXISTS")
                 .Append($" (SELECT 1 FROM entry_meta lm WHERE lm.entry_id = e.entry_id AND {condition})");
+        }
+
+        /// <summary><c>players:4</c> and <c>players:3-5</c> match books whose range overlaps; unknown matches books with none.</summary>
+        void AddPlayers(PlayersCondition players, int i)
+        {
+            string condition;
+            if (players.Value == SearchQuery.Unknown) condition = "pm.players_min IS NOT NULL";
+            else if (!PlayerRange.TryParse(players.Value, out var range)) return;
+            else
+            {
+                condition = $"pm.players_min <= @playersMax{i} AND pm.players_max >= @playersMin{i}";
+                Parameters.Add($"playersMin{i}", range.Min);
+                Parameters.Add($"playersMax{i}", range.Max);
+            }
+            var exists = players.Value == SearchQuery.Unknown ? !players.Negated : players.Negated;
+            _sql.Append(" AND ").Append(exists ? "NOT EXISTS" : "EXISTS")
+                .Append($" (SELECT 1 FROM entry_meta pm WHERE pm.entry_id = e.entry_id AND {condition})");
         }
 
         /// <summary>One more clause, for a caller that needs to narrow the set further.</summary>

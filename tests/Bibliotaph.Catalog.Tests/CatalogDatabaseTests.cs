@@ -241,6 +241,74 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Themes_that_name_a_kind_of_adventure_move_to_style_with_their_values_and_the_new_terms_take_their_names()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var database = Database();
+        await using (var context = database.CreateContext())
+        {
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261011045255_CatalogLibrarySync", ct);
+            var now = new DateTime(2026, 10, 8, 12, 0, 0, DateTimeKind.Utc);
+            Entities.VocabularyTerm Term(string vocabulary, string key, string label, params string[] aliases) => new()
+            {
+                Vocabulary = vocabulary,
+                Key = key,
+                Label = label,
+                Origin = Core.TermOrigin.Starter,
+                State = Core.TermState.Active,
+                CreatedUtc = now,
+                Aliases = [.. aliases.Select(a => new Entities.VocabularyAlias { Text = a, Normalized = Core.Metadata.MetadataText.Normalize(a) })],
+            };
+            context.VocabularyTerms.AddRange(
+                Term("theme", "heist", "Heist", "caper"), Term("theme", "horror", "Horror"), Term("theme", "exploration", "Exploration", "hexcrawl", "sandbox"),
+                Term("theme", "mystery", "Mystery", "investigation", "whodunit"), Term("environment", "forest", "Forest", "jungle", "woods"));
+            var entry = new Entities.Entry { Kind = Core.EntryKind.Whole, CreatedUtc = now };
+            Entities.Assertion Theme(string key, Core.AssertionOrigin origin, Core.AssertionState state) => new()
+            {
+                Entry = entry,
+                Field = "theme",
+                ValueJson = $"\"{key}\"",
+                NormalizedValue = key,
+                Origin = origin,
+                State = state,
+                CreatedUtc = now,
+            };
+            context.Assertions.AddRange(
+                Theme("heist", Core.AssertionOrigin.Ai, Core.AssertionState.Provisional), Theme("horror", Core.AssertionOrigin.User, Core.AssertionState.Confirmed));
+            context.Rejections.Add(new Entities.Rejection { Entry = entry, Field = "theme", NormalizedValue = "exploration", CreatedUtc = now });
+            context.IgnoredFolderLabels.Add(new Entities.IgnoredFolderLabel { Folder = "capers", Vocabulary = "theme", TermKey = "heist", CreatedUtc = now });
+            context.SmartViews.Add(new Entities.SmartView { Name = "Capers", Definition = """{"query":"theme:heist level:3"}""", CreatedUtc = now, UpdatedUtc = now });
+            context.Settings.Add(new Entities.Setting { Key = VocabularyStore.SeedVersionKey, Value = "2" });
+            await context.SaveChangesAsync(ct);
+        }
+
+        var result = await database.MigrateAsync(ct);
+
+        Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_CatalogStyles", StringComparison.Ordinal));
+        var cs = database.ConnectionString;
+        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM assertion WHERE field = 'style' AND normalized_value = 'heist' AND origin = 'Ai'"));
+        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM assertion WHERE field = 'theme' AND normalized_value = 'horror' AND origin = 'User'"));
+        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM rejection WHERE field = 'style' AND normalized_value = 'exploration'"));
+        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM ignored_folder_label WHERE vocabulary = 'style' AND term_key = 'heist'"));
+        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM smart_view WHERE definition LIKE '%style:heist level:3%'"));
+
+        // Seeding version 3 then adds the new terms, which take the names the old ones gave up.
+        var vocabularies = new VocabularyStore(new Factory(database));
+        await vocabularies.SeedAsync(ct);
+        var vocabulary = await vocabularies.GetAsync(ct);
+        Assert.Equal("heist", vocabulary.Resolve("style", "caper")?.Key);
+        Assert.Null(vocabulary.Resolve("theme", "heist"));
+        Assert.Equal("hexcrawl", vocabulary.Resolve("style", "hexcrawl")?.Key);
+        Assert.Equal("exploration", vocabulary.Resolve("style", "sandbox")?.Key);
+        Assert.Equal("jungle", vocabulary.Resolve("environment", "jungle")?.Key);
+        Assert.Equal("forest", vocabulary.Resolve("environment", "woods")?.Key);
+        Assert.Equal("investigation", vocabulary.Resolve("style", "investigation")?.Key);
+        Assert.Null(vocabulary.Resolve("theme", "investigation"));
+        Assert.Equal("one-shot", vocabulary.Resolve("duration", "one shot")?.Key);
+        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM vocabulary_term WHERE vocabulary = 'style' AND key = 'heist'"));
+    }
+
+    [Fact]
     public async Task Every_row_the_user_made_gets_its_own_sync_id_that_EF_Core_reads()
     {
         var database = Database();
