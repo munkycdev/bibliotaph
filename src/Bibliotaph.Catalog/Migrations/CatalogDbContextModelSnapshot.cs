@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011043257_CatalogStyles";
+    public override string LastMigrationId => "20261011055145_Corrections";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -239,6 +239,29 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("copy_decision");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CorrectionRequest", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.HasKey("Id");
+
+                b.HasIndex("EntryId")
+                    .IsUnique();
+
+                b.ToTable("correction_request");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Document", b =>
@@ -536,6 +559,57 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("file_location");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.FolderRule", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<int>("Books")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("books");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<DateTime?>("DecidedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("decided_utc");
+
+                b.Property<string>("Field")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("field");
+
+                b.Property<string>("Folder")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("folder");
+
+                b.Property<long>("SourceRootId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("source_root_id");
+
+                b.Property<string>("State")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("state");
+
+                b.Property<string>("Value")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("value");
+
+                b.HasKey("Id");
+
+                b.HasIndex("SourceRootId", "Folder", "Field", "Value")
+                    .IsUnique();
+
+                b.ToTable("folder_rule");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.IgnoredFolderLabel", b =>
@@ -1206,6 +1280,15 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CorrectionRequest", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.ElsewhereMatch", b =>
             {
                 b.HasOne("Bibliotaph.Catalog.Entities.Document", null)
@@ -1317,6 +1400,15 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Document");
 
                 b.Navigation("SourceRoot");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.FolderRule", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.SourceRoot", null)
+                    .WithMany()
+                    .HasForeignKey("SourceRootId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Note", b =>

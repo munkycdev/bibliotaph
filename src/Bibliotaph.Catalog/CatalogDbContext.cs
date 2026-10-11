@@ -34,6 +34,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<VocabularyAlias> VocabularyAliases => Set<VocabularyAlias>();
     public DbSet<ClassificationRun> ClassificationRuns => Set<ClassificationRun>();
     public DbSet<IgnoredFolderLabel> IgnoredFolderLabels => Set<IgnoredFolderLabel>();
+    public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
+    public DbSet<FolderRule> FolderRules => Set<FolderRule>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -140,6 +142,18 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<IgnoredFolderLabel>(e => e.HasIndex(l => new { l.Folder, l.Vocabulary, l.TermKey }).IsUnique());
+
+        modelBuilder.Entity<CorrectionRequest>(e =>
+        {
+            e.HasIndex(r => r.EntryId).IsUnique();
+            e.HasOne<Entry>().WithMany().HasForeignKey(r => r.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FolderRule>(e =>
+        {
+            e.HasIndex(r => new { r.SourceRootId, r.Folder, r.Field, r.Value }).IsUnique();
+            e.HasOne<SourceRoot>().WithMany().HasForeignKey(r => r.SourceRootId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<PageRef>(e =>
         {

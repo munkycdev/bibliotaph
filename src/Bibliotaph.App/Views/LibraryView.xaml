@@ -729,6 +729,10 @@
                 <Button x:Name="PinBook" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" HorizontalAlignment="Left" Margin="0,8,0,0"
                         ToolTip="Pinned books show in the sidebar and on Home" CommandParameter="{Binding Item}"
                         Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
+                <Button x:Name="CatalogedWrong" Content="Cataloged wrong…" c:Ui.Icon="{StaticResource Icon.Pencil}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                        ToolTip="Correct its details: the values Bibliotaph guessed are marked" Command="{Binding StartCorrectingCommand}"
+                        Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
               </StackPanel>
             </Grid>
 
@@ -859,6 +863,35 @@
               </ItemsControl>
             </StackPanel>
 
+            <!-- Cataloged wrong…: what to do, and Done. Closing the details without a change leaves a Needs review card. -->
+            <Border x:Name="CorrectingBanner" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,24,0,0"
+                    AutomationProperties.Name="Correcting this book" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <DockPanel>
+                <Button x:Name="CorrectionDone" DockPanel.Dock="Right" Content="Done" VerticalAlignment="Top" Margin="12,0,0,0"
+                        Command="{Binding FinishCorrectingCommand}" AutomationProperties.Name="Done correcting" />
+                <StackPanel>
+                  <TextBlock Text="What's wrong?" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                  <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0"
+                             Text="Values marked Guessed came from names, the file or the AI model, and nobody has confirmed them. Edit a field, or mark a value Not right. If you leave without changing anything, Needs review keeps a reminder." />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+
+            <!-- A correction offered to the books from the same folder that showed the same values (look-alikes). -->
+            <Border x:Name="LookAlikeOffer" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,12,0,0"
+                    AutomationProperties.Name="{Binding LookAlikeQuestion}" Visibility="{Binding HasLookAlikeOffer, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <StackPanel>
+                <TextBlock Text="{Binding LookAlikeQuestion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LookAlikeDetail}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                  <Button x:Name="ChangeLookAlikes" Style="{StaticResource Bt.Button.Primary}" Content="Change them" Margin="0,0,8,0"
+                          Command="{Binding AcceptLookAlikesCommand}" AutomationProperties.Name="Change the other books too" />
+                  <Button x:Name="KeepLookAlikes" Content="No thanks" Command="{Binding DeclineLookAlikesCommand}"
+                          AutomationProperties.Name="Leave the other books as they are" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
             <!-- Details: each field's value, where it came from, and the user's corrections. -->
             <DockPanel Margin="0,28,0,4">
               <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding MoreFieldsLabel}" Command="{Binding ToggleAllFieldsCommand}"
@@ -878,6 +911,10 @@
                           <WrapPanel>
                             <TextBlock x:Name="Value" Text="{Binding Display}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                                        Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <Border x:Name="GuessedMark" Style="{StaticResource Bt.Chip}" Background="{DynamicResource Bt.Soft}" Margin="0,0,10,0"
+                                    ToolTip="Nobody has confirmed this yet" Visibility="{Binding ShowsGuessed, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <TextBlock Text="Guessed" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                            </Border>
                             <Button x:Name="EvidenceLink" Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
                                     Content="{Binding EvidenceLabel}" Command="{Binding ToggleEvidenceCommand}" Padding="0"
                                     AutomationProperties.Name="{Binding Label, StringFormat='Where {0} came from'}"

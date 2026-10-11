@@ -230,6 +230,29 @@ public class EffectiveMetadataTests
         Assert.False(metadata.NeedsReview);
     }
 
+    /// <summary>The user agreed to a folder rule (scenario review, row 8), so it outranks the AI, but it stays a suggestion.</summary>
+    [Fact]
+    public void A_folder_rule_outranks_the_ai_and_the_folder_name_but_not_the_user()
+    {
+        var metadata = EffectiveMetadata.Compute(
+            [
+                Claim(MetadataFields.System, "dnd", AssertionOrigin.Folder),
+                Claim(MetadataFields.System, "coc", AssertionOrigin.Ai, minutes: 60),
+                Claim(MetadataFields.System, "pathfinder", AssertionOrigin.FolderRule),
+            ], []);
+
+        var system = metadata[MetadataFields.System];
+        Assert.Equal("pathfinder", system.First!.Value);
+        Assert.False(system.First.Confirmed);
+
+        var corrected = EffectiveMetadata.Compute(
+            [
+                Claim(MetadataFields.System, "pathfinder", AssertionOrigin.FolderRule),
+                Claim(MetadataFields.System, "dnd", AssertionOrigin.User, AssertionState.Confirmed),
+            ], []);
+        Assert.Equal("dnd", corrected[MetadataFields.System].First!.Value);
+    }
+
     [Fact]
     public void A_rejected_value_never_applies_from_any_source()
     {

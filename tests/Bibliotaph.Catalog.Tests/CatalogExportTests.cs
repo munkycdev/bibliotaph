@@ -123,6 +123,8 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.VocabularyTerms.Add(term);
         db.ClassificationRuns.Add(new ClassificationRun { Id = "run-1", EntryId = entry.Id, ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, SchemaVersion = 1, StartedUtc = now, Outcome = "complete" });
         db.IgnoredFolderLabels.Add(new IgnoredFolderLabel { Folder = "adventures", Vocabulary = "type", TermKey = "adventure", CreatedUtc = now });
+        db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entry.Id, CreatedUtc = now });
+        db.FolderRules.Add(new FolderRule { SourceRootId = root.Id, Folder = "Fey Court", Field = "system", Value = "pathfinder", State = FolderRuleState.On, Books = 3, CreatedUtc = now, DecidedUtc = now });
         await db.SaveChangesAsync(Ct);
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });

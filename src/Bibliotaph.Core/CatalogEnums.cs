@@ -75,6 +75,11 @@ public enum AssertionOrigin
     Rule,
     Ai,
     User,
+    /// <summary>
+    /// A folder rule the user agreed to (scenario review, row 8): files in that folder, and its subfolders, get its value
+    /// as a suggestion. Ranked above the AI, since the user made it, but still only a suggestion.
+    /// </summary>
+    FolderRule,
 }
 
 public enum AssertionState
@@ -149,6 +154,22 @@ public enum PackAnswer
     /// their own cards until the user answers.
     /// </summary>
     Proposed,
+}
+
+/// <summary>
+/// Where a folder rule stands (scenario review, row 8): proposed in Needs review after the user set the same value on
+/// several books from one folder, then switched on or off by the user's answer or in Settings > Library folders.
+/// </summary>
+public enum FolderRuleState
+{
+    /// <summary>Waiting in Needs review for an answer.</summary>
+    Proposed,
+
+    /// <summary>Files in the folder get its value as a suggestion.</summary>
+    On,
+
+    /// <summary>Declined, or switched off: it suggests nothing and isn't proposed again.</summary>
+    Off,
 }
 
 /// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review (F5 plan, choice 6).</summary>

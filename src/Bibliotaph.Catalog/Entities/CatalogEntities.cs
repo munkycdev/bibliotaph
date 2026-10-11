@@ -317,6 +317,38 @@ public sealed class ClassificationRun
     public string? Outcome { get; set; }
 }
 
+/// <summary>
+/// "You said this book was cataloged wrong" (scenario review, row 8): the user opened the editor with Cataloged wrong…
+/// and closed it without changing or confirming anything, so Needs review keeps a card that opens it again.
+/// </summary>
+public sealed class CorrectionRequest
+{
+    public long Id { get; set; }
+    public long EntryId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// A folder rule (scenario review, row 8): files in one folder of a library folder, and its subfolders, get a field's
+/// value as a suggestion. Proposed after the user set that value on several books from the folder; each answer is
+/// kept, so a declined rule isn't proposed again.
+/// </summary>
+public sealed class FolderRule
+{
+    public long Id { get; set; }
+    public long SourceRootId { get; set; }
+    /// <summary>The folder's path under the library folder, as the file locations spell it; "" for the library folder itself.</summary>
+    public required string Folder { get; set; }
+    public required string Field { get; set; }
+    /// <summary>The value in stored form: a term's key, "1-5", text as written.</summary>
+    public required string Value { get; set; }
+    public FolderRuleState State { get; set; }
+    /// <summary>How many books from the folder the user had set it on when it was proposed.</summary>
+    public int Books { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime? DecidedUtc { get; set; }
+}
+
 /// <summary>A folder label the user switched off in Settings > Library: that folder name no longer suggests that term.</summary>
 public sealed class IgnoredFolderLabel
 {

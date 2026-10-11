@@ -38,4 +38,16 @@ public sealed class LibraryPages(INavigationService navigation, Func<LibraryView
         page.DetailsOnLoad = entryId;
         navigation.Show(page);
     }
+
+    /// <summary>
+    /// The whole Library with a book's editor open for Cataloged wrong… (scenario review, row 8), as from a cover's menu
+    /// on Home or a "You said this book was cataloged wrong" card.
+    /// </summary>
+    public void ShowCorrection(EntryId entryId)
+    {
+        var page = createLibrary();
+        page.DetailsOnLoad = entryId;
+        page.CorrectOnLoad = true;
+        navigation.Show(page);
+    }
 }
