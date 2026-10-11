@@ -1,0 +1,318 @@
+using System.Collections.Concurrent;
+using System.Net;
+using Bibliotaph.Catalog;
+using Bibliotaph.Catalog.Entities;
+using Bibliotaph.Classification;
+using Bibliotaph.Core;
+using Bibliotaph.Index;
+using Dapper;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+
+namespace Bibliotaph.Processing.Tests;
+
+/// <summary>
+/// Ask this book, Q1: pages found by words alone without an embedding model, by words and meaning with one, the
+/// book's vectors made on the first ask and made again when the model changes, the weak-signal guard, and the books
+/// and setups that can't be asked. The model server is a stand-in that counts what it is sent.
+/// </summary>
+[Collection(SqlitePools.Name)]
+public sealed class AskTests : IAsyncLifetime
+{
+    readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-ask-").FullName;
+    readonly FakeServer _server = new();
+    CatalogDatabase _catalog = null!;
+    IndexDatabase _index = null!;
+    IndexWriter _writer = null!;
+    AiSettings _ai = null!;
+    AskService _ask = null!;
+    long _rootId;
+    long _book;
+
+    static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    const string Endpoint = "http://localhost:11434";
+
+    /// <summary>
+    /// A model server with an embedding model: each vector is the text's words, hashed into 64 buckets, so texts that
+    /// share words are close. It never writes an answer, because Q1 asks for none.
+    /// </summary>
+    sealed class FakeServer : IModelClient, IEmbeddingClient
+    {
+        public ConcurrentQueue<(string Model, IReadOnlyList<string> Texts)> Embedded { get; } = new();
+
+        public volatile bool Down;
+
+        public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) =>
+            Task.FromResult(new EndpointInfo(EndpointKind.Ollama, "0.0-test", ["chat-8b", "embed-a", "embed-b"]));
+
+        public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Finding pages asks no model to write anything.");
+
+        public Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default)
+        {
+            if (Down) throw new ModelEndpointException("Nothing is answering at http://localhost:11434/. Is the model server running?");
+            Embedded.Enqueue((model, texts));
+            return Task.FromResult<IReadOnlyList<float[]>>([.. texts.Select(Vector)]);
+        }
+
+        static float[] Vector(string text)
+        {
+            var vector = new float[64];
+            foreach (var word in AskRetrieval.Words(text)) vector[word.Aggregate(7, (h, c) => (h * 31 + c) & 0xFFFF) % 64] += 1;
+            return vector;
+        }
+    }
+
+    sealed class Factory(CatalogDatabase database) : IDbContextFactory<CatalogDbContext>
+    {
+        public CatalogDbContext CreateDbContext() => database.CreateContext();
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        var paths = new AppPaths(Path.Combine(_dir, "data"));
+        foreach (var directory in paths.Directories) Directory.CreateDirectory(directory);
+        _catalog = new CatalogDatabase(paths.CatalogDatabase, paths.Backups);
+        await _catalog.MigrateAsync(Ct);
+        var contexts = new Factory(_catalog);
+        _index = IndexDatabase.ForFile(paths.IndexDatabase);
+        await _index.InitializeAsync(Ct);
+        _writer = new IndexWriter(_index);
+        await _writer.StartAsync(Ct);
+        var store = new IndexStore(_writer);
+        _ai = new AiSettings(new SettingsStore(contexts), new NoApiKeys(), _ => _server);
+        _ask = new AskService(_ai, new LibraryStore(contexts), new AskQueries(_index), new IndexQueries(_index), store);
+
+        // An invented book in an invented folder: a page waiting for OCR, then three with text under two bookmarks.
+        await using (var db = _catalog.CreateContext())
+        {
+            var root = db.SourceRoots.Add(new SourceRoot { Path = Path.Combine(_dir, "Invented Library"), AddedUtc = DateTime.UtcNow }).Entity;
+            var document = db.Documents.Add(new Document { ContentHash = new string('a', 64), Format = "pdf", CreatedUtc = DateTime.UtcNow }).Entity;
+            await db.SaveChangesAsync(Ct);
+            db.FileLocations.Add(new FileLocation { SourceRootId = root.Id, RelativePath = "Mill Road.pdf", DocumentId = document.Id, ContentHash = document.ContentHash });
+            await db.SaveChangesAsync(Ct);
+            (_rootId, _book) = (root.Id, document.Id);
+        }
+        string[] texts =
+        [
+            "",
+            "Chapter One. The red dragon sleeps beneath the old mill by the river.",
+            "The innkeeper pours ale and tells tales of the harbour.",
+            "A secret door hides behind the bar of the inn.",
+        ];
+        await store.UpsertDocumentAsync(new DocRow { DocumentId = _book, ContentHash = new string('a', 64), Format = "pdf", DisplayTitle = "Mill Road", PageCount = 4 },
+            [new PageRow(0, "i", 612, 792), new PageRow(1, "1", 612, 792), new PageRow(2, "2", 612, 792), new PageRow(3, "3", 612, 792)],
+            [new OutlineRow("Chapter One", 1, 0), new OutlineRow("The Inn", 2, 0)], Ct);
+        await store.SetPageTextAsync(_book, [.. texts.Select((t, i) => new PageTextRow(i, t, "pdf", 1, t.Length == 0))], Ct);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _ask.Dispose();
+        _writer.Dispose();
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(_dir, recursive: true);
+        return ValueTask.CompletedTask;
+    }
+
+    Task SetUpAsync(string? embeddingModel, bool enabled = true, IReadOnlySet<long>? skipped = null) =>
+        _ai.SaveAsync(new AiSetup(Endpoint, "chat-8b", "ollama", enabled, false, skipped ?? new HashSet<long>(), EmbeddingModel: embeddingModel), Ct);
+
+    /// <summary>Waits for the book's vectors to stop being made, then says how far they got.</summary>
+    async Task<AskFill> FilledAsync()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        while (true)
+        {
+            if (_ask.FillOf(_book) is { Running: false } fill) return fill;
+            await Task.Delay(20, timeout.Token);
+        }
+    }
+
+    long VectorsBy(string model)
+    {
+        using var connection = _index.OpenRead();
+        return connection.ExecuteScalar<long>("SELECT count(*) FROM page_vec WHERE model = @model", new { model });
+    }
+
+    [Fact]
+    public async Task Without_an_embedding_model_pages_are_found_by_their_words_and_nothing_is_sent()
+    {
+        await SetUpAsync(null);
+
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+
+        Assert.False(_ask.HasEmbeddingModel);
+        Assert.False(found.Weak);
+        var passage = found.Passages[0];
+        Assert.Equal((1, "1", "Chapter One", "dragon"), (passage.PdfPage, passage.Page, passage.Heading, passage.Phrase));
+        Assert.True(passage.ByWords);
+        Assert.False(passage.ByMeaning);
+        Assert.Equal(1, found.Evidence[0].PdfPage);
+        Assert.Equal(AskMeaning.Off, found.Meaning);
+        Assert.Equal(new PageCoverage(4, 3, 1, 0), found.Coverage);
+        Assert.Empty(_server.Embedded);
+        Assert.Null(_ask.FillOf(_book));
+    }
+
+    [Fact]
+    public async Task The_first_ask_makes_the_books_vectors_and_then_pages_are_found_by_meaning_too()
+    {
+        await SetUpAsync("embed-a");
+
+        var first = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        var fill = await FilledAsync();
+        Assert.NotEqual(AskMeaning.Off, first.Meaning);
+        Assert.Equal(new AskFill(3, 3, false, null), fill);
+        Assert.Equal(3, VectorsBy("embed-a"));
+        // Pages are sent with the bookmark they are under; the page waiting for OCR isn't sent.
+        var documents = _server.Embedded.Single(e => e.Texts.Count == 3).Texts;
+        Assert.Contains("Chapter One. Chapter One. The red dragon", documents[0], StringComparison.Ordinal);
+        Assert.StartsWith("The Inn. ", documents[1], StringComparison.Ordinal);
+
+        var second = await _ask.FindAsync(_book, "Where is the secret door of the inn?", Ct);
+        Assert.Equal(AskMeaning.On, second.Meaning);
+        Assert.Equal(new PageCoverage(4, 3, 1, 3), second.Coverage);
+        var best = second.Passages[0];
+        Assert.Equal(3, best.PdfPage);
+        Assert.True(best.ByWords && best.ByMeaning);
+        Assert.Null(second.MeaningProblem);
+    }
+
+    [Fact]
+    public async Task Choosing_another_embedding_model_drops_the_old_vectors_and_makes_new_ones()
+    {
+        await SetUpAsync("embed-a");
+        await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        await FilledAsync();
+        Assert.Equal(3, VectorsBy("embed-a"));
+
+        await SetUpAsync("embed-b");
+        await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        await FilledAsync();
+
+        Assert.Equal(0, VectorsBy("embed-a"));
+        Assert.Equal(3, VectorsBy("embed-b"));
+        Assert.Contains(_server.Embedded, e => e.Model == "embed-b" && e.Texts.Count == 3);
+    }
+
+    [Fact]
+    public async Task A_question_neither_signal_finds_is_weak_and_says_which_pages_came_closest()
+    {
+        await SetUpAsync("embed-a");
+        await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        await FilledAsync();
+
+        var nothing = await _ask.FindAsync(_book, "How fast is the starship's warp engine?", Ct);
+        Assert.True(nothing.Weak);
+        Assert.Empty(nothing.Evidence);
+        Assert.Empty(nothing.Passages);
+
+        // One word of three is on a page: too little to send pages to a model, but worth naming the pages looked at.
+        await SetUpAsync(null);
+        var thin = await _ask.FindAsync(_book, "Which starship crashed into the harbour engine?", Ct);
+        Assert.True(thin.Weak);
+        Assert.Equal(["2"], thin.LookedAt);
+    }
+
+    [Fact]
+    public async Task A_server_that_stops_answering_leaves_words_finding_pages_and_says_why()
+    {
+        await SetUpAsync("embed-a");
+        await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        await FilledAsync();
+
+        _server.Down = true;
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        var fill = await FilledAsync();
+
+        Assert.Equal(1, found.Passages[0].PdfPage);
+        Assert.Contains("Nothing is answering", found.MeaningProblem, StringComparison.Ordinal);
+        Assert.Null(fill.Problem);
+
+        // A book whose vectors can't be made says so, and asking again carries on.
+        await SetUpAsync("embed-b");
+        await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        Assert.Contains("Nothing is answering", (await FilledAsync()).Problem, StringComparison.Ordinal);
+        _server.Down = false;
+        await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        Assert.Equal(new AskFill(3, 3, false, null), await FilledAsync());
+    }
+
+    [Fact]
+    public async Task A_book_in_a_folder_kept_from_ai_and_any_book_with_ai_off_cant_be_asked_and_nothing_is_sent()
+    {
+        await SetUpAsync("embed-a", skipped: new HashSet<long> { _rootId });
+        Assert.True(_ask.IsOn);
+        var kept = await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.FindAsync(_book, "Where does the dragon sleep?", Ct));
+        Assert.Contains("kept from AI", kept.Message, StringComparison.Ordinal);
+
+        await SetUpAsync("embed-a", enabled: false);
+        Assert.False(_ask.IsOn);
+        Assert.False(_ask.HasEmbeddingModel);
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.FindAsync(_book, "Where does the dragon sleep?", Ct));
+
+        Assert.Empty(_server.Embedded);
+        Assert.Null(_ask.FillOf(_book));
+    }
+
+    [Fact]
+    public async Task A_remote_server_without_its_tick_is_not_sent_pages()
+    {
+        await _ai.SaveAsync(new AiSetup("https://models.example.com", "chat-8b", "openai", true, false, new HashSet<long>(), EmbeddingModel: "embed-a"), Ct);
+
+        Assert.False(_ask.IsOn);
+        Assert.Null(_ai.Embedder);
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.FindAsync(_book, "Where does the dragon sleep?", Ct));
+        Assert.Empty(_server.Embedded);
+    }
+
+    /// <summary>An engine process that "runs" until it is disposed.</summary>
+    sealed class StandInEngine : IEngineProcess
+    {
+        public bool HasExited { get; private set; }
+
+        public string RecentOutput => "";
+
+        public void Dispose() => HasExited = true;
+    }
+
+    /// <summary>llama-server's /health, ready at once.</summary>
+    sealed class Healthy : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+    }
+
+    [Fact]
+    public async Task The_built_in_embedding_engine_keeps_running_while_ask_can_use_it_and_stops_when_it_cant()
+    {
+        var server = Path.Combine(_dir, "llama-server.exe");
+        var model = Path.Combine(_dir, "embed.gguf");
+        await File.WriteAllTextAsync(server, "", Ct);
+        await File.WriteAllTextAsync(model, "", Ct);
+        var setup = AiSetup.Off with { Enabled = true, BuiltIn = true, BuiltInModel = "qwen3-4b", BuiltInEmbeddingModel = BuiltInModels.Embedding.Id };
+        await _ai.SaveAsync(setup, Ct);
+#pragma warning disable CA2000 // The engine's client owns the handler.
+        var engine = new BuiltInEngine(new BuiltInEngineOptions { ServerPath = server, Embedding = true, MinContextTokens = 2_048 },
+            new HttpClient(new Healthy()), _ => new StandInEngine());
+#pragma warning restore CA2000
+        await using (engine)
+        {
+            engine.StopWhenNotNeededForAsk(_ai);
+            await engine.UseAsync(model, 2_048, (_, _) => Task.FromResult(0), Ct);
+            Assert.True(engine.IsRunning);
+
+            // Another chat model, or anything else about AI that leaves the embedding model, keeps it.
+            await _ai.SaveAsync(setup with { BuiltInModel = "qwen3-8b" }, Ct);
+            Assert.True(engine.IsRunning);
+
+            await _ai.SaveAsync(setup with { BuiltInEmbeddingModel = null }, Ct);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            while (engine.IsRunning) await Task.Delay(10, timeout.Token);
+        }
+    }
+}

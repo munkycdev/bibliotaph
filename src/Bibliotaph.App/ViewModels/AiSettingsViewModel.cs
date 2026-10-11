@@ -128,6 +128,33 @@ public sealed partial class AiSettingsViewModel(
 
     partial void OnModelChanged(string value) => Dirty = true;
 
+    /// <summary>
+    /// The server's embedding model, which Ask this book finds passages by meaning with (Ask plan, choice 3), or empty
+    /// for none, and Ask finds them by their words.
+    /// </summary>
+    [ObservableProperty]
+    public partial string EmbeddingModel { get; set; } = "";
+
+    partial void OnEmbeddingModelChanged(string value) => Dirty = true;
+
+    /// <summary>None, then the server's models: an embedding model is listed with the rest.</summary>
+    public ObservableCollection<Choice<string>> EmbeddingChoices { get; } = [new("", NoEmbedding)];
+
+    const string NoEmbedding = "None: find passages by their words";
+
+    /// <summary>Lists the server's models after None, keeping the saved one even when the server no longer lists it.</summary>
+    void ListEmbeddingChoices(IEnumerable<string> models)
+    {
+        var keep = EmbeddingModel;
+        EmbeddingChoices.Clear();
+        EmbeddingChoices.Add(new("", NoEmbedding));
+        foreach (var model in models) EmbeddingChoices.Add(new(model, model));
+        if (keep.Length > 0 && EmbeddingChoices.All(c => c.Value != keep)) EmbeddingChoices.Insert(1, new(keep, keep));
+        var dirty = Dirty;
+        EmbeddingModel = keep;
+        Dirty = dirty;
+    }
+
     /// <summary>A key typed but not saved yet; the saved one is never read back into the page.</summary>
     public string NewKey { get; set; } = "";
 
@@ -206,6 +233,8 @@ public sealed partial class AiSettingsViewModel(
         var setup = ai.Setup;
         Endpoint = setup.Endpoint ?? "";
         Model = setup.Model ?? "";
+        EmbeddingModel = setup.EmbeddingModel ?? "";
+        ListEmbeddingChoices([]);
         _provider = setup.Provider.Length > 0 ? setup.Provider : null;
         RemoteAllowed = setup.RemoteAllowed;
         IsOn = setup.Enabled;
@@ -289,6 +318,7 @@ public sealed partial class AiSettingsViewModel(
             // A model the server no longer lists stays as typed, so the user sees what is saved.
             if (keep.Length > 0 && !Models.Contains(keep)) Models.Insert(0, keep);
             HasModels = Models.Count > 0;
+            ListEmbeddingChoices(info.Models);
             var dirty = Dirty;
             Model = keep.Length > 0 ? keep : (info.Models.Count > 0 ? info.Models[0] : "");
             Dirty = dirty || keep.Length == 0;
@@ -336,7 +366,16 @@ public sealed partial class AiSettingsViewModel(
         // A first save switches AI on: that's what saving a model is for. Later saves keep it as it was.
         var enabled = was.Endpoint is null || was.Model is null || was.Enabled;
         // Saving a model server means using it, instead of the built-in AI.
-        await ai.SaveAsync(was with { Endpoint = endpoint, Model = Model.Trim(), Provider = _provider ?? "", Enabled = enabled, RemoteAllowed = RemoteAllowed, BuiltIn = false });
+        await ai.SaveAsync(was with
+        {
+            Endpoint = endpoint,
+            Model = Model.Trim(),
+            EmbeddingModel = EmbeddingModel.Trim(),
+            Provider = _provider ?? "",
+            Enabled = enabled,
+            RemoteAllowed = RemoteAllowed,
+            BuiltIn = false,
+        });
         Endpoint = endpoint;
         IsOn = enabled;
         SwitchProblem = null;

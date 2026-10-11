@@ -59,7 +59,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -158,6 +158,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         IsPoppedOut = poppedOut;
         Zoom = request?.Zoom ?? PdfPagesView.FitWidth;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        Ask = new AskPanelViewModel(services.Ask, _dispatcher, services.Log, ShowPhraseAsync);
         _noticeTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => Notice = null, _dispatcher);
         _noticeTimer.Stop();
         // The page is kept once reading settles on it, so it survives the app closing with the book open.
@@ -556,6 +557,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _notes.PageNotesChanged -= OnPageNotesChanged;
         _pins.Changed -= OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
+        Ask.Detach();
         PageNotes.Clear();
         HasPageNotes = false;
         OnPropertyChanged(nameof(NotesLabel));
@@ -983,6 +985,66 @@ public sealed partial class ViewerViewModel : PageViewModel
     [RelayCommand]
     void ToggleNotes() => NotesVisible = !NotesVisible;
 
+    // One panel on the right at a time: Notes or Ask.
+    partial void OnNotesVisibleChanged(bool value)
+    {
+        if (value) AskVisible = false;
+    }
+
+    // Ask this book (Ask plan, Q1).
+
+    /// <summary>The Ask panel: a question about the open book and the pages that answer it.</summary>
+    public AskPanelViewModel Ask { get; }
+
+    /// <summary>The Ask panel beside the pages; it shows only for a PDF, and only while AI is on.</summary>
+    [ObservableProperty]
+    public partial bool AskVisible { get; set; }
+
+    partial void OnAskVisibleChanged(bool value)
+    {
+        if (value) NotesVisible = false;
+    }
+
+    [RelayCommand]
+    void ToggleAsk() => AskVisible = !AskVisible;
+
+    /// <summary>
+    /// Opens a page the Ask panel found, with <paramref name="phrase"/> marked by Find (choice 7): the first match on
+    /// that page, else the next one after it. Without a phrase, or when Find can't see it, the page alone.
+    /// </summary>
+    async Task ShowPhraseAsync(int pageIndex, string? phrase)
+    {
+        if (Mode != ViewerMode.Pdf) return;
+        var page = Math.Clamp(pageIndex, 0, Math.Max(0, PageCount - 1));
+        if (phrase is not { Length: > 0 })
+        {
+            GoTo(page, null);
+            return;
+        }
+        var version = _version;
+        var found = await SearchAsync(phrase.Trim());
+        if (version != _version) return;
+        if (!found || _findHits.Count == 0)
+        {
+            if (found) FindStatus = "";
+            GoTo(page, null);
+            return;
+        }
+        FindText = phrase.Trim();
+        var at = -1;
+        for (var i = 0; i < _findHits.Count && at < 0; i++)
+            if (_findHits[i].PageIndex >= page) at = i;
+        if (at < 0 || _findHits[at].PageIndex != page)
+        {
+            // The word isn't on the page as Find sees it (an OCR'd page, say): the page, with the book's matches still marked.
+            Highlights = new HighlightSet(_findHits, -1);
+            FindStatus = "";
+            GoTo(page, null);
+            return;
+        }
+        ShowFindHit(at);
+    }
+
     /// <summary>Note: a note on the page in view, or on the page with selected text, which the dialog can widen to a range.</summary>
     [RelayCommand]
     void AddNote(int? selectionPage)
@@ -1329,6 +1391,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             MarkItemPages();
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
+            Ask.Attach(source.DocumentId);
             _ = LoadPageNotesAsync();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
@@ -1492,7 +1555,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     async Task Find()
     {
         var text = FindText.Trim();
-        if (text.Length == 0 || _renderer is not { } renderer)
+        if (text.Length == 0 || _renderer is null)
         {
             ClearFind();
             return;
@@ -1502,24 +1565,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             FindNext();
             return;
         }
-        FindStatus = "Searching…";
-        var version = _version;
-        IReadOnlyList<SearchHit> hits;
-        try
-        {
-            hits = await renderer.FindAsync(text, -1, MaxFindHits);
-            // Reading an adventure inside a file, Find looks in its pages unless told otherwise (slice 5 plan, choice 11).
-            if (FindScope is { } scope) hits = [.. hits.Where(h => scope.Contains(h.PageIndex))];
-        }
-        catch (Exception ex) when (ex is WorkerException or InvalidOperationException)
-        {
-            _log.LogWarning(ex, "Find in document {DocumentId} failed", _source?.DocumentId);
-            FindStatus = "Find didn't finish";
-            return;
-        }
-        if (version != _version) return;
-        _foundText = text;
-        _findHits = [.. hits.Where(h => h.Rects.Count > 0).Select(h => new PageHighlight(h.PageIndex, [.. h.Rects.Select(PdfRenderer.ToPageRect)]))];
+        if (!await SearchAsync(text)) return;
         if (_findHits.Count == 0)
         {
             _findIndex = -1;
@@ -1536,6 +1582,34 @@ public sealed partial class ViewerViewModel : PageViewModel
             break;
         }
         ShowFindHit(next);
+    }
+
+    /// <summary>
+    /// Finds every match of <paramref name="text"/> in the book, keeping them for Next and Previous. False when Find
+    /// failed, or the book closed meanwhile.
+    /// </summary>
+    async Task<bool> SearchAsync(string text)
+    {
+        if (_renderer is not { } renderer) return false;
+        FindStatus = "Searching…";
+        var version = _version;
+        IReadOnlyList<SearchHit> hits;
+        try
+        {
+            hits = await renderer.FindAsync(text, -1, MaxFindHits);
+            // Reading an adventure inside a file, Find looks in its pages unless told otherwise (slice 5 plan, choice 11).
+            if (FindScope is { } scope) hits = [.. hits.Where(h => scope.Contains(h.PageIndex))];
+        }
+        catch (Exception ex) when (ex is WorkerException or InvalidOperationException)
+        {
+            _log.LogWarning(ex, "Find in document {DocumentId} failed", _source?.DocumentId);
+            FindStatus = "Find didn't finish";
+            return false;
+        }
+        if (version != _version) return false;
+        _foundText = text;
+        _findHits = [.. hits.Where(h => h.Rects.Count > 0).Select(h => new PageHighlight(h.PageIndex, [.. h.Rects.Select(PdfRenderer.ToPageRect)]))];
+        return true;
     }
 
     [RelayCommand]

@@ -43,14 +43,22 @@ public sealed record BuiltInEngineOptions
     /// here instead of running on, and its book fails by itself.
     /// </summary>
     public int MaxAnswerTokens { get; init; } = 2_048;
+
+    /// <summary>
+    /// The engine turns text into vectors instead of answering (Ask this book, choice 3): llama-server's embedding mode,
+    /// run as a second, small engine beside the chat one, so finding pages by meaning never unloads the chat model.
+    /// </summary>
+    public bool Embedding { get; init; }
 }
 
 /// <summary>How the engine is started: the server, the model file, its context, and where it listens.</summary>
-public sealed record EngineStart(string ServerPath, string ModelPath, int ContextTokens, int Port, string ApiKey)
+public sealed record EngineStart(string ServerPath, string ModelPath, int ContextTokens, int Port, string ApiKey, bool Embedding = false)
 {
     /// <summary>
     /// llama-server's arguments. It listens on this computer only. The key goes in its environment rather than here,
-    /// so it isn't in the process list. llama.cpp fits the model's layers to the graphics card by itself.
+    /// so it isn't in the process list. llama.cpp fits the model's layers to the graphics card by itself. In embedding
+    /// mode a text is read in one batch, so the batch is as big as the context: a page longer than the default batch
+    /// would otherwise be refused.
     /// </summary>
     public IReadOnlyList<string> Arguments =>
     [
@@ -60,7 +68,10 @@ public sealed record EngineStart(string ServerPath, string ModelPath, int Contex
         "--ctx-size", ContextTokens.ToString(CultureInfo.InvariantCulture),
         // One book at a time, so the whole context is that book's.
         "--parallel", "1",
-        "--jinja",
+        .. Embedding
+            ? (string[])["--embedding", "--batch-size", ContextTokens.ToString(CultureInfo.InvariantCulture),
+                "--ubatch-size", ContextTokens.ToString(CultureInfo.InvariantCulture)]
+            : ["--jinja"],
         "--no-webui",
     ];
 
@@ -147,6 +158,9 @@ public sealed class BuiltInEngine : IAsyncDisposable
     public const string NotInstalled = "The built-in AI engine isn't on this computer yet. Bibliotaph downloads it when it starts.";
     public const string NoModel = "The built-in AI's model isn't downloaded yet.";
     public const string ServerFile = "llama-server.exe";
+
+    /// <summary>The service key of the second engine, in embedding mode, that Ask this book finds pages by meaning with.</summary>
+    public const string EmbeddingKey = "embedding";
 
     readonly HttpClient _http;
     readonly Func<EngineStart, IEngineProcess> _start;
@@ -281,7 +295,7 @@ public sealed class BuiltInEngine : IAsyncDisposable
         // Never smaller than it was for this model, so books that needed more don't start it again each time.
         var context = Math.Max(Math.Max(contextTokens, Options.MinContextTokens), _running?.ModelPath == modelPath ? _running.ContextTokens : 0);
         Stop(_running?.ModelPath == modelPath ? "a book needs more room" : "another model was chosen");
-        var start = new EngineStart(ServerPath, modelPath, context, FreePort(), Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
+        var start = new EngineStart(ServerPath, modelPath, context, FreePort(), Convert.ToHexString(RandomNumberGenerator.GetBytes(16)), Options.Embedding);
         var started = _clock.GetTimestamp();
         IEngineProcess process;
         try
@@ -422,6 +436,19 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
 }
 
 /// <summary>
+/// Ask this book's vectors from the built-in AI (choice 3): the embedding engine's OpenAI-compatible embeddings call.
+/// The server has one model loaded, so the model's name in the request doesn't matter.
+/// </summary>
+public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http, string modelPath) : IEmbeddingClient
+{
+    public string ModelPath => modelPath;
+
+    public Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default) =>
+        engine.UseAsync(modelPath, engine.Options.MinContextTokens,
+            (address, key) => new LocalModelClient(http, address.ToString(), () => key, EndpointKind.OpenAiCompatible).EmbedAsync(model, texts, ct), ct);
+}
+
+/// <summary>
 /// A model the built-in AI can download (Built-in AI plan, choice 4): pinned to one revision of one file on Hugging
 /// Face, with its size and SHA-256, so what is downloaded is exactly what was tested.
 /// </summary>
@@ -439,6 +466,12 @@ public sealed record BuiltInModel(string Id, string Name, string Repo, string Re
     long GraphicsBytes, string Licence, Uri LicenceUrl)
 {
     public Uri DownloadUrl => new($"https://huggingface.co/{Repo}/resolve/{Revision}/{File}");
+
+    /// <summary>
+    /// Its revision, size and SHA-256 are pinned, so it can be downloaded. A model listed before its file was checked
+    /// has none, and isn't offered: its download could never pass the check.
+    /// </summary>
+    public bool IsPinned => Revision.Length > 0 && Bytes > 0 && Sha256.Length == 64;
 }
 
 /// <summary>The built-in AI's models, where they are kept, and the name runs are recorded under.</summary>
@@ -459,7 +492,20 @@ public static class BuiltInModels
     /// <summary>The models offered, the default first.</summary>
     public static IReadOnlyList<BuiltInModel> All { get; } = [Qwen8B, Qwen4B];
 
+    /// <summary>
+    /// nomic-embed-text v1.5 (Apache-2.0), which finds a book's pages by meaning for Ask this book (choice 3), run by a
+    /// second engine in embedding mode. Its file isn't pinned yet: the build that added it couldn't reach Hugging Face to
+    /// check the file, and a hash nobody checked is no check. Until <see cref="BuiltInModel.IsPinned"/>, the built-in AI
+    /// asks books by their words alone. To pin it, fill in the repository's commit, the file's size and its SHA-256
+    /// (from the file's LFS pointer on Hugging Face).
+    /// </summary>
+    public static BuiltInModel Embedding { get; } = new("nomic-embed-text-v1.5", "nomic-embed-text v1.5", "nomic-ai/nomic-embed-text-v1.5-GGUF", "",
+        "nomic-embed-text-v1.5.Q8_0.gguf", 0, "", 1 * GiB, "Apache-2.0", new("https://huggingface.co/nomic-ai/nomic-embed-text-v1.5"));
+
     public static BuiltInModel? Find(string? id) => All.FirstOrDefault(m => m.Id == id);
+
+    /// <summary>The embedding model, when <paramref name="id"/> is its id.</summary>
+    public static BuiltInModel? FindEmbedding(string? id) => Embedding.Id == id ? Embedding : null;
 
     /// <summary>
     /// The model to suggest for a computer with <paramref name="graphicsBytes"/> of graphics memory (choice 5): the
@@ -473,11 +519,11 @@ public static class BuiltInModels
     /// its id or its downloaded file goes by its name in the list; any other file (in tests) by the file's name.
     /// </summary>
     public static string NameFor(string model) =>
-        $"{(Find(model) ?? All.FirstOrDefault(m => Path.GetFileName(model) == m.File))?.Name ?? Path.GetFileNameWithoutExtension(model)} (built in)";
+        $"{(Find(model) ?? FindEmbedding(model) ?? All.FirstOrDefault(m => Path.GetFileName(model) == m.File))?.Name ?? Path.GetFileNameWithoutExtension(model)} (built in)";
 
     /// <summary>Where <paramref name="model"/>'s file is, or would be once downloaded: in the models folder, or a path as given.</summary>
     public static string PathFor(string model, string modelsFolder) =>
-        Find(model) is { } known ? Path.Combine(modelsFolder, known.File) : model;
+        (Find(model) ?? FindEmbedding(model)) is { } known ? Path.Combine(modelsFolder, known.File) : model;
 }
 
 public static class BuiltInEngineWatch
@@ -495,4 +541,14 @@ public static class BuiltInEngineWatch
         ai.Changed += Check;
         indexing.Changed += Check;
     }
+
+    /// <summary>
+    /// Stops the embedding engine as soon as AI is switched off, moved to a model server or left without a built-in
+    /// embedding model. Pausing the Classify lane leaves it, since Ask this book is asked for, not background work.
+    /// </summary>
+    public static void StopWhenNotNeededForAsk(this BuiltInEngine engine, AiSettings ai) =>
+        ai.Changed += (_, _) =>
+        {
+            if (engine.IsRunning && (!ai.Setup.IsReady || !ai.Setup.BuiltIn || ai.Setup.BuiltInEmbeddingModel is null)) _ = engine.StopAsync();
+        };
 }

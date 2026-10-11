@@ -35,10 +35,12 @@ public sealed class NoApiKeys : IApiKeyStore
 /// How AI is set up (choice 10): the endpoint and model, whether it is switched on, whether the user agreed to an
 /// endpoint off this computer, and the library folders never sent. <see cref="IsReady"/> says whether the Classify lane
 /// may send anything. With <see cref="BuiltIn"/>, Bibliotaph runs <see cref="BuiltInModel"/> itself (Built-in AI plan,
-/// choice 7), and the model server's endpoint and model are kept for a switch back.
+/// choice 7), and the model server's endpoint and model are kept for a switch back. <see cref="EmbeddingModel"/> and
+/// <see cref="BuiltInEmbeddingModel"/> are what Ask this book finds pages by meaning with (choice 3), on the server or
+/// built in; without one, it finds them by their words.
 /// </summary>
 public sealed record AiSetup(string? Endpoint, string? Model, string Provider, bool Enabled, bool RemoteAllowed, IReadOnlySet<long> SkippedRoots,
-    bool BuiltIn = false, string? BuiltInModel = null)
+    bool BuiltIn = false, string? BuiltInModel = null, string? EmbeddingModel = null, string? BuiltInEmbeddingModel = null)
 {
     /// <summary>The provider runs of the built-in AI are recorded under.</summary>
     public const string BuiltInProvider = "built-in";
@@ -60,21 +62,39 @@ public sealed record AiSetup(string? Endpoint, string? Model, string Provider, b
 
     /// <summary>The provider runs are recorded under.</summary>
     public string RunProvider => BuiltIn ? BuiltInProvider : Provider;
+
+    /// <summary>
+    /// The embedding model page vectors are made with and stored under, or null when there is none and Ask finds pages
+    /// by their words alone. A built-in one is named as a built-in chat model is, so it never passes for a server's.
+    /// </summary>
+    public string? EmbeddingName => BuiltIn
+        ? BuiltInEmbeddingModel is null ? null : BuiltInModels.NameFor(BuiltInEmbeddingModel)
+        : EmbeddingModel;
 }
 
 /// <summary>
-/// AI's settings in catalog.db, loaded once and kept, and the classifier and Ask's interpreter they make. A change raises
-/// <see cref="Changed"/>, which wakes or stops the Classify lane.
+/// AI's settings in catalog.db, loaded once and kept, and the classifier, Ask's interpreter and the embedding client they
+/// make. A change raises <see cref="Changed"/>, which wakes or stops the Classify lane and shows or hides Ask this book.
 /// </summary>
-public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null)
+/// <param name="settings">Where the setup is kept.</param>
+/// <param name="keys">The model servers' keys, read when a request is made.</param>
+/// <param name="clients">The client for a model server's endpoint; tests and the smoke test pass stand-ins.</param>
+/// <param name="builtIn">The built-in AI's chat engine, or null where the app has none (tests).</param>
+/// <param name="builtInEmbedding">The built-in AI's second engine, in embedding mode, for finding pages by meaning.</param>
+public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null,
+    BuiltInEngine? builtInEmbedding = null)
 {
     /// <summary>A local model can take minutes to load and read a long excerpt on a modest GPU.</summary>
     static readonly Lazy<HttpClient> Http = new(() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
 
-    readonly Func<string, IModelClient> _clients = clients ?? (endpoint => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint)));
+    readonly Func<string, IModelClient> _clients = clients ?? (endpoint => ClientFor(endpoint, keys));
     volatile AiSetup _setup = AiSetup.Off;
     volatile IClassifier? _classifier;
     volatile IPlainSearchInterpreter? _interpreter;
+    volatile IEmbeddingClient? _embedder;
+
+    /// <summary>The usual client for a model server: the shared HttpClient, with the endpoint's key read when a request is made.</summary>
+    public static IModelClient ClientFor(string endpoint, IApiKeyStore keys) => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint));
 
     public event EventHandler? Changed;
 
@@ -82,6 +102,12 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
 
     /// <summary>The classifier for the current setup, or null while AI isn't ready.</summary>
     public IClassifier? Classifier => _classifier;
+
+    /// <summary>
+    /// What makes Ask this book's page vectors for the current setup (choice 3): the model server, when an embedding
+    /// model is set for it, or the built-in embedding engine. Null while AI isn't ready or there is no embedding model.
+    /// </summary>
+    public IEmbeddingClient? Embedder => _embedder;
 
     /// <summary>Ask's reader of requests in plain English, over the same model, or null while AI isn't ready.</summary>
     public IPlainSearchInterpreter? Interpreter => _interpreter;
@@ -109,7 +135,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiRemoteAllowed, ct) == bool.TrueString,
             skipped.ToHashSet(),
             await settings.GetAsync(SettingKeys.AiBuiltIn, ct) == bool.TrueString,
-            await settings.GetAsync(SettingKeys.AiBuiltInModel, ct)));
+            await settings.GetAsync(SettingKeys.AiBuiltInModel, ct),
+            await settings.GetAsync(SettingKeys.AiEmbeddingModel, ct),
+            await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct)));
     }
 
     public async Task SaveAsync(AiSetup setup, CancellationToken ct = default)
@@ -122,6 +150,8 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
         await settings.SetAsync(SettingKeys.AiSkippedRoots, JsonSerializer.Serialize(setup.SkippedRoots.Order()), ct);
         await settings.SetAsync(SettingKeys.AiBuiltIn, setup.BuiltIn.ToString(), ct);
         await settings.SetAsync(SettingKeys.AiBuiltInModel, setup.BuiltInModel ?? "", ct);
+        await settings.SetAsync(SettingKeys.AiEmbeddingModel, setup.EmbeddingModel ?? "", ct);
+        await settings.SetAsync(SettingKeys.AiBuiltInEmbeddingModel, setup.BuiltInEmbeddingModel ?? "", ct);
         Apply(setup);
     }
 
@@ -130,13 +160,28 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
 
     void Apply(AiSetup setup)
     {
-        setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model), BuiltInModel = Blank(setup.BuiltInModel) };
+        setup = setup with
+        {
+            Endpoint = Blank(setup.Endpoint),
+            Model = Blank(setup.Model),
+            BuiltInModel = Blank(setup.BuiltInModel),
+            EmbeddingModel = Blank(setup.EmbeddingModel),
+            BuiltInEmbeddingModel = Blank(setup.BuiltInEmbeddingModel),
+        };
         _setup = setup;
         var client = !setup.IsReady ? null
             : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
             : _clients(setup.Endpoint!);
         _classifier = client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!);
         _interpreter = client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!);
+        // The same endpoint as the chat model, never another: pages go only where Settings says (choice 12).
+        // A built-in one is used once its file is here; the finished download refreshes this.
+        _embedder = !setup.IsReady ? null
+            : setup.BuiltIn
+                ? builtInEmbedding is null || setup.BuiltInEmbeddingModel is null
+                    || BuiltInModels.PathFor(setup.BuiltInEmbeddingModel, builtInEmbedding.Options.ModelsFolder) is not { } path || !File.Exists(path) ? null
+                    : new BuiltInEmbeddingClient(builtInEmbedding, Http.Value, path)
+            : setup.EmbeddingModel is null ? null : _clients(setup.Endpoint!) as IEmbeddingClient;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

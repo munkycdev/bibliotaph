@@ -41,6 +41,15 @@ public static class SettingKeys
     /// <summary>The built-in AI's model, by its id in the list of models offered: "qwen3-8b".</summary>
     public const string AiBuiltInModel = "ai.built-in.model";
 
+    /// <summary>
+    /// The model server's embedding model, which Ask this book finds pages by meaning with: "nomic-embed-text". Empty
+    /// for none, and Ask finds pages by their words.
+    /// </summary>
+    public const string AiEmbeddingModel = "ai.embedding.model";
+
+    /// <summary>The built-in AI's embedding model, by its id: "nomic-embed-text-v1.5". Set when it is downloaded.</summary>
+    public const string AiBuiltInEmbeddingModel = "ai.built-in.embedding";
+
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
 
