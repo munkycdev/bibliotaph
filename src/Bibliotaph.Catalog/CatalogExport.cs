@@ -24,6 +24,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
     {
         "source_root.volume_serial",
         "file_location.ntfs_file_id",
+        "file_location.return_to_online_only",
     };
 
     /// <summary>

@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011022641_CatalogPins";
+    public override string LastMigrationId => "20261011040020_CatalogReturnOnlineOnly";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -508,6 +508,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasColumnType("TEXT")
                     .HasColumnName("relative_path");
+
+                b.Property<bool>("ReturnToOnlineOnly")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("return_to_online_only");
 
                 b.Property<long>("SizeBytes")
                     .HasColumnType("INTEGER")

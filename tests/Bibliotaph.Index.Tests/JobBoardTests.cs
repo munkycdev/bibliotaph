@@ -337,4 +337,27 @@ public sealed class JobBoardTests : IndexFixture
         Assert.True(await _queue.ReprocessAsync(1, ct: Ct));
         Assert.Equal((0L, 1L), (Flagged(1), Flagged(2)));
     }
+
+    [Fact]
+    public async Task A_document_is_done_reading_its_file_once_no_file_stage_waits_or_runs()
+    {
+        Stage[] fileStages = [.. Pipeline.FileStages];
+        // 1: Probe done, Text running. 2: Probe done, OCR waiting. 3: Probe failed for good. 4: never queued (just hashed).
+        await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Probe, ct: Ct);
+        await _queue.EnqueueAsync(3, "cc", Stage.Probe, ct: Ct);
+        await _queue.CompleteAsync((await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!, next: [Stage.Text], ct: Ct);
+        await _queue.CompleteAsync((await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!, next: [Stage.Ocr, Stage.Classify], ct: Ct);
+        await _queue.FailAsync((await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!, "damaged", retry: false, Ct);
+        var text = (await _queue.LeaseAsync([Stage.Text], "test", Lease, Ct))!;
+        Assert.Equal(1, text.DocumentId);
+
+        Assert.Equal([3L], (await _queue.DoneReadingAsync([1, 2, 3, 4], fileStages, Ct)).Order());
+        // Classify asks a model, not the file, so it never keeps one; leaving OCR out, as for a paused lane, frees 2.
+        Assert.Equal([2L, 3L], (await _queue.DoneReadingAsync([1, 2, 3, 4], [.. fileStages.Where(s => s != Stage.Ocr)], Ct)).Order());
+
+        await _queue.CompleteAsync(text, ct: Ct);
+        Assert.Equal([1L, 3L], (await _queue.DoneReadingAsync([1, 2, 3, 4], fileStages, Ct)).Order());
+        Assert.Empty(await _queue.DoneReadingAsync([], fileStages, Ct));
+    }
 }

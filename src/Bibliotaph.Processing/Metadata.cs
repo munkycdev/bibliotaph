@@ -12,8 +12,8 @@ namespace Bibliotaph.Processing;
 /// Copies the library's cards from catalog.db into index.db: which document each entry shows (entry_doc), and its
 /// effective metadata (entry_meta, entry_facet, entry_fts, term_alias), where the library lists, filters and searches
 /// it, and which entries a model has read (entry_ai), for the AI badge and filter. It also copies the user's marks: the
-/// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name) and
-/// when it was last opened (entry_opened). index.db holds
+/// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name),
+/// when it was last opened (entry_opened) and the text of its notes, its own and its pages', for search (entry_note). index.db holds
 /// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
@@ -51,8 +51,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
-    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened, their own
-    /// note), after one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
+    /// Copies only the user's marks for these entries (their heart, the groups they are in, when they were opened, their
+    /// notes), after one of those changed: lighter than <see cref="ProjectAsync"/>, which also projects their metadata.
     /// </summary>
     public async Task ProjectMarksAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -101,7 +101,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             await index.SetScopesAsync(entryIds, scopes, ct);
         }
         if (reading is not null) await index.SetOpenedAsync(entryIds, await reading.GetOpenedAsync(entryIds, ct), ct);
-        if (notes is not null) await index.SetNotesAsync(entryIds, await notes.GetEntryNotesAsync(entryIds, ct), ct);
+        if (notes is not null) await index.SetNotesAsync(entryIds, await notes.GetSearchTextAsync(entryIds, ct), ct);
         if (entryIds is null) await WriteCollectionNamesAsync(ct);
     }
 

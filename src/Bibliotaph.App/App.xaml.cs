@@ -215,6 +215,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SourceFiles>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<IFileIdentity, FileIdentity>();
+        builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
+        builder.Services.AddSingleton<OnlineOnlyReturns>();
         builder.Services.AddSingleton<StageServices>();
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();
@@ -346,6 +348,8 @@ public partial class App : Application
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
+        // Before the first projection, which checks every card: books owned elsewhere meet the files already in the library.
+        services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
     }
 
     /// <summary>

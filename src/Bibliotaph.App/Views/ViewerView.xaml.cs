@@ -154,7 +154,7 @@ public partial class ViewerView
         if (ReferenceEquals(_shown, pdf)) return;
         _shown = pdf;
         if (pdf is null) PagesView.Unload();
-        else PagesView.Load(pdf.Renderer, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop, pdf.Seed);
+        else PagesView.Load(pdf.Renderer, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop, pdf.Seed, pdf.Numbering);
     }
 
     void ShowHighlights()

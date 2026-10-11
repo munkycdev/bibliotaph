@@ -373,8 +373,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         }, ct);
 
     /// <summary>
-    /// Replaces the own notes of these entries (entry_note), or of every entry when <paramref name="entryIds"/> is null,
-    /// and refreshes the search rows of those whose note changed.
+    /// Replaces the notes of these entries (entry_note: the text of their own note and page notes), or of every entry when
+    /// <paramref name="entryIds"/> is null, and refreshes the search rows of those whose notes changed.
     /// </summary>
     public Task SetNotesAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyDictionary<EntryId, string> notes, CancellationToken ct = default) =>
         entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>

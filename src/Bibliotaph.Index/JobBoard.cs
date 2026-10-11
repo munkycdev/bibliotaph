@@ -282,6 +282,30 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             return released;
         }, ct);
 
+    /// <summary>
+    /// Those of <paramref name="documentIds"/> that are done with their file for now: each has been queued, and none of
+    /// its jobs for <paramref name="stages"/> is waiting or running. Blocked and failed stages don't keep it, since they
+    /// run again only when the user asks; a job waiting to try again after a failure does. A document hashed but not yet
+    /// queued isn't done, as its stages haven't started.
+    /// </summary>
+    public async Task<IReadOnlySet<long>> DoneReadingAsync(IReadOnlyCollection<long> documentIds, IReadOnlyCollection<Stage> stages,
+        CancellationToken ct = default)
+    {
+        var done = new HashSet<long>();
+        if (documentIds.Count == 0) return done;
+        var names = stages.Select(s => s.ToString()).ToArray();
+        await using var c = database.OpenRead();
+        foreach (var ids in documentIds.Distinct().Chunk(500))
+            done.UnionWith(await c.QueryAsync<long>(new CommandDefinition(
+                """
+                SELECT document_id FROM job
+                WHERE document_id IN @ids
+                GROUP BY document_id
+                HAVING sum(status IN ('pending', 'leased') AND stage IN @names) = 0
+                """, new { ids, names }, cancellationToken: ct)));
+        return done;
+    }
+
     /// <summary>The earliest time a waiting job becomes ready, so an idle lane knows when to look again.</summary>
     public async Task<DateTimeOffset?> NextReadyAsync(IReadOnlyCollection<Stage> stages, CancellationToken ct = default)
     {
