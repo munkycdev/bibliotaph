@@ -32,8 +32,18 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
-        SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
+        SettingsStore store, IUpdateService updates, AskViewModel ask, ILogger<ShellViewModel> log)
     {
+        Ask = ask;
+        ask.SearchRequested += (_, text) =>
+        {
+            SearchText = text;
+            SubmitSearch();
+        };
+        ask.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AskViewModel.IsOn)) OnPropertyChanged(nameof(SearchPlaceholder));
+        };
         _pins = pins;
         _opener = opener;
         _collections = collections;
@@ -104,8 +114,15 @@ public sealed partial class ShellViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         _searchDelay.Stop();
-        _searchDelay.Start();
+        // In Ask mode the box holds a request, which is read on Enter rather than searched as it is typed.
+        if (!Ask.IsOn) _searchDelay.Start();
     }
+
+    /// <summary>Ask beside the search box (scenario review, row 5): a request in plain English read as a search.</summary>
+    public AskViewModel Ask { get; }
+
+    /// <summary>The empty box's hint, which says what it takes in Ask mode.</summary>
+    public string SearchPlaceholder => Ask.IsOn ? "Ask for books in plain English…" : "Search books, topics, passages…";
 
     /// <summary>Searches now (Enter, or a pause in typing) and shows the results in the Library.</summary>
     [RelayCommand]

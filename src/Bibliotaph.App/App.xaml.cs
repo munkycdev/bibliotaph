@@ -229,6 +229,7 @@ public partial class App : Application
         builder.Services.AddSingleton<VocabularyService>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
+        builder.Services.AddSingleton<AskService>();
         // The model pilot (slice 2d): its own pilot.db, shown only with --pilot.
         builder.Services.AddSingleton(sp => new PilotStore(paths.Pilot, sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<PilotService>();
@@ -303,6 +304,7 @@ public partial class App : Application
         // One check a download page, so a check keeps running while the library is shown.
         builder.Services.AddSingleton<DownloadCheckViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
+        builder.Services.AddSingleton<AskViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
         builder.Services.AddSingleton<ViewerServices>();

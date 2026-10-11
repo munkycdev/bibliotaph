@@ -329,6 +329,24 @@ public sealed class IndexQueries(IndexDatabase database)
         return rows.Where(r => r.Title is not null).ToDictionary(r => new EntryId(r.EntryId), r => r.Title!);
     }
 
+    /// <summary>
+    /// The game systems and editions (field and term key) whose books in the library are marked as having no levels,
+    /// at least one of them and none with known levels: Ask ignores a level asked of one (scenario review, row 5).
+    /// </summary>
+    public async Task<IReadOnlyList<(string Field, string Key)>> GetSystemsWithoutLevelsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string Field, string Key)>(new CommandDefinition(
+            """
+            SELECT f.field, f.value
+            FROM entry_facet f JOIN entry_meta m ON m.entry_id = f.entry_id
+            WHERE f.field IN ('system', 'edition')
+            GROUP BY f.field, f.value
+            HAVING sum(m.level_state = 'na') > 0 AND sum(m.level_state = 'known') = 0
+            """, cancellationToken: ct));
+        return [.. rows];
+    }
+
     /// <summary>A document's cover file name in the cover cache, or null when it has none.</summary>
     public async Task<string?> GetCoverAsync(long documentId, CancellationToken ct = default)
     {

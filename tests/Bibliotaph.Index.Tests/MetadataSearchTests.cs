@@ -117,6 +117,11 @@ public sealed class MetadataSearchTests : IndexFixture
     public async Task Vocabulary_fields_match_any_name_of_a_term(string query, long[] expected) =>
         Assert.Equal(expected, await FindAsync(query));
 
+    [Fact]
+    public async Task Systems_whose_books_all_have_no_levels_are_listed_for_Ask() =>
+        // Pathfinder's one book has no levels, and D&D's books have known ones.
+        Assert.Equal([("edition", "pathfinder-2e"), ("system", "pathfinder")], (await new IndexQueries(Database).GetSystemsWithoutLevelsAsync(Ct)).Order());
+
     [Theory]
     [InlineData("level:3", new[] { Citadel })]
     [InlineData("level:2-11", new[] { Tomb, Citadel })]
