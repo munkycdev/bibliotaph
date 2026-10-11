@@ -1302,10 +1302,14 @@ static partial class SmokeTest
             binders.Open(pack.Id);
             await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, Current: not null } open && open.PackId == pack.Id,
                 () => "The binder didn't open at its item.");
-            var binder = (SessionReaderViewModel)shell.CurrentPage!;
-            await binders.PopOutAsync(binder);
-            await WaitUntilAsync(window, () => windows.Windows.Any(w => ReferenceEquals(w.Model, binder)) && binder.Current is { Target: { State: SessionItemState.Original } open } && open.DocumentId == other,
-                () => $"The popped-out binder's item opens {binder.Current?.Target.State} in document {binder.Current?.Target.DocumentId}, not the file its pages were added from.");
+            await binders.PopOutAsync((SessionReaderViewModel)shell.CurrentPage!);
+            // Popping out hosts a new reader for the binder in its own window; that one is followed from here on.
+            SessionReaderViewModel? Popped() => windows.Windows.Select(w => w.Model).OfType<SessionReaderViewModel>().FirstOrDefault(r => r.PackId == pack.Id);
+            await WaitUntilAsync(window, () => Popped() is { IsLoaded: true, Current.Target: { State: SessionItemState.Original } open } && open.DocumentId == other,
+                () => Popped() is { } popped
+                    ? $"The popped-out binder's item opens {popped.Current?.Target.State} in document {popped.Current?.Target.DocumentId}, not the file its pages were added from ({other})."
+                    : "The binder didn't pop out into a window of its own.");
+            var binder = Popped()!;
 
             services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
             var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
