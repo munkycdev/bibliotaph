@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
@@ -20,7 +21,8 @@ namespace Bibliotaph.App.ViewModels;
 /// reachable; the binder's notes sit in a panel on the right that folds away. Next and Previous (Ctrl+Right and
 /// Ctrl+Left) step through the pages, which are renamed in the list (F2). Edit binder opens the list page for sections,
 /// order and notes. Pop out moves the whole binder to a window of its own, one window per binder. At hand (choices 10
-/// and 11) opens a page of a binder kept at hand in a reader window, so the page in hand stays put.
+/// and 11) opens a page of a binder kept at hand in a reader window, so the page in hand stays put. When the next page is
+/// in another book, that book is opened ahead of time with the page drawn, so Next shows it at once.
 /// </summary>
 public sealed partial class SessionReaderViewModel : PageViewModel
 {
@@ -231,6 +233,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                 }
                 else if (again.CanOpen && Viewer.Here() is not null) await Viewer.LoadAsync();
                 else await OpenAsync(again);
+                _ = ReadAheadAsync();
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
             else Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add page in the reader.");
@@ -328,9 +331,14 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                 Current = same;
                 var moved = Moved(current.Target, same.Target);
                 if (reopen || (moved && !same.CanOpen)) await OpenAsync(same);
-                // Its pages moved, as with Use this page on a Needs review card: the reader follows without reopening the binder.
-                else if (moved && await SessionPackRows.RequestAsync(same, Pack?.Title ?? "", _queries) is { } request && Current == same)
-                    await Viewer.FollowAsync(request);
+                else
+                {
+                    // Its pages moved, as with Use this page on a Needs review card: the reader follows without reopening the binder.
+                    if (moved && await SessionPackRows.RequestAsync(same, Pack?.Title ?? "", _queries) is { } request && Current == same)
+                        await Viewer.FollowAsync(request);
+                    // The page after it may have changed.
+                    _ = ReadAheadAsync();
+                }
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
             else
@@ -445,13 +453,45 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             // Its folder offline or its file gone: the reader says what to do, and Try again opens it once it's back.
             if (row.Target.Away is { } away) Viewer.ShowAway(away, () => RefreshRowsAsync(reopen: true));
             else Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", row.Reason ?? "Its file can't be reached.");
+        }
+        else
+        {
+            var request = await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
+            if (Current != row) return;
+            if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
+            else await Viewer.ShowAsync(request);
+        }
+        if (Current == row) _ = ReadAheadAsync();
+    }
+
+    /// <summary>
+    /// Opens the next page's book ahead of time, with the page drawn, when it's another book than the one open, so Next
+    /// shows it at once; the book open draws its own next pages. Otherwise any book opened ahead before is closed.
+    /// </summary>
+    async Task ReadAheadAsync()
+    {
+        var items = Items;
+        var at = Current;
+        var index = at is { } current ? items.ToList().FindIndex(i => i.Id == current.Id) : -1;
+        var ahead = items.Select(i => new ReadAheadItem(i.Target.DocumentId, i.CanOpen, OpensAsImage(i))).ToList();
+        if (ReadAhead.Next(ahead, index, Viewer.Here()?.DocumentId) is not { } next)
+        {
+            Viewer.DropStandby();
             return;
         }
-        var request = await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
-        if (Current != row) return;
-        if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
-        else await Viewer.ShowAsync(request);
+        try
+        {
+            if (await SessionPackRows.RequestAsync(items[next], Pack?.Title ?? "", _queries) is { } request && at is not null && Current == at) await Viewer.PrepareAsync(request);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Reading ahead in binder {PackId} failed", PackId);
+        }
     }
+
+    /// <summary>A whole pack, or an image, opens in the image viewer, which is quick enough not to need opening ahead.</summary>
+    static bool OpensAsImage(SessionItemRow row) =>
+        row.Item.Range is null && row.Cover is { } cover && (cover.IsPack || SourceFormats.IsImage(cover.Entry.Format));
 
     [RelayCommand]
     void ToggleNotes() => ShowNotes = !ShowNotes;

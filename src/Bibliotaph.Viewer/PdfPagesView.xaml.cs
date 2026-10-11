@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.Core.Reading;
 using Bibliotaph.Pdf.Contracts;
+using Bibliotaph.Pdf.Host;
 
 namespace Bibliotaph.Viewer;
 
@@ -15,7 +16,8 @@ namespace Bibliotaph.Viewer;
 /// exactly those pixels: a quick preview first, then the full page, then the next pages in the scroll direction.
 /// Above 200% a page is drawn as tiles over its preview. It shows search highlights, lets the reader select text
 /// on a page and copy it, and follows the page's links; a page with no links of its own whose text lists printed page
-/// numbers, as an index or contents page does, gets links made from them.
+/// numbers, as an index or contents page does, gets links made from them. A page drawn before its document was shown
+/// (<see cref="PrerenderAsync"/>) shows at once.
 /// </summary>
 public partial class PdfPagesView
 {
@@ -60,6 +62,7 @@ public partial class PdfPagesView
     bool _laidOut;
     int _direction = 1;
     GoTo? _pendingGoTo;
+    PageSeed? _seed;
     IReadOnlyList<PageHighlight> _highlights = [];
     int _currentHighlight = -1;
 
@@ -115,14 +118,16 @@ public partial class PdfPagesView
     public event EventHandler? CurrentPageChanged;
 
     /// <summary>
-    /// Shows a newly opened document. <paramref name="text"/> gives a page's selectable text when it's needed, and
-    /// <paramref name="printedPages"/> where the book's printed page numbers are, for the links made from an index or
-    /// contents page's numbers; without it, only the PDF's own links work.
+    /// Shows a newly opened document. <paramref name="text"/> gives a page's selectable text when it's needed;
+    /// <paramref name="seed"/> is a page already drawn, which shows straight away; and <paramref name="printedPages"/>
+    /// says where the book's printed page numbers are, for the links made from an index or contents page's numbers;
+    /// without it, only the PDF's own links work.
     /// </summary>
     public void Load(PdfRenderer renderer, DocInfo doc, Func<int, Task<PageTextLayer>> text, int pageIndex = 0, double? pdfTop = null,
-        Func<Task<PrintedPages>>? printedPages = null)
+        PageSeed? seed = null, Func<Task<PrintedPages>>? printedPages = null)
     {
         Unload();
+        _seed = seed;
         _renderer = renderer;
         _renderer.Rendered += OnRendered;
         _textSource = text;
@@ -130,9 +135,8 @@ public partial class PdfPagesView
         _listedPages = PageReferences.ListedPages([.. doc.Outline.Select(o => (o.Title, o.PageIndex, o.Depth))], doc.PageCount);
         for (var i = 0; i < doc.PageCount; i++)
         {
-            var size = i < doc.PageSizes.Count ? doc.PageSizes[i] : new PageSize(612, 792);
-            var label = i < doc.PageLabels.Count ? doc.PageLabels[i] : null;
-            _pages.Add(new ViewerPage(i, label, size.Width > 0 ? size.Width : 612, size.Height > 0 ? size.Height : 792));
+            var (width, height) = SizeOf(doc, i);
+            _pages.Add(new ViewerPage(i, i < doc.PageLabels.Count ? doc.PageLabels[i] : null, width, height));
         }
         _pendingGoTo = new GoTo(Math.Clamp(pageIndex, 0, Math.Max(0, _pages.Count - 1)), 0, pdfTop);
         ApplyZoom(keepPosition: false);
@@ -147,6 +151,7 @@ public partial class PdfPagesView
         }
         _renderer = null;
         _textSource = null;
+        _seed = null;
         _printedPages = null;
         _listedPages = new HashSet<int>();
         ClearSelection();
@@ -192,7 +197,7 @@ public partial class PdfPagesView
         if (_pages.Count == 0 || Pages.ActualWidth <= 0) return;
         if (keepPosition && _laidOut && _pendingGoTo is null) _pendingGoTo = CurrentPosition();
         _laidOut = true;
-        _dipPerPoint = Zoom > 0 ? Zoom * 96.0 / 72.0 : Zoom == FitPage ? FitPageDipPerPoint() : FitWidthDipPerPoint();
+        _dipPerPoint = DipPerPoint(CommonSize(_pages.Select(p => (p.WidthPts, p.HeightPts))));
         foreach (var page in _pages)
         {
             page.Generation++;
@@ -200,26 +205,80 @@ public partial class PdfPagesView
             page.Width = page.WidthPts * _dipPerPoint;
             page.Height = page.HeightPts * _dipPerPoint;
         }
+        PlaceSeed();
         RefreshHighlights();
         RefreshSelection();
         ScrollToPending();
     }
 
-    double FitWidthDipPerPoint()
+    /// <summary>DIPs per PDF point at the zoom chosen, for a book whose most common page is <paramref name="common"/>.</summary>
+    double DipPerPoint((double Width, double Height) common) =>
+        Zoom > 0 ? Zoom * 96.0 / 72.0 : Zoom == FitPage ? FitPageDipPerPoint(common) : FitWidthDipPerPoint(common);
+
+    double FitWidthDipPerPoint((double Width, double Height) common)
     {
         // Fit the most common page size, so one wide fold-out doesn't shrink the whole book.
         var available = Math.Max(200, Pages.ActualWidth - SystemParameters.VerticalScrollBarWidth - 48);
-        return Math.Min(available / CommonPage().WidthPts, 4 * 96.0 / 72.0);
+        return Math.Min(available / common.Width, 4 * 96.0 / 72.0);
     }
 
-    double FitPageDipPerPoint()
+    double FitPageDipPerPoint((double Width, double Height) common)
     {
         var available = Math.Max(150, Pages.ActualHeight - 2 * PageMargin - 8);
-        return Math.Min(FitWidthDipPerPoint(), available / CommonPage().HeightPts);
+        return Math.Min(FitWidthDipPerPoint(common), available / common.Height);
     }
 
-    ViewerPage CommonPage() =>
-        _pages.GroupBy(p => (Math.Round(p.WidthPts), Math.Round(p.HeightPts))).OrderByDescending(g => g.Count()).First().First();
+    static (double Width, double Height) CommonSize(IEnumerable<(double Width, double Height)> sizes) =>
+        sizes.GroupBy(s => (Math.Round(s.Width), Math.Round(s.Height))).OrderByDescending(g => g.Count()).First().First();
+
+    /// <summary>A page's size in PDF points, with Letter standing in for a size the worker didn't give.</summary>
+    static (double Width, double Height) SizeOf(DocInfo doc, int index)
+    {
+        var size = index < doc.PageSizes.Count ? doc.PageSizes[index] : new PageSize(612, 792);
+        return (size.Width > 0 ? size.Width : 612, size.Height > 0 ? size.Height : 792);
+    }
+
+    // ---------- Drawing ahead ----------
+
+    /// <summary>
+    /// Draws one page of a document that isn't shown yet, at the size it would show at here now, so that loading the
+    /// document with it (<see cref="Load"/>) shows that page at once, as for a binder's next item in another book.
+    /// A page that would be drawn in tiles is drawn at preview size, to stand in until its tiles come. Null when the
+    /// view has no size yet or the page can't be drawn.
+    /// </summary>
+    public async Task<PageSeed?> PrerenderAsync(PdfRenderer renderer, DocInfo doc, int pageIndex, CancellationToken ct = default)
+    {
+        if (pageIndex < 0 || pageIndex >= doc.PageCount || Pages.ActualWidth <= 0) return null;
+        var dipPerPoint = DipPerPoint(CommonSize(Enumerable.Range(0, doc.PageCount).Select(i => SizeOf(doc, i))));
+        var scale = dipPerPoint * VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var (width, height) = SizeOf(doc, pageIndex);
+        var pixels = Math.Round(width * scale) * Math.Round(height * scale);
+        var tiled = dipPerPoint * 72.0 / 96.0 > TileAboveZoom + 1e-6 || pixels > FullPageMaxPixels;
+        if (tiled) scale = PreviewScale(scale, pixels);
+        try
+        {
+            return await renderer.RenderBitmapAsync(pageIndex, scale, ct: ct) is { } image ? new PageSeed(pageIndex, scale, image, tiled) : null;
+        }
+        catch (Exception ex) when (ex is PdfRenderException or WorkerException or InvalidOperationException)
+        {
+            // Drawing ahead is a nicety: the page is drawn the usual way when it shows.
+            return null;
+        }
+    }
+
+    /// <summary>Puts the page drawn ahead on its page, once the pages are laid out; drawn at another size, it stands in as a preview.</summary>
+    void PlaceSeed()
+    {
+        if (_seed is not { } seed) return;
+        _seed = null;
+        if (seed.PageIndex >= _pages.Count) return;
+        var page = _pages[seed.PageIndex];
+        page.Image = seed.Image;
+        page.RenderedScale = seed.Scale;
+        page.IsPreview = seed.Preview || Math.Abs(seed.Scale - (_dipPerPoint * VisualTreeHelper.GetDpi(this).PixelsPerDip)) > 1e-6;
+    }
+
+    static double PreviewScale(double scale, double pixels) => Math.Min(scale * PreviewFraction, scale * Math.Sqrt(PreviewMaxPixels / pixels));
 
     void Pages_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
@@ -330,11 +389,7 @@ public partial class PdfPagesView
         var tiled = _dipPerPoint * 72.0 / 96.0 > TileAboveZoom + 1e-6 || pixels > FullPageMaxPixels;
 
         // A quick low-resolution render first, so a page never sits blank while its full render runs.
-        if (page.Image is null)
-        {
-            var previewScale = Math.Min(scale * PreviewFraction, scale * Math.Sqrt(PreviewMaxPixels / pixels));
-            previews.Add(new RenderJob(page, page.Generation, previewScale, pixelsPerDip, Preview: true));
-        }
+        if (page.Image is null) previews.Add(new RenderJob(page, page.Generation, PreviewScale(scale, pixels), pixelsPerDip, Preview: true));
 
         if (!tiled)
         {

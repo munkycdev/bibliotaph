@@ -130,12 +130,16 @@ static partial class SmokeTest
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
                 await Check("a book's note written in the details and found by search, and a page note added in the reader, deleted with Undo, listed in the details and found by search",
                     () => UseNotesAsync(services, window, reprocessed.Pdf));
+                await Check("the reader's page thumbnails shown, drawn, marking the page in view and the page with a note, and going to a page by click and by Enter",
+                    () => UseThumbnailStripAsync(services, window, reprocessed.Pdf));
                 await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, run, and deleted with Undo",
                     () => UseSessionPacksAsync(services, window, reprocessed.Pdf));
                 await Check("a binder kept at hand listed under At hand, and one of its pages opened in a window from another binder's At hand",
                     () => UseAtHandBinderAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
+                await Check("a binder's next page in another book opened ahead of time with its page drawn, and shown from it by Next",
+                    () => ReadAheadAcrossBooksAsync(services, window, reprocessed.Pdf));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
                 await Check("two images kept separate made a pack with Pack together, a third added, the pack merged into the tokens' pack, and Undo",
@@ -2035,10 +2039,15 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PreviousItem"), "Previous");
         await WaitUntilAsync(window, () => reader.Counter == "p. 1 · 1 of 2" && !reader.PreviousItemCommand.CanExecute(null),
             () => $"Previous didn't open the binder's first item ({reader.Counter}).");
+        // The thumbnail strip marks the item's pages and only those; it has its pages even while it's hidden.
+        await WaitUntilAsync(window, () => reader.Viewer.Strip.Pages is { Count: 2 } thumbnails && thumbnails.All(t => t.InItem == (t.Index == pageInView)),
+            () => "The thumbnail strip doesn't mark just the first item's page.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NextItem"), "Next");
         await WaitUntilAsync(window, () => reader is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
                 && !reader.NextItemCommand.CanExecute(null),
             () => $"Next didn't open Warehouse ambush at page i ({reader.Counter}, page index {reader.Viewer.CurrentPageIndex}).");
+        await WaitUntilAsync(window, () => reader.Viewer.Strip.Pages is { Count: 2 } thumbnails && thumbnails.All(t => t.InItem),
+            () => "The thumbnail strip doesn't mark both of Warehouse ambush's pages.");
         await AuditAsync(window, "a binder's reader");
 
         // Renaming the page in hand in the list: its name in a box with the keyboard, then Enter saves it.

@@ -177,6 +177,7 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
+        builder.Services.AddSingleton<PageThumbnailCache>();
         builder.Services.AddSingleton<WpfImageCodec>();
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
         // The smoke test keeps remembered passwords in memory and opens no other app (slice 4i).
@@ -248,6 +249,7 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
+        builder.Services.AddSingleton<PageThumbnails>();
         if (smokeTest)
         {
             builder.Services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();
