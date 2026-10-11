@@ -1617,8 +1617,9 @@ static partial class SmokeTest
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.HasBooks && home.RecentlyAdded.Count > 0 && home.Pins.Items is [{ Target.Kind: PinKind.Favorites }],
             () => "Home doesn't show the library and its Favorites pin.");
+        await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "HomePin" && b.IsVisible), () => "Home's Favorites pin isn't showing.");
         await Settle(window);
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin"), "Favorites pinned on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && b.IsVisible), "Favorites pinned on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items.Count: 1 }, () => "Favorites on Home didn't open Favorites.");
         var fromHome = (LibraryViewModel)shell.CurrentPage!;
 
@@ -1702,9 +1703,12 @@ static partial class SmokeTest
         // Its pin on Home opens it with its search and filter.
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Haunted places" }], () => "Home doesn't show the saved search's pin.");
+        // Home draws its pins after they load, so the button is waited for until it shows, not only the pin.
+        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Haunted places" }]
+                && Descendants<Button>(window).Any(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places") && b.IsVisible),
+            () => "Home doesn't show the saved search's pin.");
         await Settle(window);
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places")), "the saved search on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places") && b.IsVisible), "the saved search on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView.Name: "Haunted places", IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
                 && shown.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.Pinned[1].IsActive,
             () => "The saved search on Home didn't open with its search and filter.");
@@ -1840,9 +1844,11 @@ static partial class SmokeTest
 
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Spring campaign" }], () => "Home doesn't show the pinned collection, renamed.");
+        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Spring campaign" }]
+                && Descendants<Button>(window).Any(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign") && b.IsVisible),
+            () => "Home doesn't show the pinned collection, renamed.");
         await AuditAsync(window, "Home with a pinned collection");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign")), "the pinned collection on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign") && b.IsVisible), "the pinned collection on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Heading: "Spring campaign" }, () => "The pin on Home didn't open the collection.");
 
         // Delete: Collections again, with Maps moved up and Undo bringing the campaign back around it.

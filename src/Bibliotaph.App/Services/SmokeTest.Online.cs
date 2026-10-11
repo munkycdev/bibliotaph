@@ -35,7 +35,7 @@ static partial class SmokeTest
         await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
         await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open its page.");
         var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
-        if (page.Services is not [{ Name: "D&D Beyond", ReadsLibrary: true }, ..] || page.Services.Where(s => !s.ReadsLibrary).Select(s => s.Name).ToList() is not ["Humble Bundle", "DriveThruRPG", "DMs Guild"])
+        if (page.Services is not [{ Name: "D&D Beyond", ReadsLibrary: true }, ..] || page.Services.Where(s => !s.ReadsLibrary).Select(s => s.Name).ToList() is not ["Demiplane", "Humble Bundle", "DriveThruRPG", "DMs Guild"])
             throw new InvalidOperationException($"Online libraries lists {string.Join(", ", page.Services.Select(s => s.Name))}.");
 
         // The file picker can't be driven here, so the page is read as the picker would read it.
@@ -272,6 +272,12 @@ static partial class SmokeTest
                 || !string.Equals(System.IO.Path.GetDirectoryName(download.Path), inside, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"The download went to {download.Path} ({download.Status}), not the downloads folder.");
             if (!browser.State.HasDownloads) throw new InvalidOperationException("The browser window doesn't list the download.");
+
+            // Save page keeps the page as it shows, outside the library.
+            var copy = System.IO.Path.Combine(outside, "Humble Bundle page.html");
+            var said = await browser.SavePageAsync(copy);
+            if (!System.IO.File.Exists(copy) || !System.IO.File.ReadAllText(copy).Contains("My Library | Dungeons", StringComparison.Ordinal) || System.IO.File.Exists(copy + ".partial"))
+                throw new InvalidOperationException($"Save page didn't keep the page: “{said}”.");
             await AuditAsync(browser, "the in-app browser with a download");
 
             // A Download button that opens a new tab: Bibliotaph hosts the tab, saves the file to the downloads folder
