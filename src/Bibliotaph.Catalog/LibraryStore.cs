@@ -57,8 +57,12 @@ public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int U
 /// </summary>
 public sealed record OnlineOnlyReturn(long LocationId, string FullPath, long SizeBytes, IReadOnlyList<long> DocumentIds);
 
-/// <summary>One place a document's file is, for the inspector. A file inside a ZIP has the ZIP's path as <see cref="ArchivePath"/>.</summary>
-public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability, string? ArchivePath = null)
+/// <summary>
+/// One place a document's file is, for the inspector. A file inside a ZIP has the ZIP's path as <see cref="ArchivePath"/>.
+/// <see cref="RootId"/> and <see cref="RootPath"/> are the library folder it is in.
+/// </summary>
+public sealed record DocumentLocation(string FullPath, FileLocationState State, SourceRootAvailability RootAvailability, string? ArchivePath = null,
+    long RootId = 0, string? RootPath = null)
 {
     /// <summary>What File Explorer can select: the file, or the ZIP it is in.</summary>
     public string ExplorerPath => ArchivePath ?? FullPath;
@@ -795,10 +799,10 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         var rows = await db.FileLocations.AsNoTracking()
             .Where(f => f.DocumentId == documentId && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
             .OrderBy(f => f.State).ThenBy(f => f.ContainerId != null).ThenBy(f => f.Id)
-            .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, f.State, f.SourceRoot.Availability, Archive = f.Container != null ? f.Container.RelativePath : null })
+            .Select(f => new { f.SourceRootId, Root = f.SourceRoot.Path, f.RelativePath, f.State, f.SourceRoot.Availability, Archive = f.Container != null ? f.Container.RelativePath : null })
             .ToListAsync(ct);
         return [.. rows.Select(r => new DocumentLocation(Path.Combine(r.Root, r.RelativePath), r.State, r.Availability,
-            r.Archive is null ? null : Path.Combine(r.Root, r.Archive)))];
+            r.Archive is null ? null : Path.Combine(r.Root, r.Archive), r.SourceRootId, r.Root))];
     }
 
     /// <summary>

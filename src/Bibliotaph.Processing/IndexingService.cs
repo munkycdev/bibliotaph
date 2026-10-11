@@ -119,6 +119,8 @@ public sealed class IndexingService(
     volatile bool _packing;
     HashSet<long>? _pendingScans; // null: every root
     bool _scanAll = true;
+    /// <summary>Those waiting in <see cref="ScanNowAsync"/> for the next pass to finish.</summary>
+    List<TaskCompletionSource>? _scanWaits;
     readonly Dictionary<long, RootScan> _scans = [];
     readonly Dictionary<long, UnreadableFile> _unreadable = [];
     readonly Dictionary<long, (FileSystemWatcher Watcher, ITimer Debounce)> _watchers = [];
@@ -221,6 +223,26 @@ public sealed class IndexingService(
             else (_pendingScans ??= []).Add(rootId.Value);
         }
         _scanSignal.Set();
+    }
+
+    /// <summary>
+    /// Scans these roots, or every root when <paramref name="rootIds"/> is null, and returns once that scan has
+    /// finished: as the reader's Try again does for a book whose folder was offline or whose file had gone, so it
+    /// opens at once if the folder is back or the file turned up. Nothing waits for files to be read.
+    /// </summary>
+    public async Task ScanNowAsync(IReadOnlyCollection<long>? rootIds = null, CancellationToken ct = default)
+    {
+        if (rootIds is { Count: 0 }) return;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lock)
+        {
+            // Asked for under the same lock the scan loop takes them under, so the pass that takes these roots takes this wait too.
+            if (rootIds is null) _scanAll = true;
+            else (_pendingScans ??= []).UnionWith(rootIds);
+            (_scanWaits ??= []).Add(done);
+        }
+        _scanSignal.Set();
+        await done.Task.WaitAsync(ct);
     }
 
     /// <summary>Runs a stage again for every document that has been through it, as after a vocabulary edit.</summary>
@@ -435,29 +457,38 @@ public sealed class IndexingService(
             await _scanSignal.WaitAsync(Timeout.InfiniteTimeSpan, ct);
             bool all;
             HashSet<long>? some;
+            List<TaskCompletionSource>? waits;
             lock (_lock)
             {
-                (all, some) = (_scanAll, _pendingScans);
-                (_scanAll, _pendingScans) = (false, null);
+                (all, some, waits) = (_scanAll, _pendingScans, _scanWaits);
+                (_scanAll, _pendingScans, _scanWaits) = (false, null, null);
             }
 
-            var current = await roots.ListAsync(ct);
-            // A folder that was offline and can be watched again is scanned now: a watcher only reports changes from then on.
-            if (_options.WatchFolders) foreach (var rootId in SyncWatchers(current)) (some ??= []).Add(rootId);
-            IsScanning = true;
-            RaiseChanged();
             try
             {
-                // A folder a file may have moved from is scanned in the same pass, before the file is read at its new place.
-                var pass = current.Where(r => all || some?.Contains(r.Id) == true).ToList();
-                for (var i = 0; i < pass.Count; i++)
-                    foreach (var from in await ScanRootAsync(pass[i], current, ct))
-                        if (pass.All(r => r.Id != from) && current.FirstOrDefault(r => r.Id == from) is { } source) pass.Add(source);
+                var current = await roots.ListAsync(ct);
+                // A folder that was offline and can be watched again is scanned now: a watcher only reports changes from then on.
+                if (_options.WatchFolders) foreach (var rootId in SyncWatchers(current)) (some ??= []).Add(rootId);
+                IsScanning = true;
+                RaiseChanged();
+                try
+                {
+                    // A folder a file may have moved from is scanned in the same pass, before the file is read at its new place.
+                    var pass = current.Where(r => all || some?.Contains(r.Id) == true).ToList();
+                    for (var i = 0; i < pass.Count; i++)
+                        foreach (var from in await ScanRootAsync(pass[i], current, ct))
+                            if (pass.All(r => r.Id != from) && current.FirstOrDefault(r => r.Id == from) is { } source) pass.Add(source);
+                }
+                finally
+                {
+                    IsScanning = false;
+                    RaiseChanged();
+                }
             }
             finally
             {
-                IsScanning = false;
-                RaiseChanged();
+                // Done or failed, the pass is over: nobody waits on it for ever.
+                foreach (var wait in waits ?? []) wait.TrySetResult();
             }
             // A folder back online is watched again now rather than at the next scan.
             if (_options.WatchFolders) foreach (var rootId in SyncWatchers(await roots.ListAsync(ct))) RequestScan(rootId);

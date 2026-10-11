@@ -276,6 +276,55 @@ public sealed partial class PipelineTests
     }
 
     [Fact]
+    public async Task A_book_that_cant_be_opened_says_why_naming_its_folder_and_opens_once_a_look_finds_it_again()
+    {
+        Copy(pdfs.KnownText, Path.Combine("Adventures", "Known Text.pdf"));
+        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+        _identity.Disk(_library, "1234ABCD");
+        var root = (await _roots.AddAsync(_library, Ct)).Id;
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var card = (await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).Single(c => c.Format == SourceFormats.Pdf);
+        var pack = await _sessions.CreateAsync("Session 1", ct: Ct);
+        await _sessions.AddItemsAsync(pack.Id, [new NewSessionItem(card.EntryId)], ct: Ct);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
+        async Task<SessionItemTarget> ItemAsync() => (await sessions.ResolveAsync((await _sessions.GetAsync(pack.Id, Ct))!.Items, Ct)).Values.Single();
+
+        // Its drive unplugged: offline, naming the folder, and the binder item says so too.
+        var unplugged = _library + " (unplugged)";
+        Directory.Move(_library, unplugged);
+        await ScanAsync(root);
+        Assert.Null(await _libraryStore.GetSourceAsync(card.DocumentId, Ct));
+        var away = await _places.AwayAsync(card.DocumentId, Ct);
+        Assert.Equal((AwayReason.Offline, _library), (away.Reason, away.Folder));
+        Assert.Equal([root], away.FoldersToLook);
+        var item = await ItemAsync();
+        Assert.Equal((SessionItemState.Unreachable, AwayReason.Offline), (item.State, item.Away?.Reason));
+        Assert.Contains(_library, item.Reason, StringComparison.Ordinal);
+
+        // Plugged back in, Try again looks at the folder and the book opens at once.
+        Directory.Move(unplugged, _library);
+        await _service.ScanNowAsync(away.FoldersToLook, Ct);
+        Assert.NotNull(await _libraryStore.GetSourceAsync(card.DocumentId, Ct));
+        Assert.Equal(SessionItemState.Ready, (await ItemAsync()).State);
+
+        // Moved out of the library: missing, with where it was last.
+        var original = Path.Combine(_library, "Adventures", "Known Text.pdf");
+        var aside = Path.Combine(_dir, "Known Text.pdf");
+        File.Move(original, aside);
+        await ScanAsync(root);
+        var missing = await _places.AwayAsync(card.DocumentId, Ct);
+        Assert.Equal((AwayReason.Missing, original, Path.Combine(_library, "Adventures")), (missing.Reason, missing.LastPath, missing.LastFolder));
+        Assert.Null(missing.FoldersToLook);
+        Assert.Equal(SessionItemState.Unreachable, (await ItemAsync()).State);
+
+        // Put back, Find it looks through every folder and finds it.
+        File.Move(aside, original);
+        await _service.ScanNowAsync(missing.FoldersToLook, Ct);
+        Assert.NotNull(await _libraryStore.GetSourceAsync(card.DocumentId, Ct));
+    }
+
+    [Fact]
     public async Task A_library_folder_pointed_to_its_new_place_keeps_its_books_without_reading_them_again()
     {
         Copy(pdfs.KnownText, Path.Combine("Adventures", "Known Text.pdf"));

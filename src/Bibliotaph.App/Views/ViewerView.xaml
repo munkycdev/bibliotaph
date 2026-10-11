@@ -373,7 +373,8 @@
 
     <ScrollViewer Grid.Row="1" Grid.RowSpan="3" VerticalScrollBarVisibility="Auto" Focusable="False"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.VisibleWhenTrue}}">
-      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}" />
+      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}"
+                    SecondaryText="{Binding EmptySecondaryText}" SecondaryCommand="{Binding EmptySecondaryCommand}" />
     </ScrollViewer>
 
     <!-- Add pages… and naming a new session, as a dialog over the reader. Esc or Cancel closes it. -->

@@ -18,8 +18,25 @@ public sealed record PageNotePages(PagePlace Place, PageRange Pages, bool Found 
 /// </summary>
 public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
 {
-    /// <summary>Raised after a page note was added, changed or deleted, with the book it is on, on the thread that changed it.</summary>
-    public event EventHandler<EntryId>? PageNotesChanged;
+    EventHandler<EntryId>? _pageNotesChanged;
+
+    /// <summary>
+    /// Raised after a page note was added, changed or deleted, with the book it is on, on the thread that changed it;
+    /// also after Use this page on a Needs review card moved one (<see cref="PagePlaces.PageNoteMoved"/>).
+    /// </summary>
+    public event EventHandler<EntryId>? PageNotesChanged
+    {
+        add
+        {
+            _pageNotesChanged += value;
+            places.PageNoteMoved += value;
+        }
+        remove
+        {
+            _pageNotesChanged -= value;
+            places.PageNoteMoved -= value;
+        }
+    }
 
     public Task<string?> GetEntryNoteAsync(EntryId entryId, CancellationToken ct = default) => notes.GetEntryNoteAsync(entryId, ct);
 
@@ -99,7 +116,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
     public async Task<PageNoteInfo?> UsePageAsync(long noteId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         var used = await notes.RepointAsync(noteId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);
-        if (used is not null) PageNotesChanged?.Invoke(this, used.EntryId);
+        if (used is not null) await ChangedAsync(used.EntryId, ct);
         return used;
     }
 
@@ -123,7 +140,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
     /// </summary>
     async Task ChangedAsync(EntryId entryId, CancellationToken ct)
     {
-        PageNotesChanged?.Invoke(this, entryId);
+        _pageNotesChanged?.Invoke(this, entryId);
         await projector.ProjectMarksAsync([entryId], ct);
     }
 

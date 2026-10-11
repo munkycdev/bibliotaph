@@ -346,6 +346,8 @@ public partial class App : Application
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
+        // Before the first projection, which checks every card: books owned elsewhere meet the files already in the library.
+        services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
     }
 
     /// <summary>

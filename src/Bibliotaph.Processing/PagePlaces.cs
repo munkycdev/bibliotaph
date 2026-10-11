@@ -33,9 +33,10 @@ public enum PagePlaceState
 
 /// <summary>
 /// Where a place's pages open: a document and its pages (zero-based, inclusive), how they were found, and for a place
-/// that can't open, why and the last place its file was.
+/// that can't open, why, the last place its file was, and <see cref="Away"/> for the reader's prompt.
 /// </summary>
-public sealed record PagePlace(long? DocumentId, int FirstPage, int LastPage, PagePlaceState State, string? Reason = null, string? LastPath = null)
+public sealed record PagePlace(long? DocumentId, int FirstPage, int LastPage, PagePlaceState State, string? Reason = null, string? LastPath = null,
+    AwayFile? Away = null)
 {
     public bool CanOpen => DocumentId is not null && State != PagePlaceState.Unreachable;
 }
@@ -134,14 +135,18 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     /// </summary>
     public async Task<PagePlace> UnreachableAsync(long documentId, CancellationToken ct = default)
     {
-        if (await library.IsBeingReplacedAsync(documentId, ct)) return new PagePlace(null, 0, 0, PagePlaceState.Pending, "New version: still being read.");
-        var locations = await library.GetLocationsAsync(documentId, ct);
-        var offline = locations.FirstOrDefault(l => l.RootAvailability == SourceRootAvailability.Offline);
-        var last = offline ?? (locations.Count > 0 ? locations[0] : null);
-        return new PagePlace(null, 0, 0, PagePlaceState.Unreachable,
-            offline is not null ? "Its folder is offline. It opens again once the folder is back." : "Its file is gone from your library folders.",
-            last?.ExplorerPath);
+        var away = await AwayAsync(documentId, ct);
+        return away.Reason == AwayReason.BeingRead
+            ? new PagePlace(null, 0, 0, PagePlaceState.Pending, away.Line, Away: away)
+            : new PagePlace(null, 0, 0, PagePlaceState.Unreachable, away.Line, away.LastPath, away);
     }
+
+    /// <summary>
+    /// Why a document's file can't be opened, for the reader's "plug in the drive" prompt: its folder offline, naming
+    /// it; its file gone, with where it was last; or a new version of it still being read.
+    /// </summary>
+    public async Task<AwayFile> AwayAsync(long documentId, CancellationToken ct = default) =>
+        AwayFile.From(await library.GetLocationsAsync(documentId, ct), beingRead: await library.IsBeingReplacedAsync(documentId, ct));
 
     /// <summary>
     /// The document each entry opens: the one its card shows, or for an image hidden in a pack, its own file (slice 3
@@ -308,6 +313,27 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     public async Task<Func<Task>?> UseAsync(PlacedPages place, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         var before = await refs.UseAsync(place.Range.RefId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);
-        return before is null ? null : () => refs.RestoreAsync(before);
+        if (before is null) return null;
+        Moved(place);
+        return async () =>
+        {
+            await refs.RestoreAsync(before);
+            Moved(place);
+        };
+    }
+
+    /// <summary>
+    /// Raised after Use this page on a Needs review card, or its Undo, moved a session item's pages, on the thread that
+    /// moved them. <see cref="SessionsService.Changed"/> passes it on, so an open binder or reader follows the item.
+    /// </summary>
+    public event EventHandler? SessionItemMoved;
+
+    /// <summary>As <see cref="SessionItemMoved"/>, for a page note, with its book; <see cref="NotesService.PageNotesChanged"/> passes it on.</summary>
+    public event EventHandler<EntryId>? PageNoteMoved;
+
+    void Moved(PlacedPages place)
+    {
+        if (place.Kind == PlaceKind.SessionItem) SessionItemMoved?.Invoke(this, EventArgs.Empty);
+        else PageNoteMoved?.Invoke(this, place.EntryId);
     }
 }
