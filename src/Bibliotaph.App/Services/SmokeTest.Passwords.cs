@@ -107,16 +107,23 @@ static partial class SmokeTest
         library.CloseDetailsCommand.Execute(null);
         await Settle(window);
 
-        // Needs review: no Try again for either; what helps instead.
-        navigation.NavigateTo(Route.NeedsReview);
-        var review = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("Needs review didn't open.");
-        review.IsFilesTab = true;
-        await WaitUntilAsync(window, () => review.Files.Any(f => f is { Title: LockedTitle, CanUnlock: true, CanRetry: false })
-            && review.Files.Any(f => f is { Title: ProtectedTitle, CanOpenElsewhere: true, CanRetry: false })
+        // Needs review, from Settings > Processing's link to the files that need attention: no Try again for either, nor
+        // Try all again for them; what helps instead.
+        var processing = (ProcessingSectionViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Processing)).Selected;
+        await WaitUntilAsync(window, () => processing.Activity.NeedsAttention, () => "Settings > Processing doesn't say files need attention.");
+        processing.OpenFilesNeedingAttentionCommand.Execute(null);
+        await WaitUntilAsync(window, () => shell.CurrentPage is NeedsReviewViewModel { IsFilesTab: true },
+            () => $"The link to the files that need attention opened {shell.CurrentPage?.Title} ({(shell.CurrentPage as NeedsReviewViewModel)?.IsFilesTab}).");
+        var review = (NeedsReviewViewModel)shell.CurrentPage!;
+        await WaitUntilAsync(window, () => review.FileRows.Any(f => f is { Title: LockedTitle, CanUnlock: true, CanRetry: false })
+            && review.FileRows.Any(f => f is { Title: ProtectedTitle, CanOpenElsewhere: true, CanRetry: false })
             && Descendants<Button>(window).Any(b => b.Command == review.OpenElsewhereCommand && b.CommandParameter is AttentionRow { Title: ProtectedTitle } && b.IsVisible),
-            () => $"Files needing attention list {string.Join("; ", review.Files.Select(f => $"{f.Title} (retry {f.CanRetry}, unlock {f.CanUnlock}, elsewhere {f.CanOpenElsewhere})"))}.");
-        if (Descendants<Button>(window).Any(b => b.Command == review.RetryCommand && b.CommandParameter is AttentionRow { Title: LockedTitle or ProtectedTitle } && b.IsVisible))
+            () => $"Files needing attention list {string.Join("; ", review.FileRows.Select(f => $"{f.Title} (retry {f.CanRetry}, unlock {f.CanUnlock}, elsewhere {f.CanOpenElsewhere})"))}.");
+        if (Descendants<Button>(window).Any(b => b.IsVisible && (
+                (b.Command == review.RetryCommand && b.CommandParameter is AttentionRow { Title: LockedTitle or ProtectedTitle })
+                || (b.Command == review.RetryGroupCommand && b.CommandParameter is AttentionGroup group && group.Rows.Any(r => r.Title is LockedTitle or ProtectedTitle)))))
             throw new InvalidOperationException("Needs review offers Try again for a locked or protected PDF.");
+        if (!review.FileRows.Any(r => r.CanRetry) && review.CanRetryAll) throw new InvalidOperationException("Needs review offers Try all again with nothing it can try again.");
         navigation.GoBack();
         await Settle(window);
 

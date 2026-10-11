@@ -187,8 +187,10 @@ public sealed partial class AiSettingsViewModel(
     public partial int Earlier { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanReclassify))]
+    [NotifyPropertyChangedFor(nameof(CanReclassify), nameof(HasFailed))]
     public partial long Failed { get; private set; }
+
+    public bool HasFailed => Failed > 0;
 
     public bool CanReclassify => Earlier > 0 || Failed > 0;
 
@@ -428,6 +430,10 @@ public sealed partial class AiSettingsViewModel(
     /// <summary>Opens AI reading: the book being read now and the last ones read.</summary>
     [RelayCommand]
     void OpenAiReading() => links.OpenAiReading();
+
+    /// <summary>The books the AI couldn't read, and why, in Needs review's Files needing attention.</summary>
+    [RelayCommand]
+    void OpenFailed() => links.OpenFilesNeedingAttention();
 
     [RelayCommand]
     async Task ReclassifyAsync()

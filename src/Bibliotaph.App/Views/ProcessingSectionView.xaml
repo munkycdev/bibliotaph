@@ -116,6 +116,10 @@
             </Style>
           </TextBlock.Style>
         </TextBlock>
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0"
+                   Visibility="{Binding Activity.NeedsAttention, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <Hyperlink Command="{Binding OpenFilesNeedingAttentionCommand}" Foreground="{DynamicResource Bt.Accent}">See the files that need attention</Hyperlink>
+        </TextBlock>
         <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
                    Visibility="{Binding Activity.WaitingForDiskSpace, Converter={StaticResource Bt.VisibleWhenTrue}}"
                    Text="Online-only files are waiting: downloading more would leave less than 2 GB free on that drive." />

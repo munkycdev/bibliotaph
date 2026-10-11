@@ -17,8 +17,8 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// pages still waiting for OCR (not counting books whose OCR is blocked or failed), and documents with index-lane
 /// work (any stage but OCR) waiting or running. For progress bars: documents queued for any stage (known before
 /// Probe adds them to the index), and scanned pages already read by OCR. Classification by AI is counted on its own
-/// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>) and nowhere else, since it is
-/// optional and may wait for an endpoint for as long as the user likes. <see cref="Withheld"/> counts the documents whose
+/// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>), since it is optional and may wait
+/// for an endpoint for as long as the user likes; only a book it failed for good also needs attention. <see cref="Withheld"/> counts the documents whose
 /// text won't be read by itself: locked, protected or forgotten (<see cref="TextAccess"/>), so nothing says they are still
 /// being read.
 /// </summary>
@@ -75,7 +75,7 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(*) FROM doc) AS Documents,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped')) AS Searchable,
                 (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Classify') AS Processing,
-                (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked') AND stage <> 'Classify') AS NeedAttention,
+                (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
                     (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
                 (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify')) AS Indexing,
@@ -90,7 +90,10 @@ public sealed class IndexQueries(IndexDatabase database)
             cancellationToken: ct));
     }
 
-    /// <summary>Failed and blocked stages, newest first, with the document's title where Probe got that far.</summary>
+    /// <summary>
+    /// Failed and blocked stages, newest first, with the document's title where Probe got that far. A book the AI couldn't
+    /// read is one of them; one waiting for the AI to answer at all isn't, since that never fails a book.
+    /// </summary>
     public async Task<IReadOnlyList<AttentionItem>> GetAttentionAsync(CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
@@ -98,7 +101,7 @@ public sealed class IndexQueries(IndexDatabase database)
             """
             SELECT s.document_id, d.display_title, s.stage, s.status, s.reason, s.updated_utc
             FROM stage_status s LEFT JOIN doc d ON d.document_id = s.document_id
-            WHERE s.status IN ('Failed', 'Blocked') AND s.stage <> 'Classify'
+            WHERE s.status IN ('Failed', 'Blocked')
             ORDER BY s.updated_utc DESC
             """, cancellationToken: ct));
         return [.. rows.Select(r => new AttentionItem(r.DocumentId, r.Title ?? $"Document {r.DocumentId}", Enum.Parse<Stage>(r.Stage),

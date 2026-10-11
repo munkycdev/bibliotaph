@@ -147,7 +147,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             }
         }, ct);
 
-    /// <summary>Parks a job until the user does something, such as supplying a password. <see cref="RetryAsync"/> releases it.</summary>
+    /// <summary>Parks a job until the user does something, such as supplying a password. <see cref="RetryAsync(long, CancellationToken)"/> releases it.</summary>
     public Task BlockAsync(JobRecord job, string reason, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
         {
@@ -213,15 +213,21 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             c.Execute("UPDATE job SET priority = 100, not_before_utc = NULL WHERE document_id = @documentId AND status = 'pending'", new { documentId }, t), ct);
 
     /// <summary>Gives a document's failed and blocked jobs another full set of attempts.</summary>
-    public Task RetryAsync(long documentId, CancellationToken ct = default) =>
+    public Task RetryAsync(long documentId, CancellationToken ct = default) => RetryAsync([documentId], ct);
+
+    /// <summary>Gives these documents' failed and blocked jobs another full set of attempts, in one go.</summary>
+    public Task RetryAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
         {
             var now = Now();
-            var stages = c.Query<string>("SELECT stage FROM job WHERE document_id = @documentId AND status IN ('failed', 'blocked')", new { documentId }, t).ToList();
-            c.Execute(
-                "UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL WHERE document_id = @documentId AND status IN ('failed', 'blocked')",
-                new { documentId }, t);
-            foreach (var stage in stages) SetStatus(c, t, documentId, Enum.Parse<Stage>(stage), StageStatus.Pending, null, now);
+            foreach (var documentId in documentIds)
+            {
+                var stages = c.Query<string>("SELECT stage FROM job WHERE document_id = @documentId AND status IN ('failed', 'blocked')", new { documentId }, t).ToList();
+                c.Execute(
+                    "UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL WHERE document_id = @documentId AND status IN ('failed', 'blocked')",
+                    new { documentId }, t);
+                foreach (var stage in stages) SetStatus(c, t, documentId, Enum.Parse<Stage>(stage), StageStatus.Pending, null, now);
+            }
         }, ct);
 
     /// <summary>
@@ -255,7 +261,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
 
     /// <summary>
     /// Releases the jobs of <paramref name="documentIds"/> blocked for <paramref name="reason"/>, once whatever blocked
-    /// them has cleared by itself, such as an offline folder coming back. Unlike <see cref="RetryAsync"/>, attempts stand.
+    /// them has cleared by itself, such as an offline folder coming back. Unlike <see cref="RetryAsync(long, CancellationToken)"/>, attempts stand.
     /// </summary>
     public Task<int> UnblockAsync(IReadOnlyCollection<long> documentIds, string reason, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>

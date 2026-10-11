@@ -38,6 +38,23 @@ public sealed class SettingsLinks(INavigationService navigation)
     /// <summary>AI reading, from Processing's and Settings > AI's "See what the AI is reading" (Built-in AI plan, choice 13).</summary>
     public void OpenAiReading() => navigation.NavigateTo(Route.AiReading);
 
+    bool _filesRequested;
+
+    /// <summary>Needs review at Files needing attention, from Settings > AI's failed books and Processing's attention note.</summary>
+    public void OpenFilesNeedingAttention()
+    {
+        _filesRequested = true;
+        navigation.NavigateTo(Route.NeedsReview);
+    }
+
+    /// <summary>Whether the latest Needs review was opened by <see cref="OpenFilesNeedingAttention"/>, once.</summary>
+    public bool TakeFilesRequest()
+    {
+        var requested = _filesRequested;
+        _filesRequested = false;
+        return requested;
+    }
+
     /// <summary>The section the latest <see cref="Open"/> asked for, once; null when Settings was opened another way.</summary>
     public SettingsSection? TakeRequest()
     {

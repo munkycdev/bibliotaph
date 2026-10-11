@@ -165,6 +165,24 @@ public sealed class JobBoardTests : IndexFixture
     }
 
     [Fact]
+    public async Task Retrying_several_documents_gives_each_failed_job_a_full_set_of_attempts_and_leaves_the_rest_alone()
+    {
+        await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Probe, ct: Ct);
+        await _queue.EnqueueAsync(3, "cc", Stage.Probe, ct: Ct);
+        for (var i = 0; i < 3; i++)
+            await _queue.FailAsync((await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!, "not a PDF", retry: false, ct: Ct);
+
+        await _queue.RetryAsync([1, 3], Ct);
+
+        Assert.Equal(("Pending", "Failed", "Pending"), (StatusOf(1, Stage.Probe), StatusOf(2, Stage.Probe), StatusOf(3, Stage.Probe)));
+        var again = new[] { (await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!, (await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))! };
+        Assert.Equal([1L, 3L], again.Select(j => j.DocumentId).Order());
+        Assert.All(again, j => Assert.Equal(1, j.Attempts));
+        Assert.Null(await _queue.LeaseAsync(IndexLane, "test", Lease, Ct));
+    }
+
+    [Fact]
     public async Task Unblocking_releases_only_the_named_documents_jobs_blocked_for_that_reason()
     {
         const string Unreachable = "Its folder is offline";
