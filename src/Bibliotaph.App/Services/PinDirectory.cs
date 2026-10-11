@@ -109,23 +109,24 @@ public sealed class PinDirectory
     }
 
     /// <summary>
-    /// Moves the pin to <paramref name="index"/> in <see cref="Items"/>, counted once it has been taken out, and reloads
-    /// before returning, so the caller finds it in its new place. A pin not shown yet keeps its place among the others.
+    /// Moves the pin to <paramref name="index"/> in <see cref="Items"/>, counted once it has been taken out; the reload
+    /// that follows raises <see cref="Changed"/>. Returns false if nothing moved. A pin not shown yet keeps its place among the others.
     /// </summary>
-    public async Task MoveAsync(PinTarget target, int index)
+    public async Task<bool> MoveAsync(PinTarget target, int index)
     {
         var shown = Items.Select(i => i.Target).ToList();
-        if (!shown.Remove(target)) return;
+        if (!shown.Remove(target)) return false;
         index = Math.Clamp(index, 0, shown.Count);
         var others = _order.Where(t => t != target).ToList();
         var at = index < shown.Count ? others.IndexOf(shown[index]) : others.Count;
         try
         {
-            if (await Task.Run(() => _pins.MoveAsync(target, at))) await LoadAsync();
+            return await Task.Run(() => _pins.MoveAsync(target, at));
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Moving a pin failed");
+            return false;
         }
     }
 

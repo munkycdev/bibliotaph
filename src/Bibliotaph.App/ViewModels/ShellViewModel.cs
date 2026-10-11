@@ -27,6 +27,9 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
+    /// <summary>The pin just moved, which gets the keyboard back once the sidebar shows it in its new place.</summary>
+    PinTarget? _focusAfterMove;
+
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
         SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
@@ -61,6 +64,12 @@ public sealed partial class ShellViewModel : ObservableObject
         _pins.Changed += (_, _) =>
         {
             ShowActiveItem();
+            // The reload after a move has the pins in their new places, so the keyboard can go back to the one moved.
+            if (_focusAfterMove is { } moved)
+            {
+                _focusAfterMove = null;
+                FocusPinRequested?.Invoke(this, moved);
+            }
             MovePinUpCommand.NotifyCanExecuteChanged();
             MovePinDownCommand.NotifyCanExecuteChanged();
         };
@@ -200,8 +209,8 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Moves a pin to that place in the sidebar, counted once it has been taken out, and keeps the keyboard on it.</summary>
     public async Task MovePinAsync(PinnedItemViewModel item, int index)
     {
-        await _pins.MoveAsync(item.Target, index);
-        FocusPinRequested?.Invoke(this, item.Target);
+        _focusAfterMove = item.Target;
+        if (!await _pins.MoveAsync(item.Target, index)) _focusAfterMove = null;
     }
 
     /// <summary>A saved search's right-click Rename…: the search opens, and the Library asks for the new name.</summary>
