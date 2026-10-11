@@ -197,7 +197,10 @@ public static class SessionPackRows
         }
         return new ViewerRequest(documentId, row.Heading, row.Target.FirstPage)
         {
-            SessionItem = new SessionItemOpen(row.Id, packTitle, row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage),
+            SessionItem = new SessionItemOpen(row.Id, packTitle, row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage)
+            {
+                WholeBook = row.Item.Range is null,
+            },
         };
     }
 }

@@ -9,8 +9,9 @@ namespace Bibliotaph.Processing;
 /// <summary>
 /// "Forget its text" and "Read it again" (slice 4i plan, choice 6), the spec's purge of derived content, for a book
 /// the user would rather not have readable on disk. Forgetting removes what reading the book made (its pages and their
-/// search text, its cover and the AI's results) and stops indexing it; the user's decision is kept in catalog.db, so
-/// it outlasts a rebuilt index. The file itself is never touched, and the book keeps its card and catalog details.
+/// search text, its cover, the reader's thumbnails of its pages and the AI's results) and stops indexing it; the user's
+/// decision is kept in catalog.db, so it outlasts a rebuilt index. The file itself is never touched, and the book keeps
+/// its card and catalog details.
 /// </summary>
 public sealed class ForgetText(
     EntryStore entries,
@@ -18,6 +19,7 @@ public sealed class ForgetText(
     IndexStore index,
     IndexingService indexing,
     CoverCache covers,
+    PageThumbnailCache pageThumbnails,
     ClassificationStore classifications,
     MetadataStore metadata,
     MetadataProjector projector,
@@ -45,7 +47,7 @@ public sealed class ForgetText(
         var purged = true;
         foreach (var documentId in documentIds) purged &= await PurgeAsync(documentId, ct);
 
-        foreach (var hash in hashes) DeleteCover(hash);
+        foreach (var hash in hashes) DeletePictures(hash);
         await classifications.ForgetAsync(hashes, ct);
         await metadata.ForgetAiAsync(entryId, hashes, ct);
         await projector.ProjectAsync([entryId], ct);
@@ -79,7 +81,8 @@ public sealed class ForgetText(
         return true;
     }
 
-    void DeleteCover(string contentHash)
+    /// <summary>Deletes the book's cover and the reader's thumbnails of its pages.</summary>
+    void DeletePictures(string contentHash)
     {
         try
         {
@@ -89,6 +92,15 @@ public sealed class ForgetText(
         {
             // Shown nowhere now (its row has no cover), and replaced if the book is read again.
             _log.LogWarning("A forgotten book's cover couldn't be deleted: {Message}", ex.Message);
+        }
+        try
+        {
+            pageThumbnails.Delete(contentHash);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Drawn again only if the book is opened; the cache's size limit removes them in time.
+            _log.LogWarning("A forgotten book's page thumbnails couldn't be deleted: {Message}", ex.Message);
         }
     }
 }
