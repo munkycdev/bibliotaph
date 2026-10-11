@@ -314,6 +314,30 @@ public sealed class IndexQueries(IndexDatabase database)
             new { entryId = entryId.Value }, cancellationToken: ct))).Select(id => new EntryId(id))];
     }
 
+    /// <summary>
+    /// Every file in the library that could be a book owned elsewhere's, by the rule of <see cref="GetElsewhereMatchesAsync"/>
+    /// (the same title, ignoring case, and no publisher that says otherwise): each book, the card of the file, and the
+    /// document that card opens. Read in one pass over the cards, so it is cheap enough to run after any edit.
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId Book, EntryId File, long DocumentId)>> GetElsewhereFilesAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<(long Book, long File, long DocumentId)>(new CommandDefinition(
+            """
+            WITH book AS MATERIALIZED (
+                SELECT m.entry_id, lower(m.title) AS title, lower(m.publisher) AS publisher
+                FROM entry_doc e JOIN entry_meta m ON m.entry_id = e.entry_id
+                WHERE e.kind = 'Elsewhere' AND m.title IS NOT NULL)
+            SELECT book.entry_id, other.entry_id, file.document_id
+            FROM entry_meta other
+            JOIN book ON book.title = lower(other.title) AND book.entry_id <> other.entry_id
+                AND (other.publisher IS NULL OR book.publisher IS NULL OR book.publisher = lower(other.publisher))
+            JOIN entry_doc file ON file.entry_id = other.entry_id AND file.kind = 'Whole' AND file.document_id IS NOT NULL
+            ORDER BY book.entry_id, file.document_id
+            """,
+            cancellationToken: ct))).Select(r => (new EntryId(r.Book), new EntryId(r.File), r.DocumentId))];
+    }
+
     /// <summary>The title each of <paramref name="entryIds"/>' cards shows: its effective title, or its document's.</summary>
     public async Task<IReadOnlyDictionary<EntryId, string>> GetEntryTitlesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {

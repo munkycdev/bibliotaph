@@ -523,6 +523,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("relative_path");
 
+                b.Property<bool>("ReturnToOnlineOnly")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("return_to_online_only");
+
                 b.Property<long>("SizeBytes")
                     .HasColumnType("INTEGER")
                     .HasColumnName("size_bytes");

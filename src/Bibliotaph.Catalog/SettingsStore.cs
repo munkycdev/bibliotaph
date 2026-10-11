@@ -44,6 +44,9 @@ public static class SettingKeys
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
 
+    /// <summary>"False" keeps files that indexing downloaded on this device; otherwise they go back to online-only (Dale's review, row 2).</summary>
+    public const string ReturnOnlineOnly = "online-only.return";
+
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
     public const string StartPage = "start-page";
 

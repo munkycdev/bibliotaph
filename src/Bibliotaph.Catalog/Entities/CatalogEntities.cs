@@ -56,6 +56,12 @@ public sealed class FileLocation
 
     /// <summary>Why a member isn't read (a ZIP inside the ZIP, a password, too big, damaged), for Files needing attention.</summary>
     public string? Problem { get; set; }
+
+    /// <summary>
+    /// The file was online-only when Bibliotaph read it, so reading it downloaded it: once nothing left needs its
+    /// content, it goes back to online-only (Dale's review, row 2). Cleared when it has gone back, or when it changes.
+    /// </summary>
+    public bool ReturnToOnlineOnly { get; set; }
 }
 
 /// <summary>One row per content version.</summary>

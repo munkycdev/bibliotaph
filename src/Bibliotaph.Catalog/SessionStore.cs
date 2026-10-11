@@ -87,6 +87,13 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         return await ContentsAsync(db, packId, ct);
     }
 
+    /// <summary>One item, with its pages; null when it's gone.</summary>
+    public async Task<SessionItemInfo?> GetItemAsync(long itemId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.SessionItems.AsNoTracking().Include(i => i.PageRef).SingleOrDefaultAsync(i => i.Id == itemId, ct) is { } item ? ToInfo(item) : null;
+    }
+
     public Task<SessionPackInfo> CreateAsync(string title, DateOnly? date = null, CancellationToken ct = default) => CreateAsync(title, date, false, null, ct);
 
     /// <summary>A new pack, kept at hand for <paramref name="gameSystem"/> (or any system) if <paramref name="keepAtHand"/>.</summary>
