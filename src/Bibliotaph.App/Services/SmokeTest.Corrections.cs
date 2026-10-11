@@ -47,19 +47,28 @@ static partial class SmokeTest
                 () => "The guessed system has no Guessed mark showing.");
             await AuditAsync(window, "the details open for Cataloged wrong…");
             await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Cataloged wrong… banner has no Done.");
+            // The card is saved after the banner goes, so the check waits for the end to be reported.
+            bool? left = null;
+            void OnEnded(object? sender, bool unfinished) => left = unfinished;
+            var correcting = page.Inspector!;
+            correcting.CorrectionEnded += OnEnded;
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CorrectionDone"), "Done correcting");
-            await WaitUntilAsync(window, () => page.Inspector is { IsCorrecting: false }, () => "Done didn't end Cataloged wrong….");
-            if (!(await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
+            await WaitUntilAsync(window, () => left is not null, () => "Done didn't end Cataloged wrong….");
+            correcting.CorrectionEnded -= OnEnded;
+            if (left != true || !(await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
                 throw new InvalidOperationException("Leaving Cataloged wrong… without a change left no Needs review card.");
 
             // Needs review's card opens the details to correct again.
             page.CloseDetailsCommand.Execute(null);
             navigation.NavigateTo(Route.NeedsReview);
             var review = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+            // A new page loads as it opens, and Reload does nothing while it is loading.
+            await WaitUntilAsync(window, () => !review.IsLoading, () => "Needs review didn't finish loading.");
             await review.ReloadCommand.ExecuteAsync(null);
             review.IsSuggestionsTab = true;
-            var waiting = review.Cards.OfType<CorrectionCardViewModel>().SingleOrDefault(c => c.Item.EntryId == first)
-                ?? throw new InvalidOperationException("The book left cataloged wrong isn't a card in Needs review.");
+            await WaitUntilAsync(window, () => !review.IsLoading && review.Cards.OfType<CorrectionCardViewModel>().Any(c => c.Item.EntryId == first),
+                () => "The book left cataloged wrong isn't a card in Needs review.");
+            var waiting = review.Cards.OfType<CorrectionCardViewModel>().Single(c => c.Item.EntryId == first);
             await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "FixIt" && b.DataContext == waiting && b.IsVisible),
                 () => "The Cataloged wrong card has no Fix it showing.");
             await AuditAsync(window, "Needs review with a Cataloged wrong card");
@@ -95,9 +104,12 @@ static partial class SmokeTest
             if (details.HasLookAlikeOffer) throw new InvalidOperationException("The offer stayed after Change them.");
 
             await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Cataloged wrong… banner has no Done after Change them.");
+            left = null;
+            details.CorrectionEnded += OnEnded;
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CorrectionDone"), "Done correcting");
-            await WaitUntilAsync(window, () => !details.IsCorrecting, () => "Done didn't end Cataloged wrong….");
-            if ((await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
+            await WaitUntilAsync(window, () => left is not null, () => "Done didn't end Cataloged wrong….");
+            details.CorrectionEnded -= OnEnded;
+            if (left != false || (await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
                 throw new InvalidOperationException("The corrected book still has a Cataloged wrong card.");
 
             await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Command == page.UndoBulkEditCommand && b.IsVisible && b.IsEnabled),
@@ -111,6 +123,17 @@ static partial class SmokeTest
         {
             await roots.RemoveAsync(root.Id);
             services.GetRequiredService<LibraryActivity>().Invalidate();
+            // Even after a failure above, later checks count the Library's cards, so they wait for these two to go.
+            navigation.NavigateTo(Route.Library);
+            if (shell.CurrentPage is LibraryViewModel shown)
+            {
+                await shown.RefreshAsync();
+                for (var tries = 0; tries < 50 && shown.Items.Count != books; tries++)
+                {
+                    await Task.Delay(200);
+                    await shown.RefreshAsync();
+                }
+            }
         }
         navigation.NavigateTo(Route.Library);
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
