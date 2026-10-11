@@ -4,8 +4,8 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Notes (slice 3 plan, choice 18): each book's own note, which search finds, and notes on pages of a book, which the
-/// reader lists and a binder's reader shows. A book's note is projected to index.db after each save; page notes aren't searched yet.
+/// Notes (slice 3 plan, choice 18): each book's own note, and notes on pages of a book, which the reader lists and a
+/// binder's reader shows. Search finds a book by the words of either: they are projected to index.db after each change.
 /// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice 2).
 /// </summary>
 public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
@@ -35,7 +35,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
     {
         if (await entries.GetEntryAsync(documentId, ct) is not { } entry) return null;
         var added = await notes.AddPageNoteAsync(entry.EntryId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), text, ct);
-        if (added is not null) PageNotesChanged?.Invoke(this, entry.EntryId);
+        if (added is not null) await ChangedAsync(entry.EntryId, ct);
         return added;
     }
 
@@ -48,7 +48,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         var same = documentId == note.Range.DocumentId && firstPage == note.Range.FirstPdfPage && lastPage == note.Range.LastPdfPage;
         var range = same ? null : await MakeRangeAsync(documentId, firstPage, lastPage, ct);
         var updated = await notes.UpdatePageNoteAsync(note.Id, text, range, ct);
-        if (updated is not null) PageNotesChanged?.Invoke(this, note.EntryId);
+        if (updated is not null) await ChangedAsync(note.EntryId, ct);
         return updated;
     }
 
@@ -72,15 +72,25 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
     public async Task<PageNoteInfo?> DeletePageNoteAsync(long noteId, CancellationToken ct = default)
     {
         var deleted = await notes.DeletePageNoteAsync(noteId, ct);
-        if (deleted is not null) PageNotesChanged?.Invoke(this, deleted.EntryId);
+        if (deleted is not null) await ChangedAsync(deleted.EntryId, ct);
         return deleted;
     }
 
     public async Task<PageNoteInfo?> RestorePageNoteAsync(PageNoteInfo deleted, CancellationToken ct = default)
     {
         var restored = await notes.RestorePageNoteAsync(deleted, ct);
-        if (restored is not null) PageNotesChanged?.Invoke(this, deleted.EntryId);
+        if (restored is not null) await ChangedAsync(deleted.EntryId, ct);
         return restored;
+    }
+
+    /// <summary>
+    /// After a page note came, went or changed: readers list the book's notes again, at once, and search finds the book by
+    /// its words once they are projected, which can wait behind another projection.
+    /// </summary>
+    async Task ChangedAsync(EntryId entryId, CancellationToken ct)
+    {
+        PageNotesChanged?.Invoke(this, entryId);
+        await projector.ProjectMarksAsync([entryId], ct);
     }
 
     Task<PageRange> MakeRangeAsync(long documentId, int firstPage, int lastPage, CancellationToken ct) => places.MakeRangeAsync(documentId, firstPage, lastPage, ct);
