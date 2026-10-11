@@ -409,14 +409,17 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
 public sealed record FolderLabelUse(string Folder, Term Term, int Documents, bool Enabled);
 
 /// <summary>Hints from names: folder names, the file name and the PDF's own information as provisional metadata.</summary>
-public sealed class RuleHintsStage(MetadataHints hints) : IStage
+public sealed class RuleHintsStage(MetadataHints hints, PartProposalService? proposals = null) : IStage
 {
     public Stage Stage => Stage.RuleHints;
 
-    public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct) =>
-        await hints.ApplyAsync(job.DocumentId, ct)
-            ? StageOutcome.Complete()
-            : new StageOutcome.Done(StageStatus.Skipped, [], "The file has gone, so there are no names to read.");
+    /// <summary>Reads hints from the file's names, then whether its bookmarks and blurbs say it holds several adventures (slice 5b).</summary>
+    public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
+    {
+        if (!await hints.ApplyAsync(job.DocumentId, ct)) return new StageOutcome.Done(StageStatus.Skipped, [], "The file has gone, so there are no names to read.");
+        if (proposals is not null) await proposals.ProposeAsync(job.DocumentId, ct);
+        return StageOutcome.Complete();
+    }
 }
 
 /// <summary>A value the user typed that can't be stored, and why.</summary>

@@ -62,6 +62,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     IndexStore _indexStore = null!;
     PartStore _partStore = null!;
     PartsService _parts = null!;
+    PartProposalService _proposals = null!;
     CorrectionStore _correctionStore = null!;
     FolderRules _folderRules = null!;
 
@@ -113,6 +114,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore, _correctionStore);
         _folderRules = new FolderRules(_correctionStore, library, _metadataStore, vocabulary, hints);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules);
+        _proposals = new PartProposalService(new PartProposalStore(contexts), _parts, entries, _queries);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
         _pageRefs = new PageRefStore(contexts);
@@ -128,7 +130,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
         _service = new IndexingService(_roots, library, queue,
             [
-                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
+                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints, parts: _parts), _matchGate),
             ],
             new FileHasher(reader), _disk, archives,

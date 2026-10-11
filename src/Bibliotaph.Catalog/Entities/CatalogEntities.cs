@@ -198,6 +198,23 @@ public sealed class ElsewhereMatch
 }
 
 /// <summary>
+/// The adventures a file seems to hold (slice 5 plan, choices 5 to 7), proposed from the copy with this content hash:
+/// one Needs review card for the file while <see cref="Answer"/> is null. The answer is remembered by the hash, so the
+/// same file is never proposed again, whatever reads it later.
+/// </summary>
+public sealed class PartProposal
+{
+    public long Id { get; set; }
+    public required string ContentHash { get; set; }
+    public PartProposalSource Source { get; set; }
+    /// <summary>The adventures, in page order, as JSON: title, first and last PDF page, levels and the words that said so.</summary>
+    public required string PartsJson { get; set; }
+    public PartProposalAnswer? Answer { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime? DecidedUtc { get; set; }
+}
+
+/// <summary>
 /// The user's answer about a pair of files, by content hash, so Match never asks or joins again: "Not the same book"
 /// keeps them on separate cards.
 /// </summary>

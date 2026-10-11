@@ -16,6 +16,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<VersionProposal> VersionProposals => Set<VersionProposal>();
     public DbSet<PackDecision> PackDecisions => Set<PackDecision>();
     public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
+    public DbSet<PartProposal> PartProposals => Set<PartProposal>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
@@ -97,6 +98,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<Entry>().WithMany().HasForeignKey(m => m.EntryId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Document>().WithMany().HasForeignKey(m => m.DocumentId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<PartProposal>(e => e.HasIndex(p => p.ContentHash).IsUnique());
 
         modelBuilder.Entity<PackDecision>(e =>
         {

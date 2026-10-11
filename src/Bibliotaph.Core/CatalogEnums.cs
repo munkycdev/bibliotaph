@@ -182,6 +182,26 @@ public enum ElsewhereAnswer
     SeparateBook,
 }
 
+/// <summary>Where a proposal of the adventures inside a file came from (slice 5 plan, choices 5 and 6).</summary>
+public enum PartProposalSource
+{
+    /// <summary>Its bookmarks and the blurbs on their first pages.</summary>
+    Rules,
+
+    /// <summary>A model that read its outline, contents page and the first page of each candidate.</summary>
+    Ai,
+}
+
+/// <summary>The user's answer to "This file looks like it holds 5 adventures" in Needs review (slice 5 plan, choice 7).</summary>
+public enum PartProposalAnswer
+{
+    /// <summary>The ticked adventures got cards of their own.</summary>
+    Accepted,
+
+    /// <summary>The file is one book: it isn't proposed again.</summary>
+    NotSplit,
+}
+
 /// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>
 public enum VersionEvidence
 {
