@@ -47,6 +47,12 @@ public sealed class SiteIconImages(SiteIcons icons, SettingsStore settings, ILog
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Forgets what was decoded for a site, after the in-app browser kept its icon, so the next card shows it.</summary>
+    public void Kept(string host)
+    {
+        lock (_lock) _byHost.Remove(host);
+    }
+
     /// <summary>An icon already decoded for the site a link is on, so a recycled card can show it at once.</summary>
     public ImageSource? TryGet(string url)
     {

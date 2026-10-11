@@ -18,9 +18,13 @@
         <DataTemplate DataType="{x:Type vm:OnlineServiceViewModel}">
           <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,10">
             <DockPanel>
-              <Button DockPanel.Dock="Right" VerticalAlignment="Top" Margin="16,0,0,0" Content="Import a saved page…" c:Ui.Icon="{StaticResource Icon.FolderInput}"
-                      Command="{Binding DataContext.ImportSavedPageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                      AutomationProperties.Name="{Binding Name, StringFormat='Import a saved {0} library page'}" />
+              <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Margin="16,0,0,0">
+                <Button x:Name="OpenService" Style="{StaticResource Bt.Button.Primary}" Content="{Binding OpenLabel}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
+                        Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
+                <Button Style="{StaticResource Bt.Link}" Content="Import a saved page…" Margin="0,8,0,0" HorizontalAlignment="Right"
+                        Command="{Binding DataContext.ImportSavedPageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        AutomationProperties.Name="{Binding Name, StringFormat='Import a saved {0} library page'}" />
+              </StackPanel>
               <StackPanel>
                 <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -98,5 +102,16 @@
         </ItemsControl>
       </StackPanel>
     </StackPanel>
+
+    <!-- Choice 2: the browser keeps its sign-ins between imports; this forgets them all. -->
+    <DockPanel Margin="0,32,0,0">
+      <Button x:Name="SignOutBrowser" DockPanel.Dock="Right" Content="Sign out of all services" Command="{Binding SignOutCommand}" Margin="16,0,0,0"
+              VerticalAlignment="Top" />
+      <StackPanel>
+        <TextBlock Text="Bibliotaph's browser" FontSize="14" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="It keeps you signed in between imports, apart from your everyday browser. Signing out forgets every sign-in, cookie and page it kept." />
+      </StackPanel>
+    </DockPanel>
   </StackPanel>
 </UserControl>

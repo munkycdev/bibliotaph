@@ -41,6 +41,12 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string Engine => Path.Combine(Root, "engine");
 
+    /// <summary>
+    /// The in-app browser's own profile (online libraries plan, choice 2), where the services' sign-ins are kept between
+    /// imports, apart from the user's everyday browser. The browser writes it; Bibliotaph never reads its cookies.
+    /// </summary>
+    public string Browser => Path.Combine(Root, "browser");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

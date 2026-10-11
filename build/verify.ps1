@@ -95,7 +95,11 @@ function Invoke-Smoke {
     $log = @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content)
     if ($app.ExitCode -eq 0) {
         if ($inCi) { $log }
-        Remove-Item $run -Recurse -Force
+        # The in-app browser's processes can hold its profile for a moment after the app closes.
+        foreach ($try in 1..10) {
+            try { Remove-Item $run -Recurse -Force -ErrorAction Stop; break }
+            catch { if ($try -eq 10) { Write-Warning "The smoke test's folder $run couldn't be removed: $($_.Exception.Message)" } else { Start-Sleep 1 } }
+        }
         Write-Host 'Smoke test passed.'
         return
     }
