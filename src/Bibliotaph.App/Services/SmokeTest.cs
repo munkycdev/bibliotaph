@@ -14,6 +14,7 @@ using Bibliotaph.Classification;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
+using Bibliotaph.Core.Sync;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
@@ -153,6 +154,8 @@ static partial class SmokeTest
             }
             await Check("a backup saved from Settings > Backup and read back for restoring, its missing folder offered a new place, then cancelled",
                 () => BackUpAndPreviewRestoreAsync(services, window));
+            await Check("Settings > Backup > Sync with another PC refusing Bibliotaph's data folder, writing this PC's sync file to the folder picked and merging another PC's collection, then stopped",
+                () => SyncWithAnotherPcAsync(services, window));
             // Last: the made-up library's books can't be read once its folder is found offline.
             await Check("a library folder that can't be reached: its books marked Offline, one opened to a prompt to plug in its drive, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));
@@ -1142,6 +1145,61 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => !section.HasPreview && section.RestoreFolders.Count == 0 && !Shown(window, "RestoreAndRestart")
                 && !System.IO.Directory.Exists(PendingRestore.StagingFolder(paths)),
             () => "Cancel didn't put Settings > Backup back, or left the backup it read for restoring.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>
+    /// Settings > Backup > Sync with another PC (library sync plan): Bibliotaph's own data folder is refused, as the
+    /// databases must never be in a synced folder; the folder beside the data root, where build/verify.ps1 put a made-up
+    /// second PC's sync file, is taken: this PC's file is written there, and the other PC's collection is merged and shows
+    /// among the collections; Sync now merges again; Stop syncing stops. The folder picker isn't driven: the section's own
+    /// method does what follows it.
+    /// </summary>
+    static async Task SyncWithAnotherPcAsync(IServiceProvider services, Window window)
+    {
+        const string Merged = "Made on the other PC";
+        var paths = services.GetRequiredService<AppPaths>();
+        var sync = services.GetRequiredService<LibrarySync>();
+        var collections = services.GetRequiredService<CollectionDirectory>();
+        var section = (BackupSectionViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Backup)).Selected;
+        await WaitUntilAsync(window, () => Shown(window, "ChooseSyncFolder") && !Shown(window, "SyncNow") && section.SyncStatusLine == "Not syncing.",
+            () => $"Settings > Backup doesn't offer Choose a folder for syncing, or already syncs (\"{section.SyncStatusLine}\").");
+
+        if (await section.UseSyncFolderAsync(paths.Root) || section.IsSyncing
+            || section.SyncProblem?.StartsWith("That's Bibliotaph's own data folder", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException($"Bibliotaph's own data folder was taken for syncing, or refused with \"{section.SyncProblem}\".");
+        await WaitUntilAsync(window, () => Descendants<TextBlock>(window).Any(t => t.Name == "SyncProblemText" && t.IsVisible),
+            () => "Settings doesn't say why the data folder was refused.");
+
+        var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(paths.Root)!, "sync");
+        var files = System.IO.Path.Combine(folder, SyncFile.FolderName);
+        System.IO.Directory.CreateDirectory(folder);
+        // Run without build/verify.ps1, there is no other PC's file: this PC's is still written.
+        var otherPc = System.IO.File.Exists(System.IO.Path.Combine(files, "SMOKE-PC-2.json"));
+        if (!await section.UseSyncFolderAsync(folder)) throw new InvalidOperationException($"The folder for syncing was refused: {section.SyncProblem}");
+        var own = System.IO.Path.Combine(files, SyncFile.FileName(sync.MachineName));
+        var expected = otherPc ? "Last merged from SMOKE-PC-2 " : "No other PC has written";
+        await WaitUntilAsync(window, () => System.IO.File.Exists(own) && Shown(window, "SyncNow") && Shown(window, "StopSyncing")
+                && section.SyncStatusLine.StartsWith(expected, StringComparison.Ordinal) && (!otherPc || collections.All.Any(c => c.Name == Merged)),
+            () => $"Syncing didn't write {System.IO.Path.GetFileName(own)}, show Sync now and Stop syncing, or merge the other PC's collection (\"{section.SyncStatusLine}\").");
+        await AuditAsync(window, "Settings > Backup while syncing with another PC");
+
+        Click(Descendants<Button>(window).SingleOrDefault(b => b.Name == "SyncNow"), "Sync now");
+        await WaitUntilAsync(window, () => !section.IsSyncBusy && section.SyncStatusLine.StartsWith(expected, StringComparison.Ordinal) && section.SyncProblem is null,
+            () => $"Sync now says \"{section.SyncStatusLine}\" {section.SyncProblem}");
+
+        Click(Descendants<Button>(window).SingleOrDefault(b => b.Name == "StopSyncing"), "Stop syncing");
+        await WaitUntilAsync(window, () => !section.IsSyncing && section.SyncStatusLine == "Not syncing." && !Shown(window, "SyncNow") && Shown(window, "ChooseSyncFolder"),
+            () => $"Stop syncing didn't stop (\"{section.SyncStatusLine}\").");
+        if (await sync.GetFolderAsync() is not null) throw new InvalidOperationException("Stop syncing left the sync folder set.");
+
+        // The other PC's collection goes, so the steps after see the library they saw before.
+        if (collections.All.FirstOrDefault(c => c.Name == Merged) is { } merged)
+        {
+            await services.GetRequiredService<CollectionsService>().DeleteAsync(merged.Id);
+            await WaitUntilAsync(window, () => collections.All.All(c => c.Name != Merged), () => "The merged collection couldn't be deleted.");
+        }
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
     }

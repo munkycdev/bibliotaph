@@ -240,6 +240,13 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+        // Library sync (library sync plan): after indexing, so it stops first and writes this PC's file one last time.
+        builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
+            sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<LibrarySync>>()));
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
         builder.Services.AddSingleton<ForgetText>();
 
         // Shell
