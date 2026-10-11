@@ -37,9 +37,10 @@ public enum SessionItemState
 
 /// <summary>
 /// Where a session item opens: a document and its pages (zero-based, inclusive), how they were found, and for an item
-/// that can't open, why and the last place its file was.
+/// that can't open, why, the last place its file was, and <see cref="Away"/> for the reader's prompt.
 /// </summary>
-public sealed record SessionItemTarget(long? DocumentId, int FirstPage, int LastPage, SessionItemState State, string? Reason = null, string? LastPath = null)
+public sealed record SessionItemTarget(long? DocumentId, int FirstPage, int LastPage, SessionItemState State, string? Reason = null, string? LastPath = null,
+    AwayFile? Away = null)
 {
     public bool CanOpen => DocumentId is not null && State is not (SessionItemState.Unreachable or SessionItemState.NoFile);
 }
@@ -229,7 +230,7 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
         PagePlaceState.Changed => SessionItemState.Changed,
         PagePlaceState.Pending => SessionItemState.Pending,
         _ => SessionItemState.Unreachable,
-    }, place.Reason, place.LastPath);
+    }, place.Reason, place.LastPath, place.Away);
 
     async Task ProjectAsync(IReadOnlyCollection<EntryId> changed, CancellationToken ct)
     {

@@ -307,8 +307,11 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         });
     }
 
-    /// <summary>Rebuilds the list, keeping the item in hand, or opening <paramref name="open"/> instead.</summary>
-    async Task RefreshRowsAsync(long? open = null)
+    /// <summary>
+    /// Rebuilds the list, keeping the item in hand, or opening <paramref name="open"/> instead; with
+    /// <paramref name="reopen"/>, the item in hand opens again, as after Try again on one whose folder was offline.
+    /// </summary>
+    async Task RefreshRowsAsync(long? open = null, bool reopen = false)
     {
         var version = ++_version;
         try
@@ -320,7 +323,11 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             if (!Show(contents, rows)) return;
             var items = Items;
             if (open is { } id && items.FirstOrDefault(i => i.Id == id) is { } added) await OpenAsync(added);
-            else if (Current is { } current && items.FirstOrDefault(i => i.Id == current.Id) is { } same) Current = same;
+            else if (Current is { } current && items.FirstOrDefault(i => i.Id == current.Id) is { } same)
+            {
+                Current = same;
+                if (reopen) await OpenAsync(same);
+            }
             else if (items.Count > 0) await OpenAsync(items[0]);
             else
             {
@@ -427,7 +434,9 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _currentId = row.Id;
         if (!row.CanOpen)
         {
-            Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", row.Reason ?? "Its file can't be reached.");
+            // Its folder offline or its file gone: the reader says what to do, and Try again opens it once it's back.
+            if (row.Target.Away is { } away) Viewer.ShowAway(away, () => RefreshRowsAsync(reopen: true));
+            else Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", row.Reason ?? "Its file can't be reached.");
             return;
         }
         var request = await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);

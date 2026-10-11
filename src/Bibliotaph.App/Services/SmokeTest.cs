@@ -145,7 +145,7 @@ static partial class SmokeTest
             await Check("a backup saved from Settings > Backup and read back for restoring, its missing folder offered a new place, then cancelled",
                 () => BackUpAndPreviewRestoreAsync(services, window));
             // Last: the made-up library's books can't be read once its folder is found offline.
-            await Check("a library folder that can't be reached: its books marked Offline, the sidebar and its Settings card saying so",
+            await Check("a library folder that can't be reached: its books marked Offline, one opened to a prompt to plug in its drive, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));
             await Check("every page and dialog visited names its controls, keeps them whole at the minimum window size and reaches them with Tab",
                 ReportAccessibilityAsync);
@@ -1033,8 +1033,9 @@ static partial class SmokeTest
 
     /// <summary>
     /// Offline folders (4g): the made-up library's folder was never on disk, so a scan finds it offline. Its books stay
-    /// in the Library, marked Offline; the sidebar says one folder is offline; and its card in Settings says it can't be
-    /// reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
+    /// in the Library, marked Offline; opening one shows the reader's prompt to plug in the drive, naming the folder,
+    /// whose Try again looks at it again; the sidebar says one folder is offline; and its card in Settings says it can't
+    /// be reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
     /// </summary>
     /// <summary>
     /// Settings > Backup (slice 4j): Back up now's work saves a ZIP of the catalog and its manifest, without the search
@@ -1098,6 +1099,22 @@ static partial class SmokeTest
         await library.RefreshAsync();
         await WaitUntilAsync(window, () => library.Items.Any(i => inFolder.Contains(i.EntryId) && i is { IsAway: true, AvailabilityLabel: "Offline" }),
             () => "The offline folder's books aren't marked Offline in the Library.");
+
+        // Opening one says to plug the drive in, naming the folder; Try again looks at the folder and, still offline, says so again.
+        var away = library.Items.First(i => inFolder.Contains(i.EntryId) && i.IsAway);
+        library.OpenBookCommand.Execute(away);
+        await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { Mode: ViewerMode.Problem }, () => "Opening an offline book didn't show the reader's prompt.");
+        var viewer = (ViewerViewModel)shell.CurrentPage!;
+        if (!viewer.EmptyMessage.Contains("smoke-library", StringComparison.Ordinal) || viewer.EmptyActionText != "Try again" || viewer.EmptySecondaryText is not null)
+            throw new InvalidOperationException($"The offline book's prompt says \"{viewer.EmptyTitle} {viewer.EmptyMessage}\" [{viewer.EmptyActionText}], not to plug in its folder's drive.");
+        await AuditAsync(window, "the reader's prompt for a book whose folder is offline");
+        var asked = viewer.EmptyCommand;
+        await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Command == asked && b.IsVisible && b.IsEnabled), () => "The prompt has no Try again.");
+        Click(Descendants<Button>(window).First(b => b.Command == asked && b.IsVisible), "Try again");
+        await WaitUntilAsync(window, () => viewer is { Mode: ViewerMode.Problem } && viewer.EmptyCommand != asked && viewer.EmptyMessage.Contains("smoke-library", StringComparison.Ordinal),
+            () => $"Try again on a folder still offline shows {viewer.Mode}: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        navigation.GoBack();
+        await WaitUntilAsync(window, () => ReferenceEquals(shell.CurrentPage, library), () => "Back didn't return from the reader to the Library.");
 
         library.ManageFoldersCommand.Execute(null);
         var settings = await ExpectSettingsAsync(window, shell, SettingsSection.Library, "The Library's Manage folders");
