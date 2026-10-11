@@ -198,16 +198,19 @@ public static partial class EvidenceCheck
     internal static bool Shows(MetadataField field, string value, bool isNewTerm, string quote, Vocabulary vocabulary)
     {
         if (field == MetadataFields.Types || field == MetadataFields.Themes || field == MetadataFields.Environments) return true;
-        if (field == MetadataFields.Levels)
-        {
-            if (!value.Any(char.IsDigit)) return true; // "n/a": the book says levels don't apply, in its own words
-            var numbers = Number().Matches(quote).Select(m => m.Value.TrimStart('0')).ToHashSet(StringComparer.Ordinal);
-            return Number().Matches(value).All(m => numbers.Contains(m.Value.TrimStart('0')));
-        }
+        if (field == MetadataFields.Levels) return ShowsLevels(value, quote);
         if (field == MetadataFields.Title) return Mentions(quote, value.Split(':')[0]);
         if (field.Kind != FieldKind.Term || isNewTerm)
             return Mentions(quote, value) || (field.Vocabulary is { } names && vocabulary.Resolve(names, value) is { } known && Names(quote, known, vocabulary));
         return vocabulary.Find(field.Vocabulary!, value) is { } term && (Names(quote, term, vocabulary) || Mentions(quote, term.Label));
+    }
+
+    /// <summary>Whether the quote gives every number of a level range: "3-5" needs both a 3 and a 5 in it.</summary>
+    internal static bool ShowsLevels(string value, string quote)
+    {
+        if (!value.Any(char.IsDigit)) return true; // "n/a": the book says levels don't apply, in its own words
+        var numbers = Number().Matches(quote).Select(m => m.Value.TrimStart('0')).ToHashSet(StringComparer.Ordinal);
+        return Number().Matches(value).All(m => numbers.Contains(m.Value.TrimStart('0')));
     }
 
     /// <summary>The quote names the term, by any of its names, or a game system through one of its editions.</summary>

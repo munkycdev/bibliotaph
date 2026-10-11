@@ -251,6 +251,31 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             return documents.Count;
         }, ct);
 
+    /// <summary>
+    /// Runs <paramref name="stage"/> again for one document that has finished it at the current version, as when an
+    /// adventure is marked in it and Classify has its pages to read. Returns whether it was queued.
+    /// </summary>
+    public Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var queued = c.Execute(
+                """
+                UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL
+                WHERE document_id = @documentId AND stage = @stage AND stage_version = @version AND status IN ('done', 'failed')
+                """, new { documentId, stage = stage.ToString(), version = Pipeline.Version(stage) }, t);
+            if (queued > 0) SetStatus(c, t, documentId, stage, StageStatus.Pending, null, Now());
+            return queued > 0;
+        }, ct);
+
+    /// <summary>Whether a lane is running <paramref name="stage"/> for the document now.</summary>
+    public async Task<bool> IsRunningAsync(Stage stage, long documentId, CancellationToken ct = default)
+    {
+        await using var c = database.OpenRead();
+        return await c.ExecuteScalarAsync<long>(new CommandDefinition(
+            "SELECT count(*) FROM job WHERE document_id = @documentId AND stage = @stage AND status = 'leased'",
+            new { documentId, stage = stage.ToString() }, cancellationToken: ct)) > 0;
+    }
+
     /// <summary>Documents with a job blocked for exactly <paramref name="reason"/>.</summary>
     public async Task<IReadOnlyList<long>> BlockedForAsync(string reason, CancellationToken ct = default)
     {

@@ -86,7 +86,8 @@ public sealed class IndexingService(
     ILogger<IndexingService>? log = null,
     TimeProvider? clock = null,
     PackService? packs = null,
-    IFileIdentity? identity = null) : BackgroundService
+    IFileIdentity? identity = null,
+    PartsService? parts = null) : BackgroundService
 {
     /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
     public const string UnexpectedError = "Unexpected error: ";
@@ -356,6 +357,40 @@ public sealed class IndexingService(
         {
             var lane = Pipeline.LaneOf(gated.Stage);
             gated.ReadyChanged += (_, _) => OnGateChanged(lane);
+        }
+        parts?.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
+    }
+
+    static readonly TimeSpan PartsRecheck = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// An adventure marked in a document is classified on its own pages (slice 5 plan, choice 6): the document's
+    /// Classify job runs again, and passes over what this model has read already. While AI is off it waits with the rest.
+    /// </summary>
+    async Task ClassifyPartsAsync(long documentId)
+    {
+        try
+        {
+            // Classify may be reading the document now, having looked for its adventures before this one was marked
+            // (Accept marks several in a row): it runs again once it is done.
+            while (!await queue.RerunAsync(Stage.Classify, documentId, _stopping))
+            {
+                if (await queue.IsRunningAsync(Stage.Classify, documentId, _stopping))
+                {
+                    await Task.Delay(PartsRecheck, _clock, _stopping);
+                    continue;
+                }
+                // Not running and not finished: waiting to run, which reads the adventure then; or it finished between
+                // the two looks, and runs again now.
+                if (await queue.RerunAsync(Stage.Classify, documentId, _stopping)) break;
+                return;
+            }
+            _laneSignals[Pipeline.LaneOf(Stage.Classify)].Set();
+            RaiseChanged();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogWarning(ex, "Document {DocumentId}'s adventures couldn't be queued for AI", documentId);
         }
     }
 

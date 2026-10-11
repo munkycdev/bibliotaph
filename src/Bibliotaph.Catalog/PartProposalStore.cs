@@ -68,6 +68,19 @@ public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contex
     }
 
     /// <summary>
+    /// Whether there is nothing left to propose for the copy with <paramref name="contentHash"/> of the file
+    /// <paramref name="fileId"/>: a proposal was read from it already, or the file's proposal was answered for one of
+    /// its copies. A model isn't asked about such a file (choice 6).
+    /// </summary>
+    public async Task<bool> IsSettledAsync(EntryId fileId, string contentHash, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.PartProposals.AnyAsync(p => p.ContentHash == contentHash, ct)) return true;
+        var hashes = db.EntrySources.Where(s => s.EntryId == fileId.Value && s.FirstPdfPage == null).Select(s => s.Document.ContentHash);
+        return await db.PartProposals.AnyAsync(p => p.Answer != null && hashes.Contains(p.ContentHash), ct);
+    }
+
+    /// <summary>
     /// The proposals waiting for an answer, one per file: the one read from the copy the file opens when it has one.
     /// A file that already has adventures marked, or whose proposal was answered for another of its copies, isn't
     /// asked about.

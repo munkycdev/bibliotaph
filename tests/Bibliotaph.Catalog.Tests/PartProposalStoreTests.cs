@@ -119,4 +119,39 @@ public sealed class PartProposalStoreTests : IAsyncLifetime
         Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct));
         Assert.Equal(PartProposalSource.Rules, Assert.Single(await _proposals.GetPendingAsync(Ct)).Source);
     }
+
+    [Fact]
+    public async Task A_model_isnt_asked_about_a_copy_already_proposed_or_a_file_whose_proposal_was_answered()
+    {
+        var (core, file) = await AddBookAsync("Core/compilation.pdf", 'a');
+        var (backup, _) = await AddBookAsync("Backup/compilation.pdf", 'b');
+        await _entries.JoinAsCopyAsync(core, backup, Ct);
+        Assert.False(await _proposals.IsSettledAsync(file, Hex('a'), Ct));
+
+        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct);
+        Assert.True(await _proposals.IsSettledAsync(file, Hex('a'), Ct));
+        Assert.False(await _proposals.IsSettledAsync(file, Hex('b'), Ct));
+
+        await _proposals.AnswerAsync(file, PartProposalAnswer.NotSplit, Ct);
+        Assert.True(await _proposals.IsSettledAsync(file, Hex('b'), Ct));
+    }
+
+    [Fact]
+    public async Task A_run_over_an_adventures_own_pages_doesnt_count_as_reading_its_file()
+    {
+        var (document, file) = await AddBookAsync("compilation.pdf", 'a');
+        var part = (await _parts.AddAsync(file, new PartSource(document, new PartPages(2, 3)), "The Salt Mine", Ct))!.Value;
+        var runs = new ClassificationStore(_contexts);
+        static RunRecord Run(EntryId entry) => new(entry, Hex('a'), "ollama", "fake-8b", 1, 1, [2, 3], Monday, ClassificationStore.Complete);
+
+        await runs.RecordAsync(Run(part), Ct);
+        Assert.False(await runs.HasRunAsync(Hex('a'), "fake-8b", 1, Ct));
+        Assert.True(await runs.HasRunOnAsync(part, "fake-8b", 1, Ct));
+        Assert.False(await runs.HasRunOnAsync(part, "fake-14b", 1, Ct));
+        Assert.Equal(new ClassificationSummary(0, 0), await runs.SummarizeAsync("fake-8b", 1, Ct));
+
+        await runs.RecordAsync(Run(file), Ct);
+        Assert.True(await runs.HasRunAsync(Hex('a'), "fake-8b", 1, Ct));
+        Assert.Equal(new ClassificationSummary(1, 0), await runs.SummarizeAsync("fake-8b", 1, Ct));
+    }
 }
