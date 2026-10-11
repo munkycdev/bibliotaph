@@ -205,6 +205,21 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     }
 
     /// <summary>
+    /// Where a place's pages are in another copy of its book, to show them there without keeping what was found: a page
+    /// note listed or gone to in a reader open on a copy it wasn't looked for in. Found by fingerprint, as a new version's
+    /// pages are, or by printed label for a page with no text to fingerprint. Failing that, the same printed page, else
+    /// the same page, with <c>Found</c> false.
+    /// </summary>
+    public async Task<(int FirstPage, int LastPage, bool Found)> MatchAsync(PageRange range, long documentId, CancellationToken ct = default)
+    {
+        if (range.DocumentId == documentId) return (range.FirstPdfPage, range.LastPdfPage, true);
+        var check = await FindAsync(range, documentId, ct);
+        var found = check.Outcome == PageCheck.Found
+            || range.FirstFingerprint is null && range.FirstLabel is { } label && await index.FindLabelAsync(documentId, label, ct) == check.FirstPdfPage;
+        return (check.FirstPdfPage, check.LastPdfPage, found);
+    }
+
+    /// <summary>
     /// Looks for a place's pages in another copy (choice 2): the first page by its fingerprint, the one nearest where it
     /// was when a page is repeated, and the last by its own; failing that, the same printed page, to be checked.
     /// </summary>
