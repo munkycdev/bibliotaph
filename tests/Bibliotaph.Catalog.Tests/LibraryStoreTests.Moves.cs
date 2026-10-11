@@ -1,4 +1,5 @@
 using Bibliotaph.Core;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
@@ -236,5 +237,105 @@ public sealed partial class LibraryStoreTests
         var scanned = Assert.Single(await _roots.ListAsync(Ct));
         Assert.Equal(("5678EF01", SourceRootAvailability.Online), (scanned.VolumeSerial, scanned.Availability));
         Assert.Equal("D:5", Assert.Single(await LocationsAsync()).NtfsFileId);
+    }
+
+    [Fact]
+    public async Task Without_file_ids_a_file_or_ZIP_that_kept_its_name_size_and_date_is_followed_to_its_new_folder()
+    {
+        var root = await RootAsync();
+        var book = await HashedAsync(root, "Book.pdf", 'a');
+        await _library.ReconcileRootAsync(root, [File("Book.pdf"), File("Bundle.zip")], ct: Ct);
+        var zip = Assert.Single(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        var member = Assert.Single((await _library.ReconcileArchiveAsync(zip, [Member("Maps/Harbor.png", 1)], Ct))!);
+        var map = (await _library.AttachHashAsync(member, Hash('b'), Ct))!.Value.DocumentId;
+        await _library.AttachArchiveHashAsync(zip, Hash('f'), Ct);
+        var before = (await LocationsAsync()).Where(l => l.ContainerId is null).ToDictionary(l => Path.GetFileName(l.RelativePath), l => l.Id);
+
+        // Moved on a USB stick, as FAT and exFAT keep no file IDs.
+        var result = await _library.ReconcileRootAsync(root, [File(Path.Combine("Adventures", "Book.pdf")), File(Path.Combine("Downloads", "Bundle.zip"))], ct: Ct);
+
+        Assert.Equal(new ReconcileResult(Added: 0, Changed: 0, Unchanged: 0, Missing: 0, Moved: 2), result);
+        var after = (await LocationsAsync()).Where(l => l.ContainerId is null).ToDictionary(l => Path.GetFileName(l.RelativePath), l => l.Id);
+        Assert.Equal(before, after);
+        Assert.Empty(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        Assert.Equal(Path.Combine(_dir, "Library", "Adventures", "Book.pdf"), (await _library.GetSourceAsync(book, Ct))!.FullPath);
+        Assert.Equal(Path.Combine(_dir, "Library", "Downloads", "Bundle.zip"), (await _library.GetSourceAsync(map, Ct))!.ArchivePath);
+        Assert.Empty(await _library.GetUnavailableAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Without_file_ids_a_renamed_resized_ambiguous_or_long_missing_file_is_read_again_rather_than_guessed()
+    {
+        var root = await RootAsync();
+        string[] paths = [Path.Combine("A", "Map.png"), Path.Combine("B", "Map.png"), "Renamed.pdf", "Resized.pdf", "Gone.pdf"];
+        await _library.ReconcileRootAsync(root, [.. paths.Select(p => File(p))], ct: Ct);
+        var hash = 'a';
+        foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)) await _library.AttachHashAsync(file, Hash(hash++), Ct);
+        await _library.ReconcileRootAsync(root, [.. paths.SkipLast(1).Select(p => File(p))], ct: Ct);
+
+        // Two maps of one name, size and date could each be either; a renamed file looks like one deleted and another
+        // added; a file of another size is another file; and one already missing before this scan isn't followed.
+        var result = await _library.ReconcileRootAsync(root,
+            [
+                File(Path.Combine("C", "Map.png")), File(Path.Combine("D", "Map.png")), File("Renamed (new).pdf"),
+                File(Path.Combine("New", "Resized.pdf"), size: 2000), File(Path.Combine("Later", "Gone.pdf")),
+            ], ct: Ct);
+
+        Assert.Equal(new ReconcileResult(Added: 5, Changed: 0, Unchanged: 0, Missing: 4, Moved: 0), result);
+        Assert.Equal(5, (await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct)).Count);
+    }
+
+    [Fact]
+    public async Task A_ZIP_moved_to_another_library_folder_keeps_the_files_it_held_and_isnt_read_again()
+    {
+        var here = await RootAsync("Here");
+        var there = await RootAsync("There");
+        await _library.ReconcileRootAsync(here, [File("Bundle.zip")], fileId: _ => "V:9", ct: Ct);
+        var zip = Assert.Single(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        var pending = (await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1), Member("Maps/Harbor.png", 2)], Ct))!;
+        var book = (await _library.AttachHashAsync(pending[0], Hash('a'), Ct))!.Value.DocumentId;
+        var map = (await _library.AttachHashAsync(pending[1], Hash('b'), Ct))!.Value.DocumentId;
+        await _library.AttachArchiveHashAsync(zip, Hash('f'), Ct);
+        // Saved again without the map, and looked at once more since.
+        await _library.ReconcileRootAsync(here, [File("Bundle.zip", size: 2000)], fileId: _ => "V:9", ct: Ct);
+        zip = Assert.Single(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        Assert.Empty((await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1)], Ct))!);
+        await _library.AttachArchiveHashAsync(zip, Hash('e'), Ct);
+        await _library.ReconcileRootAsync(here, [File("Bundle.zip", size: 2000)], fileId: _ => "V:9", ct: Ct);
+
+        await _library.ReconcileRootAsync(here, [], fileId: _ => null, ct: Ct);
+        Assert.Null(await _library.GetSourceAsync(book, Ct));
+        var moved = await _library.ReconcileRootAsync(there, [File(Path.Combine("Bundles", "Bundle.zip"), size: 2000)], fileId: _ => "V:9", ct: Ct);
+
+        Assert.Equal((0, 1), (moved.Added, moved.Moved));
+        Assert.Empty(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        var source = (await _library.GetSourceAsync(book, Ct))!;
+        Assert.Equal((Path.Combine(_dir, "There", "Bundles", "Bundle.zip"), "Book.pdf"), (source.ArchivePath, source.EntryPath));
+        // The map it no longer held stays missing.
+        Assert.Null(await _library.GetSourceAsync(map, Ct));
+        Assert.Equal(EntryAvailability.Missing, Assert.Single(await _library.GetUnavailableAsync(Ct)).Value);
+    }
+
+    [Fact]
+    public async Task A_moved_ZIP_none_of_whose_files_was_seen_with_it_is_read_again()
+    {
+        var here = await RootAsync("Here");
+        var there = await RootAsync("There");
+        await _library.ReconcileRootAsync(here, [File("Bundle.zip")], fileId: _ => "V:9", ct: Ct);
+        var zip = Assert.Single(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        var book = (await _library.AttachHashAsync(Assert.Single((await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1)], Ct))!), Hash('a'), Ct))!.Value.DocumentId;
+        await _library.AttachArchiveHashAsync(zip, Hash('f'), Ct);
+        // As if its files were last seen long before the ZIP was.
+        await using (var db = _contexts.CreateDbContext())
+            await db.FileLocations.Where(f => f.ContainerId != null).ExecuteUpdateAsync(u => u.SetProperty(f => f.LastSeenUtc, new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)), Ct);
+
+        await _library.ReconcileRootAsync(here, [], fileId: _ => null, ct: Ct);
+        Assert.Equal(1, (await _library.ReconcileRootAsync(there, [File("Bundle.zip")], fileId: _ => "V:9", ct: Ct)).Moved);
+
+        zip = Assert.Single(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        Assert.True(zip.IsArchive);
+        Assert.Null(await _library.GetSourceAsync(book, Ct));
+        Assert.Empty((await _library.ReconcileArchiveAsync(zip, [Member("Book.pdf", 1)], Ct))!);
+        Assert.Equal(Path.Combine(_dir, "There", "Bundle.zip"), (await _library.GetSourceAsync(book, Ct))!.ArchivePath);
     }
 }

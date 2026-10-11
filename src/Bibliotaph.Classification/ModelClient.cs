@@ -34,10 +34,10 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
 /// One request: the model, the two messages, the answer's schema and the context it needs, and at most how many tokens
 /// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is (Ask plan,
 /// choice 6). With <paramref name="Progress"/>, the answer is streamed and reported as it comes (Built-in AI plan,
-/// choice 12).
+/// choice 12). <paramref name="SchemaName"/> names the schema for servers that want a name with it.
 /// </summary>
 public sealed record ModelRequest(string Model, string System, string User, string? SchemaJson, int ContextTokens, int? MaxTokens = null,
-    IProgress<ModelProgress>? Progress = null);
+    IProgress<ModelProgress>? Progress = null, string SchemaName = "book_metadata");
 
 /// <summary>Where a streamed request has got to.</summary>
 public enum ModelStep
@@ -275,7 +275,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             request1["response_format"] = new JsonObject
             {
                 ["type"] = "json_schema",
-                ["json_schema"] = new JsonObject { ["name"] = "book_metadata", ["strict"] = true, ["schema"] = schema },
+                ["json_schema"] = new JsonObject { ["name"] = request.SchemaName, ["strict"] = true, ["schema"] = schema },
             };
         }
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;

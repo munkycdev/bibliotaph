@@ -2,8 +2,12 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Classification;
 
-/// <summary>A book as the classifier sees it: the excerpt it reads, and every page's text for the evidence check.</summary>
-public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int, string?> PageText, Vocabulary Vocabulary);
+/// <summary>
+/// A book as the classifier sees it: the excerpt it reads, every page's text for the evidence check, and the user's
+/// books sent as worked examples (scenario review, row 8), which the evidence check never reads.
+/// </summary>
+public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int, string?> PageText, Vocabulary Vocabulary,
+    IReadOnlyList<WorkedExample>? Examples = null);
 
 /// <summary>What one classification produced: the claims that passed the evidence check, and those that didn't.</summary>
 public sealed record ClassifierResult(string Provider, string Model, IReadOnlyList<CheckedClaim> Accepted, IReadOnlyList<DroppedClaim> Dropped);
@@ -28,9 +32,11 @@ public interface IClassifier
 
 /// <summary>
 /// The classifier over a model server: the prompt and schema from <see cref="ClassifierPrompt"/>, the answer through
-/// <see cref="EvidenceCheck"/>. The book's text goes only into the user message, inside the excerpt tags (A16).
+/// <see cref="EvidenceCheck"/>; and the same model finding a compilation's adventures, through
+/// <see cref="PartFinderPrompt"/> and <see cref="PartCheck"/>. The book's text goes only into the user message, inside
+/// the excerpt tags (A16).
 /// </summary>
-public sealed class ModelClassifier(IModelClient client, string provider, string model) : IClassifier
+public sealed class ModelClassifier(IModelClient client, string provider, string model) : IClassifier, IPartFinder
 {
     public string Provider { get; } = provider;
 
@@ -39,12 +45,26 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
     public async Task<ClassifierResult> ClassifyAsync(ClassifierInput input, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
     {
         var system = ClassifierPrompt.SystemMessage(input.Vocabulary);
-        var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName);
+        var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName, input.Examples);
         var request = new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user), Progress: progress);
-        string answer;
+        var claims = ClassifierPrompt.ParseAnswer(await CompleteAsync(request, ct));
+        var checkedClaims = EvidenceCheck.Check(claims, input.Excerpt, input.PageText, input.Vocabulary);
+        return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped);
+    }
+
+    public async Task<PartFinderResult> FindPartsAsync(PartFinderInput input, CancellationToken ct = default)
+    {
+        var system = PartFinderPrompt.SystemMessage();
+        var user = PartFinderPrompt.UserMessage(input);
+        var request = new ModelRequest(Model, system, user, PartFinderPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user));
+        return PartCheck.Check(PartFinderPrompt.ParseAnswer(await CompleteAsync(request, ct)), input);
+    }
+
+    async Task<string> CompleteAsync(ModelRequest request, CancellationToken ct)
+    {
         try
         {
-            answer = await client.CompleteAsync(request, ct);
+            return await client.CompleteAsync(request, ct);
         }
         catch (ModelRequestException ex)
         {
@@ -54,9 +74,6 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
             await CheckAsync(request.ContextTokens, ct);
             throw new ClassifierAnswerException($"The model couldn't read this book. {ex.Message}", ex);
         }
-        var claims = ClassifierPrompt.ParseAnswer(answer);
-        var checkedClaims = EvidenceCheck.Check(claims, input.Excerpt, input.PageText, input.Vocabulary);
-        return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped);
     }
 
     /// <summary>

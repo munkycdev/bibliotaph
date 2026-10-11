@@ -37,6 +37,11 @@ public static class BookCommands
 
     /// <summary>Ask this book (Ask plan, choice 11): opens a PDF with its Ask panel showing. Offered only while AI is on.</summary>
     public static RoutedUICommand Ask { get; } = new("Ask this book", nameof(Ask), typeof(BookCommands));
+    /// <summary>
+    /// Cataloged wrong… (scenario review, row 8): the book's editor, with its guesses marked. Left without a change, it
+    /// leaves a Needs review card that opens it again.
+    /// </summary>
+    public static RoutedUICommand CatalogedWrong { get; } = new("Cataloged wrong…", nameof(CatalogedWrong), typeof(BookCommands));
 
     /// <summary>Add to binder (slice 3 plan, choice 13), with a <see cref="SessionRequest"/>: its target is the card's book, or the details.</summary>
     public static RoutedUICommand AddToSession { get; } = new("Add to binder", nameof(AddToSession), typeof(BookCommands));

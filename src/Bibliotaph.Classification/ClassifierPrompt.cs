@@ -14,14 +14,24 @@ public sealed record ClassifierField(MetadataField Field, string Definition, int
 }
 
 /// <summary>
+/// One of the user's own books sent with a classification as a worked example (scenario review, row 8): the values the
+/// user confirmed, by field key in <see cref="ClassifierPrompt.Fields"/> order, as the model would answer them. Never
+/// any of its text.
+/// </summary>
+public sealed record WorkedExample(IReadOnlyList<(string Field, string Value)> Values);
+
+/// <summary>
 /// What the model is asked and the shape it must answer in. The fields are a list, so adding one adds it to the
 /// schema, the prompt and the evidence check together. Changing the wording or the fields bumps <see cref="Version"/>
-/// or <see cref="SchemaVersion"/>; neither reclassifies anything by itself (choice 10).
+/// or <see cref="SchemaVersion"/>; neither reclassifies anything by itself (choice 10). Worked examples are the
+/// library's own data, as the vocabulary's names are, so which books are sent doesn't bump it.
 /// </summary>
 public static partial class ClassifierPrompt
 {
-    public const int Version = 1;
-    public const int SchemaVersion = 1;
+    /// <summary>2: players, duration and style, and the back cover in the excerpt (scenario review, row 6).</summary>
+    public const int Version = 2;
+
+    public const int SchemaVersion = 2;
 
     /// <summary>Opens and closes the book's text, which is data and never instructions (A16).</summary>
     public const string ExcerptTag = "book-excerpt";
@@ -29,7 +39,22 @@ public static partial class ClassifierPrompt
     /// <summary>Tokens kept free for the answer.</summary>
     const int AnswerTokens = 1_500;
 
-    /// <summary>The fields slice 2 asks for (choice 2). Your tags are yours alone, so the model never fills them.</summary>
+    /// <summary>Worked examples sent with one book at most (scenario review, row 8).</summary>
+    public const int MaxExamples = 3;
+
+    /// <summary>
+    /// Characters of worked examples sent with one book at most: about 400 tokens beside the excerpt's 6,000, so the
+    /// prompt keeps within its context window. An example that doesn't fit is left out.
+    /// </summary>
+    public const int ExampleBudget = 1_500;
+
+    /// <summary>A value in an example is cut to this, so one long title can't take the others' room.</summary>
+    const int ExampleValueCharacters = 100;
+
+    /// <summary>
+    /// The fields slice 2 asks for (choice 2), then players, duration and style. Your tags are yours alone, so the model
+    /// never fills them, and neither does it fill where else you own a book.
+    /// </summary>
     public static IReadOnlyList<ClassifierField> Fields { get; } =
     [
         new(MetadataFields.Title, "The book's own title as printed on its cover or title page, with any subtitle after a colon. Not the file name."),
@@ -41,8 +66,11 @@ public static partial class ClassifierPrompt
         new(MetadataFields.Edition, "The edition of that game system, from the list, only when the book states it."),
         new(MetadataFields.Types, "What kind of book it is, from the list; more than one when it is more than one.", MaxValues: 3),
         new(MetadataFields.Levels, "The character levels it is written for, as \"3\" or \"1-5\". \"n/a\" only when the book says levels don't apply."),
+        new(MetadataFields.Players, "How many players it is written for, as \"4\" or \"3-5\", from a line such as \"for 4-6 characters of levels 3-5\", often on the cover or back cover. Not the levels."),
+        new(MetadataFields.Duration, "How long it takes to play, from the list, only when the book says so (a one-shot, a number of sessions, a campaign). Never from its length."),
         new(MetadataFields.Settings, "Named campaign worlds it is set in or written for.", MaxValues: 3),
-        new(MetadataFields.Themes, "Themes and tone that run through the whole book, not something mentioned once.", MaxValues: 4),
+        new(MetadataFields.Styles, "The kind of adventure it is, from the list: a heist, a dungeon crawl, a hexcrawl. More than one when it mixes them.", MaxValues: 3),
+        new(MetadataFields.Themes, "Tone and subject that run through the whole book (horror, intrigue, fey), not something mentioned once. The kind of adventure goes in style.", MaxValues: 4),
         new(MetadataFields.Environments, "The kinds of places most of the action happens in.", MaxValues: 4),
     ];
 
@@ -107,8 +135,8 @@ public static partial class ClassifierPrompt
 
         var names = new (string Heading, string Vocabulary)[]
         {
-            ("Game systems", "system"), ("Editions", "edition"), ("Types", "type"), ("Settings", "setting"),
-            ("Themes", "theme"), ("Environments", "environment"), ("Publishers", "publisher"),
+            ("Game systems", "system"), ("Editions", "edition"), ("Types", "type"), ("Durations", "duration"), ("Settings", "setting"),
+            ("Styles", "style"), ("Themes", "theme"), ("Environments", "environment"), ("Publishers", "publisher"),
         };
         text.AppendLine();
         text.AppendLine("Names to use:");
@@ -121,19 +149,33 @@ public static partial class ClassifierPrompt
     }
 
     /// <summary>"5th edition (Dungeons &amp; Dragons)", "Dungeons &amp; Dragons (D&amp;D)".</summary>
-    static string Describe(Term term, Vocabulary vocabulary)
+    internal static string Describe(Term term, Vocabulary vocabulary)
     {
         if (term.ParentKey is { } parent && vocabulary.Find("system", parent) is { } system) return $"{term.Label} ({system.Label})";
         return term.ShortLabel is { } brief && brief != term.Label ? $"{term.Label} ({brief})" : term.Label;
     }
 
-    /// <summary>The book: its file name, its headings, and its pages inside the excerpt tags, each after its page marker.</summary>
-    public static string UserMessage(Excerpt excerpt, string fileName)
+    /// <summary>
+    /// The book: its file name, its headings, and its pages inside the excerpt tags, each after its page marker. Before
+    /// the excerpt, outside its tags, come up to three worked examples: other books the user catalogued, with the
+    /// values they confirmed, so the model follows the user's conventions. They are marked as other books, and the
+    /// evidence check only ever looks for quotes in this book's pages.
+    /// </summary>
+    public static string UserMessage(Excerpt excerpt, string fileName, IReadOnlyList<WorkedExample>? examples = null)
     {
         var text = new StringBuilder();
         text.AppendLine(CultureInfo.InvariantCulture, $"File name: {Neutralize(fileName)}");
         text.AppendLine(CultureInfo.InvariantCulture, $"Pages in the book: {excerpt.PageCount}");
         text.AppendLine();
+        var lines = ExampleLines(examples);
+        if (lines.Count > 0)
+        {
+            text.AppendLine("How this library catalogues books like this one: other books the user has catalogued, with the values they confirmed. "
+                + "Follow the same conventions (the names they use, how they write titles and publishers) where this book's pages support them. "
+                + "They are not this book: never take a value, a page or a quote from them.");
+            foreach (var line in lines) text.AppendLine(line);
+            text.AppendLine();
+        }
         text.AppendLine(CultureInfo.InvariantCulture, $"<{ExcerptTag}>");
         if (excerpt.Headings.Count > 0)
         {
@@ -153,6 +195,30 @@ public static partial class ClassifierPrompt
         text.Append("Fill in the JSON object for this book.");
         return text.ToString();
     }
+
+    /// <summary>
+    /// The worked examples as the prompt lists them, one line each ("- title: Thorn Bargain; system: Pathfinder;
+    /// types: Adventure"): at most <see cref="MaxExamples"/>, and only those that fit <see cref="ExampleBudget"/>.
+    /// Their text is neutralised like the book's, since a title can say anything.
+    /// </summary>
+    public static IReadOnlyList<string> ExampleLines(IReadOnlyList<WorkedExample>? examples)
+    {
+        var lines = new List<string>();
+        var used = 0;
+        foreach (var example in (examples ?? []).Take(MaxExamples))
+        {
+            var fields = example.Values
+                .GroupBy(v => v.Field, StringComparer.Ordinal)
+                .Select(g => $"{g.Key}: {string.Join(", ", g.Select(v => Cut(Neutralize(v.Value).ReplaceLineEndings(" "))))}");
+            var line = $"- {string.Join("; ", fields)}";
+            if (example.Values.Count == 0 || used + line.Length > ExampleBudget) continue;
+            used += line.Length;
+            lines.Add(line);
+        }
+        return lines;
+    }
+
+    static string Cut(string value) => value.Length <= ExampleValueCharacters ? value : value[..(ExampleValueCharacters - 1)].TrimEnd() + "…";
 
     /// <summary>The number in a page's marker: PDF pages count from 1 there.</summary>
     public static int Marker(int pdfPage) => pdfPage + 1;
@@ -225,7 +291,7 @@ public static partial class ClassifierPrompt
     }
 
     /// <summary>Some servers wrap JSON in a Markdown code fence even when asked for JSON.</summary>
-    static string StripFence(string content)
+    internal static string StripFence(string content)
     {
         var text = content.Trim();
         if (!text.StartsWith("```", StringComparison.Ordinal)) return text;

@@ -56,14 +56,20 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
+    readonly CorrectionService? _corrections;
+    /// <summary>The metadata as last shown, so a correction can be compared with what the field held before it.</summary>
+    EffectiveMetadata _shown = EffectiveMetadata.Empty;
+    /// <summary>The user changed or kept a value since Cataloged wrong… opened the editor.</summary>
+    bool _decided;
     bool _refreshing;
     bool _refreshAgain;
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
-        PackService packs, ElsewhereService elsewhere)
+        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections)
     {
         _elsewhere = elsewhere;
+        _corrections = corrections;
         Item = item;
         _metadata = metadata;
         _queries = queries;
@@ -182,21 +188,25 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     async Task ReloadMetadataAsync(bool changed)
     {
         var (metadata, vocabulary) = await _metadata.GetAsync(Item.EntryId);
+        _shown = metadata;
         var open = Fields.Where(f => f.ShowEvidence).Select(f => f.Field).ToHashSet();
         // A book owned elsewhere says first where it is owned.
         var fields = IsElsewhere ? metadata.Fields.OrderBy(f => f.Field != MetadataFields.AlsoOwn) : metadata.Fields;
         Fields = [.. fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this, PrimaryFields.Contains(f.Field) || IsElsewhere && f.Field == MetadataFields.AlsoOwn)
         {
             ShowEvidence = open.Contains(f.Field),
+            MarksGuesses = IsCorrecting,
         })];
         if (changed) MetadataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     async Task<string?> IMetadataEditor.SaveAsync(MetadataField field, string typed)
     {
+        var before = _shown[field];
         var problem = await Task.Run(() => _metadata.SetAsync(Item.EntryId, field, typed));
         if (problem is not null) return problem.Message;
         await ReloadMetadataAsync(changed: true);
+        await CorrectedAsync(before);
         return null;
     }
 
@@ -204,24 +214,129 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         await Task.Run(() => _metadata.ConfirmAsync(Item.EntryId, field));
         await ReloadMetadataAsync(changed: true);
+        _decided = true;
     }
 
     async Task IMetadataEditor.RejectAsync(MetadataField field, string normalized)
     {
+        var before = _shown[field];
         await Task.Run(() => _metadata.RejectAsync(Item.EntryId, field, normalized));
         await ReloadMetadataAsync(changed: true);
+        await CorrectedAsync(before);
     }
 
     async Task IMetadataEditor.UseAsync(MetadataField field, string value)
     {
+        var before = _shown[field];
         await Task.Run(() => _metadata.UseAsync(Item.EntryId, field, value));
         await ReloadMetadataAsync(changed: true);
+        await CorrectedAsync(before);
     }
 
     async Task IMetadataEditor.ResetAsync(MetadataField field)
     {
         await Task.Run(() => _metadata.ResetAsync(Item.EntryId, field));
         await ReloadMetadataAsync(changed: true);
+        _decided = true;
+    }
+
+    /// <summary>
+    /// After a value was typed, chosen or rejected: the books from the same folder that showed what this one did are
+    /// offered the same correction (<see cref="LookAlikes"/>). An offer stays until it is answered or a newer one replaces it.
+    /// </summary>
+    async Task CorrectedAsync(EffectiveField before)
+    {
+        _decided = true;
+        if (_corrections is null) return;
+        var after = _shown[before.Field];
+        if (await Task.Run(() => _corrections.FindLookAlikesAsync(Item.EntryId, before, after)) is { } offer) LookAlikeOffer = offer;
+    }
+
+    // Easier corrections (scenario review, row 8).
+
+    /// <summary>
+    /// Cataloged wrong…: the editor, with every field showing and the guesses marked and their evidence open, until Done
+    /// or the details close. Left without a change or a kept value, the book gets a Needs review card that opens it again.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsCorrecting { get; private set; }
+
+    /// <summary>Opens the editor for Cataloged wrong…, from the card's menu or the button in the details.</summary>
+    [RelayCommand]
+    public void StartCorrecting()
+    {
+        _decided = false;
+        IsCorrecting = true;
+        IsNotesTab = false;
+        ShowAllFields = true;
+        foreach (var field in Fields)
+        {
+            field.MarksGuesses = true;
+            if (field.IsKnown && field.IsSuggested) field.ShowEvidence = true;
+        }
+    }
+
+    /// <summary>Done, on the Cataloged wrong… banner.</summary>
+    [RelayCommand]
+    Task FinishCorrecting() => EndCorrectingAsync();
+
+    /// <summary>
+    /// Ends Cataloged wrong…, however the editor closed: with a correction made the book's card, if any, goes; with none,
+    /// the book gets one. Raises <see cref="CorrectionEnded"/> with whether a card is left.
+    /// </summary>
+    public async Task EndCorrectingAsync()
+    {
+        if (!IsCorrecting) return;
+        IsCorrecting = false;
+        foreach (var field in Fields) field.MarksGuesses = false;
+        if (_corrections is null) return;
+        var unfinished = !_decided;
+        if (unfinished) await Task.Run(() => _corrections.LeaveUnfinishedAsync(Item.EntryId));
+        else await Task.Run(() => _corrections.FinishAsync(Item.EntryId));
+        CorrectionEnded?.Invoke(this, unfinished);
+    }
+
+    /// <summary>Raised when Cataloged wrong… ends: true when the book was left with a Needs review card.</summary>
+    public event EventHandler<bool>? CorrectionEnded;
+
+    /// <summary>"Change 14 other books from “Fey Court” too?", after a correction that books from the same folder could use.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLookAlikeOffer), nameof(LookAlikeQuestion), nameof(LookAlikeDetail))]
+    public partial LookAlikeOffer? LookAlikeOffer { get; private set; }
+
+    public bool HasLookAlikeOffer => LookAlikeOffer is not null;
+
+    public string LookAlikeQuestion => LookAlikeOffer is { } offer
+        ? $"Change {offer.Books.Count.ToString("N0", CultureInfo.CurrentCulture)} other {(offer.Books.Count == 1 ? "book" : "books")} from “{offer.FolderName}” too?"
+        : "";
+
+    public string LookAlikeDetail => LookAlikeOffer is not { } offer ? ""
+        : (offer.Books.Count == 1 ? "It" : "They") + (offer.Before.Count == 0
+            ? $" had no {offer.Field.Label.ToLower(CultureInfo.CurrentCulture)} either"
+            : $" show the {offer.Field.Label.ToLower(CultureInfo.CurrentCulture)} this book did")
+          + $", and you haven't set it on {(offer.Books.Count == 1 ? "it" : "them")}. Undo takes it all back.";
+
+    /// <summary>Raised by Change them, with the offer for the Library to apply as a bulk edit.</summary>
+    public event EventHandler<LookAlikeOffer>? LookAlikesAccepted;
+
+    [RelayCommand]
+    void AcceptLookAlikes()
+    {
+        if (LookAlikeOffer is not { } offer) return;
+        LookAlikeOffer = null;
+        LookAlikesAccepted?.Invoke(this, offer);
+    }
+
+    [RelayCommand]
+    void DeclineLookAlikes() => LookAlikeOffer = null;
+
+    /// <summary>A Get it from link: only an http or https address, and only once the user says yes.</summary>
+    void IMetadataEditor.OpenLink(string url)
+    {
+        if (StoreLink.WebAddress(url) is not { } address) return;
+        if (!WebLinks.AskAndOpen(address, out var failed) && failed is not null)
+            System.Windows.MessageBox.Show("Windows couldn't open that link.", "Open a web link", System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
     }
 
     public LibraryItemViewModel Item { get; }
@@ -237,7 +352,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
+    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
+        : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -286,7 +402,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers)
+        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
+        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -309,10 +426,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             locations = [.. (await library.GetLocationsAsync(item.DocumentId))
                 .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath,
                     IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online))];
-            copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
+            // An adventure inside a file is in the file's copies; its file's details list them.
+            if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections);
         await inspector.ReloadMetadataAsync(changed: false);
+        await inspector.LoadPartsAsync(parts, log);
         return inspector;
     }
 

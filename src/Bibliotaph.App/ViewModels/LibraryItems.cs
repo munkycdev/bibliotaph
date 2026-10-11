@@ -36,9 +36,28 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
     /// read" until its text is searchable, or why it won't be by itself (slice 4i plan, choices 3, 4 and 6). A pack a
-    /// search found by one of its images names that image (F4 plan, choice 8).
+    /// search found by one of its images names that image (F4 plan, choice 8). An adventure inside a file says which
+    /// file and pages; a file holding adventures says how many (slice 5 plan, choice 9).
     /// </summary>
-    public string Meta => Entry.MatchedMember ?? (Catalogued ?? Describe(Entry)) + TextNote;
+    public string Meta => Entry.MatchedMember ?? Entry.PartLine ?? (Catalogued ?? Describe(Entry)) + PartsNote + TextNote;
+
+    string PartsNote => PartsLabel.Length > 0 ? $" · {PartsLabel}" : "";
+
+    /// <summary>An adventure inside a file (slice 5): its card opens the file at its first page.</summary>
+    public bool IsPart => Entry.IsPart;
+
+    /// <summary>"5 adventures", for a file with adventures marked in it; empty otherwise.</summary>
+    public string PartsLabel => Entry.Parts > 0 ? Adventures(Entry.Parts) : "";
+
+    public static string Adventures(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "adventure" : "adventures")}";
+
+    /// <summary>
+    /// What opens the card when it isn't a pack: an adventure inside a file opens that file at the adventure's first
+    /// page (slice 5 plan, choice 11); any other book at the page it was left at.
+    /// </summary>
+    public ViewerRequest BookRequest() => Entry is { IsPart: true, Pages: { } pages }
+        ? PartOpen.Open(DocumentId, Title, EntryId, Entry.ParentTitle, pages)
+        : new ViewerRequest(DocumentId, Title) { Resume = true };
 
     string TextNote => IsElsewhere ? "" : Entry.TextAccess switch
     {
@@ -90,7 +109,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// The publisher, or the folders when there isn't one, under the title in the list; for a pack a search found by an
     /// image, that image's name.
     /// </summary>
-    public string Byline => Entry.MatchedMember ?? Entry.Publisher ?? Entry.FolderHint ?? "";
+    public string Byline => Entry.MatchedMember ?? Entry.PartLine ?? Entry.Publisher ?? Entry.FolderHint ?? "";
 
     /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack, "Print · Foundry VTT" for a book owned elsewhere.</summary>
     public string SizeLabel => IsPack ? ImagesLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
@@ -258,6 +277,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(CanOpenElsewhere));
         OnPropertyChanged(nameof(CanForgetText));
         OnPropertyChanged(nameof(CanReadAgain));
+        OnPropertyChanged(nameof(PartsLabel));
     }
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";

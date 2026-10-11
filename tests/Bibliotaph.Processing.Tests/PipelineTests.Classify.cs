@@ -3,9 +3,11 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host.Tests;
 using Dapper;
+using Microsoft.Data.Sqlite;
 
 namespace Bibliotaph.Processing.Tests;
 
@@ -111,6 +113,45 @@ public sealed partial class PipelineTests
         Assert.False(_service.IsOpen(Lane.Classify));
         Assert.Equal((1, 1, 0), (progress.Searchable, progress.ToClassify, progress.Classified));
         Assert.Empty(_model.Requests);
+    }
+
+    [Fact]
+    public async Task A_watermark_gives_its_store_and_its_buyer_and_order_reach_neither_the_catalog_nor_the_model()
+    {
+        Copy(pdfs.WatermarkedByStore, Path.Combine("Purchases", "Drowned Abbey.pdf"));
+        await _roots.AddAsync(_library, Ct);
+        await SwitchAiOnAsync();
+        await _service.StartAsync(Ct);
+
+        await SettleClassifyAsync();
+        var entryId = await OnlyEntryAsync();
+
+        // The store the watermark names is where to get it, read by a rule with nothing but the store's name.
+        var store = Assert.Single((await _metadataStore.GetAsync(entryId, Ct)).Compute()[MetadataFields.GetItFrom].Values);
+        Assert.Equal(("bundle-of-holding", AssertionOrigin.Rule), (store.Value, store.Origin));
+        Assert.Single(await new LibraryQueries(_index).SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("store:\"bundle of holding\"")),
+            new LibraryFilter(), ct: Ct));
+
+        // The model read the book, and none of the watermark.
+        var request = Assert.Single(_model.Requests);
+        Assert.Contains("bells still ring", request.User, StringComparison.Ordinal);
+        string[] secrets = [SyntheticPdfs.WatermarkBuyer, SyntheticPdfs.WatermarkOrder.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+        foreach (var secret in secrets)
+        {
+            Assert.DoesNotContain(secret, request.User, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(secret, request.System, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Nothing stored in the catalog holds the buyer or the order: no value, no quote.
+        await using var catalog = new SqliteConnection($"Data Source={_paths.CatalogDatabase};Mode=ReadOnly;Pooling=False");
+        var stored = await catalog.QueryAsync<(string Value, string? Quote)>("SELECT value_json, evidence_quote FROM assertion");
+        Assert.NotEmpty(stored);
+        foreach (var (value, quote) in stored)
+            foreach (var secret in secrets)
+            {
+                Assert.DoesNotContain(secret, value, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain(secret, quote ?? "", StringComparison.OrdinalIgnoreCase);
+            }
     }
 
     [Fact]

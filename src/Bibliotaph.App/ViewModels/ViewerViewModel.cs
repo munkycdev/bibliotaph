@@ -27,8 +27,13 @@ public enum ViewerMode
     Problem,
 }
 
-/// <summary>An open PDF for the page surface: its renderer, what the worker said about it, and where to start.</summary>
-public sealed record OpenPdf(PdfRenderer Renderer, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop);
+/// <summary>
+/// An open PDF for the page surface: its renderer, what the worker said about it, where to start, the page there if it
+/// was drawn ahead of time, and where its printed page numbers are (for links made from an index page's numbers),
+/// worked out the first time a page asks.
+/// </summary>
+public sealed record OpenPdf(PdfRenderer Renderer, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop,
+    PageSeed? Seed = null, Func<Task<PrintedPages>>? Numbering = null);
 
 /// <summary>The marks on the pages; the one at <see cref="Current"/> stands out.</summary>
 public sealed record HighlightSet(IReadOnlyList<PageHighlight> Items, int Current)
@@ -39,23 +44,29 @@ public sealed record HighlightSet(IReadOnlyList<PageHighlight> Items, int Curren
 /// <summary>A place to scroll to: a page, and with <see cref="PdfTop"/> a spot on it (PDF points from the bottom).</summary>
 public sealed record PageTarget(int PageIndex, double? PdfTop);
 
-/// <summary>A bookmark in the book's outline, with the page it goes to as the reader would name it.</summary>
+/// <summary>
+/// A bookmark in the book's outline, with the page it goes to as the reader would name it. <see cref="InPart"/> marks
+/// one inside the adventure being read (slice 5 plan, choice 11), which the Contents panel shades.
+/// </summary>
 public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string Page)
 {
     public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
+
+    public bool InPart { get; init; }
 }
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
-public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, IPasswordVault Vault,
+public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, AskService Ask, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
 /// and the first one in view; an image opens decoded at a capped size. Asks for a PDF's password and can remember
 /// it. Leaving the page closes the book; coming Back reopens it where the reader was. The same reader runs in the
-/// main window and in a pop-out window; it is given its request when it's made.
+/// main window and in a pop-out window; it is given its request when it's made. A binder has it open the next item's
+/// book ahead of time when that's another book (<see cref="PrepareAsync"/>), so moving to it is as quick as a page turn.
 /// </summary>
 public sealed partial class ViewerViewModel : PageViewModel
 {
@@ -66,6 +77,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     ViewerRequest? _request;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
+    readonly IndexQueries _index;
     readonly PdfWorkerPool _workers;
     readonly IPasswordVault _vault;
     readonly OtherApps _otherApps;
@@ -81,6 +93,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly ReadingService _reading;
     readonly SessionsService _sessions;
     readonly NotesService _notes;
+    readonly PartsService _parts;
+    readonly PagePlaces _places;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
@@ -95,18 +109,30 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>The open PDF's file, held so a file extracted from a ZIP stays while the book is open.</summary>
     LocalFile? _file;
     IReadOnlyList<string?> _labels = [];
+    /// <summary>The open PDF's bookmarks as it lists them, kept so a bookmark can be indexed as an adventure to the next one at its depth.</summary>
+    IReadOnlyList<(int Page, int Depth)> _bookmarks = [];
     PageTarget? _resume;
     int _version;
     IReadOnlyList<PageHighlight> _termHighlights = [];
     IReadOnlyList<PageHighlight> _findHits = [];
     string _foundText = "";
     int _findIndex = -1;
+    Standby? _standby;
+    (long DocumentId, Task Task)? _preparing;
+    int _standbyVersion;
+
+    /// <summary>A book opened ahead of time, with the page it will open at drawn once the view has drawn it.</summary>
+    sealed record Standby(long DocumentId, LocalFile File, PdfRenderer Renderer, DocInfo Doc, string? Password)
+    {
+        public Task<PageSeed?> Seed { get; set; } = Task.FromResult<PageSeed?>(null);
+    }
 
     public ViewerViewModel(ViewerRequest? request, ViewerServices services, ReaderWindows windows, bool poppedOut = false)
     {
         _request = request;
         _library = services.Library;
         _queries = services.Queries;
+        _index = services.Index;
         _workers = services.Workers;
         _vault = services.Vault;
         _otherApps = services.OtherApps;
@@ -123,8 +149,12 @@ public sealed partial class ViewerViewModel : PageViewModel
         _sessions = services.Sessions;
         Sessions = services.SessionActions();
         _notes = services.Notes;
+        _parts = services.Parts;
+        _places = services.Places;
         _log = services.Log;
         _windows = windows;
+        Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
+        ShowStrip = windows.ShowsStrip;
         IsPoppedOut = poppedOut;
         Zoom = request?.Zoom ?? PdfPagesView.FitWidth;
         _dispatcher = Dispatcher.CurrentDispatcher;
@@ -164,7 +194,9 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (Mode == ViewerMode.Pdf && _renderer is not null && _request is { Pack: null } open && open.DocumentId == request.DocumentId && request.Pack is null)
         {
             _request = request with { Zoom = Zoom };
+            MarkItemPages();
             OnPropertyChanged(nameof(Title));
+            ShowPart();
             Sessions.Close();
             ShowSessionBanner();
             // The pages are laid out again at the item's first page, on the renderer already open: as quick as a
@@ -172,14 +204,15 @@ public sealed partial class ViewerViewModel : PageViewModel
             var target = Math.Clamp(request.PageIndex, 0, Math.Max(0, PageCount - 1));
             CurrentPageIndex = target;
             OnCurrentPageIndexChanged(target);
-            if (Pdf is { } pdf && pdf with { PageIndex = target, PdfTop = null } is var again && again != pdf) Pdf = again;
+            if (Pdf is { } pdf && pdf with { PageIndex = target, PdfTop = null, Seed = null } is var again && again != pdf) Pdf = again;
             else GoTo(target, null);
             return;
         }
-        Unload();
+        CloseBook();
         _resume = null;
         _request = request;
         OnPropertyChanged(nameof(Title));
+        ShowPart();
         OnPropertyChanged(nameof(IsInPack));
         OnPropertyChanged(nameof(PackPosition));
         PreviousImageCommand.NotifyCanExecuteChanged();
@@ -187,26 +220,82 @@ public sealed partial class ViewerViewModel : PageViewModel
         await LoadAsync();
     }
 
-    /// <summary>Shows why nothing can open here, as for a binder item whose file can't be reached, with no Try again.</summary>
+    /// <summary>Shows why nothing can open here, as for a binder that has nothing in it yet, with no Try again.</summary>
     public void ShowUnavailable(string title, string message)
     {
-        Unload();
+        Close();
+        Problem(title, message, null, null);
+    }
+
+    /// <summary>
+    /// The "plug in the drive" prompt for a binder item whose file can't be reached: what to do, naming the folder, and
+    /// Try again (or Find it), which looks at the folder again and then runs <paramref name="retry"/>.
+    /// </summary>
+    public void ShowAway(AwayFile away, Func<Task> retry)
+    {
+        Close();
+        ShowAwayPrompt(away, retry);
+    }
+
+    /// <summary>Closes the book and forgets it, for a page that shows no book; a book opened ahead of time stays.</summary>
+    void Close()
+    {
+        CloseBook();
         _resume = null;
         _request = null;
         OnPropertyChanged(nameof(Title));
         Subtitle = "";
         SessionBanner = null;
         CanUsePage = false;
-        EmptyTitle = title;
-        EmptyMessage = message;
-        EmptyActionText = null;
-        EmptyCommand = null;
-        Mode = ViewerMode.Problem;
+    }
+
+    /// <summary>
+    /// Why the book can't be opened, and what to do (slice 4g's known limit): an offline folder is named, with its
+    /// drive, and Try again looks at it again and opens the book if it's back; a missing file says where it was last,
+    /// with Find it, which looks through every library folder, and Show last folder.
+    /// </summary>
+    void ShowAwayPrompt(AwayFile away, Func<Task> retry)
+    {
+        Problem(away.Title, away.Message, away.Action, new AsyncRelayCommand(() => LookAgainAsync(away, retry)));
+        if (away.CanShowFolder)
+        {
+            EmptySecondaryText = "Show last folder";
+            EmptySecondaryCommand = new RelayCommand(() => ShowNearestFolder(away.LastPath!));
+        }
+    }
+
+    /// <summary>How long Try again waits for its folders to be looked at before trying to open the book anyway.</summary>
+    static readonly TimeSpan LookAgainWait = TimeSpan.FromSeconds(30);
+
+    async Task LookAgainAsync(AwayFile away, Func<Task> retry)
+    {
+        var version = _version;
+        Mode = ViewerMode.Opening;
+        try
+        {
+            using var wait = new CancellationTokenSource(LookAgainWait);
+            await _indexing.ScanNowAsync(away.FoldersToLook, wait.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _log.LogInformation("Looking at a book's folders again took longer than {Wait}; trying to open it anyway", LookAgainWait);
+        }
+        if (version != _version || _windowClosed) return;
+        await retry();
+    }
+
+    /// <summary>File Explorer at the folder a missing file was last in, or the nearest one above it still there.</summary>
+    static void ShowNearestFolder(string path)
+    {
+        var folder = System.IO.Path.GetDirectoryName(path);
+        while (folder is not null && !System.IO.Directory.Exists(folder)) folder = System.IO.Path.GetDirectoryName(folder);
+        if (folder is not null) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
     }
 
     public override Route Route => Route.Viewer;
 
-    public override string Title => _request?.Title ?? "Reader";
+    /// <summary>The book's title; for an adventure inside a file, its own and the file's (slice 5 plan, choice 11).</summary>
+    public override string Title => _request is { Part: { } part } request ? $"{request.Title} · in {part.FileTitle}" : _request?.Title ?? "Reader";
 
     /// <summary>True for an image opened from a pack: Previous and Next step through its images.</summary>
     public bool IsInPack => _request?.Pack is { Count: > 0 };
@@ -254,8 +343,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     public event EventHandler<PageTarget>? GoToRequested;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible))]
-    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand))]
+    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible), nameof(StripVisible))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -282,6 +371,13 @@ public sealed partial class ViewerViewModel : PageViewModel
     [ObservableProperty]
     public partial IRelayCommand? EmptyCommand { get; private set; }
 
+    /// <summary>A second, quieter way out of a problem, as Show last folder for a missing file.</summary>
+    [ObservableProperty]
+    public partial string? EmptySecondaryText { get; private set; }
+
+    [ObservableProperty]
+    public partial IRelayCommand? EmptySecondaryCommand { get; private set; }
+
     [ObservableProperty]
     public partial OpenPdf? Pdf { get; private set; }
 
@@ -304,6 +400,30 @@ public sealed partial class ViewerViewModel : PageViewModel
     public partial bool ShowOutline { get; set; }
 
     public bool OutlineVisible => ShowOutline && HasOutline && IsPdf;
+
+    /// <summary>The thumbnail strip under the pages: a picture of every page, to see where notes are and to go to a page.</summary>
+    public PageStripViewModel Strip { get; }
+
+    /// <summary>Whether the reader wants the thumbnail strip; hidden at launch, then as the last reader left it (see <see cref="ReaderWindows.ShowsStrip"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StripVisible), nameof(StripAction))]
+    public partial bool ShowStrip { get; set; }
+
+    partial void OnShowStripChanged(bool value) => _windows.ShowsStrip = value;
+
+    public bool StripVisible => ShowStrip && IsPdf;
+
+    public string StripAction => ShowStrip ? "Hide page thumbnails" : "Show page thumbnails";
+
+    [RelayCommand]
+    void ToggleStrip() => ShowStrip = !ShowStrip;
+
+    /// <summary>Marks the pages of the binder item being read in the strip; none for a whole book or an ordinary read.</summary>
+    void MarkItemPages()
+    {
+        var item = _request?.SessionItem is { WholeBook: false } open ? open : null;
+        Strip.SetItemPages(item?.FirstPage, item?.LastPage);
+    }
 
     /// <summary>False when the PDF forbids copying its text; selection still works, Copy explains.</summary>
     [ObservableProperty]
@@ -357,6 +477,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     partial void OnCurrentPageIndexChanged(int value)
     {
         PageEntry = PageNumbers.Display(value, _labels);
+        OnPropertyChanged(nameof(PartPosition));
+        Strip.SetCurrent(value);
         if (Mode == ViewerMode.Pdf && KeepsPlace)
         {
             _placeTimer.Stop();
@@ -374,6 +496,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_windowClosed) return;
         _pins.Changed -= OnPinsChanged;
         _pins.Changed += OnPinsChanged;
+        _sessions.Changed -= OnSessionsChanged;
+        if (request.SessionItem is not null && !InBinder) _sessions.Changed += OnSessionsChanged;
         var version = ++_version;
         // Stepping through a pack keeps the image in view until the next one is ready.
         if (!(IsInPack && Mode == ViewerMode.Image)) Mode = ViewerMode.Opening;
@@ -383,14 +507,16 @@ public sealed partial class ViewerViewModel : PageViewModel
             if (version != _version) return;
             if (_source is null)
             {
-                Problem("This book can't be reached right now.",
-                    "Its folder is offline or the file has moved. Bibliotaph finds it again when the folder is back.");
+                var away = await _places.AwayAsync(request.DocumentId);
+                if (version == _version) ShowAwayPrompt(away, LoadAsync);
                 return;
             }
             Subtitle = DescribeSource(_source, null);
             _ = PrioritizeAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
             else await OpenPdfAsync(_source, request, version);
+            // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
+            if (version == _version && request.SessionItem is not null && !InBinder) await FollowSessionItemAsync();
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
         {
@@ -405,8 +531,15 @@ public sealed partial class ViewerViewModel : PageViewModel
         }
     }
 
-    /// <summary>Closes the book, remembering the page in view so Back reopens it there.</summary>
+    /// <summary>Closes the book, remembering the page in view so Back reopens it there, and any book opened ahead of time.</summary>
     public override void Unload()
+    {
+        DropStandby();
+        CloseBook();
+    }
+
+    /// <summary>Closes the book, remembering the page in view so Back reopens it there; a book opened ahead of time stays.</summary>
+    void CloseBook()
     {
         _version++;
         if (Mode == ViewerMode.Pdf)
@@ -418,10 +551,12 @@ public sealed partial class ViewerViewModel : PageViewModel
         _noticeTimer.Stop();
         Sessions.Close();
         NoteDialog?.CancelCommand.Execute(null);
+        PartEditor?.CancelCommand.Execute(null);
         NoteMessage = null;
         NoteUndo = null;
         _notes.PageNotesChanged -= OnPageNotesChanged;
         _pins.Changed -= OnPinsChanged;
+        _sessions.Changed -= OnSessionsChanged;
         Ask.Detach();
         PageNotes.Clear();
         HasPageNotes = false;
@@ -433,12 +568,85 @@ public sealed partial class ViewerViewModel : PageViewModel
         _foundText = "";
         FindStatus = "";
         Highlights = HighlightSet.None;
+        Strip.Clear();
         if (_renderer is { } renderer)
         {
             _renderer = null;
-            _closing = CloseAsync(renderer, _file);
+            _closing = Task.WhenAll(_closing, CloseAsync(renderer, _file));
             _file = null;
         }
+    }
+
+    /// <summary>
+    /// Opens a book ahead of time and draws the page it will open at, so that showing it next (<see cref="ShowAsync"/>)
+    /// is as quick as turning a page: a binder's next item, when it's in another book. One is kept at a time, on this
+    /// reader's viewer worker. A password is never asked for here, only one that opened the book before is tried, and
+    /// anything that goes wrong just means the book opens the usual way when it's shown.
+    /// </summary>
+    public Task PrepareAsync(ViewerRequest request)
+    {
+        if (_standby?.DocumentId == request.DocumentId) return Task.CompletedTask;
+        if (_preparing is { Task.IsCompleted: false } preparing && preparing.DocumentId == request.DocumentId) return preparing.Task;
+        DropStandby();
+        var task = PrepareCoreAsync(request, _standbyVersion);
+        _preparing = (request.DocumentId, task);
+        return task;
+    }
+
+    async Task PrepareCoreAsync(ViewerRequest request, int version)
+    {
+        LocalFile? file = null;
+        PdfRenderer? renderer = null;
+        try
+        {
+            if (_windowClosed) return;
+            var source = await _library.GetSourceAsync(request.DocumentId);
+            if (source is null || SourceFormats.IsImage(source.Format) || version != _standbyVersion) return;
+            file = await _sources.OpenAsync(source);
+            renderer = new PdfRenderer(Worker(), _dispatcher);
+            var password = _unlocked.Find(source.ContentHash) ?? _vault.Find(source.ContentHash);
+            var doc = await renderer.OpenAsync(file.Path, password);
+            if (version != _standbyVersion || _windowClosed || doc.PageCount == 0) return;
+            var standby = new Standby(request.DocumentId, file, renderer, doc, password);
+            (file, renderer) = (null, null);
+            _standby = standby;
+            // The view draws the page at the size it would show it now, after the pages on screen.
+            if (DrawAhead is { } draw) standby.Seed = draw(standby.Renderer, doc, Math.Clamp(request.PageIndex, 0, doc.PageCount - 1));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Locked, gone, or not a readable PDF: it opens the usual way when it's shown, and says why there.
+            _log.LogDebug(ex, "Opening document {DocumentId} ahead of time failed", request.DocumentId);
+        }
+        finally
+        {
+            if (renderer is not null) await CloseAsync(renderer, file);
+            else file?.Dispose();
+        }
+    }
+
+    /// <summary>The book opened ahead of time, once the page it opens at is drawn too: showing it next is a page turn.</summary>
+    public long? ReadyAhead => _standby is { Seed: { IsCompletedSuccessfully: true, Result: not null } } standby ? standby.DocumentId : null;
+
+    /// <summary>Set by the view: draws a page of a book opened ahead of time at the size the pages show at now.</summary>
+    public Func<PdfRenderer, DocInfo, int, Task<PageSeed?>>? DrawAhead { get; set; }
+
+    /// <summary>Closes the book opened ahead of time, if there is one, as when the next item changes or the binder closes.</summary>
+    public void DropStandby()
+    {
+        _standbyVersion++;
+        _preparing = null;
+        if (_standby is not { } standby) return;
+        _standby = null;
+        _closing = Task.WhenAll(_closing, CloseAsync(standby.Renderer, standby.File));
+    }
+
+    /// <summary>The book opened ahead of time, if it's this one; it's this reader's from now on.</summary>
+    Standby? TakeStandby(long documentId)
+    {
+        if (_standby is not { } standby || standby.DocumentId != documentId) return null;
+        _standby = null;
+        return standby;
     }
 
     /// <summary>
@@ -449,7 +657,9 @@ public sealed partial class ViewerViewModel : PageViewModel
     {
         // A load still running stops at its next step rather than leasing a worker nobody would give back.
         _windowClosed = true;
+        var preparing = _preparing?.Task;
         Unload();
+        if (preparing is not null) await preparing;
         await _closing;
         if (_lease is { } lease)
         {
@@ -670,6 +880,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (request.SessionItem is { } used)
         {
             _request = request with { SessionItem = used with { State = SessionItemState.Ready, Reason = null, FirstPage = first, LastPage = last } };
+            MarkItemPages();
             Sessions.Say($"Saved. In {used.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
         }
         else
@@ -677,6 +888,56 @@ public sealed partial class ViewerViewModel : PageViewModel
             _request = request with { PageNote = request.PageNote! with { State = PagePlaceState.Ready, Reason = null, FirstPage = first, LastPage = last } };
             SayNote($"Saved. The note is now on page {PageNumbers.Display(first, _labels)}.", null);
         }
+    }
+
+    /// <summary>
+    /// The binder item open here was moved, as by Use this page on a Needs review card or its Undo (slice 4h's known
+    /// limit): while it is still in the open file, the banner and Use this page follow it and the reader stays on its
+    /// page; in another file, it opens there.
+    /// </summary>
+    public async Task FollowAsync(ViewerRequest moved)
+    {
+        if (_request is { } open && open.DocumentId == moved.DocumentId && Mode is ViewerMode.Pdf or ViewerMode.Image) ShowPlace(moved);
+        else await ShowAsync(moved);
+    }
+
+    /// <summary>The session item's or page note's new place in the open file: its banner and Use this page, without moving the reader.</summary>
+    void ShowPlace(ViewerRequest moved)
+    {
+        if (_request is not { } open || (open.SessionItem == moved.SessionItem && open.PageNote == moved.PageNote)) return;
+        _request = open with { SessionItem = moved.SessionItem, PageNote = moved.PageNote };
+        ShowSessionBanner();
+    }
+
+    void OnSessionsChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(FollowSessionItemAsync);
+
+    /// <summary>
+    /// The session item open here, outside a binder (whose list does this itself), where it opens now: its banner
+    /// follows it while it is in the open file. Opening it in another file is left to the next time it's opened, so a
+    /// reader Needs review opened at a suggested page isn't taken back to the file the pages were added from.
+    /// </summary>
+    async Task FollowSessionItemAsync()
+    {
+        if (InBinder || _request is not { SessionItem: { } item } request) return;
+        var version = _version;
+        try
+        {
+            var target = await Task.Run(() => _sessions.ResolveItemAsync(item.ItemId));
+            if (version != _version || !ReferenceEquals(_request, request) || target is not { DocumentId: { } documentId } || documentId != request.DocumentId) return;
+            ShowPlace(request with { SessionItem = item with { State = target.State, Reason = target.Reason, FirstPage = target.FirstPage, LastPage = target.LastPage } });
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogWarning(ex, "Following session item {ItemId} failed", item.ItemId);
+        }
+    }
+
+    /// <summary>As <see cref="FollowSessionItemAsync"/>, for the page note open here, once the book's notes have been read again.</summary>
+    void FollowPageNote()
+    {
+        if (_request is not { PageNote: { } note } request || PageNotes.FirstOrDefault(r => r.Id == note.NoteId)?.Place is not { } place
+            || place.DocumentId != request.DocumentId) return;
+        ShowPlace(request with { PageNote = note with { State = place.State, Reason = place.Reason, FirstPage = place.FirstPage, LastPage = place.LastPage } });
     }
 
     [RelayCommand]
@@ -835,8 +1096,8 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     /// <summary>
     /// A note in the panel: the reader goes to its first page, where it was found in this copy (slice 4h plan, choice
-    /// 2). One whose page changed says so, with Use this page. A note made in another copy that wasn't looked for here
-    /// goes to the same page number.
+    /// 2). One whose page changed says so, with Use this page. A note made in another copy goes to the page found for it
+    /// here by fingerprint or printed page number; one not found goes to the same page, saying it may differ.
     /// </summary>
     [RelayCommand]
     void GoToNote(PageNoteRow row)
@@ -849,7 +1110,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             _request = request with { PageNote = new PageNoteOpen(row.Id, place.State, place.Reason, first, last) };
             ShowSessionBanner();
         }
-        else if (row.Note.Range.DocumentId != request.DocumentId && row.Place?.DocumentId != request.DocumentId)
+        else if (!row.IsFound || row.Shown.DocumentId != request.DocumentId)
         {
             ShowNotice("This note was made in another copy of the book, so its page may be a little different here.");
         }
@@ -877,6 +1138,107 @@ public sealed partial class ViewerViewModel : PageViewModel
     {
         NoteMessage = null;
         NoteUndo = null;
+    }
+
+    // Adventures inside the file (slice 5).
+
+    /// <summary>The open file was opened from an adventure's card, so its pages stand out and Find looks in them.</summary>
+    public bool IsPart => _request?.Part is not null;
+
+    /// <summary>"page 3 of 19 of this adventure", or that the page in view is outside it (slice 5 plan, choice 11).</summary>
+    public string PartPosition
+    {
+        get
+        {
+            if (_request?.Part is not { } part || Mode != ViewerMode.Pdf) return "";
+            if (!part.Pages.Contains(CurrentPageIndex)) return "outside this adventure";
+            var at = (CurrentPageIndex - part.Pages.First + 1).ToString("N0", CultureInfo.CurrentCulture);
+            return $"page {at} of {part.Pages.Count.ToString("N0", CultureInfo.CurrentCulture)} of this adventure";
+        }
+    }
+
+    /// <summary>Find looks in the whole file rather than the adventure's pages.</summary>
+    [ObservableProperty]
+    public partial bool FindWholeFile { get; set; }
+
+    partial void OnFindWholeFileChanged(bool value)
+    {
+        _foundText = "";
+        if (FindText.Trim().Length > 0) FindCommand.Execute(null);
+    }
+
+    /// <summary>The pages Find looks in: the adventure's, unless the reader asked for the whole file.</summary>
+    PartPages? FindScope => FindWholeFile ? null : _request?.Part?.Pages;
+
+    /// <summary>Marking pages as an adventure, or the bookmark being indexed as one, over the pages.</summary>
+    [ObservableProperty]
+    public partial PartEditorViewModel? PartEditor { get; private set; }
+
+    void ShowPart()
+    {
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(IsPart));
+        OnPropertyChanged(nameof(PartPosition));
+        if (FindWholeFile) FindWholeFile = false;
+        // Opened again on the same file as another adventure, or as the whole file: the shading follows.
+        var pages = _request?.Part?.Pages;
+        if (Outline.Any(o => o.InPart != (pages?.Contains(o.PageIndex) == true)))
+            Outline = [.. Outline.Select(o => o with { InPart = pages?.Contains(o.PageIndex) == true })];
+    }
+
+    bool CanMarkPages() => Mode == ViewerMode.Pdf;
+
+    /// <summary>Mark as adventure (slice 5 plan, choice 4): the page in view to start with, widened in the editor.</summary>
+    [RelayCommand(CanExecute = nameof(CanMarkPages))]
+    void MarkPages()
+    {
+        var page = PageNumbers.Display(CurrentPageIndex, _labels);
+        OpenPartEditor("Mark pages as an adventure", "", page, "");
+    }
+
+    /// <summary>
+    /// A bookmark's Index as its own adventure (slice 5 plan, choice 4): its pages run to the next bookmark at the same
+    /// depth, or the end of the file, and its title is the bookmark's, all of which the editor can change.
+    /// </summary>
+    [RelayCommand]
+    void IndexBookmark(OutlineEntry? entry)
+    {
+        if (entry is null || Mode != ViewerMode.Pdf) return;
+        var index = -1;
+        for (var i = 0; i < _bookmarks.Count; i++)
+        {
+            if (_bookmarks[i].Page != entry.PageIndex || Math.Min(_bookmarks[i].Depth, 5) != entry.Depth) continue;
+            index = i;
+            break;
+        }
+        var pages = index < 0 ? new PartPages(entry.PageIndex, entry.PageIndex) : PartRanges.FromBookmark(_bookmarks, index, PageCount);
+        var (from, to) = (PageNumbers.Display(pages.First, _labels), pages.Count == 1 ? "" : PageNumbers.Display(pages.Last, _labels));
+        OpenPartEditor("Index as its own adventure", entry.Title, from, to);
+    }
+
+    void OpenPartEditor(string heading, string title, string from, string to)
+    {
+        if (_request is not { } request) return;
+        PartEditor?.CancelCommand.Execute(null);
+        var editor = new PartEditorViewModel(heading, "Make its card", title, from, to, FindPage, async (name, pages) =>
+        {
+            try
+            {
+                var added = await Task.Run(() => _parts.AddAsync(request.DocumentId, pages, name));
+                if (added.Problem is null) ShowNotice($"“{name}” has a card of its own in the Library now.");
+                return added.Problem;
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Marking pages of document {DocumentId} as an adventure failed", request.DocumentId);
+                return "That didn't work. The log has the details.";
+            }
+        });
+        editor.Closed += (_, _) =>
+        {
+            if (PartEditor == editor) PartEditor = null;
+        };
+        PartEditor = editor;
     }
 
     int? FindPage(string text) => PageNumbers.Find(text, _labels, PageCount);
@@ -919,14 +1281,17 @@ public sealed partial class ViewerViewModel : PageViewModel
             var (entry, notes, places) = await Task.Run(async () =>
             {
                 var notes = await _notes.GetPageNotesForDocumentAsync(documentId);
-                return (await _notes.GetEntryAsync(documentId), notes, await _notes.ResolveAsync(notes));
+                return (await _notes.GetEntryAsync(documentId), notes, await _notes.ListAsync(notes, documentId));
             });
             if (version != _version) return;
             _notesEntry = entry;
             PageNotes.Clear();
             foreach (var note in notes) PageNotes.Add(new PageNoteRow(note, places.GetValueOrDefault(note.Id)));
             HasPageNotes = PageNotes.Count > 0;
+            // The strip's badges sit where Go to takes each note in this copy.
+            Strip.SetNotes(PageNotes.Select(n => n.PagesIn(documentId)));
             OnPropertyChanged(nameof(NotesLabel));
+            FollowPageNote();
         }
         catch (Exception ex)
         {
@@ -964,11 +1329,17 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     async Task OpenPdfAsync(DocumentSource source, ViewerRequest request, int version)
     {
-        var file = await _sources.OpenAsync(source);
-        var renderer = new PdfRenderer(Worker(), _dispatcher);
+        // A book opened ahead of time (a binder's next item) is taken as it is: no second open, and its page drawn.
+        if (_preparing is { } preparing && preparing.DocumentId == request.DocumentId) await preparing.Task;
+        if (version != _version) return;
+        var ready = TakeStandby(request.DocumentId);
+        var file = ready?.File ?? await _sources.OpenAsync(source);
+        var renderer = ready?.Renderer ?? new PdfRenderer(Worker(), _dispatcher);
         try
         {
-            var (doc, password, entered) = await OpenWithPasswordAsync(renderer, source, file.Path, version);
+            var (doc, password, entered) = ready is not null
+                ? (ready.Doc, ready.Password, null)
+                : await OpenWithPasswordAsync(renderer, source, file.Path, version);
             if (doc is null || version != _version)
             {
                 await renderer.DisposeAsync();
@@ -987,10 +1358,15 @@ public sealed partial class ViewerViewModel : PageViewModel
             _file = file;
             _labels = doc.PageLabels;
             LinkBackPage = null;
+            _bookmarks = [.. doc.Outline.Select(o => (o.PageIndex, o.Depth))];
             Outline = [.. doc.Outline
                 .Where(o => o.PageIndex >= 0 && o.PageIndex < doc.PageCount && !string.IsNullOrWhiteSpace(o.Title))
-                .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels)))];
+                .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels))
+                {
+                    InPart = request.Part?.Pages.Contains(o.PageIndex) == true,
+                })];
             PageCount = doc.PageCount;
+            ShowPart();
             CanCopy = doc.CanCopy;
             Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
 
@@ -1002,9 +1378,17 @@ public sealed partial class ViewerViewModel : PageViewModel
             if (version != _version) return;
             // From a search hit, the first marked word is brought into view; coming Back, the page as it was left.
             var top = _resume is null && _termHighlights is [{ Rects: [var first, ..] }, ..] ? first.Top : (double?)null;
+            // A book whose text was forgotten keeps its thumbnails in memory only, as it has no cover on disk.
+            var forgotten = await _library.IsTextForgottenAsync(source.DocumentId);
+            if (version != _version) return;
             CurrentPageIndex = start;
             OnCurrentPageIndexChanged(start);
-            Pdf = new OpenPdf(renderer, doc, TextAsync, start, top);
+            var seed = ready?.Seed is { IsCompletedSuccessfully: true, Result: { } drawn } && drawn.PageIndex == start && top is null ? drawn : null;
+            var documentId = source.DocumentId;
+            var printed = new Lazy<Task<PrintedPages>>(() => PrintedPagesAsync(documentId, doc));
+            Pdf = new OpenPdf(renderer, doc, TextAsync, start, top, seed, () => printed.Value);
+            Strip.Show(renderer, source.ContentHash, doc, keepOnDisk: !forgotten, start);
+            MarkItemPages();
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
             Ask.Attach(source.DocumentId);
@@ -1112,6 +1496,18 @@ public sealed partial class ViewerViewModel : PageViewModel
         return [.. found.Where(h => h.Rects.Count > 0).OrderByDescending(h => h.Rects[0].Top).ThenBy(h => h.Rects[0].Left)];
     }
 
+    /// <summary>
+    /// Where the book's printed page numbers are: its page labels, or failing those the numbers printed at the top or
+    /// foot of its pages in the indexed text. Neither means none are guessed at (<see cref="PrintedPages"/>).
+    /// </summary>
+    Task<PrintedPages> PrintedPagesAsync(long documentId, DocInfo doc)
+    {
+        var labelled = PrintedPages.FromLabels(doc.PageLabels, doc.PageCount);
+        if (labelled.IsKnown) return Task.FromResult(labelled);
+        // Every page's text is read and looked through, so off the UI thread.
+        return Task.Run(async () => PrintedPages.FromFolios((await _index.GetPageTextsAsync(documentId)).Select(t => (t.PdfPage, t.Text)), doc.PageCount));
+    }
+
     /// <summary>A page's selectable text: the PDF's own, or the words OCR read from a scanned page.</summary>
     async Task<PageTextLayer> TextAsync(int pageIndex)
     {
@@ -1174,7 +1570,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_findHits.Count == 0)
         {
             _findIndex = -1;
-            FindStatus = "No matches";
+            FindStatus = FindScope is null ? "No matches" : "No matches in this adventure";
             Highlights = new HighlightSet(_termHighlights, -1);
             return;
         }
@@ -1202,6 +1598,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         try
         {
             hits = await renderer.FindAsync(text, -1, MaxFindHits);
+            // Reading an adventure inside a file, Find looks in its pages unless told otherwise (slice 5 plan, choice 11).
+            if (FindScope is { } scope) hits = [.. hits.Where(h => scope.Contains(h.PageIndex))];
         }
         catch (Exception ex) when (ex is WorkerException or InvalidOperationException)
         {
@@ -1295,20 +1693,9 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     void OpenWebLink(string uri)
     {
-        var owner = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>().FirstOrDefault(w => w.IsActive)
-            ?? System.Windows.Application.Current.MainWindow;
-        var answer = System.Windows.MessageBox.Show(owner, $"This link goes to a web page:\n\n{uri}\n\nOpen it in your browser?", "Open a web link?",
-            System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.Cancel);
-        if (answer != System.Windows.MessageBoxResult.OK) return;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            _log.LogWarning(ex, "Opening a web link failed");
-            ShowNotice("Windows couldn't open that link.");
-        }
+        if (WebLinks.AskAndOpen(uri, out var failed) || failed is null) return;
+        _log.LogWarning(failed, "Opening a web link failed");
+        ShowNotice("Windows couldn't open that link.");
     }
 
     public void ShowNotice(string text)
@@ -1318,12 +1705,14 @@ public sealed partial class ViewerViewModel : PageViewModel
         _noticeTimer.Start();
     }
 
-    void Problem(string title, string message, string action = "Try again", IRelayCommand? command = null)
+    void Problem(string title, string message, string? action = "Try again", IRelayCommand? command = null)
     {
         EmptyTitle = title;
         EmptyMessage = message;
         EmptyActionText = action;
-        EmptyCommand = command ?? RetryCommand;
+        EmptyCommand = action is null ? null : command ?? RetryCommand;
+        EmptySecondaryText = null;
+        EmptySecondaryCommand = null;
         Mode = ViewerMode.Problem;
     }
 

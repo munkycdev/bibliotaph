@@ -61,7 +61,8 @@ public sealed record StageServices(
     CoverCache Covers,
     IPasswordStore Passwords,
     SourceFiles Sources,
-    MetadataProjector Projector);
+    MetadataProjector Projector,
+    PartStore? Parts = null);
 
 public interface IStage
 {
@@ -186,6 +187,29 @@ static class StageHelpers
         return (null, OpenFailure(error));
     }
 
+    /// <summary>A page drawn at cover size, as a JPEG, or null when it couldn't be drawn.</summary>
+    public static async Task<byte[]?> DrawCoverAsync(StageServices s, PdfSession session, int page, CancellationToken ct)
+    {
+        var size = session.Doc.PageSizes[page];
+        var scale = Math.Min(4.0, CoverCache.Width / Math.Max(1, size.Width));
+        var (response, pixels) = await session.RenderAsync(new Request { PageIndex = page, Scale = scale }, ct);
+        return response.Ok && pixels is not null
+            ? s.Images.EncodeJpeg(pixels, response.Render!.Width, response.Render.Height, response.Render.Stride)
+            : null;
+    }
+
+    /// <summary>
+    /// The covers of adventures inside a file (slice 5 plan, choice 9): each of <paramref name="pages"/> drawn and kept
+    /// as that page's cover. The first page is the file's own cover, which they share.
+    /// </summary>
+    public static async Task DrawPartCoversAsync(StageServices s, PdfSession session, long documentId, string contentHash, IReadOnlyCollection<int> pages,
+        CancellationToken ct)
+    {
+        foreach (var page in pages.Distinct().Where(p => p > 0 && p < session.Doc.PageCount))
+            if (await DrawCoverAsync(s, session, page, ct) is { } jpeg)
+                await s.Index.SetPageCoverAsync(documentId, page, s.Covers.Write(CoverCache.PageKey(contentHash, page), jpeg), ct);
+    }
+
     public static StageOutcome OpenFailure(Response error) => error.Error switch
     {
         ErrorKind.Password => new StageOutcome.Blocked(TextAccessReasons.Locked),
@@ -255,6 +279,8 @@ public sealed class ProbeStage(StageServices s) : IStage
                 MetaAuthor = doc.Metadata.Author,
                 MetaSubject = doc.Metadata.Subject,
                 MetaKeywords = doc.Metadata.Keywords,
+                // Kept for the store it may name; one that reads like a watermark (a buyer, an order number) isn't kept.
+                MetaProducer = doc.Metadata.Producer is { } producer && !Watermarks.ReadsLikeOne(producer) ? producer : null,
             },
             [.. doc.PageSizes.Select((size, i) => new PageRow(i, doc.PageLabels.ElementAtOrDefault(i), size.Width, size.Height))],
             [.. doc.Outline.Select(o => new OutlineRow(o.Title, o.PageIndex, o.Depth))], ct);
@@ -405,12 +431,11 @@ public sealed class CoversStage(StageServices s) : IStage
             await using (session)
             {
                 if (session.Doc.PageCount == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "The PDF has no pages.");
-                var size = session.Doc.PageSizes[0];
-                var scale = Math.Min(4.0, CoverCache.Width / Math.Max(1, size.Width));
-                var (response, pixels) = await session.RenderAsync(new Request { PageIndex = 0, Scale = scale }, ct);
-                jpeg = response.Ok && pixels is not null
-                    ? s.Images.EncodeJpeg(pixels, response.Render!.Width, response.Render.Height, response.Render.Stride)
-                    : null;
+                jpeg = await StageHelpers.DrawCoverAsync(s, session, 0, ct);
+                // The adventures marked in the file have their first pages as covers (slice 5 plan, choice 9).
+                if (s.Parts is not null)
+                    await StageHelpers.DrawPartCoversAsync(s, session, job.DocumentId, job.ContentHash,
+                        [.. (await s.Parts.GetPagesInAsync(job.DocumentId, ct)).Select(p => p.Pages.First)], ct);
             }
         }
 

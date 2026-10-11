@@ -33,6 +33,12 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
     bool _watchingMain;
     ReaderWindow? _lastActive;
 
+    /// <summary>
+    /// Whether readers show the thumbnail strip: hidden at launch, then as the reader last left it, for every reader
+    /// opened after in this sitting. Not saved, like the Contents and Notes panels.
+    /// </summary>
+    public bool ShowsStrip { get; set; }
+
     /// <summary>The pop-outs open now, oldest first.</summary>
     public IReadOnlyList<ReaderWindow> Windows => _windows;
 

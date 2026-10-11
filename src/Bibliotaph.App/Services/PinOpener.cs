@@ -5,8 +5,9 @@ using Bibliotaph.Index;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Opens a pin, from the sidebar or Home (Pinned Views plan, choice 6): a book where it was left, or its details while
-/// its file can't be opened; Favorites, a collection or a saved search in the Library; a binder in its reader.
+/// Opens a pin, from the sidebar or Home (Pinned Views plan, choice 6): a book where it was left, or its details when
+/// it has no file (owned elsewhere); Favorites, a collection or a saved search in the Library; a binder in its reader.
+/// A book whose folder is offline or whose file has gone opens to the reader's prompt, which says what to do.
 /// </summary>
 public sealed class PinOpener(LibraryPages library, SessionPages binders, ReaderWindows readers, CollectionDirectory collections, SmartViewDirectory views,
     LibraryQueries queries)
@@ -29,7 +30,7 @@ public sealed class PinOpener(LibraryPages library, SessionPages binders, Reader
                 library.OpenView(view);
                 break;
             case PinKind.Entry when item.Book is { } book:
-                if (book.IsAway || !book.CanOpen) library.ShowDetails(book.EntryId);
+                if (!book.CanOpen) library.ShowDetails(book.EntryId);
                 else if (await RequestAsync(book) is { } request) readers.OpenInMainWindow(request);
                 break;
         }
@@ -37,7 +38,7 @@ public sealed class PinOpener(LibraryPages library, SessionPages binders, Reader
 
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel book)
     {
-        if (!book.IsPack) return new ViewerRequest(book.DocumentId, book.Title) { Resume = true };
+        if (!book.IsPack) return book.BookRequest();
         var images = await Task.Run(() => queries.GetPackImagesAsync(book.EntryId));
         if (images.Count == 0) return null;
         var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
