@@ -70,6 +70,7 @@ public partial class OnlineBrowserWindow
         }
 
         var core = Web.CoreWebView2;
+        State.CanSave = true;
         core.NavigationStarting += (_, e) =>
         {
             _checks++;
@@ -137,6 +138,44 @@ public partial class OnlineBrowserWindow
         finally
         {
             State.CanRead = _page is not null;
+        }
+    }
+
+    async void Save_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save this page",
+            FileName = $"{_reader.Name} page.html",
+            DefaultExt = ".html",
+            Filter = "Web page (*.html)|*.html",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        State.Status = await SavePageAsync(dialog.FileName);
+    }
+
+    /// <summary>
+    /// Saves the page in view to <paramref name="path"/> as it shows now (Save page), and says what happened. It holds
+    /// whatever the page showed the user, so the line says to share it with care.
+    /// </summary>
+    internal async Task<string> SavePageAsync(string path)
+    {
+        if (Web.CoreWebView2 is not { } core) return "There is no page to save yet.";
+        State.CanSave = false;
+        try
+        {
+            var html = JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync("document.documentElement.outerHTML")) ?? "";
+            await SavedPages.SaveAsync(path, html);
+            return $"Saved the page as {Path.GetFileName(path)}. It holds what the page showed you while signed in, so share it only with people you trust.";
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or JsonException or IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning(ex, "Saving the in-app browser's page failed");
+            return $"The page couldn't be saved: {ex.Message}";
+        }
+        finally
+        {
+            State.CanSave = true;
         }
     }
 
@@ -238,6 +277,10 @@ public sealed partial class OnlineBrowserState(string serviceName) : ObservableO
 
     [ObservableProperty]
     public partial bool CanRead { get; set; }
+
+    /// <summary>True once the browser has started and while no page is being saved.</summary>
+    [ObservableProperty]
+    public partial bool CanSave { get; set; }
 
     [ObservableProperty]
     public partial bool CanGoBack { get; set; }

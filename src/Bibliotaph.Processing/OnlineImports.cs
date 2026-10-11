@@ -70,7 +70,7 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
 
     /// <summary>The services a library page can be read from, in the order the Online libraries page lists them.</summary>
     public IReadOnlyList<IOnlineLibraryReader> Readers { get; } =
-        [new DndBeyondReader(), StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild];
+        [new DndBeyondReader(), StoreOnlyLibrary.Demiplane, StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild];
 
     /// <summary>
     /// A library page saved with Save as, Webpage complete (choice 1's fallback), read by whichever reader recognises

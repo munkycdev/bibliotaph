@@ -75,13 +75,16 @@ public interface IOnlineLibraryReader
 }
 
 /// <summary>
-/// A store whose library page Bibliotaph can't read yet (online libraries, O5): its row on the Online libraries page opens
-/// the store in Bibliotaph's browser, where the user signs in and presses the store's own Download buttons, so the files
-/// land in the downloads folder. Each store gets a reader of its own (O4) once one is built against a real library page;
-/// until then <see cref="Read"/> recognises nothing. <see cref="Key"/> is the store's key in Get it from.
+/// A store or service whose library page Bibliotaph can't read yet (online libraries, O5): its row on the Online
+/// libraries page opens it in Bibliotaph's browser, where the user signs in and presses its own Download buttons, so the
+/// files land in the downloads folder, and Save page keeps a copy of a page. Each gets a reader of its own (O4) once one
+/// is built against a real library page; until then <see cref="Read"/> recognises nothing. <see cref="Key"/> is its term:
+/// in Also own for a service whose books are read there (Demiplane), in Get it from for a store.
 /// </summary>
 public sealed class StoreOnlyLibrary(string key, string name, string libraryPage) : IOnlineLibraryReader
 {
+    public static StoreOnlyLibrary Demiplane { get; } = new("demiplane", "Demiplane", "https://app.demiplane.com/");
+
     public static StoreOnlyLibrary HumbleBundle { get; } = new("bundle", "Humble Bundle", "https://www.humblebundle.com/home/library");
 
     public static StoreOnlyLibrary DriveThruRpg { get; } = new("drivethrurpg", "DriveThruRPG", "https://www.drivethrurpg.com/en/library");
@@ -217,4 +220,18 @@ public sealed partial class DndBeyondReader : IOnlineLibraryReader
 
     [GeneratedRegex("""self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)""", RegexOptions.CultureInvariant)]
     private static partial Regex Push();
+}
+
+/// <summary>
+/// A page from Bibliotaph's browser saved where the user chose (Save page), as the page showed it: the document as drawn,
+/// so a page built by script keeps what it showed. Nothing else on the page (images, scripts) is fetched or saved.
+/// </summary>
+public static class SavedPages
+{
+    public static async Task SaveAsync(string path, string html, CancellationToken ct = default)
+    {
+        var partial = path + ".partial";
+        await File.WriteAllTextAsync(partial, "<!DOCTYPE html>\n" + html, Encoding.UTF8, ct);
+        File.Move(partial, path, overwrite: true);
+    }
 }

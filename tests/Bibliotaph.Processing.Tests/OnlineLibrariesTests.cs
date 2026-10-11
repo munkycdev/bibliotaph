@@ -87,6 +87,26 @@ public sealed class OnlineLibrariesTests
         Assert.False(store.ReadsLibrary);
         Assert.Null(store.Read(File.ReadAllText(Fixture)));
         Assert.True(((IOnlineLibraryReader)new DndBeyondReader()).ReadsLibrary);
-        Assert.Equal(["bundle", "drivethrurpg", "dmsguild"], new[] { StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild }.Select(s => s.Key));
+        Assert.Equal(["demiplane", "bundle", "drivethrurpg", "dmsguild"], new[] { StoreOnlyLibrary.Demiplane, StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild }.Select(s => s.Key));
+    }
+
+    [Fact]
+    public async Task A_saved_page_replaces_the_file_chosen_and_leaves_nothing_beside_it()
+    {
+        var dir = Directory.CreateTempSubdirectory("bibliotaph-saved-page-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "Store page.html");
+            await File.WriteAllTextAsync(path, "an older copy");
+
+            await SavedPages.SaveAsync(path, "<html><body>Owned</body></html>");
+
+            Assert.Equal("<!DOCTYPE html>\n<html><body>Owned</body></html>", await File.ReadAllTextAsync(path));
+            Assert.Equal([path], Directory.GetFiles(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 }
