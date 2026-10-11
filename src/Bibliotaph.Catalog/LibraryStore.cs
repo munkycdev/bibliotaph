@@ -51,6 +51,13 @@ public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int U
     int Problems = 0, int OfflineFolders = 0);
 
 /// <summary>
+/// A file that reading downloaded and that goes back to online-only once nothing needs its content
+/// (<see cref="Entities.FileLocation.ReturnToOnlineOnly"/>). <see cref="DocumentIds"/> are the documents read from it:
+/// its own, or for a ZIP those of the files inside it.
+/// </summary>
+public sealed record OnlineOnlyReturn(long LocationId, string FullPath, long SizeBytes, IReadOnlyList<long> DocumentIds);
+
+/// <summary>
 /// One place a document's file is, for the inspector. A file inside a ZIP has the ZIP's path as <see cref="ArchivePath"/>.
 /// <see cref="RootId"/> and <see cref="RootPath"/> are the library folder it is in.
 /// </summary>
@@ -127,6 +134,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
                 location.PreviousDocumentId = location.DocumentId ?? location.PreviousDocumentId;
                 location.DocumentId = null;
                 location.NtfsFileId = readKnownIds ? id : fileId?.Invoke(file.RelativePath);
+                // Whether reading the new content downloads it is for the hasher to see when it gets there.
+                location.ReturnToOnlineOnly = false;
                 changed++;
             }
             else
@@ -473,6 +482,58 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         location.ContentHash = hash.Hex;
         await db.SaveChangesAsync(ct);
         return true;
+    }
+
+    /// <summary>
+    /// Marks a file as downloaded by Bibliotaph's own reading, as the hasher does just before it reads a file that is
+    /// online-only, so it goes back to online-only once nothing needs its content any more (Dale's review, row 2).
+    /// </summary>
+    public async Task MarkToReturnAsync(long locationId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.FileLocations.Where(f => f.Id == locationId).ExecuteUpdateAsync(u => u.SetProperty(f => f.ReturnToOnlineOnly, true), ct);
+    }
+
+    /// <summary>Leaves a file on this device from now on, as when the user chose to keep it there or it can't go back.</summary>
+    public async Task UnmarkToReturnAsync(long locationId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.FileLocations.Where(f => f.Id == locationId).ExecuteUpdateAsync(u => u.SetProperty(f => f.ReturnToOnlineOnly, false), ct);
+    }
+
+    /// <summary>
+    /// The files waiting to go back to online-only: read (hashed), not missing, and in a folder that is online. Each
+    /// comes with the documents read from it, whose stages say when it is no longer needed.
+    /// </summary>
+    public async Task<IReadOnlyList<OnlineOnlyReturn>> ListToReturnAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.ReturnToOnlineOnly && f.ContentHash != null && f.ContainerId == null && f.State != FileLocationState.Missing
+                && f.SourceRoot.Availability == SourceRootAvailability.Online)
+            .OrderBy(f => f.Id)
+            .Select(f => new { f.Id, Root = f.SourceRoot.Path, f.RelativePath, f.SizeBytes, f.DocumentId })
+            .ToListAsync(ct);
+        if (rows.Count == 0) return [];
+        var ids = rows.Select(r => r.Id).ToList();
+        var members = (await db.FileLocations.AsNoTracking()
+                .Where(f => f.ContainerId != null && ids.Contains(f.ContainerId.Value) && f.DocumentId != null && f.State != FileLocationState.Missing)
+                .Select(f => new { Zip = f.ContainerId!.Value, Document = f.DocumentId!.Value })
+                .ToListAsync(ct))
+            .ToLookup(m => m.Zip, m => m.Document);
+        return [.. rows.Select(r => new OnlineOnlyReturn(r.Id, Path.Combine(r.Root, r.RelativePath), r.SizeBytes,
+            r.DocumentId is { } own ? [own] : [.. members[r.Id].Distinct()]))];
+    }
+
+    /// <summary>
+    /// Records that a file went back to online-only: it reads as online-only again, with the files inside it when it is
+    /// a ZIP, and is no longer waiting to go back.
+    /// </summary>
+    public async Task ReturnedToOnlineOnlyAsync(long locationId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.FileLocations.Where(f => (f.Id == locationId || f.ContainerId == locationId) && f.State != FileLocationState.Missing)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.State, FileLocationState.OnlineOnly).SetProperty(f => f.ReturnToOnlineOnly, false), ct);
     }
 
     /// <summary>Marks a file inside a ZIP as one that can't be read, such as one damaged inside it.</summary>

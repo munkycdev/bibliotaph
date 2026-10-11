@@ -144,6 +144,8 @@ static partial class SmokeTest
                     () => UseProtectedBooksAsync(services, window));
                 await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
                 await Check("a remembered password listed in Settings > Passwords and forgotten there", () => ForgetPasswordAsync(services, window));
+                await Check("an index page with no links of its own: its printed page numbers followed as links, with Back",
+                    () => FollowPrintedPageNumbersAsync(services, window));
             }
             await Check("a backup saved from Settings > Backup and read back for restoring, its missing folder offered a new place, then cancelled",
                 () => BackUpAndPreviewRestoreAsync(services, window));
@@ -948,6 +950,62 @@ static partial class SmokeTest
 
         var files = System.IO.Directory.GetFiles(folder, "*", System.IO.SearchOption.AllDirectories);
         if (files is not [var only] || only != zipPath) throw new InvalidOperationException($"The ZIP's folder holds {files.Length} files, not just the ZIP.");
+    }
+
+    /// <summary>
+    /// A book whose index page is plain text (<see cref="SmokePdfs.Indexed"/>), read from a ZIP by the real pipeline:
+    /// the index's printed page numbers become links to the pages labelled with them, saying where they go, a page
+    /// without an index gets none, and following one goes there and offers the way back.
+    /// </summary>
+    static async Task FollowPrintedPageNumbersAsync(IServiceProvider services, Window window)
+    {
+        const string Title = SmokePdfs.IndexedTitle;
+        // Left for the system's temp cleaning: the app may not delete folders, and may only write ZIPs.
+        var folder = System.IO.Directory.CreateTempSubdirectory("bibliotaph-smoke-index-").FullName;
+        using (var zip = System.IO.Compression.ZipFile.Open(System.IO.Path.Combine(folder, "Smoke Index.zip"), System.IO.Compression.ZipArchiveMode.Create))
+        await using (var member = zip.CreateEntry($"Smoke Index/{Title}.pdf").Open())
+        {
+            await member.WriteAsync(SmokePdfs.Indexed());
+        }
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        LibraryEntry? book = null;
+        while ((book = (await Task.Run(() => queries.ListAsync(new LibraryFilter()))).FirstOrDefault(e => e.Title == Title)) is not { Searchable: true })
+        {
+            if (Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException($"The index book wasn't indexed ({(book is null ? "no card" : "not searchable")}).");
+            await Settle(window);
+            await Task.Delay(200);
+        }
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<ReaderWindows>().OpenInMainWindow(new ViewerRequest(book.DocumentId, Title, SmokePdfs.IndexPage));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The index book didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The index book didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The index book didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        var pages = FindChild<Bibliotaph.Viewer.PdfPagesView>(window) ?? throw new InvalidOperationException("The viewer has no page surface.");
+        await WaitUntilAsync(window, () => pages.PageModels.Count == 4 && pages.CurrentPageIndex == SmokePdfs.IndexPage,
+            () => $"The index book opened at page {pages.CurrentPageIndex} of {pages.PageModels.Count}, not at its index.");
+
+        // One link per entry's number, each to the page with that printed number (here PDF page n is printed page n).
+        var links = await pages.LinksOf(pages.PageModels[SmokePdfs.IndexPage]);
+        if (!links.Select(l => (l.Printed, l.PageIndex)).SequenceEqual(SmokePdfs.IndexEntries.Select(e => ((int?)e.Page, e.Page))))
+            throw new InvalidOperationException($"The index page's links are {string.Join(", ", links.Select(l => $"{l.Printed} to {l.PageIndex}"))}.");
+        var dragons = links[1];
+        if (pages.TipFor(dragons) != "Go to page 2") throw new InvalidOperationException($"The Dragons link says “{pages.TipFor(dragons)}”.");
+        if (dragons.Box.IsEmpty) throw new InvalidOperationException("The Dragons link has no box to click.");
+        if ((await pages.LinksOf(pages.PageModels[1])) is { Count: > 0 } stray)
+            throw new InvalidOperationException($"A page without an index got {stray.Count} links.");
+
+        viewer.FollowLink(dragons);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 2 && viewer is { HasLinkBack: true, LinkBackLabel: "Back to page 3" } && Shown(window, "BackFromLink"),
+            () => $"Following the Dragons link left the page in view at {pages.CurrentPageIndex}, offering “{viewer.LinkBackLabel}”.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "BackFromLink"), "Back to page 3");
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == SmokePdfs.IndexPage && !viewer.HasLinkBack, () => "Back to page 3 didn't return to the index.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
     }
 
     /// <summary>
@@ -2675,6 +2733,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => processing.HasFolders, () => "Settings > Processing says there are no folders.");
         if (processing.Activity.Phases.Count != 5 || processing.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
+        await ToggleReturnOnlineOnlyAsync(services, window, processing);
 
         navigation.NavigateTo(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("The Home route didn't open Home.");
@@ -2691,6 +2750,39 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
         if (!ReferenceEquals(shell.CurrentPage, libraryPage)) throw new InvalidOperationException("Back didn't return from Settings to the Library.");
+    }
+
+    /// <summary>
+    /// Settings > Processing's "Return files to online-only after indexing" (Dale's review, row 2): shown and ticked to
+    /// start with, saved off when it is unticked and on again when it is ticked. The smoke library isn't in OneDrive,
+    /// so no file goes anywhere either way.
+    /// </summary>
+    static async Task ToggleReturnOnlineOnlyAsync(IServiceProvider services, Window window, ProcessingSectionViewModel processing)
+    {
+        var returns = services.GetRequiredService<OnlineOnlyReturns>();
+        var saved = 0;
+        void OnSaved(object? sender, EventArgs e) => Interlocked.Increment(ref saved);
+        returns.SettingChanged += OnSaved;
+        try
+        {
+            CheckBox? Box() => Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "ReturnOnlineOnly");
+            await WaitUntilAsync(window, () => Box() is { IsVisible: true, IsEnabled: true, IsChecked: true } && processing.ReturnOnlineOnly,
+                () => "Settings > Processing doesn't show Return files to online-only after indexing, ticked.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 1 && !processing.ReturnOnlineOnly && Box()?.IsChecked == false,
+                () => "Unticking Return files to online-only after indexing wasn't saved.");
+            if (await returns.IsOnAsync()) throw new InvalidOperationException("Return files to online-only after indexing is still on after unticking it.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 2 && processing.ReturnOnlineOnly && Box()?.IsChecked == true,
+                () => "Ticking Return files to online-only after indexing again wasn't saved.");
+            if (!await returns.IsOnAsync()) throw new InvalidOperationException("Return files to online-only after indexing is off after ticking it again.");
+        }
+        finally
+        {
+            returns.SettingChanged -= OnSaved;
+        }
     }
 
     /// <summary>Opens Settings at <paramref name="section"/>, as a link into it does.</summary>
