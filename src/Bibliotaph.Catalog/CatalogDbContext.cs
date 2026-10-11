@@ -35,6 +35,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<VocabularyAlias> VocabularyAliases => Set<VocabularyAlias>();
     public DbSet<ClassificationRun> ClassificationRuns => Set<ClassificationRun>();
     public DbSet<IgnoredFolderLabel> IgnoredFolderLabels => Set<IgnoredFolderLabel>();
+    public DbSet<AskTurn> AskTurns => Set<AskTurn>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
     public DbSet<FolderRule> FolderRules => Set<FolderRule>();
     public DbSet<SyncState> SyncStates => Set<SyncState>();
@@ -259,6 +260,12 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));
 
+        // Ask this book's conversations (Ask plan, choice 10): a book's turns go with its entry.
+        modelBuilder.Entity<AskTurn>(e =>
+        {
+            e.HasIndex(t => t.EntryId);
+            e.HasOne<Entry>().WithMany().HasForeignKey(t => t.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
         // Library sync (library sync plan, choice 4): each sync id names one row on every PC.
         modelBuilder.Entity<Entry>().HasIndex(x => x.SyncId).IsUnique();
         modelBuilder.Entity<CollectionNode>().HasIndex(x => x.SyncId).IsUnique();

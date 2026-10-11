@@ -176,7 +176,7 @@ public static partial class AskAnswerCheck
     /// The answer without the model's thinking (a finished &lt;think&gt; block, or an unfinished one and all after it) or
     /// Markdown's bold and italic marks, trimmed.
     /// </summary>
-    static string Clean(string answer)
+    internal static string Clean(string answer)
     {
         var text = Thinking().Replace(answer, "");
         var open = text.IndexOf("<think>", StringComparison.OrdinalIgnoreCase);
@@ -251,6 +251,9 @@ public static partial class AskAnswerCheck
         if (trimmed.Length == 0) parts.RemoveAt(parts.Count - 1);
         else parts[^1] = parts[^1] with { Text = trimmed };
     }
+
+    /// <summary>An answer without its citations, as an earlier turn is sent with a follow-up, so they aren't cited again.</summary>
+    public static string WithoutCitations(string answer) => Citation().Replace(answer, "").Replace(" .", ".", StringComparison.Ordinal);
 
     /// <summary>A short, plain summary of what the checks did, for the log: counts, never text.</summary>
     public static string Counts(CheckedAnswer answer)

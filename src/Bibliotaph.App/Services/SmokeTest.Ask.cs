@@ -22,7 +22,9 @@ static partial class SmokeTest
     /// link, its quotation found on the page, and its citation of a page it wasn't sent taken out and the sentence
     /// marked. The citation opens the page with the quotation marked by Find. Asked again once the book's vectors are
     /// made, the page is found by meaning too, and the page's own link opens it with the question's word marked.
-    /// Switching AI off again hides Ask. The Classify lane is paused meanwhile, so the stand-in reads no book, and AI
+    /// The first answer moves up into the conversation; a follow-up is shown as the model rewrote it and answered from
+    /// the dragon's page. Reopened, the book's panel lists the conversation, and New conversation clears it. Switching
+    /// AI off again hides Ask. The Classify lane is paused meanwhile, so the stand-in reads no book, and AI
     /// and the book's place are put back afterwards.
     /// </summary>
     static async Task AskBookAsync(IServiceProvider services, Window window, long documentId)
@@ -117,6 +119,39 @@ static partial class SmokeTest
                     && viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal),
                 () => $"The page link left page {pages.CurrentPageIndex} in view with Find saying “{viewer.FindStatus}”.");
 
+            // The same question again stood on its own, so it wasn't rewritten; the first answer is now the conversation's.
+            await WaitUntilAsync(window, () => viewer.Ask.History.Count == 1 && viewer.Ask.LookedFor is null && Visible(window, "AskHistory"),
+                () => $"After asking twice the panel lists {viewer.Ask.History.Count} earlier turns, looking for “{viewer.Ask.LookedFor}”.");
+
+            // A follow-up is rewritten to stand on its own, then answered from the page that question finds.
+            Descendants<TextBox>(window).First(t => t.Name == "AskBox").Text = "And the mill?";
+            await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "AskButton" && b.IsVisible && b.IsEnabled),
+                () => "The Ask button isn't shown and enabled with a follow-up typed.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskButton"), "the panel's Ask, for a follow-up");
+            await WaitUntilAsync(window, () => !viewer.Ask.IsAsking && viewer.Ask.Answered is not null && viewer.Ask.History.Count == 2
+                    && viewer.Ask.LookedFor == "Looked for: And the mill? (Where does the dragon sleep?)" && Visible(window, "AskLookedFor")
+                    && viewer.Ask.Answer.FirstOrDefault(p => p.Kind == AnswerPartKind.Citation) is { PdfPage: 1 },
+                () => $"The follow-up wasn't rewritten and answered: {viewer.Ask.Message ?? viewer.Ask.LookedFor ?? "nothing looked for"}.");
+            await AuditAsync(window, "the reader's Ask panel with a conversation");
+            if ((await ask.HistoryAsync(documentId)).Count != 3) throw new InvalidOperationException("The conversation wasn't kept.");
+
+            // Reopened, the book's panel lists the conversation, and New conversation clears it.
+            navigation.GoBack();
+            await Settle(window);
+            library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
+            await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library on the way back.");
+            if (library.Inspector is null) await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
+            await WaitUntilAsync(window, () => library.Inspector is not null && Shown(window, "AskBook"), () => "The smoke PDF's details don't offer Ask this book.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskBook"), "the details' Ask this book, again");
+            await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { AskVisible: true } reopened
+                    && reopened.Ask.History.Count == 3 && Visible(window, "AskHistory") && Shown(window, "AskNewConversation"),
+                () => "Reopening the book didn't list its conversation.");
+            viewer = (ViewerViewModel)shell.CurrentPage!;
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskNewConversation"), "the panel's New conversation");
+            await WaitUntilAsync(window, () => viewer.Ask.History.Count == 0 && !Visible(window, "AskHistory") && !Shown(window, "AskNewConversation"),
+                () => "New conversation didn't clear the panel.");
+            if ((await ask.HistoryAsync(documentId)).Count != 0) throw new InvalidOperationException("New conversation didn't forget the conversation.");
+
             await ai.SaveAsync(before);
             await WaitUntilAsync(window, () => !viewer.Ask.IsOn && !Shown(window, "ToggleAsk") && !Shown(window, "AskButton"),
                 () => "Switching AI off didn't hide Ask.");
@@ -131,6 +166,7 @@ static partial class SmokeTest
         }
         finally
         {
+            await ask.ClearHistoryAsync(documentId);
             await ai.SaveAsync(before);
             if (!wasPaused) indexing.Resume(Lane.Classify);
             await reading.SavePositionAsync(documentId, kept);
@@ -143,4 +179,7 @@ static partial class SmokeTest
         viewer.GoToPageCommand.Execute(null);
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
     }
+
+    /// <summary>Whether the control named <paramref name="name"/> is showing, whatever kind it is (<see cref="Shown"/> looks only at buttons).</summary>
+    static bool Visible(Window window, string name) => Descendants<FrameworkElement>(window).Any(e => e.Name == name && e.IsVisible);
 }

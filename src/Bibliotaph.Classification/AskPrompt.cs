@@ -6,6 +6,9 @@ namespace Bibliotaph.Classification;
 /// <summary>A page sent with a question: the number it is cited by, its PDF page, the bookmark it is under and its text as sent.</summary>
 public sealed record AskPromptPage(string Marker, int PdfPage, string? Heading, string Text);
 
+/// <summary>An earlier question in the conversation and its answer, sent with a follow-up so it can be understood (choice 10).</summary>
+public sealed record AskEarlierTurn(string Question, string Answer);
+
 /// <summary>
 /// Ask this book's prompt (Ask plan, step 4 and choices 6, 8 and 9): the rules in the system message and nothing from
 /// the book; the question, then the pages as [Page N] blocks inside the same guarded &lt;book-excerpt&gt; block
@@ -15,7 +18,22 @@ public sealed record AskPromptPage(string Marker, int PdfPage, string? Heading, 
 public static class AskPrompt
 {
     /// <summary>Bumped when the rules change.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
+
+    /// <summary>How many earlier turns go with a follow-up, to rewrite it and to answer it.</summary>
+    public const int EarlierTurns = 3;
+
+    /// <summary>Each earlier answer is cut to this much: enough to say what "it" or "that one" was.</summary>
+    const int EarlierAnswerCharacters = 600;
+
+    /// <summary>The context a follow-up's rewrite asks for: a few short turns and the question.</summary>
+    public const int RewriteContextTokens = 4_096;
+
+    /// <summary>A question, not an essay.</summary>
+    public const int RewriteTokens = 120;
+
+    /// <summary>A rewritten question longer than this isn't a question; the follow-up is used as typed.</summary>
+    const int MaxRewriteCharacters = 300;
 
     /// <summary>The context Ask asks for (choice 9): about 6,000 tokens of pages, the rules, and room for the answer.</summary>
     public const int ContextTokens = 12_288;
@@ -42,13 +60,57 @@ public static class AskPrompt
         text.AppendLine("- When the answer is in a table, say which page the table is on and what it covers rather than copying it out.");
         text.AppendLine(CultureInfo.InvariantCulture, $"- If these pages don't answer the question, reply with exactly \"{NotAnswered}\" and nothing else.");
         text.AppendLine("- Be brief: a few sentences, or a short list. Plain text: no headings, no tables.");
+        text.AppendLine("- Earlier questions and answers, when given, are only there to make the question clear. Answer from the pages, and cite only them.");
         return text.ToString();
     }
 
-    /// <summary>The question, then the pages inside the guarded excerpt block, each after its [Page N] line and heading.</summary>
-    public static string UserMessage(string question, IReadOnlyList<AskPromptPage> pages)
+    /// <summary>The rules for turning a follow-up into a question that stands on its own (choice 10): nothing from the book.</summary>
+    public static string RewriteSystemMessage { get; } = string.Join(Environment.NewLine,
+        "You rewrite a follow-up question about a book so that it can be understood without the conversation before it.",
+        "Replace words like \"it\", \"they\", \"that one\" and \"there\" with what they mean, from the conversation.",
+        "Keep the question's own words otherwise. Don't answer it.",
+        "Reply with the rewritten question only, on one line. If it already stands on its own, reply with it unchanged.");
+
+    /// <summary>The last few turns, then the follow-up.</summary>
+    public static string RewriteUserMessage(IReadOnlyList<AskEarlierTurn> earlier, string followUp)
     {
         var text = new StringBuilder();
+        AppendEarlier(text, earlier);
+        text.AppendLine(CultureInfo.InvariantCulture, $"Follow-up: {ClassifierPrompt.Neutralize(ExcerptBuilder.Tidy(followUp))}");
+        return text.ToString();
+    }
+
+    /// <summary>The rewritten question from the model's reply, or null when the reply isn't one.</summary>
+    public static string? ReadRewrite(string reply)
+    {
+        var text = AskAnswerCheck.Clean(reply);
+        var line = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "";
+        if (line.StartsWith("Follow-up:", StringComparison.OrdinalIgnoreCase)) line = line["Follow-up:".Length..];
+        line = line.Trim().Trim('"', '“', '”', '\'').Trim();
+        return line.Length is 0 or > MaxRewriteCharacters ? null : line;
+    }
+
+    static void AppendEarlier(StringBuilder text, IReadOnlyList<AskEarlierTurn> earlier)
+    {
+        if (earlier.Count == 0) return;
+        text.AppendLine("Earlier in this conversation:");
+        foreach (var turn in earlier.TakeLast(EarlierTurns))
+        {
+            text.AppendLine(CultureInfo.InvariantCulture, $"Q: {ClassifierPrompt.Neutralize(ExcerptBuilder.Tidy(turn.Question))}");
+            var answer = ExcerptBuilder.Cut(ExcerptBuilder.Tidy(AskAnswerCheck.WithoutCitations(turn.Answer)), EarlierAnswerCharacters);
+            text.AppendLine(CultureInfo.InvariantCulture, $"A: {ClassifierPrompt.Neutralize(answer)}");
+        }
+        text.AppendLine();
+    }
+
+    /// <summary>
+    /// The earlier turns when it is a follow-up, the question, then the pages inside the guarded excerpt block, each
+    /// after its [Page N] line and heading.
+    /// </summary>
+    public static string UserMessage(string question, IReadOnlyList<AskPromptPage> pages, IReadOnlyList<AskEarlierTurn>? earlier = null)
+    {
+        var text = new StringBuilder();
+        AppendEarlier(text, earlier ?? []);
         text.AppendLine(CultureInfo.InvariantCulture, $"Question: {ClassifierPrompt.Neutralize(ExcerptBuilder.Tidy(question))}");
         text.AppendLine();
         text.AppendLine(CultureInfo.InvariantCulture, $"<{ClassifierPrompt.ExcerptTag}>");

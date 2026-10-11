@@ -606,3 +606,27 @@ public sealed class Setting
     public required string Key { get; set; }
     public required string Value { get; set; }
 }
+
+/// <summary>
+/// A question asked of a book and its answer (Ask plan, choice 10): one conversation per book, kept on its entry. The
+/// answer is kept as the reader saw it, checked, in <see cref="Parts"/> (JSON), so its citations stay links.
+/// </summary>
+public sealed class AskTurn
+{
+    public long Id { get; set; }
+    public long EntryId { get; set; }
+    public DateTime AskedUtc { get; set; }
+    /// <summary>As the reader typed it.</summary>
+    public required string Question { get; set; }
+    /// <summary>A follow-up as the model rewrote it to stand on its own, which found the pages; null when it wasn't rewritten.</summary>
+    public string? Rewritten { get; set; }
+    /// <summary>The answer's text as shown, citations included.</summary>
+    public required string Answer { get; set; }
+    /// <summary>The answer's checked pieces, as JSON.</summary>
+    public required string Parts { get; set; }
+    /// <summary>The PDF pages it cites, as a JSON array.</summary>
+    public required string CitedPages { get; set; }
+    public required string Model { get; set; }
+    /// <summary>The model said the pages it read don't answer the question.</summary>
+    public bool NotAnswered { get; set; }
+}

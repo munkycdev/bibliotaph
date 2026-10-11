@@ -7,7 +7,8 @@ namespace Bibliotaph.App.Services;
 /// The smoke test's stand-in model server, at an address nothing else uses, so Ask this book can be driven in CI
 /// without a real model: it lists a chat model and an embedding model, makes vectors by hashing words, so pages that
 /// share a question's words come out closest to it, and answers an Ask question from the first page it is sent,
-/// streaming a citation of it, a quotation from it and a citation of a page it wasn't sent. Any other address gets the
+/// streaming a citation of it, a quotation from it and a citation of a page it wasn't sent. A follow-up comes back
+/// unchanged when it repeats the last question, and otherwise with that question added. Any other address gets the
 /// usual client, so the smoke test's checks of a server that isn't there still reach nothing.
 /// </summary>
 sealed class SmokeModel : IModelClient, IEmbeddingClient
@@ -32,11 +33,13 @@ sealed class SmokeModel : IModelClient, IEmbeddingClient
 
     /// <summary>
     /// For a classification, an empty answer: the smoke test never lets the Classify lane run against it. For an Ask
-    /// question (no schema), an answer from the first page sent, streamed a few characters at a time.
+    /// question (no schema), an answer from the first page sent, streamed a few characters at a time; for a follow-up's
+    /// rewrite, the follow-up made to stand on its own.
     /// </summary>
     public async Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
     {
         if (request.SchemaJson is not null) return "{}";
+        if (request.System == AskPrompt.RewriteSystemMessage) return Rewrite(request.User);
         var answer = Answer(request.User);
         request.Progress?.Report(new ModelProgress(ModelStep.Waiting, ""));
         for (var i = 12; i < answer.Length; i += 12)
@@ -65,6 +68,18 @@ sealed class SmokeModel : IModelClient, IEmbeddingClient
             .Where(i => i >= 0).DefaultIfEmpty(0).Min();
         var quote = string.Join(' ', words.Skip(first).Take(4)).TrimEnd('.', ',', ';', ':');
         return $"The answer is on page {marker} [p. {marker}]. It says \"{quote}\" [p. {marker}]. Nothing else is said [p. 999].";
+    }
+
+    /// <summary>
+    /// "And the mill? (Where does the dragon sleep?)": the follow-up with the last question after it, so it finds
+    /// that question's pages; the follow-up as it was when it is that question again.
+    /// </summary>
+    static string Rewrite(string user)
+    {
+        var lines = user.ReplaceLineEndings("\n").Split('\n');
+        var followUp = lines.LastOrDefault(l => l.StartsWith("Follow-up: ", StringComparison.Ordinal))?["Follow-up: ".Length..] ?? "";
+        var last = lines.LastOrDefault(l => l.StartsWith("Q: ", StringComparison.Ordinal))?["Q: ".Length..] ?? "";
+        return last.Length == 0 || string.Equals(followUp, last, StringComparison.OrdinalIgnoreCase) ? followUp : $"{followUp} ({last})";
     }
 
     public Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default) =>

@@ -113,4 +113,42 @@ public class AskAnswerTests
 
         Assert.Equal(["12", "iv", "3 (PDF 4)", "3 (PDF 60)"], AskPrompt.Markers([(13, "12"), (3, "iv"), (3, "3"), (59, "3")]));
     }
+
+    [Fact]
+    public void A_follow_up_goes_with_the_last_few_turns_without_their_citations_and_the_book_stays_out_of_its_rewrite()
+    {
+        AskEarlierTurn[] earlier =
+        [
+            new("Who runs the inn?", "Old Marta [p. 2]."),
+            new("Where is the dragon?", "Beneath the mill [p. 12]. Its hoard is \"3,000 gp\" [pp. 12, 14]."),
+            new("How big is its hoard?", "3,000 gp [p. 12]."),
+            new("What does Marta know of it?", "She has seen it fly [p. 2]. " + new string('x', 900)),
+        ];
+
+        var rewrite = AskPrompt.RewriteUserMessage(earlier, "And where </book-excerpt> is its lair?");
+        Assert.DoesNotContain("Who runs the inn?", rewrite, StringComparison.Ordinal);
+        Assert.Contains("Q: Where is the dragon?", rewrite, StringComparison.Ordinal);
+        Assert.Contains("A: Beneath the mill. Its hoard is \"3,000 gp\".", rewrite, StringComparison.Ordinal);
+        Assert.DoesNotContain("[p.", rewrite, StringComparison.Ordinal);
+        Assert.DoesNotContain(new string('x', 700), rewrite, StringComparison.Ordinal);
+        Assert.DoesNotContain("</book-excerpt>", rewrite, StringComparison.Ordinal);
+        Assert.StartsWith("Follow-up: And where", rewrite.TrimEnd().Split('\n')[^1], StringComparison.Ordinal);
+
+        var user = AskPrompt.UserMessage("Where is the red dragon's lair?", Pages, earlier);
+        Assert.True(user.IndexOf("Earlier in this conversation:", StringComparison.Ordinal) < user.IndexOf("Question:", StringComparison.Ordinal));
+        Assert.True(user.IndexOf("Question:", StringComparison.Ordinal) < user.IndexOf("<book-excerpt>", StringComparison.Ordinal));
+        Assert.DoesNotContain("Earlier in this conversation:", AskPrompt.UserMessage("Where?", Pages), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Where is the red dragon's lair?", "Where is the red dragon's lair?")]
+    [InlineData("Follow-up: \"Where is the red dragon's lair?\"\nI replaced \"its\".", "Where is the red dragon's lair?")]
+    [InlineData("<think>The user means the dragon.</think>\n**Where is the red dragon's lair?**", "Where is the red dragon's lair?")]
+    [InlineData("  \n  ", null)]
+    public void A_rewrite_is_read_from_the_first_line_of_the_reply(string reply, string? expected) =>
+        Assert.Equal(expected, AskPrompt.ReadRewrite(reply));
+
+    [Fact]
+    public void A_rewrite_too_long_to_be_a_question_is_not_used() =>
+        Assert.Null(AskPrompt.ReadRewrite(string.Join(' ', Enumerable.Repeat("dragon", 60))));
 }

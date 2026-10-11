@@ -176,6 +176,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PinStore>();
         builder.Services.AddSingleton<PinsService>();
         builder.Services.AddSingleton<NoteStore>();
+        builder.Services.AddSingleton<AskHistoryStore>();
         builder.Services.AddSingleton<NotesService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();

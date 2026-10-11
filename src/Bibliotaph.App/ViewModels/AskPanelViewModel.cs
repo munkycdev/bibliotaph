@@ -30,11 +30,26 @@ public sealed class AskPassageRow(AskPassage passage)
     public string AccessibleName => $"Go to page {Passage.Page}";
 }
 
+/// <summary>An earlier turn of the book's conversation, as the panel lists it: the question, what it looked for, and the answer.</summary>
+public sealed class AskTurnRow(AskTurnView turn)
+{
+    public AskTurnView Turn { get; } = turn;
+
+    public string Question => Turn.Info.Question;
+
+    /// <summary>"Looked for: where is the red dragon's lair?", for a follow-up the model rewrote; else null.</summary>
+    public string? LookedFor => Turn.Info.Rewritten is { } rewritten ? $"Looked for: {rewritten}" : null;
+
+    public IReadOnlyList<AnswerPart> Answer => Turn.Parts;
+}
+
 /// <summary>
 /// The reader's Ask panel (Ask this book): a question about the open book, the answer streamed from the model with each
 /// [p. N] a link into the book (Q2), and the pages it was read from, each opening its page with the matching word
 /// marked by Find (Q1), with how much of the book has text and whether pages were found by meaning as well as by
-/// words. Shown only while AI is on (choice 12).
+/// words. Each question and answer is kept as the book's conversation (Q3): a follow-up is rewritten by the model to
+/// stand on its own before its pages are found, and is answered with the last few turns. Shown only while AI is on
+/// (choice 12).
 /// </summary>
 public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 {
@@ -47,6 +62,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     long? _documentId;
     int _version;
     CancellationTokenSource? _answering;
+    AskTurnView? _current;
 
     /// <param name="ask">Finds the pages and answers from them.</param>
     /// <param name="dispatcher">The reader's, for changes raised on other threads.</param>
@@ -71,7 +87,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 
     /// <summary>Finding the pages, or waiting for the answer to them.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(AskCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AskCommand), nameof(NewConversationCommand))]
     public partial bool IsAsking { get; private set; }
 
     /// <summary>The model is answering: Stop is offered.</summary>
@@ -86,6 +102,21 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     /// <summary>The question the results are for, as asked.</summary>
     [ObservableProperty]
     public partial string? Asked { get; private set; }
+
+    /// <summary>"Looked for: …": the follow-up as the model rewrote it to stand on its own, when it did.</summary>
+    [ObservableProperty]
+    public partial string? LookedFor { get; private set; }
+
+    /// <summary>The book's conversation before the question shown, oldest first.</summary>
+    public ObservableCollection<AskTurnRow> History { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasHistory { get; private set; }
+
+    /// <summary>There is a conversation to start again: earlier turns, or the answer shown.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(NewConversationCommand))]
+    public partial bool CanStartOver { get; private set; }
 
     /// <summary>The answer so far, as checked: text, quotations, links to the pages it cites, and notes on what was taken out.</summary>
     [ObservableProperty]
@@ -131,7 +162,33 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         if (_documentId == documentId) return;
         _documentId = documentId;
         Clear();
+        _current = null;
+        History.Clear();
+        ShowHistory();
         AskCommand.NotifyCanExecuteChanged();
+        _ = LoadHistoryAsync(documentId);
+    }
+
+    /// <summary>Lists the book's conversation so far, kept in catalog.db.</summary>
+    async Task LoadHistoryAsync(long documentId)
+    {
+        try
+        {
+            var turns = await Task.Run(() => _ask.HistoryAsync(documentId));
+            if (_documentId != documentId || History.Count > 0 || _current is not null) return;
+            foreach (var turn in turns) History.Add(new AskTurnRow(turn));
+            ShowHistory();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogError(ex, "Reading the Ask conversation of document {DocumentId} failed", documentId);
+        }
+    }
+
+    void ShowHistory()
+    {
+        HasHistory = History.Count > 0;
+        CanStartOver = HasHistory || _current is not null;
     }
 
     /// <summary>The reader closed the book: an answer being written stops.</summary>
@@ -153,6 +210,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         _findings = null;
         Answered = null;
         Asked = null;
+        LookedFor = null;
         Answer = [];
         Passages.Clear();
         HasPassages = false;
@@ -190,17 +248,38 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     {
         if (_documentId is not { } documentId) return;
         var question = Question.Trim();
+        // The answer shown becomes the latest of the conversation's earlier turns.
+        if (_current is { } previous) History.Add(new AskTurnRow(previous));
+        _current = null;
+        ShowHistory();
         Clear();
         var version = _version;
         IsAsking = true;
         Asked = question;
-        Step = "Looking through the book…";
+        var earlier = History.Select(h => h.Turn.Earlier).ToList();
         try
         {
-            var findings = await Task.Run(() => _ask.FindAsync(documentId, question));
+            var looked = question;
+            var rewritten = false;
+            if (earlier.Count > 0 && _ask.CanAnswer)
+            {
+                Step = "Working out the follow-up…";
+                (looked, rewritten) = await Task.Run(() => _ask.RewriteAsync(documentId, question, earlier));
+                if (version != _version) return;
+                if (rewritten) LookedFor = $"Looked for: {looked}";
+            }
+            Step = "Looking through the book…";
+            var findings = await Task.Run(() => _ask.FindAsync(documentId, looked));
             if (version != _version) return;
             Show(findings);
-            if (!findings.Weak && findings.Evidence.Count > 0 && _ask.CanAnswer) await AnswerAsync(documentId, findings, version);
+            if (!findings.Weak && findings.Evidence.Count > 0 && _ask.CanAnswer
+                && await AnswerAsync(documentId, findings, earlier, version) is { } answer)
+            {
+                var saved = await Task.Run(() => _ask.SaveTurnAsync(documentId, question, rewritten ? looked : null, answer));
+                if (version != _version) return;
+                _current = saved;
+                ShowHistory();
+            }
         }
         catch (AskUnavailableException ex)
         {
@@ -221,8 +300,8 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Streams the model's answer into the panel, checked as it comes, then shows it checked in full.</summary>
-    async Task AnswerAsync(long documentId, AskFindings findings, int version)
+    /// <summary>Streams the model's answer into the panel, checked as it comes, then shows it checked in full. Null when there is none.</summary>
+    async Task<AskAnswer?> AnswerAsync(long documentId, AskFindings findings, IReadOnlyList<AskEarlierTurn> earlier, int version)
     {
         var pages = AskService.PromptPages(findings);
         var stop = _answering = new CancellationTokenSource();
@@ -230,8 +309,8 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         Step = "Waiting for the model…";
         try
         {
-            var answer = await Task.Run(() => _ask.AnswerAsync(documentId, findings, new Streamed(this, version, pages), stop.Token), stop.Token);
-            if (version != _version) return;
+            var answer = await Task.Run(() => _ask.AnswerAsync(documentId, findings, new Streamed(this, version, pages), earlier, stop.Token), stop.Token);
+            if (version != _version) return null;
             Answered = answer;
             PassagesHeading = $"Read from {Pages([.. pages.Select(p => p.Marker)])}";
             if (answer.Checked.NotAnswered)
@@ -240,6 +319,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
                 Message = "The pages it read don't answer that. They're below, in case they help.";
             }
             else Answer = answer.Checked.Parts;
+            return answer;
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
@@ -257,6 +337,32 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         {
             if (version == _version) IsAnswering = false;
         }
+        return null;
+    }
+
+    bool CanNewConversation() => CanStartOver && !IsAsking;
+
+    /// <summary>New conversation: forgets the book's questions and answers so far, so the next question starts afresh.</summary>
+    [RelayCommand(CanExecute = nameof(CanNewConversation))]
+    async Task NewConversation()
+    {
+        if (_documentId is not { } documentId) return;
+        try
+        {
+            await Task.Run(() => _ask.ClearHistoryAsync(documentId));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogError(ex, "Starting the Ask conversation of document {DocumentId} again failed", documentId);
+            Message = "That didn't work. The log has the details.";
+            return;
+        }
+        if (_documentId != documentId) return;
+        History.Clear();
+        _current = null;
+        Clear();
+        Question = "";
+        ShowHistory();
     }
 
     /// <summary>
