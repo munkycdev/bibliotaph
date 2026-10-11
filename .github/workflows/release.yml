@@ -1,6 +1,6 @@
 name: Release
 
-# A version tag (v0.N.P: N is the slice, P counts releases within it; slice 4l plan, choices 2 and 3) runs every check
+# A version tag (vMAJOR.MINOR.PATCH, such as v1.0.0; before 1.0, v0.N.P for slice N) runs every check
 # CI runs, publishes the app self-contained for win-x64, packs it with Velopack, and leaves a DRAFT GitHub Release
 # holding Setup.exe and the update files. Nothing is public until someone presses Publish on the draft.
 on:
@@ -43,12 +43,12 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      # The version comes from the tag; Directory.Build.props keeps 0.N.0 for local builds.
+      # The version comes from the tag; Directory.Build.props keeps MAJOR.MINOR.0 for local builds.
       - name: Version from the tag
         id: version
         shell: pwsh
         run: |
-          if ($env:TAG -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "The tag $env:TAG isn't vMAJOR.MINOR.PATCH, such as v0.4.1." }
+          if ($env:TAG -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "The tag $env:TAG isn't vMAJOR.MINOR.PATCH, such as v1.0.1." }
           "number=$($Matches[1]).$($Matches[2]).$($Matches[3])" >> $env:GITHUB_OUTPUT
 
       # Everything CI checks, smoke test included, on this exact commit.

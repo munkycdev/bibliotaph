@@ -2540,8 +2540,8 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => (about = Application.Current.Windows.OfType<Views.AboutDialog>().FirstOrDefault()) is { IsLoaded: true },
             () => "The About popup didn't open.");
         var info = about!.Info;
-        if (!info.Version.StartsWith("0.", StringComparison.Ordinal) || info.Commit is not { Length: 7 })
-            throw new InvalidOperationException($"About shows version {info.VersionText}, not 0.N.0 with a commit.");
+        if (!System.Version.TryParse(info.Version, out var shown) || shown.Major < 1 || info.Commit is not { Length: 7 })
+            throw new InvalidOperationException($"About shows version {info.VersionText}, not MAJOR.MINOR.PATCH with a commit.");
         if (info.Pdfium is null) throw new InvalidOperationException("About couldn't find the PDFium build.");
         await AuditAsync(about, "the About popup");
 
