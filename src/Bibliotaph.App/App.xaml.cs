@@ -178,6 +178,7 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
+        builder.Services.AddSingleton<PageThumbnailCache>();
         builder.Services.AddSingleton<WpfImageCodec>();
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
         // The smoke test keeps remembered passwords in memory and opens no other app (slice 4i).
@@ -216,6 +217,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SourceFiles>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<IFileIdentity, FileIdentity>();
+        builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
+        builder.Services.AddSingleton<OnlineOnlyReturns>();
         builder.Services.AddSingleton<StageServices>();
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();
@@ -241,6 +244,13 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+        // Library sync (library sync plan): after indexing, so it stops first and writes this PC's file one last time.
+        builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
+            sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<LibrarySync>>()));
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
         builder.Services.AddSingleton<ForgetText>();
 
         // Shell
@@ -250,6 +260,7 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
+        builder.Services.AddSingleton<PageThumbnails>();
         if (smokeTest)
         {
             builder.Services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();
@@ -348,6 +359,8 @@ public partial class App : Application
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
+        // Before the first projection, which checks every card: books owned elsewhere meet the files already in the library.
+        services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
     }
 
     /// <summary>

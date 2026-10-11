@@ -36,6 +36,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<IgnoredFolderLabel> IgnoredFolderLabels => Set<IgnoredFolderLabel>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
     public DbSet<FolderRule> FolderRules => Set<FolderRule>();
+    public DbSet<SyncState> SyncStates => Set<SyncState>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -254,6 +255,16 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));
+
+        // Library sync (library sync plan, choice 4): each sync id names one row on every PC.
+        modelBuilder.Entity<Entry>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<CollectionNode>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<SmartView>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<SessionPack>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<SessionSection>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<SessionItem>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<Note>().HasIndex(x => x.SyncId).IsUnique();
+        modelBuilder.Entity<SyncState>(e => e.HasKey(s => s.Key));
 
         UseSnakeCaseNames(modelBuilder);
         // The class can't be called Collection (CA1711), but the table can.

@@ -77,6 +77,10 @@ function Invoke-Smoke {
     # The fixtures are copied out of the checkout so the app's folder holds nothing else.
     New-Item -ItemType Directory -Force $files | Out-Null
     Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-book.pdf'), (Join-Path $root 'tests/fixtures/smoke/smoke-map.png') $files
+    # A made-up second PC's library sync file, in the folder the smoke test syncs with (beside the data root, never in it).
+    $sync = Join-Path $run 'sync/Bibliotaph sync'
+    New-Item -ItemType Directory -Force $sync | Out-Null
+    Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-sync.json') (Join-Path $sync 'SMOKE-PC-2.json')
 
     $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"", '--smoke-files', "`"$files`"" -PassThru
     # The checks take about two minutes on a developer's PC and grow with each feature, so the limit leaves room: it is

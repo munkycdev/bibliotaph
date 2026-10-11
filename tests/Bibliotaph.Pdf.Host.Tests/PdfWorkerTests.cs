@@ -1,3 +1,4 @@
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Pdf.Contracts;
 
 namespace Bibliotaph.Pdf.Host.Tests;
@@ -74,6 +75,28 @@ public sealed class PdfWorkerTests(SyntheticPdfs pdfs) : IAsyncLifetime
         // The in-book link sits above the web link, as drawn.
         Assert.True(inBook.Box.Bottom > web.Box.Bottom);
         Assert.Empty(plain.Links!);
+    }
+
+    [Fact]
+    public async Task Finds_the_printed_page_numbers_on_the_smoke_books_plain_index_page()
+    {
+        var doc = await OpenAsync(pdfs.Indexed);
+        var page = Bibliotaph.App.Services.SmokePdfs.IndexPage;
+
+        var links = await _worker.SendAsync(new Request { Op = Op.Links, DocId = doc.DocId, PageIndex = page }, Timeout);
+        var text = await _worker.SendAsync(new Request { Op = Op.ExtractText, DocId = doc.DocId, PageIndex = page, IncludeCharBoxes = true }, Timeout);
+
+        Assert.Equal(["i", "1", "2", "3"], doc.PageLabels);
+        Assert.Equal([new OutlineItem("Index", page, 0)], doc.Outline);
+        Assert.Empty(links.Links!);
+        var printed = PrintedPages.FromLabels(doc.PageLabels, doc.PageCount);
+        var listed = PageReferences.ListedPages([.. doc.Outline.Select(o => (o.Title, o.PageIndex, o.Depth))], doc.PageCount);
+        Assert.Contains(page, listed);
+        var found = PageReferences.Find(text.Text!.Text, printed, listed: true);
+        // Printed pages 1 and 2 are PDF pages 1 and 2, after the title page labelled i.
+        Assert.Equal(Bibliotaph.App.Services.SmokePdfs.IndexEntries.Select(e => (e.Page, e.Page)), found.Select(r => (r.Printed, r.PageIndex)));
+        Assert.Equal(text.Text.Text.Length, text.Text.CharBoxes!.Count);
+        Assert.All(found, r => Assert.All(text.Text.CharBoxes.Skip(r.Range.Start).Take(r.Range.Length), box => Assert.True(box.Right > box.Left)));
     }
 
     [Fact]
