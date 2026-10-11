@@ -24,6 +24,7 @@ CREATE TABLE doc (
     meta_author     TEXT,
     meta_subject    TEXT,
     meta_keywords   TEXT,
+    meta_producer   TEXT,                          -- the software that made it, which can name the store that sold it
     folder_hint     TEXT,                          -- folder names above the file, for search
     cover           TEXT,                          -- cover file name in the cache folder, once made
     added_utc       TEXT    NOT NULL
@@ -154,6 +155,8 @@ CREATE TABLE entry_meta (
     level_min     INTEGER,
     level_max     INTEGER,
     level_state   TEXT    NOT NULL DEFAULT 'unknown' CHECK (level_state IN ('unknown', 'known', 'na')),
+    players_min   INTEGER,                       -- how many players it is for; both null when unknown
+    players_max   INTEGER,
     needs_review  INTEGER NOT NULL DEFAULT 0,    -- how many Needs review cards it has
     suggested     INTEGER NOT NULL DEFAULT 0,    -- shows a value nobody has confirmed
     tags          TEXT,                          -- the user's tags, joined with "; "
@@ -161,7 +164,7 @@ CREATE TABLE entry_meta (
     provisional_text TEXT                        -- and of suggested ones
 );
 
--- One row per value of a vocabulary field (system, edition, type, setting, theme, environment), for filters, facet
+-- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own, store), for filters, facet
 -- counts and field search. value is the term key.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
@@ -198,8 +201,8 @@ CREATE TABLE scope_name (
 ) WITHOUT ROWID;
 CREATE INDEX scope_name_name ON scope_name (name COLLATE NOCASE);
 
--- Each entry's own note (slice 3f), for the notes column of entry_fts, so a search finds the books whose note has the
--- words. Projected from catalog.db; page notes aren't searched yet.
+-- The text of each entry's notes (slice 3f), its own note and then its page notes, for the notes column of entry_fts,
+-- so a search finds the books whose notes have the words. Projected from catalog.db.
 CREATE TABLE entry_note (
     entry_id  INTEGER PRIMARY KEY,
     text      TEXT NOT NULL
@@ -270,4 +273,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 13;
+PRAGMA user_version = 15;

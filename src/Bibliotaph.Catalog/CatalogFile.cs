@@ -104,7 +104,7 @@ public sealed class CatalogFile(string path) : IDbContextFactory<CatalogDbContex
     /// given a new place takes it as "Point to its new place" does (<see cref="SourceRootStore.RelocateAsync"/>), so its
     /// files match by their paths under it and keep their hashes; one left without is offline until the user points it
     /// somewhere. Every folder's volume serial and file IDs are forgotten, being another computer's or another disk's,
-    /// and read again at its first scan. Window positions stay with the computer they were saved on. False when a new
+    /// and read again at its first scan, and so is which files wait to go back to online-only. Window positions stay with the computer they were saved on. False when a new
     /// place is already another folder's. <paramref name="found"/> are the folders found where the backup says they are;
     /// <paramref name="places"/> gives others their new places, and one not in either is offline.
     /// </summary>
@@ -120,7 +120,7 @@ public sealed class CatalogFile(string path) : IDbContextFactory<CatalogDbContex
             root.Availability = found.Contains(root.Id) || places.GetValueOrDefault(root.Id) is not null ? SourceRootAvailability.Online : SourceRootAvailability.Offline;
         await db.SaveChangesAsync(ct);
         await db.SourceRoots.ExecuteUpdateAsync(u => u.SetProperty(r => r.VolumeSerial, (string?)null), ct);
-        await db.FileLocations.ExecuteUpdateAsync(u => u.SetProperty(f => f.NtfsFileId, (string?)null), ct);
+        await db.FileLocations.ExecuteUpdateAsync(u => u.SetProperty(f => f.NtfsFileId, (string?)null).SetProperty(f => f.ReturnToOnlineOnly, false), ct);
         await db.Settings.Where(s => s.Key == SettingKeys.ReaderWindow).ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
         return true;

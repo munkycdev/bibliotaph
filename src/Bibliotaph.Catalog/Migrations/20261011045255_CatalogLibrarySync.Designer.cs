@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bibliotaph.Catalog.Migrations;
 
 [DbContext(typeof(CatalogDbContext))]
-[Migration("20261011053631_CatalogPartProposals")]
-partial class CatalogPartProposals
+[Migration("20261011045255_CatalogLibrarySync")]
+partial class CatalogLibrarySync
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -194,6 +194,10 @@ partial class CatalogPartProposals
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<DateTime>("UsedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("used_utc");
@@ -201,6 +205,9 @@ partial class CatalogPartProposals
                 b.HasKey("Id");
 
                 b.HasIndex("ParentId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("collection");
             });
@@ -342,11 +349,18 @@ partial class CatalogPartProposals
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_entry_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("MergedIntoEntryId");
 
                 b.HasIndex("ParentEntryId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("entry");
             });
@@ -411,10 +425,6 @@ partial class CatalogPartProposals
                     .HasColumnType("INTEGER")
                     .HasColumnName("entry_id");
 
-                b.Property<string>("FirstFingerprint")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("first_fingerprint");
-
                 b.Property<int?>("FirstPdfPage")
                     .HasColumnType("INTEGER")
                     .HasColumnName("first_pdf_page");
@@ -422,10 +432,6 @@ partial class CatalogPartProposals
                 b.Property<bool>("IsCurrent")
                     .HasColumnType("INTEGER")
                     .HasColumnName("is_current");
-
-                b.Property<string>("LastFingerprint")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("last_fingerprint");
 
                 b.Property<int?>("LastPdfPage")
                     .HasColumnType("INTEGER")
@@ -597,6 +603,10 @@ partial class CatalogPartProposals
                     .HasColumnType("INTEGER")
                     .HasColumnName("page_ref_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<string>("Text")
                     .IsRequired()
                     .HasColumnType("TEXT")
@@ -614,6 +624,9 @@ partial class CatalogPartProposals
                     .HasFilter("page_ref_id IS NULL");
 
                 b.HasIndex("PageRefId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.HasIndex("EntryId", "PageRefId");
 
@@ -722,48 +735,6 @@ partial class CatalogPartProposals
                 b.HasIndex("DocumentId");
 
                 b.ToTable("page_ref");
-            });
-
-        modelBuilder.Entity("Bibliotaph.Catalog.Entities.PartProposal", b =>
-            {
-                b.Property<long>("Id")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("INTEGER")
-                    .HasColumnName("id");
-
-                b.Property<string>("Answer")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("answer");
-
-                b.Property<string>("ContentHash")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("content_hash");
-
-                b.Property<DateTime>("CreatedUtc")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("created_utc");
-
-                b.Property<DateTime?>("DecidedUtc")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("decided_utc");
-
-                b.Property<string>("PartsJson")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("parts_json");
-
-                b.Property<string>("Source")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("source");
-
-                b.HasKey("Id");
-
-                b.HasIndex("ContentHash")
-                    .IsUnique();
-
-                b.ToTable("part_proposal");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Pin", b =>
@@ -922,6 +893,10 @@ partial class CatalogPartProposals
                     .HasColumnType("INTEGER")
                     .HasColumnName("section_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("EntryId");
@@ -931,6 +906,9 @@ partial class CatalogPartProposals
                 b.HasIndex("PageRefId");
 
                 b.HasIndex("SectionId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("session_item");
             });
@@ -962,6 +940,10 @@ partial class CatalogPartProposals
                     .HasColumnType("TEXT")
                     .HasColumnName("notes");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<string>("Title")
                     .IsRequired()
                     .HasColumnType("TEXT")
@@ -972,6 +954,9 @@ partial class CatalogPartProposals
                     .HasColumnName("touched_utc");
 
                 b.HasKey("Id");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.HasIndex("TouchedUtc");
 
@@ -998,9 +983,16 @@ partial class CatalogPartProposals
                     .HasColumnType("INTEGER")
                     .HasColumnName("position");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("PackId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("session_section");
             });
@@ -1042,6 +1034,10 @@ partial class CatalogPartProposals
                     .HasColumnType("TEXT")
                     .HasColumnName("name");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<DateTime>("UpdatedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("updated_utc");
@@ -1049,6 +1045,9 @@ partial class CatalogPartProposals
                 b.HasKey("Id");
 
                 b.HasIndex("Name");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("smart_view");
             });
@@ -1084,6 +1083,34 @@ partial class CatalogPartProposals
                     .IsUnique();
 
                 b.ToTable("source_root");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.SyncState", b =>
+            {
+                b.Property<string>("Key")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("key");
+
+                b.Property<string>("AliasesJson")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("aliases_json");
+
+                b.Property<DateTime?>("DeletedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("deleted_utc");
+
+                b.Property<string>("FieldsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("fields_json");
+
+                b.Property<bool>("Pending")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("pending");
+
+                b.HasKey("Key");
+
+                b.ToTable("sync_state");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VersionProposal", b =>

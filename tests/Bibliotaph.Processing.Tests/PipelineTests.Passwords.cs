@@ -103,7 +103,11 @@ public sealed partial class PipelineTests
         var cover = Path.Combine(_paths.Cache, "covers", entry.Cover!);
         Assert.True(File.Exists(cover));
         Assert.Equal(1, await PagesFoundAsync("owlbear"));
-        var forget = new ForgetText(_entries, _libraryStore, _indexStore, _service, new CoverCache(_paths), _runs, _metadataStore, _projector);
+        // The reader drew a thumbnail of its first page.
+        var thumbnails = new PageThumbnailCache(_paths);
+        var hash = Path.GetFileNameWithoutExtension(entry.Cover!);
+        thumbnails.Write(hash, 0, [1, 2, 3]);
+        var forget = new ForgetText(_entries, _libraryStore, _indexStore, _service, new CoverCache(_paths), thumbnails, _runs, _metadataStore, _projector);
 
         Assert.True(await forget.ForgetAsync(entry.EntryId, Ct));
 
@@ -111,6 +115,7 @@ public sealed partial class PipelineTests
         Assert.Equal(TextAccess.Forgotten, forgotten.TextAccess);
         Assert.Null(forgotten.Cover);
         Assert.False(File.Exists(cover));
+        Assert.Null(thumbnails.Read(hash, 0));
         Assert.Equal(0, await PagesFoundAsync("owlbear"));
         Assert.True(await _libraryStore.IsTextForgottenAsync(entry.DocumentId, Ct));
         await using (var c = _index.OpenRead())

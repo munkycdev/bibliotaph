@@ -130,6 +130,10 @@
                     AutomationProperties.Name="Contents" Command="{Binding ToggleOutlineCommand}" />
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
+          <!-- Page thumbnails along the bottom of the pages; hidden at launch, then kept as last left for the sitting. -->
+          <Button x:Name="ToggleStrip" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelBottom}" c:Ui.IsActive="{Binding ShowStrip}"
+                  ToolTip="{Binding StripAction}" AutomationProperties.Name="Page thumbnails" Command="{Binding ToggleStripCommand}" />
+          <Border Style="{StaticResource Divider}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
                   AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
           <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
@@ -334,6 +338,67 @@
             </ScrollViewer>
           </DockPanel>
         </Border>
+        <!--
+          Page thumbnails: a picture of every page, scrolled sideways (the wheel too) and opened with a click or Enter. The
+          page in view is outlined, a page with notes has a badge, and a binder item's pages have a bar over them. Only the
+          thumbnails near the strip's view are drawn, after the pages on screen.
+        -->
+        <Border x:Name="StripPanel" DockPanel.Dock="Bottom" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0"
+                Visibility="{Binding StripVisible, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <ListBox x:Name="PageStrip" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Strip.Pages}" AutomationProperties.Name="Page thumbnails"
+                   c:ItemActivation.Command="{Binding Strip.GoToPageCommand}" Padding="6,2,6,0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                   VirtualizingPanel.ScrollUnit="Item" VirtualizingPanel.CacheLength="4" VirtualizingPanel.CacheLengthUnit="Item"
+                   ScrollViewer.ScrollChanged="PageStrip_ScrollChanged" PreviewMouseWheel="PageStrip_PreviewMouseWheel">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem" BasedOn="{StaticResource Bt.PlainItem}">
+                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+                <Setter Property="Margin" Value="3,4,3,4" />
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:PageThumbnail}">
+                <StackPanel x:Name="Thumb" Width="{Binding Width}" Margin="3,0" Background="Transparent" Cursor="Hand" ToolTip="{Binding AccessibleName}">
+                  <!-- Over the pages of the binder item in hand. -->
+                  <Border x:Name="ItemBar" Height="3" CornerRadius="1.5" Margin="0,0,0,3" Background="Transparent" />
+                  <Border x:Name="Frame" Height="{Binding Height}" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}"
+                          BorderThickness="1" CornerRadius="2" SnapsToDevicePixels="True">
+                    <Grid>
+                      <TextBlock Text="{Binding Page}" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Image Source="{Binding Image}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                      <Border x:Name="NoteBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,3,0" Width="18" Height="18" CornerRadius="9"
+                              Background="{DynamicResource Bt.Accent}" Visibility="{Binding HasNotes, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                        <c:LucideIcon Data="{StaticResource Icon.NotebookPen}" Size="11" Foreground="{DynamicResource Bt.AccentText}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                    </Grid>
+                  </Border>
+                  <TextBlock x:Name="Number" Text="{Binding Page}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" HorizontalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                </StackPanel>
+                <DataTemplate.Triggers>
+                  <Trigger SourceName="Thumb" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Bt.Muted}" />
+                  </Trigger>
+                  <DataTrigger Binding="{Binding InItem}" Value="True">
+                    <Setter TargetName="ItemBar" Property="Background" Value="{DynamicResource Bt.Accent}" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                    <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
+                    <Setter TargetName="Number" Property="Foreground" Value="{DynamicResource Bt.Text}" />
+                    <Setter TargetName="Number" Property="FontWeight" Value="SemiBold" />
+                  </DataTrigger>
+                </DataTemplate.Triggers>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
         <Grid>
           <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
                                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -398,7 +463,8 @@
 
     <ScrollViewer Grid.Row="1" Grid.RowSpan="3" VerticalScrollBarVisibility="Auto" Focusable="False"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.VisibleWhenTrue}}">
-      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}" />
+      <c:EmptyState Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}" Command="{Binding EmptyCommand}"
+                    SecondaryText="{Binding EmptySecondaryText}" SecondaryCommand="{Binding EmptySecondaryCommand}" />
     </ScrollViewer>
 
     <!-- Add pages… and naming a new session, as a dialog over the reader. Esc or Cancel closes it. -->

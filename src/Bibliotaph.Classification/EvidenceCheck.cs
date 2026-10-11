@@ -158,6 +158,7 @@ public static partial class EvidenceCheck
                     return (null, false, $"“{Cut(tidy, 60)}” doesn't look like a name.");
                 return (tidy, true, null);
             case FieldKind.Levels:
+            case FieldKind.Players:
             case FieldKind.Year:
                 var (parsed, problem) = MetadataValues.Parse(field, tidy);
                 return (parsed, false, problem);
@@ -192,22 +193,36 @@ public static partial class EvidenceCheck
 
     /// <summary>
     /// Whether the quote names the value, for the fields whose values are printed in the book. A true quote next to a
-    /// made-up value ("Evil Corp", quoting the copyright line) fails here. Types, themes and environments are judged
-    /// from what a passage describes, so for them the quote only has to be on its page.
+    /// made-up value ("Evil Corp", quoting the copyright line) fails here. Types, duration, styles, themes and
+    /// environments are judged from what a passage describes, so for them the quote only has to be on its page.
     /// </summary>
     internal static bool Shows(MetadataField field, string value, bool isNewTerm, string quote, Vocabulary vocabulary)
     {
-        if (field == MetadataFields.Types || field == MetadataFields.Themes || field == MetadataFields.Environments) return true;
+        if (Judged.Contains(field)) return true;
         if (field == MetadataFields.Levels)
         {
             if (!value.Any(char.IsDigit)) return true; // "n/a": the book says levels don't apply, in its own words
-            var numbers = Number().Matches(quote).Select(m => m.Value.TrimStart('0')).ToHashSet(StringComparer.Ordinal);
-            return Number().Matches(value).All(m => numbers.Contains(m.Value.TrimStart('0')));
+            return ShowsNumbers(value, quote);
         }
+        // "for 4-6 characters" or "for four to six players": each number of the value is in the quote, as digits or a word.
+        if (field == MetadataFields.Players) return ShowsNumbers(value, quote);
         if (field == MetadataFields.Title) return Mentions(quote, value.Split(':')[0]);
         if (field.Kind != FieldKind.Term || isNewTerm)
             return Mentions(quote, value) || (field.Vocabulary is { } names && vocabulary.Resolve(names, value) is { } known && Names(quote, known, vocabulary));
         return vocabulary.Find(field.Vocabulary!, value) is { } term && (Names(quote, term, vocabulary) || Mentions(quote, term.Label));
+    }
+
+    /// <summary>The fields whose values a passage describes rather than prints.</summary>
+    static readonly HashSet<MetadataField> Judged =
+        [MetadataFields.Types, MetadataFields.Duration, MetadataFields.Styles, MetadataFields.Themes, MetadataFields.Environments];
+
+    /// <summary>Every number in the value appears in the quote, as digits or (up to twelve) as a word.</summary>
+    static bool ShowsNumbers(string value, string quote)
+    {
+        var numbers = Number().Matches(quote).Select(m => m.Value.TrimStart('0')).ToHashSet(StringComparer.Ordinal);
+        foreach (var word in MetadataText.Words(MetadataText.Normalize(quote)))
+            if (PlayerRange.FromWord(word) is { } n) numbers.Add(n.ToString(CultureInfo.InvariantCulture));
+        return Number().Matches(value).All(m => numbers.Contains(m.Value.TrimStart('0')));
     }
 
     /// <summary>The quote names the term, by any of its names, or a game system through one of its editions.</summary>

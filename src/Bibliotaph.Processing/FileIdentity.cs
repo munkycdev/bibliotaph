@@ -26,7 +26,10 @@ public interface IFileIdentity
     string? FileId(string path);
 }
 
-/// <summary>The Windows file system's own answers. Elsewhere there are none, so moves are found by their hash instead.</summary>
+/// <summary>
+/// The Windows file system's own answers. Elsewhere there are none, so a moved file is followed by its name, size and
+/// date, or found again by its hash.
+/// </summary>
 public sealed class FileIdentity : IFileIdentity
 {
     const uint FileReadAttributes = 0x0080;

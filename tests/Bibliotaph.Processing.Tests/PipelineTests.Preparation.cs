@@ -167,7 +167,7 @@ public sealed partial class PipelineTests
     }
 
     [Fact]
-    public async Task A_book_is_found_by_its_note_and_page_notes_follow_it()
+    public async Task A_book_is_found_by_its_note_and_by_its_page_notes()
     {
         Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
         Copy(pdfs.Scanned, "Scans/Goblin Scan.pdf");
@@ -196,16 +196,28 @@ public sealed partial class PipelineTests
         await notes.SetEntryNoteAsync(scan.EntryId, "", Ct);
         Assert.Empty(await FindAsync("lighthouse"));
 
+        // A word in a page note finds its book too, as soon as it is saved, and stops when it is changed or deleted.
         var note = await notes.AddPageNoteAsync(known.DocumentId, 1, 0, "Read this aloud", Ct);
         Assert.Equal((0, 1, known.EntryId), (note!.Range.FirstPdfPage, note.Range.LastPdfPage, note.EntryId));
         Assert.Equal([note], await notes.GetPageNotesForDocumentAsync(known.DocumentId, Ct));
-        var updated = await notes.UpdatePageNoteAsync(note, "Read this aloud, slowly", known.DocumentId, 1, 1, Ct);
-        Assert.Equal((1, "Read this aloud, slowly"), (updated!.Range.FirstPdfPage, updated.Text));
+        Assert.Equal([known.EntryId], await FindAsync("aloud"));
+        var updated = await notes.UpdatePageNoteAsync(note, "Read this out, slowly", known.DocumentId, 1, 1, Ct);
+        Assert.Equal((1, "Read this out, slowly"), (updated!.Range.FirstPdfPage, updated.Text));
+        Assert.Empty(await FindAsync("aloud"));
+        Assert.Equal([known.EntryId], await FindAsync("slowly"));
         var deleted = await notes.DeletePageNoteAsync(note.Id, Ct);
         Assert.Empty(await notes.GetPageNotesAsync(known.EntryId, Ct));
+        Assert.Empty(await FindAsync("slowly"));
         Assert.NotNull(await notes.RestorePageNoteAsync(deleted!, Ct));
+        Assert.Equal([known.EntryId], await FindAsync("slowly"));
         Assert.Equal([known.EntryId, known.EntryId, known.EntryId, known.EntryId], changed);
-        // Page notes aren't searched yet.
-        Assert.Empty(await FindAsync("aloud"));
+
+        // With a note of its own as well, either finds it; index.db emptied and projected again finds both again.
+        await notes.SetEntryNoteAsync(known.EntryId, "Pair with the lighthouse", Ct);
+        await new IndexStore(_writer).SetNotesAsync(null, new Dictionary<EntryId, string>(), Ct);
+        Assert.Empty(await FindAsync("slowly"));
+        await _projector.ProjectAllAsync(Ct);
+        Assert.Equal([known.EntryId], await FindAsync("slowly"));
+        Assert.Equal([known.EntryId], await FindAsync("lighthouse"));
     }
 }

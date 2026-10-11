@@ -16,6 +16,9 @@ public enum SearchFieldKind
 
     /// <summary>A level, a range, none or unknown: <c>level:1-5</c>. The guide shows the example.</summary>
     Level,
+
+    /// <summary>A number of players, a range or unknown: <c>players:4</c>. The guide shows the example.</summary>
+    Players,
 }
 
 /// <summary>
@@ -60,6 +63,12 @@ public static class SearchFields
     public static readonly SearchFieldInfo Level = new(SearchField.Level, "level", ["levels"], SearchFieldKind.Level,
         "a character level or range, none, or unknown", "level:3", MetadataFields.Levels);
 
+    public static readonly SearchFieldInfo Players = new(SearchField.Players, "players", ["player"], SearchFieldKind.Players,
+        "how many players it is for: a number, a range, or unknown", "players:4", MetadataFields.Players);
+
+    public static readonly SearchFieldInfo Duration = new(SearchField.Duration, "duration", [], SearchFieldKind.Term,
+        "how long it takes to play: one-shot, short, long or campaign", "duration:one-shot", MetadataFields.Duration);
+
     public static readonly SearchFieldInfo Publisher = new(SearchField.Publisher, "publisher", [], SearchFieldKind.Text,
         "words in the publisher's name", "publisher:kobold", MetadataFields.Publisher);
 
@@ -72,14 +81,20 @@ public static class SearchFields
     public static readonly SearchFieldInfo Setting = new(SearchField.Setting, "setting", [], SearchFieldKind.Term,
         "a campaign setting", "setting:eberron", MetadataFields.Settings);
 
+    public static readonly SearchFieldInfo Style = new(SearchField.Style, "style", [], SearchFieldKind.Term,
+        "the kind of adventure, such as heist or dungeon crawl", "style:heist", MetadataFields.Styles);
+
     public static readonly SearchFieldInfo Theme = new(SearchField.Theme, "theme", [], SearchFieldKind.Term,
-        "a theme such as horror or heist", "theme:horror", MetadataFields.Themes);
+        "a theme or tone, such as horror or fey", "theme:horror", MetadataFields.Themes);
 
     public static readonly SearchFieldInfo Environment = new(SearchField.Environment, "environment", ["env"], SearchFieldKind.Term,
         "where it happens", "environment:urban", MetadataFields.Environments);
 
     public static readonly SearchFieldInfo Own = new(SearchField.Own, "own", [], SearchFieldKind.Term,
         "where else you own it: in print, on a VTT", "own:foundry", MetadataFields.AlsoOwn);
+
+    public static readonly SearchFieldInfo Store = new(SearchField.Store, "store", ["from"], SearchFieldKind.Term,
+        "where to get it, such as kickstarter or drivethrurpg", "store:kickstarter", MetadataFields.GetItFrom);
 
     public static readonly SearchFieldInfo Tag = new(SearchField.Tag, "tag", ["tags"], SearchFieldKind.Text,
         "one of your tags", "tag:prep", MetadataFields.Tags);
@@ -98,10 +113,11 @@ public static class SearchFields
 
     /// <summary>Every field, in the order the field guide lists them: the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
-        [Title, System, Edition, Type, Level, Publisher, Author, Series, Setting, Theme, Environment, Own, Tag, Favorite, Collection, Format, Folder];
+        [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Own, Store, Tag, Favorite,
+            Collection, Format, Folder];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
-    public static IReadOnlyList<string> Coming { get; } = ["length", "duration"];
+    public static IReadOnlyList<string> Coming { get; } = ["length"];
 
     /// <summary>The rest of the search syntax, in one line, for the foot of the field guide.</summary>
     public const string Syntax = "\"quotes\" for a phrase, -word to exclude, OR, word* for a prefix";

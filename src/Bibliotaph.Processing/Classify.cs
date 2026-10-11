@@ -63,7 +63,7 @@ public sealed record AiSetup(string? Endpoint, string? Model, string Provider, b
 }
 
 /// <summary>
-/// AI's settings in catalog.db, loaded once and kept, and the classifier they make. A change raises
+/// AI's settings in catalog.db, loaded once and kept, and the classifier and Ask's interpreter they make. A change raises
 /// <see cref="Changed"/>, which wakes or stops the Classify lane.
 /// </summary>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null)
@@ -74,6 +74,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     readonly Func<string, IModelClient> _clients = clients ?? (endpoint => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint)));
     volatile AiSetup _setup = AiSetup.Off;
     volatile IClassifier? _classifier;
+    volatile IPlainSearchInterpreter? _interpreter;
 
     public event EventHandler? Changed;
 
@@ -81,6 +82,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
 
     /// <summary>The classifier for the current setup, or null while AI isn't ready.</summary>
     public IClassifier? Classifier => _classifier;
+
+    /// <summary>Ask's reader of requests in plain English, over the same model, or null while AI isn't ready.</summary>
+    public IPlainSearchInterpreter? Interpreter => _interpreter;
 
     public IModelClient ClientFor(string endpoint) => _clients(endpoint);
 
@@ -128,19 +132,54 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     {
         setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model), BuiltInModel = Blank(setup.BuiltInModel) };
         _setup = setup;
-        _classifier = !setup.IsReady ? null
-            : setup.BuiltIn ? builtIn is null ? null : new ModelClassifier(BuiltInClientFor(setup.BuiltInModel!), setup.RunProvider, setup.ModelName!)
-            : new ModelClassifier(_clients(setup.Endpoint!), setup.Provider, setup.Model!);
+        var client = !setup.IsReady ? null
+            : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
+            : _clients(setup.Endpoint!);
+        _classifier = client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!);
+        _interpreter = client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 }
 
-/// <summary>Builds what the classifier reads for a document from index.db, or says why there is nothing to read.</summary>
-public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries, VocabularyStore vocabularies)
+/// <summary>
+/// Finds the worked examples for a book (scenario review, row 8): the user's books with values they confirmed, the
+/// most alike first (<see cref="WorkedExamples"/>), never one with a file in a library folder kept from AI.
+/// </summary>
+public sealed class ExampleFinder(MetadataStore metadata, LibraryStore library)
 {
-    public async Task<(ClassifierInput? Input, string? Why)> BuildAsync(long documentId, CancellationToken ct = default)
+    /// <summary>Up to <see cref="ClassifierPrompt.MaxExamples"/> examples for <paramref name="target"/>; none when nothing alike is confirmed.</summary>
+    public async Task<IReadOnlyList<WorkedExample>> FindAsync(EntryId target, IReadOnlySet<long> keptFromAi, Vocabulary vocabulary, CancellationToken ct = default)
+    {
+        var decided = (await metadata.GetDecidedEntryIdsAsync(ct)).Where(e => e != target).ToList();
+        if (decided.Count == 0) return [];
+        var all = await metadata.GetManyAsync([.. decided, target], ct);
+        var folders = (await library.GetEntryFoldersAsync([.. decided, target], ct)).ToLookup(f => f.EntryId);
+        var mine = all.TryGetValue(target, out var own) ? own.Compute() : EffectiveMetadata.Empty;
+        var wanted = new ExampleTarget(target, [.. folders[target].Where(f => f.Present).Select(f => f.Folder).Distinct()],
+            mine[MetadataFields.System].First?.Value, mine[MetadataFields.Publisher].First?.Value);
+        var books = decided.Where(all.ContainsKey).Select(e => new ExampleBook(e,
+            [.. folders[e].Where(f => f.Present).Select(f => f.Folder).Distinct()],
+            folders[e].Any(f => keptFromAi.Contains(f.Folder.RootId)),
+            all[e].Compute()));
+        return WorkedExamples.Choose(wanted, books, vocabulary);
+    }
+}
+
+/// <summary>
+/// Builds what the classifier reads for a document from index.db, or says why there is nothing to read; with an
+/// <see cref="ExampleFinder"/>, the worked examples sent beside it too.
+/// </summary>
+public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries, VocabularyStore vocabularies, EntryStore? entries = null,
+    ExampleFinder? examples = null)
+{
+    /// <param name="documentId">The book to read.</param>
+    /// <param name="keptFromAi">The library folders kept from AI, whose books are never sent as examples.</param>
+    /// <param name="withExamples">False for the model pilot, whose runs must read the same thing whatever the user has confirmed since.</param>
+    /// <param name="ct">Cancels the reading.</param>
+    public async Task<(ClassifierInput? Input, string? Why)> BuildAsync(long documentId, IReadOnlySet<long>? keptFromAi = null, bool withExamples = true,
+        CancellationToken ct = default)
     {
         var path = await library.GetRelativePathAsync(documentId, ct);
         var pages = await queries.GetPageTextsAsync(documentId, ct);
@@ -152,7 +191,11 @@ public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries,
         if (excerpt.IsEmpty) return (null, "There is too little text to read.");
         var byPage = pages.ToDictionary(p => p.PdfPage, p => p.Text);
         var fileName = path is null ? "" : Path.GetFileName(path);
-        return (new ClassifierInput(excerpt, fileName, page => byPage.GetValueOrDefault(page), await vocabularies.GetAsync(ct)), null);
+        var vocabulary = await vocabularies.GetAsync(ct);
+        IReadOnlyList<WorkedExample> worked = withExamples && examples is not null && entries is not null && await entries.GetEntryAsync(documentId, ct) is { } entry
+            ? await examples.FindAsync(entry.EntryId, keptFromAi ?? new HashSet<long>(), vocabulary, ct)
+            : [];
+        return (new ClassifierInput(excerpt, fileName, page => byPage.GetValueOrDefault(page), vocabulary, worked), null);
     }
 }
 
@@ -236,7 +279,7 @@ public sealed class ClassifyStage(
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
             return new StageOutcome.Later(OcrWait, "Waiting for its scanned pages to be read.");
 
-        var (input, why) = await inputs.BuildAsync(job.DocumentId, ct);
+        var (input, why) = await inputs.BuildAsync(job.DocumentId, ai.Setup.SkippedRoots, ct: ct);
         if (input is null) return new StageOutcome.Done(StageStatus.Skipped, [], why);
 
         var started = _clock.GetUtcNow().UtcDateTime;
@@ -266,8 +309,8 @@ public sealed class ClassifyStage(
         feed?.Finish(job.DocumentId, result);
 
         // Quotes are book text, so only counts and reasons go to the log.
-        _log.LogInformation("Classified document {DocumentId} with {Model} in {Seconds:0.0} s: {Accepted} values kept, {Dropped} dropped ({Reasons})",
-            job.DocumentId, classifier.Model, (_clock.GetUtcNow().UtcDateTime - started).TotalSeconds, result.Accepted.Count, result.Dropped.Count,
+        _log.LogInformation("Classified document {DocumentId} with {Model} in {Seconds:0.0} s, {Examples} worked examples: {Accepted} values kept, {Dropped} dropped ({Reasons})",
+            job.DocumentId, classifier.Model, (_clock.GetUtcNow().UtcDateTime - started).TotalSeconds, input.Examples?.Count ?? 0, result.Accepted.Count, result.Dropped.Count,
             string.Join("; ", result.Dropped.GroupBy(d => d.Reason).Select(g => $"{g.Count().ToString(CultureInfo.InvariantCulture)} × {g.Key}")));
         await results.StoreAsync(job.DocumentId, job.ContentHash, input, result, started, CancellationToken.None);
         return StageOutcome.Complete();
@@ -354,7 +397,7 @@ public sealed class AiService(
             return new AiTestResult("", TimeSpan.Zero, null, "There's no book with text to try yet. Add a folder, or wait for its books to be read.");
         var title = await queries.GetTitleAsync(documentId, ct) ?? "a book";
         progress?.Report(new AiTestProgress(AiTestStep.Reading, title));
-        var (input, why) = await inputs.BuildAsync(documentId, ct);
+        var (input, why) = await inputs.BuildAsync(documentId, settings.Setup.SkippedRoots, ct: ct);
         if (input is null) return new AiTestResult(title, TimeSpan.Zero, null, why);
 
         var client = clientFor();

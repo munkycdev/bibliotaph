@@ -129,5 +129,32 @@
         </ItemsControl>
       </StackPanel>
     </Border>
+
+    <!-- Folder rules (scenario review, row 8): proposed in Needs review after the same value was set on several books from a folder. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0"
+            Visibility="{Binding HasAnsweredRules, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel>
+        <TextBlock Text="Folder rules" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
+                   Text="Rules you answered in Needs review. A rule that's on suggests its value for every file in the folder and its subfolders, new ones too. Your own corrections always win." />
+        <ItemsControl x:Name="FolderRuleList" ItemsSource="{Binding AnsweredRules}" Focusable="False">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:FolderRuleItem}">
+              <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,9">
+                <CheckBox IsChecked="{Binding IsEnabled}" VerticalContentAlignment="Top" Foreground="{DynamicResource Bt.Text}"
+                          AutomationProperties.Name="{Binding Folder, StringFormat='Use the rule for the folder {0}'}">
+                  <StackPanel Margin="4,0,0,0">
+                    <TextBlock FontSize="12" TextWrapping="Wrap">
+                      <Run Text="{Binding Folder, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" → " Foreground="{DynamicResource Bt.Muted}" /><Run Text="{Binding Meaning, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}" />
+                  </StackPanel>
+                </CheckBox>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
   </StackPanel>
 </UserControl>

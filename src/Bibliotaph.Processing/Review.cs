@@ -20,9 +20,11 @@ public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, 
 /// </summary>
 public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions,
     IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null,
-    IReadOnlyList<UnplacedPart>? Parts = null, IReadOnlyList<PartProposalItem>? Proposals = null)
+    IReadOnlyList<CorrectionItem>? Corrections = null, IReadOnlyList<FolderRuleInfo>? Rules = null, IReadOnlyList<UnplacedPart>? Parts = null,
+    IReadOnlyList<PartProposalItem>? Proposals = null)
 {
-    public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0) + (Parts?.Count ?? 0)
+    public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0)
+        + (Corrections?.Count ?? 0) + (Rules?.Count ?? 0) + (Parts?.Count ?? 0)
         + (Proposals?.Count ?? 0);
 }
 
@@ -43,6 +45,8 @@ public sealed class ReviewService(
     PackService packs,
     ElsewhereService? elsewhere = null,
     PagePlaces? places = null,
+    CorrectionService? corrections = null,
+    FolderRules? rules = null,
     PartsService? parts = null,
     PartProposalService? proposals = null)
 {
@@ -60,12 +64,15 @@ public sealed class ReviewService(
     /// <summary>
     /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards, the
     /// folders proposed as packs, the files that may be those of books owned elsewhere, the new versions with places
-    /// that need a look, the adventures whose pages weren't found, and the files that look like they hold adventures.
+    /// that need a look, the books said to be cataloged wrong, the folder rules proposed (scenario review, row 8), the
+    /// adventures whose pages weren't found, and the files that look like they hold adventures.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
         await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct)
             + (await packs.GetProposalsAsync(ct)).Count + (elsewhere is null ? 0 : await elsewhere.CountPendingAsync(ct))
-            + (places is null ? 0 : await places.CountRevisionsAsync(ct)) + (parts is null ? 0 : (await parts.GetUnplacedAsync(ct)).Count)
+            + (places is null ? 0 : await places.CountRevisionsAsync(ct))
+            + (corrections is null ? 0 : (await corrections.GetWaitingAsync(ct)).Count) + (rules is null ? 0 : (await rules.GetProposedAsync(ct)).Count)
+            + (parts is null ? 0 : (await parts.GetUnplacedAsync(ct)).Count)
             + (proposals is null ? 0 : await proposals.CountPendingAsync(ct));
 
     /// <summary>
@@ -88,8 +95,17 @@ public sealed class ReviewService(
             .ToList();
         return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct),
             await packs.GetProposalsAsync(ct), elsewhere is null ? [] : await elsewhere.GetPendingAsync(ct), places is null ? [] : await places.GetRevisionsAsync(ct),
+            corrections is null ? [] : await corrections.GetWaitingAsync(ct), rules is null ? [] : await rules.GetProposedAsync(ct),
             parts is null ? [] : await parts.GetUnplacedAsync(ct), proposals is null ? [] : await proposals.GetPendingAsync(ct));
     }
+
+    /// <summary>"It's fine now" on a "cataloged wrong" card. Returns what brings the card back.</summary>
+    public async Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item, CancellationToken ct = default) =>
+        corrections is null ? () => Task.CompletedTask : await corrections.DismissAsync(item, ct);
+
+    /// <summary>Use this rule, or No thanks, on a proposed folder rule. Returns what undoes it.</summary>
+    public async Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use, CancellationToken ct = default) =>
+        rules is null ? () => Task.CompletedTask : await rules.SetAsync(rule, use, ct);
 
     /// <summary>
     /// Use this page on a "new version" card (slice 4h plan, choice 3): the place points at the page suggested for it
