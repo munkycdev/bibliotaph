@@ -247,7 +247,7 @@ public sealed class CatalogDatabaseTests : IDisposable
         var database = Database();
         await using (var context = database.CreateContext())
         {
-            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261011022641_CatalogPins", ct);
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261011045255_CatalogLibrarySync", ct);
             var now = new DateTime(2026, 10, 8, 12, 0, 0, DateTimeKind.Utc);
             Entities.VocabularyTerm Term(string vocabulary, string key, string label, params string[] aliases) => new()
             {
@@ -306,6 +306,49 @@ public sealed class CatalogDatabaseTests : IDisposable
         Assert.Null(vocabulary.Resolve("theme", "investigation"));
         Assert.Equal("one-shot", vocabulary.Resolve("duration", "one shot")?.Key);
         Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM vocabulary_term WHERE vocabulary = 'style' AND key = 'heist'"));
+    }
+
+    [Fact]
+    public async Task Every_row_the_user_made_gets_its_own_sync_id_that_EF_Core_reads()
+    {
+        var database = Database();
+        await using (var context = database.CreateContext())
+        {
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20261011022641_CatalogPins", TestContext.Current.CancellationToken);
+        }
+        using (var c = new SqliteConnection(database.ConnectionString))
+        {
+            c.Open();
+            using var command = c.CreateCommand();
+            command.CommandText = """
+                INSERT INTO entry (id, kind, created_utc) VALUES (1, 'Elsewhere', '2026-10-08 12:00:00'), (2, 'Elsewhere', '2026-10-08 12:00:00');
+                INSERT INTO collection (id, name, created_utc, used_utc) VALUES
+                    (5, 'Spring campaign', '2026-10-08 12:00:00', '2026-10-08 12:00:00'), (6, 'Loose maps', '2026-10-08 12:00:00', '2026-10-08 12:00:00');
+                INSERT INTO smart_view (id, name, definition, created_utc, updated_utc) VALUES (1, 'winter maps', '{}', '2026-10-08 12:00:00', '2026-10-08 12:00:00');
+                INSERT INTO session_pack (id, title, created_utc, touched_utc, keep_at_hand) VALUES (3, 'Session 4', '2026-10-08 12:00:00', '2026-10-08 12:00:00', 0);
+                INSERT INTO session_section (id, pack_id, name, position) VALUES (8, 3, 'Maps', 0);
+                INSERT INTO session_item (id, pack_id, section_id, position, entry_id, added_utc) VALUES (9, 3, 8, 0, 1, '2026-10-08 12:00:00');
+                INSERT INTO note (id, entry_id, text, created_utc, updated_utc) VALUES (4, 1, 'Bring the dice', '2026-10-08 12:00:00', '2026-10-08 12:00:00');
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var result = await database.MigrateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_CatalogLibrarySync", StringComparison.Ordinal));
+        var cs = database.ConnectionString;
+        foreach (var table in new[] { "entry", "collection", "smart_view", "session_pack", "session_section", "session_item", "note" })
+        {
+            Assert.Equal(0, Scalar(cs, $"SELECT count(*) FROM {table} WHERE sync_id IS NULL OR sync_id = '00000000-0000-0000-0000-000000000000'"));
+            Assert.Equal(Scalar(cs, $"SELECT count(*) FROM {table}"), Scalar(cs, $"SELECT count(DISTINCT sync_id) FROM {table}"));
+        }
+        await using var db = database.CreateContext();
+        var ids = await db.Collections.Select(x => x.SyncId).ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, ids.Distinct().Count());
+        Assert.DoesNotContain(Guid.Empty, ids);
+        // Found by its id, as library sync finds a collection: the stored form is the one EF Core queries with.
+        foreach (var id in ids) Assert.NotNull(await db.Collections.SingleOrDefaultAsync(x => x.SyncId == id, TestContext.Current.CancellationToken));
     }
 
     sealed class FixedClock(DateTimeOffset now) : TimeProvider

@@ -187,8 +187,8 @@ CREATE TABLE scope_name (
 ) WITHOUT ROWID;
 CREATE INDEX scope_name_name ON scope_name (name COLLATE NOCASE);
 
--- Each entry's own note (slice 3f), for the notes column of entry_fts, so a search finds the books whose note has the
--- words. Projected from catalog.db; page notes aren't searched yet.
+-- The text of each entry's notes (slice 3f), its own note and then its page notes, for the notes column of entry_fts,
+-- so a search finds the books whose notes have the words. Projected from catalog.db.
 CREATE TABLE entry_note (
     entry_id  INTEGER PRIMARY KEY,
     text      TEXT NOT NULL

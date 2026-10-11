@@ -10,19 +10,29 @@ namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
 /// A page note as the reader, a binder's reader and the details list it: which pages, and the text, and where it opens in the
-/// book as it is now (slice 4h plan, choice 2), with why when that isn't simply its pages.
+/// book as it is now (slice 4h plan, choice 2), with why when that isn't simply its pages. The pages shown are where it is
+/// in the copy the list is about: the version the book opens, in the details, or the copy open in a reader.
 /// </summary>
-public sealed class PageNoteRow(PageNoteInfo note, PagePlace? place = null)
+public sealed class PageNoteRow(PageNoteInfo note, PageNotePages? shown = null)
 {
     public PageNoteInfo Note { get; } = note;
 
     /// <summary>Where the note opens now: in the book's current copy when it is on another, found as a session item's pages are.</summary>
-    public PagePlace? Place { get; } = place;
+    public PagePlace? Place { get; } = shown?.Place;
+
+    /// <summary>The note's pages in the copy the list is about, with that copy's printed page numbers.</summary>
+    public PageRange Shown { get; } = shown?.Pages ?? note.Range;
+
+    /// <summary>
+    /// False for a note made in another copy whose pages weren't found in the one the list is about: it shows and goes
+    /// to the same page there, which may be a little different.
+    /// </summary>
+    public bool IsFound { get; } = shown?.Found ?? true;
 
     public long Id => Note.Id;
 
-    /// <summary>"p. 42", "p. 42–44", as the book numbers its pages.</summary>
-    public string Pages => SessionItemRow.Pages(Note.Range);
+    /// <summary>"p. 42", "p. 42–44", as the copy the list is about numbers its pages.</summary>
+    public string Pages => SessionItemRow.Pages(Shown);
 
     public string Text => Note.Text;
 
@@ -35,22 +45,13 @@ public sealed class PageNoteRow(PageNoteInfo note, PagePlace? place = null)
 
     public string AccessibleName => $"{Pages}: {Text}{(Reason is null ? "" : ". " + Reason)}";
 
-    /// <summary>
-    /// The note's pages in this document: where it was found there, or its own pages, which in another copy are the
-    /// same page numbers.
-    /// </summary>
+    /// <summary>The note's pages in this document: as shown when the list is about it, else its own pages.</summary>
     public (int FirstPage, int LastPage) PagesIn(long documentId) =>
-        Place is { DocumentId: { } found } place && found == documentId && found != Note.Range.DocumentId
-            ? (place.FirstPage, place.LastPage)
-            : (Note.Range.FirstPdfPage, Note.Range.LastPdfPage);
+        Shown.DocumentId == documentId ? (Shown.FirstPdfPage, Shown.LastPdfPage) : (Note.Range.FirstPdfPage, Note.Range.LastPdfPage);
 
-    /// <summary>Whether the note is on any of these pages of this document, where it was made or where it was found.</summary>
-    public bool Overlaps(long documentId, int firstPage, int lastPage)
-    {
-        if (Note.Range.DocumentId != documentId && Place?.DocumentId != documentId) return false;
-        var (first, last) = PagesIn(documentId);
-        return first <= lastPage && last >= firstPage;
-    }
+    /// <summary>Whether the note is on any of these pages of this document: where it was made, or where it was found there.</summary>
+    public bool Overlaps(long documentId, int firstPage, int lastPage) =>
+        IsFound && Shown.DocumentId == documentId && Shown.FirstPdfPage <= lastPage && Shown.LastPdfPage >= firstPage;
 }
 
 /// <summary>
@@ -102,7 +103,7 @@ public sealed partial class EntryNotesViewModel : ObservableObject
             var (text, pages, places) = await Task.Run(async () =>
             {
                 var pages = await _notes.GetPageNotesAsync(EntryId);
-                return (await _notes.GetEntryNoteAsync(EntryId), pages, await _notes.ResolveAsync(pages));
+                return (await _notes.GetEntryNoteAsync(EntryId), pages, await _notes.ListAsync(pages));
             });
             if (!_dirty)
             {

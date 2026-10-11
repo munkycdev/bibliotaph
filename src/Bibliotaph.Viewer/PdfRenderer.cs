@@ -19,7 +19,8 @@ public sealed class PdfOpenException(ErrorKind kind, string? message) : Exceptio
 /// <summary>
 /// Feeds one open document's render jobs to the viewer worker one at a time, in the order the view asks (visible
 /// previews, visible pages, then prefetch), and hands frozen bitmaps to the UI thread. Each bitmap is built straight
-/// from the worker's shared memory, so pixels are copied once. Reopens the document if the worker restarts.
+/// from the worker's shared memory, so pixels are copied once. Small pictures for the thumbnail strip wait in a lane of
+/// their own, drawn only while no page is waiting. Reopens the document if the worker restarts.
 /// </summary>
 public sealed class PdfRenderer : IAsyncDisposable
 {
@@ -34,9 +35,13 @@ public sealed class PdfRenderer : IAsyncDisposable
     readonly Task _loop;
 
     IReadOnlyList<RenderJob> _pending = [];
+    readonly List<IdleJob> _idle = [];
     Session? _session;
 
     sealed record Session(string Path, string? Password, int DocId, int WorkerGeneration);
+
+    /// <summary>A page to draw when the worker has nothing else to do, for whoever is waiting on <see cref="Done"/>.</summary>
+    sealed record IdleJob(int PageIndex, double Scale, TaskCompletionSource<BitmapSource?> Done, CancellationToken Ct);
 
     public PdfRenderer(WorkerClient worker, Dispatcher dispatcher)
     {
@@ -52,6 +57,7 @@ public sealed class PdfRenderer : IAsyncDisposable
     public async Task<DocInfo> OpenAsync(string path, string? password, CancellationToken ct = default)
     {
         lock (_lock) _pending = [];
+        DropIdle();
         await CloseAsync();
         var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = path, Password = password }, OpenTimeout, ct);
         if (!response.Ok || response.Doc is null) throw new PdfOpenException(response.Error, response.Message);
@@ -62,6 +68,7 @@ public sealed class PdfRenderer : IAsyncDisposable
     public async Task CloseAsync()
     {
         lock (_lock) _pending = [];
+        DropIdle();
         if (_session is { } old && _worker.IsRunning && old.WorkerGeneration == _worker.Generation)
         {
             try
@@ -80,6 +87,25 @@ public sealed class PdfRenderer : IAsyncDisposable
     public void Submit(IReadOnlyList<RenderJob> jobs)
     {
         lock (_lock) _pending = jobs;
+        Signal();
+    }
+
+    /// <summary>
+    /// Draws a page at <paramref name="scale"/> once no page render is waiting, as for a thumbnail. Null when the page
+    /// can't be drawn; cancelled when <paramref name="ct"/> is, as when its thumbnail scrolls out of view, or when the
+    /// document closes.
+    /// </summary>
+    public Task<BitmapSource?> RenderWhenIdleAsync(int pageIndex, double scale, CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested) return Task.FromCanceled<BitmapSource?>(ct);
+        var job = new IdleJob(pageIndex, scale, new TaskCompletionSource<BitmapSource?>(TaskCreationOptions.RunContinuationsAsynchronously), ct);
+        lock (_lock) _idle.Add(job);
+        Signal();
+        return job.Done.Task;
+    }
+
+    void Signal()
+    {
         if (_signal.CurrentCount == 0)
         {
             try
@@ -153,7 +179,13 @@ public sealed class PdfRenderer : IAsyncDisposable
             while (!token.IsCancellationRequested)
             {
                 await _signal.WaitAsync(token);
-                while (TryTake(out var job)) await RenderAsync(job, token);
+                // Pages on screen first; a thumbnail only once none is waiting, checked again after each one.
+                while (true)
+                {
+                    if (TryTake(out var job)) await RenderAsync(job, token);
+                    else if (TryTakeIdle(out var idle)) await RenderIdleAsync(idle, token);
+                    else break;
+                }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -175,6 +207,58 @@ public sealed class PdfRenderer : IAsyncDisposable
             _pending = _pending.Count == 1 ? [] : [.. _pending.Skip(1)];
             return true;
         }
+    }
+
+    /// <summary>The oldest thumbnail still wanted; those no longer wanted are let go on the way.</summary>
+    bool TryTakeIdle(out IdleJob job)
+    {
+        lock (_lock)
+        {
+            while (_idle.Count > 0)
+            {
+                job = _idle[0];
+                _idle.RemoveAt(0);
+                if (!job.Ct.IsCancellationRequested) return true;
+                job.Done.TrySetCanceled(job.Ct);
+            }
+        }
+        job = null!;
+        return false;
+    }
+
+    async Task RenderIdleAsync(IdleJob job, CancellationToken token)
+    {
+        if (_session is null)
+        {
+            job.Done.TrySetResult(null);
+            return;
+        }
+        using var both = CancellationTokenSource.CreateLinkedTokenSource(token, job.Ct);
+        try
+        {
+            job.Done.TrySetResult(await RenderBitmapAsync(job.PageIndex, job.Scale, null, both.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            job.Done.TrySetCanceled(job.Ct);
+        }
+        catch (Exception ex) when (ex is PdfRenderException or WorkerException or InvalidOperationException)
+        {
+            // A thumbnail that can't be drawn just shows the page's number; the page itself says why.
+            job.Done.TrySetResult(null);
+        }
+    }
+
+    /// <summary>Lets go of every thumbnail still waiting, as when the document closes.</summary>
+    void DropIdle()
+    {
+        IdleJob[] dropped;
+        lock (_lock)
+        {
+            dropped = [.. _idle];
+            _idle.Clear();
+        }
+        foreach (var job in dropped) job.Done.TrySetCanceled();
     }
 
     async Task RenderAsync(RenderJob job, CancellationToken token)
@@ -239,6 +323,7 @@ public sealed class PdfRenderer : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _stop.CancelAsync();
+        DropIdle();
         try
         {
             await _loop;

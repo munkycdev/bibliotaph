@@ -32,8 +32,11 @@ public sealed class CatalogDatabase(string path, string backupsDirectory, TimePr
         }
     }
 
+    /// <summary>Notices writes to the user's work, for library sync; every context of this file reports to it.</summary>
+    public CatalogWrites Writes { get; } = new();
+
     /// <summary>Points EF Core at this file; also used by the app's AddDbContextFactory registration.</summary>
-    public void Configure(DbContextOptionsBuilder builder) => builder.UseSqlite(ConnectionString);
+    public void Configure(DbContextOptionsBuilder builder) => builder.UseSqlite(ConnectionString).AddInterceptors(Writes);
 
     public CatalogDbContext CreateContext() => new(Options);
 
