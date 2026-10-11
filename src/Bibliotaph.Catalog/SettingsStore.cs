@@ -65,6 +65,12 @@ public static class SettingKeys
     /// <summary>Where a book owned online opens: "app" (the online reader, the default) or "browser" (online libraries, O2b).</summary>
     public const string OnlineReader = "library.online-reader";
 
+    /// <summary>
+    /// The folder a store's download goes to from Bibliotaph's browser (online libraries plan, O5): a library folder or
+    /// one inside it; empty or absent leaves downloads to the browser's own Downloads folder.
+    /// </summary>
+    public const string DownloadsFolder = "library.downloads-folder";
+
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
     public const string StartPage = "start-page";
 

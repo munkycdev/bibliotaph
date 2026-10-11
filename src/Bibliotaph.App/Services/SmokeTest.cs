@@ -170,6 +170,8 @@ static partial class SmokeTest
                 () => BackUpAndPreviewRestoreAsync(services, window));
             await Check("Settings > Backup > Sync with another PC refusing Bibliotaph's data folder, writing this PC's sync file to the folder picked and merging another PC's collection, then stopped",
                 () => SyncWithAnotherPcAsync(services, window));
+            await Check("a store's download saved by the in-app browser into a downloads folder inside the library, listed in its window and read into the library, after a folder outside the library was refused",
+                () => DownloadFromStoreAsync(services, window));
             // Last: the made-up library's books can't be read once its folder is found offline.
             await Check("a library folder that can't be reached: its books marked Offline, one opened to a prompt to plug in its drive, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));

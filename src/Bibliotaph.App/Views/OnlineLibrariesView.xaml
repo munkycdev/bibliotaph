@@ -103,6 +103,24 @@
       </StackPanel>
     </StackPanel>
 
+    <!-- O5: where a store's own Download button saves, inside the library so the file is read like any other. -->
+    <DockPanel Margin="0,32,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,0,0,0">
+        <Button x:Name="ChooseDownloadsFolder" Content="Choose folder…" Command="{Binding ChooseDownloadsFolderCommand}" />
+        <Button x:Name="ClearDownloadsFolder" Style="{StaticResource Bt.Link}" Content="Stop using it" Command="{Binding ClearDownloadsFolderCommand}" Margin="12,0,0,0"
+                VerticalAlignment="Center" Visibility="{Binding HasDownloadsFolder, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                AutomationProperties.Name="Stop using a downloads folder" />
+      </StackPanel>
+      <StackPanel>
+        <TextBlock Text="Downloads" FontSize="14" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="When you press a store's own Download button in Bibliotaph's browser, the file goes here, a library folder or one inside it, and joins your library. Nothing downloads unless you press Download." />
+        <TextBlock x:Name="DownloadsFolderLine" Text="{Binding DownloadsLine}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
+        <TextBlock x:Name="DownloadsProblemLine" Text="{Binding DownloadsProblem}" FontSize="12" Foreground="{DynamicResource Bt.Text}" Margin="0,6,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding DownloadsProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </DockPanel>
+
     <!-- Choice 2: the browser keeps its sign-ins between imports; this forgets them all. -->
     <DockPanel Margin="0,32,0,0">
       <Button x:Name="SignOutBrowser" DockPanel.Dock="Right" Content="Sign out of all services" Command="{Binding SignOutCommand}" Margin="16,0,0,0"

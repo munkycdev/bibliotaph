@@ -183,6 +183,7 @@ public partial class App : Application
         builder.Services.AddSingleton<OnlineImports>();
         builder.Services.AddSingleton<OnlineBrowsers>();
         builder.Services.AddSingleton<OnlineReaders>();
+        builder.Services.AddSingleton<OnlineDownloads>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
