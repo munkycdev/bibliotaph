@@ -8,7 +8,7 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public sealed class PinsService(PinStore pins)
 {
-    /// <summary>Raised after a pin was added or removed here, on the thread that changed it.</summary>
+    /// <summary>Raised after a pin was added, removed or moved here, on the thread that changed it.</summary>
     public event EventHandler? Changed;
 
     public Task<IReadOnlyList<PinInfo>> ListAsync(CancellationToken ct = default) => pins.ListAsync(ct);
@@ -19,6 +19,14 @@ public sealed class PinsService(PinStore pins)
         var pinned = await pins.PinAsync(target, ct);
         if (pinned) Changed?.Invoke(this, EventArgs.Empty);
         return pinned;
+    }
+
+    /// <summary>Moves the pin to that place in the list. Returns false if it isn't pinned or is already there.</summary>
+    public async Task<bool> MoveAsync(PinTarget target, int index, CancellationToken ct = default)
+    {
+        var moved = await pins.MoveAsync(target, index, ct);
+        if (moved) Changed?.Invoke(this, EventArgs.Empty);
+        return moved;
     }
 
     /// <summary>Unpins. Returns false if it wasn't pinned.</summary>

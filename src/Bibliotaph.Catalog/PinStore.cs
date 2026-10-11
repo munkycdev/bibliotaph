@@ -54,6 +54,26 @@ public sealed class PinStore(IDbContextFactory<CatalogDbContext> contexts)
         return position;
     }
 
+    /// <summary>
+    /// Moves the target's pin to <paramref name="index"/> in the list (Pinned Views plan, choices 4 and 8), clamped to its
+    /// ends, renumbering every pin in one save. Returns false if it isn't pinned or is already there.
+    /// </summary>
+    public async Task<bool> MoveAsync(PinTarget target, int index, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var pins = await db.Pins.OrderBy(p => p.Position).ThenBy(p => p.Id).ToListAsync(ct);
+        var from = pins.FindIndex(p => TargetOf(p) == target);
+        if (from < 0) return false;
+        var to = Math.Clamp(index, 0, pins.Count - 1);
+        if (to == from) return false;
+        var pin = pins[from];
+        pins.RemoveAt(from);
+        pins.Insert(to, pin);
+        for (var i = 0; i < pins.Count; i++) pins[i].Position = i;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
     /// <summary>Where the target's pin stands, or null if it isn't pinned.</summary>
     internal static Task<int?> PositionAsync(CatalogDbContext db, PinTarget target, CancellationToken ct) =>
         db.Pins.Where(Matches(target)).Select(p => (int?)p.Position).SingleOrDefaultAsync(ct);

@@ -167,6 +167,54 @@
               <Button x:Name="SaveView" Content="Save search" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding SaveViewCommand}" Margin="0,0,8,8"
                       ToolTip="Keep this search, its filters and order, pinned in the sidebar"
                       Visibility="{Binding CanSaveView, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <!-- Every saved search, pinned or not, each with its pin, Rename and Delete (Pinned Views plan, choice 11). -->
+              <Button x:Name="SavedSearches" Content="Saved searches" c:Ui.Icon="{StaticResource Icon.List}" Command="{Binding ShowSavedSearchesCommand}" Margin="0,0,8,8"
+                      ToolTip="Every search you've saved, pinned or not"
+                      Visibility="{Binding HasSavedSearches, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <Popup x:Name="SavedSearchesPopup" PlacementTarget="{Binding ElementName=SavedSearches}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                     IsOpen="{Binding IsSavedSearchesOpen}" Opened="SavedSearchesPopup_Opened" PreviewKeyDown="SavedSearchesPopup_PreviewKeyDown">
+                <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="7" Padding="6,8"
+                        Width="320" TextElement.Foreground="{DynamicResource Bt.Text}">
+                  <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="SAVED SEARCHES" Style="{StaticResource Text.Eyebrow}" Margin="8,0,8,6" />
+                    <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                      <ItemsControl x:Name="SavedSearchList" ItemsSource="{Binding SavedSearches}" Focusable="False" AutomationProperties.Name="Saved searches">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="{x:Type vm:SavedSearchRow}">
+                            <DockPanel>
+                              <Button x:Name="DeleteSavedSearch" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}"
+                                      ToolTip="Delete. Your books stay as they are, and Undo brings it back." AutomationProperties.Name="{Binding Name, StringFormat='Delete {0}'}"
+                                      Command="{Binding Page.DeleteSavedSearchCommand}" CommandParameter="{Binding}" />
+                              <Button x:Name="RenameSavedSearch" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                                      ToolTip="Rename" AutomationProperties.Name="{Binding Name, StringFormat='Rename {0}'}"
+                                      Command="{Binding Page.RenameSavedSearchCommand}" CommandParameter="{Binding}" />
+                              <Button x:Name="PinSavedSearch" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pin}"
+                                      c:Ui.IsActive="{Binding IsPinned}" ToolTip="{Binding PinAction}" AutomationProperties.HelpText="{Binding PinAction}"
+                                      Command="{Binding Page.TogglePinSavedSearchCommand}" CommandParameter="{Binding}">
+                                <AutomationProperties.Name>
+                                  <MultiBinding StringFormat="{}{0}: {1}">
+                                    <Binding Path="PinAction" />
+                                    <Binding Path="Name" />
+                                  </MultiBinding>
+                                </AutomationProperties.Name>
+                              </Button>
+                              <Button x:Name="OpenSavedSearch" Style="{StaticResource Bt.NavButton}" Content="{Binding Name}" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}"
+                                      Margin="0" ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}"
+                                      Command="{Binding Page.OpenSavedSearchCommand}" CommandParameter="{Binding}">
+                                <Button.ContentTemplate>
+                                  <DataTemplate>
+                                    <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" />
+                                  </DataTemplate>
+                                </Button.ContentTemplate>
+                              </Button>
+                            </DockPanel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </ScrollViewer>
+                  </DockPanel>
+                </Border>
+              </Popup>
               <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,8" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
                         AutomationProperties.Name="Sort" Margin="0,0,8,8" />

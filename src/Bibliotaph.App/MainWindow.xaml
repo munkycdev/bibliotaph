@@ -36,7 +36,7 @@
 
     <!-- .bt-sidebar -->
     <Border Width="210" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0" Padding="13,27,13,18">
-      <!-- The brand and the foot stay put; the navigation between them scrolls on a short window (at 200% scaling, say). -->
+      <!-- The brand and the foot stay put, and so does the navigation between them; the pins scroll on a short window. -->
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
@@ -61,49 +61,77 @@
           </Button.Template>
         </Button>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-          <StackPanel>
-            <!-- .bt-navigation -->
-            <ItemsControl ItemsSource="{Binding NavItems}" Focusable="False"
-                          AutomationProperties.Name="Main navigation">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
-                  <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
-                          c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" AutomationProperties.Name="{Binding Label}"
-                          AutomationProperties.ItemStatus="{Binding Count}"
-                          Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                          CommandParameter="{Binding Route}" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+        <!-- The main navigation stays put; the Pinned group below it scrolls on its own (Pinned Views plan, choice 10). -->
+        <Grid Grid.Row="1">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <!-- .bt-navigation -->
+          <ItemsControl ItemsSource="{Binding NavItems}" Focusable="False"
+                        AutomationProperties.Name="Main navigation">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
+                <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
+                        c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" AutomationProperties.Name="{Binding Label}"
+                        AutomationProperties.ItemStatus="{Binding Count}"
+                        Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding Route}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
 
-            <!-- .bt-sidegroup: Pinned (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order. -->
-            <StackPanel Margin="0,22,0,0">
-              <TextBlock Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
-              <TextBlock x:Name="NoPins" Text="Right-click a book, collection or binder and choose Pin." FontSize="11" TextWrapping="Wrap"
-                         Foreground="{DynamicResource Bt.Muted}" Margin="10,0,10,0">
-                <TextBlock.Style>
-                  <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding Pinned.Count}" Value="0">
-                        <Setter Property="Visibility" Value="Visible" />
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </TextBlock.Style>
-              </TextBlock>
+          <!--
+            .bt-sidegroup: Pinned (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order. A pin
+            is dragged to a new place, with a line where it will land, or moved with Alt+Up and Alt+Down or its menu.
+          -->
+          <DockPanel Grid.Row="1" Margin="0,22,0,0">
+            <TextBlock DockPanel.Dock="Top" Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
+            <TextBlock x:Name="NoPins" DockPanel.Dock="Top" Text="Right-click a book, collection or binder and choose Pin." FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource Bt.Muted}" Margin="10,0,10,0">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding Pinned.Count}" Value="0">
+                      <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+            <ScrollViewer x:Name="PinnedScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
               <ItemsControl x:Name="Pinned" ItemsSource="{Binding Pinned}" Focusable="False" AutomationProperties.Name="Pinned">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate DataType="{x:Type services:PinnedItemViewModel}">
-                    <!-- Every pin unpins from its right-click menu, and a saved search also renames and deletes there; Tag carries the shell for the menu's commands. -->
+                    <!--
+                      Every pin moves and unpins from its right-click menu, and a saved search also renames and deletes there; Tag
+                      carries the shell for the menu's commands. A long name is trimmed, with the whole name in the tooltip.
+                    -->
                     <Button x:Name="Pin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}" ToolTip="{Binding Tip}"
                             c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                             Command="{Binding DataContext.OpenPinCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            CommandParameter="{Binding}">
+                            CommandParameter="{Binding}" AllowDrop="True"
+                            PreviewMouseLeftButtonDown="Pin_MouseDown" PreviewMouseMove="Pin_MouseMove"
+                            DragOver="Pin_DragOver" DragLeave="Pin_DragLeave" Drop="Pin_Drop">
+                      <Button.InputBindings>
+                        <KeyBinding Key="Up" Modifiers="Alt" CommandParameter="{Binding}"
+                                    Command="{Binding DataContext.MovePinUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <KeyBinding Key="Down" Modifiers="Alt" CommandParameter="{Binding}"
+                                    Command="{Binding DataContext.MovePinDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                      </Button.InputBindings>
+                      <Button.ContentTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                      </Button.ContentTemplate>
                       <Button.ContextMenu>
                         <ContextMenu Style="{StaticResource Bt.Menu}">
+                          <MenuItem Header="Move up" InputGestureText="Alt+Up" CommandParameter="{Binding}"
+                                    Command="{Binding PlacementTarget.Tag.MovePinUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                          <MenuItem Header="Move down" InputGestureText="Alt+Down" CommandParameter="{Binding}"
+                                    Command="{Binding PlacementTarget.Tag.MovePinDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                           <MenuItem Header="Unpin" CommandParameter="{Binding}"
                                     Command="{Binding PlacementTarget.Tag.UnpinCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                           <MenuItem Header="Rename…" CommandParameter="{Binding}"
@@ -128,9 +156,9 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-            </StackPanel>
-          </StackPanel>
-        </ScrollViewer>
+            </ScrollViewer>
+          </DockPanel>
+        </Grid>
 
         <!-- .bt-sidebottom: an update ready to apply, processing status, then Settings. -->
         <StackPanel Grid.Row="2">
