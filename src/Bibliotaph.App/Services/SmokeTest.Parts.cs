@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
@@ -105,5 +108,61 @@ static partial class SmokeTest
         await inspector.RemovePartCommand.ExecuteAsync(inspector.Parts[0]);
         library.CloseDetailsCommand.Execute(null);
         await WaitUntilAsync(window, () => Part() is null && File() is { PartsLabel: "" }, () => "Removing the adventure left its card.");
+    }
+
+    /// <summary>
+    /// Slice 5b: a proposal that the smoke PDF holds two adventures, as the rules would make from bookmarks and blurbs,
+    /// is one Needs review card. Not split folds it and Undo brings it back; Edit renames one, the other is unticked,
+    /// and Accept makes one card, which Undo takes away. Not split at the end leaves the book as it was.
+    /// </summary>
+    static async Task ReviewPartProposalAsync(IServiceProvider services, Window window, long documentId)
+    {
+        const string Renamed = "The Mill Wheel at Midnight";
+        var entry = await services.GetRequiredService<EntryStore>().GetEntryAsync(documentId) ?? throw new InvalidOperationException("The smoke PDF has no card.");
+        var proposals = services.GetRequiredService<PartProposalService>();
+        var parts = services.GetRequiredService<PartsService>();
+        await services.GetRequiredService<PartProposalStore>().SaveAsync(entry.ContentHash, PartProposalSource.Rules,
+        [
+            new ProposedPart("The Front Matter", new PartPages(0, 0)),
+            new ProposedPart("The Mill Wheel", new PartPages(1, 1), "2", "for four characters of 2nd level"),
+        ]);
+        if (await proposals.CountPendingAsync() != 1) throw new InvalidOperationException("The proposal isn't counted for Needs review.");
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
+        var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        await page.ReloadCommand.ExecuteAsync(null);
+        var card = page.Cards.OfType<PartProposalCardViewModel>().SingleOrDefault(c => c.Item.DocumentId == documentId)
+            ?? throw new InvalidOperationException("The proposal isn't a card in Needs review.");
+        if (card.Heading != "This file looks like it holds 2 adventures." || card.Rows is not [{ Summary: "p. i" }, { Summary: "p. 1 · Level 2" }])
+            throw new InvalidOperationException($"The card says “{card.Heading}”, {string.Join(", ", card.Rows.Select(r => r.Summary))}.");
+        Button? On(string name, System.Windows.Input.ICommand command) => Descendants<Button>(window).FirstOrDefault(b => b.Name == name && b.Command == command);
+
+        await WaitUntilAsync(window, () => Shown(window, "NotSplit"), () => "The proposal has no Not split.");
+        Click(On("NotSplit", card.NotSplitCommand), "Not split");
+        await WaitUntilAsync(window, () => card.IsDone, () => "Not split didn't fold the card.");
+        if (await proposals.CountPendingAsync() != 0) throw new InvalidOperationException("A file kept as one book is still proposed.");
+        await card.UndoCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !card.IsDone && Shown(window, "EditParts"), () => "Undo didn't bring the proposal back.");
+
+        Click(On("EditParts", card.EditCommand), "Edit");
+        await WaitUntilAsync(window, () => card.IsEditing, () => "Edit didn't make the titles and pages editable.");
+        card.Rows[0].IsChecked = false;
+        card.Rows[1].Title = Renamed;
+        await Settle(window);
+        if (card.AcceptLabel != "Make 1 card") throw new InvalidOperationException($"With one ticked, Accept reads “{card.AcceptLabel}”.");
+        await AuditAsync(window, "a proposal of adventures in Needs review");
+        Click(On("AcceptParts", card.AcceptCommand), "Accept");
+        await WaitUntilAsync(window, () => card.IsDone, () => $"Accept didn't make the card ({card.Problem}).");
+        if (await parts.GetAsync(entry.EntryId) is not [{ Title: Renamed, Pages: { First: 1, Last: 1 } }])
+            throw new InvalidOperationException("Accept didn't make one card for the renamed adventure.");
+
+        await card.UndoCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !card.IsDone, () => "Undo didn't bring the proposal back.");
+        if ((await parts.GetAsync(entry.EntryId)).Count != 0) throw new InvalidOperationException("Undo left the adventure's card.");
+        await card.NotSplitCommand.ExecuteAsync(null);
+        if (await proposals.CountPendingAsync() != 0) throw new InvalidOperationException("Not split left the proposal waiting.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
     }
 }

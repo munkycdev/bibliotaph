@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011044120_CatalogParts";
+    public override string LastMigrationId => "20261011053631_CatalogPartProposals";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -724,6 +724,48 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("DocumentId");
 
                 b.ToTable("page_ref");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.PartProposal", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<string>("Answer")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("answer");
+
+                b.Property<string>("ContentHash")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("content_hash");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<DateTime?>("DecidedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("decided_utc");
+
+                b.Property<string>("PartsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("parts_json");
+
+                b.Property<string>("Source")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("source");
+
+                b.HasKey("Id");
+
+                b.HasIndex("ContentHash")
+                    .IsUnique();
+
+                b.ToTable("part_proposal");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Pin", b =>

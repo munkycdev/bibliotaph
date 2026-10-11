@@ -81,7 +81,16 @@ public sealed class PartStore(IDbContextFactory<CatalogDbContext> contexts, Time
     /// Null when the file's entry can't hold parts (it isn't a file's own card, or the copy isn't one of its copies),
     /// or the pages overlap an adventure already marked in that copy.
     /// </summary>
-    public async Task<EntryId?> AddAsync(EntryId parentId, PartSource source, string title, CancellationToken ct = default)
+    public Task<EntryId?> AddAsync(EntryId parentId, PartSource source, string title, CancellationToken ct = default) =>
+        AddAsync(parentId, source, title, [], null, ct);
+
+    /// <summary>
+    /// <see cref="AddAsync(EntryId, PartSource, string, CancellationToken)"/>, with values a proposal read for the
+    /// adventure, such as the levels its blurb gives (slice 5 plan, choice 5): suggestions of their own origin, read
+    /// from the copy with <paramref name="contentHash"/>, which the user can keep or reject.
+    /// </summary>
+    public async Task<EntryId?> AddAsync(EntryId parentId, PartSource source, string title, IReadOnlyList<MetadataProposal> suggestions, string? contentHash,
+        CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         if (!await CanHoldPartsAsync(db, parentId, source.DocumentId, ct)) return null;
@@ -91,6 +100,21 @@ public sealed class PartStore(IDbContextFactory<CatalogDbContext> contexts, Time
         part.Sources.Add(ToRow(source with { IsCurrent = true }));
         part.Assertions.Add(UserValue(MetadataFields.Title, title.Trim(), now));
         part.Assertions.Add(UserValue(MetadataFields.Types, AdventureType, now));
+        foreach (var suggestion in suggestions.Where(s => s.Origin != AssertionOrigin.User && s.Normalized.Length > 0))
+        {
+            part.Assertions.Add(new Assertion
+            {
+                Field = suggestion.Field.Key,
+                ValueJson = JsonSerializer.Serialize(suggestion.Value),
+                NormalizedValue = suggestion.Normalized,
+                Origin = suggestion.Origin,
+                ContentHash = contentHash,
+                EvidencePagesJson = suggestion.Pages is { Count: > 0 } pages ? JsonSerializer.Serialize(pages) : null,
+                EvidenceQuote = suggestion.Quote,
+                State = AssertionState.Provisional,
+                CreatedUtc = now,
+            });
+        }
         db.Entries.Add(part);
         await SuggestAnthologyAsync(db, parentId, now, ct);
         await db.SaveChangesAsync(ct);

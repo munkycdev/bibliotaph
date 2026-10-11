@@ -96,6 +96,7 @@ public sealed partial class NeedsReviewViewModel(
     CoverImages covers,
     BookTextActions text,
     PartsService parts,
+    PartProposalService proposals,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
@@ -223,6 +224,7 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             foreach (var match in list.Elsewhere ?? []) Cards.Add(new ElsewhereCardViewModel(match, this));
             foreach (var revision in list.Revisions ?? []) Cards.Add(new RevisionCardViewModel(revision, this));
+            foreach (var proposal in list.Proposals ?? []) Cards.Add(new PartProposalCardViewModel(proposal, await GetPageLabelsAsync(proposal.DocumentId), this));
             foreach (var part in list.Parts ?? []) Cards.Add(new UnplacedPartCardViewModel(part, await GetPageLabelsAsync(part.DocumentId), this));
             Hidden = _items.Count;
             ShowMore();
@@ -483,6 +485,30 @@ public sealed partial class NeedsReviewViewModel(
             activity.Invalidate();
         }
         return (null, UndoAsync);
+    }
+
+    public async Task<(string? Problem, Func<Task>? Undo)> AcceptPartsAsync(PartProposalItem item, IReadOnlyList<ProposedPart> chosen)
+    {
+        var accepted = await Task.Run(() => proposals.AcceptAsync(item, chosen));
+        activity.Invalidate();
+        if (accepted.Undo is not { } undo) return (accepted.Problem, null);
+        async Task UndoAsync()
+        {
+            await Task.Run(undo);
+            activity.Invalidate();
+        }
+        return (null, UndoAsync);
+    }
+
+    public async Task<Func<Task>> NotSplitAsync(PartProposalItem item)
+    {
+        var undo = await Task.Run(() => proposals.NotSplitAsync(item));
+        activity.Invalidate();
+        return async () =>
+        {
+            await Task.Run(undo);
+            activity.Invalidate();
+        };
     }
 
     public async Task<Func<Task>> RemovePartAsync(UnplacedPart part)

@@ -328,6 +328,70 @@
       </Border>
     </DataTemplate>
 
+    <!-- A file that looks like a compilation (slice 5b): its adventures, ticked, with Accept, Edit and Not split. -->
+    <DataTemplate DataType="{x:Type vm:PartProposalCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this file"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock x:Name="ProposalHeading" Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Margin="0,12,0,0" AutomationProperties.Name="Adventures proposed">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:ProposedPartRow}">
+                  <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Top" Margin="0,2,10,0"
+                              AutomationProperties.Name="{Binding Title, StringFormat='Make a card for {0}'}" />
+                    <StackPanel Grid.Column="1">
+                      <StackPanel Visibility="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <Grid Visibility="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="70" />
+                          <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Adventure title" />
+                        <TextBox Grid.Column="1" Style="{StaticResource Bt.TextBox}" Margin="8,0,0,0" Text="{Binding From, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="First page" ToolTip="First page, as the file numbers it" />
+                        <TextBox Grid.Column="2" Style="{StaticResource Bt.TextBox}" Margin="8,0,0,0" Text="{Binding To, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="Last page" ToolTip="Last page, as the file numbers it" />
+                      </Grid>
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Warm}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" AutomationProperties.LiveSetting="Assertive" />
+            <WrapPanel Margin="0,12,0,0">
+              <Button x:Name="AcceptParts" Style="{StaticResource Bt.Button.Primary}" Content="{Binding AcceptLabel}" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding AcceptCommand}" Margin="0,0,8,8" AutomationProperties.Name="Accept: make cards for the ticked adventures"
+                      ToolTip="Give each ticked adventure a card of its own. The file isn't changed." />
+              <Button x:Name="EditParts" Content="Edit" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}" Margin="0,0,8,8"
+                      ToolTip="Change the adventures' titles and pages" AutomationProperties.Name="Edit the adventures' titles and pages" />
+              <Button x:Name="NotSplit" Content="Not split" Command="{Binding NotSplitCommand}" Margin="0,0,8,8"
+                      ToolTip="It's one book. Bibliotaph won't ask about this file again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- An adventure inside a file whose pages weren't found in the file as it is now (slice 5): set its pages, or remove it. -->
     <DataTemplate DataType="{x:Type vm:UnplacedPartCardViewModel}">
       <Border Style="{StaticResource Card}">

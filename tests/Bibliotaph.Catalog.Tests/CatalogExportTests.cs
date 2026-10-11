@@ -105,6 +105,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.CopyDecisions.Add(new CopyDecision { FirstHash = book.ContentHash, SecondHash = revision.ContentHash, Answer = CopyAnswer.NotSameBook, CreatedUtc = now });
         db.VersionProposals.Add(new VersionProposal { DocumentId = revision.Id, MatchedDocumentId = book.Id, Evidence = VersionEvidence.SharedPages, SharedPages = 2, ComparedPages = 3, CreatedUtc = now });
         db.PackDecisions.Add(new PackDecision { SourceRootId = root.Id, FolderPath = "Tokens.zip", IsArchive = true, Answer = PackAnswer.Packed, EntryId = pack.Id, CreatedUtc = now });
+        db.PartProposals.Add(new PartProposal { ContentHash = book.ContentHash, Source = PartProposalSource.Rules, PartsJson = "[]", Answer = PartProposalAnswer.NotSplit, CreatedUtc = now, DecidedUtc = now });
         db.ElsewhereMatches.Add(new ElsewhereMatch { EntryId = entry.Id, DocumentId = revision.Id, Answer = ElsewhereAnswer.SeparateBook, CreatedUtc = now });
         db.Assertions.Add(new Assertion { EntryId = entry.Id, Field = "title", ValueJson = "\"Book\"", NormalizedValue = "book", Origin = AssertionOrigin.User, State = AssertionState.Confirmed, CreatedUtc = now });
         db.Rejections.Add(new Rejection { EntryId = entry.Id, Field = "type", NormalizedValue = "adventure", CreatedUtc = now });

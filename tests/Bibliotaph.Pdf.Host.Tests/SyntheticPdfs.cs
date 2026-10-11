@@ -39,6 +39,7 @@ public sealed class SyntheticPdfs : IDisposable
         LockedNoCopying = Write("locked-no-copying.pdf", Bibliotaph.App.Services.SmokePdfs.Locked());
         Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
         Linked = Write("linked.pdf", BuildLinked());
+        Compilation = Write("compilation.pdf", BuildPages(CompilationPages, CompilationOutline));
     }
 
     /// <summary>
@@ -237,8 +238,26 @@ public sealed class SyntheticPdfs : IDisposable
         return output.ToArray();
     }
 
-    /// <summary>A page per entry, each line drawn as real text.</summary>
-    static byte[] BuildPages(string[][] pages)
+    /// <summary>
+    /// A made-up compilation of two adventures (slice 5b): credits, each adventure with its blurb on its first page,
+    /// and an appendix, with a top-level bookmark for each.
+    /// </summary>
+    public string Compilation { get; }
+
+    public static readonly string[][] CompilationPages =
+    [
+        ["Credits", "Written by Ana Ruiz and Dale Ito"],
+        ["The Salt Mine", "An adventure for four characters of 1st level"],
+        ["The mine's shafts run deep under the marsh, where the salt glows."],
+        ["Lantern Night", "A festival adventure for characters of 3rd to 5th level"],
+        ["The lanterns rise at dusk and the thieves strike at midnight."],
+        ["Appendix: New Monsters", "Salt wraiths and lantern sprites."],
+    ];
+
+    static readonly (string Title, int Page)[] CompilationOutline = [("Credits", 0), ("The Salt Mine", 1), ("Lantern Night", 3), ("Appendix: New Monsters", 5)];
+
+    /// <summary>A page per entry, each line drawn as real text, with top-level bookmarks if any.</summary>
+    static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
     {
         using var document = new PdfDocument();
         var font = new XFont(EmbeddedFontResolver.Family, 12);
@@ -248,6 +267,7 @@ public sealed class SyntheticPdfs : IDisposable
             using var gfx = XGraphics.FromPdfPage(page);
             for (var i = 0; i < lines.Length; i++) gfx.DrawString(lines[i], font, XBrushes.Black, new XPoint(60, 90 + i * 22));
         }
+        foreach (var (title, at) in outline ?? []) document.Outlines.Add(title, document.Pages[at]);
         using var output = new MemoryStream();
         document.Save(output);
         return output.ToArray();

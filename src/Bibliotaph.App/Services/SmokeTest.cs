@@ -134,6 +134,8 @@ static partial class SmokeTest
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
                 await Check("a bookmark indexed as its own adventure from the reader: its card, its page found under it, read as the adventure, removed and brought back",
                     () => UsePartsAsync(services, window, reprocessed.Pdf));
+                await Check("a proposal of a file's adventures in Needs review: Not split and Undo, edited, accepted as one card, undone, and kept as one book",
+                    () => ReviewPartProposalAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));

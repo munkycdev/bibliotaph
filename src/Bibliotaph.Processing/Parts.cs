@@ -1,5 +1,6 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -67,12 +68,20 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
     /// "Index as its own adventure" and "Mark pages as an adventure" (choice 4): pages of a copy of a file become an
     /// adventure with a card of its own, found in the file's other copies too. Returns it, or why it can't be.
     /// </summary>
-    public async Task<PartChange> AddAsync(long documentId, PartPages pages, string title, CancellationToken ct = default)
+    public Task<PartChange> AddAsync(long documentId, PartPages pages, string title, CancellationToken ct = default) =>
+        AddAsync(documentId, pages, title, [], ct);
+
+    /// <summary>
+    /// <see cref="AddAsync(long, PartPages, string, CancellationToken)"/>, with what a proposal read for the adventure,
+    /// such as the levels its blurb gives, as suggestions on its card.
+    /// </summary>
+    public async Task<PartChange> AddAsync(long documentId, PartPages pages, string title, IReadOnlyList<MetadataProposal> suggestions, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(title)) return new PartChange(null, "Give the adventure a title.");
         if (await GetFileAsync(documentId, ct) is not { } fileId) return new PartChange(null, "Adventures can only be marked in a book's own file.");
         if (await CheckAsync(documentId, pages, null, ct) is { } problem) return new PartChange(null, problem);
-        if (await parts.AddAsync(fileId, await MarkAsync(documentId, pages, ct), title, ct) is not { } partId)
+        var contentHash = suggestions.Count == 0 ? null : (await entries.GetEntryAsync(documentId, ct))?.ContentHash;
+        if (await parts.AddAsync(fileId, await MarkAsync(documentId, pages, ct), title, suggestions, contentHash, ct) is not { } partId)
             return new PartChange(null, "Those pages overlap another adventure in this file.");
         _log.LogInformation("Marked pages {First} to {Last} of document {DocumentId} as adventure {EntryId}", pages.First, pages.Last, documentId, partId);
         await FollowAsync(fileId, ct: ct);

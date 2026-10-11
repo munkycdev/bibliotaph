@@ -25,6 +25,8 @@ public interface IReviewActions
     Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId);
     Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages);
     Task<Func<Task>> RemovePartAsync(UnplacedPart part);
+    Task<(string? Problem, Func<Task>? Undo)> AcceptPartsAsync(PartProposalItem item, IReadOnlyList<ProposedPart> chosen);
+    Task<Func<Task>> NotSplitAsync(PartProposalItem item);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -472,6 +474,113 @@ public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOn
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Part.DocumentId, Part.FileTitle);
+}
+
+/// <summary>
+/// "This file looks like it holds 5 adventures" (slice 5 plan, choice 7): a ticked list of the adventures proposed,
+/// with their titles and pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not
+/// split" keeps the file as one book. Either is remembered, and can be undone.
+/// </summary>
+public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
+{
+    public PartProposalCardViewModel(PartProposalItem item, IReadOnlyList<string?> labels, IReviewActions actions) : base(actions)
+    {
+        Item = item;
+        Rows = [.. item.Parts.Select(p => new ProposedPartRow(this, p, labels))];
+    }
+
+    public PartProposalItem Item { get; }
+
+    public string Title => Item.FileTitle;
+
+    public string Heading => $"This file looks like it holds {LibraryItemViewModel.Adventures(Item.Parts.Count)}.";
+
+    public string Chip => Item.Source == PartProposalSource.Ai ? "Adventures? Read with AI" : "Adventures?";
+
+    public string Detail => Item.Source == PartProposalSource.Ai
+        ? "A model read its contents and the first page of each. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed."
+        : "Its bookmarks and the blurbs on their first pages say so. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+
+    public IReadOnlyList<ProposedPartRow> Rows { get; }
+
+    /// <summary>The titles and pages are text boxes.</summary>
+    [ObservableProperty]
+    public partial bool IsEditing { get; private set; }
+
+    /// <summary>Why Accept couldn't make the cards: pages that don't read, or overlap.</summary>
+    [ObservableProperty]
+    public partial string? Problem { get; private set; }
+
+    /// <summary>"Make 3 cards", for the ticked adventures.</summary>
+    public string AcceptLabel => Rows.Count(r => r.IsChecked) is var ticked && ticked == 1 ? "Make 1 card" : $"Make {ticked.ToString("N0", CultureInfo.CurrentCulture)} cards";
+
+    internal void Ticked() => OnPropertyChanged(nameof(AcceptLabel));
+
+    [RelayCommand]
+    void Edit() => IsEditing = !IsEditing;
+
+    [RelayCommand]
+    Task Accept() => RunAsync(async () =>
+    {
+        var chosen = new List<ProposedPart>();
+        foreach (var row in Rows.Where(r => r.IsChecked))
+        {
+            if (row.Read() is not { } part)
+            {
+                Problem = $"The pages of {(row.Title.Trim().Length > 0 ? row.Title.Trim() : "an adventure")} don't read as pages of this file.";
+                IsEditing = true;
+                return;
+            }
+            chosen.Add(part);
+        }
+        var (problem, undo) = await Actions.AcceptPartsAsync(Item, chosen);
+        Problem = problem;
+        if (problem is null) MarkDone($"{Item.FileTitle}: {LibraryItemViewModel.Adventures(chosen.Count)} with cards of their own.", undo ?? (() => Task.CompletedTask));
+    });
+
+    [RelayCommand]
+    Task NotSplit() => DecideAsync(() => Actions.NotSplitAsync(Item), $"Kept {Item.FileTitle} as one book.");
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Item.DocumentId, Item.FileTitle);
+}
+
+/// <summary>An adventure on a proposal card: ticked to make its card, and its title and pages as the file numbers them.</summary>
+public sealed partial class ProposedPartRow(PartProposalCardViewModel card, ProposedPart part, IReadOnlyList<string?> labels) : ObservableObject
+{
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string Title { get; set; } = part.Title;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PagesText), nameof(Summary))]
+    public partial string From { get; set; } = Bibliotaph.Core.Reading.PageNumbers.Display(part.Pages.First, labels);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PagesText), nameof(Summary))]
+    public partial string To { get; set; } = part.Pages.Count == 1 ? "" : Bibliotaph.Core.Reading.PageNumbers.Display(part.Pages.Last, labels);
+
+    /// <summary>"pp. 34–52", or what was typed when it doesn't read.</summary>
+    public string PagesText => Read()?.Pages.Describe(labels) ?? (To.Trim().Length == 0 ? $"p. {From}" : $"pp. {From}–{To}");
+
+    /// <summary>"Levels 1–3", from its blurb; empty when it gave none.</summary>
+    public string Levels => part.Levels is { } levels && LevelRange.TryParse(levels, out var range) ? range.Describe() : "";
+
+    /// <summary>"pp. 34–52 · Levels 1–3".</summary>
+    public string Summary => Levels.Length > 0 ? $"{PagesText} · {Levels}" : PagesText;
+
+    partial void OnIsCheckedChanged(bool value) => card.Ticked();
+
+    /// <summary>The adventure as the row reads now, or null when its pages don't read as the file's.</summary>
+    public ProposedPart? Read()
+    {
+        int? Find(string text) => Bibliotaph.Core.Reading.PageNumbers.Find(text, labels, labels.Count);
+        if (Title.Trim().Length == 0 || Find(From) is not { } first) return null;
+        var last = To.Trim().Length == 0 ? first : Find(To);
+        return last is { } l ? part with { Title = Title.Trim(), Pages = new PartPages(first, l) } : null;
+    }
 }
 
 /// <summary>

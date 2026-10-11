@@ -59,6 +59,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     IndexStore _indexStore = null!;
     PartStore _partStore = null!;
     PartsService _parts = null!;
+    PartProposalService _proposals = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -102,6 +103,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
             _partStore);
         _parts = new PartsService(_partStore, entries, _queries, projector, services);
+        _proposals = new PartProposalService(new PartProposalStore(contexts), _parts, entries, _queries);
         _metadata = new MetadataService(_metadataStore, vocabulary, projector);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
@@ -119,7 +121,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading);
         _service = new IndexingService(_roots, library, queue,
             [
-                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
+                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, parts: _parts), _matchGate),
             ],
             new FileHasher(reader), new DiskSpace(), archives,
