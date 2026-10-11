@@ -272,6 +272,26 @@
                           Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </StackPanel>
             </StackPanel>
+            <StackPanel Margin="0,0,12,12">
+              <TextBlock Text="Players" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding PlayersChoices}" SelectedItem="{Binding PlayersChoice}"
+                        AutomationProperties.Name="Players" MinWidth="130" ToolTip="Books written for this many players" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStyleChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Style" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StyleChoices}" SelectedItem="{Binding StyleChoice}"
+                        AutomationProperties.Name="Style" MinWidth="150" ToolTip="The kind of adventure: a heist, a dungeon crawl, a hexcrawl" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowDurationChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Duration" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding DurationChoices}" SelectedItem="{Binding DurationChoice}"
+                        AutomationProperties.Name="Duration" MinWidth="150" ToolTip="How long it takes to play: a one-shot, a few sessions, a campaign" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStoreChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Get it from" Style="{StaticResource FieldLabel}" />
+              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StoreChoices}" SelectedItem="{Binding StoreChoice}"
+                        AutomationProperties.Name="Get it from" MinWidth="150" ToolTip="Where you got it, or can get it again" />
+            </StackPanel>
             <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
@@ -281,6 +301,12 @@
               <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
                         AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
+            </StackPanel>
+            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowPartsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
+              <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PartsChoices}" SelectedItem="{Binding PartsChoice}"
+                        AutomationProperties.Name="Adventures inside files" MinWidth="150"
+                        ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
             </StackPanel>
             <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />
@@ -709,6 +735,10 @@
                 <Button x:Name="PinBook" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" HorizontalAlignment="Left" Margin="0,8,0,0"
                         ToolTip="Pinned books show in the sidebar and on Home" CommandParameter="{Binding Item}"
                         Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
+                <Button x:Name="CatalogedWrong" Content="Cataloged wrong…" c:Ui.Icon="{StaticResource Icon.Pencil}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                        ToolTip="Correct its details: the values Bibliotaph guessed are marked" Command="{Binding StartCorrectingCommand}"
+                        Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
               </StackPanel>
             </Grid>
 
@@ -839,6 +869,35 @@
               </ItemsControl>
             </StackPanel>
 
+            <!-- Cataloged wrong…: what to do, and Done. Closing the details without a change leaves a Needs review card. -->
+            <Border x:Name="CorrectingBanner" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,24,0,0"
+                    AutomationProperties.Name="Correcting this book" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <DockPanel>
+                <Button x:Name="CorrectionDone" DockPanel.Dock="Right" Content="Done" VerticalAlignment="Top" Margin="12,0,0,0"
+                        Command="{Binding FinishCorrectingCommand}" AutomationProperties.Name="Done correcting" />
+                <StackPanel>
+                  <TextBlock Text="What's wrong?" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                  <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0"
+                             Text="Values marked Guessed came from names, the file or the AI model, and nobody has confirmed them. Edit a field, or mark a value Not right. If you leave without changing anything, Needs review keeps a reminder." />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+
+            <!-- A correction offered to the books from the same folder that showed the same values (look-alikes). -->
+            <Border x:Name="LookAlikeOffer" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,12,0,0"
+                    AutomationProperties.Name="{Binding LookAlikeQuestion}" Visibility="{Binding HasLookAlikeOffer, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <StackPanel>
+                <TextBlock Text="{Binding LookAlikeQuestion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LookAlikeDetail}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                  <Button x:Name="ChangeLookAlikes" Style="{StaticResource Bt.Button.Primary}" Content="Change them" Margin="0,0,8,0"
+                          Command="{Binding AcceptLookAlikesCommand}" AutomationProperties.Name="Change the other books too" />
+                  <Button x:Name="KeepLookAlikes" Content="No thanks" Command="{Binding DeclineLookAlikesCommand}"
+                          AutomationProperties.Name="Leave the other books as they are" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
             <!-- Details: each field's value, where it came from, and the user's corrections. -->
             <DockPanel Margin="0,28,0,4">
               <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding MoreFieldsLabel}" Command="{Binding ToggleAllFieldsCommand}"
@@ -858,11 +917,28 @@
                           <WrapPanel>
                             <TextBlock x:Name="Value" Text="{Binding Display}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                                        Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <Border x:Name="GuessedMark" Style="{StaticResource Bt.Chip}" Background="{DynamicResource Bt.Soft}" Margin="0,0,10,0"
+                                    ToolTip="Nobody has confirmed this yet" Visibility="{Binding ShowsGuessed, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <TextBlock Text="Guessed" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                            </Border>
                             <Button x:Name="EvidenceLink" Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
                                     Content="{Binding EvidenceLabel}" Command="{Binding ToggleEvidenceCommand}" Padding="0"
                                     AutomationProperties.Name="{Binding Label, StringFormat='Where {0} came from'}"
                                     Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                           </WrapPanel>
+                          <!-- Get it from: each store's link, opened in the browser once the user says yes. -->
+                          <ItemsControl ItemsSource="{Binding Links}" Focusable="False" Margin="0,2,0,0"
+                                        Visibility="{Binding HasLinks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
+                                <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Padding="0" Margin="0,3,0,0"
+                                        HorizontalAlignment="Left" Content="{Binding LinkText}" ToolTip="{Binding Url}"
+                                        AutomationProperties.Name="{Binding Text, StringFormat='Open the {0} link'}"
+                                        Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
                         </StackPanel>
                       </DockPanel>
 
@@ -981,6 +1057,74 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!--
+              Adventures inside a compilation (slice 5): a file lists those marked in it, each a card of its own, with Add,
+              Edit range and Remove; an adventure says which file it is in. Pages are typed as the file numbers them.
+            -->
+            <StackPanel x:Name="FileParts" Visibility="{Binding CanMarkParts, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <DockPanel>
+                <Button x:Name="AddPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}"
+                        VerticalAlignment="Bottom" Margin="0,0,0,10" Command="{Binding AddPartCommand}"
+                        ToolTip="Give pages of this file a card of their own, as an adventure" AutomationProperties.Name="Add an adventure in this file" />
+                <TextBlock Text="{Binding PartsHeading}" Style="{StaticResource SectionHead}" />
+              </DockPanel>
+              <TextBlock Text="A compilation's adventures can each have a card of their own that opens at their pages. The file isn't changed."
+                         Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
+                         Visibility="{Binding HasParts, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              <ItemsControl ItemsSource="{Binding Parts}" Focusable="False" AutomationProperties.Name="Adventures in this file">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:InspectorPart}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8" AutomationProperties.Name="{Binding Title}">
+                      <StackPanel>
+                        <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" HorizontalAlignment="Left"
+                                AutomationProperties.Name="{Binding Title, StringFormat='Details for {0}'}"
+                                Command="{Binding DataContext.ShowPartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                        <TextBlock Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                        <WrapPanel Margin="0,10,0,0">
+                          <Button Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Edit the pages of {0}'}"
+                                  Command="{Binding DataContext.EditPartRangeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                          <Button Content="Remove" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Its card goes; its pages are only the file's again"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Remove the adventure {0}'}"
+                                  Command="{Binding DataContext.RemovePartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                        </WrapPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel x:Name="PartOfFile" Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="IN A FILE" Style="{StaticResource SectionHead}" />
+              <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                <StackPanel>
+                  <TextBlock x:Name="PartOfText" Text="{Binding PartOf}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
+                  <TextBlock Text="Values set on the file, such as its system and publisher, are this adventure's too unless it has its own."
+                             Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  <WrapPanel Margin="0,10,0,0">
+                    <Button x:Name="ShowPartFile" Content="Show the file" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
+                            Command="{Binding ShowPartFileCommand}" AutomationProperties.Name="Show the file this adventure is in" />
+                    <Button x:Name="EditOwnRange" Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,8"
+                            Command="{Binding EditPartRangeCommand}" AutomationProperties.Name="Edit this adventure's pages" />
+                    <Button x:Name="RemoveThisPart" Content="Remove adventure" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
+                            ToolTip="This card goes; its pages are only the file's again" Command="{Binding RemoveThisPartCommand}" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <Border Margin="0,0,0,8" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <v:PartEditorView x:Name="InspectorPartEditor" DataContext="{Binding PartEditor}" />
+            </Border>
+            <DockPanel Margin="0,0,0,8" Visibility="{Binding PartMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                      ToolTip="Dismiss" AutomationProperties.Name="Dismiss" Command="{Binding DismissPartMessageCommand}" />
+              <Button x:Name="UndoPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                      Command="{Binding UndoPartCommand}" AutomationProperties.Name="Undo the change to the adventures"
+                      Visibility="{Binding HasPartUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="PartMessage" Text="{Binding PartMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
+                         AutomationProperties.LiveSetting="Polite" />
+            </DockPanel>
 
             <TextBlock Text="{Binding FactsHeading}" Style="{StaticResource SectionHead}" />
             <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Grid.IsSharedSizeScope="True">

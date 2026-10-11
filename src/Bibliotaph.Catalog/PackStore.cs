@@ -26,6 +26,9 @@ public sealed record PackChange(IReadOnlyList<EntryId> Changed, PackAnswer Previ
 /// </summary>
 public sealed record PackTogether(EntryId PackId, bool Created, IReadOnlyList<EntryId> Images, IReadOnlyList<EntryId> Merged, IReadOnlyList<EntryId> Changed);
 
+/// <summary>A file the scan found at a new place, by its file ID or as a likely move, for the packs that follow it.</summary>
+internal readonly record struct PlaceMove(long FromRootId, string FromPath, long ToRootId, string ToPath);
+
 /// <summary>A folder or ZIP some of a pack's images are in, and how many, for the details panel.</summary>
 public sealed record PackFolder(string FullPath, bool IsArchive, int Images);
 
@@ -57,9 +60,11 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     /// ZIP (subfolders included) with <see cref="AutomaticMinimum"/> images and no PDF, unless it was split, becomes a
     /// pack named after it; images new to a packed folder or ZIP join its pack. A folder or ZIP with
     /// <see cref="ProposalMinimum"/> images or more that isn't packed by itself is proposed instead, and is packed by
-    /// itself if it grows past the minimum while it waits. Runs after hashing, so a library indexed before packs
-    /// existed is packed at its first start. Returns the entries whose cards changed: new packs, packs that gained
-    /// images, and those images.
+    /// itself if it grows past the minimum while it waits. A packed folder or ZIP that moved, whose images are all in
+    /// its pack and none left where it was, takes its decision along, so the pack keeps its card and everything on it
+    /// and its new images still join it; a copy of one gets no pack of its own. Runs after hashing, so a library
+    /// indexed before packs existed is packed at its first start. Returns the entries whose cards changed: new packs,
+    /// packs that gained images or moved, and those images.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> PlanAsync(CancellationToken ct = default)
     {
@@ -67,12 +72,25 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         var groups = await LocateAsync(db, ct);
         var decisions = (await db.PackDecisions.ToListAsync(ct)).ToDictionary(d => Key(d.SourceRootId, d.FolderPath));
         var merged = await MergedAsync(db, ct);
+        var packed = await PackedAlreadyAsync(db, [.. groups.Values.Where(g => !decisions.ContainsKey(Key(g.RootId, g.Folder)))], merged, ct);
 
         var changed = new List<EntryId>();
         foreach (var group in groups.Values)
         {
             var automatic = group.Images.Count >= AutomaticMinimum && !group.HasPdf;
-            if (!decisions.TryGetValue(Key(group.RootId, group.Folder), out var decision))
+            if (!decisions.TryGetValue(Key(group.RootId, group.Folder), out var decision) && packed.TryGetValue(Key(group.RootId, group.Folder), out var already))
+            {
+                // Its images are one pack's card already: the pack's folder or ZIP moved here, so its decision follows,
+                // or this is a copy of it, which needs no card of its own.
+                if (Moved(group, already) is not { } followed) continue;
+                decisions.Remove(Key(followed.SourceRootId, followed.FolderPath));
+                followed.SourceRootId = group.RootId;
+                followed.FolderPath = group.Folder;
+                decisions[Key(group.RootId, group.Folder)] = decision = followed;
+                changed.Add(new EntryId(followed.EntryId));
+                if (already != followed.EntryId) changed.Add(new EntryId(already));
+            }
+            if (decision is null)
             {
                 if (!automatic && group.Images.Count < ProposalMinimum) continue;
                 decision = await AddDecisionAsync(db, group, automatic ? PackAnswer.Packed : PackAnswer.Proposed, ct);
@@ -92,6 +110,87 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         }
         await db.SaveChangesAsync(ct);
         return changed;
+
+        // The packed decision behind this pack whose folder or ZIP no longer holds any image: the place it moved from.
+        // When there are several, as for a pack others merged into, the one with the same name; none when that doesn't settle it.
+        PackDecision? Moved(FolderGroup group, long packId)
+        {
+            var left = decisions.Values.Where(d => d.Answer == PackAnswer.Packed && d.IsArchive == group.IsArchive && Resolve(merged, d.EntryId) == packId
+                && !(groups.TryGetValue(Key(d.SourceRootId, d.FolderPath), out var there) && there.Images.Count > 0)).ToList();
+            if (left.Count > 1)
+                left = [.. left.Where(d => string.Equals(FileName(d.FolderPath), FileName(group.Folder), StringComparison.OrdinalIgnoreCase))];
+            return left.Count == 1 ? left[0] : null;
+        }
+    }
+
+    /// <summary>
+    /// The folders and ZIPs among <paramref name="groups"/> whose images are all in one pack already, and that pack
+    /// (the one it merged into, if it did). Such images moved there from the pack's own folder or ZIP, or are copies.
+    /// </summary>
+    static async Task<Dictionary<(long, string), long>> PackedAlreadyAsync(CatalogDbContext db, List<FolderGroup> groups, Dictionary<long, long> merged,
+        CancellationToken ct)
+    {
+        var documentIds = groups.SelectMany(g => g.Images.Select(i => i.DocumentId)).Distinct().ToList();
+        if (documentIds.Count == 0) return [];
+        var parents = (await db.EntrySources.AsNoTracking()
+                .Where(s => s.FirstPdfPage == null && documentIds.Contains(s.DocumentId) && s.Entry.Kind == EntryKind.Whole && s.Entry.MergedIntoEntryId == null)
+                .Select(s => new { s.DocumentId, s.Entry.ParentEntryId })
+                .ToListAsync(ct))
+            .ToLookup(s => s.DocumentId, s => s.ParentEntryId is { } parent ? Resolve(merged, parent) : (long?)null);
+        var packed = new Dictionary<(long, string), long>();
+        foreach (var group in groups.Where(g => g.Images.Count > 0))
+        {
+            var packs = group.Images.SelectMany(i => parents[i.DocumentId].DefaultIfEmpty()).Distinct().Take(2).ToList();
+            if (packs is [{ } pack]) packed[Key(group.RootId, group.Folder)] = pack;
+        }
+        return packed;
+    }
+
+    /// <summary>
+    /// Split and proposed decisions follow their folder or ZIP when the scan finds it moved, so a moved folder that was
+    /// split isn't packed again, nor one already asked about asked again. A ZIP's decision follows the ZIP; a folder's
+    /// follows its images when they all went to one other folder and none is left behind, and no decision is there
+    /// already. A packed decision is followed in <see cref="PlanAsync"/> by its pack's images, which also catches a
+    /// move found only by hashing, and refreshes the card.
+    /// </summary>
+    internal static async Task FollowMovesAsync(CatalogDbContext db, IReadOnlyList<PlaceMove> moves, CancellationToken ct)
+    {
+        if (moves.Count == 0 || !await db.PackDecisions.AnyAsync(d => d.Answer != PackAnswer.Packed, ct)) return;
+        // A ZIP moves as one file; a folder by the images that were directly in it.
+        var places = moves.Where(m => SourceFormats.IsArchive(m.FromPath) && SourceFormats.IsArchive(m.ToPath)).Select(m => (Move: m, IsArchive: true)).ToList();
+        foreach (var folder in moves.Where(m => IsImage(m.FromPath) && IsImage(m.ToPath)).GroupBy(m => Key(m.FromRootId, Parent(m.FromPath))))
+        {
+            var to = folder.Select(m => (m.ToRootId, Folder: Parent(m.ToPath))).DistinctBy(t => Key(t.ToRootId, t.Folder)).ToList();
+            if (to is not [var only] || only.Folder.Length == 0) continue;
+            var first = folder.First();
+            places.Add((new PlaceMove(first.FromRootId, Parent(first.FromPath), only.ToRootId, only.Folder), false));
+        }
+        if (places.Count == 0) return;
+
+        var decisions = (await db.PackDecisions.ToListAsync(ct)).ToDictionary(d => Key(d.SourceRootId, d.FolderPath));
+        foreach (var (move, isArchive) in places)
+        {
+            if (!decisions.TryGetValue(Key(move.FromRootId, move.FromPath), out var decision) || decision.Answer == PackAnswer.Packed
+                || decision.IsArchive != isArchive || decisions.ContainsKey(Key(move.ToRootId, move.ToPath))
+                || await HoldsImagesAsync(db, move.FromRootId, move.FromPath, isArchive, ct)) continue;
+            decisions.Remove(Key(move.FromRootId, move.FromPath));
+            decision.SourceRootId = move.ToRootId;
+            decision.FolderPath = move.ToPath;
+            decisions[Key(move.ToRootId, move.ToPath)] = decision;
+        }
+    }
+
+    static bool IsImage(string path) => SourceFormats.FromFileName(path) is { } format && SourceFormats.IsImage(format);
+
+    /// <summary>Whether a folder (the images directly in it) or ZIP still holds an image that isn't missing.</summary>
+    static async Task<bool> HoldsImagesAsync(CatalogDbContext db, long rootId, string folder, bool isArchive, CancellationToken ct)
+    {
+        var present = db.FileLocations.Where(f => f.SourceRootId == rootId && f.State != FileLocationState.Missing);
+        present = isArchive
+            ? present.Where(f => f.Container != null && f.Container.RelativePath == folder)
+            : present.Where(f => f.ContainerId == null);
+        var paths = await present.Select(f => f.RelativePath).ToListAsync(ct);
+        return paths.Any(p => IsImage(p) && (isArchive || string.Equals(Parent(p), folder, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>A new pack entry for a folder or ZIP, and the decision that remembers it.</summary>

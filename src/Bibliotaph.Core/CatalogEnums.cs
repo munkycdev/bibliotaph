@@ -75,6 +75,11 @@ public enum AssertionOrigin
     Rule,
     Ai,
     User,
+    /// <summary>
+    /// A folder rule the user agreed to (scenario review, row 8): files in that folder, and its subfolders, get its value
+    /// as a suggestion. Ranked above the AI, since the user made it, but still only a suggestion.
+    /// </summary>
+    FolderRule,
 }
 
 public enum AssertionState
@@ -151,6 +156,22 @@ public enum PackAnswer
     Proposed,
 }
 
+/// <summary>
+/// Where a folder rule stands (scenario review, row 8): proposed in Needs review after the user set the same value on
+/// several books from one folder, then switched on or off by the user's answer or in Settings > Library folders.
+/// </summary>
+public enum FolderRuleState
+{
+    /// <summary>Waiting in Needs review for an answer.</summary>
+    Proposed,
+
+    /// <summary>Files in the folder get its value as a suggestion.</summary>
+    On,
+
+    /// <summary>Declined, or switched off: it suggests nothing and isn't proposed again.</summary>
+    Off,
+}
+
 /// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review (F5 plan, choice 6).</summary>
 public enum ElsewhereAnswer
 {
@@ -159,6 +180,26 @@ public enum ElsewhereAnswer
 
     /// <summary>A different book: the two stay apart and the pair isn't asked about again.</summary>
     SeparateBook,
+}
+
+/// <summary>Where a proposal of the adventures inside a file came from (slice 5 plan, choices 5 and 6).</summary>
+public enum PartProposalSource
+{
+    /// <summary>Its bookmarks and the blurbs on their first pages.</summary>
+    Rules,
+
+    /// <summary>A model that read its outline, contents page and the first page of each candidate.</summary>
+    Ai,
+}
+
+/// <summary>The user's answer to "This file looks like it holds 5 adventures" in Needs review (slice 5 plan, choice 7).</summary>
+public enum PartProposalAnswer
+{
+    /// <summary>The ticked adventures got cards of their own.</summary>
+    Accepted,
+
+    /// <summary>The file is one book: it isn't proposed again.</summary>
+    NotSplit,
 }
 
 /// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>

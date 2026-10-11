@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.App.ViewModels;
 
@@ -10,12 +11,16 @@ namespace Bibliotaph.App.Views;
 
 /// <summary>
 /// Connects the page surface, which is driven by calls rather than bindings, to the viewer's view model: it loads the
-/// open PDF, shows the highlights, scrolls where the model asks and reports the page in view.
+/// open PDF, shows the highlights, scrolls where the model asks and reports the page in view. It draws a book opened
+/// ahead of time at the size the pages show at, and tells the thumbnail strip which thumbnails are in view.
 /// </summary>
 public partial class ViewerView
 {
     ViewerViewModel? _model;
+    PageStripViewModel? _strip;
     OpenPdf? _shown;
+    ScrollViewer? _stripScroll;
+    bool _drawQueued;
 
     public ViewerView()
     {
@@ -38,8 +43,11 @@ public partial class ViewerView
         {
             _model.PropertyChanged -= OnModelChanged;
             _model.GoToRequested -= OnGoToRequested;
+            _model.DrawAhead = null;
         }
+        _strip?.PropertyChanged -= OnStripChanged;
         _model = model;
+        _strip = model?.Strip;
         if (model is null)
         {
             ShowPdf(null);
@@ -47,8 +55,11 @@ public partial class ViewerView
         }
         model.PropertyChanged += OnModelChanged;
         model.GoToRequested += OnGoToRequested;
+        model.DrawAhead = (renderer, doc, page) => PagesView.PrerenderAsync(renderer, doc, page);
+        _strip!.PropertyChanged += OnStripChanged;
         ShowPdf(model.Pdf);
         ShowHighlights();
+        KeepCurrentThumbnailInView();
     }
 
     void OnModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -74,7 +85,72 @@ public partial class ViewerView
                 // The zoom buttons and keys follow what's open.
                 CommandManager.InvalidateRequerySuggested();
                 break;
+            case nameof(ViewerViewModel.StripVisible) when _model?.StripVisible == true:
+                KeepCurrentThumbnailInView();
+                break;
         }
+    }
+
+    // ---------- The thumbnail strip ----------
+
+    void OnStripChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PageStripViewModel.Current) or nameof(PageStripViewModel.Pages)) KeepCurrentThumbnailInView();
+    }
+
+    /// <summary>The page in view's thumbnail stays in sight as the reader scrolls the pages, once the strip is laid out.</summary>
+    void KeepCurrentThumbnailInView()
+    {
+        if (_model is not { StripVisible: true }) return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (_strip?.Current is { } current && _model is { StripVisible: true }) PageStrip.ScrollIntoView(current);
+            QueueDraw();
+        });
+    }
+
+    /// <summary>The strip scrolled or was laid out: the thumbnails now in view, and a few either side, are drawn.</summary>
+    void PageStrip_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.OriginalSource is ScrollViewer scroll) _stripScroll = scroll;
+        QueueDraw();
+    }
+
+    void QueueDraw()
+    {
+        if (_drawQueued) return;
+        _drawQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            _drawQueued = false;
+            // The strip scrolls by whole thumbnails, so the offset and the viewport count thumbnails.
+            if (_strip is null || _model is not { StripVisible: true } || (_stripScroll ??= FindChild<ScrollViewer>(PageStrip)) is not { } strip) return;
+            var first = (int)strip.HorizontalOffset;
+            _strip.Draw(first, first + Math.Max(0, (int)Math.Ceiling(strip.ViewportWidth) - 1));
+        });
+    }
+
+    /// <summary>The strip runs sideways, so the mouse wheel scrolls it sideways.</summary>
+    void PageStrip_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((_stripScroll ??= FindChild<ScrollViewer>(PageStrip)) is not { } strip) return;
+        for (var i = 0; i < 2; i++)
+        {
+            if (e.Delta > 0) strip.LineLeft();
+            else strip.LineRight();
+        }
+        e.Handled = true;
+    }
+
+    static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindChild<T>(child) is { } deeper) return deeper;
+        }
+        return null;
     }
 
     void ShowPdf(OpenPdf? pdf)
@@ -82,7 +158,7 @@ public partial class ViewerView
         if (ReferenceEquals(_shown, pdf)) return;
         _shown = pdf;
         if (pdf is null) PagesView.Unload();
-        else PagesView.Load(pdf.Renderer, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop);
+        else PagesView.Load(pdf.Renderer, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop, pdf.Seed, pdf.Numbering);
     }
 
     void ShowHighlights()
@@ -137,4 +213,7 @@ public partial class ViewerView
 
     /// <summary>Note: on the page with selected text, if there is a selection, else the page in view.</summary>
     void AddNote_Click(object sender, RoutedEventArgs e) => _model?.AddNoteCommand.Execute(PagesView.SelectionPageIndex);
+
+    /// <summary>A bookmark's Index as its own adventure (slice 5): the menu's row is the bookmark.</summary>
+    void IndexBookmark_Click(object sender, RoutedEventArgs e) => _model?.IndexBookmarkCommand.Execute((sender as FrameworkElement)?.DataContext as OutlineEntry);
 }

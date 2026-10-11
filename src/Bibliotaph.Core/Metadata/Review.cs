@@ -63,7 +63,8 @@ public static class MetadataReview
             else if (field.Disputed.Count > 0) issues.Add(new ReviewIssue(field.Field, ReviewKind.CopiesDisagree, field.Values, [field.Disputed[0]]));
             else if (field.Field == MetadataFields.Title && !field.HasConfirmed && !(field.First is { } title && TitleQuality.IsUsable(title.Value)))
                 issues.Add(new ReviewIssue(field.Field, ReviewKind.MissingTitle, field.Values, field.Values));
-            else if (reviewAll && field.Values.Any(v => !v.Confirmed))
+            // A value an adventure shows only because its file has it (slice 5) is reviewed on the file's card.
+            else if (reviewAll && field.Values.Any(v => !v.Confirmed && !PartMetadata.IsInherited(v.Source)))
                 issues.Add(new ReviewIssue(field.Field, ReviewKind.Suggestion, [.. field.Values.Where(v => v.Confirmed)], field.Values));
         }
         return issues;

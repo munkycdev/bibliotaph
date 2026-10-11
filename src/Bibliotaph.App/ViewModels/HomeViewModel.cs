@@ -147,6 +147,10 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand]
     void OpenDetails(LibraryItemViewModel item) => pages.ShowDetails(item.EntryId);
 
+    /// <summary>Cataloged wrong…, from a cover's menu: the Library with the book's editor open to correct it.</summary>
+    [RelayCommand]
+    void CatalogedWrong(LibraryItemViewModel item) => pages.ShowCorrection(item.EntryId);
+
     /// <summary>Opens a book where it was left (choice 6), from a cover's menu or Enter on it.</summary>
     [RelayCommand(CanExecute = nameof(CanOpenBook))]
     async Task OpenBook(LibraryItemViewModel item)
@@ -190,7 +194,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     /// <summary>A book at the page it was left at; a pack at its first image, with the rest to step through.</summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item)
     {
-        if (!item.IsPack) return new ViewerRequest(item.DocumentId, item.Title) { Resume = true };
+        if (!item.IsPack) return item.BookRequest();
         var images = await Task.Run(() => queries.GetPackImagesAsync(item.EntryId));
         if (images.Count == 0) return null;
         var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();

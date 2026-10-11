@@ -21,6 +21,8 @@ public sealed record DocRow
     public string? MetaAuthor { get; init; }
     public string? MetaSubject { get; init; }
     public string? MetaKeywords { get; init; }
+    /// <summary>The software the PDF says made it, which can name the store that sold it ("…DriveThruRPG…").</summary>
+    public string? MetaProducer { get; init; }
     public string? FolderHint { get; init; }
 }
 
@@ -45,6 +47,15 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
 
     /// <summary>A pack's images, in file name order.</summary>
     public IReadOnlyList<EntryMemberRow> Members { get; init; } = [];
+
+    /// <summary>For an adventure inside a file (slice 5), the file's entry.</summary>
+    public EntryId? ParentEntryId { get; init; }
+
+    /// <summary>For an adventure inside a file, its first and last PDF pages in <see cref="DocumentId"/>.</summary>
+    public PartPages? Pages { get; init; }
+
+    /// <summary>For a file, how many adventures are marked in it.</summary>
+    public int Parts { get; init; }
 }
 
 /// <summary>An image in a pack: the document it shows, its own entry and its file name.</summary>
@@ -78,6 +89,9 @@ public sealed record EntryMetaRow
     public int? LevelMin { get; init; }
     public int? LevelMax { get; init; }
     public LevelState Levels { get; init; }
+    /// <summary>How many players it is for, both null when nobody knows.</summary>
+    public int? PlayersMin { get; init; }
+    public int? PlayersMax { get; init; }
     /// <summary>How many Needs review cards the entry has (<see cref="Core.Metadata.MetadataReview"/>).</summary>
     public int Reviews { get; init; }
     public bool Suggested { get; init; }
@@ -109,15 +123,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute(
                 """
                 INSERT INTO doc (document_id, content_hash, format, display_title, page_count, width_px, height_px, encrypted, can_copy,
-                                 meta_title, meta_author, meta_subject, meta_keywords, folder_hint, added_utc)
+                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, folder_hint, added_utc)
                 VALUES (@DocumentId, @ContentHash, @Format, @DisplayTitle, @PageCount, @WidthPx, @HeightPx, @Encrypted, @CanCopy,
-                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @FolderHint, @now)
+                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @FolderHint, @now)
                 ON CONFLICT (document_id) DO UPDATE SET
                     content_hash = excluded.content_hash, format = excluded.format, display_title = excluded.display_title,
                     page_count = excluded.page_count, width_px = excluded.width_px, height_px = excluded.height_px,
                     encrypted = excluded.encrypted, can_copy = excluded.can_copy, meta_title = excluded.meta_title,
                     meta_author = excluded.meta_author, meta_subject = excluded.meta_subject, meta_keywords = excluded.meta_keywords,
-                    folder_hint = excluded.folder_hint
+                    meta_producer = excluded.meta_producer, folder_hint = excluded.folder_hint
                 """,
                 new
                 {
@@ -134,6 +148,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.MetaAuthor,
                     doc.MetaSubject,
                     doc.MetaKeywords,
+                    doc.MetaProducer,
                     doc.FolderHint,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
@@ -261,6 +276,12 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     public Task SetCoverAsync(long documentId, string? cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
+    /// <summary>Records the cover drawn from one page of a document: an adventure's first page (slice 5 plan, choice 9).</summary>
+    public Task SetPageCoverAsync(long documentId, int pdfPage, string cover, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) => c.Execute(
+            "INSERT INTO page_cover (document_id, pdf_page, cover) VALUES (@documentId, @pdfPage, @cover) ON CONFLICT DO UPDATE SET cover = excluded.cover",
+            new { documentId, pdfPage, cover }, t), ct);
+
     /// <summary>
     /// "Forget its text" (slice 4i plan, choice 6), the purge of derived content: a document's pages with their search
     /// text and OCR words, its bookmarks and its cover go in one transaction, and so do its jobs and stage statuses, in
@@ -278,6 +299,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 DELETE FROM page WHERE document_id = @documentId;
                 DELETE FROM outline WHERE document_id = @documentId;
                 UPDATE doc SET cover = NULL WHERE document_id = @documentId;
+                DELETE FROM page_cover WHERE document_id = @documentId;
                 DELETE FROM job WHERE document_id = @documentId;
                 DELETE FROM stage_status WHERE document_id = @documentId;
                 """, args, t);
@@ -297,10 +319,11 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 var entryId = entry.EntryId.Value;
                 c.Execute(
                     """
-                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc)
-                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added)
+                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts)
+                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts)
                     ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies,
-                        name = excluded.name, members = excluded.members, added_utc = excluded.added_utc
+                        name = excluded.name, members = excluded.members, added_utc = excluded.added_utc, parent_id = excluded.parent_id,
+                        first_page = excluded.first_page, last_page = excluded.last_page, parts = excluded.parts
                     """,
                     new
                     {
@@ -311,6 +334,10 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         name = entry.Name,
                         members = entry.Members.Count,
                         added = entry.AddedUtc is { } addedUtc ? JobBoard.Timestamp(new DateTimeOffset(DateTime.SpecifyKind(addedUtc, DateTimeKind.Utc))) : null,
+                        parent = entry.ParentEntryId?.Value,
+                        first = entry.Pages?.First,
+                        last = entry.Pages?.Last,
+                        parts = entry.Parts,
                     }, t);
                 RemoveMembers(c, t, entryId);
                 c.Execute("INSERT INTO entry_member (entry_id, ord, document_id, member_entry_id, name) VALUES (@entryId, @ord, @DocumentId, @member, @Name)",
@@ -335,13 +362,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 c.Execute(
                     """
                     INSERT INTO entry_meta (entry_id, title, publisher, series, authors, year, system_label, kind_label, level_min, level_max,
-                                          level_state, needs_review, suggested, tags, confirmed_text, provisional_text)
+                                          level_state, players_min, players_max, needs_review, suggested, tags, confirmed_text, provisional_text)
                     VALUES (@entryId, @Title, @Publisher, @Series, @Authors, @Year, @SystemLabel, @KindLabel, @LevelMin, @LevelMax,
-                            @levelState, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
+                            @levelState, @PlayersMin, @PlayersMax, @Reviews, @Suggested, @Tags, @ConfirmedText, @ProvisionalText)
                     ON CONFLICT (entry_id) DO UPDATE SET
                         title = excluded.title, publisher = excluded.publisher, series = excluded.series, authors = excluded.authors,
                         year = excluded.year, system_label = excluded.system_label, kind_label = excluded.kind_label,
                         level_min = excluded.level_min, level_max = excluded.level_max, level_state = excluded.level_state,
+                        players_min = excluded.players_min, players_max = excluded.players_max,
                         needs_review = excluded.needs_review, suggested = excluded.suggested, tags = excluded.tags,
                         confirmed_text = excluded.confirmed_text, provisional_text = excluded.provisional_text
                     """,
@@ -358,6 +386,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.LevelMin,
                         row.LevelMax,
                         levelState = LevelStateText(row.Levels),
+                        row.PlayersMin,
+                        row.PlayersMax,
                         row.Reviews,
                         row.Suggested,
                         row.Tags,
@@ -397,8 +427,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         }, ct);
 
     /// <summary>
-    /// Replaces the own notes of these entries (entry_note), or of every entry when <paramref name="entryIds"/> is null,
-    /// and refreshes the search rows of those whose note changed.
+    /// Replaces the notes of these entries (entry_note: the text of their own note and page notes), or of every entry when
+    /// <paramref name="entryIds"/> is null, and refreshes the search rows of those whose notes changed.
     /// </summary>
     public Task SetNotesAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyDictionary<EntryId, string> notes, CancellationToken ct = default) =>
         entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
@@ -517,8 +547,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     /// <summary>
     /// Rebuilds an entry's entry_fts row from its document's doc row and its projected metadata. The effective title
     /// (or a pack's name) is the title; the file name's title, the PDF's own information and the folder names are
-    /// provisional text. An entry whose document Probe hasn't reached has no row yet; a book owned elsewhere has one
-    /// from its metadata alone.
+    /// provisional text, except for an adventure inside a file (slice 5), which those describe less than its file. An
+    /// entry whose document Probe hasn't reached has no row yet; a book owned elsewhere has one from its metadata alone.
     /// </summary>
     static void RefreshEntrySearch(SqliteConnection c, SqliteTransaction t, long entryId)
     {
@@ -526,12 +556,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         c.Execute(
             """
             INSERT INTO entry_fts (rowid, title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional)
-            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title, ''), coalesce(d.meta_subject, ''), coalesce(m.publisher, ''),
-                   coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), coalesce(n.text, ''), coalesce(m.confirmed_text, ''),
+            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title, ''), CASE WHEN e.kind = 'Part' THEN '' ELSE coalesce(d.meta_subject, '') END,
+                   coalesce(m.publisher, ''), coalesce(m.series, ''), coalesce(m.authors, ''), coalesce(m.tags, ''), coalesce(n.text, ''),
+                   coalesce(m.confirmed_text, ''),
+                   CASE WHEN e.kind = 'Part' THEN coalesce(m.provisional_text, '') ELSE
                    coalesce(m.provisional_text, '') || ' · ' || coalesce(d.meta_title, '') || ' · ' || coalesce(d.meta_author, '') || ' · '
                        || coalesce(d.meta_keywords, '') || ' · ' || coalesce(d.folder_hint, '')
                        || CASE WHEN e.kind <> 'Pack' AND m.title IS NOT NULL AND m.title <> d.display_title THEN ' · ' || d.display_title ELSE '' END
-                       || CASE WHEN m.title IS NOT NULL AND e.name IS NOT NULL AND m.title <> e.name THEN ' · ' || e.name ELSE '' END
+                       || CASE WHEN m.title IS NOT NULL AND e.name IS NOT NULL AND m.title <> e.name THEN ' · ' || e.name ELSE '' END END
             FROM entry_doc e LEFT JOIN doc d ON d.document_id = e.document_id LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
                 LEFT JOIN entry_note n ON n.entry_id = e.entry_id
             WHERE e.entry_id = @entryId AND (d.document_id IS NOT NULL OR e.document_id IS NULL)

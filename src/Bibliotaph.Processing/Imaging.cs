@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing;
@@ -31,6 +32,9 @@ public sealed class CoverCache(AppPaths paths)
 
     public static string FileName(string contentHash) => contentHash + ".jpg";
 
+    /// <summary>What a cover drawn from one page of a book is kept under: an adventure's first page (slice 5).</summary>
+    public static string PageKey(string contentHash, int pdfPage) => string.Create(CultureInfo.InvariantCulture, $"{contentHash}-p{pdfPage}");
+
     public string PathFor(string fileName) => Path.Combine(Folder, fileName);
 
     /// <summary>Writes a cover through a temporary file, so a reader never sees half of one.</summary>
@@ -45,10 +49,15 @@ public sealed class CoverCache(AppPaths paths)
         return name;
     }
 
-    /// <summary>Deletes a book's cover, as "Forget its text" does. One that isn't there is no error.</summary>
+    /// <summary>
+    /// Deletes a book's cover and those drawn from its pages for the adventures in it, as "Forget its text" does. One
+    /// that isn't there is no error.
+    /// </summary>
     public void Delete(string contentHash)
     {
         var target = PathFor(FileName(contentHash));
         if (File.Exists(target)) File.Delete(target);
+        if (!Directory.Exists(Folder)) return;
+        foreach (var page in Directory.EnumerateFiles(Folder, contentHash + "-p*.jpg")) File.Delete(page);
     }
 }

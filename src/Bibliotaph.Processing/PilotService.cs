@@ -195,7 +195,7 @@ public sealed class PilotService(
         ModelClassifier classifier, IModelClient client, long documentId, CancellationToken ct)
     {
         var model = classifier.Model;
-        var (input, why) = await inputs.BuildAsync(documentId, ct);
+        var (input, why) = await inputs.BuildAsync(documentId, withExamples: false, ct: ct);
         if (input is null) return (new PilotRun(model, documentId, 0, why), [], null);
         var started = _clock.GetTimestamp();
         try

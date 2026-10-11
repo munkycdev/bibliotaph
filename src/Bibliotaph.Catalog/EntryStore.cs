@@ -10,10 +10,19 @@ namespace Bibliotaph.Catalog;
 /// An entry and the document its card shows: the current source, which opens and supplies cover and pages, and how
 /// many copies (whole-document sources) the entry has. A pack shows its first image, and has a
 /// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> in file name order. A book owned elsewhere
-/// has no document and no copies.
+/// has no document and no copies. An adventure inside a file (slice 5) shows its pages of the copy its file shows.
 /// </summary>
 public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind Kind, int Copies = 1)
 {
+    /// <summary>For an adventure inside a file, the file's entry.</summary>
+    public EntryId? ParentEntryId { get; init; }
+
+    /// <summary>For an adventure inside a file, its first and last PDF pages in <see cref="DocumentId"/>.</summary>
+    public PartPages? Pages { get; init; }
+
+    /// <summary>For a file, how many adventures are marked in it (slice 5 plan, choice 9: "5 adventures").</summary>
+    public int Parts { get; init; }
+
     public string? Name { get; init; }
 
     public IReadOnlyList<PackMember>? Members { get; init; }
@@ -109,6 +118,17 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     public async Task<long?> GetCurrentDocumentAsync(EntryId entryId, CancellationToken ct = default) =>
         (await GetCurrentAsync([entryId], ct)) is [var current, ..] ? current.DocumentId : null;
 
+    /// <summary>The adventures marked in the files of <paramref name="entryIds"/> (slice 5).</summary>
+    public async Task<IReadOnlyList<EntryId>> GetPartIdsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+        return [.. (await db.Entries.AsNoTracking()
+            .Where(e => e.Kind == EntryKind.Part && e.ParentEntryId != null && ids.Contains(e.ParentEntryId.Value))
+            .Select(e => e.Id).ToListAsync(ct)).Select(id => new EntryId(id))];
+    }
+
     /// <summary>The kind of <paramref name="entryId"/>, or null for an entry the catalog doesn't have.</summary>
     public async Task<EntryKind?> GetKindAsync(EntryId entryId, CancellationToken ct = default)
     {
@@ -131,10 +151,28 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var sources = db.EntrySources.AsNoTracking().Where(s => s.Entry.ParentEntryId == null || s.Entry.ParentEntry!.Kind != EntryKind.Pack);
         if (ids is not null) sources = sources.Where(s => ids.Contains(s.EntryId));
         var rows = await Sources(sources).ToListAsync(ct);
+        // An adventure inside a file shows its pages in the copy its file shows (slice 5 plan, choice 9).
+        var parentIds = rows.Where(r => r.Kind == EntryKind.Part && r.ParentEntryId is not null).Select(r => r.ParentEntryId!.Value).Distinct().ToList();
+        var parentShown = parentIds.Count == 0 ? [] : (await Sources(db.EntrySources.AsNoTracking()
+                .Where(s => parentIds.Contains(s.EntryId) && s.FirstPdfPage == null)).ToListAsync(ct))
+            .GroupBy(r => r.EntryId).ToDictionary(g => g.Key, g => Shown([.. g]).DocumentId);
+        var wholeIds = rows.Where(r => r.Kind == EntryKind.Whole).Select(r => r.EntryId).Distinct().ToList();
+        var parts = wholeIds.Count == 0 ? [] : await db.Entries.AsNoTracking()
+            .Where(e => e.Kind == EntryKind.Part && e.ParentEntryId != null && wholeIds.Contains(e.ParentEntryId.Value) && e.MergedIntoEntryId == null)
+            .GroupBy(e => e.ParentEntryId!.Value).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count, ct);
         var current = rows.GroupBy(r => r.EntryId).Select(g =>
         {
+            if (g.First().Kind == EntryKind.Part && g.First().ParentEntryId is { } parent)
+            {
+                var pages = parentShown.TryGetValue(parent, out var document) && g.FirstOrDefault(r => r.DocumentId == document) is { } inShown ? inShown : Shown([.. g]);
+                return new EntryDocument(new EntryId(g.Key), pages.DocumentId, EntryKind.Part, Copies: 1)
+                {
+                    ParentEntryId = new EntryId(parent),
+                    Pages = pages.FirstPdfPage is { } first ? new PartPages(first, pages.LastPdfPage ?? first) : null,
+                };
+            }
             var shown = Shown([.. g]);
-            return new EntryDocument(new EntryId(g.Key), shown.DocumentId, shown.Kind, g.Count(s => s.Whole));
+            return new EntryDocument(new EntryId(g.Key), shown.DocumentId, shown.Kind, g.Count(s => s.Whole)) { Parts = parts.GetValueOrDefault(g.Key) };
         }).ToList();
 
         var packs = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Pack);
@@ -168,14 +206,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var entry = await db.Entries.Include(e => e.Assertions).Include(e => e.Rejections)
             .SingleOrDefaultAsync(e => e.Id == entryId.Value && e.Kind == EntryKind.Elsewhere && !e.Sources.Any(), ct);
         if (entry is null) return null;
-        var removed = new RemovedEntry(entryId, entry.CreatedUtc,
-            [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })],
-            await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
-            await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
-            [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
-                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))],
-            await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct),
-            await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct));
+        var removed = await CaptureAsync(db, entry, ct);
         db.Entries.Remove(entry);
         await db.SaveChangesAsync(ct);
         return removed;
@@ -186,6 +217,30 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var entry = new Entry { Kind = EntryKind.Elsewhere, CreatedUtc = removed.CreatedUtc };
+        await RestoreIntoAsync(db, entry, removed, ct);
+        return new EntryId(entry.Id);
+    }
+
+    /// <summary>What is set on an entry, its assertions and rejections loaded, so it can be put back after the entry is deleted.</summary>
+    internal static async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, CancellationToken ct)
+    {
+        var entryId = new EntryId(entry.Id);
+        return new RemovedEntry(entryId, entry.CreatedUtc,
+            [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })],
+            await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
+            await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
+            [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
+                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))],
+            await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct),
+            await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct));
+    }
+
+    /// <summary>
+    /// Adds <paramref name="entry"/>, new, with what <see cref="CaptureAsync"/> kept: its values, heart, pin, note,
+    /// collections, and session items in packs and sections that are still there. Saves.
+    /// </summary>
+    internal async Task RestoreIntoAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct)
+    {
         entry.Assertions.AddRange(removed.Assertions.Select(Detached));
         entry.Rejections.AddRange(removed.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc }));
         db.Entries.Add(entry);
@@ -218,7 +273,6 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             });
         }
         await db.SaveChangesAsync(ct);
-        return new EntryId(entry.Id);
     }
 
     static Assertion Detached(Assertion a) => new()
@@ -472,6 +526,14 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             moved.PageNotes.Add(pageNote.Id);
         }
 
+        // Adventures marked in the joining card's file go with it (slice 5 plan, choice 12): their pages are in a copy
+        // of this book now, and are looked for in its other copies.
+        foreach (var part in await db.Entries.Where(e => e.ParentEntryId == joining && e.Kind == EntryKind.Part).ToListAsync(ct))
+        {
+            part.ParentEntryId = target;
+            moved.Parts.Add(part.Id);
+        }
+
         (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
         return moved;
     }
@@ -546,6 +608,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         // A pack's images go back to it, those still in the pack it merged into (multi-select plan, choice 11).
         foreach (var member in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Members.Contains(e.Id)).ToListAsync(ct))
             member.ParentEntryId = card;
+        // So do the adventures marked in its file (slice 5).
+        foreach (var part in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Parts.Contains(e.Id)).ToListAsync(ct))
+            part.ParentEntryId = card;
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
     }
@@ -728,12 +793,12 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         string.CompareOrdinal(first, second) <= 0 ? (first, second) : (second, first);
 
     sealed record SourceRow(long EntryId, long DocumentId, EntryKind Kind, bool IsCurrent, bool Whole, bool HasFile, string ContentHash, int? PageCount, DateTime AddedUtc,
-        long? ParentEntryId);
+        long? ParentEntryId, int? FirstPdfPage, int? LastPdfPage);
 
     static IQueryable<SourceRow> Sources(IQueryable<EntrySource> sources) => sources.Select(s => new SourceRow(
         s.EntryId, s.DocumentId, s.Entry.Kind, s.IsCurrent, s.FirstPdfPage == null,
         s.Document.Locations.Any(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability != SourceRootAvailability.RemovedByUser),
-        s.Document.ContentHash, s.Document.PageCount, s.Document.CreatedUtc, s.Entry.ParentEntryId));
+        s.Document.ContentHash, s.Document.PageCount, s.Document.CreatedUtc, s.Entry.ParentEntryId, s.FirstPdfPage, s.LastPdfPage));
 
     /// <summary>The current copy, unless it has no file and another copy has: then the newest one that has.</summary>
     static SourceRow Shown(List<SourceRow> sources)
@@ -767,6 +832,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public List<long> PageNotes { get; set; } = [];
         /// <summary>For a pack merged into another (multi-select plan, choice 9): the images that were in it.</summary>
         public List<long> Members { get; set; } = [];
+        /// <summary>The adventures marked in the joining card's file (slice 5).</summary>
+        public List<long> Parts { get; set; } = [];
     }
 
     internal sealed record MovedSource(long Id, bool WasCurrent);
