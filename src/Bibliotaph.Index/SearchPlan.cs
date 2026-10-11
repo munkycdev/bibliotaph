@@ -101,6 +101,7 @@ public sealed record SearchPlan
         SearchField.Duration => ["duration"],
         SearchField.Environment => ["environment"],
         SearchField.Own => ["own"],
+        SearchField.Store => ["store"],
         _ => null,
     };
 

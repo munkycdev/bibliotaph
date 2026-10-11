@@ -224,6 +224,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         await ReloadMetadataAsync(changed: true);
     }
 
+    /// <summary>A Get it from link: only an http or https address, and only once the user says yes.</summary>
+    void IMetadataEditor.OpenLink(string url)
+    {
+        if (StoreLink.WebAddress(url) is not { } address) return;
+        if (!WebLinks.AskAndOpen(address, out var failed) && failed is not null)
+            System.Windows.MessageBox.Show("Windows couldn't open that link.", "Open a web link", System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+    }
+
     public LibraryItemViewModel Item { get; }
 
     public string Title => Item.Title;

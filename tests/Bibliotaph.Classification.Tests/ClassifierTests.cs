@@ -67,6 +67,25 @@ public class ExcerptTests
     }
 
     [Fact]
+    public void Watermark_lines_never_reach_the_excerpt()
+    {
+        var pages = Enumerable.Range(0, 12).Select(i => Page(i,
+            $"Chapter {i}: the vault\n{Words("text", 60)} {i}\nPrepared exclusively for Ana Example (Order #48213)\nAna Example\n{i + 1}")).ToList();
+        pages[3] = Page(3, "Contents\nLicensed to ana@example.com\nIntroduction 4\nThe Vault 9");
+
+        var excerpt = ExcerptBuilder.Build(pages, [], 12);
+
+        Assert.NotEmpty(excerpt.Pages);
+        foreach (var page in excerpt.Pages)
+        {
+            Assert.DoesNotContain("Ana Example", page.Text, StringComparison.Ordinal);
+            Assert.DoesNotContain("48213", page.Text, StringComparison.Ordinal);
+            Assert.DoesNotContain("@", page.Text, StringComparison.Ordinal);
+        }
+        Assert.Contains("text text", excerpt.Find(0)!.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_book_with_no_text_gives_an_empty_excerpt() =>
         Assert.True(ExcerptBuilder.Build([Page(0, ""), Page(1, "12")], [], 2).IsEmpty);
 

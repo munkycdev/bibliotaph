@@ -269,7 +269,7 @@ public sealed class Rejection
 public sealed class VocabularyTerm
 {
     public long Id { get; set; }
-    /// <summary>"system", "edition", "type", "duration", "setting", "style", "theme", "environment", "own" or "publisher".</summary>
+    /// <summary>"system", "edition", "type", "duration", "setting", "style", "theme", "environment", "own", "store" or "publisher".</summary>
     public required string Vocabulary { get; set; }
     /// <summary>Stable key that assertions store, such as "dnd-5e". Labels can change; keys don't.</summary>
     public required string Key { get; set; }

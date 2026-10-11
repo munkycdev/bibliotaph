@@ -93,6 +93,9 @@ public static class SearchFields
     public static readonly SearchFieldInfo Own = new(SearchField.Own, "own", [], SearchFieldKind.Term,
         "where else you own it: in print, on a VTT", "own:foundry", MetadataFields.AlsoOwn);
 
+    public static readonly SearchFieldInfo Store = new(SearchField.Store, "store", ["from"], SearchFieldKind.Term,
+        "where to get it, such as kickstarter or drivethrurpg", "store:kickstarter", MetadataFields.GetItFrom);
+
     public static readonly SearchFieldInfo Tag = new(SearchField.Tag, "tag", ["tags"], SearchFieldKind.Text,
         "one of your tags", "tag:prep", MetadataFields.Tags);
 
@@ -110,8 +113,8 @@ public static class SearchFields
 
     /// <summary>Every field, in the order the field guide lists them: the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
-        [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Own, Tag, Favorite, Collection,
-            Format, Folder];
+        [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Own, Store, Tag, Favorite,
+            Collection, Format, Folder];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
     public static IReadOnlyList<string> Coming { get; } = ["length"];

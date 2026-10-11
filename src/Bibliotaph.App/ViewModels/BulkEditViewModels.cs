@@ -192,8 +192,8 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
 
     protected void Resolve(string? typed) => Resolution = MetadataFieldViewModel.DescribeResolution(Field, typed, Vocabulary);
 
-    /// <summary>How a value reads: a term's label, "Levels 1–5", the text itself.</summary>
-    protected string Display(string value) => MetadataValueViewModel.Display(Field, value, Vocabulary);
+    /// <summary>How a value reads: a term's label, "Levels 1–5", a store with its link, the text itself.</summary>
+    protected string Display(string value) => MetadataValueViewModel.DisplayWithLink(Field, value, Vocabulary);
 
     /// <summary>
     /// A typed value as the bulk edit will file it: a known term's key and label, or the name of a new term; text
@@ -207,6 +207,13 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
             return null;
         }
         Problem = null;
+        if (Field.Kind == FieldKind.Store)
+        {
+            // Filed as the inspector files it when applied: a known store by key with its link, a new one as typed.
+            var (store, name, url) = StoreLink.Read(typed, Vocabulary);
+            return store is null ? (MetadataText.Tidy(typed), url is null ? name : $"{name} · {url}", true)
+                : (new StoreLink(store.Key, url).ToString(), Display(new StoreLink(store.Key, url).ToString()), false);
+        }
         if (Field.Kind == FieldKind.Term)
             return Vocabulary.Resolve(Field.Vocabulary!, typed) is { } term ? (term.Key, term.Label, false) : (MetadataText.Tidy(typed), MetadataText.Tidy(typed), true);
         var value = MetadataValues.Parse(Field, typed).Value!;
@@ -405,6 +412,9 @@ public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
     public override bool HasChange => Chips.Any(c => c.Change is not null);
 
     public string AddLabel => $"Add to {Lower}";
+
+    /// <summary>How to type values to add: "Separate values with commas", or how a store and its link go.</summary>
+    public string AddHint => Field.Kind == FieldKind.Store ? MetadataFieldViewModel.StoreHint : "Separate values with commas";
 
     [ObservableProperty]
     public partial string AddText { get; set; } = "";

@@ -45,7 +45,7 @@ public sealed record PageTextEntry(int PdfPage, string Text);
 public sealed record PilotCandidate(long DocumentId, string Folder, string? System);
 
 /// <summary>The PDF's own document information, as Probe read it.</summary>
-public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords);
+public sealed record EmbeddedInfo(string? Title, string? Author, string? Subject, string? Keywords, string? Producer = null);
 
 /// <summary>A card with a given title: its kind, the document it shows (none when owned elsewhere) and its publisher.</summary>
 public sealed record TitleMatch(EntryId EntryId, EntryKind Kind, long? DocumentId, string? Publisher);
@@ -412,7 +412,7 @@ public sealed class IndexQueries(IndexDatabase database)
     {
         await using var connection = database.OpenRead();
         return await connection.QuerySingleOrDefaultAsync<EmbeddedInfo>(new CommandDefinition(
-            "SELECT meta_title AS Title, meta_author AS Author, meta_subject AS Subject, meta_keywords AS Keywords FROM doc WHERE document_id = @documentId",
+            "SELECT meta_title AS Title, meta_author AS Author, meta_subject AS Subject, meta_keywords AS Keywords, meta_producer AS Producer FROM doc WHERE document_id = @documentId",
             new { documentId }, cancellationToken: ct));
     }
 

@@ -543,6 +543,28 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the players filter didn't bring back all {books} books.");
         await Field(MetadataFields.Players).ResetCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => !Field(MetadataFields.Players).IsKnown, () => "Resetting players didn't leave them unknown.");
+
+        // Get it from: a link on its own is filed under the store whose site it is on, shows as a link that opens only
+        // after asking, is kept by the store filter, and resets.
+        const string StoreLinkText = "https://example-press.itch.io/haunted-inn";
+        var store = Field(MetadataFields.GetItFrom);
+        store.EditCommand.Execute(null);
+        await Settle(window);
+        store.EditText = StoreLinkText;
+        await store.SaveCommand.ExecuteAsync(null);
+        if (store.Problem is not null) throw new InvalidOperationException($"Saving Get it from said: {store.Problem}");
+        await WaitUntilAsync(window, () => Field(MetadataFields.GetItFrom) is { Display: "itch.io", Links: [{ Url: StoreLinkText }] },
+            () => $"Get it from says {Field(MetadataFields.GetItFrom).Display}, not itch.io with its link.");
+        var link = Field(MetadataFields.GetItFrom).Links[0];
+        if (link.LinkText != "example-press.itch.io/haunted-inn" || !Field(MetadataFields.GetItFrom).OpenLinkCommand.CanExecute(link))
+            throw new InvalidOperationException($"The Get it from link reads {link.LinkText} or can't be opened.");
+        await WaitUntilAsync(window, () => page.ShowStoreChoice && page.StoreChoices.Any(c => c.Value == "itch-io"), () => "The Library has no itch.io store filter.");
+        page.StoreChoice = page.StoreChoices.First(c => c.Value == "itch-io");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by itch.io shows {page.Items.Count} books, not 1.");
+        page.ClearFiltersCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the store filter didn't bring back all {books} books.");
+        await Field(MetadataFields.GetItFrom).ResetCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !Field(MetadataFields.GetItFrom).IsKnown, () => "Resetting Get it from didn't leave it empty.");
         page.CloseDetailsCommand.Execute(null);
         await Settle(window);
     }

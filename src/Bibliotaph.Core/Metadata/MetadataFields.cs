@@ -17,6 +17,12 @@ public enum FieldKind
 
     /// <summary>How many players it is written for: "4", "4-6" (spec §6, intended party).</summary>
     Players,
+
+    /// <summary>
+    /// Where to get it: a term of the store vocabulary, with an optional web link after a space ("drivethrurpg
+    /// https://…"). See <see cref="StoreLink"/>.
+    /// </summary>
+    Store,
 }
 
 /// <summary>
@@ -73,9 +79,17 @@ public static class MetadataFields
     /// </summary>
     public static readonly MetadataField AlsoOwn = new("own", "Also own", FieldKind.Term, Multiple: true, Vocabulary: "own");
 
+    /// <summary>
+    /// Where the book can be got again: a store, with a link to its page there when someone has one (scenario review,
+    /// row 7). Rules suggest the store from folder and file names, the PDF's producer and a watermark's store name; the
+    /// buyer's name and order number in a watermark are never kept. No model suggests it.
+    /// </summary>
+    public static readonly MetadataField GetItFrom = new("store", "Get it from", FieldKind.Store, Multiple: true, Vocabulary: "store");
+
     /// <summary>Every field, in the order the inspector shows them.</summary>
     public static IReadOnlyList<MetadataField> All { get; } =
-        [Title, System, Edition, Types, Levels, Players, Duration, Publisher, Authors, Series, Year, Settings, Styles, Themes, Environments, AlsoOwn, Tags];
+        [Title, System, Edition, Types, Levels, Players, Duration, Publisher, Authors, Series, Year, Settings, Styles, Themes, Environments, AlsoOwn, GetItFrom,
+            Tags];
 
     static readonly Dictionary<string, MetadataField> ByKey = All.ToDictionary(f => f.Key, StringComparer.Ordinal);
 
@@ -85,8 +99,8 @@ public static class MetadataFields
 
     /// <summary>The field a vocabulary's terms fill: Types for "type". Publishers are free text, so "publisher" gives null.</summary>
     public static MetadataField? ForVocabulary(string vocabulary) =>
-        All.FirstOrDefault(f => f.Kind == FieldKind.Term && f.Vocabulary == vocabulary);
+        All.FirstOrDefault(f => f.Kind is FieldKind.Term or FieldKind.Store && f.Vocabulary == vocabulary);
 
-    /// <summary>The vocabularies with terms, which Term fields draw from.</summary>
-    public static IReadOnlyList<string> TermVocabularies { get; } = [.. All.Where(f => f.Kind == FieldKind.Term).Select(f => f.Vocabulary!)];
+    /// <summary>The vocabularies with terms, which Term and Store fields draw from.</summary>
+    public static IReadOnlyList<string> TermVocabularies { get; } = [.. All.Where(f => f.Kind is FieldKind.Term or FieldKind.Store).Select(f => f.Vocabulary!)];
 }

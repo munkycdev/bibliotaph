@@ -24,6 +24,7 @@ CREATE TABLE doc (
     meta_author     TEXT,
     meta_subject    TEXT,
     meta_keywords   TEXT,
+    meta_producer   TEXT,                          -- the software that made it, which can name the store that sold it
     folder_hint     TEXT,                          -- folder names above the file, for search
     cover           TEXT,                          -- cover file name in the cache folder, once made
     added_utc       TEXT    NOT NULL
@@ -150,7 +151,7 @@ CREATE TABLE entry_meta (
     provisional_text TEXT                        -- and of suggested ones
 );
 
--- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own), for filters, facet
+-- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own, store), for filters, facet
 -- counts and field search. value is the term key.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
@@ -259,4 +260,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 13;
+PRAGMA user_version = 14;

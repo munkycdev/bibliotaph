@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Bibliotaph.Core;
 
 namespace Bibliotaph.Classification;
 
@@ -27,7 +28,7 @@ public sealed record ExcerptPage(int PdfPage, string Text, ExcerptPart Part);
 /// <summary>
 /// The bounded part of a book the classifier reads (slice 2 plan, choice 9): its opening pages, its back cover, its
 /// contents, its introduction, its headings, then pages sampled evenly across the rest, each tagged with its PDF page
-/// number.
+/// number. Watermark lines are left out of every page (<see cref="Watermarks"/>).
 /// </summary>
 public sealed record Excerpt(IReadOnlyList<ExcerptPage> Pages, IReadOnlyList<BookHeading> Headings, int PageCount)
 {
@@ -78,8 +79,10 @@ public static partial class ExcerptBuilder
     public static Excerpt Build(IReadOnlyList<BookPage> pages, IReadOnlyList<BookHeading> outline, int pageCount, ExcerptOptions? options = null)
     {
         options ??= new ExcerptOptions();
+        // A watermark names the buyer and their order: it never goes to a model (scenario review, row 7).
+        var unmarked = Watermarks.Strip([.. pages.Select(p => p.Text)]);
         var texts = pages
-            .Select(p => (p.PdfPage, Text: Tidy(p.Text)))
+            .Select((p, i) => (p.PdfPage, Text: Tidy(unmarked[i])))
             .Where(p => p.Text.Length >= options.MinPageCharacters)
             .ToDictionary(p => p.PdfPage, p => p.Text);
         var headings = outline.Where(h => h.Depth <= 1 && Tidy(h.Title).Length > 0).Take(options.MaxHeadings)

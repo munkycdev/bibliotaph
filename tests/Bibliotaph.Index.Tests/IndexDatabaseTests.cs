@@ -135,6 +135,8 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM scope_name"));
         // Version 13: how many players each book is for.
         Assert.Equal(2, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('entry_meta') WHERE name IN ('players_min', 'players_max')"));
+        // Version 14: the software each PDF says made it, which can name the store that sold it.
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('doc') WHERE name = 'meta_producer'"));
     }
 
     [Fact]

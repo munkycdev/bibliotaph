@@ -212,6 +212,11 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             foreach (var value in effective[field].Values)
                 facets.Add(new FacetRow(field.Key, value.Value, vocabulary.Label(field.Vocabulary!, value.Value), value.Confirmed));
 
+        // Where to get it is filtered and searched by store; a store with two links is one facet.
+        var stores = MetadataFields.GetItFrom;
+        foreach (var store in effective[stores].Values.GroupBy(v => StoreLink.Parse(v.Value).Store, StringComparer.Ordinal))
+            facets.Add(new FacetRow(stores.Key, store.Key, vocabulary.Label(stores.Vocabulary!, store.Key), store.Any(v => v.Confirmed)));
+
         // An edition implies its system, so filtering by D&D finds books only known to be 5e.
         var edition = effective[MetadataFields.Edition].First;
         var editionTerm = edition is null ? null : vocabulary.Find("edition", edition.Value);
@@ -301,21 +306,34 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
     /// <summary>Re-reads a document's names and replaces the rule-hint suggestions it gave its entry. False when it has no file location left.</summary>
     public async Task<bool> ApplyAsync(long documentId, CancellationToken ct = default)
     {
-        if (await StoreAsync(documentId, ct) is not { } entry) return false;
-        await projector.ProjectAsync([entry], ct);
+        if (await StoreAsync(documentId, ct) is not { } stored) return false;
+        await projector.ProjectAsync([stored.Entry], ct);
         return true;
     }
 
-    /// <summary>Stores a document's hints on its entry, which it returns; null when the document has no file location left.</summary>
-    async Task<EntryId?> StoreAsync(long documentId, CancellationToken ct)
+    /// <summary>
+    /// Reads a document's hints again once its text is in, for the store its watermark names (scenario review, row 7),
+    /// and projects its entry only when that changed something.
+    /// </summary>
+    public async Task RefreshAsync(long documentId, CancellationToken ct = default)
+    {
+        if (await StoreAsync(documentId, ct) is { Changed: true } stored) await projector.ProjectAsync([stored.Entry], ct);
+    }
+
+    /// <summary>
+    /// Stores a document's hints on its entry, which it returns with whether they changed; null when the document has
+    /// no file location left.
+    /// </summary>
+    async Task<(EntryId Entry, bool Changed)?> StoreAsync(long documentId, CancellationToken ct)
     {
         var path = await library.GetRelativePathAsync(documentId, ct);
         if (path is null || await entries.GetEntryAsync(documentId, ct) is not { } entry) return null;
         var info = await queries.GetEmbeddedInfoAsync(documentId, ct);
-        var source = new HintSource(path, info?.Title, info?.Author, info?.Subject, info?.Keywords);
+        // The watermark lines are read here, matched against the store names and dropped: never stored or logged.
+        var watermarks = Watermarks.Find(await queries.GetAllPageTextsAsync(documentId, ct));
+        var source = new HintSource(path, info?.Title, info?.Author, info?.Subject, info?.Keywords, info?.Producer, watermarks);
         var proposals = RuleHints.Propose(source, await vocabularies.GetAsync(ct), await vocabularies.GetIgnoredFolderLabelsAsync(ct));
-        await metadata.ReplaceHintsAsync(entry.EntryId, entry.ContentHash, proposals, ct);
-        return entry.EntryId;
+        return (entry.EntryId, await metadata.ReplaceHintsAsync(entry.EntryId, entry.ContentHash, proposals, ct));
     }
 
     /// <summary>
@@ -349,7 +367,7 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
             .Select(p => p.DocumentId).Distinct().ToList();
         var stored = new List<EntryId>();
         foreach (var documentId in affected)
-            if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry);
+            if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry.Entry);
         stored.AddRange(await StorePacksAsync(ct: ct));
         await projector.ProjectAsync([.. stored.Distinct()], ct);
     }
@@ -410,6 +428,12 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
     async Task<(string? Value, MetadataProblem? Problem, bool IsNew)> ReadAsync(MetadataField field, string part, CancellationToken ct)
     {
         if (Check(field, part) is { } problem) return (null, problem, false);
+        if (field.Kind == FieldKind.Store)
+        {
+            var (term, name, url) = StoreLink.Read(part, await vocabularies.GetAsync(ct));
+            var key = term?.Key ?? (await vocabularies.ResolveOrAddAsync(field.Vocabulary!, name, ct)).Key;
+            return (new StoreLink(key, url).ToString(), null, term is null);
+        }
         if (field.Kind == FieldKind.Term)
         {
             var isNew = (await vocabularies.GetAsync(ct)).Resolve(field.Vocabulary!, part) is null;

@@ -29,6 +29,7 @@ public sealed class MetadataSearchTests : IndexFixture
                 new("system", "d&d", "dnd"), new("system", "dnd", "dnd"), new("edition", "5e", "dnd-5e"), new("edition", "d&d 5e", "dnd-5e"),
                 new("edition", "pf2e", "pathfinder-2e"), new("system", "pathfinder", "pathfinder"), new("type", "module", "adventure"),
                 new("style", "dungeon crawl", "dungeon-crawl"), new("style", "caper", "heist"), new("duration", "one shot", "one-shot"),
+                new("store", "dtrpg", "drivethrurpg"), new("store", "drivethrurpg", "drivethrurpg"), new("store", "kickstarter", "kickstarter"),
             ], Ct);
         await _store.SetMetadataAsync(
             [
@@ -37,14 +38,16 @@ public sealed class MetadataSearchTests : IndexFixture
                     EntryId = EntryOf(Tomb), Title = "Tomb of Horrors", Publisher = "TSR", Authors = "Gary Gygax", SystemLabel = "D&D 5e", KindLabel = "Adventure",
                     LevelMin = 10, LevelMax = 14, Levels = LevelState.Known, PlayersMin = 4, PlayersMax = 6, ConfirmedText = "5th edition · 5e",
                     Facets = [new("system", "dnd", "Dungeons & Dragons", true), new("edition", "dnd-5e", "5th edition", true), new("type", "adventure", "Adventure", false), new("theme", "horror", "Horror", false),
-                        new("style", "dungeon-crawl", "Dungeon crawl", false), new("duration", "one-shot", "One-shot", true)],
+                        new("style", "dungeon-crawl", "Dungeon crawl", false), new("duration", "one-shot", "One-shot", true),
+                        new("store", "drivethrurpg", "DriveThruRPG", true), new("store", "kickstarter", "Kickstarter", false)],
                 },
                 new EntryMetaRow
                 {
                     EntryId = EntryOf(Citadel), Publisher = "Wizards of the Coast", SystemLabel = "D&D 5e", KindLabel = "Adventure", LevelMin = 1, LevelMax = 3, Levels = LevelState.Known,
                     PlayersMin = 4, PlayersMax = 4,
                     Facets = [new("system", "dnd", "Dungeons & Dragons", false), new("edition", "dnd-5e", "5th edition", false), new("type", "adventure", "Adventure", false),
-                        new("style", "heist", "Heist", false), new("duration", "short", "Short (2–3 sessions)", false)],
+                        new("style", "heist", "Heist", false), new("duration", "short", "Short (2–3 sessions)", false),
+                        new("store", "kickstarter", "Kickstarter", true)],
                 },
                 new EntryMetaRow
                 {
@@ -147,6 +150,24 @@ public sealed class MetadataSearchTests : IndexFixture
     [InlineData("-duration:unknown theme:horror", new[] { Tomb })]
     public async Task Style_and_duration_match_any_name_of_a_term(string query, long[] expected) =>
         Assert.Equal(expected, await FindAsync(query));
+
+    [Theory]
+    [InlineData("store:kickstarter", new[] { Tomb, Citadel })]
+    [InlineData("store:dtrpg", new[] { Tomb })]
+    [InlineData("from:drive*", new[] { Tomb })]
+    [InlineData("-store:kickstarter", new[] { Bestiary, Map, Unknown })]
+    [InlineData("store:unknown", new[] { Bestiary, Map, Unknown })]
+    public async Task Where_to_get_it_matches_any_name_of_a_store(string query, long[] expected) =>
+        Assert.Equal(expected, await FindAsync(query));
+
+    [Fact]
+    public async Task The_store_filter_keeps_books_from_that_store_and_counts_each_store()
+    {
+        Assert.Equal([Tomb], (await _library.ListAsync(new LibraryFilter(Stores: ["drivethrurpg"]), ct: Ct)).Select(e => e.DocumentId));
+        var stores = await _library.GetFacetCountsAsync("store", new LibraryFilter(), ct: Ct);
+        Assert.Contains(("kickstarter", 2L), stores.Select(c => (c.Value, c.Count)));
+        Assert.Contains(("drivethrurpg", 1L), stores.Select(c => (c.Value, c.Count)));
+    }
 
     [Fact]
     public async Task Filters_choose_players_styles_and_durations()

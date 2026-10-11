@@ -70,10 +70,10 @@ public class SearchGuideTests
     [Fact]
     public void Closed_fields_are_the_vocabulary_ones_and_format()
     {
-        Assert.Equal(["system", "edition", "type", "duration", "setting", "style", "theme", "environment", "own", "format"], SearchFields.All.Where(f => f.ListsValues).Select(f => f.Name));
-        // A Term field's values are its catalog field's vocabulary, which is also its entry_facet field.
+        Assert.Equal(["system", "edition", "type", "duration", "setting", "style", "theme", "environment", "own", "store", "format"], SearchFields.All.Where(f => f.ListsValues).Select(f => f.Name));
+        // A Term field's values are its catalog field's vocabulary, which is also its entry_facet field (Get it from's too: its store).
         Assert.All(SearchFields.All.Where(f => f.Kind == SearchFieldKind.Term),
-            f => Assert.True(f.Metadata is { Kind: FieldKind.Term, Vocabulary: not null } m && m.Vocabulary == m.Key, f.Name));
+            f => Assert.True(f.Metadata is { Kind: FieldKind.Term or FieldKind.Store, Vocabulary: not null } m && m.Vocabulary == m.Key, f.Name));
     }
 
     // ---- At the cursor -------------------------------------------------------------------------------------------
@@ -95,7 +95,7 @@ public class SearchGuideTests
 
     [Theory]
     [InlineData("sy|", new[] { "system" })]
-    [InlineData("S|", new[] { "system", "series", "setting", "style" })]
+    [InlineData("S|", new[] { "system", "series", "setting", "style", "store" })]
     [InlineData("t|", new[] { "title", "type", "theme", "tag" })]
     [InlineData("dragon ty|", new[] { "type" })]
     [InlineData("-sy|", new[] { "system" })]

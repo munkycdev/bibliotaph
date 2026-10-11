@@ -55,7 +55,7 @@ public sealed class ExportService(LibraryStore library, EntryStore entries, Meta
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
     public static IReadOnlyList<string> CsvHeader { get; } =
-        ["Title", "System", "Type", "Levels", "Players", "Duration", "Style", "Publisher", "Tags", "Collections", "Path"];
+        ["Title", "System", "Type", "Levels", "Players", "Duration", "Style", "Publisher", "Get it from", "Tags", "Collections", "Path"];
 
     /// <summary>
     /// The CSV: a row per book the Library shows, or per one of <paramref name="entryIds"/>, by title, with its values as
@@ -94,11 +94,17 @@ public sealed class ExportService(LibraryStore library, EntryStore entries, Meta
             };
             var players = meta is { PlayersMin: { } fewest, PlayersMax: { } most } ? new PlayerRange(fewest, most).Describe() : null;
             rows.Add((title, [title, meta?.SystemLabel, meta?.KindLabel, levels, players, Labels(meta, MetadataFields.Duration), Labels(meta, MetadataFields.Styles),
-                meta?.Publisher, meta?.Tags,
+                meta?.Publisher, found is null ? null : Stores(found, vocabulary), meta?.Tags,
                 collections.TryGetValue(book.EntryId, out var names) ? string.Join("; ", names) : null, path]));
         }
         return [.. rows.OrderBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase).Select(r => r.Row)];
     }
+
+    /// <summary>Where to get it, each store with its link: "DriveThruRPG (https://…); Kickstarter".</summary>
+    static string? Stores(EntryMetadata entry, Vocabulary vocabulary) =>
+        entry.Compute()[MetadataFields.GetItFrom].Values.Select(v => StoreLink.Parse(v.Value))
+            .Select(s => s.Url is { } url ? $"{vocabulary.Label("store", s.Store)} ({url})" : vocabulary.Label("store", s.Store)).ToList()
+            is { Count: > 0 } stores ? string.Join("; ", stores) : null;
 
     /// <summary>A term field's values as the card's labels, joined: "Heist; Dungeon crawl".</summary>
     static string? Labels(EntryMetaRow? meta, MetadataField field) =>
