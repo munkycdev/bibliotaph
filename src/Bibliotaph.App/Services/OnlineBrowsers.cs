@@ -19,6 +19,9 @@ public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImag
     readonly Dictionary<string, OnlineBrowserWindow> _open = [];
     Task<CoreWebView2Environment>? _environment;
 
+    /// <summary>The smoke test's switch: browsers open only files, so no real site is read.</summary>
+    public bool OnlyFiles { get; set; }
+
     /// <summary>The windows open now, one per service.</summary>
     public IReadOnlyCollection<OnlineBrowserWindow> Windows => _open.Values;
 
@@ -39,7 +42,7 @@ public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImag
     }
 
     /// <summary>One browser for every window, so they share the profile's sign-ins.</summary>
-    internal async Task<CoreWebView2Environment> EnvironmentAsync()
+    public async Task<CoreWebView2Environment> EnvironmentAsync()
     {
         _environment ??= CoreWebView2Environment.CreateAsync(null, paths.Browser);
         try

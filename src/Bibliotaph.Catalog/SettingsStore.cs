@@ -62,6 +62,9 @@ public static class SettingKeys
     /// </summary>
     public const string SiteIcons = "library.site-icons";
 
+    /// <summary>Where a book owned online opens: "app" (the online reader, the default) or "browser" (online libraries, O2b).</summary>
+    public const string OnlineReader = "library.online-reader";
+
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
     public const string StartPage = "start-page";
 

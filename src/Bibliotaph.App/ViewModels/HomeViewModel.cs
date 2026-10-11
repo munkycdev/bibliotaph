@@ -155,7 +155,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
     {
-        if (item.OpensOnline) text.OpenOnline(item);
+        if (item.OpensOnline) await text.ReadOnlineAsync(item);
         else if (await RequestAsync(item) is { } request) readers.OpenInMainWindow(request);
     }
 

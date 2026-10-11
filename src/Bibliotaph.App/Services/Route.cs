@@ -20,4 +20,6 @@ public enum Route
     AiReading,
     /// <summary>Books owned on online services, imported from their library pages (online libraries, O2).</summary>
     OnlineLibraries,
+    /// <summary>A book owned online, read on its service's page (online libraries, O2b); by route alone, the Library.</summary>
+    OnlineReader,
 }

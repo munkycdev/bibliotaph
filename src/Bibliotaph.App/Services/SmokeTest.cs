@@ -38,6 +38,8 @@ static partial class SmokeTest
         PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
         var navigation = services.GetRequiredService<INavigationService>();
+        // Online readers and the in-app browser open only the made-up pages here, never a real site.
+        services.GetRequiredService<OnlineBrowsers>().OnlyFiles = true;
         var failed = new List<string>();
 
         // A failed check is logged and the rest still run, so one CI round shows every broken check, not just the
@@ -124,6 +126,7 @@ static partial class SmokeTest
                 () => CorrectBooksAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
+            await Check("a book read online in the online reader, its note kept, popped out and brought back", () => ReadOnlineBookAsync(services, window));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
                 () => ReviewRevisionAsync(services, window));
@@ -2411,17 +2414,35 @@ static partial class SmokeTest
 
         var launcher = services.GetRequiredService<IShellLauncher>() as SmokeShellLauncher
             ?? throw new InvalidOperationException("The smoke test has no stand-in launcher.");
-        var opened = launcher.Opened.Count;
-        await page.OpenBookCommand.ExecuteAsync(card);
-        if (launcher.Opened.Count != opened + 1 || launcher.Opened[^1] != Link)
-            throw new InvalidOperationException($"Open didn't open the book's page: {string.Join(", ", launcher.Opened.Skip(opened))}");
         await Settle(window);
         await AuditAsync(window, "a book owned online, with its site's badge");
+
+        // Open reads it in the online reader (O2b), which in the smoke test loads no real site; without the browser's
+        // runtime it opens in the everyday browser instead.
+        var opened = launcher.Opened.Count;
+        var shell = services.GetRequiredService<ShellViewModel>();
+        await page.OpenBookCommand.ExecuteAsync(card);
+        if (OnlineBrowsers.RuntimeVersion is null)
+        {
+            if (launcher.Opened.Count != opened + 1 || launcher.Opened[^1] != Link)
+                throw new InvalidOperationException($"Open didn't open the book's page: {string.Join(", ", launcher.Opened.Skip(opened))}");
+            opened++;
+        }
+        else
+        {
+            await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel { Request.Link: Link },
+                () => $"Open showed {shell.CurrentPage?.GetType().Name}, not the online reader.");
+            services.GetRequiredService<INavigationService>().GoBack();
+            var id = card.EntryId;
+            await WaitUntilAsync(window, () => shell.CurrentPage == page && page.Items.Any(i => i.EntryId == id),
+                () => "Back from the online reader didn't return to the Library.");
+            card = page.Items.First(i => i.EntryId == id);
+        }
 
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OpenOnline" && b.IsVisible), "Open on D&D Beyond");
-        await WaitUntilAsync(window, () => launcher.Opened.Count == opened + 2, () => "Open on D&D Beyond in the details didn't open the page.");
+        await WaitUntilAsync(window, () => launcher.Opened.Count == opened + 1, () => "Open on D&D Beyond in the details didn't open the page.");
         page.CloseDetailsCommand.Execute(null);
 
         var search = services.GetRequiredService<SearchState>();
