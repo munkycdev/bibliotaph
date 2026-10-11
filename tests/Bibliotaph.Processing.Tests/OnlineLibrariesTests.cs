@@ -1,8 +1,9 @@
 using System.Text.Json;
+using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Reading an online library's page (online libraries, O2): D&amp;D Beyond's, on made-up pages shaped like the real one.</summary>
+/// <summary>Reading an online library's page (online libraries, O2 and O4), on made-up pages shaped like the real ones.</summary>
 public sealed class OnlineLibrariesTests
 {
     static readonly string Fixture = Path.Combine(AppContext.BaseDirectory, "online", "dndbeyond-library.html");
@@ -79,15 +80,91 @@ public sealed class OnlineLibrariesTests
         Assert.Empty(page.Books);
     }
 
-    [Fact]
-    public void A_store_whose_library_isnt_read_yet_recognises_no_page()
-    {
-        IOnlineLibraryReader store = StoreOnlyLibrary.HumbleBundle;
+    static string Online(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "online", name));
 
-        Assert.False(store.ReadsLibrary);
-        Assert.Null(store.Read(File.ReadAllText(Fixture)));
-        Assert.True(((IOnlineLibraryReader)new DndBeyondReader()).ReadsLibrary);
-        Assert.Equal(["demiplane", "bundle", "drivethrurpg", "dmsguild"], new[] { StoreOnlyLibrary.Demiplane, StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild }.Select(s => s.Key));
+    [Fact]
+    public void A_demiplane_source_library_gives_the_books_unlocked_and_never_says_it_is_the_whole_library()
+    {
+        var page = new DemiplaneReader().Read(Online("demiplane-sources.html"));
+
+        // The third card is only for sale.
+        Assert.NotNull(page);
+        Assert.False(page.Complete);
+        Assert.Equal(
+            [
+                ("Ember Isles Core Rules", "https://app.demiplane.com/nexus/emberisles/sources/ember-isles-core", "./Source Library - Ember Isles RPG Nexus_files/cover.jpg"),
+                ("Tides of Ash & Salt", "https://app.demiplane.com/nexus/emberisles/sources/tides-of-ash", "./Source Library - Ember Isles RPG Nexus_files/cover(1).jpg"),
+            ],
+            page.Books.Select(b => (b.Title, b.Link, b.CoverUrl)));
+        Assert.Equal(MetadataFields.AlsoOwn, ((IOnlineLibraryReader)new DemiplaneReader()).LinkField);
+    }
+
+    [Fact]
+    public void A_humble_bundle_library_is_read_with_ebook_chosen_and_each_book_linked_by_its_name()
+    {
+        IOnlineLibraryReader reader = new HumbleBundleReader();
+        var html = Online("humble-library.html");
+
+        var page = reader.Read(html);
+
+        Assert.NotNull(page);
+        Assert.True(page.Complete);
+        Assert.Equal(MetadataFields.GetItFrom, reader.LinkField);
+        Assert.Collection(page.Books,
+            book =>
+            {
+                Assert.Equal(("Nine Crooked Lanterns", "https://www.humblebundle.com/home/library#nine-crooked-lanterns", "Lantern Hollow Games"), (book.Title, book.Link, book.Publisher));
+                Assert.Equal("https://hb.imgix.net/0000000000000000000000000000000000000001.png?auto=compress,format&s=00000000000000000000000000000001", book.CoverUrl);
+            },
+            book => Assert.Equal(("The Clockwork Bestiary: Vol. 2", "Brass & Bone Press"), (book.Title, book.Publisher)));
+
+        // With every platform chosen, the list holds games too, so it isn't read and the user is told what to choose.
+        var all = html.Replace("<option value=\"all\">", "<option value=\"all\" selected=\"\">", StringComparison.Ordinal)
+            .Replace("<option value=\"ebook\" selected=\"\">", "<option value=\"ebook\">", StringComparison.Ordinal);
+        Assert.Null(reader.Read(all));
+        Assert.Contains("eBook", reader.Hint(all), StringComparison.Ordinal);
+        Assert.Null(reader.Hint(html));
+
+        // A search typed in the library leaves books out, so the page isn't the whole library.
+        var searched = html.Replace("id=\"search\" name=\"search\" class=\"js-search\"", "id=\"search\" name=\"search\" class=\"js-search\" value=\"lantern\"", StringComparison.Ordinal);
+        Assert.False(reader.Read(searched)?.Complete);
+    }
+
+    [Fact]
+    public void A_drivethrurpg_library_page_gives_its_books_with_their_publishers_and_isnt_the_whole_library_when_there_are_more_pages()
+    {
+        var reader = OneBookShelfReader.DriveThruRpg;
+        var html = Online("drivethrurpg-library.html");
+
+        var page = reader.Read(html);
+
+        Assert.NotNull(page);
+        Assert.False(page.Complete);
+        Assert.Equal(
+            [
+                ("The Sunken Orrery", "https://www.drivethrurpg.com/en/product/900001/the-sunken-orrery", "Copper Kettle Games", "./DriveThruRPG - My Library_files/900001-thumb140.jpg"),
+                ("Marsh Lights Quickstart", "https://www.drivethrurpg.com/en/product/900002/marsh-lights-quickstart", "Fenwick & Daughters", "./DriveThruRPG - My Library_files/900002-thumb140.jpg"),
+            ],
+            page.Books.Select(b => (b.Title, b.Link, b.Publisher, b.CoverUrl)));
+
+        // A library on one page is the whole of it; DMs Guild's reader doesn't take DriveThruRPG's page.
+        var start = html.IndexOf("<ngb-pagination>", StringComparison.Ordinal);
+        Assert.True(reader.Read(html[..start] + "</body></html>")?.Complete);
+        Assert.Null(OneBookShelfReader.DmsGuild.Read(html));
+    }
+
+    [Fact]
+    public void Each_service_reads_only_its_own_library_page()
+    {
+        string[] pages = ["dndbeyond-library.html", "demiplane-sources.html", "humble-library.html", "drivethrurpg-library.html"];
+        IOnlineLibraryReader[] readers = [new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), OneBookShelfReader.DriveThruRpg];
+
+        for (var i = 0; i < pages.Length; i++)
+            for (var j = 0; j < readers.Length; j++)
+                Assert.True((readers[j].Read(Online(pages[i])) is not null) == (i == j), $"{readers[j].Name} on {pages[i]}");
+        Assert.Equal(["dnd-beyond", "demiplane", "bundle", "drivethrurpg", "dmsguild"],
+            new IOnlineLibraryReader[] { new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), OneBookShelfReader.DriveThruRpg, OneBookShelfReader.DmsGuild }
+                .Select(r => r.Key));
     }
 
     [Fact]
