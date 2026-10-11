@@ -244,13 +244,20 @@
 
       <!-- .bt-topbar -->
       <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="24,15" MinHeight="68">
-        <DockPanel>
-          <Button DockPanel.Dock="Left" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowLeft}"
+        <!-- The breadcrumb takes the room the search box leaves, so a long title (an adventure in a file, say) is trimmed, not the search box. -->
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Button Grid.Column="0" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowLeft}"
                   Command="{Binding GoBackCommand}" Margin="-8,0,6,0"
                   Visibility="{Binding CanGoBack, Converter={StaticResource Bt.VisibleWhenTrue}}"
                   ToolTip="Back (Alt+Left)" AutomationProperties.Name="Back" />
           <!-- .bt-breadcrumb: the section links to its page when it names one (Library, Settings). -->
-          <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Bt.Muted}">
+          <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis">
             <TextBlock.Resources>
               <Style TargetType="Hyperlink">
                 <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
@@ -271,14 +278,14 @@
             <Hyperlink Command="{Binding OpenSectionCommand}"
                        AutomationProperties.Name="{Binding Section, Mode=OneWay, StringFormat='Go to {0}'}"><Run Text="{Binding Section, Mode=OneWay}" /></Hyperlink><Run Text="  /  " Foreground="{DynamicResource Bt.Line}" /><Run Text="{Binding Title, Mode=OneWay}" />
           </TextBlock>
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SunMoon}"
+          <Button Grid.Column="3" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SunMoon}"
                   Command="{Binding ToggleAppearanceCommand}" Margin="15,0,0,0"
                   ToolTip="{Binding AppearanceToggleLabel}" AutomationProperties.Name="{Binding AppearanceToggleLabel}" />
-          <TextBox x:Name="Search" Style="{StaticResource Bt.SearchBox}" MaxWidth="360" HorizontalAlignment="Right"
+          <TextBox x:Name="Search" Grid.Column="2" Style="{StaticResource Bt.SearchBox}" MaxWidth="360" HorizontalAlignment="Right"
                    Margin="15,0,0,0" Width="360" Tag="Search books, topics, passages…"
                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" c:Ui.ClearCommand="{Binding ClearSearchCommand}"
                    AutomationProperties.Name="Search your library" PreviewKeyDown="Search_PreviewKeyDown" />
-        </DockPanel>
+        </Grid>
       </Border>
 
       <!-- A page with its own virtualized list (the Library) scrolls itself; wrapping it here would realize every item. -->
