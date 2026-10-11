@@ -2311,7 +2311,7 @@ static partial class SmokeTest
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog.");
         var dialog = page.AddElsewhereDialog!;
         dialog.Title = Title;
@@ -2363,7 +2363,7 @@ static partial class SmokeTest
             .First(p => p.RelativePath.EndsWith("Gazetteer of the Marches.pdf", StringComparison.Ordinal)).DocumentId;
         var file = page.Items.FirstOrDefault(i => !i.IsPack && !i.IsElsewhere && i.DocumentId == gazetteer)
             ?? throw new InvalidOperationException("The gazetteer's card isn't in the Library.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog again.");
         var second = page.AddElsewhereDialog!;
         second.Title = file.Title;

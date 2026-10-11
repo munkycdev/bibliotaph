@@ -31,7 +31,8 @@ static partial class SmokeTest
         var shell = services.GetRequiredService<ShellViewModel>();
         navigation.NavigateTo(Route.Library);
         await Settle(window);
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlineLibraries"), "Online libraries");
+        var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
         await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open its page.");
         var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
         if (page.Services is not [{ Name: "D&D Beyond" }]) throw new InvalidOperationException("Online libraries doesn't list D&D Beyond.");
@@ -66,6 +67,20 @@ static partial class SmokeTest
         cards = await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible)));
         if (cards.Count != books) throw new InvalidOperationException($"After Undo the library has {cards.Count} cards, not {books}.");
         navigation.GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>Opens a button's menu, as a click does, and chooses the item with <paramref name="command"/>.</summary>
+    static async Task ChooseAsync(Window window, string button, System.Windows.Input.ICommand command, string name)
+    {
+        var opener = Descendants<Button>(window).FirstOrDefault(b => b.Name == button && b.IsVisible);
+        Click(opener, button);
+        await WaitUntilAsync(window, () => opener!.ContextMenu is { IsOpen: true }, () => $"The {button} button didn't open its menu.");
+        var menu = opener!.ContextMenu!;
+        var item = menu.Items.OfType<MenuItem>().FirstOrDefault(i => i.Command == command) ?? throw new InvalidOperationException($"The menu has no {name}.");
+        menu.IsOpen = false;
+        if (!item.IsEnabled) throw new InvalidOperationException($"{name} is disabled.");
+        item.Command.Execute(item.CommandParameter);
         await Settle(window);
     }
 }
