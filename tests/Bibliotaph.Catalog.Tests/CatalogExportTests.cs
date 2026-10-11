@@ -113,7 +113,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.PageRefs.AddRange(pages, notePages);
         db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = now });
         db.ReadingStates.Add(new ReadingState { EntryId = entry.Id, DocumentId = book.Id, PageIndex = 2, OpenedUtc = now });
-        var collection = new CollectionNode { Name = "Winter campaign", Pinned = true, CreatedUtc = now, UsedUtc = now };
+        var collection = new CollectionNode { Name = "Winter campaign", CreatedUtc = now, UsedUtc = now };
         db.Collections.Add(collection);
         db.SmartViews.Add(new SmartView { Name = "Unread", Definition = "{\"version\":1}", CreatedUtc = now, UpdatedUtc = now });
         var session = new SessionPack { Title = "Session 1", Date = new DateOnly(2026, 11, 7), CreatedUtc = now, TouchedUtc = now };
@@ -126,6 +126,8 @@ public sealed class CatalogExportTests : IAsyncLifetime
         await db.SaveChangesAsync(Ct);
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });
+        // A new catalog has Favorites pinned already.
+        db.Pins.Add(new Pin { Kind = PinKind.Collection, Position = 1, CollectionId = collection.Id });
         db.Notes.AddRange(
             new Note { EntryId = entry.Id, Text = "The owlbear is a red herring.", CreatedUtc = now, UpdatedUtc = now },
             new Note { EntryId = entry.Id, PageRefId = notePages.Id, Text = "Read this aloud.", CreatedUtc = now, UpdatedUtc = now });

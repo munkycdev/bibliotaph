@@ -202,6 +202,44 @@ public sealed class CatalogDatabaseTests : IDisposable
         Assert.Equal(10, entry.Id);
     }
 
+    [Fact]
+    public async Task Favorites_saved_searches_and_pinned_collections_become_pins_in_that_order()
+    {
+        var database = Database();
+        await using (var context = database.CreateContext())
+        {
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20261010211117_CatalogPackMerges", TestContext.Current.CancellationToken);
+        }
+        using (var c = new SqliteConnection(database.ConnectionString))
+        {
+            c.Open();
+            using var command = c.CreateCommand();
+            command.CommandText = """
+                INSERT INTO smart_view (id, name, definition, created_utc, updated_utc) VALUES
+                    (1, 'winter maps', '{}', '2026-10-08 12:00:00', '2026-10-08 12:00:00'),
+                    (2, 'Haunted places', '{}', '2026-10-08 12:00:00', '2026-10-08 12:00:00');
+                INSERT INTO collection (id, name, pinned, created_utc, used_utc) VALUES
+                    (5, 'Spring campaign', 1, '2026-10-08 12:00:00', '2026-10-08 12:00:00'),
+                    (6, 'Loose maps', 0, '2026-10-08 12:00:00', '2026-10-08 12:00:00'),
+                    (7, 'Autumn campaign', 1, '2026-10-08 12:00:00', '2026-10-08 12:00:00');
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var result = await database.MigrateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_CatalogPins", StringComparison.Ordinal));
+        var pins = await new PinStore(new Factory(database)).ListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(
+            [PinTarget.Favorites, PinTarget.SavedSearch(2), PinTarget.SavedSearch(1), PinTarget.Collection(7), PinTarget.Collection(5)],
+            pins.Select(p => p.Target));
+        Assert.Equal([0, 1, 2, 3, 4], pins.Select(p => p.Position));
+        var cs = database.ConnectionString;
+        Assert.Equal(0, Scalar(cs, "SELECT count(*) FROM pragma_table_info('collection') WHERE name = 'pinned'"));
+        Assert.Equal(0, Scalar(cs, "SELECT count(*) FROM pragma_foreign_key_check"));
+    }
+
     sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;

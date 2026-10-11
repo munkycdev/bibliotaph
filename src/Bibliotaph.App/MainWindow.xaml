@@ -77,33 +77,49 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- .bt-sidegroup: Smart Views (slice 3 plan, choices 5 and 17): Favorites, then the saved views. -->
+            <!-- .bt-sidegroup: Pinned (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order. -->
             <StackPanel Margin="0,22,0,0">
-              <TextBlock Text="SMART VIEWS" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
-              <ItemsControl x:Name="SmartViews" ItemsSource="{Binding SmartViews}" Focusable="False" AutomationProperties.Name="Smart views">
+              <TextBlock Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
+              <TextBlock x:Name="NoPins" Text="Right-click a book, collection or binder and choose Pin." FontSize="11" TextWrapping="Wrap"
+                         Foreground="{DynamicResource Bt.Muted}" Margin="10,0,10,0">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Pinned.Count}" Value="0">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+              <ItemsControl x:Name="Pinned" ItemsSource="{Binding Pinned}" Focusable="False" AutomationProperties.Name="Pinned">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
-                    <!-- A saved view renames and deletes from its right-click menu; Tag carries the shell for the menu's commands. -->
-                    <Button x:Name="SmartView" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
+                  <DataTemplate DataType="{x:Type services:PinnedItemViewModel}">
+                    <!-- Every pin unpins from its right-click menu, and a saved search also renames and deletes there; Tag carries the shell for the menu's commands. -->
+                    <Button x:Name="Pin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}" ToolTip="{Binding Tip}"
                             c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
-                            Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Command="{Binding DataContext.OpenPinCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding}">
+                      <Button.ContextMenu>
+                        <ContextMenu Style="{StaticResource Bt.Menu}">
+                          <MenuItem Header="Unpin" CommandParameter="{Binding}"
+                                    Command="{Binding PlacementTarget.Tag.UnpinCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                          <MenuItem Header="Rename…" CommandParameter="{Binding}"
+                                    Visibility="{Binding IsSavedSearch, Converter={x:Static c:BoolToVisibility.WhenTrue}}"
+                                    Command="{Binding PlacementTarget.Tag.RenameViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                          <MenuItem Header="Delete" CommandParameter="{Binding}"
+                                    Visibility="{Binding IsSavedSearch, Converter={x:Static c:BoolToVisibility.WhenTrue}}"
+                                    Command="{Binding PlacementTarget.Tag.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu>
+                      </Button.ContextMenu>
                       <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource Bt.NavButton}">
                           <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsView}" Value="True">
-                              <Setter Property="ToolTip" Value="Right-click to rename or delete" />
-                              <Setter Property="ContextMenu">
-                                <Setter.Value>
-                                  <ContextMenu Style="{StaticResource Bt.Menu}">
-                                    <MenuItem Header="Rename…" CommandParameter="{Binding}"
-                                              Command="{Binding PlacementTarget.Tag.RenameViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                    <MenuItem Header="Delete" CommandParameter="{Binding}"
-                                              Command="{Binding PlacementTarget.Tag.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                  </ContextMenu>
-                                </Setter.Value>
-                              </Setter>
+                            <!-- A book whose file is offline or missing keeps its pin, dimmed (choice 9). -->
+                            <DataTrigger Binding="{Binding IsDimmed}" Value="True">
+                              <Setter Property="Opacity" Value="0.55" />
                             </DataTrigger>
                           </Style.Triggers>
                         </Style>

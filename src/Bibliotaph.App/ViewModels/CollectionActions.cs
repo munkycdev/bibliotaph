@@ -119,12 +119,6 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         });
     }
 
-    public async Task SetPinnedAsync(CollectionInfo collection, bool pinned)
-    {
-        if (await Run(async () => { await collections.SetPinnedAsync(collection.Id, pinned); return true; }, "Pinning the collection failed"))
-            await FinishAsync(pinned ? $"Pinned {collection.Name}. It shows first on Collections, and on Home." : $"Unpinned {collection.Name}.", null);
-    }
-
     /// <summary>Deletes a collection, never its books; its sub-collections move up a level. Returns what Undo needs.</summary>
     public async Task<CollectionDeletion?> DeleteAsync(CollectionInfo collection)
     {

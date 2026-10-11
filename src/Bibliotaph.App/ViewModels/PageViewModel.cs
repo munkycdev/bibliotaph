@@ -16,16 +16,16 @@ public abstract class PageViewModel : ObservableObject
     public virtual Route? SectionRoute => null;
 
     /// <summary>
-    /// The part of its route the page shows, when the sidebar has an item of its own for it: the Library's Favorites
-    /// is the Library route scoped to "favorite". Raises PropertyChanged when it changes.
-    /// </summary>
-    public virtual string? NavScope => null;
-
-    /// <summary>
     /// The route whose sidebar item the page marks: its own, except where it sits under another, as a collection's
     /// Library page sits under Collections. Raises PropertyChanged when it changes.
     /// </summary>
     public virtual Route NavRoute => Route;
+
+    /// <summary>
+    /// The key of the sidebar pin that opens what the page shows (Pinned Views plan), which marks that pin: a saved
+    /// search, a collection, Favorites or a binder. Raises PropertyChanged when it changes.
+    /// </summary>
+    public virtual string? PinKey => null;
 
     /// <summary>True for a page with its own scrolling list (a virtualized grid), which the shell must not wrap in a scroll viewer.</summary>
     public virtual bool ScrollsItself => false;

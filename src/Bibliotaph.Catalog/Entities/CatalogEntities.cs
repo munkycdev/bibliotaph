@@ -4,7 +4,7 @@ namespace Bibliotaph.Catalog.Entities;
 
 // Persistence shapes for catalog.db. Slice 0 created the core tables; slice 2 adds vocabulary, rejections and
 // classification runs; the foundation slice adds entries, which user work keys on; slice 3 adds favourites and reading
-// positions, then collections, smart views, session packs and notes, each by its own migration.
+// positions, then collections, smart views, session packs and notes, each by its own migration; pins come with Pinned Views.
 // Domain behaviour lives in Core (Bibliotaph.Core.Metadata for metadata).
 
 /// <summary>A folder the user added. Its files are never marked missing while it is offline.</summary>
@@ -370,8 +370,6 @@ public sealed class CollectionNode
     public long? ParentId { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
-    /// <summary>Shown first on the Collections page and on Home.</summary>
-    public bool Pinned { get; set; }
     public DateTime CreatedUtc { get; set; }
     /// <summary>When a book was last added to it or it was made: the menu's recent collections.</summary>
     public DateTime UsedUtc { get; set; }
@@ -388,6 +386,23 @@ public sealed class SmartView
     public required string Definition { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+}
+
+/// <summary>
+/// A pin in the sidebar's Pinned group (Pinned Views plan, choice 3), in the order the user put them. Each kind but
+/// Favorites points at its target through its own column, so deleting the target deletes the pin.
+/// </summary>
+public sealed class Pin
+{
+    public long Id { get; set; }
+    public PinKind Kind { get; set; }
+    /// <summary>Its place in the list, lowest first. Gaps are fine; ties go by id.</summary>
+    public int Position { get; set; }
+    public long? EntryId { get; set; }
+    public long? CollectionId { get; set; }
+    /// <summary>The binder's session pack.</summary>
+    public long? PackId { get; set; }
+    public long? SmartViewId { get; set; }
 }
 
 /// <summary>

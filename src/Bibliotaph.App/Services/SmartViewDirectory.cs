@@ -87,9 +87,9 @@ public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDi
 
     public Task<bool> RenameAsync(long viewId, string name) => ThenLoad(() => store.RenameAsync(viewId, name));
 
-    public Task<SmartViewInfo?> DeleteAsync(long viewId) => ThenLoad(() => store.DeleteAsync(viewId));
+    public Task<SmartViewDeletion?> DeleteAsync(long viewId) => ThenLoad(() => store.DeleteAsync(viewId));
 
-    public Task<SmartViewInfo> RestoreAsync(SmartViewInfo deleted) => ThenLoad(() => store.RestoreAsync(deleted));
+    public Task<SmartViewInfo> RestoreAsync(SmartViewDeletion deleted) => ThenLoad(() => store.RestoreAsync(deleted));
 
     async Task<T> ThenLoad<T>(Func<Task<T>> change)
     {

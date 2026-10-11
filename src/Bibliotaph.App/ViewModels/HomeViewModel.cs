@@ -12,15 +12,14 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, the pinned collections, and ways
-/// into the library such as Favorites and the saved Smart Views (3e), and Continue preparing: the session pack worked on
-/// last (3c). Before any folder
+/// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, Continue preparing: the session
+/// pack worked on last (3c), and the sidebar's pins in the same order (Pinned Views plan, choice 12). Before any folder
 /// is added it explains what Bibliotaph does.
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    SmartViewDirectory views, BookTextActions text, ILogger<HomeViewModel> log)
+    PinDirectory pins, PinOpener opener, BookTextActions text, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
@@ -44,11 +43,8 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [ObservableProperty]
     public partial SessionCardViewModel? ContinuePreparing { get; private set; }
 
-    /// <summary>The pinned collections (choice 7), as cards.</summary>
-    public ObservableCollection<CollectionCardViewModel> PinnedCollections { get; } = [];
-
-    [ObservableProperty]
-    public partial bool HasPinnedCollections { get; private set; }
+    /// <summary>The sidebar's pins, in its order (Pinned Views plan, choice 12).</summary>
+    public PinDirectory Pins { get; } = pins;
 
     /// <summary>The first-run "AI now or later" step (choice 10): folders added, no endpoint, and not yet answered.</summary>
     [ObservableProperty]
@@ -67,16 +63,6 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [ObservableProperty]
     public partial bool HasBooks { get; private set; }
 
-    /// <summary>Some book is a favorite, so Home offers the way in.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasThreads))]
-    public partial bool HasFavorites { get; private set; }
-
-    /// <summary>The saved Smart Views, each a way into the library, by name.</summary>
-    public ObservableCollection<SmartViewInfo> SmartViews { get; } = [];
-
-    /// <summary>Pick up a thread shows: there are favorites or saved views.</summary>
-    public bool HasThreads => HasFavorites || SmartViews.Count > 0;
 
     public override async Task LoadAsync()
     {
@@ -90,9 +76,6 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         Sessions.Directory.Changed -= OnActivityRefreshed;
         await Sessions.Directory.LoadAsync();
         Sessions.Directory.Changed += OnActivityRefreshed;
-        views.Changed -= OnViewsChanged;
-        views.Changed += OnViewsChanged;
-        ShowViews();
         await RefreshAsync();
     }
 
@@ -103,21 +86,15 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         Collections.Close();
         Sessions.Directory.Changed -= OnActivityRefreshed;
         Sessions.Close();
-        views.Changed -= OnViewsChanged;
     }
 
-    void OnViewsChanged(object? sender, EventArgs e) => ShowViews();
-
-    void ShowViews()
-    {
-        SmartViews.Clear();
-        foreach (var view in views.All) SmartViews.Add(view);
-        OnPropertyChanged(nameof(HasThreads));
-    }
-
-    /// <summary>A saved Smart View from Pick up a thread.</summary>
+    /// <summary>A pin, as the sidebar opens it.</summary>
     [RelayCommand]
-    void OpenView(SmartViewInfo view) => pages.OpenView(view);
+    Task OpenPin(PinnedItemViewModel item) => opener.OpenAsync(item);
+
+    /// <summary>A cover menu's Pin or Unpin.</summary>
+    [RelayCommand]
+    Task TogglePinBook(LibraryItemViewModel item) => Pins.ToggleAsync(PinTarget.Entry(item.EntryId));
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
@@ -133,22 +110,16 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         {
             var scope = await library.GetVisibleEntryIdsAsync();
             _away = await library.GetUnavailableAsync();
-            var (opened, added, favorite) = await Task.Run(async () => (
+            var (opened, added) = await Task.Run(async () => (
                 await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: RowLength),
-                await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: RowLength),
-                await queries.ListAsync(new LibraryFilter(scope, Group: ScopeKeys.Favorites), limit: 1)));
+                await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: RowLength)));
             Show(RecentlyOpened, opened);
             Show(RecentlyAdded, added);
-            var pinned = await Collections.Directory.CardsAsync(Collections.Directory.Pinned);
             var preparing = Sessions.Directory.Preparing is { } current ? await Sessions.Directory.CardsAsync([current]) : [];
             if (version != _version) return;
             ContinuePreparing = preparing.Count > 0 ? preparing[0] : null;
-            PinnedCollections.Clear();
-            foreach (var card in pinned) PinnedCollections.Add(card);
-            HasPinnedCollections = PinnedCollections.Count > 0;
             HasRecentlyOpened = opened.Count > 0;
             HasBooks = added.Count > 0;
-            HasFavorites = favorite.Count > 0;
         }
         catch (Exception ex)
         {
@@ -247,12 +218,6 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     [RelayCommand]
     void BrowseLibrary() => pages.Open(null);
-
-    [RelayCommand]
-    void OpenFavorites() => pages.Open(LibraryScope.Favorites);
-
-    [RelayCommand]
-    void OpenCollection(CollectionCardViewModel card) => pages.Open(Collections.Directory.ScopeFor(card.Collection));
 
     [RelayCommand]
     void BrowseCollections() => pages.OpenCollections();

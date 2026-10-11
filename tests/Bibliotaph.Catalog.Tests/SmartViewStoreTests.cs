@@ -1,7 +1,7 @@
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 3e: saved Smart Views, each a name and a definition the app writes.</summary>
+/// <summary>Slice 3e: saved searches (Smart Views in the code), each a name and a definition the app writes.</summary>
 public sealed class SmartViewStoreTests : IAsyncLifetime
 {
     static readonly DateTimeOffset Monday = new(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
@@ -74,5 +74,27 @@ public sealed class SmartViewStoreTests : IAsyncLifetime
         var back = await _views.RestoreAsync(deleted!, Ct);
         Assert.Equal(view, back);
         Assert.Equal(view, (await _views.ListAsync(Ct)).Single());
+    }
+
+    [Fact]
+    public async Task A_new_search_is_pinned_at_the_bottom_and_undo_puts_its_pin_back_where_it_was()
+    {
+        var pins = new PinStore(new Factory(_database));
+        await pins.UnpinAsync(PinTarget.Favorites, Ct);
+        var maps = await _views.CreateAsync("Maps", "{}", Ct);
+        var haunted = await _views.CreateAsync("Haunted places", "{}", Ct);
+        Assert.Equal([PinTarget.SavedSearch(maps.Id), PinTarget.SavedSearch(haunted.Id)], (await pins.ListAsync(Ct)).Select(p => p.Target));
+
+        var deleted = (await _views.DeleteAsync(maps.Id, Ct))!;
+        Assert.Equal(0, deleted.PinPosition);
+        Assert.Equal([PinTarget.SavedSearch(haunted.Id)], (await pins.ListAsync(Ct)).Select(p => p.Target));
+
+        await _views.RestoreAsync(deleted, Ct);
+        Assert.Equal([PinTarget.SavedSearch(maps.Id), PinTarget.SavedSearch(haunted.Id)], (await pins.ListAsync(Ct)).Select(p => p.Target));
+
+        // Unpinned, it stays unpinned through delete and undo.
+        await pins.UnpinAsync(PinTarget.SavedSearch(haunted.Id), Ct);
+        await _views.RestoreAsync((await _views.DeleteAsync(haunted.Id, Ct))!, Ct);
+        Assert.Equal([PinTarget.SavedSearch(maps.Id)], (await pins.ListAsync(Ct)).Select(p => p.Target));
     }
 }

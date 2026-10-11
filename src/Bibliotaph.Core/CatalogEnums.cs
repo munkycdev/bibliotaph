@@ -53,6 +53,19 @@ public enum EntryKind
     Elsewhere,
 }
 
+/// <summary>What a pin in the sidebar's Pinned group opens (Pinned Views plan, choice 2).</summary>
+public enum PinKind
+{
+    /// <summary>A book, opened where it was left.</summary>
+    Entry,
+    /// <summary>The books marked with a heart.</summary>
+    Favorites,
+    Collection,
+    Binder,
+    /// <summary>A saved search (a Smart View in the code).</summary>
+    SavedSearch,
+}
+
 /// <summary>Where a metadata value came from. Order is not priority; the effective-value policy decides that.</summary>
 public enum AssertionOrigin
 {

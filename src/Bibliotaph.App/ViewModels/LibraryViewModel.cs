@@ -81,10 +81,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, ILogger<LibraryViewModel> log)
+        ExportService export, PinDirectory pins, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _export = export;
+        Pins = pins;
         Views = views;
         _notes = notes;
         Collections = collections;
@@ -138,7 +139,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public bool HasScope => Scope is not null;
 
-    public override string? NavScope => ActiveView is { } view ? SmartViewKey(view.Id) : IsCollection ? null : Scope?.Key;
+    /// <summary>The saved search, collection or Favorites shown, which its pin in the sidebar marks.</summary>
+    public override string? PinKey => ActiveView is { } view ? SmartViewKey(view.Id) : Scope?.Key is ScopeKeys.Favorites || IsCollection ? Scope?.Key : null;
 
     /// <summary>Shows only a part of the library, or all of it. Set before the page is shown, or by the scope chip's ×.</summary>
     public void ShowScope(LibraryScope? scope)
@@ -147,7 +149,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Scope = scope;
         OnPropertyChanged(nameof(Scope));
         OnPropertyChanged(nameof(HasScope));
-        OnPropertyChanged(nameof(NavScope));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Heading));
         OnPropertyChanged(nameof(Subtitle));
@@ -159,7 +160,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         OnPropertyChanged(nameof(Section));
         OnPropertyChanged(nameof(SectionRoute));
         OnPropertyChanged(nameof(NavRoute));
-        OnPropertyChanged(nameof(PinLabel));
+        NotifyPin();
         RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
     }
 
@@ -184,7 +185,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public string Heading => ActiveView?.Name ?? (IsSearching ? "Search results" : Scope?.Name ?? "Your library");
 
-    public string Subtitle => ActiveView is not null ? "A Smart View: its search, filters and order, run again each time." : IsSearching
+    public string Subtitle => ActiveView is not null ? "A saved search: its search, filters and order, run again each time." : IsSearching
         ? Scope is { } scope ? $"In {scope.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
         : Scope?.Subtitle ?? "Good stories begin with something you already own.";
 
@@ -351,6 +352,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Collections.Directory.Changed -= OnCollectionsChanged;
         await Collections.Directory.LoadAsync();
         Collections.Directory.Changed += OnCollectionsChanged;
+        Pins.Changed -= OnPinsChanged;
+        Pins.Changed += OnPinsChanged;
         await Sessions.Directory.LoadAsync();
         if (_viewOnLoad is { } view)
         {
@@ -381,6 +384,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         Activity.Refreshed -= OnActivityRefreshed;
         Collections.Directory.Changed -= OnCollectionsChanged;
+        Pins.Changed -= OnPinsChanged;
         Collections.Close();
         Sessions.Close();
         ViewDialog?.CancelCommand.Execute(null);
@@ -789,6 +793,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
             inspector.PackSplit += async (_, images) => await ShowPackSplitAsync(item, images);
+            inspector.PinLabel = Pins.PinLabel(PinTarget.Entry(item.EntryId));
             Inspector = inspector;
             await ShowInspectorCollectionsAsync();
         }
@@ -1443,7 +1448,34 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [ObservableProperty]
     public partial bool HasSubCollections { get; private set; }
 
-    public string PinLabel => Collection?.Pinned == true ? "Unpin" : "Pin";
+    // Pins (Pinned Views plan, choice 7): the page's Pin button pins the saved search, collection or Favorites shown.
+
+    public PinDirectory Pins { get; }
+
+    PinTarget? PageTarget => ActiveView is { } view ? PinTarget.SavedSearch(view.Id)
+        : Scope?.CollectionId is { } id ? PinTarget.Collection(id)
+        : Scope?.Key == ScopeKeys.Favorites ? PinTarget.Favorites : null;
+
+    public bool IsFavoritesPage => ActiveView is null && Scope?.Key == ScopeKeys.Favorites;
+
+    public string PinLabel => PageTarget is { } target ? Pins.PinLabel(target) : "Pin";
+
+    void NotifyPin()
+    {
+        OnPropertyChanged(nameof(PinLabel));
+        OnPropertyChanged(nameof(PinKey));
+        OnPropertyChanged(nameof(IsFavoritesPage));
+    }
+
+    void OnPinsChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(PinLabel));
+        Inspector?.PinLabel = Pins.PinLabel(PinTarget.Entry(Inspector.Item.EntryId));
+    }
+
+    /// <summary>A book's Pin or Unpin, from its menu or its details.</summary>
+    [RelayCommand]
+    Task TogglePinBook(LibraryItemViewModel item) => Pins.ToggleAsync(PinTarget.Entry(item.EntryId));
 
     int _collectionVersion;
 
@@ -1473,7 +1505,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         foreach (var card in cards) SubCollections.Add(card);
         HasSubCollections = SubCollections.Count > 0;
         if (!HasSubCollections && OnlyAddedHere) OnlyAddedHere = false;
-        OnPropertyChanged(nameof(PinLabel));
     }
 
     /// <summary>The collections the open book was added to, as chips in its details.</summary>
@@ -1519,7 +1550,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     async Task TogglePin()
     {
-        if (Collection is { } collection) await Collections.SetPinnedAsync(collection, !collection.Pinned);
+        if (PageTarget is { } target) await Pins.ToggleAsync(target);
     }
 
     /// <summary>
@@ -1597,7 +1628,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Sessions.AddPage(page.Hit.DocumentId, page.Hit.PdfPage,
             $"page {(string.IsNullOrWhiteSpace(page.Hit.Label) ? (page.Hit.PdfPage + 1).ToString(CultureInfo.CurrentCulture) : page.Hit.Label)}");
 
-    // Smart Views (slice 3e).
+    // Smart Views (slice 3e), called saved searches in the app.
 
     SmartViewDefinition? _viewOnLoad;
     SmartViewDefinition? _viewSaved;
@@ -1664,8 +1695,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Heading));
         OnPropertyChanged(nameof(Subtitle));
-        OnPropertyChanged(nameof(NavScope));
         OnPropertyChanged(nameof(NavRoute));
+        NotifyPin();
         NotifyViewState();
     }
 
@@ -1689,7 +1720,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         {
             var scope = ResolveScope(view.Scope);
             ViewNote = view.Scope is not null && scope is null
-                ? "The collection or binder this view was saved in is gone, so it looks through your whole library." : null;
+                ? "The collection or binder this search was saved in is gone, so it looks through your whole library." : null;
             ShowScope(scope);
             OnlyAddedHere = scope?.CollectionId is not null && view.OnlyAddedHere;
             if (Search.Text != view.Query.Trim())
@@ -1742,13 +1773,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>Save view: names the search, filters and scope in use as a Smart View, listed in the sidebar.</summary>
     [RelayCommand]
-    void SaveView() => AskName("Save as a Smart View", "Save", "", async name =>
+    void SaveView() => AskName("Save search", "Save", "", async name =>
     {
         var current = CurrentView();
         var created = await RunView(() => Views.CreateAsync(name, current));
         if (created is null) return;
         ShowView(created, current);
-        SayView($"Saved {created.Name}. It's in the sidebar under Smart Views.", null);
+        SayView($"Saved {created.Name}. It's pinned in the sidebar.", null);
     });
 
     /// <summary>Update view: the view now keeps the search and filters as they are.</summary>
@@ -1769,20 +1800,20 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>Save as new: a second view from the changed search and filters, leaving the first as it was.</summary>
     [RelayCommand]
-    void SaveViewAsNew() => AskName("Save as a new Smart View", "Save", ActiveView is { } view ? $"{view.Name} (2)" : "", async name =>
+    void SaveViewAsNew() => AskName("Save as a new search", "Save", ActiveView is { } view ? $"{view.Name} (2)" : "", async name =>
     {
         var current = CurrentView();
         var created = await RunView(() => Views.CreateAsync(name, current));
         if (created is null) return;
         ShowView(created, current);
-        SayView($"Saved {created.Name}. It's in the sidebar under Smart Views.", null);
+        SayView($"Saved {created.Name}. It's pinned in the sidebar.", null);
     });
 
     [RelayCommand]
     void RenameView()
     {
         if (ActiveView is not { } view) return;
-        AskName("Rename Smart View", "Save", view.Name, async name =>
+        AskName("Rename saved search", "Save", view.Name, async name =>
         {
             if (await RunView(() => Views.RenameAsync(view.Id, name)) && Views.Find(view.Id) is { } renamed) ShowView(renamed, _viewSaved);
         });
@@ -1797,7 +1828,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (deleted is null) return;
         var saved = _viewSaved;
         ShowView(null, null);
-        SayView($"Deleted the {deleted.Name} Smart View. Your books are untouched.", async () =>
+        SayView($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () =>
         {
             var back = await Views.RestoreAsync(deleted);
             ShowView(back, saved ?? SmartViewDefinition.Parse(back.Definition));
@@ -1817,7 +1848,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Undoing a Smart View change failed");
+            _log.LogError(ex, "Undoing a saved search change failed");
             ViewMessage = "That couldn't be undone.";
         }
     }
@@ -1847,7 +1878,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Changing a Smart View failed");
+            _log.LogError(ex, "Changing a saved search failed");
             SayView("That didn't work. The log has the details.", null);
             return default;
         }

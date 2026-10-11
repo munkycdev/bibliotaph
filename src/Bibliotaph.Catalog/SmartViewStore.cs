@@ -6,9 +6,12 @@ namespace Bibliotaph.Catalog;
 /// <summary>A saved Smart View as the sidebar and Home list it, with its definition as stored.</summary>
 public sealed record SmartViewInfo(long Id, string Name, string Definition, DateTime CreatedUtc, DateTime UpdatedUtc);
 
+/// <summary>What deleting a view took away, for Undo: the view and where its pin stood, if it was pinned.</summary>
+public sealed record SmartViewDeletion(SmartViewInfo View, int? PinPosition);
+
 /// <summary>
-/// Saved Smart Views (slice 3 plan, choice 17), listed by name. The definition is kept as the caller wrote it; the
-/// app reads and writes it.
+/// Saved Smart Views (slice 3 plan, choice 17), listed by name; the app calls them saved searches. The definition is
+/// kept as the caller wrote it; the app reads and writes it. A new one is pinned (Pinned Views plan).
 /// </summary>
 public sealed class SmartViewStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -35,7 +38,11 @@ public sealed class SmartViewStore(IDbContextFactory<CatalogDbContext> contexts,
         var now = Now;
         var view = new SmartView { Name = Name(name), Definition = definition, CreatedUtc = now, UpdatedUtc = now };
         db.SmartViews.Add(view);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
+        await PinStore.AddAsync(db, PinTarget.SavedSearch(view.Id), null, ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return Info(view);
     }
 
@@ -55,28 +62,37 @@ public sealed class SmartViewStore(IDbContextFactory<CatalogDbContext> contexts,
         return await db.SmartViews.Where(v => v.Id == viewId).ExecuteUpdateAsync(s => s.SetProperty(v => v.Name, clean), ct) > 0;
     }
 
-    /// <summary>Deletes a view. Returns it, for Undo, or null if it wasn't there.</summary>
-    public async Task<SmartViewInfo?> DeleteAsync(long viewId, CancellationToken ct = default)
+    /// <summary>Deletes a view, and its pin. Returns what Undo needs, or null if it wasn't there.</summary>
+    public async Task<SmartViewDeletion?> DeleteAsync(long viewId, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         if (await db.SmartViews.FindAsync([viewId], ct) is not { } view) return null;
+        var pin = await PinStore.PositionAsync(db, PinTarget.SavedSearch(viewId), ct);
         db.SmartViews.Remove(view);
         await db.SaveChangesAsync(ct);
-        return Info(view);
+        return new SmartViewDeletion(Info(view), pin);
     }
 
-    /// <summary>Undo after Delete: the view again, with its id.</summary>
-    public async Task<SmartViewInfo> RestoreAsync(SmartViewInfo deleted, CancellationToken ct = default)
+    /// <summary>Undo after Delete: the view again, with its id, pinned where it was if it was.</summary>
+    public async Task<SmartViewInfo> RestoreAsync(SmartViewDeletion deleted, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var view = new SmartView { Id = deleted.Id, Name = deleted.Name, Definition = deleted.Definition, CreatedUtc = deleted.CreatedUtc, UpdatedUtc = deleted.UpdatedUtc };
+        var (old, pin) = (deleted.View, deleted.PinPosition);
+        var view = new SmartView { Id = old.Id, Name = old.Name, Definition = old.Definition, CreatedUtc = old.CreatedUtc, UpdatedUtc = old.UpdatedUtc };
         db.SmartViews.Add(view);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
+        if (pin is not null)
+        {
+            await PinStore.AddAsync(db, PinTarget.SavedSearch(view.Id), pin, ct);
+            await db.SaveChangesAsync(ct);
+        }
+        await transaction.CommitAsync(ct);
         return Info(view);
     }
 
     static SmartViewInfo Info(SmartView view) => new(view.Id, view.Name, view.Definition, view.CreatedUtc, view.UpdatedUtc);
 
     static string Name(string name) =>
-        name.Trim() is { Length: > 0 } trimmed ? trimmed : throw new ArgumentException("A Smart View needs a name.", nameof(name));
+        name.Trim() is { Length: > 0 } trimmed ? trimmed : throw new ArgumentException("A saved search needs a name.", nameof(name));
 }

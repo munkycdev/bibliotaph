@@ -19,13 +19,22 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly SettingsLinks _settings;
     readonly LibraryPages _library;
     readonly SmartViewDirectory _views;
+    readonly PinDirectory _pins;
+    readonly PinOpener _opener;
+    readonly CollectionDirectory _collections;
+    readonly SessionDirectory _binders;
     readonly SettingsStore _store;
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
-        LibraryPages library, SmartViewDirectory views, SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
+        LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
+        SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
     {
+        _pins = pins;
+        _opener = opener;
+        _collections = collections;
+        _binders = binders;
         Updates = updates;
         _library = library;
         _views = views;
@@ -49,9 +58,7 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.Sessions, "Binders", Icon("Icon.NotebookTabs")),
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
         ];
-        // Smart Views (slice 3 plan, choices 5 and 17): Favorites first, then the saved views by name.
-        SmartViews = [new(Route.Library, LibraryScope.Favorites.Name, Icon("Icon.Heart"), LibraryScope.Favorites)];
-        _views.Changed += (_, _) => ShowSmartViews();
+        _pins.Changed += (_, _) => ShowActiveItem();
         Settings = new NavItemViewModel(Route.Settings, "Settings", Icon("Icon.Settings2"));
         var review = NavItems.Single(n => n.Route == Route.NeedsReview);
         Activity.PropertyChanged += (_, e) =>
@@ -64,8 +71,8 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public ObservableCollection<NavItemViewModel> NavItems { get; }
 
-    /// <summary>The sidebar's Smart Views group: parts of the Library, each opening it scoped.</summary>
-    public ObservableCollection<NavItemViewModel> SmartViews { get; }
+    /// <summary>The sidebar's Pinned group (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order.</summary>
+    public ObservableCollection<PinnedItemViewModel> Pinned => _pins.Items;
 
     public NavItemViewModel Settings { get; }
 
@@ -127,7 +134,11 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
         // Settings > Library > Start on (slice 3 plan, choice 7): Home unless the Library was chosen.
+        // The pins show their targets' names, so those load first.
         await _views.LoadAsync();
+        await _collections.LoadAsync();
+        await _binders.LoadAsync();
+        await _pins.LoadAsync();
         var start = await StartPageAsync();
         _navigation.NavigateTo(start);
         Activity.Start();
@@ -154,45 +165,36 @@ public sealed partial class ShellViewModel : ObservableObject
         else _navigation.NavigateTo(route);
     }
 
-    /// <summary>A sidebar item: its page, or for a Smart View the Library scoped to it or showing it.</summary>
+    /// <summary>A sidebar item: its page.</summary>
     [RelayCommand]
-    void Open(NavItemViewModel item)
-    {
-        if (item.ViewId is { } id)
-        {
-            if (_views.Find(id) is { } view) _library.OpenView(view);
-        }
-        else if (item.Scope is { } scope) _library.Open(scope);
-        else Navigate(item.Route);
-    }
+    void Open(NavItemViewModel item) => Navigate(item.Route);
 
-    /// <summary>A saved view's right-click Rename…: the view opens, and the Library asks for the new name.</summary>
+    /// <summary>A pin (Pinned Views plan, choice 6).</summary>
     [RelayCommand]
-    void RenameView(NavItemViewModel item)
-    {
-        if (ShowView(item) is { } page) page.RenameViewCommand.Execute(null);
-    }
+    Task OpenPin(PinnedItemViewModel item) => _opener.OpenAsync(item);
 
-    /// <summary>A saved view's right-click Delete: the view opens and is deleted there, where Undo is offered.</summary>
+    /// <summary>A pin's right-click Unpin.</summary>
     [RelayCommand]
-    void DeleteView(NavItemViewModel item)
+    Task Unpin(PinnedItemViewModel item) => _pins.UnpinAsync(item.Target);
+
+    /// <summary>A saved search's right-click Rename…: the search opens, and the Library asks for the new name.</summary>
+    [RelayCommand]
+    async Task RenameView(PinnedItemViewModel item)
     {
-        if (ShowView(item) is { } page) page.DeleteViewCommand.Execute(null);
+        if (await ShowViewAsync(item) is { } page) page.RenameViewCommand.Execute(null);
     }
 
-    LibraryViewModel? ShowView(NavItemViewModel item)
+    /// <summary>A saved search's right-click Delete: the search opens and is deleted there, where Undo is offered.</summary>
+    [RelayCommand]
+    async Task DeleteView(PinnedItemViewModel item)
     {
-        Open(item);
-        return CurrentPage is LibraryViewModel { ActiveView: { } shown } page && shown.Id == item.ViewId ? page : null;
+        if (await ShowViewAsync(item) is { } page) page.DeleteViewCommand.Execute(null);
     }
 
-    /// <summary>The saved views after Favorites, in the order the directory lists them.</summary>
-    void ShowSmartViews()
+    async Task<LibraryViewModel?> ShowViewAsync(PinnedItemViewModel item)
     {
-        while (SmartViews.Count > 1) SmartViews.RemoveAt(SmartViews.Count - 1);
-        foreach (var view in _views.All)
-            SmartViews.Add(new NavItemViewModel(Route.Library, view.Name, Icon("Icon.SlidersHorizontal"), viewId: view.Id));
-        ShowActiveItem();
+        await OpenPin(item);
+        return CurrentPage is LibraryViewModel { ActiveView: { } shown } page && shown.Id == item.Target.Id ? page : null;
     }
 
     [RelayCommand]
@@ -244,18 +246,21 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Marks the sidebar item for the page shown: Favorites, not Library, for the Library scoped to favorites, and
-    /// Collections for a collection's.
+    /// Marks the sidebar item for the page shown: its pin when it has one, as for Favorites, a pinned collection or a
+    /// saved search; otherwise its route's item, as Collections for a collection that isn't pinned.
     /// </summary>
     void ShowActiveItem()
     {
-        foreach (var item in NavItems.Concat(SmartViews).Append(Settings))
-            item.IsActive = item.Route == CurrentPage?.NavRoute && item.ScopeKey == CurrentPage?.NavScope;
+        var key = CurrentPage?.PinKey;
+        var pinned = false;
+        foreach (var pin in Pinned) pinned |= pin.IsActive = key is not null && pin.Key == key;
+        foreach (var item in NavItems.Append(Settings))
+            item.IsActive = !pinned && item.Route == CurrentPage?.NavRoute;
     }
 
     void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PageViewModel.NavScope) or nameof(PageViewModel.NavRoute) or nameof(PageViewModel.Title) or nameof(PageViewModel.Section))
+        if (e.PropertyName is nameof(PageViewModel.NavRoute) or nameof(PageViewModel.PinKey) or nameof(PageViewModel.Title) or nameof(PageViewModel.Section))
         {
             ShowActiveItem();
             OnPropertyChanged(nameof(Title));

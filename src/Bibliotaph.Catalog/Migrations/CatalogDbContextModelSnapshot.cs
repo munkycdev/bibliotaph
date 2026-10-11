@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261010211117_CatalogPackMerges";
+    public override string LastMigrationId => "20261011022641_CatalogPins";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -195,10 +195,6 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Property<long?>("ParentId")
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_id");
-
-                b.Property<bool>("Pinned")
-                    .HasColumnType("INTEGER")
-                    .HasColumnName("pinned");
 
                 b.Property<DateTime>("UsedUtc")
                     .HasColumnType("TEXT")
@@ -720,6 +716,63 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("DocumentId");
 
                 b.ToTable("page_ref");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.Pin", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<long?>("CollectionId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("collection_id");
+
+                b.Property<long?>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("kind");
+
+                b.Property<long?>("PackId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("pack_id");
+
+                b.Property<int>("Position")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("position");
+
+                b.Property<long?>("SmartViewId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("smart_view_id");
+
+                b.HasKey("Id");
+
+                b.HasIndex("CollectionId")
+                    .IsUnique();
+
+                b.HasIndex("EntryId")
+                    .IsUnique();
+
+                b.HasIndex("Kind")
+                    .IsUnique()
+                    .HasDatabaseName("ix_pin_favorites")
+                    .HasFilter("kind = 'Favorites'");
+
+                b.HasIndex("PackId")
+                    .IsUnique();
+
+                b.HasIndex("SmartViewId")
+                    .IsUnique();
+
+                b.ToTable("pin", t =>
+                    {
+                        t.HasCheckConstraint("ck_pin_target", "CASE kind\n    WHEN 'Entry' THEN entry_id IS NOT NULL AND coalesce(collection_id, pack_id, smart_view_id) IS NULL\n    WHEN 'Favorites' THEN coalesce(entry_id, collection_id, pack_id, smart_view_id) IS NULL\n    WHEN 'Collection' THEN collection_id IS NOT NULL AND coalesce(entry_id, pack_id, smart_view_id) IS NULL\n    WHEN 'Binder' THEN pack_id IS NOT NULL AND coalesce(entry_id, collection_id, smart_view_id) IS NULL\n    WHEN 'SavedSearch' THEN smart_view_id IS NOT NULL AND coalesce(entry_id, collection_id, pack_id) IS NULL\n    ELSE 0\nEND");
+                    });
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.ReadingState", b =>
@@ -1311,6 +1364,29 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsRequired();
 
                 b.Navigation("Document");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.Pin", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.CollectionNode", null)
+                    .WithMany()
+                    .HasForeignKey("CollectionId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                b.HasOne("Bibliotaph.Catalog.Entities.SessionPack", null)
+                    .WithMany()
+                    .HasForeignKey("PackId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                b.HasOne("Bibliotaph.Catalog.Entities.SmartView", null)
+                    .WithMany()
+                    .HasForeignKey("SmartViewId")
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.ReadingState", b =>

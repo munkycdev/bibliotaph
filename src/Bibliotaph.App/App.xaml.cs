@@ -168,6 +168,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SessionStore>();
         builder.Services.AddSingleton<SessionsService>();
         builder.Services.AddSingleton<SmartViewStore>();
+        builder.Services.AddSingleton<PinStore>();
+        builder.Services.AddSingleton<PinsService>();
         builder.Services.AddSingleton<NoteStore>();
         builder.Services.AddSingleton<NotesService>();
         builder.Services.AddSingleton<ReadingService>();
@@ -267,6 +269,8 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryPages>();
         builder.Services.AddSingleton<CollectionDirectory>();
         builder.Services.AddSingleton<SmartViewDirectory>();
+        builder.Services.AddSingleton<PinDirectory>();
+        builder.Services.AddSingleton<PinOpener>();
         builder.Services.AddTransient<CollectionActions>();
         builder.Services.AddSingleton<SessionDirectory>();
         builder.Services.AddTransient<SessionActions>();

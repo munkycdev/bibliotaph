@@ -39,6 +39,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
         ("metadata", "assertion holds every value claimed for a field of an entry, with its origin (User, Ai, Folder, ...), state and evidence; the value a card shows is worked out from them, the user's own and confirmed values first. rejection holds values the user said are wrong, which never come back."),
         ("pages", "PDF pages are zero-based page indexes into the file: page_ref.first_pdf_page 0 is the file's first page. first_label and last_label are the pages' printed numbers when the book has its own."),
         ("collections", "collection_item puts an entry in a collection; a collection inside another has its parent_id. Session packs are session_pack, with session_section headings and session_item rows in position order."),
+        ("pins", "pin is the sidebar's Pinned group in position order. Its kind says which of entry_id, collection_id, pack_id and smart_view_id it points at; the Favorites pin points at none."),
         ("values", "Times are UTC in ISO 8601. Choices such as kind, state and origin are stored by name."),
         ("left out", "Passwords and AI keys are never in Bibliotaph's database, so never here. Left out as particular to one computer: " + string.Join(", ", ExcludedColumns.Order(StringComparer.Ordinal)) + "."),
     ];

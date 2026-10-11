@@ -49,7 +49,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -77,6 +77,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly SourceFiles _sources;
     readonly WpfImageCodec _codec;
     readonly FavoritesService _favorites;
+    readonly PinDirectory _pins;
     readonly ReadingService _reading;
     readonly SessionsService _sessions;
     readonly NotesService _notes;
@@ -117,6 +118,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _sources = services.Sources;
         _codec = services.Codec;
         _favorites = services.Favorites;
+        _pins = services.Pins;
         _reading = services.Reading;
         _sessions = services.Sessions;
         Sessions = services.SessionActions();
@@ -369,6 +371,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             return;
         }
         if (_windowClosed) return;
+        _pins.Changed -= OnPinsChanged;
+        _pins.Changed += OnPinsChanged;
         var version = ++_version;
         // Stepping through a pack keeps the image in view until the next one is ready.
         if (!(IsInPack && Mode == ViewerMode.Image)) Mode = ViewerMode.Opening;
@@ -416,6 +420,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         NoteMessage = null;
         NoteUndo = null;
         _notes.PageNotesChanged -= OnPageNotesChanged;
+        _pins.Changed -= OnPinsChanged;
         PageNotes.Clear();
         HasPageNotes = false;
         OnPropertyChanged(nameof(NotesLabel));
@@ -497,6 +502,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             _card = await _reading.RecordOpenAsync(documentId);
             IsFavorite = _card is { } card && await _favorites.IsFavoriteAsync(card);
             ToggleFavoriteCommand.NotifyCanExecuteChanged();
+            ShowPinned();
+            TogglePinCommand.NotifyCanExecuteChanged();
         }
         catch (Exception ex)
         {
@@ -534,6 +541,20 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     bool CanToggleFavorite() => _card is not null;
+
+    /// <summary>The book, or the pack an image is in, is pinned in the sidebar (Pinned Views plan, choice 7).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinAction))]
+    public partial bool IsPinned { get; private set; }
+
+    public string PinAction => IsPinned ? "Unpin from the sidebar" : "Pin to the sidebar";
+
+    [RelayCommand(CanExecute = nameof(CanToggleFavorite))]
+    Task TogglePin() => _card is { } card ? _pins.ToggleAsync(PinTarget.Entry(card)) : Task.CompletedTask;
+
+    void ShowPinned() => IsPinned = _card is { } card && _pins.IsPinned(PinTarget.Entry(card));
+
+    void OnPinsChanged(object? sender, EventArgs e) => ShowPinned();
 
     /// <summary>Moves the book to a window of its own at the same page and zoom; the main window goes Back.</summary>
     [RelayCommand(CanExecute = nameof(CanPopOut))]

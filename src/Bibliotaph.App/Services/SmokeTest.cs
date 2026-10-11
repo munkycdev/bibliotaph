@@ -112,8 +112,9 @@ static partial class SmokeTest
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
                 () => UseCollectionsAsync(services, window, books));
-            await Check("a Smart View saved from a search and a filter, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
+            await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
                 () => UseSmartViewsAsync(services, window, books));
+            await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
@@ -1332,12 +1333,13 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "Heart" && b.IsVisible && ReferenceEquals(b.CommandParameter, book)),
             () => "The favorite's cover doesn't show its heart.");
 
-        var favorites = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "SmartViews");
-        Click(favorites is null ? null : Descendants<Button>(favorites).FirstOrDefault(), "Favorites in the sidebar");
+        // A new library starts with Favorites pinned (Pinned Views plan, choice 5).
+        var pins = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "Pinned");
+        Click(pins is null ? null : Descendants<Button>(pins).FirstOrDefault(), "Favorites in the sidebar");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items: [var only] } && only.EntryId == book.EntryId,
             () => "Favorites in the sidebar didn't open the Library with just the favorite.");
         var scoped = (LibraryViewModel)shell.CurrentPage!;
-        if (scoped.Heading != "Favorites" || !shell.SmartViews[0].IsActive || shell.NavItems.Single(n => n.Route == Route.Library).IsActive)
+        if (scoped.Heading != "Favorites" || !shell.Pinned[0].IsActive || shell.NavItems.Single(n => n.Route == Route.Library).IsActive)
             throw new InvalidOperationException($"Favorites reads “{scoped.Heading}”, and the sidebar doesn't mark Favorites as the page shown.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ClearScope"), "scope chip's ×");
         await WaitUntilAsync(window, () => !scoped.HasScope && scoped.Items.Count == books && shell.NavItems.Single(n => n.Route == Route.Library).IsActive,
@@ -1351,9 +1353,11 @@ static partial class SmokeTest
 
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.HasBooks && home.HasFavorites && home.RecentlyAdded.Count > 0, () => "Home doesn't show the library and Favorites.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OpenFavorites"), "Home's Your favorites");
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items.Count: 1 }, () => "Your favorites on Home didn't open Favorites.");
+        await WaitUntilAsync(window, () => home.HasBooks && home.RecentlyAdded.Count > 0 && home.Pins.Items is [{ Target.Kind: PinKind.Favorites }],
+            () => "Home doesn't show the library and its Favorites pin.");
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin"), "Favorites pinned on Home");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items.Count: 1 }, () => "Favorites on Home didn't open Favorites.");
         var fromHome = (LibraryViewModel)shell.CurrentPage!;
 
         // The card menu's command, as right-click > Remove from favorites runs it.
@@ -1366,9 +1370,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3e: a search and a filter saved as a Smart View, which joins the sidebar and is marked there; a changed
-    /// filter offers Update view, whose Undo puts the view back; Home's Pick up a thread opens it with its search and
-    /// filter; the sidebar's Rename… renames it; Delete removes it with Undo, and it is deleted again at the end.
+    /// Slice 3e: a search and a filter saved, which is pinned in the sidebar and marked there; Unpin and Pin on its page;
+    /// a changed filter offers Update saved search, whose Undo puts it back; its pin on Home opens it with its search and
+    /// filter; the sidebar's Rename… renames it; Delete removes it and its pin with Undo, and it is deleted again at the end.
     /// </summary>
     static async Task UseSmartViewsAsync(IServiceProvider services, Window window, int books)
     {
@@ -1388,9 +1392,14 @@ static partial class SmokeTest
         page.ViewDialog!.Name = "Haunted places";
         await AuditAsync(window, "the Save view dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
-        await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.SmartViews is [_, { Label: "Haunted places", IsActive: true }]
+        await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.Pinned is [_, { Label: "Haunted places", IsActive: true }]
                 && page.ViewMessage is not null && !page.IsViewChanged,
-            () => "Saving didn't make the page the view, list it in the sidebar and mark it there.");
+            () => "Saving didn't make the page the saved search, pin it in the sidebar and mark it there.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Unpin the saved search");
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin" && page.IsView, () => "Unpin didn't take the search out of the sidebar.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Pin the saved search");
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.PinLabel == "Unpin",
+            () => "Pin didn't put the search back in the sidebar, marked.");
         var viewId = page.ActiveView!.Id;
         var saved = SmartViewDefinition.Parse(views.Find(viewId)!.Definition);
         if (saved.Query != Query || saved.Kind != KindFilter.Books) throw new InvalidOperationException($"The view keeps “{saved.Query}” and {saved.Kind}.");
@@ -1398,7 +1407,7 @@ static partial class SmokeTest
         // A changed filter offers Update view; its Undo puts the view back as it was.
         page.KindChoice = page.KindChoices[0];
         await WaitUntilAsync(window, () => page.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
-        await AuditAsync(window, "a Smart View that was changed");
+        await AuditAsync(window, "a saved search that was changed");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UpdateView"), "Update view");
         await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.HasViewUndo
                 && Shown(window, "UndoView"),
@@ -1415,34 +1424,33 @@ static partial class SmokeTest
         var whole = (LibraryViewModel)shell.CurrentPage!;
         whole.KindChoice = whole.KindChoices[0];
 
-        // Home's Pick up a thread opens the view with its search and filter.
+        // Its pin on Home opens it with its search and filter.
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.HasThreads && home.SmartViews.Count == 1, () => "Home doesn't offer the Smart View.");
+        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Haunted places" }], () => "Home doesn't show the saved search's pin.");
         await Settle(window);
-        var homeViews = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "HomeSmartViews");
-        Click(homeViews is null ? null : Descendants<Button>(homeViews).FirstOrDefault(), "the view on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places")), "the saved search on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView.Name: "Haunted places", IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
-                && shown.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.SmartViews[1].IsActive,
-            () => "The view on Home didn't open with its search and filter.");
+                && shown.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.Pinned[1].IsActive,
+            () => "The saved search on Home didn't open with its search and filter.");
         page = (LibraryViewModel)shell.CurrentPage!;
 
         // The sidebar's right-click Rename… asks on the view's page.
-        shell.RenameViewCommand.Execute(shell.SmartViews[1]);
+        await shell.RenameViewCommand.ExecuteAsync(shell.Pinned[1]);
         await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Rename… didn't ask for a name.");
         page.ViewDialog!.Name = "Haunted inns";
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
-        await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.Heading == "Haunted inns" && Shown(window, "DeleteView"),
-            () => "Rename didn't rename the view in the sidebar and on its page.");
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted inns" }] && page.Heading == "Haunted inns" && Shown(window, "DeleteView"),
+            () => "Rename didn't rename the search in the sidebar and on its page.");
 
         // Delete takes the view away, never a book; Undo brings it back.
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteView"), "Delete the Smart View");
-        await WaitUntilAsync(window, () => shell.SmartViews.Count == 1 && !page.IsView && page.HasViewUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
-            () => "Delete didn't take the view out of the sidebar and leave its books shown.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteView"), "Delete the saved search");
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && !page.IsView && page.HasViewUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
+            () => "Delete didn't take the search out of the sidebar and leave its books shown.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the delete");
-        await WaitUntilAsync(window, () => shell.SmartViews is [_, { Label: "Haunted inns" }] && page.IsView, () => "Undo didn't bring the view back.");
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted inns" }] && page.IsView, () => "Undo didn't bring the search back, pinned.");
         await page.DeleteViewCommand.ExecuteAsync(null);
-        await WaitUntilAsync(window, () => shell.SmartViews.Count == 1 && views.All.Count == 0, () => "The view wasn't deleted at the end.");
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && views.All.Count == 0, () => "The search wasn't deleted at the end.");
         page.KindChoice = page.KindChoices[0];
         search.Search("");
         shell.NavigateCommand.Execute(Route.Library);
@@ -1546,7 +1554,8 @@ static partial class SmokeTest
         opened.CloseDetailsCommand.Execute(null);
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinCollection"), "Pin");
-        await WaitUntilAsync(window, () => opened.PinLabel == "Unpin", () => "Pin didn't pin the collection.");
+        await WaitUntilAsync(window, () => opened.PinLabel == "Unpin" && shell.Pinned is [_, { Label: "Winter campaign", IsActive: true }],
+            () => "Pin didn't pin the collection in the sidebar, marked as the page shown.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RenameCollection"), "Rename");
         await WaitUntilAsync(window, () => opened.Collections.Dialog is { IsNaming: true, Name: "Winter campaign" }, () => "Rename didn't ask for the new name.");
         opened.Collections.Dialog!.Name = "Spring campaign";
@@ -1556,11 +1565,10 @@ static partial class SmokeTest
 
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.PinnedCollections is [{ Name: "Spring campaign" }], () => "Home doesn't show the pinned collection.");
+        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Spring campaign" }], () => "Home doesn't show the pinned collection, renamed.");
         await AuditAsync(window, "Home with a pinned collection");
-        var pinned = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "PinnedCollections");
-        Click(pinned is null ? null : Descendants<Button>(pinned).FirstOrDefault(b => b.Name == "Card"), "the pinned collection on Home");
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Heading: "Spring campaign" }, () => "The pinned card didn't open the collection.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign")), "the pinned collection on Home");
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Heading: "Spring campaign" }, () => "The pin on Home didn't open the collection.");
 
         // Delete: Collections again, with Maps moved up and Undo bringing the campaign back around it.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteCollection"), "Delete");
@@ -1568,12 +1576,43 @@ static partial class SmokeTest
             () => "Delete didn't go to Collections with Maps moved up and an Undo.");
         page = (CollectionsViewModel)shell.CurrentPage!;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
-        await WaitUntilAsync(window, () => page.Cards is [{ Name: "Spring campaign", CountLabel: "2 books · 1 collection" }], () => "Undo didn't bring the campaign back around Maps.");
+        await WaitUntilAsync(window, () => page.Cards is [{ Name: "Spring campaign", CountLabel: "2 books · 1 collection" }] && shell.Pinned is [_, { Label: "Spring campaign" }],
+            () => "Undo didn't bring the campaign back around Maps, pinned.");
 
         // Leave the library as it was for the checks after this one.
         await collections.DeleteAsync(mapsId);
         await collections.DeleteAsync(campaignId);
-        await WaitUntilAsync(window, () => !page.HasCollections, () => "The smoke test's collections didn't go.");
+        await WaitUntilAsync(window, () => !page.HasCollections && shell.Pinned.Count == 1, () => "The smoke test's collections and their pin didn't go.");
+    }
+
+    /// <summary>
+    /// Pinned Views plan, choices 6 and 7: a book pinned from its menu shows in the sidebar by its title; its details offer
+    /// Unpin, which takes it out; pinned again, the sidebar's Unpin takes it out too.
+    /// </summary>
+    static async Task UsePinsAsync(IServiceProvider services, Window window, int books)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        shell.NavigateCommand.Execute(Route.Library);
+        var page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await WaitUntilAsync(window, () => page.Items.Count == books && shell.Pinned.Count == 1, () => "The Library or the sidebar isn't as the checks left it.");
+        var book = page.Items.First(i => !i.IsPack && !i.IsElsewhere);
+
+        // The card menu's command, as right-click > Pin runs it.
+        BookCommands.TogglePin.Execute(book, FindChild<Views.LibraryView>(window));
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Target.Kind: PinKind.Entry } pin] && pin.Label == book.Title,
+            () => "Pin didn't put the book in the sidebar under its title.");
+        await AuditAsync(window, "the sidebar with a pinned book");
+
+        await page.OpenDetailsCommand.ExecuteAsync(book);
+        await WaitUntilAsync(window, () => page.Inspector?.PinLabel == "Unpin" && Shown(window, "PinBook"), () => "The details don't offer Unpin for the pinned book.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinBook"), "the details' Unpin");
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.Inspector?.PinLabel == "Pin", () => "The details' Unpin didn't take the book out of the sidebar.");
+        page.CloseDetailsCommand.Execute(null);
+
+        BookCommands.TogglePin.Execute(book, FindChild<Views.LibraryView>(window));
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 2, () => "Pin didn't pin the book again.");
+        await shell.UnpinCommand.ExecuteAsync(shell.Pinned[1]);
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1, () => "The sidebar's Unpin didn't take the book out.");
     }
 
     /// <summary>

@@ -27,7 +27,8 @@ public sealed class CollectionDirectory
     readonly ILogger<CollectionDirectory> _log;
     Dictionary<long, CollectionInfo> _byId = [];
 
-    public CollectionDirectory(CollectionsService collections, LibraryStore library, LibraryQueries queries, CoverImages covers, ILogger<CollectionDirectory> log)
+    public CollectionDirectory(CollectionsService collections, PinsService pins, LibraryStore library, LibraryQueries queries, CoverImages covers,
+        ILogger<CollectionDirectory> log)
     {
         _collections = collections;
         _library = library;
@@ -35,6 +36,8 @@ public sealed class CollectionDirectory
         _covers = covers;
         _log = log;
         collections.Changed += (_, _) => Application.Current?.Dispatcher.InvokeAsync(LoadAsync);
+        // A collection pinned or unpinned moves among the others.
+        pins.Changed += (_, _) => Application.Current?.Dispatcher.InvokeAsync(LoadAsync);
     }
 
     /// <summary>Raised on the UI thread after the collections were reloaded.</summary>
@@ -70,12 +73,12 @@ public sealed class CollectionDirectory
     /// <summary>The collections a book was added to itself, for the chips in its details.</summary>
     public Task<IReadOnlyList<long>> CollectionsOfAsync(EntryId entryId) => _collections.GetForEntryAsync(entryId);
 
-    /// <summary>The collections inside <paramref name="parentId"/>, or at the top: pinned first, then by name (choice 9).</summary>
+    /// <summary>
+    /// The collections inside <paramref name="parentId"/>, or at the top: pinned first, in the sidebar's order, then by
+    /// name (choice 9; Pinned Views plan, choice 5).
+    /// </summary>
     public IReadOnlyList<CollectionInfo> ChildrenOf(long? parentId) =>
-        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderByDescending(c => c.Pinned).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
-
-    /// <summary>The pinned collections wherever they sit, for Home, by name.</summary>
-    public IReadOnlyList<CollectionInfo> Pinned => [.. _byId.Values.Where(c => c.Pinned).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
+        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.PinPosition ?? int.MaxValue).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
 
     /// <summary>"Campaign › Maps": the collection's name after those of the collections it sits in.</summary>
     public string PathOf(long collectionId)

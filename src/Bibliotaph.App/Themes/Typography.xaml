@@ -40,7 +40,7 @@
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
-  <!-- Small capitals label, such as SMART VIEWS. CSS letter-spacing has no TextBlock equivalent. -->
+  <!-- Small capitals label, such as PINNED. CSS letter-spacing has no TextBlock equivalent. -->
   <Style x:Key="Text.Eyebrow" TargetType="TextBlock">
     <Setter Property="FontSize" Value="10" />
     <Setter Property="FontWeight" Value="SemiBold" />

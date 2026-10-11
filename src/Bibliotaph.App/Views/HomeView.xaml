@@ -6,7 +6,7 @@
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
-             xmlns:catalog="clr-namespace:Bibliotaph.Catalog;assembly=Bibliotaph.Catalog"
+             xmlns:services="clr-namespace:Bibliotaph.App.Services"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:HomeViewModel}">
   <UserControl.InputBindings>
@@ -165,46 +165,47 @@
             </DockPanel>
           </Border>
 
-          <!-- .bt-sectionline: the pinned collections (slice 3 plan, choice 7). -->
-          <StackPanel Visibility="{Binding HasPinnedCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <!-- .bt-sectionline: the sidebar's pins, in its order (Pinned Views plan, choice 12). -->
+          <StackPanel>
+            <StackPanel.Style>
+              <Style TargetType="StackPanel">
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding Pins.Items.Count}" Value="0">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </StackPanel.Style>
             <DockPanel Style="{StaticResource SectionLine}">
               <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="All collections" c:Ui.Icon="{StaticResource Icon.ArrowRight}"
                       Command="{Binding BrowseCollectionsCommand}" />
-              <TextBlock Text="Pinned collections" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="Pinned" Style="{StaticResource Text.Row}" />
             </DockPanel>
-            <ItemsControl x:Name="PinnedCollections" ItemsSource="{Binding PinnedCollections}" ItemTemplate="{StaticResource CollectionCard}"
-                          Focusable="False" AutomationProperties.Name="Pinned collections" KeyboardNavigation.TabNavigation="Continue">
+            <ItemsControl x:Name="HomePins" ItemsSource="{Binding Pins.Items}" Focusable="False" AutomationProperties.Name="Pinned"
+                          KeyboardNavigation.TabNavigation="Continue">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <WrapPanel />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type services:PinnedItemViewModel}">
+                  <Button x:Name="HomePin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}" Margin="0,0,8,8" ToolTip="{Binding Tip}"
+                          AutomationProperties.Name="{Binding Label}" CommandParameter="{Binding}"
+                          Command="{Binding DataContext.OpenPinCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <Button.Style>
+                      <Style TargetType="Button" BasedOn="{StaticResource Bt.Button}">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsDimmed}" Value="True">
+                            <Setter Property="Opacity" Value="0.55" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Button.Style>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
             </ItemsControl>
-          </StackPanel>
-
-          <!-- Ways into the library: Favorites, then each saved Smart View (3e). -->
-          <StackPanel Visibility="{Binding HasThreads, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <DockPanel Style="{StaticResource SectionLine}">
-              <TextBlock Text="Pick up a thread" Style="{StaticResource Text.Row}" />
-            </DockPanel>
-            <WrapPanel>
-              <Button x:Name="OpenFavorites" Content="Your favorites" c:Ui.Icon="{StaticResource Icon.Heart}" Margin="0,0,8,8"
-                      Command="{Binding OpenFavoritesCommand}" Visibility="{Binding HasFavorites, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <ItemsControl x:Name="HomeSmartViews" ItemsSource="{Binding SmartViews}" Focusable="False" AutomationProperties.Name="Smart views"
-                            KeyboardNavigation.TabNavigation="Continue">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <WrapPanel />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type catalog:SmartViewInfo}">
-                    <Button Content="{Binding Name}" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Margin="0,0,8,8" AutomationProperties.Name="{Binding Name}"
-                            Command="{Binding DataContext.OpenViewCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </WrapPanel>
           </StackPanel>
         </StackPanel>
       </StackPanel>
