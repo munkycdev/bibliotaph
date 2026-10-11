@@ -55,7 +55,9 @@ static partial class SmokeTest
         var other = viewer.CurrentPageIndex == 0 ? 1 : 0;
         if (strip!.ItemContainerGenerator.ContainerFromIndex(other) is not ListBoxItem { IsVisible: true } target)
             throw new InvalidOperationException("The other page's thumbnail isn't showing, so it can't be clicked.");
-        target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
+        // MouseLeftButtonUp is raised by each element as a mouse-up bubbles past it, so the click is a bubbling mouse-up
+        // from the thumbnail, which reaches the strip's own handler.
+        target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseUpEvent });
         await WaitUntilAsync(window, () => viewer.CurrentPageIndex == other && viewer.Strip.Current?.Index == other,
             () => $"Clicking page {other + 1}'s thumbnail didn't go to it (at page index {viewer.CurrentPageIndex}).");
         var back = 1 - other;
