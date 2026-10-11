@@ -189,7 +189,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         CASE WHEN e.kind = 'Part' THEN e.last_page - e.first_page + 1 ELSE d.page_count END AS PageCount,
         CASE WHEN e.kind = 'Part' THEN coalesce(
             (SELECT pc.cover FROM page_cover pc WHERE pc.document_id = e.document_id AND pc.pdf_page = e.first_page),
-            CASE WHEN e.first_page = 0 THEN d.cover END) ELSE d.cover END AS Cover,
+            CASE WHEN e.first_page = 0 THEN d.cover END) ELSE coalesce(d.cover, e.cover) END AS Cover,
         d.folder_hint AS FolderHint, coalesce(d.added_utc, e.added_utc, '') AS AddedUtc,
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable, s.status AS TextStatus, s.reason AS TextReason,
         ps.status AS ProbeStatus, ps.reason AS ProbeReason,

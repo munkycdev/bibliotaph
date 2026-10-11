@@ -1204,6 +1204,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void CheckDownload() => _navigation.NavigateTo(Route.DownloadCheck);
 
+    /// <summary>Online libraries (O2): books owned on online services, imported from their library pages.</summary>
+    [RelayCommand]
+    void OpenOnlineLibraries() => _navigation.NavigateTo(Route.OnlineLibraries);
+
     // Books owned elsewhere (F5a).
 
     /// <summary>The "Add a book I own elsewhere" dialog, while it is open over the Library.</summary>

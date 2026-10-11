@@ -15,10 +15,12 @@ namespace Bibliotaph.Processing;
 /// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name),
 /// when it was last opened (entry_opened) and the text of its notes, its own and its pages', for search (entry_note). index.db holds
 /// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
+/// <paramref name="covers"/> finds the covers books owned elsewhere got from their online library.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
     SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null, FavoriteStore? favorites = null,
-    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null, NoteStore? notes = null) : IDisposable
+    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null, NoteStore? notes = null,
+    CoverCache? covers = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -152,8 +154,9 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         return entryIds;
     }
 
-    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
+    EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
     {
+        Cover = entry.SyncId is { } syncId ? covers?.FindElsewhere(syncId) : null,
         Name = entry.Name,
         AddedUtc = entry.AddedUtc,
         Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
@@ -459,6 +462,26 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         await projector.ProjectAsync([entryId], ct);
         if (rules is not null && values.Count > 0) await rules.ConsiderAsync([entryId], [field], ct);
         return null;
+    }
+
+    /// <summary>
+    /// What was typed for a field in stored form, read as <see cref="SetAsync"/> reads it, without saving: for a value
+    /// made elsewhere, such as an import from an online library. A name the vocabulary doesn't know becomes the user's
+    /// own term (Added). Returns the problem instead when a value can't be stored.
+    /// </summary>
+    public async Task<(IReadOnlyList<string> Values, MetadataProblem? Problem, bool Added)> StoredAsync(MetadataField field, string typed,
+        CancellationToken ct = default)
+    {
+        var values = new List<string>();
+        var added = false;
+        foreach (var part in MetadataValues.Split(field, typed))
+        {
+            var (value, problem, isNew) = await ReadAsync(field, part, ct);
+            if (problem is not null) return ([], problem, added);
+            added |= isNew;
+            values.Add(value!);
+        }
+        return (values, null, added);
     }
 
     /// <summary>

@@ -123,6 +123,7 @@ static partial class SmokeTest
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
+            await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
                 () => ReviewRevisionAsync(services, window));

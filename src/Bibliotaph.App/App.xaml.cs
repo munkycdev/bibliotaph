@@ -180,6 +180,7 @@ public partial class App : Application
         builder.Services.AddSingleton<NotesService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
+        builder.Services.AddSingleton<OnlineImports>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
@@ -338,6 +339,8 @@ public partial class App : Application
         builder.Services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
         builder.Services.AddSingleton<DownloadCheckViewModel>();
+        // One Online libraries page, so a preview is still there after a look at the Library.
+        builder.Services.AddSingleton<OnlineLibrariesViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
@@ -359,6 +362,7 @@ public partial class App : Application
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
         Route.AiReading => services.GetRequiredService<AiReadingViewModel>(),
+        Route.OnlineLibraries => services.GetRequiredService<OnlineLibrariesViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

@@ -111,6 +111,8 @@
                     Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
             <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
                     Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
+            <Button x:Name="OnlineLibraries" Content="Online libraries" c:Ui.Icon="{StaticResource Icon.Cloud}"
+                    Margin="0,0,8,0" Command="{Binding OpenOnlineLibrariesCommand}" ToolTip="Import the books you own on D&amp;D Beyond and other online services" />
             <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
           </StackPanel>
           <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->

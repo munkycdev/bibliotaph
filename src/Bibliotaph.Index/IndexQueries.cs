@@ -349,6 +349,47 @@ public sealed class IndexQueries(IndexDatabase database)
             cancellationToken: ct))).Select(r => (new EntryId(r.Book), new EntryId(r.File), r.DocumentId))];
     }
 
+    /// <summary>
+    /// Every book's card, for matching books read from an online library by title (online libraries plan, choice 6):
+    /// files' cards and books owned elsewhere, not adventures inside a file or packs of images. Title is what the card
+    /// shows; Publisher is null when none is set.
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId EntryId, string Title, string? Publisher, bool Elsewhere)>> GetBookCardsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<(long EntryId, string? Title, string? Publisher, string Kind)>(new CommandDefinition(
+            """
+            SELECT e.entry_id, coalesce(m.title, e.name, d.display_title), m.publisher, e.kind
+            FROM entry_doc e LEFT JOIN entry_meta m ON m.entry_id = e.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE e.kind IN ('Whole', 'Elsewhere') AND e.parent_id IS NULL
+            ORDER BY e.entry_id
+            """,
+            cancellationToken: ct)))
+            .Where(r => r.Title is not null)
+            .Select(r => (new EntryId(r.EntryId), r.Title!, r.Publisher, r.Kind == nameof(EntryKind.Elsewhere)))];
+    }
+
+    /// <summary>
+    /// The cards with a link in <paramref name="field"/> (own or store) under the place <paramref name="value"/>: each card,
+    /// the link, its title, and whether it is a book owned elsewhere. Importing from an online library finds the books it
+    /// imported before by these links (online libraries plan, choice 7).
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId EntryId, string Link, string Title, bool Elsewhere)>> GetLinkedCardsAsync(string field, string value,
+        CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<(long EntryId, string Link, string? Title, string Kind)>(new CommandDefinition(
+            """
+            SELECT f.entry_id, f.link, coalesce(m.title, e.name, d.display_title), e.kind
+            FROM entry_facet f JOIN entry_doc e ON e.entry_id = f.entry_id
+                LEFT JOIN entry_meta m ON m.entry_id = f.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE f.field = @field AND f.value = @value AND f.link IS NOT NULL
+            ORDER BY f.entry_id
+            """,
+            new { field, value }, cancellationToken: ct)))
+            .Select(r => (new EntryId(r.EntryId), r.Link, r.Title ?? "Untitled", r.Kind == nameof(EntryKind.Elsewhere)))];
+    }
+
     /// <summary>The title each of <paramref name="entryIds"/>' cards shows: its effective title, or its document's.</summary>
     public async Task<IReadOnlyDictionary<EntryId, string>> GetEntryTitlesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
