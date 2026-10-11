@@ -200,4 +200,28 @@ public partial class LibraryView
             _focusBeforeDialog = null;
         }
     }
+
+    /// <summary>The Saved searches list takes the keyboard on its first search as it opens (Pinned Views plan, choice 11).</summary>
+    void SavedSearchesPopup_Opened(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => FindButton(SavedSearchList, "OpenSavedSearch")?.Focus());
+
+    /// <summary>Esc closes the list and gives the keyboard back to its button.</summary>
+    void SavedSearchesPopup_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        SavedSearchesPopup.IsOpen = false;
+        SavedSearches.Focus();
+        e.Handled = true;
+    }
+
+    static Button? FindButton(DependencyObject parent, string name)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is Button { Name: var found } button && found == name) return button;
+            if (FindButton(child, name) is { } deeper) return deeper;
+        }
+        return null;
+    }
 }

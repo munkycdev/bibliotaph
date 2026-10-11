@@ -1400,6 +1400,19 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Pin the saved search");
         await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.PinLabel == "Unpin",
             () => "Pin didn't put the search back in the sidebar, marked.");
+
+        // Unpinned, it is still in the Saved searches list, which pins it again (Pinned Views plan, choice 11).
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Unpin the saved search");
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin", () => "Unpin didn't take the search out of the sidebar.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SavedSearches"), "Saved searches");
+        var list = FindChild<Views.LibraryView>(window)?.SavedSearchesPopup ?? throw new InvalidOperationException("The Library has no Saved searches list.");
+        await WaitUntilAsync(window, () => list.IsOpen && list.Child is { IsVisible: true } && page.SavedSearches is [{ Name: "Haunted places", IsPinned: false }],
+            () => "Saved searches didn't list the unpinned search.");
+        await Settle(window);
+        Click(Descendants<Button>(list.Child).FirstOrDefault(b => b.Name == "PinSavedSearch"), "the list's Pin");
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.SavedSearches is [{ IsPinned: true }] && list.IsOpen,
+            () => "The list's Pin didn't put the search back in the sidebar.");
+        page.IsSavedSearchesOpen = false;
         var viewId = page.ActiveView!.Id;
         var saved = SmartViewDefinition.Parse(views.Find(viewId)!.Definition);
         if (saved.Query != Query || saved.Kind != KindFilter.Books) throw new InvalidOperationException($"The view keeps “{saved.Query}” and {saved.Kind}.");
@@ -1586,8 +1599,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Pinned Views plan, choices 6 and 7: a book pinned from its menu shows in the sidebar by its title; its details offer
-    /// Unpin, which takes it out; pinned again, the sidebar's Unpin takes it out too.
+    /// Pinned Views plan, choices 6 to 8: a book pinned from its menu shows in the sidebar by its title; Favorites moves
+    /// below it with Alt+Down and back with Move up; the book's details offer Unpin, which takes it out; pinned again, the
+    /// sidebar's Unpin takes it out too.
     /// </summary>
     static async Task UsePinsAsync(IServiceProvider services, Window window, int books)
     {
@@ -1602,6 +1616,24 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => shell.Pinned is [_, { Target.Kind: PinKind.Entry } pin] && pin.Label == book.Title,
             () => "Pin didn't put the book in the sidebar under its title.");
         await AuditAsync(window, "the sidebar with a pinned book");
+
+        // Alt+Down on Favorites moves it below the book (Pinned Views plan, choice 8), and its menu's Move up moves it back.
+        await Settle(window);
+        var favorites = Descendants<Button>(window).FirstOrDefault(b => b is { Name: "Pin", DataContext: PinnedItemViewModel { Target.Kind: PinKind.Favorites } })
+            ?? throw new InvalidOperationException("There is no Favorites pin in the sidebar.");
+        var altDown = favorites.InputBindings.OfType<KeyBinding>().FirstOrDefault(k => k is { Key: Key.Down, Modifiers: ModifierKeys.Alt })
+            ?? throw new InvalidOperationException("The Favorites pin has no Alt+Down.");
+        if (!altDown.Command.CanExecute(altDown.CommandParameter)) throw new InvalidOperationException("Alt+Down can't move Favorites down.");
+        altDown.Command.Execute(altDown.CommandParameter);
+        await WaitUntilAsync(window, () => shell.Pinned is [{ Target.Kind: PinKind.Entry }, { Target.Kind: PinKind.Favorites }],
+            () => "Alt+Down didn't move Favorites below the book.");
+        if (window.IsActive)
+            await WaitUntilAsync(window, () => Keyboard.FocusedElement is Button { Name: "Pin", DataContext: PinnedItemViewModel { Target.Kind: PinKind.Favorites } },
+                () => "The keyboard didn't stay on Favorites after it moved.");
+        if (shell.MovePinDownCommand.CanExecute(shell.Pinned[1])) throw new InvalidOperationException("Move down is offered for the last pin.");
+        await shell.MovePinUpCommand.ExecuteAsync(shell.Pinned[1]);
+        await WaitUntilAsync(window, () => shell.Pinned is [{ Target.Kind: PinKind.Favorites }, { Target.Kind: PinKind.Entry }],
+            () => "Move up didn't put Favorites back on top.");
 
         await page.OpenDetailsCommand.ExecuteAsync(book);
         await WaitUntilAsync(window, () => page.Inspector?.PinLabel == "Unpin" && Shown(window, "PinBook"), () => "The details don't offer Unpin for the pinned book.");

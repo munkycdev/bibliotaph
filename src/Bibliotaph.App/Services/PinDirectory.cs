@@ -59,6 +59,7 @@ public sealed class PinDirectory
     readonly CoverImages _covers;
     readonly ILogger<PinDirectory> _log;
     HashSet<PinTarget> _pinned = [];
+    List<PinTarget> _order = [];
     int _version;
 
     public PinDirectory(PinsService pins, CollectionDirectory collections, SessionDirectory binders, SmartViewDirectory views, LibraryQueries queries,
@@ -107,6 +108,28 @@ public sealed class PinDirectory
         }
     }
 
+    /// <summary>
+    /// Moves the pin to <paramref name="index"/> in <see cref="Items"/>, counted once it has been taken out; the reload
+    /// that follows raises <see cref="Changed"/>. Returns false if nothing moved. A pin not shown yet keeps its place among the others.
+    /// </summary>
+    public async Task<bool> MoveAsync(PinTarget target, int index)
+    {
+        var shown = Items.Select(i => i.Target).ToList();
+        if (!shown.Remove(target)) return false;
+        index = Math.Clamp(index, 0, shown.Count);
+        var others = _order.Where(t => t != target).ToList();
+        var at = index < shown.Count ? others.IndexOf(shown[index]) : others.Count;
+        try
+        {
+            return await Task.Run(() => _pins.MoveAsync(target, at));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Moving a pin failed");
+            return false;
+        }
+    }
+
     public async Task UnpinAsync(PinTarget target)
     {
         try
@@ -131,6 +154,7 @@ public sealed class PinDirectory
             if (entryIds.Count > 0) (books, away) = await Task.Run(async () => (await _queries.GetEntriesAsync(entryIds), await _library.GetUnavailableAsync()));
             if (version != _version) return;
             _pinned = [.. pins.Select(p => p.Target)];
+            _order = [.. pins.Select(p => p.Target)];
             var cards = books.ToDictionary(b => b.EntryId);
             var items = pins.Select(p => Item(p.Target, cards, away)).OfType<PinnedItemViewModel>().ToList();
             if (!items.Select(i => (i.Target, i.Label, i.IsDimmed)).SequenceEqual(Items.Select(i => (i.Target, i.Label, i.IsDimmed))))

@@ -72,6 +72,38 @@ public sealed class PinStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_pin_moves_to_any_place_and_the_others_close_up_around_it()
+    {
+        var sessions = new SessionStore(_contexts, _clock);
+        var binders = new List<PinTarget>();
+        for (var i = 1; i <= 4; i++)
+        {
+            var binder = await sessions.CreateAsync($"Session {i}", ct: Ct);
+            binders.Add(PinTarget.Binder(binder.Id));
+            await _pins.PinAsync(binders[^1], Ct);
+        }
+        var (one, two, three, four) = (binders[0], binders[1], binders[2], binders[3]);
+
+        Assert.True(await _pins.MoveAsync(one, 2, Ct));
+        Assert.Equal([two, three, one, four], await TargetsAsync());
+        Assert.True(await _pins.MoveAsync(four, 0, Ct));
+        Assert.Equal([four, two, three, one], await TargetsAsync());
+        // Past either end it stops there; where it is already, or not pinned, nothing moves.
+        Assert.True(await _pins.MoveAsync(four, 99, Ct));
+        Assert.Equal([two, three, one, four], await TargetsAsync());
+        Assert.False(await _pins.MoveAsync(two, -1, Ct));
+        Assert.False(await _pins.MoveAsync(PinTarget.Favorites, 0, Ct));
+        Assert.Equal([0, 1, 2, 3], (await _pins.ListAsync(Ct)).Select(p => p.Position));
+
+        // New pins still go to the bottom, and Undo's place counts in the new order.
+        await _pins.PinAsync(PinTarget.Favorites, Ct);
+        Assert.Equal([two, three, one, four, PinTarget.Favorites], await TargetsAsync());
+        var deleted = (await sessions.DeleteAsync(one.Id!.Value, Ct))!;
+        var restored = await sessions.RestoreAsync(deleted, Ct);
+        Assert.Equal([two, three, PinTarget.Binder(restored.Id), four, PinTarget.Favorites], await TargetsAsync());
+    }
+
+    [Fact]
     public async Task The_database_holds_one_Favorites_pin_and_refuses_a_pin_that_points_at_the_wrong_kind()
     {
         var (_, abbey) = await AddBookAsync("abbey.pdf", 'a');

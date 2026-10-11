@@ -354,6 +354,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Collections.Directory.Changed += OnCollectionsChanged;
         Pins.Changed -= OnPinsChanged;
         Pins.Changed += OnPinsChanged;
+        Views.Changed -= OnViewsChanged;
+        Views.Changed += OnViewsChanged;
+        OnPropertyChanged(nameof(HasSavedSearches));
         await Sessions.Directory.LoadAsync();
         if (_viewOnLoad is { } view)
         {
@@ -385,6 +388,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Activity.Refreshed -= OnActivityRefreshed;
         Collections.Directory.Changed -= OnCollectionsChanged;
         Pins.Changed -= OnPinsChanged;
+        Views.Changed -= OnViewsChanged;
+        IsSavedSearchesOpen = false;
         Collections.Close();
         Sessions.Close();
         ViewDialog?.CancelCommand.Execute(null);
@@ -1471,6 +1476,79 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         OnPropertyChanged(nameof(PinLabel));
         Inspector?.PinLabel = Pins.PinLabel(PinTarget.Entry(Inspector.Item.EntryId));
+        ShowSavedSearchRows();
+    }
+
+    // The Saved searches list (Pinned Views plan, choice 11): every saved search, pinned or not, from the toolbar.
+
+    public ObservableCollection<SavedSearchRow> SavedSearches { get; } = [];
+
+    public bool HasSavedSearches => Views.All.Count > 0;
+
+    [ObservableProperty]
+    public partial bool IsSavedSearchesOpen { get; set; }
+
+    [RelayCommand]
+    void ShowSavedSearches()
+    {
+        ShowSavedSearchRows();
+        IsSavedSearchesOpen = true;
+    }
+
+    void OnViewsChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(HasSavedSearches));
+        ShowSavedSearchRows();
+        if (!HasSavedSearches) IsSavedSearchesOpen = false;
+    }
+
+    /// <summary>The rows in name order; the same searches keep their rows, so a pin toggled keeps the keyboard where it was.</summary>
+    void ShowSavedSearchRows()
+    {
+        var views = Views.All;
+        if (views.SequenceEqual(SavedSearches.Select(r => r.View)))
+        {
+            foreach (var row in SavedSearches) row.IsPinned = Pins.IsPinned(PinTarget.SavedSearch(row.View.Id));
+            return;
+        }
+        SavedSearches.Clear();
+        foreach (var view in views) SavedSearches.Add(new SavedSearchRow(view, Pins.IsPinned(PinTarget.SavedSearch(view.Id)), this));
+    }
+
+    [RelayCommand]
+    void OpenSavedSearch(SavedSearchRow row)
+    {
+        IsSavedSearchesOpen = false;
+        _pages.OpenView(row.View);
+    }
+
+    [RelayCommand]
+    Task TogglePinSavedSearch(SavedSearchRow row) => Pins.ToggleAsync(PinTarget.SavedSearch(row.View.Id));
+
+    [RelayCommand]
+    void RenameSavedSearch(SavedSearchRow row)
+    {
+        IsSavedSearchesOpen = false;
+        var id = row.View.Id;
+        AskName("Rename saved search", "Save", row.Name, async name =>
+        {
+            if (await RunView(() => Views.RenameAsync(id, name)) && ActiveView?.Id == id && Views.Find(id) is { } renamed) ShowView(renamed, _viewSaved);
+        });
+    }
+
+    /// <summary>Deletes a saved search, never a book; the one shown is deleted as its own Delete does. Undo brings it back.</summary>
+    [RelayCommand]
+    async Task DeleteSavedSearch(SavedSearchRow row)
+    {
+        IsSavedSearchesOpen = false;
+        if (ActiveView?.Id == row.View.Id)
+        {
+            await DeleteView();
+            return;
+        }
+        var deleted = await RunView(() => Views.DeleteAsync(row.View.Id));
+        if (deleted is null) return;
+        SayView($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () => await Views.RestoreAsync(deleted));
     }
 
     /// <summary>A book's Pin or Unpin, from its menu or its details.</summary>

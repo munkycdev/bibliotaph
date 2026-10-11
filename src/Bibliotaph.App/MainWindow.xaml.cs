@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.Catalog;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,9 @@ public partial class MainWindow : Window
     /// <summary>Set while a pick rewrites the box, so the box's own change events don't steer the guide halfway through.</summary>
     bool _applyingGuide;
 
+    /// <summary>Where the mouse went down on a pin, until it moves far enough to drag it or comes up.</summary>
+    Point? _pinDragStart;
+
     public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, ShortcutsBox shortcuts, IndexingService indexing,
         ILogger<MainWindow> log)
     {
@@ -34,6 +38,7 @@ public partial class MainWindow : Window
         _guide = guide;
         SearchGuide.DataContext = guide;
         DataContext = shell;
+        shell.FocusPinRequested += (_, target) => FocusPin(target);
         _about = about;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
         CommandBindings.Add(new CommandBinding(ShellCommands.ShowShortcuts, (_, _) => shortcuts.Show(this)));
@@ -172,5 +177,78 @@ public partial class MainWindow : Window
         if (announcement.Length == 0) return;
         var peer = UIElementAutomationPeer.FromElement(SearchGuideAnnouncement) ?? UIElementAutomationPeer.CreatePeerForElement(SearchGuideAnnouncement);
         peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    // ---- Pins: dragging to a new place, and the keyboard staying on a pin that moved (Pinned Views plan, choice 8) ----
+
+    void FocusPin(PinTarget target) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (DataContext is ShellViewModel shell && shell.Pinned.FirstOrDefault(p => p.Target == target) is { } pin
+                && Pinned.ItemContainerGenerator.ContainerFromItem(pin) is System.Windows.Controls.ContentPresenter presenter
+                && presenter.ContentTemplate?.FindName("Pin", presenter) is System.Windows.Controls.Button button)
+            {
+                button.BringIntoView();
+                button.Focus();
+            }
+        });
+
+    void Pin_MouseDown(object sender, MouseButtonEventArgs e) => _pinDragStart = e.GetPosition(this);
+
+    void Pin_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_pinDragStart is not { } start || e.LeftButton != MouseButtonState.Pressed || sender is not FrameworkElement { DataContext: PinnedItemViewModel pin } button) return;
+        var moved = e.GetPosition(this) - start;
+        if (Math.Abs(moved.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(moved.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        _pinDragStart = null;
+        try
+        {
+            DragDrop.DoDragDrop(button, new DataObject(typeof(PinnedItemViewModel), pin), DragDropEffects.Move);
+        }
+        finally
+        {
+            DropLine.Hide();
+        }
+    }
+
+    /// <summary>Over the top half of a pin, the dragged one lands above it; over the bottom half, below it.</summary>
+    static bool IsBelow(FrameworkElement target, DragEventArgs e) => e.GetPosition(target).Y > target.ActualHeight / 2;
+
+    void Pin_DragOver(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (e.Data.GetData(typeof(PinnedItemViewModel)) is not PinnedItemViewModel dragged || sender is not FrameworkElement { DataContext: PinnedItemViewModel over } target
+            || ReferenceEquals(dragged, over))
+        {
+            e.Effects = DragDropEffects.None;
+            DropLine.Hide();
+            return;
+        }
+        e.Effects = DragDropEffects.Move;
+        DropLine.Show(target, IsBelow(target, e));
+    }
+
+    void Pin_DragLeave(object sender, DragEventArgs e) => DropLine.Hide();
+
+    async void Pin_Drop(object sender, DragEventArgs e)
+    {
+        DropLine.Hide();
+        if (e.Data.GetData(typeof(PinnedItemViewModel)) is not PinnedItemViewModel dragged || sender is not FrameworkElement { DataContext: PinnedItemViewModel over } target
+            || DataContext is not ShellViewModel shell)
+            return;
+        e.Handled = true;
+        var from = shell.Pinned.IndexOf(dragged);
+        var to = shell.Pinned.IndexOf(over) + (IsBelow(target, e) ? 1 : 0);
+        if (from < 0 || to < 0) return;
+        // Its place once it has been taken out of the list.
+        if (from < to) to--;
+        try
+        {
+            await shell.MovePinAsync(dragged, to);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Moving a pin failed");
+        }
     }
 }

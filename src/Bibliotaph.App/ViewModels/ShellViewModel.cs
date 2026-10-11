@@ -27,6 +27,9 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
+    /// <summary>The pin just moved, which gets the keyboard back once the sidebar shows it in its new place.</summary>
+    PinTarget? _focusAfterMove;
+
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
         SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
@@ -58,7 +61,18 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.Sessions, "Binders", Icon("Icon.NotebookTabs")),
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
         ];
-        _pins.Changed += (_, _) => ShowActiveItem();
+        _pins.Changed += (_, _) =>
+        {
+            ShowActiveItem();
+            // The reload after a move has the pins in their new places, so the keyboard can go back to the one moved.
+            if (_focusAfterMove is { } moved)
+            {
+                _focusAfterMove = null;
+                FocusPinRequested?.Invoke(this, moved);
+            }
+            MovePinUpCommand.NotifyCanExecuteChanged();
+            MovePinDownCommand.NotifyCanExecuteChanged();
+        };
         Settings = new NavItemViewModel(Route.Settings, "Settings", Icon("Icon.Settings2"));
         var review = NavItems.Single(n => n.Route == Route.NeedsReview);
         Activity.PropertyChanged += (_, e) =>
@@ -176,6 +190,28 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>A pin's right-click Unpin.</summary>
     [RelayCommand]
     Task Unpin(PinnedItemViewModel item) => _pins.UnpinAsync(item.Target);
+
+    /// <summary>Raised after a pin moved, so the sidebar puts the keyboard back on it in its new place.</summary>
+    public event EventHandler<PinTarget>? FocusPinRequested;
+
+    /// <summary>A pin's Move up, from its menu or Alt+Up (Pinned Views plan, choice 8).</summary>
+    [RelayCommand(CanExecute = nameof(CanMovePinUp))]
+    Task MovePinUp(PinnedItemViewModel? item) => item is null ? Task.CompletedTask : MovePinAsync(item, Pinned.IndexOf(item) - 1);
+
+    bool CanMovePinUp(PinnedItemViewModel? item) => item is not null && Pinned.IndexOf(item) > 0;
+
+    /// <summary>A pin's Move down, from its menu or Alt+Down.</summary>
+    [RelayCommand(CanExecute = nameof(CanMovePinDown))]
+    Task MovePinDown(PinnedItemViewModel? item) => item is null ? Task.CompletedTask : MovePinAsync(item, Pinned.IndexOf(item) + 1);
+
+    bool CanMovePinDown(PinnedItemViewModel? item) => item is not null && Pinned.IndexOf(item) is >= 0 and var at && at < Pinned.Count - 1;
+
+    /// <summary>Moves a pin to that place in the sidebar, counted once it has been taken out, and keeps the keyboard on it.</summary>
+    public async Task MovePinAsync(PinnedItemViewModel item, int index)
+    {
+        _focusAfterMove = item.Target;
+        if (!await _pins.MoveAsync(item.Target, index)) _focusAfterMove = null;
+    }
 
     /// <summary>A saved search's right-click Rename…: the search opens, and the Library asks for the new name.</summary>
     [RelayCommand]
