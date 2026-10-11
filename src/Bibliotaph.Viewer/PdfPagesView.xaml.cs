@@ -452,6 +452,14 @@ public partial class PdfPagesView
             : target.Fraction * page.Height;
         Pages.ScrollIntoView(page);
         Pages.UpdateLayout();
+        // ScrollIntoView can leave a page that is more than a screen away without a container, as with tall pages in a
+        // wide window, and then nothing would move: scroll to where its item starts, every item being Height + 2 *
+        // PageMargin tall, and measure it there.
+        if (Pages.ItemContainerGenerator.ContainerFromIndex(index) is null)
+        {
+            _scroll.ScrollToVerticalOffset(_pages.Take(index).Sum(p => p.Height + (2 * PageMargin)));
+            Pages.UpdateLayout();
+        }
         if (Pages.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem container)
         {
             var top = container.TransformToAncestor(_scroll).Transform(new Point(0, 0)).Y;
