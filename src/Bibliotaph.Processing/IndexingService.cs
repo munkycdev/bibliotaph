@@ -36,6 +36,12 @@ public sealed record IndexingOptions
     /// Windows doesn't announce as it does a disk being plugged in.
     /// </summary>
     public TimeSpan OfflineRecheck { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long after files go back to online-only, while online-only files wait for space, the hasher looks at the
+    /// free space again: the sync app frees it shortly after it is asked, not at once.
+    /// </summary>
+    public TimeSpan SpaceSettle { get; init; } = TimeSpan.FromSeconds(15);
 }
 
 /// <summary>Why a library folder reads as offline (slice 4g plan, choice 3). Its files are never marked missing for it.</summary>
@@ -72,7 +78,8 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
 /// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
 /// pausable on its own. Classify works only while AI is ready, and waits with a notice while its endpoint can't be used.
-/// Leases left by a previous run go back to pending before anything else starts (A11).
+/// Leases left by a previous run go back to pending before anything else starts (A11). Online-only files that reading
+/// downloaded go back to online-only once their stages are done with them (<see cref="OnlineOnlyReturns"/>).
 /// </summary>
 public sealed class IndexingService(
     SourceRootStore roots,
@@ -86,7 +93,8 @@ public sealed class IndexingService(
     ILogger<IndexingService>? log = null,
     TimeProvider? clock = null,
     PackService? packs = null,
-    IFileIdentity? identity = null) : BackgroundService
+    IFileIdentity? identity = null,
+    OnlineOnlyReturns? returns = null) : BackgroundService
 {
     /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
     public const string UnexpectedError = "Unexpected error: ";
@@ -101,6 +109,8 @@ public sealed class IndexingService(
 
     readonly Signal _scanSignal = new();
     readonly Signal _hashSignal = new();
+    /// <summary>Set when a file may be done with: a file stage finished, a batch was hashed, a lane paused, the setting changed.</summary>
+    readonly Signal _returnSignal = new();
     readonly Dictionary<Lane, Signal> _laneSignals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
     readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
@@ -182,6 +192,8 @@ public sealed class IndexingService(
             control.Paused = true;
             control.Cancel.Cancel();
         }
+        // While online-only files wait for space, a paused lane's books give their files back (ReturnLoopAsync).
+        _returnSignal.Set();
         RaiseChanged();
     }
 
@@ -343,13 +355,18 @@ public sealed class IndexingService(
 
         _scanSignal.Set();
         // Each loop on the thread pool: none of this may run on the UI thread that started the host.
-        await Task.WhenAll(
+        List<Task> loops =
+        [
             Task.Run(() => LoopAsync("scanner", ScanLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("offline check", OfflineLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("hasher", HashLoopAsync, stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("index lane", ct => LaneLoopAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("OCR lane", ct => LaneLoopAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("Classify lane", ct => LaneLoopAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None));
+            Task.Run(() => LoopAsync("Classify lane", ct => LaneLoopAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None),
+        ];
+        if (returns is not null)
+            loops.Add(Task.Run(() => LoopAsync("online-only returns", ct => ReturnLoopAsync(returns, ct), stoppingToken), CancellationToken.None));
+        await Task.WhenAll(loops);
     }
 
     void WatchGates()
@@ -364,6 +381,7 @@ public sealed class IndexingService(
             var lane = Pipeline.LaneOf(gated.Stage);
             gated.ReadyChanged += (_, _) => OnGateChanged(lane);
         }
+        returns?.SettingChanged += (_, _) => _returnSignal.Set();
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -642,6 +660,8 @@ public sealed class IndexingService(
                 // A changed file hashed back to its old content is that document's file again.
                 await ReleaseReachableAsync(ct);
                 _laneSignals[Lane.Index].Set();
+                // A copy of a book already read is done with its file as soon as it is hashed.
+                _returnSignal.Set();
                 RaiseChanged();
             }
         }
@@ -668,6 +688,7 @@ public sealed class IndexingService(
         RaiseChanged();
         try
         {
+            if (returns is not null) await returns.BeforeReadAsync(file, ct);
             hash = await hasher.HashAsync(file.FullPath, ct);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -703,6 +724,7 @@ public sealed class IndexingService(
         RaiseChanged();
         try
         {
+            if (returns is not null) await returns.BeforeReadAsync(archive, ct);
             var hash = await hasher.HashAsync(archive.FullPath, ct);
             var members = await Task.Run(() => archives.List(archive.FullPath), ct);
             if (await library.ReconcileArchiveAsync(archive, members, ct) is not { } pending) return;
@@ -757,6 +779,30 @@ public sealed class IndexingService(
         _log.LogInformation("Released {Count} stages whose files can be read again", released);
         foreach (var signal in _laneSignals.Values) signal.Set();
         RaiseChanged();
+    }
+
+    // ---- Returning files to online-only ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Gives files that reading downloaded back to online-only once their stages are done with them (Dale's review,
+    /// row 2). While online-only files wait for space, a paused lane's waiting stages don't keep their files: those go
+    /// back too, and download again when the lane resumes, so the space a paused lane would hold lets hashing go on.
+    /// Space freed wakes the hasher, now and again once the sync app has had time to let the files go.
+    /// </summary>
+    async Task ReturnLoopAsync(OnlineOnlyReturns returning, CancellationToken ct)
+    {
+        while (true)
+        {
+            await _returnSignal.WaitAsync(_options.IdleRecheck, ct);
+            var waitingForSpace = WaitingForDiskSpace;
+            IReadOnlyCollection<Stage> holding = waitingForSpace
+                ? [.. Pipeline.FileStages.Where(s => !IsPaused(Pipeline.LaneOf(s)))]
+                : Pipeline.FileStages;
+            if (await returning.ReturnDoneAsync(holding, ct) == 0 || !waitingForSpace) continue;
+            _hashSignal.Set();
+            await Task.Delay(_options.SpaceSettle, _clock, ct);
+            _hashSignal.Set();
+        }
     }
 
     // ---- Lanes ----------------------------------------------------------------------------------------------------
@@ -886,6 +932,7 @@ public sealed class IndexingService(
         });
         if (outcome is StageOutcome.Done { Next: var next })
             foreach (var other in next.Select(Pipeline.LaneOf).Distinct()) _laneSignals[other].Set();
+        if (Pipeline.FileStages.Contains(job.Stage)) _returnSignal.Set();
     }
 
     /// <summary>A queue write at shutdown can find the index writer already stopped; the lease is recovered next start.</summary>
@@ -909,6 +956,7 @@ public sealed class IndexingService(
         foreach (var signal in _laneSignals.Values) signal.Dispose();
         _scanSignal.Dispose();
         _hashSignal.Dispose();
+        _returnSignal.Dispose();
     }
 
     sealed class LaneControl : IDisposable

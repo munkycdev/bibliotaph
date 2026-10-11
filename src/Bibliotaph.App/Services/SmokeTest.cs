@@ -2599,6 +2599,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => processing.HasFolders, () => "Settings > Processing says there are no folders.");
         if (processing.Activity.Phases.Count != 5 || processing.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
+        await ToggleReturnOnlineOnlyAsync(services, window, processing);
 
         navigation.NavigateTo(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("The Home route didn't open Home.");
@@ -2615,6 +2616,39 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
         if (!ReferenceEquals(shell.CurrentPage, libraryPage)) throw new InvalidOperationException("Back didn't return from Settings to the Library.");
+    }
+
+    /// <summary>
+    /// Settings > Processing's "Return files to online-only after indexing" (Dale's review, row 2): shown and ticked to
+    /// start with, saved off when it is unticked and on again when it is ticked. The smoke library isn't in OneDrive,
+    /// so no file goes anywhere either way.
+    /// </summary>
+    static async Task ToggleReturnOnlineOnlyAsync(IServiceProvider services, Window window, ProcessingSectionViewModel processing)
+    {
+        var returns = services.GetRequiredService<OnlineOnlyReturns>();
+        var saved = 0;
+        void OnSaved(object? sender, EventArgs e) => Interlocked.Increment(ref saved);
+        returns.SettingChanged += OnSaved;
+        try
+        {
+            CheckBox? Box() => Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "ReturnOnlineOnly");
+            await WaitUntilAsync(window, () => Box() is { IsVisible: true, IsEnabled: true, IsChecked: true } && processing.ReturnOnlineOnly,
+                () => "Settings > Processing doesn't show Return files to online-only after indexing, ticked.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 1 && !processing.ReturnOnlineOnly && Box()?.IsChecked == false,
+                () => "Unticking Return files to online-only after indexing wasn't saved.");
+            if (await returns.IsOnAsync()) throw new InvalidOperationException("Return files to online-only after indexing is still on after unticking it.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 2 && processing.ReturnOnlineOnly && Box()?.IsChecked == true,
+                () => "Ticking Return files to online-only after indexing again wasn't saved.");
+            if (!await returns.IsOnAsync()) throw new InvalidOperationException("Return files to online-only after indexing is off after ticking it again.");
+        }
+        finally
+        {
+            returns.SettingChanged -= OnSaved;
+        }
     }
 
     /// <summary>Opens Settings at <paramref name="section"/>, as a link into it does.</summary>
