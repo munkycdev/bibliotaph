@@ -118,7 +118,7 @@ public sealed class MetadataSearchTests : IndexFixture
         Assert.Equal(expected, await FindAsync(query));
 
     [Fact]
-    public async Task Systems_whose_books_all_have_no_levels_are_listed_for_Ask() =>
+    public async Task Systems_whose_books_all_have_no_levels_are_listed_for_plain_search() =>
         // Pathfinder's one book has no levels, and D&D's books have known ones.
         Assert.Equal([("edition", "pathfinder-2e"), ("system", "pathfinder")], (await new IndexQueries(Database).GetSystemsWithoutLevelsAsync(Ct)).Order());
 

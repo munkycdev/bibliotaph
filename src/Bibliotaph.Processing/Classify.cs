@@ -74,7 +74,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     readonly Func<string, IModelClient> _clients = clients ?? (endpoint => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint)));
     volatile AiSetup _setup = AiSetup.Off;
     volatile IClassifier? _classifier;
-    volatile IAskInterpreter? _interpreter;
+    volatile IPlainSearchInterpreter? _interpreter;
 
     public event EventHandler? Changed;
 
@@ -84,7 +84,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     public IClassifier? Classifier => _classifier;
 
     /// <summary>Ask's reader of requests in plain English, over the same model, or null while AI isn't ready.</summary>
-    public IAskInterpreter? Interpreter => _interpreter;
+    public IPlainSearchInterpreter? Interpreter => _interpreter;
 
     public IModelClient ClientFor(string endpoint) => _clients(endpoint);
 
@@ -136,7 +136,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
             : _clients(setup.Endpoint!);
         _classifier = client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!);
-        _interpreter = client is null ? null : new ModelAskInterpreter(client, setup.ModelName!);
+        _interpreter = client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

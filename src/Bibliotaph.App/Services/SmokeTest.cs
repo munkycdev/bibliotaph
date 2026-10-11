@@ -110,7 +110,7 @@ static partial class SmokeTest
             await Check("every route drawn in the Windows contrast theme's colours", () => ShowContrastAsync(services, window));
             await Check("the Keyboard shortcuts popup, from Ctrl+/ and from the Settings link", () => ShowShortcutsAsync(services, window));
             await Check("Ask with AI off saying it needs AI, its link to Settings > AI, and the search box searching as before",
-                () => AskWithoutAiAsync(services, window, books));
+                () => PlainSearchWithoutAiAsync(services, window, books));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
                 () => UseCollectionsAsync(services, window, books));

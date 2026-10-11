@@ -276,8 +276,8 @@
                   Command="{Binding ToggleAppearanceCommand}" Margin="15,0,0,0"
                   ToolTip="{Binding AppearanceToggleLabel}" AutomationProperties.Name="{Binding AppearanceToggleLabel}" />
           <!-- Ask (scenario review, row 5): the box takes a request in plain English, read by AI on Enter. -->
-          <Button x:Name="AskButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
-                  c:Ui.IsActive="{Binding Ask.IsOn}" Command="{Binding Ask.ToggleCommand}" Margin="6,0,0,0"
+          <Button x:Name="PlainSearchButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
+                  c:Ui.IsActive="{Binding PlainSearch.IsOn}" Command="{Binding PlainSearch.ToggleCommand}" Margin="6,0,0,0"
                   ToolTip="Ask in plain English" AutomationProperties.Name="Ask in plain English" />
           <TextBox x:Name="Search" Style="{StaticResource Bt.SearchBox}" MaxWidth="324" HorizontalAlignment="Right"
                    Margin="15,0,0,0" Width="324" Tag="{Binding SearchPlaceholder}"
@@ -292,12 +292,12 @@
         (field and an editable value, or words to find) with notes on anything changed or left out, and Search, which
         puts the chips in the box as query text and runs it. Without AI it says Ask needs it, with a link to Settings > AI.
       -->
-      <Border x:Name="AskPanel" Grid.Row="1" DataContext="{Binding Ask}" Background="{DynamicResource Bt.Panel}"
+      <Border x:Name="PlainSearchPanel" Grid.Row="1" DataContext="{Binding PlainSearch}" Background="{DynamicResource Bt.Panel}"
               BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="24,12,18,12"
               Visibility="{Binding IsOn, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <Border.Resources>
           <!-- A chip's value: an underlined box that fits its text. -->
-          <Style x:Key="Ask.ChipBox" TargetType="TextBox">
+          <Style x:Key="PlainSearch.ChipBox" TargetType="TextBox">
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
             <Setter Property="CaretBrush" Value="{DynamicResource Bt.Text}" />
@@ -323,23 +323,23 @@
           </Style>
         </Border.Resources>
         <DockPanel>
-          <Button x:Name="CloseAsk" DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
+          <Button x:Name="ClosePlainSearch" DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
                   Command="{Binding CloseCommand}" ToolTip="Close Ask (Esc)" AutomationProperties.Name="Close Ask" />
           <c:LucideIcon DockPanel.Dock="Left" Size="15" Data="{StaticResource Icon.Sparkles}" Foreground="{DynamicResource Bt.Accent}"
                         VerticalAlignment="Top" Margin="0,8,10,0" />
           <StackPanel>
-            <TextBlock x:Name="AskMessage" Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,0"
+            <TextBlock x:Name="PlainSearchMessage" Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,0"
                        Foreground="{DynamicResource Bt.Text}" AutomationProperties.LiveSetting="Polite" />
-            <Button x:Name="AskSetUpAi" Style="{StaticResource Bt.Link}" Content="Set AI up in Settings" c:Ui.Icon="{StaticResource Icon.Settings2}"
+            <Button x:Name="PlainSearchSetUpAi" Style="{StaticResource Bt.Link}" Content="Set AI up in Settings" c:Ui.Icon="{StaticResource Icon.Settings2}"
                     Margin="0,6,0,0" Command="{Binding OpenAiSettingsCommand}"
                     Visibility="{Binding NeedsAi, Converter={StaticResource Bt.VisibleWhenTrue}}" />
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Visibility="{Binding IsReading, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <ProgressBar Style="{StaticResource Bt.ProgressBar}" IsIndeterminate="True" Width="160" VerticalAlignment="Center"
                            AutomationProperties.Name="Reading your question" />
-              <Button x:Name="AskCancel" Content="Cancel" Margin="12,0,0,0" Padding="10,5" Command="{Binding CancelCommand}" />
+              <Button x:Name="PlainSearchCancel" Content="Cancel" Margin="12,0,0,0" Padding="10,5" Command="{Binding CancelCommand}" />
             </StackPanel>
             <StackPanel Margin="0,8,0,0" Visibility="{Binding IsInterpreted, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <ItemsControl x:Name="AskParts" ItemsSource="{Binding Parts}" Focusable="False" AutomationProperties.Name="What will be searched for"
+              <ItemsControl x:Name="PlainSearchParts" ItemsSource="{Binding Parts}" Focusable="False" AutomationProperties.Name="What will be searched for"
                             KeyboardNavigation.TabNavigation="Continue">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -347,11 +347,11 @@
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type vm:AskPartViewModel}">
+                  <DataTemplate DataType="{x:Type vm:PlainSearchPartViewModel}">
                     <Border Style="{StaticResource Bt.Chip}" Padding="8,2,2,2" Margin="0,0,6,6">
                       <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" Margin="0,0,4,0" />
-                        <TextBox Style="{StaticResource Ask.ChipBox}" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Style="{StaticResource PlainSearch.ChipBox}" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="{Binding ValueName}" />
                         <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0" Padding="2"
                                 ToolTip="{Binding RemoveName}" AutomationProperties.Name="{Binding RemoveName}"
@@ -362,7 +362,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <ItemsControl x:Name="AskNotes" ItemsSource="{Binding Notes}" Focusable="False" AutomationProperties.Name="Notes on how your question was read">
+              <ItemsControl x:Name="PlainSearchNotes" ItemsSource="{Binding Notes}" Focusable="False" AutomationProperties.Name="Notes on how your question was read">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <DockPanel Margin="0,0,0,4">
@@ -374,9 +374,9 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <DockPanel Margin="0,6,0,0" Visibility="{Binding HasParts, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                <Button x:Name="AskSearch" DockPanel.Dock="Left" Style="{StaticResource Bt.Button.Primary}" Content="Search" c:Ui.Icon="{StaticResource Icon.Search}"
+                <Button x:Name="PlainSearchRun" DockPanel.Dock="Left" Style="{StaticResource Bt.Button.Primary}" Content="Search" c:Ui.Icon="{StaticResource Icon.Search}"
                         Padding="12,6" Command="{Binding SearchCommand}" ToolTip="Put this in the search box and search" />
-                <TextBlock x:Name="AskQueryText" Text="{Binding QueryText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="12,0,0,0"
+                <TextBlock x:Name="PlainSearchQueryText" Text="{Binding QueryText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="12,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding QueryText}" />
               </DockPanel>
             </StackPanel>

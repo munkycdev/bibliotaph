@@ -15,9 +15,9 @@ static partial class SmokeTest
     /// request doesn't search, and Enter still only says it needs AI. The link opens Settings > AI and leaves Ask.
     /// Back in the Library the search box searches as it always has, and Esc leaves Ask keeping the text.
     /// </summary>
-    static async Task AskWithoutAiAsync(IServiceProvider services, Window window, int books)
+    static async Task PlainSearchWithoutAiAsync(IServiceProvider services, Window window, int books)
     {
-        if (services.GetRequiredService<AskService>().IsReady) throw new InvalidOperationException("The Ask check expects AI to be off.");
+        if (services.GetRequiredService<PlainSearchService>().IsReady) throw new InvalidOperationException("The Ask check expects AI to be off.");
         var shell = services.GetRequiredService<ShellViewModel>();
         var search = services.GetRequiredService<SearchState>();
         var navigation = services.GetRequiredService<INavigationService>();
@@ -25,12 +25,12 @@ static partial class SmokeTest
         await Settle(window);
         var page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Ask check couldn't open the Library.");
         var box = (TextBox)window.FindName("Search");
-        var panel = (FrameworkElement)window.FindName("AskPanel");
-        var message = (TextBlock)window.FindName("AskMessage");
-        if (shell.Ask.IsOn || panel.IsVisible || search.IsSearching) throw new InvalidOperationException("Ask is on, or a search is running, before the Ask check.");
+        var panel = (FrameworkElement)window.FindName("PlainSearchPanel");
+        var message = (TextBlock)window.FindName("PlainSearchMessage");
+        if (shell.PlainSearch.IsOn || panel.IsVisible || search.IsSearching) throw new InvalidOperationException("Ask is on, or a search is running, before the Ask check.");
 
-        Click(window.FindName("AskButton") as Button, "Ask");
-        await WaitUntilAsync(window, () => shell.Ask is { IsOn: true, NeedsAi: true } && panel.IsVisible && message.Text == AskText.NeedsAi && Shown(window, "AskSetUpAi"),
+        Click(window.FindName("PlainSearchButton") as Button, "Ask");
+        await WaitUntilAsync(window, () => shell.PlainSearch is { IsOn: true, NeedsAi: true } && panel.IsVisible && message.Text == PlainSearchText.NeedsAi && Shown(window, "PlainSearchSetUpAi"),
             () => $"With AI off, the Ask button showed “{message.Text}” (panel showing {panel.IsVisible}), not that Ask needs AI with a link to set it up.");
 
         // A request is read on Enter, never searched as it is typed; without AI, Enter only says Ask needs AI.
@@ -39,13 +39,13 @@ static partial class SmokeTest
         await Settle(window);
         if (search.IsSearching) throw new InvalidOperationException($"Typing a request in Ask searched for “{search.Text}”.");
         Press(box, Key.Enter);
-        await WaitUntilAsync(window, () => shell.Ask is { NeedsAi: true, Parts.Count: 0 } && !search.IsSearching,
+        await WaitUntilAsync(window, () => shell.PlainSearch is { NeedsAi: true, Parts.Count: 0 } && !search.IsSearching,
             () => $"Enter in Ask with AI off left “{message.Text}” and searched {search.IsSearching}.");
         await AuditAsync(window, "Ask with AI off");
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskSetUpAi"), "Ask's Set AI up");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PlainSearchSetUpAi"), "Ask's Set AI up");
         await ExpectSettingsAsync(window, shell, SettingsSection.Ai, "Ask's Set AI up link");
-        await WaitUntilAsync(window, () => !shell.Ask.IsOn && !panel.IsVisible, () => "Following Ask's link to Settings > AI left Ask on.");
+        await WaitUntilAsync(window, () => !shell.PlainSearch.IsOn && !panel.IsVisible, () => "Following Ask's link to Settings > AI left Ask on.");
         navigation.GoBack();
         await Settle(window);
 
@@ -55,10 +55,10 @@ static partial class SmokeTest
             () => $"With Ask off, typing “dragon” searched for “{search.Text}”.");
 
         // Esc leaves Ask and keeps what was typed.
-        Click(window.FindName("AskButton") as Button, "Ask");
-        await WaitUntilAsync(window, () => shell.Ask.IsOn && panel.IsVisible, () => "The Ask button didn't turn Ask on again.");
+        Click(window.FindName("PlainSearchButton") as Button, "Ask");
+        await WaitUntilAsync(window, () => shell.PlainSearch.IsOn && panel.IsVisible, () => "The Ask button didn't turn Ask on again.");
         Press(box, Key.Escape);
-        await WaitUntilAsync(window, () => !shell.Ask.IsOn && !panel.IsVisible && box.Text == "dragon", () => $"Esc in Ask left Ask on {shell.Ask.IsOn} with “{box.Text}”.");
+        await WaitUntilAsync(window, () => !shell.PlainSearch.IsOn && !panel.IsVisible && box.Text == "dragon", () => $"Esc in Ask left Ask on {shell.PlainSearch.IsOn} with “{box.Text}”.");
 
         shell.ClearSearchCommand.Execute(null);
         page = shell.CurrentPage as LibraryViewModel ?? page;

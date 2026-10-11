@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>Where Ask is: waiting for a request, without AI, reading one, showing its reading, or stuck.</summary>
-public enum AskState
+public enum PlainSearchState
 {
     Waiting,
     NeedsAi,
@@ -24,7 +24,7 @@ public enum AskState
 /// One chip of Ask's reading: "system:" and an editable value, or "words:" for words to find. Its clause is what it
 /// adds to the search; a chip whose value is emptied adds nothing.
 /// </summary>
-public sealed partial class AskPartViewModel(InterpretedPart part) : ObservableObject
+public sealed partial class PlainSearchPartViewModel(InterpretedPart part) : ObservableObject
 {
     public SearchFieldInfo? Field { get; } = part.Field;
 
@@ -51,7 +51,7 @@ public sealed partial class AskPartViewModel(InterpretedPart part) : ObservableO
 /// puts them in the box as ordinary query text and runs it, so the syntax stays in view and can be changed too.
 /// Without AI, Ask says it needs it and links to Settings > AI, and the search box works as it always has.
 /// </summary>
-public sealed partial class AskViewModel(AskService ask, SettingsLinks settings, ILogger<AskViewModel> log) : ObservableObject
+public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch, SettingsLinks settings, ILogger<PlainSearchViewModel> log) : ObservableObject
 {
     /// <summary>Stops the request being read, while one is.</summary>
     Action? _cancel;
@@ -63,23 +63,23 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NeedsAi), nameof(IsReading), nameof(IsInterpreted), nameof(HasParts), nameof(Message))]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
-    public partial AskState State { get; private set; }
+    public partial PlainSearchState State { get; private set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Message))]
     public partial string? Problem { get; private set; }
 
-    public bool NeedsAi => State == AskState.NeedsAi;
+    public bool NeedsAi => State == PlainSearchState.NeedsAi;
 
-    public bool IsReading => State == AskState.Reading;
+    public bool IsReading => State == PlainSearchState.Reading;
 
     /// <summary>A reading is shown: its notes, and its chips while it has any.</summary>
-    public bool IsInterpreted => State == AskState.Interpreted;
+    public bool IsInterpreted => State == PlainSearchState.Interpreted;
 
-    public bool HasParts => State == AskState.Interpreted && Parts.Count > 0;
+    public bool HasParts => State == PlainSearchState.Interpreted && Parts.Count > 0;
 
     /// <summary>The chips: what will be searched for.</summary>
-    public ObservableCollection<AskPartViewModel> Parts { get; } = [];
+    public ObservableCollection<PlainSearchPartViewModel> Parts { get; } = [];
 
     /// <summary>What was changed or left out, and why.</summary>
     public ObservableCollection<string> Notes { get; } = [];
@@ -90,11 +90,11 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
     /// <summary>The line at the top of the Ask panel: what to do now, or what went wrong.</summary>
     public string Message => State switch
     {
-        AskState.NeedsAi => AskText.NeedsAi,
-        AskState.Reading => "Reading your question…",
-        AskState.Problem => Problem ?? "",
-        AskState.Interpreted when Parts.Count == 0 => "Nothing in that could be searched for. Try saying it another way.",
-        AskState.Interpreted => "Here's how that reads as a search. Change or remove anything, then press Search.",
+        PlainSearchState.NeedsAi => PlainSearchText.NeedsAi,
+        PlainSearchState.Reading => "Reading your question…",
+        PlainSearchState.Problem => Problem ?? "",
+        PlainSearchState.Interpreted when Parts.Count == 0 => "Nothing in that could be searched for. Try saying it another way.",
+        PlainSearchState.Interpreted => "Here's how that reads as a search. Change or remove anything, then press Search.",
         _ => "Describe what you're looking for, such as “a one-shot heist for 4 players in a city”, and press Enter.",
     };
 
@@ -105,7 +105,7 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
     {
         Cancel();
         Clear();
-        State = value && !ask.IsReady ? AskState.NeedsAi : AskState.Waiting;
+        State = value && !plainSearch.IsReady ? PlainSearchState.NeedsAi : PlainSearchState.Waiting;
     }
 
     /// <summary>The Ask button: Ask mode on or off.</summary>
@@ -129,27 +129,27 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
     {
         Cancel();
         Clear();
-        if (!ask.IsReady)
+        if (!plainSearch.IsReady)
         {
-            State = AskState.NeedsAi;
+            State = PlainSearchState.NeedsAi;
             return;
         }
         using var reading = new CancellationTokenSource();
         var cancel = _cancel = reading.Cancel;
-        State = AskState.Reading;
+        State = PlainSearchState.Reading;
         try
         {
-            var result = await ask.InterpretAsync(request, reading.Token);
+            var result = await plainSearch.InterpretAsync(request, reading.Token);
             if (reading.IsCancellationRequested) return;
             if (result.Interpretation is not { } interpretation)
             {
                 Problem = result.Problem;
-                State = ask.IsReady ? AskState.Problem : AskState.NeedsAi;
+                State = plainSearch.IsReady ? PlainSearchState.Problem : PlainSearchState.NeedsAi;
                 return;
             }
-            foreach (var part in interpretation.Parts) Add(new AskPartViewModel(part));
+            foreach (var part in interpretation.Parts) Add(new PlainSearchPartViewModel(part));
             foreach (var note in interpretation.Notes) Notes.Add(note);
-            State = AskState.Interpreted;
+            State = PlainSearchState.Interpreted;
             OnPropertyChanged(nameof(QueryText));
         }
         catch (OperationCanceledException) when (reading.IsCancellationRequested)
@@ -159,7 +159,7 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
         {
             log.LogError(ex, "Ask failed");
             Problem = "Something went wrong reading your question. Try again.";
-            State = AskState.Problem;
+            State = PlainSearchState.Problem;
         }
         finally
         {
@@ -174,11 +174,11 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
         if (_cancel is not { } cancel) return;
         _cancel = null;
         cancel();
-        if (State == AskState.Reading) State = AskState.Waiting;
+        if (State == PlainSearchState.Reading) State = PlainSearchState.Waiting;
     }
 
     [RelayCommand]
-    void Remove(AskPartViewModel part)
+    void Remove(PlainSearchPartViewModel part)
     {
         part.PropertyChanged -= OnPartChanged;
         Parts.Remove(part);
@@ -194,9 +194,9 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
         SearchRequested?.Invoke(this, text);
     }
 
-    bool CanSearch() => State == AskState.Interpreted && QueryText.Length > 0;
+    bool CanSearch() => State == PlainSearchState.Interpreted && QueryText.Length > 0;
 
-    void Add(AskPartViewModel part)
+    void Add(PlainSearchPartViewModel part)
     {
         part.PropertyChanged += OnPartChanged;
         Parts.Add(part);
@@ -213,7 +213,7 @@ public sealed partial class AskViewModel(AskService ask, SettingsLinks settings,
 
     void OnPartChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AskPartViewModel.Clause)) PartsChanged();
+        if (e.PropertyName == nameof(PlainSearchPartViewModel.Clause)) PartsChanged();
     }
 
     void PartsChanged()

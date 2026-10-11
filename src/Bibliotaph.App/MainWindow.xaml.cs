@@ -39,7 +39,7 @@ public partial class MainWindow : Window
         SearchGuide.DataContext = guide;
         DataContext = shell;
         shell.FocusPinRequested += (_, target) => FocusPin(target);
-        shell.Ask.PropertyChanged += OnAskChanged;
+        shell.PlainSearch.PropertyChanged += OnPlainSearchChanged;
         _about = about;
         CommandBindings.Add(new CommandBinding(ShellCommands.FocusSearch, (_, _) => FocusSearch()));
         CommandBindings.Add(new CommandBinding(ShellCommands.ShowShortcuts, (_, _) => shortcuts.Show(this)));
@@ -67,17 +67,17 @@ public partial class MainWindow : Window
     void Search_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (DataContext is not ShellViewModel shell) return;
-        if (shell.Ask.IsOn)
+        if (shell.PlainSearch.IsOn)
         {
             if (Keyboard.Modifiers != ModifierKeys.None) return;
             if (e.Key == Key.Enter)
             {
-                _ = shell.Ask.InterpretAsync(shell.SearchText);
+                _ = shell.PlainSearch.InterpretAsync(shell.SearchText);
                 e.Handled = true;
             }
             else if (e.Key == Key.Escape)
             {
-                shell.Ask.IsOn = false;
+                shell.PlainSearch.IsOn = false;
                 e.Handled = true;
             }
             return;
@@ -105,13 +105,13 @@ public partial class MainWindow : Window
     // ---- The search box's field guide -----------------------------------------------------------------------------
 
     /// <summary>The guide offers search syntax, which a request in plain English doesn't use, so it stays shut in Ask mode.</summary>
-    bool Asking => DataContext is ShellViewModel { Ask.IsOn: true };
+    bool InPlainSearch => DataContext is ShellViewModel { PlainSearch.IsOn: true };
 
     void HookUpSearchGuide()
     {
         Search.GotKeyboardFocus += (_, _) =>
         {
-            if (!Asking) _guide.Focused(Search.Text, Search.CaretIndex);
+            if (!InPlainSearch) _guide.Focused(Search.Text, Search.CaretIndex);
         };
         Search.LostKeyboardFocus += (_, _) =>
             // Wait for focus to settle: it may only be passing through, and a click on the guide leaves it in the box.
@@ -122,11 +122,11 @@ public partial class MainWindow : Window
         // Only typing steers the guide: a page clearing the search changes the text too, with the box elsewhere.
         Search.TextChanged += (_, _) =>
         {
-            if (!_applyingGuide && !Asking && Search.IsKeyboardFocused) _guide.TextChanged(Search.Text, Search.CaretIndex);
+            if (!_applyingGuide && !InPlainSearch && Search.IsKeyboardFocused) _guide.TextChanged(Search.Text, Search.CaretIndex);
         };
         Search.SelectionChanged += (_, _) =>
         {
-            if (!_applyingGuide && !Asking && Search.IsKeyboardFocused) _guide.CaretMoved(Search.Text, Search.CaretIndex);
+            if (!_applyingGuide && !InPlainSearch && Search.IsKeyboardFocused) _guide.CaretMoved(Search.Text, Search.CaretIndex);
         };
         // A popup doesn't move with its window, so it closes instead. A click elsewhere closes it too, even one on
         // something that doesn't take focus. (Clicks in the popup route here through it, and keep it open.)
@@ -203,9 +203,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Ask switched on puts the keyboard in the box for the request, with the guide shut.</summary>
-    void OnAskChanged(object? sender, PropertyChangedEventArgs e)
+    void OnPlainSearchChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AskViewModel.IsOn) || !Asking) return;
+        if (e.PropertyName != nameof(PlainSearchViewModel.IsOn) || !InPlainSearch) return;
         _guide.Close();
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
         {

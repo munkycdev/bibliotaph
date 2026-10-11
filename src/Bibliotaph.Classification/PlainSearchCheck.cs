@@ -28,7 +28,7 @@ public sealed record Interpretation(IReadOnlyList<InterpretedPart> Parts, IReadO
 /// What Ask checks a reading against: the vocabulary, and the game systems and editions whose books in the library
 /// are all marked as having no levels (<c>("system", "mothership")</c>), so a level asked of one of them is ignored.
 /// </summary>
-public sealed record AskContext(Vocabulary Vocabulary, IReadOnlyCollection<(string Field, string Key)> WithoutLevels);
+public sealed record PlainSearchContext(Vocabulary Vocabulary, IReadOnlyCollection<(string Field, string Key)> WithoutLevels);
 
 /// <summary>
 /// The check every reading of a request goes through before it is shown (scenario review, row 5). A field the search
@@ -39,7 +39,7 @@ public sealed record AskContext(Vocabulary Vocabulary, IReadOnlyCollection<(stri
 /// system whose books have no levels is ignored. Every change is said in a note, and each chip is parsed by the search
 /// box's own parser before it is kept. Explicit filters are never loosened, and nothing unknown is filled in.
 /// </summary>
-public static class AskCheck
+public static class PlainSearchCheck
 {
     /// <summary>A value longer than this is a sentence, not a search.</summary>
     const int MaxValueLength = 80;
@@ -58,9 +58,9 @@ public static class AskCheck
     /// <summary>Fields that hold one value, so a second one would find nothing.</summary>
     static readonly HashSet<SearchField> OneValue = [SearchField.Level, SearchField.Players, SearchField.Favorite, SearchField.Format];
 
-    public static Interpretation Check(string request, IReadOnlyList<AskClaim> claims, AskContext context)
+    public static Interpretation Check(string request, IReadOnlyList<PlainSearchClaim> claims, PlainSearchContext context)
     {
-        var requestWords = MetadataText.Words(MetadataText.Normalize(AskPrompt.Trim(request)));
+        var requestWords = MetadataText.Words(MetadataText.Normalize(PlainSearchPrompt.Trim(request)));
         var parts = new List<InterpretedPart>();
         var notes = new List<string>();
         // The term each kept vocabulary chip names, for the checks after the loop.
@@ -75,13 +75,13 @@ public static class AskCheck
                 notes.Add("Part of the answer was too long to be a search, so it was left out.");
                 continue;
             }
-            if (claim.Field == AskPrompt.Words)
+            if (claim.Field == PlainSearchPrompt.Words)
             {
                 if (FromRequest(value, requestWords)) Add(new InterpretedPart(null, value, claim.Exclude));
                 else notes.Add($"“{value}” isn't in what you asked, so it was left out.");
                 continue;
             }
-            if (AskPrompt.Find(claim.Field) is not { Field: var field })
+            if (PlainSearchPrompt.Find(claim.Field) is not { Field: var field })
             {
                 notes.Add($"Ask doesn't search by “{MetadataText.Tidy(claim.Field)}”, so “{value}” was left out.");
                 continue;

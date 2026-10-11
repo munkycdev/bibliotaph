@@ -9,26 +9,26 @@ using Bibliotaph.Core.Search;
 namespace Bibliotaph.Classification;
 
 /// <summary>A search field Ask may fill, with what the model reads about it.</summary>
-public sealed record AskField(SearchFieldInfo Field, string Definition)
+public sealed record PlainSearchField(SearchFieldInfo Field, string Definition)
 {
     public string Name => Field.Name;
 }
 
 /// <summary>
 /// One piece of the model's reading of a request, unchecked: a search field's name and a value for it, or
-/// <see cref="AskPrompt.Words"/> and words to find; <see cref="Exclude"/> when the request asks to leave it out.
+/// <see cref="PlainSearchPrompt.Words"/> and words to find; <see cref="Exclude"/> when the request asks to leave it out.
 /// </summary>
-public sealed record AskClaim(string Field, string Value, bool Exclude);
+public sealed record PlainSearchClaim(string Field, string Value, bool Exclude);
 
 /// <summary>
 /// Ask's prompt (scenario review, row 5): the second prompt beside <see cref="ClassifierPrompt"/>, which turns a
 /// request in plain English ("Mothership, level 4, jungle world with terraforming") into the search box's own fields
 /// and words. It is guarded as the classifier's is (A16): the system message holds the rules, the fields and the
 /// vocabulary's names; the user's words go only in the user message, inside <see cref="RequestTag"/> tags; and the
-/// answer can only fill <see cref="SchemaJson"/>. <see cref="AskCheck"/> then checks every field and value before
+/// answer can only fill <see cref="SchemaJson"/>. <see cref="PlainSearchCheck"/> then checks every field and value before
 /// anything is shown. Changing the wording or the fields bumps <see cref="Version"/>.
 /// </summary>
-public static partial class AskPrompt
+public static partial class PlainSearchPrompt
 {
     /// <summary>1: the first version.</summary>
     public const int Version = 1;
@@ -52,7 +52,7 @@ public static partial class AskPrompt
     /// The fields the model may use. Your tags, collections and folders are left out: the model knows none of their
     /// names, and a request in plain English rarely means them.
     /// </summary>
-    public static IReadOnlyList<AskField> Fields { get; } =
+    public static IReadOnlyList<PlainSearchField> Fields { get; } =
     [
         new(SearchFields.System, "The game system, from the list. An edition's name works too."),
         new(SearchFields.Edition, "The edition of a game system, from the list, only when the request names one."),
@@ -74,10 +74,10 @@ public static partial class AskPrompt
         new(SearchFields.Format, "pdf, or image for pictures and maps as image files."),
     ];
 
-    static readonly Dictionary<string, AskField> ByName = Fields.ToDictionary(f => f.Name, StringComparer.OrdinalIgnoreCase);
+    static readonly Dictionary<string, PlainSearchField> ByName = Fields.ToDictionary(f => f.Name, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The field Ask may fill by that name, or null.</summary>
-    public static AskField? Find(string name) => ByName.GetValueOrDefault(name);
+    public static PlainSearchField? Find(string name) => ByName.GetValueOrDefault(name);
 
     /// <summary>
     /// The answer's JSON schema: filters, each a field from <see cref="Fields"/> and a value, and words to find, each
@@ -170,7 +170,7 @@ public static partial class AskPrompt
 
     /// <summary>The claims in a model's answer, filters first. Anything the schema doesn't describe is ignored.</summary>
     /// <exception cref="ClassifierAnswerException">The answer isn't a JSON object.</exception>
-    public static IReadOnlyList<AskClaim> ParseAnswer(string content)
+    public static IReadOnlyList<PlainSearchClaim> ParseAnswer(string content)
     {
         JsonElement root;
         try
@@ -184,14 +184,14 @@ public static partial class AskPrompt
         }
         if (root.ValueKind != JsonValueKind.Object) throw new ClassifierAnswerException("The model's answer wasn't a JSON object.");
 
-        var claims = new List<AskClaim>();
+        var claims = new List<PlainSearchClaim>();
         foreach (var item in Items(root, "filters").Take(MaxFilters))
         {
-            if (Text(item, "field") is { } field && Text(item, "value") is { } value) claims.Add(new AskClaim(field, value, Exclude(item)));
+            if (Text(item, "field") is { } field && Text(item, "value") is { } value) claims.Add(new PlainSearchClaim(field, value, Exclude(item)));
         }
         foreach (var item in Items(root, Words).Take(MaxWords))
         {
-            if (Text(item, "text") is { } words) claims.Add(new AskClaim(Words, words, Exclude(item)));
+            if (Text(item, "text") is { } words) claims.Add(new PlainSearchClaim(Words, words, Exclude(item)));
         }
         return claims;
 
