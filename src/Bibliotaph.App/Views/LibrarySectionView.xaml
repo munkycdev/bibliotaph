@@ -98,6 +98,16 @@
       </DockPanel>
     </Border>
 
+    <!-- Online libraries plan, choice 12: the badge on a book owned online shows its site's own icon, fetched once. -->
+    <CheckBox x:Name="ShowSiteIcons" Margin="0,20,0,0" IsChecked="{Binding ShowSiteIcons}" VerticalContentAlignment="Top"
+              Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Show site icons">
+      <StackPanel Margin="4,0,0,0">
+        <TextBlock Text="Show site icons" FontSize="12" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                   Text="A book you own online shows its site's icon, such as D&amp;D Beyond's, in the corner of its cover. Bibliotaph fetches each site's icon once and keeps it. Off, a plain cloud shows and nothing is fetched." />
+      </StackPanel>
+    </CheckBox>
+
     <!-- Folder names read as labels, each of which can be switched off. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
       <StackPanel>

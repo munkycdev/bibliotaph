@@ -61,8 +61,8 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
 /// <summary>An image in a pack: the document it shows, its own entry and its file name.</summary>
 public sealed record EntryMemberRow(long DocumentId, EntryId MemberEntryId, string Name);
 
-/// <summary>One value of a vocabulary field: a term key and its label.</summary>
-public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed);
+/// <summary>One value of a vocabulary field: a term key and its label, and its web link when it has one (own, store).</summary>
+public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed, string? Link = null);
 
 /// <summary>Whether a document's levels are known, known not to apply, or unknown.</summary>
 public enum LevelState
@@ -394,8 +394,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.ConfirmedText,
                         row.ProvisionalText,
                     }, t);
-                c.Execute("INSERT INTO entry_facet (entry_id, field, value, label, confirmed) VALUES (@entryId, @Field, @Value, @Label, @Confirmed)",
-                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { entryId, f.Field, f.Value, f.Label, f.Confirmed }), t);
+                c.Execute("INSERT INTO entry_facet (entry_id, field, value, label, confirmed, link) VALUES (@entryId, @Field, @Value, @Label, @Confirmed, @Link)",
+                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { entryId, f.Field, f.Value, f.Label, f.Confirmed, f.Link }), t);
                 RefreshEntrySearch(c, t, entryId);
             }
         }, ct);

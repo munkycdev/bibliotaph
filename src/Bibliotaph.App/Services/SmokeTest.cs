@@ -118,7 +118,7 @@ static partial class SmokeTest
             await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
                 () => UseSmartViewsAsync(services, window, books));
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
-            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back, and one offered a file already in the library",
+            await Check("a book owned elsewhere added, found by where it is owned, given a D&D Beyond link it opens with its site's icon on its badge, removed and brought back, and one offered a file already in the library",
                 () => AddElsewhereAsync(services, window, books));
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
@@ -2340,6 +2340,8 @@ static partial class SmokeTest
         search.Search("");
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books + 1, () => "Clearing the search didn't bring the library back.");
 
+        await UseOnlineLinkAsync(services, window, page, card, books);
+
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveFromLibrary"), "Remove from library");
@@ -2388,6 +2390,48 @@ static partial class SmokeTest
         page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was after the second book.");
+    }
+
+    /// <summary>
+    /// Online libraries (O1): the book owned elsewhere gets a D&amp;D Beyond link in Also own. Its card opens the link
+    /// (through the smoke test's launcher, so no browser starts), its badge shows the site's icon, the details offer
+    /// Open on D&amp;D Beyond, and where: and On this PC tell it from the books with files.
+    /// </summary>
+    static async Task UseOnlineLinkAsync(IServiceProvider services, Window window, LibraryViewModel page, LibraryItemViewModel card, int books)
+    {
+        const string Link = "https://www.dndbeyond.com/sources/dnd/smoke-atlas";
+        var problem = await services.GetRequiredService<MetadataService>().SetAsync(card.EntryId, MetadataFields.AlsoOwn, $"Print, {Link}");
+        if (problem is not null) throw new InvalidOperationException($"Also own refused the link: {problem.Message}");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => card.OpensOnline && card.BadgeLabel == "D&D Beyond",
+            () => $"The card has no online link after Also own got one (badge “{card.BadgeLabel}”).");
+        await WaitUntilAsync(window, () => card.SiteIcon is not null, () => "The card's badge has no site icon.");
+        if (!page.OpenBookCommand.CanExecute(card)) throw new InvalidOperationException("A book owned online can't be opened.");
+
+        var launcher = services.GetRequiredService<IShellLauncher>() as SmokeShellLauncher
+            ?? throw new InvalidOperationException("The smoke test has no stand-in launcher.");
+        var opened = launcher.Opened.Count;
+        await page.OpenBookCommand.ExecuteAsync(card);
+        if (launcher.Opened.Count != opened + 1 || launcher.Opened[^1] != Link)
+            throw new InvalidOperationException($"Open didn't open the book's page: {string.Join(", ", launcher.Opened.Skip(opened))}");
+        await Settle(window);
+        await AuditAsync(window, "a book owned online, with its site's badge");
+
+        await page.OpenDetailsCommand.ExecuteAsync(card);
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OpenOnline" && b.IsVisible), "Open on D&D Beyond");
+        await WaitUntilAsync(window, () => launcher.Opened.Count == opened + 2, () => "Open on D&D Beyond in the details didn't open the page.");
+        page.CloseDetailsCommand.Execute(null);
+
+        var search = services.GetRequiredService<SearchState>();
+        search.Search("where:elsewhere");
+        await WaitUntilAsync(window, () => page.Items is [{ OpensOnline: true }], () => "where:elsewhere didn't find only the book owned online.");
+        search.Search("");
+        await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books + 1, () => "Clearing where: didn't bring the library back.");
+        page.KindChoice = page.KindChoices.Single(c => c.Value == KindFilter.Here);
+        await WaitUntilAsync(window, () => page.Items.Count == books && page.Items.All(i => !i.IsElsewhere), () => "On this PC still shows the book owned online.");
+        page.KindChoice = page.KindChoices[0];
+        await WaitUntilAsync(window, () => page.Items.Count == books + 1, () => "All kinds didn't bring the book owned online back.");
     }
 
     /// <summary>

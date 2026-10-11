@@ -36,6 +36,7 @@ public partial class LibraryView
         Loaded += (_, _) => Attach(DataContext as LibraryViewModel);
         AddBookCommand(BookCommands.Open, m => m.OpenBookCommand);
         AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
+        AddBookCommand(BookCommands.OpenOnline, m => m.OpenOnlineCommand);
         AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
         AddBookCommand(BookCommands.Ask, m => m.AskBookCommand);
         AddBookCommand(BookCommands.ToggleFavorite, m => m.ToggleFavoriteCommand);

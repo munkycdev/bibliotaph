@@ -58,6 +58,15 @@ public sealed record LibraryEntry(
     /// <summary>For a file, how many adventures are marked in it: "5 adventures" (slice 5 plan, choice 9).</summary>
     public int Parts { get; init; }
 
+    /// <summary>
+    /// The book's page where the user owns it online, from its first Also own place with a link ("D&amp;D Beyond",
+    /// online libraries, O1): a card owned elsewhere opens it, and any card offers "Open on D&amp;D Beyond".
+    /// </summary>
+    public string? OnlineLink { get; init; }
+
+    /// <summary>The place <see cref="OnlineLink"/> is on: "D&amp;D Beyond".</summary>
+    public string? OnlineLabel { get; init; }
+
     /// <summary>"in The Big Compilation · pp. 34–52", for an adventure's card; null for any other.</summary>
     public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
@@ -88,6 +97,8 @@ public enum KindFilter
     Packs,
     /// <summary>Books owned elsewhere, with no file (F5 plan, choice 8).</summary>
     Elsewhere,
+    /// <summary>Everything with a file on this PC: books, images and packs, but no book owned only elsewhere (online libraries, O1).</summary>
+    Here,
 }
 
 /// <summary>The AI choice in the filter panel: books a model has read, or those it hasn't yet.</summary>
@@ -190,6 +201,8 @@ public sealed class LibraryQueries(IndexDatabase database)
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
         (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn,
+        (SELECT ol.link FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLink,
+        (SELECT ol.label FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLabel,
         EXISTS (SELECT 1 FROM entry_scope fs WHERE fs.scope = 'favorite' AND fs.entry_id = e.entry_id) AS Favorite, o.opened_utc AS OpenedUtc,
         e.parent_id AS ParentId, e.first_page AS FirstPage, e.last_page AS LastPage, e.parts AS Parts,
         CASE WHEN e.parent_id IS NOT NULL THEN (
@@ -562,6 +575,8 @@ public sealed class LibraryQueries(IndexDatabase database)
             FirstLabel = r.FirstLabel,
             LastLabel = r.LastLabel,
             Parts = (int)r.Parts,
+            OnlineLink = r.OnlineLink,
+            OnlineLabel = r.OnlineLabel,
         })];
 
     /// <summary>
@@ -626,6 +641,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }
         public string? AlsoOwn { get; init; }
+        public string? OnlineLink { get; init; }
+        public string? OnlineLabel { get; init; }
         public long Favorite { get; init; }
         public string? OpenedUtc { get; init; }
         public long? ParentId { get; init; }
@@ -694,10 +711,15 @@ public sealed class LibraryQueries(IndexDatabase database)
                 case KindFilter.Packs:
                     _sql.Append(" AND e.kind = 'Pack'");
                     break;
+                case KindFilter.Here:
+                    _sql.Append(" AND e.kind <> 'Elsewhere'");
+                    break;
                 case KindFilter.Elsewhere:
                     _sql.Append(" AND e.kind = 'Elsewhere'");
                     break;
             }
+
+            foreach (var where in plan.Wheres) _sql.Append(where.Elsewhere ? " AND e.kind = 'Elsewhere'" : " AND e.kind <> 'Elsewhere'");
 
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
             if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
