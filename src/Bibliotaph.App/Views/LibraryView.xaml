@@ -107,8 +107,18 @@
         <DockPanel Margin="0,0,42,24">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
                       Visibility="{Binding ShowsLibraryActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <Button x:Name="AddElsewhere" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
-                    Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
+            <!-- Books with no file here: one added by hand, or a whole online library imported (online libraries, O2). -->
+            <Button x:Name="OwnedElsewhere" Content="Owned elsewhere" c:Ui.Icon="{StaticResource Icon.Cloud}" Margin="0,0,8,0" Click="DropDown_Click"
+                    ToolTip="Books you own in print, on a virtual tabletop or on an online service, with no file here">
+              <Button.ContextMenu>
+                <ContextMenu Style="{StaticResource Bt.Menu}">
+                  <MenuItem x:Name="AddElsewhere" Header="Add a book I own elsewhere…" Command="{Binding AddElsewhereCommand}"
+                            AutomationProperties.Name="Add a book I own elsewhere" />
+                  <MenuItem x:Name="OnlineLibraries" Header="Import from an online library…" Command="{Binding OpenOnlineLibrariesCommand}"
+                            AutomationProperties.Name="Import from an online library" />
+                </ContextMenu>
+              </Button.ContextMenu>
+            </Button>
             <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
                     Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
             <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />

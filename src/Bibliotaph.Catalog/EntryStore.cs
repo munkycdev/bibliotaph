@@ -29,6 +29,9 @@ public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind 
 
     /// <summary>When a book owned elsewhere was added; a file's card goes by its document's.</summary>
     public DateTime? AddedUtc { get; init; }
+
+    /// <summary>A book owned elsewhere's <see cref="Entities.Entry.SyncId"/>, which names its cover from an online library.</summary>
+    public Guid? SyncId { get; init; }
 }
 
 /// <summary>An image in a pack: its own entry, the document it shows, and its file name.</summary>
@@ -182,8 +185,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
 
         var elsewhere = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any());
         if (ids is not null) elsewhere = elsewhere.Where(e => ids.Contains(e.Id));
-        current.AddRange((await elsewhere.Select(e => new { e.Id, e.CreatedUtc }).ToListAsync(ct))
-            .Select(e => new EntryDocument(new EntryId(e.Id), null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = e.CreatedUtc }));
+        current.AddRange((await elsewhere.Select(e => new { e.Id, e.CreatedUtc, e.SyncId }).ToListAsync(ct))
+            .Select(e => new EntryDocument(new EntryId(e.Id), null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = e.CreatedUtc, SyncId = e.SyncId }));
         return current;
     }
 

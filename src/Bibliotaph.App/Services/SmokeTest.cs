@@ -123,6 +123,7 @@ static partial class SmokeTest
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
+            await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
                 () => ReviewRevisionAsync(services, window));
@@ -2310,7 +2311,7 @@ static partial class SmokeTest
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog.");
         var dialog = page.AddElsewhereDialog!;
         dialog.Title = Title;
@@ -2362,7 +2363,7 @@ static partial class SmokeTest
             .First(p => p.RelativePath.EndsWith("Gazetteer of the Marches.pdf", StringComparison.Ordinal)).DocumentId;
         var file = page.Items.FirstOrDefault(i => !i.IsPack && !i.IsElsewhere && i.DocumentId == gazetteer)
             ?? throw new InvalidOperationException("The gazetteer's card isn't in the Library.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog again.");
         var second = page.AddElsewhereDialog!;
         second.Title = file.Title;

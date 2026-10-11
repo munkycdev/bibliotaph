@@ -1,0 +1,302 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Windows;
+using Bibliotaph.App.Services;
+using Bibliotaph.Core.Metadata;
+using Bibliotaph.Processing;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
+
+namespace Bibliotaph.App.ViewModels;
+
+/// <summary>
+/// Library &gt; Online libraries (online libraries plan, choice 1): the services a library page can be read from, the
+/// preview of what importing it does (choice 6), the import with Undo, and the books from earlier imports the page no
+/// longer lists (choice 7). One page for the whole app, so a preview is still here after a look at the Library.
+/// </summary>
+public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, ILogger<OnlineLibrariesViewModel> log)
+    : PageViewModel
+{
+    OnlinePage? _page;
+    Func<string, CancellationToken, Task<byte[]?>>? _covers;
+    Func<Task>? _undo;
+
+    public override Route Route => Route.OnlineLibraries;
+
+    public override string Title => "Online libraries";
+
+    public override string Section => "Library";
+
+    public override Route? SectionRoute => Route.Library;
+
+    /// <summary>The services, in the order the readers are listed.</summary>
+    public IReadOnlyList<OnlineServiceViewModel> Services { get; } = [.. imports.Readers.Select(r => new OnlineServiceViewModel(r))];
+
+    /// <summary>The preview, grouped by what importing does, new books first.</summary>
+    public ObservableCollection<OnlineGroupViewModel> Groups { get; } = [];
+
+    /// <summary>Books from earlier imports the page doesn't list any more, each with Remove from library.</summary>
+    public ObservableCollection<MissingBookViewModel> Missing { get; } = [];
+
+    /// <summary>The plan the preview shows: its reader, its rows and the books missing.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPlan))]
+    [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
+    public partial OnlineImportPlan? Plan { get; private set; }
+
+    public bool HasPlan => Plan is not null;
+
+    public bool HasMissing => Missing.Count > 0;
+
+    /// <summary>"Your D&amp;D Beyond library: 30 books. 2 books shared with you were left out."</summary>
+    [ObservableProperty]
+    public partial string Summary { get; private set; } = "";
+
+    /// <summary>Why a page couldn't be read.</summary>
+    [ObservableProperty]
+    public partial string? Problem { get; private set; }
+
+    /// <summary>What the last import or removal did, with Undo beside it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUndo))]
+    public partial string? Message { get; private set; }
+
+    public bool CanUndo => Message is not null && _undo is not null;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportCommand), nameof(UndoCommand))]
+    public partial bool IsBusy { get; private set; }
+
+    /// <summary>"Import 12 books", for the books ticked.</summary>
+    public string ImportLabel => Chosen.Count switch
+    {
+        0 => "Import",
+        1 => "Import 1 book",
+        var n => $"Import {n.ToString("N0", CultureInfo.CurrentCulture)} books",
+    };
+
+    IReadOnlyList<OnlineImportRow> Chosen => [.. Groups.SelectMany(g => g.Items).Where(i => i.CanChoose && i.IsChosen).Select(i => i.Row)];
+
+    [RelayCommand]
+    Task ImportSavedPageAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import a library page you saved",
+            Filter = "Web pages (*.html;*.htm)|*.html;*.htm",
+        };
+        return dialog.ShowDialog(Application.Current.MainWindow) == true ? ReadSavedPageAsync(dialog.FileName) : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Reads a library page saved with Save as, Webpage complete, and shows what importing it does. Its covers are the
+    /// images saved beside it.
+    /// </summary>
+    public async Task ReadSavedPageAsync(string path)
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        Problem = null;
+        try
+        {
+            var saved = await Task.Run(() => imports.ReadSavedPageAsync(path));
+            if (saved is null)
+            {
+                Problem = "That page isn't a library page Bibliotaph can read. Open your library on the service, sign in if asked, "
+                    + "and save the page with Save as, choosing Webpage, complete.";
+                return;
+            }
+            _page = saved.Page;
+            _covers = imports.SavedCovers(saved.Images);
+            Message = null;
+            _undo = null;
+            await ShowPlanAsync(saved.Reader, saved.Page);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            log.LogWarning(ex, "A saved library page couldn't be read");
+            Problem = $"The page couldn't be read: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    async Task ShowPlanAsync(IOnlineLibraryReader reader, OnlinePage page)
+    {
+        var plan = await Task.Run(() => imports.PlanAsync(reader, page));
+        Groups.Clear();
+        foreach (var outcomes in plan.Rows.GroupBy(r => r.Outcome).OrderBy(g => g.Key))
+        {
+            var group = new OnlineGroupViewModel(outcomes.Key, reader.Name);
+            foreach (var row in outcomes) group.Items.Add(new OnlineRowViewModel(row, this));
+            Groups.Add(group);
+        }
+        Missing.Clear();
+        foreach (var book in plan.Missing) Missing.Add(new MissingBookViewModel(book, this));
+        OnPropertyChanged(nameof(HasMissing));
+
+        static string Books(int n) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {(n == 1 ? "book" : "books")}";
+        var shared = page.Shared switch
+        {
+            0 => "",
+            1 => " 1 book shared with you was left out.",
+            var n => $" {Books(n)} shared with you were left out.",
+        };
+        Summary = $"Your {reader.Name} library: {Books(plan.Rows.Count)}.{shared}";
+        Plan = plan;
+        ChoiceChanged();
+    }
+
+    internal void ChoiceChanged()
+    {
+        OnPropertyChanged(nameof(ImportLabel));
+        ImportCommand.NotifyCanExecuteChanged();
+    }
+
+    bool CanImport() => !IsBusy && Plan is not null && Chosen.Count > 0;
+
+    /// <summary>Imports the books ticked, in one go, then shows the page again as it now stands.</summary>
+    [RelayCommand(CanExecute = nameof(CanImport))]
+    async Task ImportAsync()
+    {
+        if (Plan is not { } plan || _page is not { } page) return;
+        IsBusy = true;
+        try
+        {
+            var chosen = Chosen;
+            var result = await Task.Run(() => imports.ImportAsync(plan, chosen, _covers));
+            _undo = async () =>
+            {
+                await Task.Run(() => imports.UndoAsync(result.Undo));
+                await ShowPlanAsync(plan.Reader, page);
+            };
+            Message = (result.Added, result.Changed) switch
+            {
+                (0, 0) => "Nothing needed changing.",
+                (var added, 0) => $"Added {Count(added, "book")} owned on {plan.Reader.Name}.",
+                (0, var changed) => $"Updated {Count(changed, "card")} already in your library.",
+                var (added, changed) => $"Added {Count(added, "book")} owned on {plan.Reader.Name} and updated {Count(changed, "card")} already in your library.",
+            };
+            await ShowPlanAsync(plan.Reader, page);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    static string Count(int n, string noun) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {noun}{(n == 1 ? "" : "s")}";
+
+    [RelayCommand(CanExecute = nameof(CanRunUndo))]
+    async Task UndoAsync()
+    {
+        if (_undo is not { } undo) return;
+        IsBusy = true;
+        try
+        {
+            _undo = null;
+            await undo();
+            Message = null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    bool CanRunUndo() => !IsBusy;
+
+    /// <summary>Removes a book the library page no longer lists, with Undo (choice 7: never on its own).</summary>
+    internal async Task RemoveAsync(MissingBookViewModel book)
+    {
+        if (await elsewhere.RemoveAsync(book.Book.EntryId) is not { } removed) return;
+        Missing.Remove(book);
+        OnPropertyChanged(nameof(HasMissing));
+        _undo = async () =>
+        {
+            await elsewhere.UndoRemoveAsync(removed);
+            if (Plan is { } plan && _page is { } page) await ShowPlanAsync(plan.Reader, page);
+        };
+        Message = $"Removed {book.Title} from your library.";
+        OnPropertyChanged(nameof(CanUndo));
+    }
+
+    /// <summary>A field's name as the preview says it: "Edition".</summary>
+    internal static string Describe(IReadOnlyList<MetadataField> fields) => string.Join(", ", fields.Select(f => f.Label));
+}
+
+/// <summary>A service on the Online libraries page: its name and where its library is.</summary>
+public sealed class OnlineServiceViewModel(IOnlineLibraryReader reader)
+{
+    public IOnlineLibraryReader Reader { get; } = reader;
+
+    public string Name => Reader.Name;
+
+    public string Explanation => $"Open your library at {Reader.LibraryPage.Host}, signed in, and save the page with Save as, choosing Webpage, complete. "
+        + "Then import the saved page here. Only books you own are imported.";
+}
+
+/// <summary>The preview's books with one outcome.</summary>
+public sealed class OnlineGroupViewModel(OnlineOutcome outcome, string service)
+{
+    public OnlineOutcome Outcome { get; } = outcome;
+
+    public string Label { get; } = outcome switch
+    {
+        OnlineOutcome.New => "New",
+        OnlineOutcome.AddToCard => "Already in your library",
+        OnlineOutcome.Update => "Imported before, with more to fill in",
+        _ => "Imported before",
+    };
+
+    public string Explanation { get; } = outcome switch
+    {
+        OnlineOutcome.New => "Each becomes a book owned elsewhere, opening on " + service + ".",
+        OnlineOutcome.AddToCard => $"A card with its title is here already: it gets {service} and the link, rather than a second card.",
+        OnlineOutcome.Update => "Only fields that are empty are filled. Nothing you have set changes.",
+        _ => "Nothing to change.",
+    };
+
+    public ObservableCollection<OnlineRowViewModel> Items { get; } = [];
+
+    public string Heading => $"{Label} · {Items.Count.ToString("N0", CultureInfo.CurrentCulture)}";
+}
+
+/// <summary>A book in the preview, ticked to import unless there is nothing to do.</summary>
+public sealed partial class OnlineRowViewModel(OnlineImportRow row, OnlineLibrariesViewModel page) : ObservableObject
+{
+    public OnlineImportRow Row { get; } = row;
+
+    public string Title => Row.Book.Title;
+
+    public bool CanChoose => Row.Outcome != OnlineOutcome.Unchanged;
+
+    [ObservableProperty]
+    public partial bool IsChosen { get; set; } = row.Outcome != OnlineOutcome.Unchanged;
+
+    partial void OnIsChosenChanged(bool value) => page.ChoiceChanged();
+
+    /// <summary>"Gilded Press · adventure · 5e · 2019", "Goes on your card The Ember Vault", "Fills Edition, Type".</summary>
+    public string Detail => Row.Outcome switch
+    {
+        OnlineOutcome.AddToCard when Row.CardTitle != Title => $"Goes on your card {Row.CardTitle}.",
+        OnlineOutcome.AddToCard => "Goes on its card.",
+        OnlineOutcome.Update => $"Fills {OnlineLibrariesViewModel.Describe(Row.Fills)}.",
+        _ => string.Join(" · ", new object?[] { Row.Book.Publisher, Row.Book.Type, Row.Book.Edition, Row.Book.Year }.OfType<object>()),
+    };
+}
+
+/// <summary>A book from an earlier import the page doesn't list any more.</summary>
+public sealed partial class MissingBookViewModel(MissingBook book, OnlineLibrariesViewModel page)
+{
+    public MissingBook Book { get; } = book;
+
+    public string Title => Book.Title;
+
+    [RelayCommand]
+    Task RemoveAsync() => page.RemoveAsync(this);
+}
