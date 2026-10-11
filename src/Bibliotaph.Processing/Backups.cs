@@ -23,7 +23,7 @@ public sealed record BackupManifest
 
     public int Format { get; init; } = CurrentFormat;
 
-    /// <summary>The Bibliotaph that made it, as "0.4.0+4578ab9…".</summary>
+    /// <summary>The Bibliotaph that made it, as "1.0.0+4578ab9…".</summary>
     public required string App { get; init; }
 
     /// <summary>The catalog's latest migration: its schema.</summary>

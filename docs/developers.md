@@ -96,7 +96,7 @@ python tools\AppIcon\make_icon.py
 
 ## Releases
 
-A version tag `v0.N.P` (N the slice, P the release within it) runs `.github/workflows/release.yml`: every CI check,
+A version tag `vMAJOR.MINOR.PATCH` (such as `v1.0.0`) runs `.github/workflows/release.yml`: every CI check,
 a self-contained win-x64 publish, Velopack's pack, and a draft GitHub Release holding `BibliotaphApp-win-Setup.exe`
 and the update files. Nothing is public until someone presses Publish on the draft. Installed copies update from
 published releases only. See "Installer", "Releases" and "Updates" in [architecture.md](architecture.md).
