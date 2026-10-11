@@ -58,6 +58,19 @@ public sealed class OnlineLibrariesTests
     }
 
     [Fact]
+    public void A_library_read_page_by_page_builds_up_with_each_book_once()
+    {
+        var first = new OnlinePage([new("Ember Vault", "https://www.dndbeyond.com/sources/dnd/ember-vault")], 1, Complete: false);
+        var second = new OnlinePage([new("Ember Vault", "https://www.dndbeyond.com/sources/dnd/EMBER-VAULT"), new("Atlas", "https://www.dndbeyond.com/sources/dnd/atlas")],
+            0, Complete: true);
+
+        var both = first.With(second);
+
+        Assert.Equal(["Ember Vault", "Atlas"], both.Books.Select(b => b.Title));
+        Assert.Equal((1, true), (both.Shared, both.Complete));
+    }
+
+    [Fact]
     public void A_library_with_nothing_owned_is_read_as_empty()
     {
         var page = new DndBeyondReader().Read(Page($$"""2e:{"sources":[{{Source(3, "Not Bought", owned: false)}}]}""" + "\n"));

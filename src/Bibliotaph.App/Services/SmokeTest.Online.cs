@@ -66,8 +66,52 @@ static partial class SmokeTest
             () => $"Undo left “{page.Message}”.");
         cards = await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible)));
         if (cards.Count != books) throw new InvalidOperationException($"After Undo the library has {cards.Count} cards, not {books}.");
+
+        await ReadInBrowserAsync(window, page, saved);
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// The in-app browser opened at the made-up page instead of D&amp;D Beyond's: Read this page lights up once the
+    /// reader recognises it, and pressing it shows its books in the preview. Pressed again, the same books count once.
+    /// </summary>
+    static async Task ReadInBrowserAsync(Window window, OnlineLibrariesViewModel page, string saved)
+    {
+        if (OnlineBrowsers.RuntimeVersion is null)
+        {
+            Log.Warning("Smoke test: there is no WebView2 Runtime, so the in-app browser is left out");
+            return;
+        }
+        var browser = page.OpenBrowser(page.Services[0].Reader, new Uri(saved)) ?? throw new InvalidOperationException($"The browser didn't open: {page.Problem}");
+        try
+        {
+            // The browser's first start takes a while on a fresh profile.
+            var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency * 60;
+            while (!browser.State.CanRead)
+            {
+                if (System.Diagnostics.Stopwatch.GetTimestamp() > deadline)
+                    throw new InvalidOperationException($"Read this page didn't light up on the saved page: “{browser.State.Status}”");
+                await Task.Delay(200);
+            }
+            await AuditAsync(browser, "the in-app browser on a library page");
+
+            for (var time = 1; time <= 2; time++)
+            {
+                var before = browser.State.Status;
+                Click(Descendants<Button>(browser).FirstOrDefault(b => b.Name == "ReadPage"), "Read this page");
+                await WaitUntilAsync(window, () => browser.State.Status != before && browser.State.CanRead,
+                    () => $"Read this page said “{browser.State.Status}”.");
+                if (!browser.State.Status.StartsWith("Read 2 books.", StringComparison.Ordinal) || page.Groups is not [{ Outcome: OnlineOutcome.New, Items.Count: 2 }])
+                    throw new InvalidOperationException($"Read this page ({time}) said “{browser.State.Status}”; the preview's groups are {string.Join(", ", page.Groups.Select(g => g.Heading))}.");
+                // Pressed again, it says so afresh.
+                browser.State.Status = "";
+            }
+        }
+        finally
+        {
+            browser.Close();
+        }
     }
 
     /// <summary>Opens a button's menu, as a click does, and chooses the item with <paramref name="command"/>.</summary>

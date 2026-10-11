@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using Bibliotaph.App.Services;
+using Bibliotaph.App.Views;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,10 +17,13 @@ namespace Bibliotaph.App.ViewModels;
 /// preview of what importing it does (choice 6), the import with Undo, and the books from earlier imports the page no
 /// longer lists (choice 7). One page for the whole app, so a preview is still here after a look at the Library.
 /// </summary>
-public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, ILogger<OnlineLibrariesViewModel> log)
-    : PageViewModel
+public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
+    INavigationService navigation, ILogger<OnlineLibrariesViewModel> log) : PageViewModel
 {
     OnlinePage? _page;
+
+    /// <summary>The service whose browser read the page shown, so its next page adds to it (choice 1).</summary>
+    string? _fromBrowser;
     Func<string, CancellationToken, Task<byte[]?>>? _covers;
     Func<Task>? _undo;
 
@@ -32,7 +36,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     public override Route? SectionRoute => Route.Library;
 
     /// <summary>The services, in the order the readers are listed.</summary>
-    public IReadOnlyList<OnlineServiceViewModel> Services { get; } = [.. imports.Readers.Select(r => new OnlineServiceViewModel(r))];
+    public IReadOnlyList<OnlineServiceViewModel> Services => field ??= [.. imports.Readers.Select(r => new OnlineServiceViewModel(r, this))];
 
     /// <summary>The preview, grouped by what importing does, new books first.</summary>
     public ObservableCollection<OnlineGroupViewModel> Groups { get; } = [];
@@ -109,6 +113,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
                 return;
             }
             _page = saved.Page;
+            _fromBrowser = null;
             _covers = imports.SavedCovers(saved.Images);
             Message = null;
             _undo = null;
@@ -122,6 +127,60 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Opens the service in Bibliotaph's browser at its library page, or at <paramref name="start"/> (the smoke test's
+    /// made-up page). Null, with the reason shown, when the browser can't run here.
+    /// </summary>
+    public OnlineBrowserWindow? OpenBrowser(IOnlineLibraryReader reader, Uri? start = null)
+    {
+        if (OnlineBrowsers.RuntimeVersion is null)
+        {
+            Problem = "Bibliotaph's browser needs the Microsoft Edge WebView2 Runtime, which Windows 11 includes. Install it from Microsoft, "
+                + "or import a page you saved instead.";
+            return null;
+        }
+        Problem = null;
+        return browsers.Open(reader, (page, covers) => ReadBrowserPageAsync(reader, page, covers), start);
+    }
+
+    /// <summary>
+    /// Read this page in the browser: the books read show in the preview here, added to those of the page read before
+    /// in the same browser, so a library over several pages builds up. Says what happened, for the browser to show.
+    /// </summary>
+    async Task<string> ReadBrowserPageAsync(IOnlineLibraryReader reader, OnlinePage page, Func<string, CancellationToken, Task<byte[]?>> covers)
+    {
+        var combined = _fromBrowser == reader.Key && _page is { } before ? before.With(page) : page;
+        _page = combined;
+        _fromBrowser = reader.Key;
+        _covers = covers;
+        Message = null;
+        _undo = null;
+        Problem = null;
+        await ShowPlanAsync(reader, combined);
+        if (navigation.Current != this) navigation.NavigateTo(Route.OnlineLibraries);
+        Application.Current.MainWindow?.Activate();
+        var books = combined.Books.Count == 1 ? "1 book" : $"{combined.Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
+        return $"Read {books}. Bibliotaph shows what importing them does; nothing is imported until you press Import there.";
+    }
+
+    /// <summary>Sign out of all services (choice 2): the browser forgets every sign-in it kept.</summary>
+    [RelayCommand]
+    async Task SignOutAsync()
+    {
+        if (OnlineBrowsers.RuntimeVersion is null) return;
+        try
+        {
+            await browsers.SignOutAsync();
+            _undo = null;
+            Message = "Bibliotaph's browser is signed out of every service.";
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            log.LogWarning(ex, "Signing the browser out failed");
+            Problem = $"The browser couldn't sign out: {ex.Message}";
         }
     }
 
@@ -229,15 +288,20 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     internal static string Describe(IReadOnlyList<MetadataField> fields) => string.Join(", ", fields.Select(f => f.Label));
 }
 
-/// <summary>A service on the Online libraries page: its name and where its library is.</summary>
-public sealed class OnlineServiceViewModel(IOnlineLibraryReader reader)
+/// <summary>A service on the Online libraries page: its name, and opening it in the browser.</summary>
+public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, OnlineLibrariesViewModel page)
 {
     public IOnlineLibraryReader Reader { get; } = reader;
 
     public string Name => Reader.Name;
 
-    public string Explanation => $"Open your library at {Reader.LibraryPage.Host}, signed in, and save the page with Save as, choosing Webpage, complete. "
-        + "Then import the saved page here. Only books you own are imported.";
+    public string OpenLabel => $"Open {Name}";
+
+    public string Explanation => $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page. "
+        + "Only books you own are imported, and Bibliotaph never sees your password. A page saved with Save as (Webpage, complete) works too.";
+
+    [RelayCommand]
+    void Open() => page.OpenBrowser(Reader);
 }
 
 /// <summary>The preview's books with one outcome.</summary>

@@ -32,7 +32,18 @@ public sealed record OnlineBook(string Title, string Link)
 /// What one page of an online library holds: the books the user owns, how many shared with them were left out (choice
 /// 8), and whether it is the whole library, so books from earlier imports missing from it can be listed (choice 7).
 /// </summary>
-public sealed record OnlinePage(IReadOnlyList<OnlineBook> Books, int Shared, bool Complete);
+public sealed record OnlinePage(IReadOnlyList<OnlineBook> Books, int Shared, bool Complete)
+{
+    /// <summary>
+    /// This page with the books of another page of the same library (choice 1: a library spread over pages builds up as
+    /// each is read), each book once by its link.
+    /// </summary>
+    public OnlinePage With(OnlinePage more)
+    {
+        var seen = Books.Select(b => b.Link).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return new OnlinePage([.. Books, .. more.Books.Where(b => seen.Add(b.Link))], Math.Max(Shared, more.Shared), Complete || more.Complete);
+    }
+}
 
 /// <summary>
 /// Reads one service's library page (choice 16): the page the in-app browser shows when the user presses Read this page,
