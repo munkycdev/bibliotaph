@@ -2228,7 +2228,9 @@ static partial class SmokeTest
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CopyList"), "Copy list");
         await WaitUntilAsync(window, () => page.Copied is not null, () => "Copy list said nothing.");
-        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter())) is var cards && cards.Count != books)
+        // Counted as the Library counts them, in the folders the user hasn't removed (an earlier check removes one).
+        var visible = await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync();
+        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible))) is var cards && cards.Count != books)
             throw new InvalidOperationException($"The library has {cards.Count} cards after a check, not {books}.");
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
