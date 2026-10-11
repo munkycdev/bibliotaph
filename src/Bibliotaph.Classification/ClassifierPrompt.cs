@@ -149,7 +149,7 @@ public static partial class ClassifierPrompt
     }
 
     /// <summary>"5th edition (Dungeons &amp; Dragons)", "Dungeons &amp; Dragons (D&amp;D)".</summary>
-    static string Describe(Term term, Vocabulary vocabulary)
+    internal static string Describe(Term term, Vocabulary vocabulary)
     {
         if (term.ParentKey is { } parent && vocabulary.Find("system", parent) is { } system) return $"{term.Label} ({system.Label})";
         return term.ShortLabel is { } brief && brief != term.Label ? $"{term.Label} ({brief})" : term.Label;

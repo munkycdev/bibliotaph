@@ -63,7 +63,7 @@ public sealed record AiSetup(string? Endpoint, string? Model, string Provider, b
 }
 
 /// <summary>
-/// AI's settings in catalog.db, loaded once and kept, and the classifier they make. A change raises
+/// AI's settings in catalog.db, loaded once and kept, and the classifier and Ask's interpreter they make. A change raises
 /// <see cref="Changed"/>, which wakes or stops the Classify lane.
 /// </summary>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null)
@@ -74,6 +74,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     readonly Func<string, IModelClient> _clients = clients ?? (endpoint => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint)));
     volatile AiSetup _setup = AiSetup.Off;
     volatile IClassifier? _classifier;
+    volatile IPlainSearchInterpreter? _interpreter;
 
     public event EventHandler? Changed;
 
@@ -81,6 +82,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
 
     /// <summary>The classifier for the current setup, or null while AI isn't ready.</summary>
     public IClassifier? Classifier => _classifier;
+
+    /// <summary>Ask's reader of requests in plain English, over the same model, or null while AI isn't ready.</summary>
+    public IPlainSearchInterpreter? Interpreter => _interpreter;
 
     public IModelClient ClientFor(string endpoint) => _clients(endpoint);
 
@@ -128,9 +132,11 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     {
         setup = setup with { Endpoint = Blank(setup.Endpoint), Model = Blank(setup.Model), BuiltInModel = Blank(setup.BuiltInModel) };
         _setup = setup;
-        _classifier = !setup.IsReady ? null
-            : setup.BuiltIn ? builtIn is null ? null : new ModelClassifier(BuiltInClientFor(setup.BuiltInModel!), setup.RunProvider, setup.ModelName!)
-            : new ModelClassifier(_clients(setup.Endpoint!), setup.Provider, setup.Model!);
+        var client = !setup.IsReady ? null
+            : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
+            : _clients(setup.Endpoint!);
+        _classifier = client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!);
+        _interpreter = client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
