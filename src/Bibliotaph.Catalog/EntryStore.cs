@@ -50,7 +50,8 @@ public sealed record BookJoin(EntryId EntryId, IReadOnlyList<EntryId> Joined, lo
 /// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
 /// </summary>
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
-    bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null, string? Note = null);
+    bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null, string? Note = null,
+    int? PinPosition = null);
 
 /// <summary>
 /// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
@@ -173,7 +174,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
             [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
                 .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc))],
-            await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct));
+            await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct),
+            await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct));
         db.Entries.Remove(entry);
         await db.SaveChangesAsync(ct);
         return removed;
@@ -190,6 +192,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         await db.SaveChangesAsync(ct);
         var now = _clock.GetUtcNow().UtcDateTime;
         if (removed.Favorite) db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = now });
+        if (removed.PinPosition is { } pin) await PinStore.AddAsync(db, PinTarget.Entry(new EntryId(entry.Id)), pin, ct);
         if (removed.Note is { } note) db.Notes.Add(new Note { EntryId = entry.Id, Text = note, CreatedUtc = now, UpdatedUtc = now });
         if (removed.Collections is { Count: > 0 } collections)
         {
@@ -426,6 +429,12 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             db.ReadingStates.Add(new ReadingState { EntryId = target, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
             moved.Reading = true;
         }
+        // A pin moves the same way, keeping its place in the sidebar (Pinned Views plan, choice 9).
+        if (await db.Pins.SingleOrDefaultAsync(p => p.EntryId == joining, ct) is { } pin && !await db.Pins.AnyAsync(p => p.EntryId == target, ct))
+        {
+            pin.EntryId = target;
+            moved.Pin = true;
+        }
         // Memberships move to every collection the card isn't in already; those it is in stay behind with the card.
         var targetCollections = await db.CollectionItems.Where(i => i.EntryId == target).Select(i => i.CollectionId).ToListAsync(ct);
         foreach (var item in await db.CollectionItems.Where(i => i.EntryId == joining && !targetCollections.Contains(i.CollectionId)).ToListAsync(ct))
@@ -519,6 +528,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             db.ReadingStates.Remove(reading);
             db.ReadingStates.Add(new ReadingState { EntryId = card, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
         }
+        if (moved.Pin && await db.Pins.SingleOrDefaultAsync(p => p.EntryId == entryId, ct) is { } pin) pin.EntryId = card;
         foreach (var item in await db.CollectionItems.Where(i => i.EntryId == entryId && moved.Collections.Contains(i.CollectionId)).ToListAsync(ct))
         {
             db.CollectionItems.Remove(item);
@@ -743,6 +753,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public bool Favorite { get; set; }
         /// <summary>The card that joined brought its reading position (slice 3).</summary>
         public bool Reading { get; set; }
+        /// <summary>The card that joined brought its pin (Pinned Views plan, choice 9).</summary>
+        public bool Pin { get; set; }
         /// <summary>The collections the card that joined brought its membership of (slice 3b).</summary>
         public List<long> Collections { get; set; } = [];
         /// <summary>The session items that pointed at the card that joined (slice 3c).</summary>

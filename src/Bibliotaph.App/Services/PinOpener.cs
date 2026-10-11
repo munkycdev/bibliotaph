@@ -1,0 +1,46 @@
+using Bibliotaph.App.ViewModels;
+using Bibliotaph.Core;
+using Bibliotaph.Index;
+
+namespace Bibliotaph.App.Services;
+
+/// <summary>
+/// Opens a pin, from the sidebar or Home (Pinned Views plan, choice 6): a book where it was left, or its details while
+/// its file can't be opened; Favorites, a collection or a saved search in the Library; a binder in its reader.
+/// </summary>
+public sealed class PinOpener(LibraryPages library, SessionPages binders, ReaderWindows readers, CollectionDirectory collections, SmartViewDirectory views,
+    LibraryQueries queries)
+{
+    public async Task OpenAsync(PinnedItemViewModel item)
+    {
+        var id = item.Target.Id ?? 0;
+        switch (item.Target.Kind)
+        {
+            case PinKind.Favorites:
+                library.Open(LibraryScope.Favorites);
+                break;
+            case PinKind.Collection when collections.Find(id) is { } collection:
+                library.Open(collections.ScopeFor(collection));
+                break;
+            case PinKind.Binder:
+                binders.Open(id);
+                break;
+            case PinKind.SavedSearch when views.Find(id) is { } view:
+                library.OpenView(view);
+                break;
+            case PinKind.Entry when item.Book is { } book:
+                if (book.IsAway || !book.CanOpen) library.ShowDetails(book.EntryId);
+                else if (await RequestAsync(book) is { } request) readers.OpenInMainWindow(request);
+                break;
+        }
+    }
+
+    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel book)
+    {
+        if (!book.IsPack) return new ViewerRequest(book.DocumentId, book.Title) { Resume = true };
+        var images = await Task.Run(() => queries.GetPackImagesAsync(book.EntryId));
+        if (images.Count == 0) return null;
+        var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
+        return new ViewerRequest(pack[0].DocumentId, pack[0].Title) { Pack = pack, PackTitle = book.Title };
+    }
+}

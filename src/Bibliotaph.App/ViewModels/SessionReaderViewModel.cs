@@ -30,6 +30,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly CoverImages _covers;
     readonly ReaderWindows _readers;
     readonly SessionDirectory _directory;
+    readonly PinDirectory _pins;
     readonly ILogger<SessionReaderViewModel> _log;
     readonly DispatcherTimer _notesTimer;
     int _version;
@@ -40,9 +41,10 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        SessionDirectory directory, ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, PinDirectory pins, ILogger<SessionReaderViewModel> log)
     {
         _directory = directory;
+        _pins = pins;
         _sessions = sessions;
         _sessionPages = sessionPages;
         _queries = queries;
@@ -64,6 +66,16 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     public override Route Route => Route.SessionPack;
 
     public override Route NavRoute => Route.Sessions;
+
+    public override string? PinKey => PinDirectory.BinderKey(PackId);
+
+    /// <summary>Pin or Unpin: the binder in the sidebar's Pinned group (Pinned Views plan, choice 7).</summary>
+    public string PinLabel => _pins.PinLabel(PinTarget.Binder(PackId));
+
+    [RelayCommand]
+    Task TogglePin() => _pins.ToggleAsync(PinTarget.Binder(PackId));
+
+    void OnPinsChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(PinLabel));
 
     public override string Section => "Binders";
 
@@ -185,6 +197,9 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _sessions.Changed += OnSessionsChanged;
         _directory.Changed -= OnDirectoryChanged;
         _directory.Changed += OnDirectoryChanged;
+        _pins.Changed -= OnPinsChanged;
+        _pins.Changed += OnPinsChanged;
+        OnPropertyChanged(nameof(PinLabel));
         HasAtHand = _directory.HasAtHandBesides(PackId);
         var version = ++_version;
         try
@@ -260,6 +275,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         _version++;
         _directory.Changed -= OnDirectoryChanged;
+        _pins.Changed -= OnPinsChanged;
         // Changes made while the page is away are picked up by the next load, not by a refresh racing it.
         IsLoaded = false;
         _sessions.Changed -= OnSessionsChanged;
@@ -271,6 +287,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         _version++;
         _directory.Changed -= OnDirectoryChanged;
+        _pins.Changed -= OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
         if (_notesDirty) await SaveNotesAsync();
         await Viewer.CloseWindowAsync();

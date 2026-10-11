@@ -21,7 +21,7 @@
         <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
                 ToolTip="Close (Esc)" AutomationProperties.Name="Close" Command="{Binding CancelCommand}" />
         <StackPanel>
-          <TextBlock Text="SMART VIEW" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+          <TextBlock Text="SAVED SEARCH" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
           <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" />
         </StackPanel>
       </DockPanel>

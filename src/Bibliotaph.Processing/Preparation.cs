@@ -78,11 +78,6 @@ public sealed class CollectionsService(CollectionStore collections, MetadataProj
         if (await collections.RenameAsync(collectionId, name, description, ct)) await ProjectAsync([], ct);
     }
 
-    public async Task SetPinnedAsync(long collectionId, bool pinned, CancellationToken ct = default)
-    {
-        if (await collections.SetPinnedAsync(collectionId, pinned, ct)) await ProjectAsync([], ct);
-    }
-
     public async Task MoveAsync(long collectionId, long? parentId, CancellationToken ct = default) =>
         await ProjectAsync(await collections.MoveAsync(collectionId, parentId, ct), ct);
 

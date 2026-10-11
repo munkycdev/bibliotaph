@@ -131,6 +131,8 @@
             <ContextMenu x:Name="AtHandMenu" Style="{StaticResource Bt.Menu}" MaxHeight="460" />
           </Button.ContextMenu>
         </Button>
+        <Button x:Name="PinBinder" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" Command="{Binding TogglePinCommand}" Margin="0,0,8,0"
+                ToolTip="Pinned binders show in the sidebar and on Home" />
         <Button x:Name="EditBinder" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}"
                 ToolTip="Edit binder: sections, order and notes" AutomationProperties.Name="Edit binder" />
         <Button x:Name="ToggleNotes" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelRight}" Command="{Binding ToggleNotesCommand}"

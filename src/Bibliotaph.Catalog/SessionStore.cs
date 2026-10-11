@@ -44,9 +44,12 @@ public sealed record SessionPackContents(SessionPackInfo Pack, IReadOnlyList<Ses
 /// <summary>Something to add to a pack: a whole book, or a page range of it, with a label and note if given.</summary>
 public sealed record NewSessionItem(EntryId EntryId, PageRange? Range = null, string? Label = null, string? Note = null);
 
-/// <summary>Everything in a pack, for Undo after deleting it: <see cref="SessionStore.RestoreAsync"/> makes it again.</summary>
+/// <summary>
+/// Everything in a pack, for Undo after deleting it: <see cref="SessionStore.RestoreAsync"/> makes it again, pinned
+/// where it was if it was.
+/// </summary>
 public sealed record SessionPackSnapshot(string Title, DateOnly? Date, string? Notes, DateTime CreatedUtc, IReadOnlyList<SessionSectionInfo> Sections,
-    IReadOnlyList<SessionItemInfo> Items, bool KeepAtHand = false, string? GameSystem = null);
+    IReadOnlyList<SessionItemInfo> Items, bool KeepAtHand = false, string? GameSystem = null, int? PinPosition = null);
 
 /// <summary>
 /// Session packs (slice 3 plan, choices 11 to 15): ordered items, each a book or a page range of one, in optional
@@ -141,12 +144,13 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         if (await ContentsAsync(db, packId, ct) is not { } contents) return null;
         var pack = await db.SessionPacks.SingleAsync(p => p.Id == packId, ct);
         var pageRefs = await db.SessionItems.Where(i => i.PackId == packId && i.PageRefId != null).Select(i => i.PageRefId!.Value).ToListAsync(ct);
+        var pin = await PinStore.PositionAsync(db, PinTarget.Binder(packId), ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.SessionPacks.Remove(pack);
         await db.SaveChangesAsync(ct);
         await db.PageRefs.Where(r => pageRefs.Contains(r.Id)).ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
-        return new SessionPackSnapshot(pack.Title, pack.Date, pack.Notes, pack.CreatedUtc, contents.Sections, contents.Items, pack.KeepAtHand, pack.GameSystem);
+        return new SessionPackSnapshot(pack.Title, pack.Date, pack.Notes, pack.CreatedUtc, contents.Sections, contents.Items, pack.KeepAtHand, pack.GameSystem, pin);
     }
 
     /// <summary>Undoes <see cref="DeleteAsync"/>: the pack comes back with its sections and the items whose books are still in the catalog.</summary>
@@ -154,6 +158,11 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var pack = await CopyAsync(db, snapshot, snapshot.Title, snapshot.Date, snapshot.CreatedUtc, ct);
+        if (snapshot.PinPosition is { } pin)
+        {
+            await PinStore.AddAsync(db, PinTarget.Binder(pack.Id), pin, ct);
+            await db.SaveChangesAsync(ct);
+        }
         return (await ContentsAsync(db, pack.Id, ct))!.Pack;
     }
 

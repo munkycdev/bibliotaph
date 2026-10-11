@@ -113,18 +113,24 @@ public sealed class CollectionStoreTests : IAsyncLifetime
         var maps = await _collections.CreateAsync("Maps", session.Id, ct: Ct);
         await _collections.AddAsync(session.Id, [abbey], Ct);
         await _collections.AddAsync(maps.Id, [map], Ct);
-        await _collections.SetPinnedAsync(session.Id, true, Ct);
+        var pins = new PinStore(_contexts);
+        await pins.PinAsync(PinTarget.Favorites, Ct);
+        await pins.PinAsync(PinTarget.Collection(session.Id), Ct);
+        await pins.PinAsync(PinTarget.Collection(campaign.Id), Ct);
 
         var (deleted, changed) = await _collections.DeleteAsync(session.Id, Ct);
         Assert.Equal([abbey, map], changed.OrderBy(e => e.Value));
         Assert.NotNull(deleted);
+        Assert.Equal(1, deleted.PinPosition);
+        Assert.Equal([PinTarget.Favorites, PinTarget.Collection(campaign.Id)], (await pins.ListAsync(Ct)).Select(p => p.Target));
         Assert.Equal(campaign.Id, (await _collections.ListAsync(Ct)).Single(c => c.Id == maps.Id).ParentId);
         Assert.Empty(await ScopesAsync(abbey));
         Assert.Contains(ScopeKeys.Collection(campaign.Id), await ScopesAsync(map));
 
         Assert.Equal([abbey, map], (await _collections.RestoreAsync(deleted, Ct)).OrderBy(e => e.Value));
         var restored = (await _collections.ListAsync(Ct)).Single(c => c.Id == session.Id);
-        Assert.True(restored.Pinned);
+        Assert.Equal(1, restored.PinPosition);
+        Assert.Equal([PinTarget.Favorites, PinTarget.Collection(session.Id), PinTarget.Collection(campaign.Id)], (await pins.ListAsync(Ct)).Select(p => p.Target));
         Assert.Equal(campaign.Id, restored.ParentId);
         Assert.Equal(session.Id, (await _collections.ListAsync(Ct)).Single(c => c.Id == maps.Id).ParentId);
         Assert.Contains(ScopeKeys.CollectionOwn(session.Id), await ScopesAsync(abbey));

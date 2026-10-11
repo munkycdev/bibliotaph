@@ -142,6 +142,12 @@
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+    <Style.Triggers>
+      <!-- An icon that is on, as the reader's pin while the book is pinned. -->
+      <Trigger Property="c:Ui.IsActive" Value="True">
+        <Setter Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+      </Trigger>
+    </Style.Triggers>
   </Style>
 
   <!--
@@ -941,14 +947,15 @@
     </Button>
   </DataTemplate>
 
-  <!-- A book's right-click menu, ending with Add to session (3c) and Add to collection (choice 10), filled as it opens. -->
+  <!-- A book's right-click menu, with Pin or Unpin named as it opens, ending with Add to session (3c) and Add to collection (choice 10), filled as it opens. -->
   <ContextMenu x:Key="BookMenu" x:Shared="False" Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}"
-               c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}">
+               c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" c:PinMenu.IsEnabled="True">
     <MenuItem Header="Open" Command="{x:Static c:BookCommands.Open}" CommandParameter="{Binding}" />
     <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
               CommandParameter="{Binding}" />
     <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
     <MenuItem Header="{Binding FavoriteAction}" Command="{x:Static c:BookCommands.ToggleFavorite}" CommandParameter="{Binding}" />
+    <MenuItem Header="Pin" Command="{x:Static c:BookCommands.TogglePin}" CommandParameter="{Binding}" ToolTip="Pinned books show in the sidebar and on Home" />
     <MenuItem Header="Open in another app" Command="{x:Static c:BookCommands.OpenElsewhere}" CommandParameter="{Binding}"
               Visibility="{Binding CanOpenElsewhere, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="Forget its text" Command="{x:Static c:BookCommands.ForgetText}" CommandParameter="{Binding}"

@@ -23,6 +23,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<SmartView> SmartViews => Set<SmartView>();
+    public DbSet<Pin> Pins => Set<Pin>();
     public DbSet<Note> Notes => Set<Note>();
     public DbSet<SessionPack> SessionPacks => Set<SessionPack>();
     public DbSet<SessionSection> SessionSections => Set<SessionSection>();
@@ -182,6 +183,31 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<SmartView>(e => e.HasIndex(v => v.Name));
+
+        modelBuilder.Entity<Pin>(e =>
+        {
+            // One pin per target, and one for Favorites. SQLite's unique indexes let any number of nulls through.
+            e.HasIndex(p => p.EntryId).IsUnique();
+            e.HasIndex(p => p.CollectionId).IsUnique();
+            e.HasIndex(p => p.PackId).IsUnique();
+            e.HasIndex(p => p.SmartViewId).IsUnique();
+            e.HasIndex(p => p.Kind).IsUnique().HasFilter("kind = 'Favorites'").HasDatabaseName("ix_pin_favorites");
+            e.HasOne<Entry>().WithMany().HasForeignKey(p => p.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(p => p.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SessionPack>().WithMany().HasForeignKey(p => p.PackId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SmartView>().WithMany().HasForeignKey(p => p.SmartViewId).OnDelete(DeleteBehavior.Cascade);
+            // Exactly the column its kind points through is set; Favorites points at nothing.
+            e.ToTable(t => t.HasCheckConstraint("ck_pin_target", """
+                CASE kind
+                    WHEN 'Entry' THEN entry_id IS NOT NULL AND coalesce(collection_id, pack_id, smart_view_id) IS NULL
+                    WHEN 'Favorites' THEN coalesce(entry_id, collection_id, pack_id, smart_view_id) IS NULL
+                    WHEN 'Collection' THEN collection_id IS NOT NULL AND coalesce(entry_id, pack_id, smart_view_id) IS NULL
+                    WHEN 'Binder' THEN pack_id IS NOT NULL AND coalesce(entry_id, collection_id, smart_view_id) IS NULL
+                    WHEN 'SavedSearch' THEN smart_view_id IS NOT NULL AND coalesce(entry_id, collection_id, pack_id) IS NULL
+                    ELSE 0
+                END
+                """));
+        });
 
         modelBuilder.Entity<Note>(e =>
         {

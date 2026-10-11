@@ -4,11 +4,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog;
 
-/// <summary>A collection as the pages show it: where it sits, and how many entries were added to it directly.</summary>
-public sealed record CollectionInfo(long Id, long? ParentId, string Name, string? Description, bool Pinned, DateTime UsedUtc, int OwnCount);
+/// <summary>
+/// A collection as the pages show it: where it sits, how many entries were added to it directly, and where its pin
+/// stands in the sidebar if it is pinned.
+/// </summary>
+public sealed record CollectionInfo(long Id, long? ParentId, string Name, string? Description, int? PinPosition, DateTime UsedUtc, int OwnCount)
+{
+    public bool Pinned => PinPosition is not null;
+}
 
-/// <summary>What deleting a collection took away, for Undo: the row, the entries added to it and the sub-collections it held.</summary>
-public sealed record CollectionDeletion(long Id, long? ParentId, string Name, string? Description, bool Pinned, DateTime CreatedUtc, DateTime UsedUtc,
+/// <summary>
+/// What deleting a collection took away, for Undo: the row, the entries added to it, the sub-collections it held and
+/// where its pin stood.
+/// </summary>
+public sealed record CollectionDeletion(long Id, long? ParentId, string Name, string? Description, int? PinPosition, DateTime CreatedUtc, DateTime UsedUtc,
     IReadOnlyList<(long EntryId, DateTime AddedUtc)> Items, IReadOnlyList<long> Children);
 
 /// <summary>
@@ -26,8 +35,10 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var counts = await db.CollectionItems.GroupBy(i => i.CollectionId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count, ct);
+        var pins = await db.Pins.Where(p => p.CollectionId != null).ToDictionaryAsync(p => p.CollectionId!.Value, p => p.Position, ct);
         return [.. (await db.Collections.AsNoTracking().ToListAsync(ct))
-            .Select(c => new CollectionInfo(c.Id, c.ParentId, c.Name, c.Description, c.Pinned, c.UsedUtc, counts.GetValueOrDefault(c.Id)))];
+            .Select(c => new CollectionInfo(c.Id, c.ParentId, c.Name, c.Description, pins.TryGetValue(c.Id, out var pin) ? pin : null, c.UsedUtc,
+                counts.GetValueOrDefault(c.Id)))];
     }
 
     /// <summary>A new collection, at the top or inside <paramref name="parentId"/>.</summary>
@@ -40,7 +51,7 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         var collection = new CollectionNode { Name = Name(name), ParentId = parentId, Description = Blank(description), CreatedUtc = now, UsedUtc = now };
         db.Collections.Add(collection);
         await db.SaveChangesAsync(ct);
-        return new CollectionInfo(collection.Id, collection.ParentId, collection.Name, collection.Description, false, now, 0);
+        return new CollectionInfo(collection.Id, collection.ParentId, collection.Name, collection.Description, null, now, 0);
     }
 
     /// <summary>Renames a collection and replaces its description. Returns false if it doesn't exist.</summary>
@@ -52,12 +63,6 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         collection.Description = Blank(description);
         await db.SaveChangesAsync(ct);
         return true;
-    }
-
-    public async Task<bool> SetPinnedAsync(long collectionId, bool pinned, CancellationToken ct = default)
-    {
-        await using var db = await contexts.CreateDbContextAsync(ct);
-        return await db.Collections.Where(c => c.Id == collectionId).ExecuteUpdateAsync(s => s.SetProperty(c => c.Pinned, pinned), ct) > 0;
     }
 
     /// <summary>
@@ -88,12 +93,13 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         var changed = await EntriesInAsync(db, Subtree(tree, collectionId), ct);
         var items = await db.CollectionItems.AsNoTracking().Where(i => i.CollectionId == collectionId).Select(i => new { i.EntryId, i.AddedUtc }).ToListAsync(ct);
         var children = tree.Where(c => c.Value == collectionId).Select(c => c.Key).ToList();
+        var pin = await PinStore.PositionAsync(db, PinTarget.Collection(collectionId), ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Collections.Where(c => c.ParentId == collectionId).ExecuteUpdateAsync(s => s.SetProperty(c => c.ParentId, collection.ParentId), ct);
         db.Collections.Remove(collection);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-        return (new CollectionDeletion(collection.Id, collection.ParentId, collection.Name, collection.Description, collection.Pinned, collection.CreatedUtc,
+        return (new CollectionDeletion(collection.Id, collection.ParentId, collection.Name, collection.Description, pin, collection.CreatedUtc,
             collection.UsedUtc, [.. items.Select(i => (i.EntryId, i.AddedUtc))], children), changed);
     }
 
@@ -111,7 +117,6 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
             ParentId = parent,
             Name = deleted.Name,
             Description = deleted.Description,
-            Pinned = deleted.Pinned,
             CreatedUtc = deleted.CreatedUtc,
             UsedUtc = deleted.UsedUtc,
         });
@@ -120,6 +125,7 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         db.CollectionItems.AddRange(deleted.Items.Where(i => existing.Contains(i.EntryId))
             .Select(i => new CollectionItem { CollectionId = deleted.Id, EntryId = i.EntryId, AddedUtc = i.AddedUtc }));
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        if (deleted.PinPosition is { } pin) await PinStore.AddAsync(db, PinTarget.Collection(deleted.Id), pin, ct);
         await db.SaveChangesAsync(ct);
         var children = deleted.Children.ToList();
         await db.Collections.Where(c => children.Contains(c.Id) && c.ParentId == deleted.ParentId)

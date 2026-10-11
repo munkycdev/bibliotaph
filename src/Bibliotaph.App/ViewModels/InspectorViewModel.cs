@@ -279,6 +279,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [NotifyPropertyChangedFor(nameof(IsDetailsTab))]
     public partial bool IsNotesTab { get; set; }
 
+    /// <summary>Pin or Unpin: the book in the sidebar's Pinned group (Pinned Views plan, choice 7), kept current by the Library.</summary>
+    [ObservableProperty]
+    public partial string PinLabel { get; set; } = "Pin";
+
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
