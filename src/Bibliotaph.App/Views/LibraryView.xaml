@@ -694,6 +694,11 @@
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
+                <!-- Ask this book (Ask plan, choice 11): shown only for a PDF with text while AI is on, when it can run. -->
+                <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                        ToolTip="Open this book with its Ask panel, to ask it a question" AutomationProperties.Name="Ask this book"
+                        Command="{Binding DataContext.AskBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}"
+                        Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
                 <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" HorizontalAlignment="Left"
                         Margin="0,8,0,0" ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"

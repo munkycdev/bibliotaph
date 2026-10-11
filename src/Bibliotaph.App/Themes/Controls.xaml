@@ -954,6 +954,9 @@
     <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
               CommandParameter="{Binding}" />
     <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
+    <!-- Ask this book (Ask plan, choice 11): only a PDF with text, and only while AI is on, so it shows only when it can run. -->
+    <MenuItem Header="Ask this book" Command="{x:Static c:BookCommands.Ask}" CommandParameter="{Binding}"
+              Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="{Binding FavoriteAction}" Command="{x:Static c:BookCommands.ToggleFavorite}" CommandParameter="{Binding}" />
     <MenuItem Header="Pin" Command="{x:Static c:BookCommands.TogglePin}" CommandParameter="{Binding}" ToolTip="Pinned books show in the sidebar and on Home" />
     <MenuItem Header="Open in another app" Command="{x:Static c:BookCommands.OpenElsewhere}" CommandParameter="{Binding}"

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Threading;
+using Bibliotaph.Classification;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -30,22 +31,26 @@ public sealed class AskPassageRow(AskPassage passage)
 }
 
 /// <summary>
-/// The reader's Ask panel (Ask this book, Q1): a question about the open book, and the pages that look like they answer
-/// it, each a link that opens the page with the matching word marked by Find, with how much of the book has text and
-/// whether pages were found by meaning as well as by words. Shown only while AI is on (choice 12).
+/// The reader's Ask panel (Ask this book): a question about the open book, the answer streamed from the model with each
+/// [p. N] a link into the book (Q2), and the pages it was read from, each opening its page with the matching word
+/// marked by Find (Q1), with how much of the book has text and whether pages were found by meaning as well as by
+/// words. Shown only while AI is on (choice 12).
 /// </summary>
-public sealed partial class AskPanelViewModel : ObservableObject
+public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 {
+    const string PagesHeading = "Pages that look like they answer it";
+
     readonly AskService _ask;
     readonly Dispatcher _dispatcher;
     readonly ILogger _log;
     readonly Func<int, string?, Task> _show;
     long? _documentId;
     int _version;
+    CancellationTokenSource? _answering;
 
-    /// <param name="ask">Finds the pages.</param>
+    /// <param name="ask">Finds the pages and answers from them.</param>
     /// <param name="dispatcher">The reader's, for changes raised on other threads.</param>
-    /// <param name="log">Failures; never the question or the book's text.</param>
+    /// <param name="log">Failures; never the question, the answer or the book's text.</param>
     /// <param name="show">Shows a PDF page with a word marked on it.</param>
     public AskPanelViewModel(AskService ask, Dispatcher dispatcher, ILogger log, Func<int, string?, Task> show)
     {
@@ -64,20 +69,44 @@ public sealed partial class AskPanelViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(AskCommand))]
     public partial string Question { get; set; } = "";
 
+    /// <summary>Finding the pages, or waiting for the answer to them.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AskCommand))]
     public partial bool IsAsking { get; private set; }
 
+    /// <summary>The model is answering: Stop is offered.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StopCommand))]
+    public partial bool IsAnswering { get; private set; }
+
+    /// <summary>"Looking through the book…", "Waiting for the model…", "Reading the pages… 40%", "Writing…".</summary>
+    [ObservableProperty]
+    public partial string? Step { get; private set; }
+
     /// <summary>The question the results are for, as asked.</summary>
     [ObservableProperty]
     public partial string? Asked { get; private set; }
+
+    /// <summary>The answer so far, as checked: text, quotations, links to the pages it cites, and notes on what was taken out.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAnswer))]
+    public partial IReadOnlyList<AnswerPart> Answer { get; private set; } = [];
+
+    public bool HasAnswer => Answer.Count > 0;
+
+    /// <summary>The finished answer, as checked, or null while there is none.</summary>
+    public AskAnswer? Answered { get; private set; }
 
     public ObservableCollection<AskPassageRow> Passages { get; } = [];
 
     [ObservableProperty]
     public partial bool HasPassages { get; private set; }
 
-    /// <summary>Why there are no pages: nothing looks like it's about the question, or the book can't be asked.</summary>
+    /// <summary>Over the pages: "Read from pages 112, 113 and 140" once answered from them, else what they are.</summary>
+    [ObservableProperty]
+    public partial string PassagesHeading { get; private set; } = PagesHeading;
+
+    /// <summary>Why there is no answer: nothing looks like it's about the question, the pages don't answer it, or the book can't be asked.</summary>
     [ObservableProperty]
     public partial string? Message { get; private set; }
 
@@ -105,12 +134,13 @@ public sealed partial class AskPanelViewModel : ObservableObject
         AskCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>The reader closed the book.</summary>
+    /// <summary>The reader closed the book: an answer being written stops.</summary>
     public void Detach()
     {
         _ask.Changed -= OnAiChanged;
         _ask.FillChanged -= OnFillChanged;
         _documentId = null;
+        StopAnswering();
         _version++;
         IsAsking = false;
         AskCommand.NotifyCanExecuteChanged();
@@ -118,16 +148,32 @@ public sealed partial class AskPanelViewModel : ObservableObject
 
     void Clear()
     {
+        StopAnswering();
         _version++;
         _findings = null;
+        Answered = null;
         Asked = null;
+        Answer = [];
         Passages.Clear();
         HasPassages = false;
+        PassagesHeading = PagesHeading;
         Message = null;
         CoverageText = null;
         MeaningText = null;
+        Step = null;
         IsAsking = false;
     }
+
+    void StopAnswering()
+    {
+        _answering?.Cancel();
+        _answering?.Dispose();
+        _answering = null;
+        IsAnswering = false;
+    }
+
+    /// <summary>Stops an answer being written. The panel can still ask again: the reader comes back to it with Back.</summary>
+    public void Dispose() => StopAnswering();
 
     void OnAiChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsOn = _ask.IsOn);
 
@@ -138,7 +184,7 @@ public sealed partial class AskPanelViewModel : ObservableObject
 
     bool CanAsk() => !IsAsking && _documentId is not null && Question.Trim().Length > 0;
 
-    /// <summary>Looks for the pages that answer the question (Enter in the box, or Ask).</summary>
+    /// <summary>Finds the pages that answer the question, then has the model answer from them (Enter in the box, or Ask).</summary>
     [RelayCommand(CanExecute = nameof(CanAsk))]
     async Task Ask()
     {
@@ -148,11 +194,13 @@ public sealed partial class AskPanelViewModel : ObservableObject
         var version = _version;
         IsAsking = true;
         Asked = question;
+        Step = "Looking through the book…";
         try
         {
             var findings = await Task.Run(() => _ask.FindAsync(documentId, question));
             if (version != _version) return;
             Show(findings);
+            if (!findings.Weak && findings.Evidence.Count > 0 && _ask.CanAnswer) await AnswerAsync(documentId, findings, version);
         }
         catch (AskUnavailableException ex)
         {
@@ -165,9 +213,88 @@ public sealed partial class AskPanelViewModel : ObservableObject
         }
         finally
         {
-            if (version == _version) IsAsking = false;
+            if (version == _version)
+            {
+                IsAsking = false;
+                Step = null;
+            }
         }
     }
+
+    /// <summary>Streams the model's answer into the panel, checked as it comes, then shows it checked in full.</summary>
+    async Task AnswerAsync(long documentId, AskFindings findings, int version)
+    {
+        var pages = AskService.PromptPages(findings);
+        var stop = _answering = new CancellationTokenSource();
+        IsAnswering = true;
+        Step = "Waiting for the model…";
+        try
+        {
+            var answer = await Task.Run(() => _ask.AnswerAsync(documentId, findings, new Streamed(this, version, pages), stop.Token), stop.Token);
+            if (version != _version) return;
+            Answered = answer;
+            PassagesHeading = $"Read from {Pages([.. pages.Select(p => p.Marker)])}";
+            if (answer.Checked.NotAnswered)
+            {
+                Answer = [];
+                Message = "The pages it read don't answer that. They're below, in case they help.";
+            }
+            else Answer = answer.Checked.Parts;
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            if (version == _version) Message = "Stopped. What was written so far is above.";
+        }
+        catch (ModelEndpointException ex)
+        {
+            if (version == _version) Message = $"The model couldn't answer: {ex.Message}";
+        }
+        catch (ClassifierAnswerException)
+        {
+            if (version == _version) Message = "The model sent back nothing. Try asking another way.";
+        }
+        finally
+        {
+            if (version == _version) IsAnswering = false;
+        }
+    }
+
+    /// <summary>
+    /// The answer's progress, taken to the reader's thread at most once per dispatch, so a fast model doesn't queue
+    /// a redraw for every word.
+    /// </summary>
+    sealed class Streamed(AskPanelViewModel panel, int version, IReadOnlyList<AskPromptPage> pages) : IProgress<ModelProgress>
+    {
+        ModelProgress? _latest;
+        int _pending;
+
+        public void Report(ModelProgress value)
+        {
+            Interlocked.Exchange(ref _latest, value);
+            if (Interlocked.Exchange(ref _pending, 1) == 1) return;
+            panel._dispatcher.InvokeAsync(() =>
+            {
+                Interlocked.Exchange(ref _pending, 0);
+                if (Volatile.Read(ref _latest) is { } latest) panel.ShowProgress(version, latest, pages);
+            }, DispatcherPriority.Background);
+        }
+    }
+
+    void ShowProgress(int version, ModelProgress progress, IReadOnlyList<AskPromptPage> pages)
+    {
+        if (version != _version || !IsAnswering) return;
+        Step = progress.Step switch
+        {
+            ModelStep.Reading when progress.Read is { } read => $"Reading the pages… {read.ToString("P0", CultureInfo.CurrentCulture)}",
+            ModelStep.Reading => "Reading the pages…",
+            ModelStep.Writing => "Writing…",
+            _ => "Waiting for the model…",
+        };
+        if (progress.Step == ModelStep.Writing) Answer = AskAnswerCheck.Check(progress.Answer, pages).Parts;
+    }
+
+    [RelayCommand(CanExecute = nameof(IsAnswering))]
+    void Stop() => _answering?.Cancel();
 
     void Show(AskFindings findings)
     {
@@ -203,6 +330,18 @@ public sealed partial class AskPanelViewModel : ObservableObject
     /// <summary>Opens the passage's page with its matching word marked.</summary>
     [RelayCommand]
     Task GoTo(AskPassageRow row) => _show(row.Passage.PdfPage, row.Passage.Phrase);
+
+    /// <summary>
+    /// Opens the page a citation in the answer names (choice 7), marking the quotation it follows when that was on the
+    /// page, else the word the page was found by.
+    /// </summary>
+    [RelayCommand]
+    Task OpenCitation(AnswerPart part)
+    {
+        if (part.PdfPage is not { } page) return Task.CompletedTask;
+        var phrase = part.Phrase ?? Passages.FirstOrDefault(p => p.Passage.PdfPage == page)?.Passage.Phrase;
+        return _show(page, phrase);
+    }
 
     /// <summary>"page 4", or "pages 112, 113 and 140".</summary>
     public static string Pages(IReadOnlyList<string> pages) => pages.Count switch

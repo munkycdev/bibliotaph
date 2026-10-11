@@ -5,9 +5,10 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// The smoke test's stand-in model server, at an address nothing else uses, so Ask this book can be driven in CI
-/// without a real model: it lists a chat model and an embedding model, answers every chat request with nothing, and
-/// makes vectors by hashing words, so pages that share a question's words come out closest to it. Any other address
-/// gets the usual client, so the smoke test's checks of a server that isn't there still reach nothing.
+/// without a real model: it lists a chat model and an embedding model, makes vectors by hashing words, so pages that
+/// share a question's words come out closest to it, and answers an Ask question from the first page it is sent,
+/// streaming a citation of it, a quotation from it and a citation of a page it wasn't sent. Any other address gets the
+/// usual client, so the smoke test's checks of a server that isn't there still reach nothing.
 /// </summary>
 sealed class SmokeModel : IModelClient, IEmbeddingClient
 {
@@ -29,8 +30,42 @@ sealed class SmokeModel : IModelClient, IEmbeddingClient
     public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) =>
         Task.FromResult(new EndpointInfo(EndpointKind.OpenAiCompatible, null, [ChatModel, EmbeddingModel]));
 
-    /// <summary>An empty answer: the smoke test never lets the Classify lane run against it.</summary>
-    public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default) => Task.FromResult("{}");
+    /// <summary>
+    /// For a classification, an empty answer: the smoke test never lets the Classify lane run against it. For an Ask
+    /// question (no schema), an answer from the first page sent, streamed a few characters at a time.
+    /// </summary>
+    public async Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
+    {
+        if (request.SchemaJson is not null) return "{}";
+        var answer = Answer(request.User);
+        request.Progress?.Report(new ModelProgress(ModelStep.Waiting, ""));
+        for (var i = 12; i < answer.Length; i += 12)
+        {
+            await Task.Delay(10, ct);
+            request.Progress?.Report(new ModelProgress(ModelStep.Writing, answer[..i]));
+        }
+        request.Progress?.Report(new ModelProgress(ModelStep.Writing, answer));
+        return answer;
+    }
+
+    /// <summary>
+    /// "The answer is on page 1 [p. 1]. It says "dragon sleeps beneath the" [p. 1]. Nothing else is said [p. 999].":
+    /// the first page sent, four of its words from the first of the question's words on it, and a page never sent.
+    /// </summary>
+    static string Answer(string user)
+    {
+        var lines = user.ReplaceLineEndings("\n").Split('\n');
+        var question = lines.FirstOrDefault(l => l.StartsWith("Question: ", StringComparison.Ordinal))?["Question: ".Length..] ?? "";
+        var at = Array.FindIndex(lines, l => l.StartsWith("[Page ", StringComparison.Ordinal));
+        if (at < 0) return AskPrompt.NotAnswered;
+        var marker = lines[at][6..^1];
+        var text = lines.Skip(at + 1).FirstOrDefault(l => !l.StartsWith("Heading: ", StringComparison.Ordinal)) ?? "";
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var first = AskRetrieval.Words(question).Select(w => Array.FindIndex(words, t => t.StartsWith(w, StringComparison.OrdinalIgnoreCase)))
+            .Where(i => i >= 0).DefaultIfEmpty(0).Min();
+        var quote = string.Join(' ', words.Skip(first).Take(4)).TrimEnd('.', ',', ';', ':');
+        return $"The answer is on page {marker} [p. {marker}]. It says \"{quote}\" [p. {marker}]. Nothing else is said [p. 999].";
+    }
 
     public Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<float[]>>([.. texts.Select(Vector)]);

@@ -31,11 +31,12 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
 }
 
 /// <summary>
-/// One classification request: the model, the two messages, the answer's schema and the context it needs, and at most how
-/// many tokens to answer with when that should be capped. With <paramref name="Progress"/>, the answer is streamed and
-/// reported as it comes (Built-in AI plan, choice 12).
+/// One request: the model, the two messages, the answer's schema and the context it needs, and at most how many tokens
+/// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is (Ask plan,
+/// choice 6). With <paramref name="Progress"/>, the answer is streamed and reported as it comes (Built-in AI plan,
+/// choice 12).
 /// </summary>
-public sealed record ModelRequest(string Model, string System, string User, string SchemaJson, int ContextTokens, int? MaxTokens = null,
+public sealed record ModelRequest(string Model, string System, string User, string? SchemaJson, int ContextTokens, int? MaxTokens = null,
     IProgress<ModelProgress>? Progress = null);
 
 /// <summary>Where a streamed request has got to.</summary>
@@ -89,7 +90,7 @@ public interface IModelClient
     /// <exception cref="ModelEndpointException">It can't be reached or doesn't answer like a model server.</exception>
     Task<EndpointInfo> ConnectAsync(CancellationToken ct = default);
 
-    /// <summary>Asks the model for an answer in the request's schema and returns the answer's text.</summary>
+    /// <summary>Asks the model for an answer, in the request's schema when it has one, and returns the answer's text.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be reached or refused the request.</exception>
     /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
     Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default);
@@ -237,7 +238,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
     {
         _kind ??= (await ConnectAsync(ct)).Kind;
         var stream = request.Progress is not null;
-        var schema = JsonNode.Parse(request.SchemaJson)!;
+        var schema = request.SchemaJson is null ? null : JsonNode.Parse(request.SchemaJson)!;
         var messages = new JsonArray
         {
             new JsonObject { ["role"] = "system", ["content"] = request.System },
@@ -251,9 +252,9 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
                 ["model"] = request.Model,
                 ["messages"] = messages,
                 ["stream"] = stream,
-                ["format"] = schema,
                 ["options"] = new JsonObject { ["temperature"] = 0, ["num_ctx"] = request.ContextTokens },
             };
+            if (schema is not null) body["format"] = schema;
             if (request.MaxTokens is { } ollamaMax) body["options"]!["num_predict"] = ollamaMax;
             if (stream) return await StreamAsync(new Uri(Root, "api/chat"), body, request.Progress!, ollama: true, ct);
             using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), body, ct);
@@ -268,12 +269,15 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             ["messages"] = messages,
             ["temperature"] = 0,
             ["stream"] = stream,
-            ["response_format"] = new JsonObject
+        };
+        if (schema is not null)
+        {
+            request1["response_format"] = new JsonObject
             {
                 ["type"] = "json_schema",
                 ["json_schema"] = new JsonObject { ["name"] = "book_metadata", ["strict"] = true, ["schema"] = schema },
-            },
-        };
+            };
+        }
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
         if (stream)
@@ -282,7 +286,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             {
                 return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
             }
-            catch (ModelEndpointException ex) when (ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+            catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
             {
                 request1 = (JsonObject)request1.DeepClone();
                 request1["response_format"] = new JsonObject { ["type"] = "json_object" };
@@ -294,7 +298,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
         {
             completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), request1, ct);
         }
-        catch (ModelEndpointException ex) when (ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+        catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
         {
             // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
             // check doesn't care which.

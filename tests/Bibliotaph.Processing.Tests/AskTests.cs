@@ -35,19 +35,33 @@ public sealed class AskTests : IAsyncLifetime
 
     /// <summary>
     /// A model server with an embedding model: each vector is the text's words, hashed into 64 buckets, so texts that
-    /// share words are close. It never writes an answer, because Q1 asks for none.
+    /// share words are close. It answers with what the test says, streaming it in pieces when asked to.
     /// </summary>
     sealed class FakeServer : IModelClient, IEmbeddingClient
     {
         public ConcurrentQueue<(string Model, IReadOnlyList<string> Texts)> Embedded { get; } = new();
+
+        public ConcurrentQueue<ModelRequest> Asked { get; } = new();
+
+        public string Answer { get; set; } = "";
 
         public volatile bool Down;
 
         public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) =>
             Task.FromResult(new EndpointInfo(EndpointKind.Ollama, "0.0-test", ["chat-8b", "embed-a", "embed-b"]));
 
-        public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default) =>
-            throw new InvalidOperationException("Finding pages asks no model to write anything.");
+        public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
+        {
+            if (Down) throw new ModelEndpointException("Nothing is answering at http://localhost:11434/. Is the model server running?");
+            Asked.Enqueue(request);
+            if (request.Progress is { } progress)
+            {
+                progress.Report(new ModelProgress(ModelStep.Waiting, ""));
+                for (var i = 10; i < Answer.Length; i += 10) progress.Report(new ModelProgress(ModelStep.Writing, Answer[..i]));
+                progress.Report(new ModelProgress(ModelStep.Writing, Answer));
+            }
+            return Task.FromResult(Answer);
+        }
 
         public Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default)
         {
@@ -154,6 +168,7 @@ public sealed class AskTests : IAsyncLifetime
         Assert.Equal(AskMeaning.Off, found.Meaning);
         Assert.Equal(new PageCoverage(4, 3, 1, 0), found.Coverage);
         Assert.Empty(_server.Embedded);
+        Assert.Empty(_server.Asked);
         Assert.Null(_ask.FillOf(_book));
     }
 
@@ -314,5 +329,73 @@ public sealed class AskTests : IAsyncLifetime
             timeout.CancelAfter(TimeSpan.FromSeconds(10));
             while (engine.IsRunning) await Task.Delay(10, timeout.Token);
         }
+    }
+
+    /// <summary>Keeps every report in order, on the reporting thread.</summary>
+    sealed class Reports : IProgress<ModelProgress>
+    {
+        public List<ModelProgress> All { get; } = [];
+
+        public void Report(ModelProgress value) => All.Add(value);
+    }
+
+    [Fact]
+    public async Task An_answer_is_written_from_the_chosen_pages_only_streamed_and_checked()
+    {
+        await SetUpAsync(null);
+        _server.Answer = "It sleeps beneath the old mill [p. 1]. The book says \"the red dragon sleeps beneath the old mill\" [p. 1]. Its lair has nine exits [p. 7].";
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        var reports = new Reports();
+
+        var answer = await _ask.AnswerAsync(_book, found, reports, Ct);
+
+        var request = Assert.Single(_server.Asked);
+        Assert.Equal(("chat-8b", (string?)null, AskPrompt.ContextTokens, AskPrompt.SystemMessage), (request.Model, request.SchemaJson, request.ContextTokens, request.System));
+        Assert.Contains("[Page 1]", request.User, StringComparison.Ordinal);
+        Assert.Contains("Heading: Chapter One", request.User, StringComparison.Ordinal);
+        Assert.Contains("The red dragon sleeps beneath the old mill", request.User, StringComparison.Ordinal);
+        // Only the pages retrieval chose are sent.
+        Assert.DoesNotContain("innkeeper", request.User, StringComparison.Ordinal);
+        Assert.DoesNotContain("dragon", request.System, StringComparison.Ordinal);
+
+        Assert.True(reports.All.Count > 3);
+        Assert.Equal(_server.Answer, reports.All[^1].Answer);
+        Assert.Equal((2, 1, 1, 0), (answer.Checked.Citations, answer.Checked.RemovedCitations, answer.Checked.Quotes, answer.Checked.Paraphrases));
+        Assert.Equal([1], answer.Checked.CitedPages);
+        Assert.Contains(answer.Checked.Parts, p => p.Kind == AnswerPartKind.Unsupported);
+        Assert.Equal(("chat-8b", "Where does the dragon sleep?"), (answer.Model, answer.Question));
+    }
+
+    [Fact]
+    public async Task Pages_that_dont_answer_are_said_so_and_a_question_nothing_matches_never_reaches_the_model()
+    {
+        await SetUpAsync(null);
+        _server.Answer = AskPrompt.NotAnswered;
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        Assert.True((await _ask.AnswerAsync(_book, found, null, Ct)).Checked.NotAnswered);
+
+        var weak = await _ask.FindAsync(_book, "How fast is the starship's warp engine?", Ct);
+        Assert.True(weak.Weak);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _ask.AnswerAsync(_book, weak, null, Ct));
+        Assert.Single(_server.Asked);
+    }
+
+    [Fact]
+    public async Task A_book_kept_from_ai_since_its_pages_were_found_is_not_sent_and_a_server_that_fails_says_why()
+    {
+        await SetUpAsync(null);
+        var found = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+
+        _server.Down = true;
+        var down = await Assert.ThrowsAsync<ModelEndpointException>(() => _ask.AnswerAsync(_book, found, null, Ct));
+        Assert.Contains("Nothing is answering", down.Message, StringComparison.Ordinal);
+        _server.Down = false;
+
+        await SetUpAsync(null, skipped: new HashSet<long> { _rootId });
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.AnswerAsync(_book, found, null, Ct));
+        await SetUpAsync(null, enabled: false);
+        Assert.False(_ask.CanAnswer);
+        await Assert.ThrowsAsync<AskUnavailableException>(() => _ask.AnswerAsync(_book, found, null, Ct));
+        Assert.Empty(_server.Asked);
     }
 }

@@ -91,6 +91,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     volatile AiSetup _setup = AiSetup.Off;
     volatile IClassifier? _classifier;
     volatile IEmbeddingClient? _embedder;
+    volatile IModelClient? _chat;
 
     /// <summary>The usual client for a model server: the shared HttpClient, with the endpoint's key read when a request is made.</summary>
     public static IModelClient ClientFor(string endpoint, IApiKeyStore keys) => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint));
@@ -107,6 +108,12 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     /// model is set for it, or the built-in embedding engine. Null while AI isn't ready or there is no embedding model.
     /// </summary>
     public IEmbeddingClient? Embedder => _embedder;
+
+    /// <summary>
+    /// The client Ask this book's answers come from (Ask plan, step 4): the model server, or the built-in AI, as the
+    /// classifier uses. Null while AI isn't ready.
+    /// </summary>
+    public IModelClient? Chat => _chat;
 
     public IModelClient ClientFor(string endpoint) => _clients(endpoint);
 
@@ -168,6 +175,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
         _classifier = !setup.IsReady ? null
             : setup.BuiltIn ? builtIn is null ? null : new ModelClassifier(BuiltInClientFor(setup.BuiltInModel!), setup.RunProvider, setup.ModelName!)
             : new ModelClassifier(_clients(setup.Endpoint!), setup.Provider, setup.Model!);
+        _chat = !setup.IsReady ? null
+            : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
+            : _clients(setup.Endpoint!);
         // The same endpoint as the chat model, never another: pages go only where Settings says (choice 12).
         // A built-in one is used once its file is here; the finished download refreshes this.
         _embedder = !setup.IsReady ? null

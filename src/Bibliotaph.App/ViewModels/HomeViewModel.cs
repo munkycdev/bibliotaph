@@ -19,7 +19,7 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    PinDirectory pins, PinOpener opener, BookTextActions text, ILogger<HomeViewModel> log)
+    PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity)
 {
     /// <summary>How many covers each row shows.</summary>
@@ -161,6 +161,12 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     }
 
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
+
+    /// <summary>"Ask this book", from a cover's menu: opens the PDF with its Ask panel showing (Ask plan, choice 11).</summary>
+    [RelayCommand(CanExecute = nameof(CanAskBook))]
+    void AskBook(LibraryItemViewModel item) => readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title) { Resume = true, Ask = true });
+
+    bool CanAskBook(LibraryItemViewModel? item) => item is { CanAsk: true } && ask.IsOn;
 
     /// <summary>Open in another app, from the menu of a cover whose file Bibliotaph can't read (slice 4i plan, choice 4).</summary>
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenElsewhere))]
