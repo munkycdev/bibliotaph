@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -42,7 +43,7 @@ public partial class OnlineBrowserWindow
     {
         InitializeComponent();
         (_browsers, _reader, _start, _read, _log) = (browsers, reader, start, read, log);
-        State = new OnlineBrowserState(reader.Name);
+        State = new OnlineBrowserState(reader.Name) { Downloads = browsers.Downloads.Items };
         DataContext = State;
         Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => Web.Dispose();
@@ -86,6 +87,7 @@ public partial class OnlineBrowserWindow
         core.NavigationCompleted += (_, _) => CheckSoon();
         core.FaviconChanged += async (_, _) => await KeepIconAsync(core);
         core.WebResourceResponseReceived += async (_, e) => await KeepImageAsync(e);
+        core.DownloadStarting += async (_, e) => await _browsers.Downloads.TakeAsync(e, _reader.Name);
         State.Status = $"Sign in on {_reader.Name}'s own page if it asks, and open your library. Read this page lights up when the page lists your books.";
         core.Navigate(_start.AbsoluteUri);
     }
@@ -232,4 +234,17 @@ public sealed partial class OnlineBrowserState(string serviceName) : ObservableO
 
     [ObservableProperty]
     public partial bool CanGoForward { get; set; }
+
+    /// <summary>This session's store downloads (O5), listed under the page.</summary>
+    public ObservableCollection<OnlineDownload> Downloads
+    {
+        get;
+        init
+        {
+            field = value;
+            value.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasDownloads));
+        }
+    } = [];
+
+    public bool HasDownloads => Downloads.Count > 0;
 }

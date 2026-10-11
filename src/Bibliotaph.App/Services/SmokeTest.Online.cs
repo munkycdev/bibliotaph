@@ -212,6 +212,107 @@ static partial class SmokeTest
     static T Assert1<T>(IReadOnlyList<T> items, string what) =>
         items.Count == 1 ? items[0] : throw new InvalidOperationException($"Expected one of {what}, found {items.Count}.");
 
+    /// <summary>
+    /// Downloads (O5): a downloads folder outside the library refused, one inside it chosen, and a made-up store's
+    /// Download (a link with a download name, clicked on the made-up page) saved there by the in-app browser, listed in
+    /// its window and read into the library.
+    /// </summary>
+    static async Task DownloadFromStoreAsync(IServiceProvider services, Window window)
+    {
+        var data = System.IO.Path.GetDirectoryName(services.GetRequiredService<AppPaths>().Root)!;
+        var saved = System.IO.Path.Combine(data, "online", "dndbeyond-library.html");
+        if (OnlineBrowsers.RuntimeVersion is null || !System.IO.File.Exists(saved))
+        {
+            Log.Warning("Smoke test: no WebView2 Runtime or no made-up page, so downloading is left out");
+            return;
+        }
+        var roots = await services.GetRequiredService<SourceRootStore>().ListAsync();
+        var root = roots.FirstOrDefault(r => System.IO.Directory.Exists(r.Path)) ?? throw new InvalidOperationException("No library folder can be reached.");
+        var inside = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "Store downloads")).FullName;
+        var outside = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(data, "not-a-library")).FullName;
+
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        navigation.NavigateTo(Route.OnlineLibraries);
+        await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open.");
+        var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
+        await page.UseDownloadsFolderAsync(outside);
+        if (page.DownloadsProblem is null || page.HasDownloadsFolder) throw new InvalidOperationException("A downloads folder outside the library was taken.");
+        await page.UseDownloadsFolderAsync(inside);
+        if (page.DownloadsProblem is not null || page.DownloadsFolder != inside) throw new InvalidOperationException($"The downloads folder wasn't taken: {page.DownloadsProblem}");
+        await Settle(window);
+        await AuditAsync(window, "Online libraries with a downloads folder");
+
+        var downloads = services.GetRequiredService<OnlineDownloads>();
+        var browser = page.OpenBrowser(page.Services[0].Reader, new Uri(saved)) ?? throw new InvalidOperationException($"The browser didn't open: {page.Problem}");
+        try
+        {
+            var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency * 60;
+            while (Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(browser).FirstOrDefault()?.CoreWebView2 is null || !browser.State.CanRead)
+            {
+                if (System.Diagnostics.Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException($"The made-up page didn't load: “{browser.State.Status}”");
+                await Task.Delay(200);
+            }
+            var web = Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(browser).First().CoreWebView2;
+            var pdf = Convert.ToBase64String(SmokePdf("Smoke store download"));
+            await web.ExecuteScriptAsync(
+                "(() => { const a = document.createElement('a'); a.href = 'data:application/pdf;base64," + pdf
+                + "'; a.download = 'Smoke store download.pdf'; document.body.appendChild(a); a.click(); })();");
+            static bool Ours(OnlineDownload d) => d.Name.StartsWith("Smoke store download", StringComparison.Ordinal);
+            await WaitUntilAsync(browser, () => downloads.Items.FirstOrDefault(Ours) is { InProgress: false },
+                () => $"The download didn't finish ({string.Join("; ", downloads.Items.Select(d => $"{d.Name}: {d.Status}"))}).");
+            var download = downloads.Items.First(Ours);
+            if (!download.Saved || download.RootId != root.Id || !System.IO.File.Exists(download.Path)
+                || !string.Equals(System.IO.Path.GetDirectoryName(download.Path), inside, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"The download went to {download.Path} ({download.Status}), not the downloads folder.");
+            if (!browser.State.HasDownloads) throw new InvalidOperationException("The browser window doesn't list the download.");
+            await AuditAsync(browser, "the in-app browser with a download");
+
+            var relative = System.IO.Path.GetRelativePath(root.Path, download.Path);
+            var library = services.GetRequiredService<LibraryStore>();
+            var found = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency * 60;
+            while (!(await library.GetRelativePathsAsync()).Any(p => SamePath(p.RelativePath, relative)))
+            {
+                if (System.Diagnostics.Stopwatch.GetTimestamp() > found) throw new InvalidOperationException($"The library didn't read the download {relative}.");
+                await Task.Delay(250);
+            }
+        }
+        finally
+        {
+            browser.Close();
+            await page.ClearDownloadsFolderCommand.ExecuteAsync(null);
+        }
+        await Settle(window);
+    }
+
+    static bool SamePath(string a, string b) => string.Equals(a.Replace('\\', '/'), b.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A one-page PDF saying <paramref name="text"/>, as a store might sell.</summary>
+    static byte[] SmokePdf(string text)
+    {
+        var stream = $"BT /F1 24 Tf 72 700 Td ({text}) Tj ET";
+        string[] objects =
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            $"<< /Length {stream.Length} >>\nstream\n{stream}\nendstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ];
+        var pdf = new System.Text.StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++)
+        {
+            offsets.Add(pdf.Length);
+            pdf.Append(System.Globalization.CultureInfo.InvariantCulture, $"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        var xref = pdf.Length;
+        pdf.Append(System.Globalization.CultureInfo.InvariantCulture, $"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var offset in offsets) pdf.Append(System.Globalization.CultureInfo.InvariantCulture, $"{offset:D10} 00000 n \n");
+        pdf.Append(System.Globalization.CultureInfo.InvariantCulture, $"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        return System.Text.Encoding.ASCII.GetBytes(pdf.ToString());
+    }
+
     /// <summary>Waits for the online reader's browser to show the made-up page; the browser takes a while to start.</summary>
     static async Task WaitForPageAsync(Window window, OnlineReaderViewModel reader)
     {

@@ -72,6 +72,16 @@ public partial class OnlineReaderView
         };
         core.SourceChanged += (_, _) => model.Address = core.Source;
         core.DocumentTitleChanged += (_, _) => model.PageTitle = core.DocumentTitle;
+        core.DownloadStarting += async (_, e) =>
+        {
+            // A store's Download button on the book's page (O5): the reader says how it goes.
+            var download = await model.Browsers.Downloads.TakeAsync(e, model.Request.Place ?? model.Title);
+            model.Notice = $"{download.Name}: {download.Status}";
+            download.PropertyChanged += (_, p) =>
+            {
+                if (p.PropertyName == nameof(Services.OnlineDownload.Status)) model.Notice = $"{download.Name}: {download.Status}";
+            };
+        };
         core.HistoryChanged += (_, _) => (model.CanGoBack, model.CanGoForward) = (core.CanGoBack, core.CanGoForward);
         core.Navigate(model.Start.AbsoluteUri);
     }

@@ -166,6 +166,68 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         return $"Read {books}. Bibliotaph shows what importing them does; nothing is imported until you press Import there.";
     }
 
+    /// <summary>The folder store downloads go to (O5), or null for the browser's own Downloads folder.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DownloadsLine), nameof(HasDownloadsFolder))]
+    public partial string? DownloadsFolder { get; private set; }
+
+    public bool HasDownloadsFolder => DownloadsFolder is not null;
+
+    public string DownloadsLine => DownloadsFolder ?? "Not chosen: downloads go to your Downloads folder, outside your library.";
+
+    /// <summary>Why the folder picked can't be the downloads folder.</summary>
+    [ObservableProperty]
+    public partial string? DownloadsProblem { get; private set; }
+
+    public override async Task LoadAsync()
+    {
+        try
+        {
+            DownloadsFolder = await browsers.Downloads.FolderAsync();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Reading the downloads folder failed");
+        }
+    }
+
+    /// <summary>Choose a downloads folder: a library folder or one inside it, so what is downloaded joins the library.</summary>
+    [RelayCommand]
+    async Task ChooseDownloadsFolderAsync()
+    {
+        if (LibraryFolders.PickOne("Choose where store downloads go") is not { } folder) return;
+        await UseDownloadsFolderAsync(folder);
+    }
+
+    /// <summary>Makes <paramref name="folder"/> the downloads folder, or says why it can't be (the smoke test picks it here).</summary>
+    public async Task UseDownloadsFolderAsync(string folder)
+    {
+        try
+        {
+            DownloadsProblem = await browsers.Downloads.SetFolderAsync(folder);
+            if (DownloadsProblem is null) DownloadsFolder = folder;
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Setting the downloads folder failed");
+            DownloadsProblem = "The downloads folder couldn't be saved. The log has the details.";
+        }
+    }
+
+    [RelayCommand]
+    async Task ClearDownloadsFolderAsync()
+    {
+        try
+        {
+            await browsers.Downloads.ClearFolderAsync();
+            (DownloadsFolder, DownloadsProblem) = (null, null);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Clearing the downloads folder failed");
+        }
+    }
+
     /// <summary>Sign out of all services (choice 2): the browser forgets every sign-in it kept.</summary>
     [RelayCommand]
     async Task SignOutAsync()

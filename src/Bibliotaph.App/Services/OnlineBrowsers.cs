@@ -14,10 +14,13 @@ namespace Bibliotaph.App.Services;
 /// stay apart from the user's everyday browser. It never navigates on its own: it opens the library page once, and
 /// from there the user browses. Read this page hands the page in view to the service's reader.
 /// </summary>
-public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImages iconImages, ILoggerFactory logs)
+public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImages iconImages, OnlineDownloads downloads, ILoggerFactory logs)
 {
     readonly Dictionary<string, OnlineBrowserWindow> _open = [];
     Task<CoreWebView2Environment>? _environment;
+
+    /// <summary>Store downloads from every window (O5).</summary>
+    public OnlineDownloads Downloads => downloads;
 
     /// <summary>The smoke test's switch: browsers open only files, so no real site is read.</summary>
     public bool OnlyFiles { get; set; }
