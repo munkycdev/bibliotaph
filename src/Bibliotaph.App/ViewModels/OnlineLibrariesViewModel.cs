@@ -365,7 +365,7 @@ public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, 
             + "A page saved with Save page or Save as (Webpage, complete) works too."
         : $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page: books you haven't "
             + $"downloaded become books to get from {Name}. Its own Download buttons save into your downloads folder below, where Bibliotaph reads each file. "
-            + "A saved page works too.";
+            + "A saved page works too." + (Reader is DriveThruRpgReader ? " Your DMs Guild books are in the same library." : "");
 
     [RelayCommand]
     void Open() => page.OpenBrowser(Reader);

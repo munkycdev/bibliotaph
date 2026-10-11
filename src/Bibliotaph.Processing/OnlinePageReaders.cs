@@ -186,30 +186,30 @@ public sealed partial class HumbleBundleReader : IOnlineLibraryReader
 }
 
 /// <summary>
-/// The library of a store run on OneBookShelf's site, DriveThruRPG or DMs Guild (online libraries, O4): a page of title
-/// cards, each with the product's page, its publisher and its thumbnail, thirty to a page. Each page read adds its books
-/// (choice 1), and only a library that fits on one page is the whole library. Books bought there are files to download,
-/// so they go in Get it from.
+/// DriveThruRPG's library (online libraries, O4), which is DMs Guild's too: one site and one library for both stores. A
+/// page of title cards, each with the product's page, its publisher and its thumbnail, thirty to a page. Each page read
+/// adds its books (choice 1), and only a library that fits on one page is the whole library. Books bought there are
+/// files to download, so they go in Get it from.
 /// </summary>
-public sealed partial class OneBookShelfReader(string key, string name, string site) : IOnlineLibraryReader
+public sealed partial class DriveThruRpgReader : IOnlineLibraryReader
 {
-    public static OneBookShelfReader DriveThruRpg { get; } = new("drivethrurpg", "DriveThruRPG", "https://www.drivethrurpg.com");
+    readonly Uri _site = new("https://www.drivethrurpg.com");
 
-    public static OneBookShelfReader DmsGuild { get; } = new("dmsguild", "DMs Guild", "https://www.dmsguild.com");
+    public string Key => "drivethrurpg";
 
-    readonly Uri _site = new(site);
+    public string Name => "DriveThruRPG";
 
-    public string Key { get; } = key;
+    public Uri LibraryPage { get; } = new("https://www.drivethrurpg.com/en/mylibrary");
 
-    public string Name { get; } = name;
-
-    public Uri LibraryPage { get; } = new($"{site}/en/mylibrary");
+    /// <summary>DMs Guild's own site shows the same library.</summary>
+    public IReadOnlyList<string> SignInSites { get; } = ["dmsguild.com"];
 
     public MetadataField LinkField => MetadataFields.GetItFrom;
 
     public OnlinePage? Read(string html)
     {
-        if (!html.Contains(_site.Host, StringComparison.OrdinalIgnoreCase)) return null;
+        if (!html.Contains("drivethrurpg.com", StringComparison.OrdinalIgnoreCase) && !html.Contains("dmsguild.com", StringComparison.OrdinalIgnoreCase))
+            return null;
         var cards = PageMarkup.Pieces(html, "<obs-library-title-card").ToList();
         if (cards.Count == 0) return null;
         var books = new List<OnlineBook>();

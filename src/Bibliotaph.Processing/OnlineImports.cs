@@ -71,7 +71,7 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
 
     /// <summary>The services a library page can be read from, in the order the Online libraries page lists them.</summary>
     public static IReadOnlyList<IOnlineLibraryReader> Services { get; } =
-        [new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), OneBookShelfReader.DriveThruRpg, OneBookShelfReader.DmsGuild];
+        [new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), new DriveThruRpgReader()];
 
     /// <inheritdoc cref="Services"/>
 #pragma warning disable CA1822 // The app reaches the services through the imports it is given.
