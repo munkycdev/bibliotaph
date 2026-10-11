@@ -133,7 +133,7 @@ public sealed class OnlineLibrariesTests
     [Fact]
     public void A_drivethrurpg_library_page_gives_its_books_with_their_publishers_and_isnt_the_whole_library_when_there_are_more_pages()
     {
-        var reader = OneBookShelfReader.DriveThruRpg;
+        var reader = new DriveThruRpgReader();
         var html = Online("drivethrurpg-library.html");
 
         var page = reader.Read(html);
@@ -147,24 +147,22 @@ public sealed class OnlineLibrariesTests
             ],
             page.Books.Select(b => (b.Title, b.Link, b.Publisher, b.CoverUrl)));
 
-        // A library on one page is the whole of it; DMs Guild's reader doesn't take DriveThruRPG's page.
+        // A library on one page is the whole of it, and DMs Guild's site shows the same library.
         var start = html.IndexOf("<ngb-pagination>", StringComparison.Ordinal);
         Assert.True(reader.Read(html[..start] + "</body></html>")?.Complete);
-        Assert.Null(OneBookShelfReader.DmsGuild.Read(html));
+        Assert.Equal(2, reader.Read(html.Replace("www.drivethrurpg.com", "www.dmsguild.com", StringComparison.Ordinal))?.Books.Count);
     }
 
     [Fact]
     public void Each_service_reads_only_its_own_library_page()
     {
         string[] pages = ["dndbeyond-library.html", "demiplane-sources.html", "humble-library.html", "drivethrurpg-library.html"];
-        IOnlineLibraryReader[] readers = [new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), OneBookShelfReader.DriveThruRpg];
+        IOnlineLibraryReader[] readers = [new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), new DriveThruRpgReader()];
 
         for (var i = 0; i < pages.Length; i++)
             for (var j = 0; j < readers.Length; j++)
                 Assert.True((readers[j].Read(Online(pages[i])) is not null) == (i == j), $"{readers[j].Name} on {pages[i]}");
-        Assert.Equal(["dnd-beyond", "demiplane", "bundle", "drivethrurpg", "dmsguild"],
-            new IOnlineLibraryReader[] { new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), OneBookShelfReader.DriveThruRpg, OneBookShelfReader.DmsGuild }
-                .Select(r => r.Key));
+        Assert.Equal(["dnd-beyond", "demiplane", "bundle", "drivethrurpg"], OnlineImports.Services.Select(r => r.Key));
     }
 
     [Fact]

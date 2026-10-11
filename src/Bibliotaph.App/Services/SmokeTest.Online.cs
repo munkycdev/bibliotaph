@@ -35,7 +35,7 @@ static partial class SmokeTest
         await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
         await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open its page.");
         var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
-        if (page.Services.Select(s => s.Name).ToList() is not ["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG", "DMs Guild"])
+        if (page.Services.Select(s => s.Name).ToList() is not ["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"])
             throw new InvalidOperationException($"Online libraries lists {string.Join(", ", page.Services.Select(s => s.Name))}.");
 
         // The file picker can't be driven here, so the page is read as the picker would read it.
