@@ -29,7 +29,6 @@
                 ToolTip="Save the page as it shows now, signed in as you, to a file of your choosing. Useful when Read this page doesn't recognise it." />
         <Button x:Name="ReadPage" DockPanel.Dock="Right" Style="{StaticResource Bt.Button.Primary}" Content="Read this page" c:Ui.Icon="{StaticResource Icon.LibraryBig}"
                 Click="Read_Click" IsEnabled="{Binding CanRead}" Margin="12,0,0,0" VerticalAlignment="Center"
-                Visibility="{Binding ReadsLibrary, Converter={StaticResource Bt.VisibleWhenTrue}}"
                 ToolTip="Read the books on this page into a preview in Bibliotaph. Nothing is imported until you say so." />
         <StackPanel VerticalAlignment="Center">
           <TextBlock x:Name="Address" Text="{Binding Address}" FontSize="12" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis"

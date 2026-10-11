@@ -56,7 +56,8 @@ public sealed record SavedLibraryPage(IOnlineLibraryReader Reader, OnlinePage Pa
 /// Importing the books the user owns on an online service as books owned elsewhere (online libraries, O2). A reader
 /// turns a library page into books; the preview says what each becomes (choice 6); the import writes them all in one
 /// transaction, and Undo takes the whole import back. Every value is the user's own, with the import as its evidence
-/// (choice 4), and the link goes in Also own, where Open finds it and the next import knows the book by it (choice 5).
+/// (choice 4), and the link goes in Also own, where Open finds it and the next import knows the book by it (choice 5),
+/// or for a store whose books are files to download, in Get it from (O4).
 /// </summary>
 public sealed class OnlineImports(MetadataStore store, MetadataService metadata, EntryStore entries,
     MetadataProjector projector, IndexQueries queries, ISourceFileReader files, IImageCodec images, CoverCache covers, TimeProvider? clock = null,
@@ -69,8 +70,13 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     const int MaxCoverBytes = 8 * 1024 * 1024;
 
     /// <summary>The services a library page can be read from, in the order the Online libraries page lists them.</summary>
-    public IReadOnlyList<IOnlineLibraryReader> Readers { get; } =
-        [new DndBeyondReader(), StoreOnlyLibrary.Demiplane, StoreOnlyLibrary.HumbleBundle, StoreOnlyLibrary.DriveThruRpg, StoreOnlyLibrary.DmsGuild];
+    public static IReadOnlyList<IOnlineLibraryReader> Services { get; } =
+        [new DndBeyondReader(), new DemiplaneReader(), new HumbleBundleReader(), new DriveThruRpgReader()];
+
+    /// <inheritdoc cref="Services"/>
+#pragma warning disable CA1822 // The app reaches the services through the imports it is given.
+    public IReadOnlyList<IOnlineLibraryReader> Readers => Services;
+#pragma warning restore CA1822
 
     /// <summary>
     /// A library page saved with Save as, Webpage complete (choice 1's fallback), read by whichever reader recognises
@@ -94,7 +100,7 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     /// </summary>
     public async Task<OnlineImportPlan> PlanAsync(IOnlineLibraryReader reader, OnlinePage page, CancellationToken ct = default)
     {
-        var linked = (await queries.GetLinkedCardsAsync(MetadataFields.AlsoOwn.Key, reader.Key, ct))
+        var linked = (await queries.GetLinkedCardsAsync(reader.LinkField.Key, reader.Key, ct))
             .GroupBy(c => LinkKey(c.Link)).ToDictionary(g => g.Key, g => g.First());
         var byTitle = (await queries.GetBookCardsAsync(ct)).ToLookup(c => TitleKey(c.Title));
         var known = await metadata.GetManyAsync([.. linked.Values.Select(c => c.EntryId)], ct);
@@ -143,8 +149,8 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         {
             IEnumerable<(MetadataField Field, string Typed)> values = row.Outcome switch
             {
-                OnlineOutcome.New => [(MetadataFields.Title, row.Book.Title), .. Values(row.Book, vocabulary), (MetadataFields.AlsoOwn, $"{reader.Name} {row.Book.Link}")],
-                OnlineOutcome.AddToCard => [(MetadataFields.AlsoOwn, $"{reader.Name} {row.Book.Link}")],
+                OnlineOutcome.New => [(MetadataFields.Title, row.Book.Title), .. Values(row.Book, vocabulary), (reader.LinkField, $"{reader.Name} {row.Book.Link}")],
+                OnlineOutcome.AddToCard => [(reader.LinkField, $"{reader.Name} {row.Book.Link}")],
                 _ => Fillable(row.Book, known.Metadata[row.EntryId!.Value], vocabulary).Where(v => row.Fills.Contains(v.Field)),
             };
             var changes = new List<BulkChange>();
@@ -161,9 +167,9 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
             }
             // A card that says it is owned there, with no link, gets the link in place of the bare place.
             if (row.EntryId is { } entryId && known.Metadata.TryGetValue(entryId, out var current))
-                foreach (var linked in changes.Where(c => c.Field == MetadataFields.AlsoOwn).Select(c => StoreLink.Parse(c.Value!)).ToList())
-                    if (current[MetadataFields.AlsoOwn].Values.Any(v => v.Value == linked.Store))
-                        changes.Add(new BulkChange(MetadataFields.AlsoOwn, BulkAction.Remove, linked.Store));
+                foreach (var linked in changes.Where(c => c.Field == reader.LinkField).Select(c => StoreLink.Parse(c.Value!)).ToList())
+                    if (current[reader.LinkField].Values.Any(v => v.Value == linked.Store))
+                        changes.Add(new BulkChange(reader.LinkField, BulkAction.Remove, linked.Store));
             if (changes.Count == 0) continue;
             books.Add(new ImportedBook(row.EntryId, changes));
             if (row.EntryId is null) newRows.Add(row);
@@ -203,16 +209,17 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
 
     /// <summary>
     /// The covers a saved page's images hold: each cover is looked up by its file name in the folder the browser saved
-    /// the page's images in. Nothing is fetched.
+    /// the page's images in, whether the page gives it as a web address or as the saved file ("./… _files/cover.jpg").
+    /// Nothing is fetched.
     /// </summary>
     public Func<string, CancellationToken, Task<byte[]?>> SavedCovers(string folder) => async (url, ct) =>
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Segments is not [.., var last]) return null;
-        var name = Uri.UnescapeDataString(last);
-        if (name.Length == 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
-        var path = Path.Combine(folder, name);
-        if (!File.Exists(path) || new FileInfo(path).Length > MaxCoverBytes) return null;
-        await using var stream = files.OpenRead(path);
+        var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.AbsolutePath : url.Split('?', '#')[0];
+        var name = Uri.UnescapeDataString(path[(path.LastIndexOfAny(['/', '\\']) + 1)..]);
+        if (name.Length == 0 || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
+        var file = Path.Combine(folder, name);
+        if (!File.Exists(file) || new FileInfo(file).Length > MaxCoverBytes) return null;
+        await using var stream = files.OpenRead(file);
         using var copy = new MemoryStream();
         await stream.CopyToAsync(copy, ct);
         return copy.ToArray();
@@ -253,12 +260,15 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     /// <summary>A title as titles are matched: letters and digits only, so "Player's Handbook" meets "Players Handbook".</summary>
     internal static string TitleKey(string title) => MetadataText.Normalize(title).Replace(" ", "", StringComparison.Ordinal);
 
-    /// <summary>A link as links are matched: its site without "www.", and its path, ignoring case, a query and a last slash.</summary>
+    /// <summary>
+    /// A link as links are matched: its site without "www.", its path and any fragment, ignoring case, a query and a last
+    /// slash. The fragment counts, as it is all that tells one Humble Bundle book's link from another's.
+    /// </summary>
     internal static string LinkKey(string link)
     {
         if (!Uri.TryCreate(link, UriKind.Absolute, out var uri)) return link.Trim().ToLowerInvariant();
         var host = uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host;
-        return (host + uri.AbsolutePath.TrimEnd('/')).ToLowerInvariant();
+        return (host + uri.AbsolutePath.TrimEnd('/') + (uri.Fragment.Length > 1 ? uri.Fragment : "")).ToLowerInvariant();
     }
 
     static bool OnSite(string link, Uri site) =>

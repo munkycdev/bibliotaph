@@ -35,7 +35,7 @@ static partial class SmokeTest
         await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
         await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open its page.");
         var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
-        if (page.Services is not [{ Name: "D&D Beyond", ReadsLibrary: true }, ..] || page.Services.Where(s => !s.ReadsLibrary).Select(s => s.Name).ToList() is not ["Demiplane", "Humble Bundle", "DriveThruRPG", "DMs Guild"])
+        if (page.Services.Select(s => s.Name).ToList() is not ["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"])
             throw new InvalidOperationException($"Online libraries lists {string.Join(", ", page.Services.Select(s => s.Name))}.");
 
         // The file picker can't be driven here, so the page is read as the picker would read it.
@@ -245,7 +245,7 @@ static partial class SmokeTest
         await AuditAsync(window, "Online libraries with a downloads folder");
 
         var downloads = services.GetRequiredService<OnlineDownloads>();
-        // A store's row: its browser is for signing in and downloading, so it has no Read this page.
+        // A store's row: its browser signs in and downloads, and a page that isn't its library has nothing to read.
         var store = page.Services.First(s => s.Name == "Humble Bundle").Reader;
         var browser = page.OpenBrowser(store, new Uri(saved)) ?? throw new InvalidOperationException($"The browser didn't open: {page.Problem}");
         try
@@ -257,8 +257,7 @@ static partial class SmokeTest
                 await Task.Delay(200);
             }
             await Task.Delay(800);
-            if (browser.State.CanRead || browser.ReadPage.IsVisible) throw new InvalidOperationException("A store's browser offers Read this page.");
-            if (!browser.State.Status.Contains("downloads folder", StringComparison.Ordinal)) throw new InvalidOperationException($"A store's browser says “{browser.State.Status}”.");
+            if (browser.State.CanRead) throw new InvalidOperationException("A store's browser offers to read a page that isn't its library.");
             var web = Descendants<Microsoft.Web.WebView2.Wpf.WebView2>(browser).First().CoreWebView2;
             var pdf = Convert.ToBase64String(SmokePdf("Smoke store download"));
             await web.ExecuteScriptAsync(

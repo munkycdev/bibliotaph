@@ -11,7 +11,7 @@
   <StackPanel MaxWidth="860" HorizontalAlignment="Left" Margin="0,0,42,24">
     <TextBlock Text="Online libraries." Style="{StaticResource Text.H1}" />
     <TextBlock Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" TextWrapping="Wrap"
-               Text="Bring in the books you own on online services as books owned elsewhere, each opening on its service. Bibliotaph never holds your passwords and never browses on its own." />
+               Text="Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never browses on its own." />
 
     <ItemsControl x:Name="OnlineServices" ItemsSource="{Binding Services}" Focusable="False" AutomationProperties.Name="Online services">
       <ItemsControl.ItemTemplate>
@@ -22,7 +22,6 @@
                 <Button x:Name="OpenService" Style="{StaticResource Bt.Button.Primary}" Content="{Binding OpenLabel}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
                         Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
                 <Button Style="{StaticResource Bt.Link}" Content="Import a saved page…" Margin="0,8,0,0" HorizontalAlignment="Right"
-                        Visibility="{Binding ReadsLibrary, Converter={StaticResource Bt.VisibleWhenTrue}}"
                         Command="{Binding DataContext.ImportSavedPageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         AutomationProperties.Name="{Binding Name, StringFormat='Import a saved {0} library page'}" />
               </StackPanel>

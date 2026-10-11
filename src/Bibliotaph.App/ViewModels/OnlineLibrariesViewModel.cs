@@ -252,7 +252,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         Groups.Clear();
         foreach (var outcomes in plan.Rows.GroupBy(r => r.Outcome).OrderBy(g => g.Key))
         {
-            var group = new OnlineGroupViewModel(outcomes.Key, reader.Name);
+            var group = new OnlineGroupViewModel(outcomes.Key, reader);
             foreach (var row in outcomes) group.Items.Add(new OnlineRowViewModel(row, this));
             Groups.Add(group);
         }
@@ -359,21 +359,20 @@ public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, 
 
     public string OpenLabel => $"Open {Name}";
 
-    public string Explanation => Reader.ReadsLibrary
+    public string Explanation => Reader.LinkField == MetadataFields.AlsoOwn
         ? $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page. "
-            + "Only books you own are imported, and Bibliotaph never sees your password. A page saved with Save as (Webpage, complete) works too."
-        : $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, and its own Download buttons save into your downloads folder below, "
-            + "where Bibliotaph reads each file. Bringing in the list of what you own there comes later.";
-
-    /// <summary>Import a saved page shows only for a service whose library page is read.</summary>
-    public bool ReadsLibrary => Reader.ReadsLibrary;
+            + "Only books you own are imported, each opening on " + Name + ", and Bibliotaph never sees your password. "
+            + "A page saved with Save page or Save as (Webpage, complete) works too."
+        : $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page: books you haven't "
+            + $"downloaded become books to get from {Name}. Its own Download buttons save into your downloads folder below, where Bibliotaph reads each file. "
+            + "A saved page works too." + (Reader is DriveThruRpgReader ? " Your DMs Guild books are in the same library." : "");
 
     [RelayCommand]
     void Open() => page.OpenBrowser(Reader);
 }
 
 /// <summary>The preview's books with one outcome.</summary>
-public sealed class OnlineGroupViewModel(OnlineOutcome outcome, string service)
+public sealed class OnlineGroupViewModel(OnlineOutcome outcome, IOnlineLibraryReader reader)
 {
     public OnlineOutcome Outcome { get; } = outcome;
 
@@ -387,8 +386,10 @@ public sealed class OnlineGroupViewModel(OnlineOutcome outcome, string service)
 
     public string Explanation { get; } = outcome switch
     {
-        OnlineOutcome.New => "Each becomes a book owned elsewhere, opening on " + service + ".",
-        OnlineOutcome.AddToCard => $"A card with its title is here already: it gets {service} and the link, rather than a second card.",
+        OnlineOutcome.New => reader.LinkField == MetadataFields.AlsoOwn
+            ? $"Each becomes a book owned elsewhere, opening on {reader.Name}."
+            : $"Each becomes a book to get from {reader.Name}, until you download its file.",
+        OnlineOutcome.AddToCard => $"A card with its title is here already: it gets {reader.Name} and the link, rather than a second card.",
         OnlineOutcome.Update => "Only fields that are empty are filled. Nothing you have set changes.",
         _ => "Nothing to change.",
     };

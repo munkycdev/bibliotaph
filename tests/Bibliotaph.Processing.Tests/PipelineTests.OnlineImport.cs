@@ -98,6 +98,59 @@ public sealed partial class PipelineTests
         Assert.Empty((await import.PlanAsync(reader, new OnlinePage([], 0, Complete: false), Ct)).Missing);
     }
 
+    [Fact]
+    public async Task A_stores_library_puts_its_books_in_get_it_from_and_knows_each_by_its_link_next_time()
+    {
+        await _service.StartAsync(Ct);
+        var import = OnlineImports();
+        var reader = new HumbleBundleReader();
+        var html = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "online", "humble-library.html"), Ct);
+        const string Bestiary = "bundle https://www.humblebundle.com/home/library#the-clockwork-bestiary-vol-2";
+
+        // A card already says the first book is from Humble Bundle, with no link.
+        var (lanterns, _) = await _elsewhere.AddAsync(new ElsewhereDraft("Nine Crooked Lanterns"), Ct);
+        Assert.Null(await _metadata.SetAsync(lanterns!.Value, MetadataFields.GetItFrom, "Humble Bundle", Ct));
+
+        var plan = await import.PlanAsync(reader, reader.Read(html)!, Ct);
+        Assert.Equal([OnlineOutcome.AddToCard, OnlineOutcome.New], plan.Rows.Select(r => r.Outcome));
+        await import.ImportAsync(plan, plan.Rows, ct: Ct);
+
+        Assert.Equal(["bundle https://www.humblebundle.com/home/library#nine-crooked-lanterns"], await Values(lanterns.Value, MetadataFields.GetItFrom));
+        Assert.Empty(await Values(lanterns.Value, MetadataFields.AlsoOwn));
+        var search = new LibraryQueries(_index);
+        var bestiary = (await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).Single(c => c.Title == "The Clockwork Bestiary: Vol. 2");
+        Assert.Equal([Bestiary], await Values(bestiary.EntryId, MetadataFields.GetItFrom));
+        // A book to download doesn't open online.
+        Assert.Null(bestiary.OnlineLink);
+
+        // The links differ only after the #, and each book is still known by its own: the card that had no publisher is
+        // offered the page's.
+        var again = await import.PlanAsync(reader, reader.Read(html)!, Ct);
+        Assert.Equal([(OnlineOutcome.Update, lanterns), (OnlineOutcome.Unchanged, bestiary.EntryId)], again.Rows.Select(r => (r.Outcome, r.EntryId)));
+        Assert.Equal([MetadataFields.Publisher], again.Rows[0].Fills);
+    }
+
+    [Fact]
+    public async Task A_saved_page_that_gives_its_covers_as_saved_files_keeps_them()
+    {
+        await _service.StartAsync(Ct);
+        var import = OnlineImports();
+        var folder = Directory.CreateDirectory(Path.Combine(_dir, "saved")).FullName;
+        var page = Path.Combine(folder, "Source Library - Ember Isles RPG Nexus.html");
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "online", "demiplane-sources.html"), page);
+        var images = Directory.CreateDirectory(Path.Combine(folder, "Source Library - Ember Isles RPG Nexus_files")).FullName;
+        File.WriteAllBytes(Path.Combine(images, "cover(1).jpg"), FakeCodec.Png(200, 260));
+
+        var saved = await import.ReadSavedPageAsync(page, Ct);
+        Assert.Equal("demiplane", saved?.Reader.Key);
+        var plan = await import.PlanAsync(saved!.Reader, saved.Page, Ct);
+        await import.ImportAsync(plan, plan.Rows, import.SavedCovers(saved.Images), Ct);
+
+        var cards = (await new LibraryQueries(_index).ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).OrderBy(c => c.Title, StringComparer.Ordinal).ToList();
+        Assert.Equal([("Ember Isles Core Rules", false), ("Tides of Ash & Salt", true)], cards.Select(c => (c.Title, c.Cover is not null)));
+        Assert.Equal(("https://app.demiplane.com/nexus/emberisles/sources/tides-of-ash", "Demiplane"), (cards[1].OnlineLink, cards[1].OnlineLabel));
+    }
+
     async Task<IReadOnlyList<string>> Values(EntryId entryId, MetadataField field) =>
         [.. (await _metadata.GetAsync(entryId, Ct)).Metadata[field].Values.Select(v => v.Value).Order(StringComparer.Ordinal)];
 
