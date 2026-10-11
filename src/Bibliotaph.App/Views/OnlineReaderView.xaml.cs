@@ -17,6 +17,7 @@ namespace Bibliotaph.App.Views;
 public partial class OnlineReaderView
 {
     bool _started;
+    bool _gone;
     string? _readingScript;
 
     public OnlineReaderView()
@@ -25,6 +26,7 @@ public partial class OnlineReaderView
         Loaded += async (_, _) => await StartAsync();
         Unloaded += (_, _) =>
         {
+            _gone = true;
             if (Model is { } model)
             {
                 model.Sessions.PropertyChanged -= Sessions_PropertyChanged;
@@ -62,6 +64,7 @@ public partial class OnlineReaderView
             return;
         }
 
+        if (_gone) return;
         var core = Web.CoreWebView2;
         core.NavigationStarting += (_, e) =>
         {
@@ -91,6 +94,8 @@ public partial class OnlineReaderView
         core.HistoryChanged += (_, _) => (model.CanGoBack, model.CanGoForward) = (core.CanGoBack, core.CanGoForward);
         model.PropertyChanged += Model_PropertyChanged;
         await ShowReadingModeAsync(core, model);
+        // The reader can go (Back, Pop out) while the stylesheet goes on, and its browser with it.
+        if (_gone) return;
         core.Navigate(model.Start.AbsoluteUri);
     }
 
@@ -108,6 +113,7 @@ public partial class OnlineReaderView
     {
         try
         {
+            var wasOn = _readingScript is not null;
             if (_readingScript is { } id)
             {
                 core.RemoveScriptToExecuteOnDocumentCreated(id);
@@ -117,9 +123,9 @@ public partial class OnlineReaderView
             {
                 var script = ReadingScript(style, site);
                 _readingScript = await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
-                await core.ExecuteScriptAsync(script);
+                if (!_gone) await core.ExecuteScriptAsync(script);
             }
-            else await core.ExecuteScriptAsync("document.getElementById('bibliotaph-reading')?.remove()");
+            else if (wasOn) await core.ExecuteScriptAsync("document.getElementById('bibliotaph-reading')?.remove()");
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException)
         {
