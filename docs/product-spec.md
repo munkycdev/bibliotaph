@@ -70,7 +70,7 @@ Library Q&A with page citations; optional detected sections such as encounters o
 
 Cloud sync, multi-user accounts, player portals, VTT integration, campaign authoring, character sheets, ebook conversion, source-file renaming or deletion, DRM removal, a plugin marketplace, and running a background server. No built-in storefront or recommendation engine for buying more books.
 
-Bibliotaph is a Windows desktop app. Phone and tablet apps, a web version and macOS or Linux builds are out of scope (decided by Dave on 10 October 2026); the core, data and PDFium layers stay portable in case that changes. Using one library on a second Windows PC is served by a library sync file: the user-work export of §10, written to a folder the user picks (such as OneDrive) and merged on the other PC by content hash, newest change per field winning. The SQLite files themselves never go in a synced folder. The sync file is planned, not built.
+Bibliotaph is a Windows desktop app. Phone and tablet apps, a web version and macOS or Linux builds are out of scope (decided by Dave on 10 October 2026); the core, data and PDFium layers stay portable in case that changes. Using one library on a second Windows PC is served by a library sync file (§10): each PC writes its user work to a folder the user picks (such as OneDrive) and merges the other PC's file, books matched by content hash, newest change per field winning. There is no sync service. The SQLite files themselves never go in a synced folder.
 
 ## 3. Information architecture
 
@@ -301,6 +301,8 @@ Keep user-authored catalog data separate from rebuildable derived content. A ful
 Backup includes the catalog and user work, with optional derived data. Source PDFs/images are excluded unless a future explicit archive feature is added. Restore previews required root-path remapping and missing resources. Secrets are excluded and re-entered after restore.
 
 Export documented JSON for full catalog portability and CSV for flat metadata. Include stable IDs, relative/source paths, hashes, provenance, collection memberships, and page-reference conventions in the structured export. Do not imply CSV alone can preserve every nested structure.
+
+Sync with another PC (Settings > Backup): each PC writes its user work to `<folder>\Bibliotaph sync\<PC name>.json` in a folder the user picks, a few seconds after the work changes and at close, and merges the other PCs' files at start, when one changes, and on Sync now. Per field the newer change wins, so two PCs editing different things both keep them, and deletions reach the other PC. Books are matched by content hash, what the user made (collections, binders, saved searches, notes) by a stable id; work on a book only the other PC has waits and is applied when the same file shows up. Library files, folder locations, reading places and settings stay on their PC. The databases never go in the folder: Settings says so and refuses Bibliotaph's own data folder. A status line says when the other PC's work was last merged, or what went wrong (folder offline, an unreadable file, two PCs with the same name).
 
 Database migrations require a pre-migration backup and a recovery path. Failed upgrades must not destroy the only copy of user-created catalog data.
 

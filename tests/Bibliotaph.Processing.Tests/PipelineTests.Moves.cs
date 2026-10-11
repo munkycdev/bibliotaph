@@ -18,13 +18,16 @@ public sealed partial class PipelineTests
     {
         readonly Lock _lock = new();
         readonly Dictionary<string, string> _ids = [];
-        readonly Dictionary<string, (string Serial, bool IsLocal)> _disks = [];
+        readonly Dictionary<string, (string Serial, bool IsLocal, bool HasFileIds)> _disks = [];
         int _next;
 
-        /// <summary>Puts a library folder on a disk; <paramref name="network"/> makes it a network share's.</summary>
-        public void Disk(string folder, string serial, bool network = false)
+        /// <summary>
+        /// Puts a library folder on a disk; <paramref name="network"/> makes it a network share's, and without
+        /// <paramref name="fileIds"/> it is a FAT or exFAT drive, which keeps no IDs.
+        /// </summary>
+        public void Disk(string folder, string serial, bool network = false, bool fileIds = true)
         {
-            lock (_lock) _disks[Path.TrimEndingDirectorySeparator(folder)] = (serial, !network);
+            lock (_lock) _disks[Path.TrimEndingDirectorySeparator(folder)] = (serial, !network, fileIds);
         }
 
         /// <summary>Moves a file as Explorer would: same file, same ID, new path.</summary>
@@ -48,7 +51,7 @@ public sealed partial class PipelineTests
         public VolumeIdentity? Volume(string folder)
         {
             lock (_lock)
-                return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var disk) ? new VolumeIdentity(disk.Serial, HasFileIds: true, disk.IsLocal) : null;
+                return _disks.TryGetValue(Path.TrimEndingDirectorySeparator(folder), out var disk) ? new VolumeIdentity(disk.Serial, disk.HasFileIds, disk.IsLocal) : null;
         }
 
         public string? FileId(string path)
@@ -140,6 +143,85 @@ public sealed partial class PipelineTests
     }
 
     [Fact]
+    public async Task On_a_drive_without_file_ids_a_moved_book_and_a_moved_pack_keep_their_cards_without_being_read_again()
+    {
+        Copy(pdfs.KnownText, Path.Combine("Adventures", "Known Text.pdf"));
+        var tokens = Directory.CreateDirectory(Path.Combine(_library, "Tokens", "Undead")).FullName;
+        for (var i = 1; i <= PackStore.AutomaticMinimum; i++)
+            File.WriteAllBytes(Path.Combine(tokens, $"Zombie {i}.png"), FakeCodec.Png(100 + i, 100));
+        _identity.Disk(_library, "1234ABCD", fileIds: false);
+        var root = (await _roots.AddAsync(_library, Ct)).Id;
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var cards = await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct);
+        var book = cards.Single(c => c.Format == SourceFormats.Pdf);
+        var pack = cards.Single(c => c.IsPack);
+        var collection = await _collections.CreateAsync("Crypt crawl", ct: Ct);
+        await _collections.AddAsync(collection.Id, [book.EntryId, pack.EntryId], Ct);
+        await _favorites.SetAsync([pack.EntryId], favorite: true, Ct);
+        var locations = (await FileLocationsAsync()).Select(l => l.Id).Order().ToList();
+
+        // Folders moved in Explorer on a USB stick: the files keep their names, sizes and dates. Indexing is paused,
+        // so a read would leave them unhashed.
+        _service.Pause(Lane.Index);
+        Directory.Move(Path.Combine(_library, "Adventures"), Path.Combine(_library, "Read next"));
+        Directory.CreateDirectory(Path.Combine(_library, "Monsters"));
+        Directory.Move(tokens, Path.Combine(_library, "Monsters", "Undead"));
+        Assert.Equal(21, (await ScanAsync(root)).Changes!.Moved);
+        Assert.Empty(await _libraryStore.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        Assert.Equal(locations, (await FileLocationsAsync()).Select(l => l.Id).Order());
+        _service.Resume(Lane.Index);
+
+        // The pack follows its images when packs are next looked at.
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            timeout.CancelAfter(Patience);
+            while ((await _packs.GetPlaceAsync(pack.EntryId, timeout.Token))!.FullPath != Path.Combine(_library, "Monsters", "Undead"))
+                await Task.Delay(50, timeout.Token);
+        }
+        await SettleAsync();
+        var after = await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct);
+        Assert.Equal(new[] { book.EntryId, pack.EntryId }.OrderBy(e => e.Value), after.Select(c => c.EntryId).OrderBy(e => e.Value));
+        Assert.Equal((20, "Undead"), (after.Single(c => c.IsPack).Members, after.Single(c => c.IsPack).Title));
+        Assert.Equal(Path.Combine(_library, "Read next", "Known Text.pdf"), (await _libraryStore.GetSourceAsync(book.DocumentId, Ct))!.FullPath);
+        Assert.Equal([collection.Id], await _collections.GetForEntryAsync(pack.EntryId, Ct));
+        Assert.True(await _favorites.IsFavoriteAsync(pack.EntryId, Ct));
+    }
+
+    [Fact]
+    public async Task A_ZIP_moved_to_another_library_folder_keeps_what_it_holds_without_being_read_again()
+    {
+        Zip("Bundle.zip", Saved, ("Known Text.pdf", File.ReadAllBytes(pdfs.KnownText)), ("Maps/Harbor Map.png", FakeCodec.Png(800, 600)));
+        // Something stays behind: a folder that lists as empty though it held files reads as offline.
+        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+        var other = Directory.CreateDirectory(Path.Combine(_dir, "Second Library")).FullName;
+        _identity.Disk(_library, "1234ABCD");
+        _identity.Disk(other, "1234ABCD");
+        var root = (await _roots.AddAsync(_library, Ct)).Id;
+        var second = (await _roots.AddAsync(other, Ct)).Id;
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var map = (await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).Single(c => c.Title == "Harbor Map");
+        var cards = await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct);
+        var zip = (await FileLocationsAsync()).Single(l => l.RelativePath == "Bundle.zip");
+
+        // Moved as a watcher in the folder it went to would see it first; indexing is paused, so a read would show.
+        _service.Pause(Lane.Index);
+        _identity.Move(Path.Combine(_library, "Bundle.zip"), Path.Combine(other, "Bundle.zip"));
+        var left = _service.Scans.Single(s => s.RootId == root);
+        await ScanAsync(second);
+        Assert.Equal(1, (await NextScanAsync(root, left)).Changes!.Moved);
+
+        Assert.Empty(await _libraryStore.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        var moved = (await FileLocationsAsync()).Single(l => l.Id == zip.Id);
+        Assert.Equal((second, "Bundle.zip", zip.ContentHash), (moved.SourceRootId, moved.RelativePath, moved.ContentHash));
+        Assert.Equal(Path.Combine(other, "Bundle.zip"), (await _libraryStore.GetSourceAsync(map.DocumentId, Ct))!.ArchivePath);
+        Assert.Equal(cards, await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
+        Assert.Empty(await _libraryStore.GetUnavailableAsync(Ct));
+        _service.Resume(Lane.Index);
+    }
+
+    [Fact]
     public async Task A_library_folder_unplugged_swapped_for_another_disk_or_listing_empty_is_offline_marks_nothing_missing_and_comes_back()
     {
         Copy(pdfs.KnownText, "Known Text.pdf");
@@ -191,6 +273,55 @@ public sealed partial class PipelineTests
         await OfflineAsync(OfflineReason.LooksEmpty);
         File.Move(aside, Path.Combine(_library, "Known Text.pdf"));
         await BackAsync();
+    }
+
+    [Fact]
+    public async Task A_book_that_cant_be_opened_says_why_naming_its_folder_and_opens_once_a_look_finds_it_again()
+    {
+        Copy(pdfs.KnownText, Path.Combine("Adventures", "Known Text.pdf"));
+        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+        _identity.Disk(_library, "1234ABCD");
+        var root = (await _roots.AddAsync(_library, Ct)).Id;
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var card = (await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).Single(c => c.Format == SourceFormats.Pdf);
+        var pack = await _sessions.CreateAsync("Session 1", ct: Ct);
+        await _sessions.AddItemsAsync(pack.Id, [new NewSessionItem(card.EntryId)], ct: Ct);
+        var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
+        async Task<SessionItemTarget> ItemAsync() => (await sessions.ResolveAsync((await _sessions.GetAsync(pack.Id, Ct))!.Items, Ct)).Values.Single();
+
+        // Its drive unplugged: offline, naming the folder, and the binder item says so too.
+        var unplugged = _library + " (unplugged)";
+        Directory.Move(_library, unplugged);
+        await ScanAsync(root);
+        Assert.Null(await _libraryStore.GetSourceAsync(card.DocumentId, Ct));
+        var away = await _places.AwayAsync(card.DocumentId, Ct);
+        Assert.Equal((AwayReason.Offline, _library), (away.Reason, away.Folder));
+        Assert.Equal([root], away.FoldersToLook);
+        var item = await ItemAsync();
+        Assert.Equal((SessionItemState.Unreachable, AwayReason.Offline), (item.State, item.Away?.Reason));
+        Assert.Contains(_library, item.Reason, StringComparison.Ordinal);
+
+        // Plugged back in, Try again looks at the folder and the book opens at once.
+        Directory.Move(unplugged, _library);
+        await _service.ScanNowAsync(away.FoldersToLook, Ct);
+        Assert.NotNull(await _libraryStore.GetSourceAsync(card.DocumentId, Ct));
+        Assert.Equal(SessionItemState.Ready, (await ItemAsync()).State);
+
+        // Moved out of the library: missing, with where it was last.
+        var original = Path.Combine(_library, "Adventures", "Known Text.pdf");
+        var aside = Path.Combine(_dir, "Known Text.pdf");
+        File.Move(original, aside);
+        await ScanAsync(root);
+        var missing = await _places.AwayAsync(card.DocumentId, Ct);
+        Assert.Equal((AwayReason.Missing, original, Path.Combine(_library, "Adventures")), (missing.Reason, missing.LastPath, missing.LastFolder));
+        Assert.Null(missing.FoldersToLook);
+        Assert.Equal(SessionItemState.Unreachable, (await ItemAsync()).State);
+
+        // Put back, Find it looks through every folder and finds it.
+        File.Move(aside, original);
+        await _service.ScanNowAsync(missing.FoldersToLook, Ct);
+        Assert.NotNull(await _libraryStore.GetSourceAsync(card.DocumentId, Ct));
     }
 
     [Fact]

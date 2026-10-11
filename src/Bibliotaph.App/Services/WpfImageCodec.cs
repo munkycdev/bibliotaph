@@ -17,6 +17,9 @@ public sealed class WpfImageCodec : IImageCodec
         return Encode(bitmap);
     }
 
+    /// <summary>JPEG-encodes a bitmap already drawn, such as a page thumbnail from the viewer worker.</summary>
+    public static byte[] EncodeJpeg(BitmapSource bitmap) => Encode(bitmap);
+
     public (int Width, int Height)? ReadSize(Stream image)
     {
         try

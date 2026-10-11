@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bibliotaph.Catalog.Migrations;
 
 [DbContext(typeof(CatalogDbContext))]
-[Migration("20261011043257_CatalogStyles")]
-partial class CatalogStyles
+[Migration("20261011045255_CatalogLibrarySync")]
+partial class CatalogLibrarySync
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -194,6 +194,10 @@ partial class CatalogStyles
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<DateTime>("UsedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("used_utc");
@@ -201,6 +205,9 @@ partial class CatalogStyles
                 b.HasKey("Id");
 
                 b.HasIndex("ParentId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("collection");
             });
@@ -342,11 +349,18 @@ partial class CatalogStyles
                     .HasColumnType("INTEGER")
                     .HasColumnName("parent_entry_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("MergedIntoEntryId");
 
                 b.HasIndex("ParentEntryId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("entry");
             });
@@ -589,6 +603,10 @@ partial class CatalogStyles
                     .HasColumnType("INTEGER")
                     .HasColumnName("page_ref_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<string>("Text")
                     .IsRequired()
                     .HasColumnType("TEXT")
@@ -606,6 +624,9 @@ partial class CatalogStyles
                     .HasFilter("page_ref_id IS NULL");
 
                 b.HasIndex("PageRefId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.HasIndex("EntryId", "PageRefId");
 
@@ -872,6 +893,10 @@ partial class CatalogStyles
                     .HasColumnType("INTEGER")
                     .HasColumnName("section_id");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("EntryId");
@@ -881,6 +906,9 @@ partial class CatalogStyles
                 b.HasIndex("PageRefId");
 
                 b.HasIndex("SectionId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("session_item");
             });
@@ -912,6 +940,10 @@ partial class CatalogStyles
                     .HasColumnType("TEXT")
                     .HasColumnName("notes");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<string>("Title")
                     .IsRequired()
                     .HasColumnType("TEXT")
@@ -922,6 +954,9 @@ partial class CatalogStyles
                     .HasColumnName("touched_utc");
 
                 b.HasKey("Id");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.HasIndex("TouchedUtc");
 
@@ -948,9 +983,16 @@ partial class CatalogStyles
                     .HasColumnType("INTEGER")
                     .HasColumnName("position");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.HasKey("Id");
 
                 b.HasIndex("PackId");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("session_section");
             });
@@ -992,6 +1034,10 @@ partial class CatalogStyles
                     .HasColumnType("TEXT")
                     .HasColumnName("name");
 
+                b.Property<Guid>("SyncId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("sync_id");
+
                 b.Property<DateTime>("UpdatedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("updated_utc");
@@ -999,6 +1045,9 @@ partial class CatalogStyles
                 b.HasKey("Id");
 
                 b.HasIndex("Name");
+
+                b.HasIndex("SyncId")
+                    .IsUnique();
 
                 b.ToTable("smart_view");
             });
@@ -1034,6 +1083,34 @@ partial class CatalogStyles
                     .IsUnique();
 
                 b.ToTable("source_root");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.SyncState", b =>
+            {
+                b.Property<string>("Key")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("key");
+
+                b.Property<string>("AliasesJson")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("aliases_json");
+
+                b.Property<DateTime?>("DeletedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("deleted_utc");
+
+                b.Property<string>("FieldsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("fields_json");
+
+                b.Property<bool>("Pending")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("pending");
+
+                b.HasKey("Key");
+
+                b.ToTable("sync_state");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VersionProposal", b =>
