@@ -211,6 +211,8 @@ A compilation file can hold several adventures, and each can be a card of its ow
 
 Bibliotaph also proposes a file's adventures from its bookmarks and the blurbs on their first pages ("for four characters of 3rd level"), leaving out credits, introductions, appendices, indexes and the licence. A proposal never makes cards by itself: Needs Review shows one card per file, "This file looks like it holds 5 adventures", with a ticked list of titles and pages, Edit, Accept and Not split. The answer is remembered, so the file isn't proposed again.
 
+When AI is set up and the rules find nothing, the model that classifies the file is also shown its bookmarks, its contents page and the first page of each bookmarked section, and asked which are self-contained adventures, with their titles and levels. Each answer needs a quote found on that section's pages, as for every AI value; what passes is the same Needs Review card, marked as read with AI. Every adventure with a card, however it was marked, is then classified by AI on its own pages, so its type, levels, themes and the rest come from its pages rather than the whole book's.
+
 ## 6. Metadata and classification requirements
 
 ### Metadata dimensions

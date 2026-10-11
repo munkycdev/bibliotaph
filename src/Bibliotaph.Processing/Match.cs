@@ -20,7 +20,7 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
     ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, MetadataHints? hints = null, PartsService? parts = null) : IStage
 {
     /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
-    static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
 
     readonly ILogger _log = log ?? NullLogger<MatchStage>.Instance;
 

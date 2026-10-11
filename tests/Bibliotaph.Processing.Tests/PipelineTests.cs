@@ -126,7 +126,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
-            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading);
+            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading, parts: _parts, proposals: _proposals);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
         _service = new IndexingService(_roots, library, queue,
             [
@@ -135,7 +135,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             ],
             new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
-            packs: _packs = new PackService(packStore, projector, hints), identity: _identity, returns: _returns);
+            packs: _packs = new PackService(packStore, projector, hints), identity: _identity, returns: _returns, parts: _parts);
     }
 
     public async ValueTask DisposeAsync()

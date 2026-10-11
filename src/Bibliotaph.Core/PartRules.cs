@@ -34,13 +34,22 @@ public static partial class PartRules
     {
         var count = pages.Count;
         if (count == 0) return [];
-        var marks = outline.Where(o => o.Page >= 0 && o.Page < count && !string.IsNullOrWhiteSpace(o.Title)).ToList();
-        var proposed = marks.Count == 0 ? FromPages(pages) : FromBookmarks(marks, pages);
+        var proposed = HasMarks(outline, count) ? FromBookmarks(Candidates(outline, count), pages) : FromPages(pages);
         return proposed.Count >= MinimumParts ? proposed : [];
     }
 
-    static List<ProposedPart> FromBookmarks(List<(string Title, int Page, int Depth)> marks, IReadOnlyList<string> pages)
+    static bool HasMarks(IReadOnlyList<(string Title, int Page, int Depth)> outline, int pageCount) =>
+        outline.Any(o => o.Page >= 0 && o.Page < pageCount && !string.IsNullOrWhiteSpace(o.Title));
+
+    /// <summary>
+    /// The bookmarks that could each start an adventure, with the pages up to the next: the top-level bookmarks, or
+    /// the level under a single top-level one, leaving out front and back matter. A model is asked about these too
+    /// (choice 6). Empty for a file without bookmarks.
+    /// </summary>
+    public static IReadOnlyList<ProposedPart> Candidates(IReadOnlyList<(string Title, int Page, int Depth)> outline, int pageCount)
     {
+        var marks = outline.Where(o => o.Page >= 0 && o.Page < pageCount && !string.IsNullOrWhiteSpace(o.Title)).ToList();
+        if (marks.Count == 0) return [];
         var top = marks.Min(m => m.Depth);
         var candidates = marks.Where(m => m.Depth == top).ToList();
         // A single top-level bookmark is the book's own: its adventures are the level under it.
@@ -53,15 +62,23 @@ public static partial class PartRules
         }
         candidates = [.. candidates.OrderBy(c => c.Page)];
 
-        var proposed = new List<ProposedPart>();
+        var found = new List<ProposedPart>();
         for (var i = 0; i < candidates.Count; i++)
         {
             var (title, page, _) = candidates[i];
             if (IsMatter(title)) continue;
-            if (Blurb(pages, page) is not { } blurb) continue;
-            var end = candidates.Skip(i + 1).Select(c => c.Page).FirstOrDefault(p => p > page, pages.Count) - 1;
-            proposed.Add(new ProposedPart(MetadataText.Tidy(title), new PartPages(page, Math.Max(page, end)), blurb.Levels?.ToString(), blurb.Quote));
+            var end = candidates.Skip(i + 1).Select(c => c.Page).FirstOrDefault(p => p > page, pageCount) - 1;
+            found.Add(new ProposedPart(MetadataText.Tidy(title), new PartPages(page, Math.Max(page, end))));
         }
+        return found;
+    }
+
+    static List<ProposedPart> FromBookmarks(IReadOnlyList<ProposedPart> candidates, IReadOnlyList<string> pages)
+    {
+        var proposed = new List<ProposedPart>();
+        foreach (var candidate in candidates)
+            if (Blurb(pages, candidate.Pages.First) is { } blurb)
+                proposed.Add(candidate with { Levels = blurb.Levels?.ToString(), Quote = blurb.Quote });
         return proposed;
     }
 

@@ -42,6 +42,7 @@ public sealed class SyntheticPdfs : IDisposable
         Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
         Linked = Write("linked.pdf", BuildLinked());
         Compilation = Write("compilation.pdf", BuildPages(CompilationPages, CompilationOutline));
+        QuietCompilation = Write("quiet-compilation.pdf", BuildPages(QuietCompilationPages, QuietCompilationOutline));
         Indexed = Write("indexed.pdf", Bibliotaph.App.Services.SmokePdfs.Indexed());
     }
 
@@ -270,6 +271,24 @@ public sealed class SyntheticPdfs : IDisposable
     ];
 
     static readonly (string Title, int Page)[] CompilationOutline = [("Credits", 0), ("The Salt Mine", 1), ("Lantern Night", 3), ("Appendix: New Monsters", 5)];
+
+    /// <summary>
+    /// Two adventures between credits and an appendix, bookmarked like <see cref="Compilation"/>, but with nothing on
+    /// their first pages that the rules read as a blurb: only a model can tell they are adventures.
+    /// </summary>
+    public string QuietCompilation { get; }
+
+    public static readonly string[][] QuietCompilationPages =
+    [
+        ["Credits", "Written by Ana Ruiz and Dale Ito for the Marsh Guild"],
+        ["The Bell Tower", "A scenario for heroes of modest experience.", "Recommended party: level 2"],
+        ["The tower's bells ring at noon, and something answers from the deep water."],
+        ["Fog Market", "A night of trading goes wrong in the harbour.", "Recommended party: levels 4 and 5"],
+        ["The stalls fold into the fog and the merchants vanish with them."],
+        ["Appendix: Fog Beasts", "Mist hounds and bell wraiths, with their statistics."],
+    ];
+
+    static readonly (string Title, int Page)[] QuietCompilationOutline = [("Credits", 0), ("The Bell Tower", 1), ("Fog Market", 3), ("Appendix: Fog Beasts", 5)];
 
     /// <summary>A page per entry, each line drawn as real text, with top-level bookmarks if any.</summary>
     static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)

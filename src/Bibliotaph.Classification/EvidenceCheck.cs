@@ -199,11 +199,7 @@ public static partial class EvidenceCheck
     internal static bool Shows(MetadataField field, string value, bool isNewTerm, string quote, Vocabulary vocabulary)
     {
         if (Judged.Contains(field)) return true;
-        if (field == MetadataFields.Levels)
-        {
-            if (!value.Any(char.IsDigit)) return true; // "n/a": the book says levels don't apply, in its own words
-            return ShowsNumbers(value, quote);
-        }
+        if (field == MetadataFields.Levels) return ShowsLevels(value, quote);
         // "for 4-6 characters" or "for four to six players": each number of the value is in the quote, as digits or a word.
         if (field == MetadataFields.Players) return ShowsNumbers(value, quote);
         if (field == MetadataFields.Title) return Mentions(quote, value.Split(':')[0]);
@@ -215,6 +211,11 @@ public static partial class EvidenceCheck
     /// <summary>The fields whose values a passage describes rather than prints.</summary>
     static readonly HashSet<MetadataField> Judged =
         [MetadataFields.Types, MetadataFields.Duration, MetadataFields.Styles, MetadataFields.Themes, MetadataFields.Environments];
+
+    /// <summary>Whether the quote gives every number of a level range: "3-5" needs both a 3 and a 5 in it.</summary>
+    internal static bool ShowsLevels(string value, string quote) =>
+        !value.Any(char.IsDigit) // "n/a": the book says levels don't apply, in its own words
+        || ShowsNumbers(value, quote);
 
     /// <summary>Every number in the value appears in the quote, as digits or (up to twelve) as a word.</summary>
     static bool ShowsNumbers(string value, string quote)

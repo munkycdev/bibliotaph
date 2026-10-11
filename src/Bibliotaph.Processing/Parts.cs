@@ -34,6 +34,9 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
 {
     readonly ILogger _log = log ?? NullLogger<PartsService>.Instance;
 
+    /// <summary>An adventure was marked, or came back, in a copy of its file: the document, whose Classify reads it on its own pages.</summary>
+    public event EventHandler<long>? Marked;
+
     /// <summary>
     /// The adventures marked in a file, by where they start in the copy it shows; those whose pages weren't found
     /// there come last. Empty for an entry that isn't a file's.
@@ -87,6 +90,7 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
         await FollowAsync(fileId, ct: ct);
         await projector.ProjectAsync([fileId, partId], ct);
         await DrawCoversAsync(documentId, [pages.First], ct);
+        Marked?.Invoke(this, documentId);
         return new PartChange(partId);
     }
 
@@ -126,6 +130,7 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
         if (await parts.RestoreAsync(removed, ct) is not { } partId) return null;
         await FollowAsync(removed.ParentEntryId, ct: ct);
         await projector.ProjectAsync([removed.ParentEntryId, partId], ct);
+        if (await entries.GetCurrentDocumentAsync(removed.ParentEntryId, ct) is { } shown) Marked?.Invoke(this, shown);
         return partId;
     }
 

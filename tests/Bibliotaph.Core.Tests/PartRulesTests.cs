@@ -52,6 +52,17 @@ public class PartRulesTests
     }
 
     [Fact]
+    public void The_candidates_a_model_is_asked_about_are_the_bookmarks_without_front_and_back_matter_whatever_their_pages_say()
+    {
+        (string, int, int)[] outline =
+            [("Credits", 0, 0), ("The Salt Mine", 2, 0), ("Shafts", 3, 1), ("A Chapter", 4, 0), ("Appendix: New Monsters", 9, 0), ("Off the end", 12, 0)];
+
+        Assert.Equal([("The Salt Mine", new PartPages(2, 3)), ("A Chapter", new PartPages(4, 8))],
+            PartRules.Candidates(outline, Pages.Length).Select(c => (c.Title, c.Pages)));
+        Assert.Empty(PartRules.Candidates([], 10));
+    }
+
+    [Fact]
     public void One_adventure_is_not_a_compilation()
     {
         (string, int, int)[] outline = [("Credits", 0, 0), ("The Salt Mine", 2, 0), ("Appendix", 9, 0)];

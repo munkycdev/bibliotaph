@@ -291,7 +291,7 @@ public static partial class ClassifierPrompt
     }
 
     /// <summary>Some servers wrap JSON in a Markdown code fence even when asked for JSON.</summary>
-    static string StripFence(string content)
+    internal static string StripFence(string content)
     {
         var text = content.Trim();
         if (!text.StartsWith("```", StringComparison.Ordinal)) return text;

@@ -43,6 +43,27 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
         return changed;
     }
 
+    /// <summary>
+    /// Whether a model should be asked which of a document's bookmarks are adventures (choice 6): it is a copy of a
+    /// book's own file with no adventures marked, nothing was proposed from this copy yet, and no copy's proposal was
+    /// answered. The rules' proposal comes first, from the file's own words, and a model never replaces it.
+    /// </summary>
+    public async Task<bool> WantsModelAsync(long documentId, CancellationToken ct = default)
+    {
+        if (await entries.GetEntryAsync(documentId, ct) is not { } entry || await entries.GetKindAsync(entry.EntryId, ct) != EntryKind.Whole) return false;
+        if ((await parts.GetAsync(entry.EntryId, ct)).Count > 0) return false;
+        return !await proposals.IsSettledAsync(entry.EntryId, entry.ContentHash, ct);
+    }
+
+    /// <summary>Records the adventures a model found in a document, checked against its pages, as a proposal for Needs review.</summary>
+    public async Task<bool> ProposeFromModelAsync(long documentId, IReadOnlyList<ProposedPart> found, CancellationToken ct = default)
+    {
+        if (found.Count == 0 || await entries.GetEntryAsync(documentId, ct) is not { } entry) return false;
+        var changed = await proposals.SaveAsync(entry.ContentHash, PartProposalSource.Ai, found, ct);
+        if (changed) _log.LogInformation("AI found {Count} adventures in document {DocumentId}", found.Count, documentId);
+        return changed;
+    }
+
     /// <summary>The proposals waiting in Needs review, one card per file.</summary>
     public async Task<IReadOnlyList<PartProposalItem>> GetPendingAsync(CancellationToken ct = default)
     {
