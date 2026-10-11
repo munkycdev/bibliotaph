@@ -210,6 +210,33 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Starter_version_4_brings_the_stores_and_a_typed_link_replaces_the_bare_suggestion()
+    {
+        await using (var db = _database.CreateContext())
+        {
+            db.Settings.Add(new Setting { Key = VocabularyStore.SeedVersionKey, Value = "3" });
+            await db.SaveChangesAsync(Ct);
+        }
+        Assert.True(await _vocabulary.SeedAsync(Ct) >= 9);
+        var vocabulary = await new VocabularyStore(_contexts).GetAsync(Ct);
+        Assert.Equal("drivethrurpg", vocabulary.Resolve("store", "DTRPG")?.Key);
+        Assert.Equal("drivethrurpg", StoreLink.FromSite("https://www.drivethrurpg.com/en/product/1", vocabulary)?.Key);
+        Assert.Equal("bundle", vocabulary.Resolve("store", "Humble Bundle")?.Key);
+        Assert.Equal("bundle-of-holding", vocabulary.Match("Bundle of Holding").Single().Term.Key);
+        // Folders named Other or Publisher aren't stores.
+        Assert.Null(vocabulary.Resolve("store", "Other"));
+        Assert.Null(vocabulary.Resolve("store", "Publisher"));
+
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.GetItFrom, "drivethrurpg")], Ct);
+        _clock.Step();
+        await _metadata.SetValuesAsync(_document, MetadataFields.GetItFrom, ["drivethrurpg https://www.drivethrurpg.com/en/product/1"], Ct);
+
+        var stores = (await EffectiveAsync())[MetadataFields.GetItFrom];
+        Assert.Equal("drivethrurpg https://www.drivethrurpg.com/en/product/1", Assert.Single(stores.Values).Value);
+        Assert.True(stores.Values[0].Confirmed);
+    }
+
+    [Fact]
     public async Task A_term_the_user_types_is_added_once_with_a_stable_key()
     {
         await _vocabulary.SeedAsync(Ct);

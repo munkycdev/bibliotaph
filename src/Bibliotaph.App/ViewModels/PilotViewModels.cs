@@ -154,7 +154,12 @@ public sealed partial class PilotFieldViewModel : ObservableObject
 
     public string Label => Field.Label;
 
-    public string? Hint => Field.Multiple ? "Separate them with commas." : Field.Kind == FieldKind.Levels ? "Like 3, 1-5 or n/a." : null;
+    public string? Hint => Field.Multiple ? "Separate them with commas." : Field.Kind switch
+    {
+        FieldKind.Levels => "Like 3, 1-5 or n/a.",
+        FieldKind.Players => "Like 4 or 3-5.",
+        _ => null,
+    };
 
     public IReadOnlyList<PilotOptionViewModel> Options { get; }
 

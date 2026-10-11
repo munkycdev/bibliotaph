@@ -105,6 +105,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.CopyDecisions.Add(new CopyDecision { FirstHash = book.ContentHash, SecondHash = revision.ContentHash, Answer = CopyAnswer.NotSameBook, CreatedUtc = now });
         db.VersionProposals.Add(new VersionProposal { DocumentId = revision.Id, MatchedDocumentId = book.Id, Evidence = VersionEvidence.SharedPages, SharedPages = 2, ComparedPages = 3, CreatedUtc = now });
         db.PackDecisions.Add(new PackDecision { SourceRootId = root.Id, FolderPath = "Tokens.zip", IsArchive = true, Answer = PackAnswer.Packed, EntryId = pack.Id, CreatedUtc = now });
+        db.PartProposals.Add(new PartProposal { ContentHash = book.ContentHash, Source = PartProposalSource.Rules, PartsJson = "[]", Answer = PartProposalAnswer.NotSplit, CreatedUtc = now, DecidedUtc = now });
         db.ElsewhereMatches.Add(new ElsewhereMatch { EntryId = entry.Id, DocumentId = revision.Id, Answer = ElsewhereAnswer.SeparateBook, CreatedUtc = now });
         db.Assertions.Add(new Assertion { EntryId = entry.Id, Field = "title", ValueJson = "\"Book\"", NormalizedValue = "book", Origin = AssertionOrigin.User, State = AssertionState.Confirmed, CreatedUtc = now });
         db.Rejections.Add(new Rejection { EntryId = entry.Id, Field = "type", NormalizedValue = "adventure", CreatedUtc = now });
@@ -123,6 +124,9 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.VocabularyTerms.Add(term);
         db.ClassificationRuns.Add(new ClassificationRun { Id = "run-1", EntryId = entry.Id, ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, SchemaVersion = 1, StartedUtc = now, Outcome = "complete" });
         db.IgnoredFolderLabels.Add(new IgnoredFolderLabel { Folder = "adventures", Vocabulary = "type", TermKey = "adventure", CreatedUtc = now });
+        db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entry.Id, CreatedUtc = now });
+        db.FolderRules.Add(new FolderRule { SourceRootId = root.Id, Folder = "Fey Court", Field = "system", Value = "pathfinder", State = FolderRuleState.On, Books = 3, CreatedUtc = now, DecidedUtc = now });
+        db.SyncStates.Add(new SyncState { Key = "c:7f0c3a2e-5b1d-4c9a-8e2f-0a1b2c3d4e5f", FieldsJson = """{"name":{"value":"\"Campaign\"","changedUtc":"2026-10-10T09:00:00Z"}}""" });
         await db.SaveChangesAsync(Ct);
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });
@@ -131,6 +135,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.Notes.AddRange(
             new Note { EntryId = entry.Id, Text = "The owlbear is a red herring.", CreatedUtc = now, UpdatedUtc = now },
             new Note { EntryId = entry.Id, PageRefId = notePages.Id, Text = "Read this aloud.", CreatedUtc = now, UpdatedUtc = now });
+        db.AskTurns.Add(new AskTurn { EntryId = entry.Id, AskedUtc = now, Question = "Where is the owlbear?", Answer = "In the cave [p. 3].", Parts = "[]", CitedPages = "[2]", Model = "test" });
         var section = new SessionSection { PackId = session.Id, Name = "Maps", Position = 0 };
         db.SessionSections.Add(section);
         db.VocabularyAliases.Add(new VocabularyAlias { TermId = term.Id, Text = "TS", Normalized = "ts" });

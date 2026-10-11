@@ -5,15 +5,26 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Classification;
 
 /// <summary>
-/// What the Hints from names stage reads for one document: where its file is under its source folder, and the PDF's
-/// own document information (null for images, and for PDFs that don't fill it in).
+/// What the Hints from names stage reads for one document: where its file is under its source folder, the PDF's own
+/// document information (null for images, and for PDFs that don't fill it in), and its watermark lines once its text
+/// has been read (<see cref="Watermarks.Find"/>). Watermark lines name the buyer, so only the store they name is kept.
+/// <see cref="Rules"/> are the folder rules switched on in its library folder (scenario review, row 8).
 /// </summary>
 public sealed record HintSource(
     string RelativePath,
     string? EmbeddedTitle = null,
     string? EmbeddedAuthor = null,
     string? EmbeddedSubject = null,
-    string? EmbeddedKeywords = null);
+    string? EmbeddedKeywords = null,
+    string? EmbeddedProducer = null,
+    IReadOnlyList<string>? WatermarkLines = null,
+    IReadOnlyList<FolderRuleHint>? Rules = null);
+
+/// <summary>
+/// A folder rule the user switched on (scenario review, row 8): files in <see cref="Folder"/> (a path under their
+/// library folder, "" for all of it) and its subfolders get <see cref="Value"/>, in stored form, as a suggestion.
+/// </summary>
+public sealed record FolderRuleHint(string Folder, MetadataField Field, string Value);
 
 /// <summary>A vocabulary term a folder name stands for, as Settings > Library lists it.</summary>
 public sealed record FolderLabel(string Folder, Term Term);
@@ -27,8 +38,13 @@ public sealed record FolderLabel(string Folder, Term Term);
 /// and the Adventure type. Deeper folders win for single-value fields. A label the user switched off is skipped.</item>
 /// <item>The PDF's title and authors are used unless they look like leftovers from the software that made it
 /// ("Microsoft Word - draft3.docx", "Administrator"). Its keywords count only through the vocabulary.</item>
-/// <item>The file name gives a title, and level ranges written out in a PDF's name, title or subject ("Levels 1-4",
-/// "3rd-level") become a rule suggestion.</item>
+/// <item>The file name gives a title, and level ranges and party sizes written out in a PDF's name, title or subject
+/// ("Levels 1-4", "3rd-level", "for 4-6 players") become rule suggestions.</item>
+/// <item>Where to get it (scenario review, row 7) comes from a store named in a folder name, the file name, the PDF's
+/// producer or a watermark line. Only the store is kept: the quote is the store's name as matched, never the line it
+/// was in, which holds the buyer's name and order number.</item>
+/// <item>A folder rule the user switched on gives its value to every file in its folder and below; for a field with one
+/// value, the deepest folder's rule wins. Its quote is the folder's name.</item>
 /// </list>
 /// </summary>
 public static partial class RuleHints
@@ -40,9 +56,12 @@ public static partial class RuleHints
         "edition" => MetadataFields.Edition,
         "type" => MetadataFields.Types,
         "setting" => MetadataFields.Settings,
+        "duration" => MetadataFields.Duration,
+        "style" => MetadataFields.Styles,
         "theme" => MetadataFields.Themes,
         "environment" => MetadataFields.Environments,
         "publisher" => MetadataFields.Publisher,
+        "store" => MetadataFields.GetItFrom,
         _ => null,
     };
 
@@ -65,6 +84,11 @@ public static partial class RuleHints
                     Add(proposal);
         }
 
+        // Shallow rules first, so a deeper folder's wins for a field with one value.
+        foreach (var rule in (source.Rules ?? []).Where(r => new FolderKey(0, r.Folder).Holds(0, source.RelativePath))
+                     .OrderBy(r => r.Folder.Length == 0 ? 0 : r.Folder.Count(c => c is '\\' or '/') + 1))
+            Add(new MetadataProposal(rule.Field, rule.Value, AssertionOrigin.FolderRule, new FolderKey(0, rule.Folder).Name is { Length: > 0 } name ? name : null));
+
         var fileName = Path.GetFileName(source.RelativePath);
         Add(new MetadataProposal(MetadataFields.Title, DisplayTitle.FromFileName(fileName), AssertionOrigin.Filename, fileName));
 
@@ -83,10 +107,32 @@ public static partial class RuleHints
         // out, and so are folder names: there "Level 2" is far more often a dungeon level than a character level.
         if (!SourceFormats.IsImage(SourceFormats.FromFileName(fileName) ?? ""))
             foreach (var text in new[] { source.EmbeddedSubject, source.EmbeddedTitle, Path.GetFileNameWithoutExtension(fileName) })
-                if (Clean(text) is { } t && FindLevels(t) is { } levels)
-                    Add(new MetadataProposal(MetadataFields.Levels, levels.Range.ToString(), AssertionOrigin.Rule, levels.Quote));
+                if (Clean(text) is { } t)
+                {
+                    if (FindLevels(t) is { } levels) Add(new MetadataProposal(MetadataFields.Levels, levels.Range.ToString(), AssertionOrigin.Rule, levels.Quote));
+                    if (FindPlayers(t) is { } players) Add(new MetadataProposal(MetadataFields.Players, players.Range.ToString(), AssertionOrigin.Rule, players.Quote));
+                }
+
+        // Where to get it: from the file name, the PDF's producer and the watermark, by the store's name only.
+        foreach (var store in Stores(Path.GetFileNameWithoutExtension(fileName), vocabulary))
+            Add(new MetadataProposal(MetadataFields.GetItFrom, store.Term.Key, AssertionOrigin.Filename, store.Matched));
+        foreach (var store in Stores(source.EmbeddedProducer, vocabulary))
+            Add(new MetadataProposal(MetadataFields.GetItFrom, store.Term.Key, AssertionOrigin.Embedded, store.Matched));
+        foreach (var store in (source.WatermarkLines ?? []).SelectMany(line => Stores(line, vocabulary)))
+            Add(new MetadataProposal(MetadataFields.GetItFrom, store.Term.Key, AssertionOrigin.Rule, store.Matched));
 
         return [.. single.Values, .. multi.DistinctBy(p => (p.Field, p.Normalized, p.Origin))];
+    }
+
+    /// <summary>
+    /// The stores a text names, each with the words that named it and nothing more, so a watermark's buyer and order
+    /// number never become a quote. A site name in a link counts: "www.drivethrurpg.com".
+    /// </summary>
+    internal static IEnumerable<TermMatch> Stores(string? text, Vocabulary vocabulary)
+    {
+        if (Clean(text) is not { } clean) return [];
+        var store = MetadataFields.GetItFrom.Vocabulary!;
+        return vocabulary.Match(clean).Where(m => m.Term.Vocabulary == store).DistinctBy(m => m.Term.Key);
     }
 
     /// <summary>The folders between the source folder and the file, outermost first.</summary>
@@ -109,7 +155,7 @@ public static partial class RuleHints
         if (term.Vocabulary == "edition" && term.ParentKey is { } parent && vocabulary.Find("system", parent) is not null)
             yield return new MetadataProposal(MetadataFields.System, parent, origin, quote);
         // A publisher is free text that the vocabulary only tidies, so it is stored by name rather than key.
-        yield return new MetadataProposal(field, field.Kind == FieldKind.Term ? term.Key : term.Label, origin, quote);
+        yield return new MetadataProposal(field, field.Kind is FieldKind.Term or FieldKind.Store ? term.Key : term.Label, origin, quote);
     }
 
     static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : MetadataText.Tidy(text);
@@ -156,6 +202,38 @@ public static partial class RuleHints
 
     [GeneratedRegex(@"\b(\d{1,2})(?:st|nd|rd|th)(?:\s*(?:-|–|—|to|through)\s*(\d{1,2})(?:st|nd|rd|th))?[\s-]*levels?\b", RegexOptions.IgnoreCase)]
     private static partial Regex OrdinalLevel();
+
+    const string Count = @"\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
+
+    [GeneratedRegex(@"\b(" + Count + @")(?:\s*(?:-|–|—|to|or)\s*(" + Count + @"))?\s+(?:players?|pcs?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PlayerCount();
+
+    /// <summary>"The Seven Heroes" is a title, so characters and heroes count only after "for".</summary>
+    [GeneratedRegex(@"\bfor (" + Count + @")(?:\s*(?:-|–|—|to|or)\s*(" + Count + @"))?\s+(?:characters?|adventurers|heroes)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ForCharacters();
+
+    [GeneratedRegex(@"\b(?:party|group) of (" + Count + @")(?:\s*(?:-|–|—|to|or)\s*(" + Count + @"))?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PartyOf();
+
+    [GeneratedRegex(@"\b(?:solo|single[- ]player|one[- ]player)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex Solo();
+
+    /// <summary>
+    /// A party size written out: "for 4-6 players", "for four to six characters", "a party of 4", "solo". "3rd-level
+    /// characters" is a level, not a count, so only plain numbers count.
+    /// </summary>
+    internal static (PlayerRange Range, string Quote)? FindPlayers(string text)
+    {
+        var spaced = text.Replace('_', ' ');
+        foreach (var pattern in new[] { PlayerCount(), ForCharacters(), PartyOf() })
+        {
+            var match = pattern.Match(spaced);
+            if (!match.Success) continue;
+            var range = match.Groups[2].Success ? $"{match.Groups[1].Value} to {match.Groups[2].Value}" : match.Groups[1].Value;
+            if (PlayerRange.TryParse(range, out var players)) return (players, match.Value.Trim());
+        }
+        return Solo().Match(spaced) is { Success: true } solo ? (new PlayerRange(1, 1), solo.Value) : null;
+    }
 
     /// <summary>A level range written out in a name: "Levels 1-4", "Lvl 3", "for 5th-level characters", "1st to 4th level".</summary>
     internal static (LevelRange Range, string Quote)? FindLevels(string text)

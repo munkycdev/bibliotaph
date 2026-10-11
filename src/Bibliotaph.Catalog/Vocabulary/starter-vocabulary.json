@@ -1,6 +1,6 @@
 {
   "comment": "Starter vocabularies, seeded into catalog.db by version. A term or alias is added only when the stored seed version is below its 'since' (default 1), and never overwrites a term the user has changed. Add new terms with a higher 'since' and bump 'version'. Keys are stable: never rename one.",
-  "version": 2,
+  "version": 5,
   "terms": [
     { "vocabulary": "system", "key": "dnd", "label": "Dungeons & Dragons", "short": "D&D", "aliases": ["D&D", "DnD", "D and D", "Dungeons and Dragons", "AD&D", "ADnD"] },
     { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "short": "OD&D", "aliases": ["OD&D", "ODnD", "Original D&D", "0e"] },
@@ -58,6 +58,7 @@
     { "vocabulary": "type", "key": "map-pack", "label": "Map pack", "aliases": ["map pack", "map packs", "maps", "battlemaps", "battle maps", "battlemap", "battle map", "dungeon maps", "city maps", "world maps", "map"] },
     { "vocabulary": "type", "key": "handout", "label": "Handout", "aliases": ["handouts", "player handouts", "props"] },
     { "vocabulary": "type", "key": "magazine", "label": "Magazine", "aliases": ["magazines", "zine", "zines", "fanzine", "dragon magazine", "dungeon magazine"] },
+    { "vocabulary": "type", "key": "anthology", "label": "Anthology", "aliases": ["anthologies", "compilation", "compilations", "collection of adventures", "adventure anthology", "adventure collection"], "since": 5 },
 
     { "vocabulary": "setting", "key": "forgotten-realms", "label": "Forgotten Realms", "aliases": ["FR", "Faerun", "Faerûn", "Sword Coast"] },
     { "vocabulary": "setting", "key": "greyhawk", "label": "Greyhawk", "aliases": ["World of Greyhawk", "Oerth"] },
@@ -77,11 +78,8 @@
 
     { "vocabulary": "theme", "key": "horror", "label": "Horror", "aliases": ["scary", "creepy", "terror", "gothic horror", "dread"] },
     { "vocabulary": "theme", "key": "cosmic-horror", "label": "Cosmic horror", "aliases": ["lovecraftian", "mythos", "cthulhu mythos", "eldritch"] },
-    { "vocabulary": "theme", "key": "mystery", "label": "Mystery", "aliases": ["mysteries", "investigation", "investigative", "detective", "whodunit"] },
+    { "vocabulary": "theme", "key": "mystery", "label": "Mystery", "aliases": ["mysteries", "detective", "whodunit"] },
     { "vocabulary": "theme", "key": "intrigue", "label": "Political intrigue", "aliases": ["politics", "political", "court intrigue"] },
-    { "vocabulary": "theme", "key": "heist", "label": "Heist", "aliases": ["heists", "caper", "robbery"] },
-    { "vocabulary": "theme", "key": "exploration", "label": "Exploration", "aliases": ["hexcrawl", "hex crawl", "sandbox", "pointcrawl", "point crawl", "travel"] },
-    { "vocabulary": "theme", "key": "dungeon-crawl", "label": "Dungeon crawl", "aliases": ["dungeon crawls", "dungeons", "megadungeon", "mega dungeon"] },
     { "vocabulary": "theme", "key": "war", "label": "War", "aliases": ["warfare", "military", "siege", "battle"] },
     { "vocabulary": "theme", "key": "survival", "label": "Survival" },
     { "vocabulary": "theme", "key": "comedy", "label": "Comedy", "aliases": ["comedic", "humor", "humour", "funny", "silly"] },
@@ -92,7 +90,7 @@
     { "vocabulary": "theme", "key": "sci-fi", "label": "Science fiction", "aliases": ["sci fi", "scifi", "science fiction", "space", "cyberpunk theme"] },
 
     { "vocabulary": "environment", "key": "urban", "label": "Urban", "aliases": ["city", "cities", "town", "towns", "village", "villages", "settlement", "settlements"] },
-    { "vocabulary": "environment", "key": "forest", "label": "Forest", "aliases": ["forests", "woods", "woodland", "woodlands", "jungle", "jungles"] },
+    { "vocabulary": "environment", "key": "forest", "label": "Forest", "aliases": ["forests", "woods", "woodland", "woodlands"] },
     { "vocabulary": "environment", "key": "coastal", "label": "Coastal", "aliases": ["coast", "seaside", "port", "harbor", "harbour", "islands", "island"] },
     { "vocabulary": "environment", "key": "underground", "label": "Underground", "aliases": ["underdark", "caves", "caverns", "cave", "cavern", "subterranean", "sewers", "mines"] },
     { "vocabulary": "environment", "key": "arctic", "label": "Arctic", "aliases": ["frozen", "tundra", "icy", "winter", "snow"] },
@@ -102,6 +100,25 @@
     { "vocabulary": "environment", "key": "sea", "label": "At sea", "aliases": ["ocean", "oceans", "nautical", "naval", "ships", "seafaring", "underwater"] },
     { "vocabulary": "environment", "key": "planar", "label": "Planar", "aliases": ["planes", "outer planes", "extraplanar", "astral", "elemental planes"] },
     { "vocabulary": "environment", "key": "wilderness", "label": "Wilderness", "aliases": ["wilds", "frontier", "borderlands"] },
+    { "vocabulary": "environment", "key": "jungle", "label": "Jungle", "aliases": ["jungles", "rainforest", "rain forest", "rainforests"], "since": 3 },
+    { "vocabulary": "environment", "key": "ruins", "label": "Ruins", "aliases": ["ruin", "ruined city", "ancient ruins", "lost city"], "since": 3 },
+    { "vocabulary": "environment", "key": "space", "label": "Space", "aliases": ["outer space", "deep space", "the void", "asteroid belt", "asteroids"], "since": 3 },
+    { "vocabulary": "environment", "key": "station", "label": "Station", "aliases": ["space station", "space stations", "orbital station", "research station", "stations"], "since": 3 },
+    { "vocabulary": "environment", "key": "starship", "label": "Starship", "aliases": ["starships", "spaceship", "spaceships", "space ship", "space ships", "spacecraft"], "since": 3 },
+    { "vocabulary": "environment", "key": "alien-world", "label": "Alien world", "aliases": ["alien worlds", "alien planet", "alien planets", "exoplanet", "alien moon"], "since": 3 },
+
+    { "vocabulary": "style", "key": "heist", "label": "Heist", "aliases": ["heists", "caper", "robbery"], "since": 3 },
+    { "vocabulary": "style", "key": "dungeon-crawl", "label": "Dungeon crawl", "aliases": ["dungeon crawls", "dungeons", "megadungeon", "mega dungeon"], "since": 3 },
+    { "vocabulary": "style", "key": "hexcrawl", "label": "Hexcrawl", "aliases": ["hex crawl", "hexcrawls", "hex crawls", "pointcrawl", "point crawl"], "since": 3 },
+    { "vocabulary": "style", "key": "exploration", "label": "Exploration", "aliases": ["sandbox", "travel", "expedition", "expeditions"], "since": 3 },
+    { "vocabulary": "style", "key": "investigation", "label": "Investigation", "aliases": ["investigations", "investigative"], "since": 3 },
+    { "vocabulary": "style", "key": "monster-hunt", "label": "Monster hunt", "aliases": ["monster hunts", "monster hunting", "bounty hunt", "creature hunt"], "since": 3 },
+    { "vocabulary": "style", "key": "wilderness", "label": "Wilderness", "aliases": ["wilderness adventure", "wilderness trek", "overland", "overland travel", "journey"], "since": 3 },
+
+    { "vocabulary": "duration", "key": "one-shot", "label": "One-shot", "aliases": ["one shot", "one shots", "oneshot", "oneshots", "one-shots", "single session", "one session", "convention game", "con game"], "since": 3 },
+    { "vocabulary": "duration", "key": "short", "label": "Short (2–3 sessions)", "short": "Short", "aliases": ["short adventure", "two sessions", "2 sessions", "three sessions", "2-3 sessions", "two or three sessions", "a few sessions"], "since": 3 },
+    { "vocabulary": "duration", "key": "long", "label": "Long (4 or more sessions)", "short": "Long", "aliases": ["long adventure", "mini campaign", "mini-campaign", "minicampaign", "multi session", "several sessions", "many sessions"], "since": 3 },
+    { "vocabulary": "duration", "key": "campaign", "label": "Campaign", "aliases": ["campaigns", "full campaign", "adventure path", "adventure paths", "campaign arc"], "since": 3 },
 
     { "vocabulary": "publisher", "key": "wizards-of-the-coast", "label": "Wizards of the Coast", "aliases": ["WotC", "Wizards", "TSR"] },
     { "vocabulary": "publisher", "key": "paizo", "label": "Paizo", "aliases": ["Paizo Inc", "Paizo Publishing"] },
@@ -143,6 +160,16 @@
     { "vocabulary": "own", "key": "roll20", "label": "Roll20", "aliases": ["Roll 20"], "since": 2 },
     { "vocabulary": "own", "key": "dnd-beyond", "label": "D&D Beyond", "aliases": ["DnD Beyond", "DDB"], "since": 2 },
     { "vocabulary": "own", "key": "fantasy-grounds", "label": "Fantasy Grounds", "aliases": ["FG", "FGU", "Fantasy Grounds Unity"], "since": 2 },
-    { "vocabulary": "own", "key": "alchemy", "label": "Alchemy", "aliases": ["Alchemy RPG", "Alchemy VTT"], "since": 2 }
+    { "vocabulary": "own", "key": "alchemy", "label": "Alchemy", "aliases": ["Alchemy RPG", "Alchemy VTT"], "since": 2 },
+
+    { "vocabulary": "store", "key": "kickstarter", "label": "Kickstarter", "aliases": ["kickstarter.com", "Kickstarter backer", "Kickstarter rewards", "Kickstarter PDFs"], "since": 4 },
+    { "vocabulary": "store", "key": "backerkit", "label": "BackerKit", "aliases": ["Backer Kit", "backerkit.com"], "since": 4 },
+    { "vocabulary": "store", "key": "drivethrurpg", "label": "DriveThruRPG", "aliases": ["DriveThru RPG", "Drive Thru RPG", "DriveThru", "DTRPG", "drivethrurpg.com", "RPGNow", "rpgnow.com"], "since": 4 },
+    { "vocabulary": "store", "key": "itch-io", "label": "itch.io", "aliases": ["itch", "itchio"], "since": 4 },
+    { "vocabulary": "store", "key": "bundle", "label": "Humble Bundle or another bundle", "short": "Bundle", "aliases": ["Humble Bundle", "HumbleBundle", "humblebundle.com", "bundles", "StoryBundle", "storybundle.com"], "since": 4 },
+    { "vocabulary": "store", "key": "publisher-site", "label": "Publisher's site", "aliases": ["publisher site", "publisher's store", "publisher store", "publisher's website", "direct from the publisher"], "since": 4 },
+    { "vocabulary": "store", "key": "bundle-of-holding", "label": "Bundle of Holding", "aliases": ["bundleofholding.com"], "since": 4 },
+    { "vocabulary": "store", "key": "game-on-tabletop", "label": "Game On Tabletop", "aliases": ["GameOn Tabletop", "gameontabletop.com"], "since": 4 },
+    { "vocabulary": "store", "key": "other-store", "label": "Other store", "aliases": ["another store"], "since": 4 }
   ]
 }

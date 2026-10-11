@@ -387,4 +387,102 @@ public class LocalModelClientTests
     [InlineData("Sorry, I can't", "")]
     public void Reads_the_fields_of_an_answer_still_being_written(string answer, string expected) =>
         Assert.Equal(expected, string.Join("|", PartialAnswer.Read(answer).Select(f => $"{f.Name}:{string.Join(",", f.Values)}")));
+
+    [Fact]
+    public async Task Embeds_with_ollamas_own_call_asking_it_to_cut_long_texts()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[{"name":"nomic-embed-text"}]}"""),
+            "/api/embed" => Ok("""{"embeddings":[[0.5,-1],[2,0.25]]}"""),
+            _ => NotFound,
+        });
+
+        var vectors = await client.EmbedAsync("nomic-embed-text", ["one", "two"], TestContext.Current.CancellationToken);
+
+        Assert.Equal([0.5f, -1f], vectors[0]);
+        Assert.Equal([2f, 0.25f], vectors[1]);
+        var body = server.Requests.Single(r => r.Path == "/api/embed").Body!;
+        Assert.Equal("nomic-embed-text", (string?)body["model"]);
+        Assert.Equal(["one", "two"], body["input"]!.AsArray().Select(t => (string?)t));
+        Assert.True((bool?)body["truncate"]);
+        Assert.Empty(await client.EmbedAsync("nomic-embed-text", [], TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Embeds_with_openai_embeddings_putting_the_vectors_back_in_the_texts_order()
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"bge-m3"}]}"""),
+            "/v1/embeddings" => Ok("""{"data":[{"index":1,"embedding":[3,4]},{"index":0,"embedding":[1,2]}]}"""),
+            _ => NotFound,
+        }, key: "sk-test");
+
+        var vectors = await client.EmbedAsync("bge-m3", ["first", "second"], TestContext.Current.CancellationToken);
+
+        Assert.Equal([1f, 2f], vectors[0]);
+        Assert.Equal([3f, 4f], vectors[1]);
+        var request = server.Requests.Single(r => r.Path == "/v1/embeddings");
+        Assert.Equal("sk-test", request.Key);
+        Assert.Null(request.Body!["truncate"]);
+    }
+
+    [Fact]
+    public async Task A_chat_model_asked_for_vectors_is_a_failed_request_that_says_so()
+    {
+        var (client, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/embed" => Ok("""{"embeddings":[]}"""),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ModelRequestException>(() =>
+            client.EmbedAsync("qwen3:8b", ["one"], TestContext.Current.CancellationToken));
+
+        Assert.Contains("Is qwen3:8b an embedding model?", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_request_without_a_schema_streams_prose_from_ollama_with_no_format()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""
+                {"message":{"content":"The dragon sleeps "},"done":false}
+                {"message":{"content":"under the mill [p. 12]."},"done":true}
+                """),
+            _ => NotFound,
+        });
+        var reports = new Reports();
+
+        var answer = await client.CompleteAsync(Request with { SchemaJson = null, Progress = reports }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("The dragon sleeps under the mill [p. 12].", answer);
+        Assert.Equal(["", "The dragon sleeps ", "The dragon sleeps under the mill [p. 12]."], reports.All.Select(r => r.Answer));
+        var body = server.Requests.Single(r => r.Path == "/api/chat").Body!;
+        Assert.Null(body["format"]);
+        Assert.True((bool?)body["stream"]);
+    }
+
+    [Fact]
+    public async Task A_request_without_a_schema_asks_openai_chat_completions_for_no_response_format_and_doesnt_retry_a_refusal()
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest, """{"error":{"message":"context too long"}}"""),
+            _ => NotFound,
+        });
+
+        await Assert.ThrowsAsync<ModelEndpointException>(() => client.CompleteAsync(Request with { SchemaJson = null }, TestContext.Current.CancellationToken));
+
+        var chat = Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions").Body!;
+        Assert.Null(chat["response_format"]);
+    }
 }

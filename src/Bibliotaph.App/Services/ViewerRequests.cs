@@ -33,15 +33,36 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// <summary>A session item opened from its pack: it opens at its first page and, like a search hit, keeps no reading position.</summary>
     public SessionItemOpen? SessionItem { get; init; }
 
+    /// <summary>"Ask this book" from a card's menu or the details (Ask plan, choice 11): the book opens with its Ask panel showing.</summary>
+    public bool Ask { get; init; }
+
     /// <summary>A page note opened at its pages, which may have moved or changed in the book as it is now (slice 4h plan, choice 2).</summary>
     public PageNoteOpen? PageNote { get; init; }
+
+    /// <summary>
+    /// An adventure inside a file, opened from its card (slice 5 plan, choice 11): the file opens at the adventure's
+    /// first page, its pages stand out in the Contents panel, and Find looks in them unless told to look in the whole file.
+    /// </summary>
+    public PartOpen? Part { get; init; }
+}
+
+/// <summary>An adventure inside a file being read: its card, the file's title, and its pages in the file that opens.</summary>
+public sealed record PartOpen(Bibliotaph.Core.EntryId EntryId, string FileTitle, Bibliotaph.Core.PartPages Pages)
+{
+    /// <summary>The request that opens it from its card, at its first page.</summary>
+    public static ViewerRequest Open(long documentId, string title, Bibliotaph.Core.EntryId entryId, string? fileTitle, Bibliotaph.Core.PartPages pages) =>
+        new(documentId, title, pages.First) { Part = new PartOpen(entryId, fileTitle ?? "its file", pages) };
 }
 
 /// <summary>
 /// A session item being opened (slice 3 plan, choice 14): which, from which pack, and how its pages were found, so the
 /// reader can say when they are in the original file or changed, and re-point the item with Use this page.
 /// </summary>
-public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.Processing.SessionItemState State, string? Reason, int FirstPage, int LastPage);
+public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.Processing.SessionItemState State, string? Reason, int FirstPage, int LastPage)
+{
+    /// <summary>The item is a whole book, so the reader's thumbnail strip marks no pages as the item's.</summary>
+    public bool WholeBook { get; init; }
+}
 
 /// <summary>
 /// A page note being opened (slice 4h plan, choice 2): which, and how its pages were found, so the reader can say when

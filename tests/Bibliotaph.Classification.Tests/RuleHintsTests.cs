@@ -14,12 +14,18 @@ public class RuleHintsTests
             new Term("type", "adventure", "Adventure"),
             new Term("type", "map-pack", "Map pack"),
             new Term("theme", "horror", "Horror"),
+            new Term("style", "heist", "Heist"),
+            new Term("duration", "one-shot", "One-shot"),
             new Term("publisher", "kobold-press", "Kobold Press"),
             new Term("own", "roll20", "Roll20"),
+            new Term("store", "drivethrurpg", "DriveThruRPG"),
+            new Term("store", "kickstarter", "Kickstarter"),
+            new Term("store", "bundle-of-holding", "Bundle of Holding"),
         ],
         [
             ("edition", "dnd-5e", "D&D 5e"), ("type", "adventure", "adventures"), ("type", "adventure", "one shots"),
-            ("type", "map-pack", "maps"), ("edition", "pathfinder-2e", "PF2"),
+            ("type", "map-pack", "maps"), ("edition", "pathfinder-2e", "PF2"), ("style", "heist", "heists"), ("duration", "one-shot", "one shots"),
+            ("store", "drivethrurpg", "DTRPG"), ("store", "drivethrurpg", "drivethrurpg.com"),
         ]);
 
     static string Sep(params string[] parts) => Path.Combine(parts);
@@ -36,6 +42,7 @@ public class RuleHintsTests
         Assert.Contains(proposals, p => p.Field == MetadataFields.Edition && p.Value == "dnd-5e" && p.Origin == AssertionOrigin.Folder && p.Quote == "D&D 5e");
         Assert.Contains(proposals, p => p.Field == MetadataFields.System && p.Value == "dnd" && p.Origin == AssertionOrigin.Folder);
         Assert.Single(proposals, p => p.Field == MetadataFields.Types);
+        Assert.Contains(proposals, p => p.Field == MetadataFields.Duration && p.Value == "one-shot" && p.Origin == AssertionOrigin.Folder);
         Assert.Contains(proposals, p => p.Field == MetadataFields.Title && p.Value == "Tomb of Annihilation" && p.Origin == AssertionOrigin.Filename);
     }
 
@@ -134,10 +141,81 @@ public class RuleHintsTests
     public void Text_without_a_level_range_gives_none(string text) => Assert.Null(RuleHints.FindLevels(text));
 
     [Fact]
+    public void A_style_folder_suggests_the_style()
+    {
+        Assert.Contains(("style", "heist", AssertionOrigin.Folder), Propose(new HintSource(Sep("Heists", "Vault Job.pdf"))));
+    }
+
+    [Theory]
+    [InlineData("Vault Job (for 4-6 players)", "4-6")]
+    [InlineData("An adventure for four to six characters of levels 3-5", "4-6")]
+    [InlineData("for 4 characters of 1st level", "4")]
+    [InlineData("For a party of 3 to 5", "3-5")]
+    [InlineData("3 PCs", "3")]
+    [InlineData("A solo adventure", "1")]
+    public void Party_sizes_written_out_are_found(string text, string expected) =>
+        Assert.Equal(expected, RuleHints.FindPlayers(text)?.Range.ToString());
+
+    [Theory]
+    [InlineData("The Seven Heroes")]
+    [InlineData("For 3rd-level characters")]
+    [InlineData("Levels 4-6")]
+    [InlineData("Player's Handbook")]
+    public void Text_without_a_party_size_gives_none(string text) => Assert.Null(RuleHints.FindPlayers(text));
+
+    [Fact]
+    public void A_party_size_comes_from_a_pdfs_name_title_or_subject()
+    {
+        Assert.Contains(("players", "4-6", AssertionOrigin.Rule), Propose(new HintSource("Vault Job.pdf", EmbeddedSubject: "A heist for 4-6 players")));
+        Assert.DoesNotContain(Propose(new HintSource(Sep("4 players", "Crypt.pdf"))), p => p.Field == "players");
+    }
+
+    [Fact]
     public void Levels_come_from_a_pdfs_name_but_not_from_folders_or_images()
     {
         Assert.Contains(("levels", "1-3", AssertionOrigin.Rule), Propose(new HintSource("Sunless Citadel (Levels 1-3).pdf")));
         Assert.DoesNotContain(Propose(new HintSource(Sep("Level 2", "Crypt.pdf"))), p => p.Field == "levels");
         Assert.DoesNotContain(Propose(new HintSource("Dungeon Level 2.png")), p => p.Field == "levels");
+    }
+
+    [Fact]
+    public void Where_to_get_it_comes_from_folder_and_file_names_and_the_pdfs_producer_as_the_store_only()
+    {
+        Assert.Equal("store", RuleHints.FieldFor("store")!.Key);
+        Assert.Contains(("store", "kickstarter", AssertionOrigin.Folder), Propose(new HintSource(Sep("Kickstarter", "Vault Job.pdf"))));
+        Assert.Contains(("store", "drivethrurpg", AssertionOrigin.Filename), Propose(new HintSource("Vault Job [DTRPG].pdf")));
+
+        var produced = RuleHints.Propose(new HintSource("Vault Job.pdf", EmbeddedProducer: "DriveThruRPG stamp 2.1 for order 48213"), Vocabulary);
+        var store = Assert.Single(produced, p => p.Field == MetadataFields.GetItFrom);
+        Assert.Equal(("drivethrurpg", AssertionOrigin.Embedded, "drivethrurpg"), (store.Value, store.Origin, store.Quote));
+    }
+
+    [Fact]
+    public void A_watermark_gives_its_store_and_never_the_buyers_name_or_order_number()
+    {
+        var source = new HintSource("Vault Job.pdf", WatermarkLines:
+            ["Prepared exclusively for Ana Example (ana@example.com) Order #48213 via Bundle of Holding", "Ana Example 48213"]);
+
+        var proposals = RuleHints.Propose(source, Vocabulary);
+
+        var store = Assert.Single(proposals, p => p.Field == MetadataFields.GetItFrom);
+        Assert.Equal(("bundle-of-holding", AssertionOrigin.Rule), (store.Value, store.Origin));
+        Assert.All(proposals, p =>
+        {
+            foreach (var secret in new[] { "Ana", "Example", "48213", "@" })
+            {
+                Assert.DoesNotContain(secret, p.Value, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain(secret, p.Quote ?? "", StringComparison.OrdinalIgnoreCase);
+            }
+        });
+    }
+
+    [Fact]
+    public void A_watermark_without_a_store_gives_nothing()
+    {
+        var proposals = RuleHints.Propose(new HintSource("Vault Job.pdf", WatermarkLines: ["Prepared exclusively for Ana Example (Order #48213)"]), Vocabulary);
+
+        Assert.DoesNotContain(proposals, p => p.Field == MetadataFields.GetItFrom);
+        Assert.All(proposals, p => Assert.DoesNotContain("Ana Example", p.Quote ?? "", StringComparison.Ordinal));
     }
 }

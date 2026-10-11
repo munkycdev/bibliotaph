@@ -36,10 +36,18 @@ public sealed class SyntheticPdfs : IDisposable
         WatermarkedForDale = Write("watermarked-dale.pdf", BuildPages(Watermark(BookPages, "Dale Example", 98765)));
         RevisedForAna = Write("revised-ana.pdf", BuildPages(Watermark(RevisedPages, "Ana Example", 5678)));
         ExpandedForAna = Write("expanded-ana.pdf", BuildPages(Watermark(ExpandedPages, "Ana Example", 1234)));
+        WatermarkedByStore = Write("watermarked-store.pdf", BuildPages(
+            [.. BookPages.Select((lines, i) => (string[])[.. lines, $"{WatermarkBuyer} · Order #{WatermarkOrder} · Bundle of Holding", $"{i + 1}"])]));
         LockedNoCopying = Write("locked-no-copying.pdf", Bibliotaph.App.Services.SmokePdfs.Locked());
         Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
         Linked = Write("linked.pdf", BuildLinked());
+        Compilation = Write("compilation.pdf", BuildPages(CompilationPages, CompilationOutline));
+        QuietCompilation = Write("quiet-compilation.pdf", BuildPages(QuietCompilationPages, QuietCompilationOutline));
+        Indexed = Write("indexed.pdf", Bibliotaph.App.Services.SmokePdfs.Indexed());
     }
+
+    /// <summary>The smoke test's four-page book whose index page is plain text, with no links.</summary>
+    public string Indexed { get; }
 
     /// <summary>
     /// Three pages: page 0 an index whose <see cref="LinkedEntry"/> line links to page 2 and whose second line links to
@@ -137,6 +145,15 @@ public sealed class SyntheticPdfs : IDisposable
     /// so the two files differ in every page's bytes but are copies of one book.
     /// </summary>
     public string WatermarkedForAna { get; }
+
+    /// <summary>
+    /// <see cref="BookPages"/> as a store watermarks it: every page names <see cref="WatermarkBuyer"/>, their order
+    /// <see cref="WatermarkOrder"/> and the store, Bundle of Holding (scenario review, row 7).
+    /// </summary>
+    public string WatermarkedByStore { get; }
+
+    public const string WatermarkBuyer = "Ana Example";
+    public const int WatermarkOrder = 48213;
 
     /// <summary><see cref="WatermarkedForAna"/>'s book, watermarked for another buyer.</summary>
     public string WatermarkedForDale { get; }
@@ -237,8 +254,44 @@ public sealed class SyntheticPdfs : IDisposable
         return output.ToArray();
     }
 
-    /// <summary>A page per entry, each line drawn as real text.</summary>
-    static byte[] BuildPages(string[][] pages)
+    /// <summary>
+    /// A made-up compilation of two adventures (slice 5b): credits, each adventure with its blurb on its first page,
+    /// and an appendix, with a top-level bookmark for each.
+    /// </summary>
+    public string Compilation { get; }
+
+    public static readonly string[][] CompilationPages =
+    [
+        ["Credits", "Written by Ana Ruiz and Dale Ito"],
+        ["The Salt Mine", "An adventure for four characters of 1st level"],
+        ["The mine's shafts run deep under the marsh, where the salt glows."],
+        ["Lantern Night", "A festival adventure for characters of 3rd to 5th level"],
+        ["The lanterns rise at dusk and the thieves strike at midnight."],
+        ["Appendix: New Monsters", "Salt wraiths and lantern sprites."],
+    ];
+
+    static readonly (string Title, int Page)[] CompilationOutline = [("Credits", 0), ("The Salt Mine", 1), ("Lantern Night", 3), ("Appendix: New Monsters", 5)];
+
+    /// <summary>
+    /// Two adventures between credits and an appendix, bookmarked like <see cref="Compilation"/>, but with nothing on
+    /// their first pages that the rules read as a blurb: only a model can tell they are adventures.
+    /// </summary>
+    public string QuietCompilation { get; }
+
+    public static readonly string[][] QuietCompilationPages =
+    [
+        ["Credits", "Written by Ana Ruiz and Dale Ito for the Marsh Guild"],
+        ["The Bell Tower", "A scenario for heroes of modest experience.", "Recommended party: level 2"],
+        ["The tower's bells ring at noon, and something answers from the deep water."],
+        ["Fog Market", "A night of trading goes wrong in the harbour.", "Recommended party: levels 4 and 5"],
+        ["The stalls fold into the fog and the merchants vanish with them."],
+        ["Appendix: Fog Beasts", "Mist hounds and bell wraiths, with their statistics."],
+    ];
+
+    static readonly (string Title, int Page)[] QuietCompilationOutline = [("Credits", 0), ("The Bell Tower", 1), ("Fog Market", 3), ("Appendix: Fog Beasts", 5)];
+
+    /// <summary>A page per entry, each line drawn as real text, with top-level bookmarks if any.</summary>
+    static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
     {
         using var document = new PdfDocument();
         var font = new XFont(EmbeddedFontResolver.Family, 12);
@@ -248,6 +301,7 @@ public sealed class SyntheticPdfs : IDisposable
             using var gfx = XGraphics.FromPdfPage(page);
             for (var i = 0; i < lines.Length; i++) gfx.DrawString(lines[i], font, XBrushes.Black, new XPoint(60, 90 + i * 22));
         }
+        foreach (var (title, at) in outline ?? []) document.Outlines.Add(title, document.Pages[at]);
         using var output = new MemoryStream();
         document.Save(output);
         return output.ToArray();

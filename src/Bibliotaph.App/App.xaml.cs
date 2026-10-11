@@ -136,6 +136,7 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new VocabularyStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new MetadataStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new ClassificationStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new CorrectionStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
 
         // index.db: derived, rebuildable. One writer; reads on their own connections.
         builder.Services.AddSingleton(sp => IndexDatabase.ForFile(paths.IndexDatabase, sp.GetRequiredService<ILogger<IndexDatabase>>()));
@@ -155,6 +156,10 @@ public partial class App : Application
         builder.Services.AddSingleton<VersionStore>();
         builder.Services.AddSingleton<CopiesService>();
         builder.Services.AddSingleton<PackStore>();
+        builder.Services.AddSingleton<PartStore>();
+        builder.Services.AddSingleton<PartsService>();
+        builder.Services.AddSingleton<PartProposalStore>();
+        builder.Services.AddSingleton<PartProposalService>();
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
         builder.Services.AddSingleton<ElsewhereService>();
@@ -171,12 +176,14 @@ public partial class App : Application
         builder.Services.AddSingleton<PinStore>();
         builder.Services.AddSingleton<PinsService>();
         builder.Services.AddSingleton<NoteStore>();
+        builder.Services.AddSingleton<AskHistoryStore>();
         builder.Services.AddSingleton<NotesService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
+        builder.Services.AddSingleton<PageThumbnailCache>();
         builder.Services.AddSingleton<WpfImageCodec>();
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
         // The smoke test keeps remembered passwords in memory and opens no other app (slice 4i).
@@ -199,8 +206,18 @@ public partial class App : Application
             new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInModelDownloads>>()));
         builder.Services.AddSingleton<GraphicsMemory>();
-        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(), null,
-            sp.GetRequiredService<BuiltInEngine>()));
+        // A second, small engine in embedding mode, for finding pages by meaning in Ask this book.
+        builder.Services.AddKeyedSingleton(BuiltInEngine.EmbeddingKey, (sp, _) => new BuiltInEngine(
+            sp.GetRequiredService<BuiltInEngineOptions>() with { Embedding = true, MinContextTokens = 2_048 },
+            new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
+        // The smoke test has a stand-in model server of its own, for Ask this book (SmokeModel).
+        builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(),
+            smokeTest ? SmokeModel.ClientsFor(sp.GetRequiredService<IApiKeyStore>()) : null,
+            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey)));
+        builder.Services.AddSingleton<AskQueries>();
+        builder.Services.AddSingleton<AskService>();
+        builder.Services.AddSingleton<ExampleFinder>();
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
@@ -214,6 +231,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SourceFiles>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<IFileIdentity, FileIdentity>();
+        builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
+        builder.Services.AddSingleton<OnlineOnlyReturns>();
         builder.Services.AddSingleton<StageServices>();
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();
@@ -225,10 +244,13 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, MatchStage>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
+        builder.Services.AddSingleton<FolderRules>();
         builder.Services.AddSingleton<MetadataService>();
+        builder.Services.AddSingleton<CorrectionService>();
         builder.Services.AddSingleton<VocabularyService>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
+        builder.Services.AddSingleton<PlainSearchService>();
         // The model pilot (slice 2d): its own pilot.db, shown only with --pilot.
         builder.Services.AddSingleton(sp => new PilotStore(paths.Pilot, sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<PilotService>();
@@ -237,6 +259,13 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+        // Library sync (library sync plan): after indexing, so it stops first and writes this PC's file one last time.
+        builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
+            sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<LibrarySync>>()));
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
         builder.Services.AddSingleton<ForgetText>();
 
         // Shell
@@ -246,6 +275,7 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
+        builder.Services.AddSingleton<PageThumbnails>();
         if (smokeTest)
         {
             builder.Services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();
@@ -303,6 +333,7 @@ public partial class App : Application
         // One check a download page, so a check keeps running while the library is shown.
         builder.Services.AddSingleton<DownloadCheckViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
+        builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
         builder.Services.AddSingleton<ViewerServices>();
@@ -339,11 +370,14 @@ public partial class App : Application
         await ai.LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
+        services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
         services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
         services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
+        // Before the first projection, which checks every card: books owned elsewhere meet the files already in the library.
+        services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
     }
 
     /// <summary>

@@ -165,6 +165,8 @@ public sealed class BuiltInModelDownloads(
 
     async Task FetchAsync(BuiltInModel model, CancellationToken ct)
     {
+        // Nothing could pass the check without a pin, so nothing is fetched.
+        if (!model.IsPinned) throw new ModelDownloadException($"This version of Bibliotaph can't download {model.Name} yet.");
         Directory.CreateDirectory(options.ModelsFolder);
         var part = PartFor(model);
         var have = PartialBytes(model);
@@ -251,6 +253,6 @@ public static class BuiltInModelDownloadWatch
     public static void WakeAiWhenDownloaded(this BuiltInModelDownloads downloads, AiSettings ai) =>
         downloads.Downloaded += (_, model) =>
         {
-            if (ai.Setup.BuiltIn && ai.Setup.BuiltInModel == model.Id) ai.Refresh();
+            if (ai.Setup.BuiltIn && (ai.Setup.BuiltInModel == model.Id || ai.Setup.BuiltInEmbeddingModel == model.Id)) ai.Refresh();
         };
 }

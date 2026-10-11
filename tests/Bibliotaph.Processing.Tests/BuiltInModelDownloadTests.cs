@@ -164,6 +164,19 @@ public sealed class BuiltInModelDownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task A_model_without_a_pin_is_never_fetched()
+    {
+        var server = new Server(_file);
+        var downloads = Downloads(server);
+
+        Assert.False(await downloads.DownloadAsync(_model with { Sha256 = "" }, Ct));
+
+        Assert.Equal("This version of Bibliotaph can't download Test model yet.", downloads.Problem);
+        Assert.Empty(server.Ranges);
+        Assert.False(File.Exists(Part));
+    }
+
+    [Fact]
     public async Task Pause_keeps_what_arrived_and_cancel_deletes_it()
     {
         var server = new Server(_file) { HoldAt = 1_048_576 };

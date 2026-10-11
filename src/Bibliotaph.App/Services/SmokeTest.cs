@@ -14,6 +14,7 @@ using Bibliotaph.Classification;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
+using Bibliotaph.Core.Sync;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
@@ -109,30 +110,47 @@ static partial class SmokeTest
             }
             await Check("every route drawn in the Windows contrast theme's colours", () => ShowContrastAsync(services, window));
             await Check("the Keyboard shortcuts popup, from Ctrl+/ and from the Settings link", () => ShowShortcutsAsync(services, window));
+            await Check("Ask with AI off saying it needs AI, its link to Settings > AI, and the search box searching as before",
+                () => PlainSearchWithoutAiAsync(services, window, books));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
                 () => UseCollectionsAsync(services, window, books));
             await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
                 () => UseSmartViewsAsync(services, window, books));
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
-            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
+            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back, and one offered a file already in the library",
+                () => AddElsewhereAsync(services, window, books));
+            await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
+                () => CorrectBooksAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
-            await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone",
+            await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
                 () => ReviewRevisionAsync(services, window));
+            await Check("a page note found a page on in the copy a book opens now, listed in the details at its page there",
+                () => ListMovedPageNoteAsync(services, window));
             await Check("two cards ticked and joined as one book with Same book, opening the file chosen, and taken apart again with Undo",
                 () => JoinAsOneBookAsync(services, window, books));
             if (real is { } reprocessed)
             {
                 await Check("a PDF opened again where it was left, and listed on Home", () => ResumeBookAsync(services, window, reprocessed.Pdf));
-                await Check("a book's note written in the details and found by search, and a page note added in the reader, deleted with Undo and listed in the details",
+                await Check("a book's note written in the details and found by search, and a page note added in the reader, deleted with Undo, listed in the details and found by search",
                     () => UseNotesAsync(services, window, reprocessed.Pdf));
+                await Check("the reader's page thumbnails shown, drawn, marking the page in view and the page with a note, and going to a page by click and by Enter",
+                    () => UseThumbnailStripAsync(services, window, reprocessed.Pdf));
                 await Check("a session made, pages added from the reader, reordered, opened at their pages without moving the book's place, run, and deleted with Undo",
                     () => UseSessionPacksAsync(services, window, reprocessed.Pdf));
                 await Check("a binder kept at hand listed under At hand, and one of its pages opened in a window from another binder's At hand",
                     () => UseAtHandBinderAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF reprocessed from its file and found throughout", () => ReprocessBookAsync(services, window, reprocessed.Pdf));
+                await Check("a bookmark indexed as its own adventure from the reader: its card, its page found under it, read as the adventure, removed and brought back",
+                    () => UsePartsAsync(services, window, reprocessed.Pdf));
+                await Check("a proposal of a file's adventures in Needs review: Not split and Undo, edited, accepted as one card, undone, and kept as one book",
+                    () => ReviewPartProposalAsync(services, window, reprocessed.Pdf));
+                await Check("a PDF opened from Ask this book in its details and asked a question: the answer streamed with its citations checked and opening the page with the quotation marked, the page found by meaning on asking again, and Ask hidden with AI off",
+                    () => AskBookAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
+                await Check("a binder's next page in another book opened ahead of time with its page drawn, and shown from it by Next",
+                    () => ReadAheadAcrossBooksAsync(services, window, reprocessed.Pdf));
                 await Check("a ZIP of images packed, stepped through, split, packed again and found by an image's name", () => UsePackAsync(services, window));
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
                 await Check("two images kept separate made a pack with Pack together, a third added, the pack merged into the tokens' pack, and Undo",
@@ -141,11 +159,15 @@ static partial class SmokeTest
                     () => UseProtectedBooksAsync(services, window));
                 await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
                 await Check("a remembered password listed in Settings > Passwords and forgotten there", () => ForgetPasswordAsync(services, window));
+                await Check("an index page with no links of its own: its printed page numbers followed as links, with Back",
+                    () => FollowPrintedPageNumbersAsync(services, window));
             }
             await Check("a backup saved from Settings > Backup and read back for restoring, its missing folder offered a new place, then cancelled",
                 () => BackUpAndPreviewRestoreAsync(services, window));
+            await Check("Settings > Backup > Sync with another PC refusing Bibliotaph's data folder, writing this PC's sync file to the folder picked and merging another PC's collection, then stopped",
+                () => SyncWithAnotherPcAsync(services, window));
             // Last: the made-up library's books can't be read once its folder is found offline.
-            await Check("a library folder that can't be reached: its books marked Offline, the sidebar and its Settings card saying so",
+            await Check("a library folder that can't be reached: its books marked Offline, one opened to a prompt to plug in its drive, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));
             await Check("every page and dialog visited names its controls, keeps them whole at the minimum window size and reaches them with Tab",
                 ReportAccessibilityAsync);
@@ -525,6 +547,46 @@ static partial class SmokeTest
             throw new InvalidOperationException("After saving, the title can't be reset or the evidence closed.");
         await Field(MetadataFields.Title).ResetCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == "Haunted Inn"), () => "Resetting the title didn't bring back the suggestion.");
+
+        // Players, typed the way a book says it, read back as a party size, kept by the Players filter, and reset.
+        if (inspector.Fields.All(f => f.Field != MetadataFields.Styles) || inspector.Fields.All(f => f.Field != MetadataFields.Duration))
+            throw new InvalidOperationException("The inspector has no Style or Duration field.");
+        var players = Field(MetadataFields.Players);
+        players.EditCommand.Execute(null);
+        await Settle(window);
+        players.EditText = "for 4 to 6 players";
+        await players.SaveCommand.ExecuteAsync(null);
+        if (players.Problem is not null) throw new InvalidOperationException($"Saving players said: {players.Problem}");
+        await WaitUntilAsync(window, () => Field(MetadataFields.Players) is { Display: "4–6 players", IsSuggested: false },
+            () => $"The players field says {Field(MetadataFields.Players).Display}, not 4–6 players.");
+        page.PlayersChoice = page.PlayersChoices.First(c => c.Value == 5);
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by 5 players shows {page.Items.Count} books, not 1.");
+        page.ClearFiltersCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the players filter didn't bring back all {books} books.");
+        await Field(MetadataFields.Players).ResetCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !Field(MetadataFields.Players).IsKnown, () => "Resetting players didn't leave them unknown.");
+
+        // Get it from: a link on its own is filed under the store whose site it is on, shows as a link that opens only
+        // after asking, is kept by the store filter, and resets.
+        const string StoreLinkText = "https://example-press.itch.io/haunted-inn";
+        var store = Field(MetadataFields.GetItFrom);
+        store.EditCommand.Execute(null);
+        await Settle(window);
+        store.EditText = StoreLinkText;
+        await store.SaveCommand.ExecuteAsync(null);
+        if (store.Problem is not null) throw new InvalidOperationException($"Saving Get it from said: {store.Problem}");
+        await WaitUntilAsync(window, () => Field(MetadataFields.GetItFrom) is { Display: "itch.io", Links: [{ Url: StoreLinkText }] },
+            () => $"Get it from says {Field(MetadataFields.GetItFrom).Display}, not itch.io with its link.");
+        var link = Field(MetadataFields.GetItFrom).Links[0];
+        if (link.LinkText != "example-press.itch.io/haunted-inn" || !Field(MetadataFields.GetItFrom).OpenLinkCommand.CanExecute(link))
+            throw new InvalidOperationException($"The Get it from link reads {link.LinkText} or can't be opened.");
+        await WaitUntilAsync(window, () => page.ShowStoreChoice && page.StoreChoices.Any(c => c.Value == "itch-io"), () => "The Library has no itch.io store filter.");
+        page.StoreChoice = page.StoreChoices.First(c => c.Value == "itch-io");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by itch.io shows {page.Items.Count} books, not 1.");
+        page.ClearFiltersCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the store filter didn't bring back all {books} books.");
+        await Field(MetadataFields.GetItFrom).ResetCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !Field(MetadataFields.GetItFrom).IsKnown, () => "Resetting Get it from didn't leave it empty.");
         page.CloseDetailsCommand.Execute(null);
         await Settle(window);
     }
@@ -948,6 +1010,62 @@ static partial class SmokeTest
     }
 
     /// <summary>
+    /// A book whose index page is plain text (<see cref="SmokePdfs.Indexed"/>), read from a ZIP by the real pipeline:
+    /// the index's printed page numbers become links to the pages labelled with them, saying where they go, a page
+    /// without an index gets none, and following one goes there and offers the way back.
+    /// </summary>
+    static async Task FollowPrintedPageNumbersAsync(IServiceProvider services, Window window)
+    {
+        const string Title = SmokePdfs.IndexedTitle;
+        // Left for the system's temp cleaning: the app may not delete folders, and may only write ZIPs.
+        var folder = System.IO.Directory.CreateTempSubdirectory("bibliotaph-smoke-index-").FullName;
+        using (var zip = System.IO.Compression.ZipFile.Open(System.IO.Path.Combine(folder, "Smoke Index.zip"), System.IO.Compression.ZipArchiveMode.Create))
+        await using (var member = zip.CreateEntry($"Smoke Index/{Title}.pdf").Open())
+        {
+            await member.WriteAsync(SmokePdfs.Indexed());
+        }
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        LibraryEntry? book = null;
+        while ((book = (await Task.Run(() => queries.ListAsync(new LibraryFilter()))).FirstOrDefault(e => e.Title == Title)) is not { Searchable: true })
+        {
+            if (Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException($"The index book wasn't indexed ({(book is null ? "no card" : "not searchable")}).");
+            await Settle(window);
+            await Task.Delay(200);
+        }
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<ReaderWindows>().OpenInMainWindow(new ViewerRequest(book.DocumentId, Title, SmokePdfs.IndexPage));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The index book didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The index book didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The index book didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        var pages = FindChild<Bibliotaph.Viewer.PdfPagesView>(window) ?? throw new InvalidOperationException("The viewer has no page surface.");
+        await WaitUntilAsync(window, () => pages.PageModels.Count == 4 && pages.CurrentPageIndex == SmokePdfs.IndexPage,
+            () => $"The index book opened at page {pages.CurrentPageIndex} of {pages.PageModels.Count}, not at its index.");
+
+        // One link per entry's number, each to the page with that printed number (here PDF page n is printed page n).
+        var links = await pages.LinksOf(pages.PageModels[SmokePdfs.IndexPage]);
+        if (!links.Select(l => (l.Printed, l.PageIndex)).SequenceEqual(SmokePdfs.IndexEntries.Select(e => ((int?)e.Page, e.Page))))
+            throw new InvalidOperationException($"The index page's links are {string.Join(", ", links.Select(l => $"{l.Printed} to {l.PageIndex}"))}.");
+        var dragons = links[1];
+        if (pages.TipFor(dragons) != "Go to page 2") throw new InvalidOperationException($"The Dragons link says “{pages.TipFor(dragons)}”.");
+        if (dragons.Box.IsEmpty) throw new InvalidOperationException("The Dragons link has no box to click.");
+        if ((await pages.LinksOf(pages.PageModels[1])) is { Count: > 0 } stray)
+            throw new InvalidOperationException($"A page without an index got {stray.Count} links.");
+
+        viewer.FollowLink(dragons);
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == 2 && viewer is { HasLinkBack: true, LinkBackLabel: "Back to page 3" } && Shown(window, "BackFromLink"),
+            () => $"Following the Dragons link left the page in view at {pages.CurrentPageIndex}, offering “{viewer.LinkBackLabel}”.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "BackFromLink"), "Back to page 3");
+        await WaitUntilAsync(window, () => pages.CurrentPageIndex == SmokePdfs.IndexPage && !viewer.HasLinkBack, () => "Back to page 3 didn't return to the index.");
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
+    }
+
+    /// <summary>
     /// Image packs (F4a): twenty token images in a ZIP become one card with a mosaic; its inspector lists them,
     /// one opens in the viewer, which steps to the next; Split gives them their cards back and Undo packs them again;
     /// searching for one image's name finds the pack, which opens at that image (F4b).
@@ -1033,8 +1151,9 @@ static partial class SmokeTest
 
     /// <summary>
     /// Offline folders (4g): the made-up library's folder was never on disk, so a scan finds it offline. Its books stay
-    /// in the Library, marked Offline; the sidebar says one folder is offline; and its card in Settings says it can't be
-    /// reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
+    /// in the Library, marked Offline; opening one shows the reader's prompt to plug in the drive, naming the folder,
+    /// whose Try again looks at it again; the sidebar says one folder is offline; and its card in Settings says it can't
+    /// be reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
     /// </summary>
     /// <summary>
     /// Settings > Backup (slice 4j): Back up now's work saves a ZIP of the catalog and its manifest, without the search
@@ -1080,6 +1199,61 @@ static partial class SmokeTest
         await Settle(window);
     }
 
+    /// <summary>
+    /// Settings > Backup > Sync with another PC (library sync plan): Bibliotaph's own data folder is refused, as the
+    /// databases must never be in a synced folder; the folder beside the data root, where build/verify.ps1 put a made-up
+    /// second PC's sync file, is taken: this PC's file is written there, and the other PC's collection is merged and shows
+    /// among the collections; Sync now merges again; Stop syncing stops. The folder picker isn't driven: the section's own
+    /// method does what follows it.
+    /// </summary>
+    static async Task SyncWithAnotherPcAsync(IServiceProvider services, Window window)
+    {
+        const string Merged = "Made on the other PC";
+        var paths = services.GetRequiredService<AppPaths>();
+        var sync = services.GetRequiredService<LibrarySync>();
+        var collections = services.GetRequiredService<CollectionDirectory>();
+        var section = (BackupSectionViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Backup)).Selected;
+        await WaitUntilAsync(window, () => Shown(window, "ChooseSyncFolder") && !Shown(window, "SyncNow") && section.SyncStatusLine == "Not syncing.",
+            () => $"Settings > Backup doesn't offer Choose a folder for syncing, or already syncs (\"{section.SyncStatusLine}\").");
+
+        if (await section.UseSyncFolderAsync(paths.Root) || section.IsSyncing
+            || section.SyncProblem?.StartsWith("That's Bibliotaph's own data folder", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException($"Bibliotaph's own data folder was taken for syncing, or refused with \"{section.SyncProblem}\".");
+        await WaitUntilAsync(window, () => Descendants<TextBlock>(window).Any(t => t.Name == "SyncProblemText" && t.IsVisible),
+            () => "Settings doesn't say why the data folder was refused.");
+
+        var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(paths.Root)!, "sync");
+        var files = System.IO.Path.Combine(folder, SyncFile.FolderName);
+        System.IO.Directory.CreateDirectory(folder);
+        // Run without build/verify.ps1, there is no other PC's file: this PC's is still written.
+        var otherPc = System.IO.File.Exists(System.IO.Path.Combine(files, "SMOKE-PC-2.json"));
+        if (!await section.UseSyncFolderAsync(folder)) throw new InvalidOperationException($"The folder for syncing was refused: {section.SyncProblem}");
+        var own = System.IO.Path.Combine(files, SyncFile.FileName(sync.MachineName));
+        var expected = otherPc ? "Last merged from SMOKE-PC-2 " : "No other PC has written";
+        await WaitUntilAsync(window, () => System.IO.File.Exists(own) && Shown(window, "SyncNow") && Shown(window, "StopSyncing")
+                && section.SyncStatusLine.StartsWith(expected, StringComparison.Ordinal) && (!otherPc || collections.All.Any(c => c.Name == Merged)),
+            () => $"Syncing didn't write {System.IO.Path.GetFileName(own)}, show Sync now and Stop syncing, or merge the other PC's collection (\"{section.SyncStatusLine}\").");
+        await AuditAsync(window, "Settings > Backup while syncing with another PC");
+
+        Click(Descendants<Button>(window).SingleOrDefault(b => b.Name == "SyncNow"), "Sync now");
+        await WaitUntilAsync(window, () => !section.IsSyncBusy && section.SyncStatusLine.StartsWith(expected, StringComparison.Ordinal) && section.SyncProblem is null,
+            () => $"Sync now says \"{section.SyncStatusLine}\" {section.SyncProblem}");
+
+        Click(Descendants<Button>(window).SingleOrDefault(b => b.Name == "StopSyncing"), "Stop syncing");
+        await WaitUntilAsync(window, () => !section.IsSyncing && section.SyncStatusLine == "Not syncing." && !Shown(window, "SyncNow") && Shown(window, "ChooseSyncFolder"),
+            () => $"Stop syncing didn't stop (\"{section.SyncStatusLine}\").");
+        if (await sync.GetFolderAsync() is not null) throw new InvalidOperationException("Stop syncing left the sync folder set.");
+
+        // The other PC's collection goes, so the steps after see the library they saw before.
+        if (collections.All.FirstOrDefault(c => c.Name == Merged) is { } merged)
+        {
+            await services.GetRequiredService<CollectionsService>().DeleteAsync(merged.Id);
+            await WaitUntilAsync(window, () => collections.All.All(c => c.Name != Merged), () => "The merged collection couldn't be deleted.");
+        }
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
+    }
+
     static async Task ShowOfflineFolderAsync(IServiceProvider services, Window window)
     {
         var smoke = (await services.GetRequiredService<SourceRootStore>().ListAsync())
@@ -1098,6 +1272,22 @@ static partial class SmokeTest
         await library.RefreshAsync();
         await WaitUntilAsync(window, () => library.Items.Any(i => inFolder.Contains(i.EntryId) && i is { IsAway: true, AvailabilityLabel: "Offline" }),
             () => "The offline folder's books aren't marked Offline in the Library.");
+
+        // Opening one says to plug the drive in, naming the folder; Try again looks at the folder and, still offline, says so again.
+        var away = library.Items.First(i => inFolder.Contains(i.EntryId) && i.IsAway);
+        library.OpenBookCommand.Execute(away);
+        await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { Mode: ViewerMode.Problem }, () => "Opening an offline book didn't show the reader's prompt.");
+        var viewer = (ViewerViewModel)shell.CurrentPage!;
+        if (!viewer.EmptyMessage.Contains("smoke-library", StringComparison.Ordinal) || viewer.EmptyActionText != "Try again" || viewer.EmptySecondaryText is not null)
+            throw new InvalidOperationException($"The offline book's prompt says \"{viewer.EmptyTitle} {viewer.EmptyMessage}\" [{viewer.EmptyActionText}], not to plug in its folder's drive.");
+        await AuditAsync(window, "the reader's prompt for a book whose folder is offline");
+        var asked = viewer.EmptyCommand;
+        await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Command == asked && b.IsVisible && b.IsEnabled), () => "The prompt has no Try again.");
+        Click(Descendants<Button>(window).First(b => b.Command == asked && b.IsVisible), "Try again");
+        await WaitUntilAsync(window, () => viewer is { Mode: ViewerMode.Problem } && viewer.EmptyCommand != asked && viewer.EmptyMessage.Contains("smoke-library", StringComparison.Ordinal),
+            () => $"Try again on a folder still offline shows {viewer.Mode}: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        navigation.GoBack();
+        await WaitUntilAsync(window, () => ReferenceEquals(shell.CurrentPage, library), () => "Back didn't return from the reader to the Library.");
 
         library.ManageFoldersCommand.Execute(null);
         var settings = await ExpectSettingsAsync(window, shell, SettingsSection.Library, "The Library's Manage folders");
@@ -1256,8 +1446,9 @@ static partial class SmokeTest
 
     /// <summary>
     /// Slice 4h: a session item made in the lairs' other copy, whose page wasn't found in the copy the book opens now,
-    /// is a "new version" card in Needs review; Use this page on the card checks it, and Undo puts it back. The
-    /// session is deleted at the end, so later checks see the library as it was. What was found is seeded, since the
+    /// is a "new version" card in Needs review; Use this page on the card checks it, and Undo puts it back, while the
+    /// binder, popped out into a window, follows each change without being opened again. The session is deleted at the
+    /// end, so later checks see the library as it was. What was found is seeded, since the
     /// made-up books have no pages to fingerprint.
     /// </summary>
     static async Task ReviewRevisionAsync(IServiceProvider services, Window window)
@@ -1267,6 +1458,7 @@ static partial class SmokeTest
         var current = copies.Single(c => c.IsCurrent).DocumentId;
         var other = copies.First(c => !c.IsCurrent).DocumentId;
         var sessions = services.GetRequiredService<SessionsService>();
+        var windows = services.GetRequiredService<ReaderWindows>();
         var pack = await sessions.CreateAsync("Smoke revision");
         try
         {
@@ -1276,7 +1468,21 @@ static partial class SmokeTest
             var places = services.GetRequiredService<PagePlaces>();
             if (await places.CountRevisionsAsync() != 1) throw new InvalidOperationException("The place that needs a look isn't counted for Needs review.");
 
+            // The binder stays open in a window of its own, at the item: the file its pages were added from, while they need a look.
             var shell = services.GetRequiredService<ShellViewModel>();
+            var binders = services.GetRequiredService<SessionPages>();
+            binders.Open(pack.Id);
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, Current: not null } open && open.PackId == pack.Id,
+                () => "The binder didn't open at its item.");
+            await binders.PopOutAsync((SessionReaderViewModel)shell.CurrentPage!);
+            // Popping out hosts a new reader for the binder in its own window; that one is followed from here on.
+            SessionReaderViewModel? Popped() => windows.Windows.Select(w => w.Model).OfType<SessionReaderViewModel>().FirstOrDefault(r => r.PackId == pack.Id);
+            await WaitUntilAsync(window, () => Popped() is { IsLoaded: true, Current.Target: { State: SessionItemState.Original } open } && open.DocumentId == other,
+                () => Popped() is { } popped
+                    ? $"The popped-out binder's item opens {popped.Current?.Target.State} in document {popped.Current?.Target.DocumentId}, not the file its pages were added from ({other})."
+                    : "The binder didn't pop out into a window of its own.");
+            var binder = Popped()!;
+
             services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
             var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
             await page.ReloadCommand.ExecuteAsync(null);
@@ -1292,17 +1498,67 @@ static partial class SmokeTest
             if (await places.CountRevisionsAsync() != 0) throw new InvalidOperationException("A checked new version is still counted for Needs review.");
             if ((await sessions.GetAsync(pack.Id))!.Items.Single().Range is not { DocumentId: var used, Check.Outcome: PageCheck.Checked } || used != current)
                 throw new InvalidOperationException("Use this page didn't point the item at the copy the book opens.");
+            // The open binder follows without being opened again: its item opens at the page taken, in the copy the book opens.
+            await WaitUntilAsync(window, () => binder.Current is { Target: { State: SessionItemState.Ready } open } && open.DocumentId == current,
+                () => $"The open binder's item still opens {binder.Current?.Target.State} in document {binder.Current?.Target.DocumentId} after Use this page.");
 
             await card.UndoCommand.ExecuteAsync(null);
             await WaitUntilAsync(window, () => !card.IsDone && row.CanUse && card.Heading == Heading, () => "Undo didn't put the place back to be checked.");
             if (await places.CountRevisionsAsync() != 1) throw new InvalidOperationException("Undo didn't bring the new version back to Needs review.");
+            await WaitUntilAsync(window, () => binder.Current is { Target: { State: SessionItemState.Original } open } && open.DocumentId == other,
+                () => "The open binder's item didn't go back to the file its pages were added from after Undo.");
         }
         finally
         {
+            windows.CloseAll();
             await sessions.DeleteAsync(pack.Id);
         }
         if (await services.GetRequiredService<PagePlaces>().CountRevisionsAsync() != 0)
             throw new InvalidOperationException("Deleting the session left its place in Needs review.");
+    }
+
+    /// <summary>
+    /// Slice 3f with 4h: a page note made in the lairs' other copy, whose page was found a page on in the copy the book
+    /// opens now, is listed in the details' Notes tab at its page there, not the page it was made on. What was found is
+    /// seeded, as in <see cref="ReviewRevisionAsync"/>; the note is deleted at the end, so later checks see the book as it was.
+    /// </summary>
+    static async Task ListMovedPageNoteAsync(IServiceProvider services, Window window)
+    {
+        // The lairs are the only book with two files; earlier checks may have renamed it.
+        var lairs = (await services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(OnlyWithCopies: true))).Single();
+        var copies = await services.GetRequiredService<EntryStore>().GetCopiesAsync(lairs.EntryId);
+        var current = copies.Single(c => c.IsCurrent).DocumentId;
+        var other = copies.First(c => !c.IsCurrent).DocumentId;
+        var notes = services.GetRequiredService<NotesService>();
+        var note = await notes.AddPageNoteAsync(other, 0, 0, "The ledger names every lair.")
+            ?? throw new InvalidOperationException("The page note on the lairs' other copy wasn't saved.");
+        try
+        {
+            if (note.Range.FirstLabel != "1") throw new InvalidOperationException($"The note on the other copy's first page is on p. {note.Range.FirstLabel}.");
+            await services.GetRequiredService<PageRefStore>().SaveChecksAsync([(note.Range.RefId, new PageRefCheck(PageCheck.Found, current, 1, 1))]);
+
+            var shell = services.GetRequiredService<ShellViewModel>();
+            services.GetRequiredService<SearchState>().Search("");
+            shell.NavigateCommand.Execute(Route.Library);
+            var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+            await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == lairs.EntryId), () => "The lairs aren't in the Library.");
+            await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == lairs.EntryId));
+            await WaitUntilAsync(window, () => library.Inspector?.Notes is { HasPageNotes: true }, () => "The details didn't load the lairs' page note.");
+            var tab = Descendants<RadioButton>(window).FirstOrDefault(r => r.Name == "NotesTab");
+            if (tab is not { IsVisible: true, IsEnabled: true }) throw new InvalidOperationException("The details don't show a Notes tab.");
+            tab.IsChecked = true;
+            await WaitUntilAsync(window, () => library.Inspector?.Notes?.PageNotes is [{ Pages: "p. 2", Place.State: PagePlaceState.OtherCopy }]
+                    && Descendants<ItemsControl>(window).Any(i => i.Name == "BookPageNotes" && i.IsVisible && i.Items.Count == 1)
+                    && Descendants<TextBlock>(window).Any(t => t.Text == "p. 2" && t.IsVisible),
+                () => $"The details list the note at {library.Inspector?.Notes?.PageNotes.FirstOrDefault()?.Pages ?? "no page"}, not p. 2, where the book opens it.");
+            library.Inspector!.IsNotesTab = false;
+            library.CloseDetailsCommand.Execute(null);
+            await Settle(window);
+        }
+        finally
+        {
+            await notes.DeletePageNoteAsync(note.Id);
+        }
     }
 
     /// <summary>
@@ -1653,11 +1909,13 @@ static partial class SmokeTest
     /// </summary>
     /// <summary>
     /// Slice 3f: the book's own note typed in the details' Notes tab and found by a word from it; a page note added
-    /// in the reader with Note, shown in its notes panel, deleted with Undo, and listed in the details; then both cleared.
+    /// in the reader with Note, shown in its notes panel, deleted with Undo, listed in the details and found by a word
+    /// from it; then both cleared.
     /// </summary>
     static async Task UseNotesAsync(IServiceProvider services, Window window, long documentId)
     {
         const string Word = "quillwort";
+        const string PageWord = "hornwrack";
         var shell = services.GetRequiredService<ShellViewModel>();
         var search = services.GetRequiredService<SearchState>();
         var navigation = services.GetRequiredService<INavigationService>();
@@ -1689,11 +1947,11 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => viewer.IsPdf && !viewer.HasPageNotes && Shown(window, "AddNote"), () => "The PDF didn't open, or it already has page notes.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddNote"), "the reader's Note");
         await WaitUntilAsync(window, () => viewer.NoteDialog is not null && Shown(window, "SaveNoteButton"), () => "Note didn't ask for the note.");
-        viewer.NoteDialog!.Text = "The bell rings at midnight.";
+        viewer.NoteDialog!.Text = $"The bell rings at midnight in the {PageWord} tower.";
         await Settle(window);
         await AuditAsync(window, "the reader's page note dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveNoteButton"), "the dialog's Save note");
-        await WaitUntilAsync(window, () => viewer.NoteDialog is null && viewer.PageNotes is [{ Text: "The bell rings at midnight." }] && viewer.NotesVisible
+        await WaitUntilAsync(window, () => viewer.NoteDialog is null && viewer.PageNotes is [{ Text: var saved }] && saved.Contains(PageWord, StringComparison.Ordinal) && viewer.NotesVisible
                 && Descendants<ItemsControl>(window).Any(i => i.Name == "ReaderPageNotes" && i.IsVisible && i.Items.Count == 1),
             () => "Saving didn't show the note in the reader's notes panel.");
 
@@ -1712,10 +1970,15 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => library.Inspector?.Notes is { HasPageNotes: true } shown && shown.Text.Contains(Word, StringComparison.Ordinal),
             () => "The details don't list the page note under the book's note.");
 
-        // Clear both, so later checks see the book as it was.
+        // A word only the page note has finds the book too.
         library.Inspector!.IsNotesTab = false;
         library.CloseDetailsCommand.Execute(null);
         await Settle(window);
+        search.Search(PageWord);
+        await WaitUntilAsync(window, () => library.Items is [{ } byPage] && byPage.DocumentId == documentId, () => $"Searching “{PageWord}” didn't find the book by its page note.");
+        search.Search("");
+
+        // Clear both, so later checks see the book as it was.
         foreach (var note in await notes.GetPageNotesAsync(entryId)) await notes.DeletePageNoteAsync(note.Id);
         await notes.SetEntryNoteAsync(entryId, "");
         // The reader can settle on another page of the short smoke PDF as the notes panel changes its width; put the
@@ -1723,6 +1986,8 @@ static partial class SmokeTest
         await reading.SavePositionAsync(documentId, kept);
         search.Search(Word);
         await WaitUntilAsync(window, () => library.Items.Count == 0, () => "The cleared note still finds the book.");
+        search.Search(PageWord);
+        await WaitUntilAsync(window, () => library.Items.Count == 0, () => "The deleted page note still finds the book.");
         search.Search("");
     }
 
@@ -1882,10 +2147,15 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PreviousItem"), "Previous");
         await WaitUntilAsync(window, () => reader.Counter == "p. 1 · 1 of 2" && !reader.PreviousItemCommand.CanExecute(null),
             () => $"Previous didn't open the binder's first item ({reader.Counter}).");
+        // The thumbnail strip marks the item's pages and only those; it has its pages even while it's hidden.
+        await WaitUntilAsync(window, () => reader.Viewer.Strip.Pages is { Count: 2 } thumbnails && thumbnails.All(t => t.InItem == (t.Index == pageInView)),
+            () => "The thumbnail strip doesn't mark just the first item's page.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "NextItem"), "Next");
         await WaitUntilAsync(window, () => reader is { Current.Heading: "Warehouse ambush", Viewer.CurrentPageIndex: 0, Counter: "p. i–1 · 2 of 2" }
                 && !reader.NextItemCommand.CanExecute(null),
             () => $"Next didn't open Warehouse ambush at page i ({reader.Counter}, page index {reader.Viewer.CurrentPageIndex}).");
+        await WaitUntilAsync(window, () => reader.Viewer.Strip.Pages is { Count: 2 } thumbnails && thumbnails.All(t => t.InItem),
+            () => "The thumbnail strip doesn't mark both of Warehouse ambush's pages.");
         await AuditAsync(window, "a binder's reader");
 
         // Renaming the page in hand in the list: its name in a box with the keyboard, then Enter saves it.
@@ -2078,10 +2348,46 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == Title && i.IsElsewhere), () => "Undo didn't bring the book back.");
 
         var back = page.Items.Single(i => i.Title == Title);
-        if (await services.GetRequiredService<ElsewhereService>().RemoveAsync(back.EntryId) is null)
+        var elsewhere = services.GetRequiredService<ElsewhereService>();
+        if (await elsewhere.RemoveAsync(back.EntryId) is null)
             throw new InvalidOperationException("The book owned elsewhere couldn't be removed again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was.");
+
+        // A book added with the title of a file already in the library is offered that file in Needs review. By file:
+        // earlier checks rename some cards.
+        var gazetteer = (await services.GetRequiredService<LibraryStore>().GetRelativePathsAsync())
+            .First(p => p.RelativePath.EndsWith("Gazetteer of the Marches.pdf", StringComparison.Ordinal)).DocumentId;
+        var file = page.Items.FirstOrDefault(i => !i.IsPack && !i.IsElsewhere && i.DocumentId == gazetteer)
+            ?? throw new InvalidOperationException("The gazetteer's card isn't in the Library.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog again.");
+        var second = page.AddElsewhereDialog!;
+        second.Title = file.Title;
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == second.SaveCommand), "Add to library");
+        await WaitUntilAsync(window, () => page.AddElsewhereDialog is null && page.Items.Any(i => i.Title == file.Title && i.IsElsewhere),
+            () => $"Saving “{file.Title}” didn't add a book owned elsewhere.");
+        var named = page.Items.First(i => i.Title == file.Title && i.IsElsewhere);
+        page.CloseDetailsCommand.Execute(null);
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
+        var review = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        review.IsSuggestionsTab = true;
+        await review.ReloadCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !review.IsLoading && review.Cards.OfType<ElsewhereCardViewModel>().Any(c => c.Item.Match.DocumentId == gazetteer),
+            () => $"Needs review doesn't offer the gazetteer as the file of “{file.Title}”.");
+        var offer = review.Cards.OfType<ElsewhereCardViewModel>().First(c => c.Item.Match.DocumentId == gazetteer);
+        if (offer.Heading != $"You own {file.Title} elsewhere. Is this its file?") throw new InvalidOperationException($"The card asks “{offer.Heading}”.");
+        if (offer.IsDone || !offer.SameBookCommand.CanExecute(null)) throw new InvalidOperationException("The card doesn't offer Same book.");
+        await AuditAsync(window, "a file already in the library offered to a book owned elsewhere");
+
+        if (await elsewhere.RemoveAsync(named.EntryId) is null) throw new InvalidOperationException($"“{file.Title}” owned elsewhere couldn't be removed.");
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open again.");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was after the second book.");
     }
 
     /// <summary>
@@ -2186,7 +2492,9 @@ static partial class SmokeTest
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CopyList"), "Copy list");
         await WaitUntilAsync(window, () => page.Copied is not null, () => "Copy list said nothing.");
-        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter())) is var cards && cards.Count != books)
+        // Counted as the Library counts them, in the folders the user hasn't removed (an earlier check removes one).
+        var visible = await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync();
+        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible))) is var cards && cards.Count != books)
             throw new InvalidOperationException($"The library has {cards.Count} cards after a check, not {books}.");
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
@@ -2544,6 +2852,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => processing.HasFolders, () => "Settings > Processing says there are no folders.");
         if (processing.Activity.Phases.Count != 5 || processing.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
+        await ToggleReturnOnlineOnlyAsync(services, window, processing);
 
         navigation.NavigateTo(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("The Home route didn't open Home.");
@@ -2560,6 +2869,39 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
         if (!ReferenceEquals(shell.CurrentPage, libraryPage)) throw new InvalidOperationException("Back didn't return from Settings to the Library.");
+    }
+
+    /// <summary>
+    /// Settings > Processing's "Return files to online-only after indexing" (Dale's review, row 2): shown and ticked to
+    /// start with, saved off when it is unticked and on again when it is ticked. The smoke library isn't in OneDrive,
+    /// so no file goes anywhere either way.
+    /// </summary>
+    static async Task ToggleReturnOnlineOnlyAsync(IServiceProvider services, Window window, ProcessingSectionViewModel processing)
+    {
+        var returns = services.GetRequiredService<OnlineOnlyReturns>();
+        var saved = 0;
+        void OnSaved(object? sender, EventArgs e) => Interlocked.Increment(ref saved);
+        returns.SettingChanged += OnSaved;
+        try
+        {
+            CheckBox? Box() => Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "ReturnOnlineOnly");
+            await WaitUntilAsync(window, () => Box() is { IsVisible: true, IsEnabled: true, IsChecked: true } && processing.ReturnOnlineOnly,
+                () => "Settings > Processing doesn't show Return files to online-only after indexing, ticked.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 1 && !processing.ReturnOnlineOnly && Box()?.IsChecked == false,
+                () => "Unticking Return files to online-only after indexing wasn't saved.");
+            if (await returns.IsOnAsync()) throw new InvalidOperationException("Return files to online-only after indexing is still on after unticking it.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 2 && processing.ReturnOnlineOnly && Box()?.IsChecked == true,
+                () => "Ticking Return files to online-only after indexing again wasn't saved.");
+            if (!await returns.IsOnAsync()) throw new InvalidOperationException("Return files to online-only after indexing is off after ticking it again.");
+        }
+        finally
+        {
+            returns.SettingChanged -= OnSaved;
+        }
     }
 
     /// <summary>Opens Settings at <paramref name="section"/>, as a link into it does.</summary>

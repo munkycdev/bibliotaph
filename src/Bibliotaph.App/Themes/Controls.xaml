@@ -603,7 +603,7 @@
     <Setter Property="Background" Value="{DynamicResource Bt.Line}" />
   </Style>
 
-  <!-- .bt-empty: centred title, message and one action. -->
+  <!-- .bt-empty: centred title, message and one action, with a quieter second one when a problem has two ways out. -->
   <Style TargetType="c:EmptyState">
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
@@ -612,13 +612,20 @@
           <StackPanel Margin="25,65" HorizontalAlignment="Center" MaxWidth="460">
             <TextBlock Text="{TemplateBinding Title}" Style="{StaticResource Text.H2}" TextAlignment="Center" Margin="0,0,0,12" />
             <TextBlock Text="{TemplateBinding Message}" Style="{StaticResource Text.Copy}" TextAlignment="Center" />
-            <Button x:Name="Action" Style="{StaticResource Bt.Button.Primary}" Margin="0,24,0,0" HorizontalAlignment="Center"
-                    Content="{TemplateBinding ActionText}" Command="{TemplateBinding Command}"
-                    c:Ui.Icon="{TemplateBinding ActionIcon}" />
+            <StackPanel Orientation="Horizontal" Margin="0,24,0,0" HorizontalAlignment="Center">
+              <Button x:Name="Action" Style="{StaticResource Bt.Button.Primary}"
+                      Content="{TemplateBinding ActionText}" Command="{TemplateBinding Command}"
+                      c:Ui.Icon="{TemplateBinding ActionIcon}" />
+              <Button x:Name="Secondary" Style="{StaticResource Bt.Button}" Margin="8,0,0,0"
+                      Content="{TemplateBinding SecondaryText}" Command="{TemplateBinding SecondaryCommand}" />
+            </StackPanel>
           </StackPanel>
           <ControlTemplate.Triggers>
             <Trigger Property="ActionText" Value="{x:Null}">
               <Setter TargetName="Action" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="SecondaryText" Value="{x:Null}">
+              <Setter TargetName="Secondary" Property="Visibility" Value="Collapsed" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -954,8 +961,13 @@
     <MenuItem Header="Open in new window" InputGestureText="Shift+Enter" Command="{x:Static c:BookCommands.OpenInNewWindow}"
               CommandParameter="{Binding}" />
     <MenuItem Header="Details" InputGestureText="Enter" Command="{x:Static c:BookCommands.Details}" CommandParameter="{Binding}" />
+    <!-- Ask this book (Ask plan, choice 11): only a PDF with text, and only while AI is on, so it shows only when it can run. -->
+    <MenuItem Header="Ask this book" Command="{x:Static c:BookCommands.Ask}" CommandParameter="{Binding}"
+              Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="{Binding FavoriteAction}" Command="{x:Static c:BookCommands.ToggleFavorite}" CommandParameter="{Binding}" />
     <MenuItem Header="Pin" Command="{x:Static c:BookCommands.TogglePin}" CommandParameter="{Binding}" ToolTip="Pinned books show in the sidebar and on Home" />
+    <MenuItem Header="Cataloged wrong…" Command="{x:Static c:BookCommands.CatalogedWrong}" CommandParameter="{Binding}"
+              ToolTip="Correct its details: the values Bibliotaph guessed are marked" />
     <MenuItem Header="Open in another app" Command="{x:Static c:BookCommands.OpenElsewhere}" CommandParameter="{Binding}"
               Visibility="{Binding CanOpenElsewhere, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="Forget its text" Command="{x:Static c:BookCommands.ForgetText}" CommandParameter="{Binding}"

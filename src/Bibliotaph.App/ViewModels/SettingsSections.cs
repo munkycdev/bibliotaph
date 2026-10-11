@@ -37,10 +37,13 @@ public abstract partial class SettingsSectionViewModel : ObservableObject
 /// <summary>
 /// Settings > Processing: indexing step by step with the time left, what each part is on now, pause and resume for
 /// each lane, and why online-only files wait. The progress itself is <see cref="LibraryActivity"/>'s, which the
-/// sidebar's status line also shows.
+/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only (Dale's review, row 2).
 /// </summary>
-public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links) : SettingsSectionViewModel
+public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links, OnlineOnlyReturns returns,
+    ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
 {
+    bool _loading;
+
     public override SettingsSection Section => SettingsSection.Processing;
     public override string Label => "Processing";
 
@@ -50,7 +53,36 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     [ObservableProperty]
     public partial bool HasFolders { get; set; }
 
-    public override async Task LoadAsync() => HasFolders = (await roots.ListAsync()).Count > 0;
+    /// <summary>"Return files to online-only after indexing": on unless the user turned it off.</summary>
+    [ObservableProperty]
+    public partial bool ReturnOnlineOnly { get; set; } = true;
+
+    public override async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            ReturnOnlineOnly = await returns.IsOnAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+        HasFolders = (await roots.ListAsync()).Count > 0;
+    }
+
+    async partial void OnReturnOnlineOnlyChanged(bool value)
+    {
+        if (_loading) return;
+        try
+        {
+            await returns.SetOnAsync(value);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving whether files go back to online-only failed");
+        }
+    }
 
     [RelayCommand]
     void ToggleIndexing() => Activity.SetPaused(Lane.Index, !Activity.IndexPaused);

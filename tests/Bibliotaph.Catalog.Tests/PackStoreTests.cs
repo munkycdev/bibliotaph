@@ -1,5 +1,6 @@
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
@@ -303,6 +304,113 @@ public sealed class PackStoreTests : IAsyncLifetime
         Assert.Null(await _packs.PackTogetherAsync([images["Tokens/Undead/Zombie 1.png"], images["Extras/Lich.png"]], Ct));
         await _packs.PackTogetherAsync(packs, Ct);
         Assert.Null(await _packs.PackTogetherAsync([packs[1], images["Extras/Lich.png"]], Ct));
+    }
+
+    /// <summary>
+    /// Moves a folder or ZIP as Explorer would on a drive without file IDs: its files keep their names, sizes and dates,
+    /// which is how the scan follows them.
+    /// </summary>
+    async Task<ReconcileResult> MoveAsync(string from, string to)
+    {
+        for (var i = 0; i < _files.Count; i++)
+            if (_files[i].RelativePath == from || _files[i].RelativePath.StartsWith(from + "/", StringComparison.Ordinal))
+                _files[i] = _files[i] with { RelativePath = to + _files[i].RelativePath[from.Length..] };
+        return await _library.ReconcileRootAsync(_root, _files, ct: Ct);
+    }
+
+    [Fact]
+    public async Task A_packed_folder_that_moved_keeps_its_pack_card_and_new_images_there_still_join_it()
+    {
+        await AddAsync(Images("Tokens/Undead", 20));
+        await _packs.PlanAsync(Ct);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).EntryId;
+
+        Assert.Equal(20, (await MoveAsync("Tokens/Undead", "Monsters/Undead Horde")).Moved);
+        Assert.Contains(pack, await _packs.PlanAsync(Ct));
+
+        var card = Assert.Single(await _entries.GetCurrentAsync(ct: Ct));
+        Assert.Equal((pack, "Undead Horde", 20), (card.EntryId, card.Name, card.Members!.Count));
+        var place = Assert.Single(await _packs.GetPlacesAsync(ct: Ct));
+        Assert.Equal((pack, Path.Combine(_dir, "Library", "Monsters/Undead Horde")), (place.Key, place.Value.FullPath));
+        // A new image there joins the same pack.
+        var added = await AddAsync("Monsters/Undead Horde/Zombie 21.png");
+        Assert.Equal([added.Single().Value, pack], await _packs.PlanAsync(Ct));
+        Assert.Equal(21, Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).Members!.Count);
+        Assert.Single(await _packs.GetPlacesAsync(ct: Ct));
+    }
+
+    [Fact]
+    public async Task A_copy_of_a_packed_folder_makes_no_pack_and_the_pack_follows_it_once_the_original_has_gone()
+    {
+        await AddAsync(Images("Tokens/Undead", 20));
+        await _packs.PlanAsync(Ct);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).EntryId;
+        Dictionary<string, ContentHash> hashes;
+        await using (var db = new Factory(_database).CreateDbContext())
+            hashes = (await db.FileLocations.AsNoTracking().Where(f => f.ContentHash != null).ToListAsync(Ct))
+                .ToDictionary(f => PackStore.FileName(f.RelativePath), f => ContentHash.Parse(f.ContentHash!));
+
+        // Copied to another drive's folder, with new dates, so the copies are read and found to be the same images.
+        _files.AddRange(Images("Backup/Undead", 20).Select(p => new ScannedFile(p, 1000, Monday.AddDays(1), OnlineOnly: false)));
+        await _library.ReconcileRootAsync(_root, _files, ct: Ct);
+        foreach (var file in await _library.NextUnhashedAsync(100, includeOnlineOnly: true, Ct))
+            await _library.AttachHashAsync(file, hashes[Path.GetFileName(file.FullPath)], Ct);
+        Assert.Empty(await _packs.PlanAsync(Ct));
+        Assert.Equal(Path.Combine(_dir, "Library", "Tokens/Undead"), Assert.Single(await _packs.GetPlacesAsync(ct: Ct)).Value.FullPath);
+
+        // The original gone, as after moving a folder to another drive: the pack is the copy's now.
+        _files.RemoveAll(f => f.RelativePath.StartsWith("Tokens/", StringComparison.Ordinal));
+        await _library.ReconcileRootAsync(_root, _files, ct: Ct);
+        Assert.Contains(pack, await _packs.PlanAsync(Ct));
+        var place = Assert.Single(await _packs.GetPlacesAsync(ct: Ct));
+        Assert.Equal((pack, Path.Combine(_dir, "Library", "Backup/Undead")), (place.Key, place.Value.FullPath));
+        var card = Assert.Single(await _entries.GetCurrentAsync(ct: Ct));
+        Assert.Equal((pack, 20), (card.EntryId, card.Members!.Count));
+    }
+
+    [Fact]
+    public async Task A_split_folder_or_a_proposal_that_moved_keeps_its_answer_and_its_place_in_Needs_review()
+    {
+        await AddAsync([.. Images("Maps", 20), .. Enumerable.Range(1, 8).Select(i => $"Handouts/Handout {i}.png")]);
+        await _packs.PlanAsync(Ct);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack).EntryId;
+        await _packs.SplitAsync(pack, Ct);
+        var proposal = Assert.Single(await _packs.GetProposalsAsync(Ct));
+
+        Assert.Equal(20, (await MoveAsync("Maps", "Old/Maps")).Moved);
+        Assert.Equal(8, (await MoveAsync("Handouts", "Session 1/Handouts")).Moved);
+
+        Assert.Empty(await _packs.PlanAsync(Ct));
+        Assert.DoesNotContain(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack);
+        var split = (await _packs.GetPlaceAsync(pack, Ct))!;
+        Assert.Equal((Path.Combine(_dir, "Library", "Old/Maps"), PackAnswer.Split), (split.FullPath, split.Answer));
+        var moved = Assert.Single(await _packs.GetProposalsAsync(Ct));
+        Assert.Equal((proposal.PackId, Path.Combine(_dir, "Library", "Session 1/Handouts"), 8),
+            (moved.PackId, moved.Place.FullPath, moved.Images.Count));
+        Assert.Equal(2, (await _packs.GetPlacesAsync(ct: Ct)).Count);
+    }
+
+    [Fact]
+    public async Task A_ZIP_pack_moved_to_another_folder_keeps_its_pack_without_the_ZIP_being_read_again()
+    {
+        _files.Add(new ScannedFile("Downloads/Harbor Set.zip", 5000, Monday, OnlineOnly: false));
+        await _library.ReconcileRootAsync(_root, _files, ct: Ct);
+        var zip = Assert.Single(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        var members = Enumerable.Range(1, 20).Select(i => new ArchiveMember($"Harbor {i}.png", 500, Monday, (uint)i, null));
+        foreach (var member in (await _library.ReconcileArchiveAsync(zip, [.. members], Ct))!)
+            await _library.AttachHashAsync(member, NextHash(), Ct);
+        await _library.AttachArchiveHashAsync(zip, NextHash(), Ct);
+        await _packs.PlanAsync(Ct);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).EntryId;
+
+        Assert.Equal(1, (await MoveAsync("Downloads/Harbor Set.zip", "Maps/Harbor Set.zip")).Moved);
+
+        Assert.Empty(await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct));
+        Assert.Contains(pack, await _packs.PlanAsync(Ct));
+        var card = Assert.Single(await _entries.GetCurrentAsync(ct: Ct));
+        Assert.Equal((pack, 20), (card.EntryId, card.Members!.Count));
+        var place = (await _packs.GetPlaceAsync(pack, Ct))!;
+        Assert.Equal((Path.Combine(_dir, "Library", "Maps/Harbor Set.zip"), true), (place.FullPath, place.IsArchive));
     }
 
     sealed class PackComparer : IEqualityComparer<EntryDocument>

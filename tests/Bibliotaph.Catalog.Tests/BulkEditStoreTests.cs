@@ -188,6 +188,26 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
             Assert.Equal(Describe(effective[i].Compute()), Describe(restored[i].Compute()));
     }
 
+    /// <summary>A look-alike's correction (scenario review, row 8) can repeat a rejected guess on a field with one value.</summary>
+    [Fact]
+    public async Task Removing_a_guess_from_a_one_value_field_rejects_it_so_the_next_suggestion_shows_and_undo_brings_it_back()
+    {
+        await _metadata.ReplaceHintsAsync(_first, Hash, [Hint(MetadataFields.System, "dnd"), Hint(MetadataFields.System, "pathfinder", AssertionOrigin.Filename)], Ct);
+        await _metadata.ReplaceHintsAsync(_second, Hash, [Hint(MetadataFields.System, "coc")], Ct);
+        _clock.Step();
+
+        var undo = await _metadata.ApplyBulkAsync([_first, _second], [new BulkChange(MetadataFields.System, BulkAction.Remove, "dnd")], Ct);
+
+        var first = await FieldAsync(_first, MetadataFields.System);
+        Assert.Equal("pathfinder", Assert.Single(first.Values).Value);
+        Assert.False(first.Values[0].Confirmed);
+        Assert.Equal("coc", Assert.Single((await FieldAsync(_second, MetadataFields.System)).Values).Value);
+        Assert.Equal([_first], undo.Select(s => s.EntryId));
+
+        await _metadata.RestoreAsync(undo, Ct);
+        Assert.Equal("dnd", Assert.Single((await FieldAsync(_first, MetadataFields.System)).Values).Value);
+    }
+
     [Fact]
     public async Task A_change_that_does_not_fit_its_field_is_refused()
     {
