@@ -118,6 +118,8 @@ static partial class SmokeTest
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
             await Check("a book owned elsewhere added, found by where it is owned, removed and brought back, and one offered a file already in the library",
                 () => AddElsewhereAsync(services, window, books));
+            await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
+                () => CorrectBooksAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
@@ -2482,7 +2484,9 @@ static partial class SmokeTest
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CopyList"), "Copy list");
         await WaitUntilAsync(window, () => page.Copied is not null, () => "Copy list said nothing.");
-        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter())) is var cards && cards.Count != books)
+        // Counted as the Library counts them, in the folders the user hasn't removed (an earlier check removes one).
+        var visible = await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync();
+        if (await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible))) is var cards && cards.Count != books)
             throw new InvalidOperationException($"The library has {cards.Count} cards after a check, not {books}.");
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);

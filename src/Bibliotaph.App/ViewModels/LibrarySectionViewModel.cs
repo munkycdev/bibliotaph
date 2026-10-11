@@ -67,12 +67,34 @@ public sealed partial class FolderLabelItem(FolderLabelUse use, Func<FolderLabel
 }
 
 /// <summary>
+/// A folder rule the user answered in Needs review (scenario review, row 8): "Fey Court → system Pathfinder", switched
+/// on or off here as a folder label is.
+/// </summary>
+public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, Func<FolderRuleItem, bool, Task> setEnabled) : ObservableObject
+{
+    public FolderRuleInfo Rule { get; } = rule;
+
+    public string Folder => FolderRuleText.FolderName(Rule);
+
+    /// <summary>"system Pathfinder 2e".</summary>
+    public string Meaning { get; } = meaning;
+
+    public string Detail { get; } = FolderRuleText.FullPath(rule);
+
+    [ObservableProperty]
+    public partial bool IsEnabled { get; set; } = rule.State == FolderRuleState.On;
+
+    partial void OnIsEnabledChanged(bool value) => _ = setEnabled(this, value);
+}
+
+/// <summary>
 /// Settings > Library: the folders Bibliotaph reads from and what each holds, adding them after a preview, looking for
 /// changes, and the folder names read as labels. Removing a folder keeps its catalog rows and the user's work.
 /// </summary>
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, MetadataHints hints, SettingsStore settings, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
+    LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies,
+    ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
     public override string Label => "Library";
@@ -91,6 +113,13 @@ public sealed partial class LibrarySectionViewModel(
 
     public bool HasFolderLabels => FolderLabels.Count > 0;
 
+    /// <summary>The folder rules the user answered in Needs review, each with its switch.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAnsweredRules))]
+    public partial IReadOnlyList<FolderRuleItem> AnsweredRules { get; set; } = [];
+
+    public bool HasAnsweredRules => AnsweredRules.Count > 0;
+
     static readonly TimeSpan FolderRefresh = TimeSpan.FromSeconds(3);
     DateTime _foldersRefreshed;
     bool _refreshingFolders;
@@ -101,6 +130,7 @@ public sealed partial class LibrarySectionViewModel(
         activity.Refreshed += OnActivityRefreshed;
         await RefreshFoldersAsync();
         await LoadFolderLabelsAsync();
+        await LoadFolderRulesAsync();
         StartOnLibrary = await settings.GetAsync(SettingKeys.StartPage) == nameof(Route.Library);
         if (folders.TakePickRequest()) await AddFolder();
     }
@@ -151,6 +181,37 @@ public sealed partial class LibrarySectionViewModel(
         catch (Exception ex)
         {
             log.LogError(ex, "Switching a folder label failed");
+        }
+    }
+
+    async Task LoadFolderRulesAsync()
+    {
+        try
+        {
+            var answered = await Task.Run(() => rules.GetAnsweredAsync());
+            var vocabulary = await Task.Run(() => vocabularies.GetAsync());
+            AnsweredRules = [.. answered.Select(r => new FolderRuleItem(r, FolderRuleText.Describe(r, vocabulary), SetFolderRuleEnabledAsync))];
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Listing folder rules failed");
+        }
+    }
+
+    /// <summary>
+    /// Switching a rule re-reads the hints of the files in its folder. Switching one on switches off another rule
+    /// there for the same one-value field, so the list is read again.
+    /// </summary>
+    async Task SetFolderRuleEnabledAsync(FolderRuleItem item, bool enabled)
+    {
+        try
+        {
+            await Task.Run(() => rules.SetAsync(item.Rule, enabled));
+            await LoadFolderRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Switching folder rule {RuleId} failed", item.Rule.Id);
         }
     }
 
@@ -297,6 +358,7 @@ public sealed partial class LibrarySectionViewModel(
         await roots.RemoveAsync(folder.Id);
         await RefreshFoldersAsync();
         await LoadFolderLabelsAsync();
+        await LoadFolderRulesAsync();
     }
 
     [RelayCommand]

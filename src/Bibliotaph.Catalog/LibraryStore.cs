@@ -51,6 +51,11 @@ public sealed record LibraryCounts(int Files, int OnlineOnly, int Missing, int U
     int Problems = 0, int OfflineFolders = 0);
 
 /// <summary>
+/// A folder a card's file is in: of its current copy or another, and whether the file is there (not gone missing).
+/// </summary>
+public sealed record EntryFolder(EntryId EntryId, FolderKey Folder, bool IsCurrent, bool Present);
+
+/// <summary>
 /// A file that reading downloaded and that goes back to online-only once nothing needs its content
 /// (<see cref="Entities.FileLocation.ReturnToOnlineOnly"/>). <see cref="DocumentIds"/> are the documents read from it:
 /// its own, or for a ZIP those of the files inside it.
@@ -653,14 +658,76 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// a present file first, then any other it still has, whether or not its folder is reachable right now. Null when
     /// every location is gone.
     /// </summary>
-    public async Task<string?> GetRelativePathAsync(long documentId, CancellationToken ct = default)
+    public async Task<string?> GetRelativePathAsync(long documentId, CancellationToken ct = default) =>
+        (await GetHintPathAsync(documentId, ct))?.RelativePath;
+
+    /// <summary>
+    /// <see cref="GetRelativePathAsync"/> with the library folder it is under, for the folder rules there (scenario
+    /// review, row 8). Null when every location is gone.
+    /// </summary>
+    public async Task<(long RootId, string RelativePath)?> GetHintPathAsync(long documentId, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        return await db.FileLocations.AsNoTracking()
+        var row = await db.FileLocations.AsNoTracking()
             .Where(f => f.DocumentId == documentId && f.State != FileLocationState.Missing && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
             .OrderBy(f => f.State == FileLocationState.OnlineOnly).ThenBy(f => f.Id)
-            .Select(f => f.RelativePath)
+            .Select(f => new { f.SourceRootId, f.RelativePath })
             .FirstOrDefaultAsync(ct);
+        return row is null ? null : (row.SourceRootId, row.RelativePath);
+    }
+
+    /// <summary>
+    /// The folders the files of whole-book cards are in (scenario review, row 8): every location of each copy, in a
+    /// library folder the user hasn't removed, the current copy's present files first. A gone file is listed too,
+    /// marked, so a book once in a folder kept from AI stays kept. All cards' when <paramref name="entryIds"/> is null.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryFolder>> GetEntryFoldersAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var sources = db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null && s.Entry.MergedIntoEntryId == null);
+        if (entryIds is not null)
+        {
+            if (entryIds.Count == 0) return [];
+            var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+            sources = sources.Where(s => ids.Contains(s.EntryId));
+        }
+        var rows = await sources
+            .SelectMany(s => s.Document.Locations.Where(l => l.SourceRoot.Availability != SourceRootAvailability.RemovedByUser),
+                (s, l) => new { s.EntryId, s.IsCurrent, l.SourceRootId, l.RelativePath, l.State, l.Id })
+            .ToListAsync(ct);
+        return [.. rows
+            .OrderBy(r => r.EntryId).ThenByDescending(r => r.IsCurrent).ThenBy(r => r.State == FileLocationState.Missing).ThenBy(r => r.Id)
+            .Select(r => new EntryFolder(new EntryId(r.EntryId), FolderKey.Of(r.SourceRootId, r.RelativePath), r.IsCurrent, r.State != FileLocationState.Missing))];
+    }
+
+    /// <summary>The documents with a file in <paramref name="folder"/> or below it, other than ones gone missing, for its folder rules.</summary>
+    public async Task<IReadOnlyList<long>> GetDocumentsUnderAsync(FolderKey folder, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var locations = db.FileLocations.AsNoTracking()
+            .Where(f => f.SourceRootId == folder.RootId && f.DocumentId != null && f.State != FileLocationState.Missing);
+        if (folder.Folder.Length > 0) locations = locations.Where(f => f.RelativePath.StartsWith(folder.Folder));
+        var rows = await locations.Select(f => new { DocumentId = f.DocumentId!.Value, f.RelativePath }).ToListAsync(ct);
+        return [.. rows.Where(r => folder.Holds(folder.RootId, r.RelativePath)).Select(r => r.DocumentId).Distinct()];
+    }
+
+    /// <summary>
+    /// The whole-book cards the library shows with a file directly in <paramref name="folder"/> (scenario review, row 8):
+    /// the books "from this folder". Images in a pack, and cards joined into another, aren't among them.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> GetEntriesInFolderAsync(FolderKey folder, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var locations = db.FileLocations.AsNoTracking()
+            .Where(f => f.SourceRootId == folder.RootId && f.DocumentId != null && f.State != FileLocationState.Missing
+                && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
+        // A rough cut in SQL, made exact below: the paths start with the folder's.
+        if (folder.Folder.Length > 0) locations = locations.Where(f => f.RelativePath.StartsWith(folder.Folder));
+        var rows = await locations
+            .SelectMany(f => f.Document!.Sources.Where(s => s.FirstPdfPage == null && s.Entry.Kind == EntryKind.Whole && s.Entry.ParentEntryId == null
+                && s.Entry.MergedIntoEntryId == null), (f, s) => new { f.RelativePath, s.EntryId })
+            .ToListAsync(ct);
+        return [.. rows.Where(r => FolderKey.Of(folder.RootId, r.RelativePath) == folder).Select(r => new EntryId(r.EntryId)).Distinct()];
     }
 
     /// <summary>The relative path of every file the library shows, with its document, for the folder label list.</summary>

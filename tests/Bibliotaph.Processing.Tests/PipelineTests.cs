@@ -60,6 +60,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     readonly HeldStage.Gate _matchGate = new();
     readonly TestPasswords _passwords = new();
     IndexStore _indexStore = null!;
+    CorrectionStore _correctionStore = null!;
+    FolderRules _folderRules = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -101,7 +103,11 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
             favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes);
         var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector);
-        _metadata = new MetadataService(_metadataStore, vocabulary, projector);
+        var packStore = new PackStore(contexts);
+        _correctionStore = new CorrectionStore(contexts);
+        var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore, _correctionStore);
+        _folderRules = new FolderRules(_correctionStore, library, _metadataStore, vocabulary, hints);
+        _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
         _pageRefs = new PageRefStore(contexts);
@@ -109,8 +115,6 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _copies = new CopiesService(entries, versions, library, _queries, projector, _places);
         var elsewhere = new ElsewhereStore(contexts, entries);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
-        var packStore = new PackStore(contexts);
-        var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore);
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);

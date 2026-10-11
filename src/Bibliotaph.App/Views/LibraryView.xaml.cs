@@ -42,6 +42,7 @@ public partial class LibraryView
         AddBookCommand(BookCommands.OpenElsewhere, m => m.OpenElsewhereCommand);
         AddBookCommand(BookCommands.ForgetText, m => m.ForgetTextCommand);
         AddBookCommand(BookCommands.ReadTextAgain, m => m.ReadTextAgainCommand);
+        AddBookCommand(BookCommands.CatalogedWrong, m => m.CatalogedWrongCommand);
         CommandBindings.Add(new CommandBinding(BookCommands.AddToCollection,
             (_, e) =>
             {

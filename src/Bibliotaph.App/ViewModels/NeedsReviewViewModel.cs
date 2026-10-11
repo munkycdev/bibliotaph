@@ -95,6 +95,7 @@ public sealed partial class NeedsReviewViewModel(
     ReaderWindows readers,
     CoverImages covers,
     BookTextActions text,
+    LibraryPages pages,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
@@ -222,6 +223,8 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             foreach (var match in list.Elsewhere ?? []) Cards.Add(new ElsewhereCardViewModel(match, this));
             foreach (var revision in list.Revisions ?? []) Cards.Add(new RevisionCardViewModel(revision, this));
+            foreach (var correction in list.Corrections ?? []) Cards.Add(new CorrectionCardViewModel(correction, this));
+            foreach (var rule in list.Rules ?? []) Cards.Add(new FolderRuleCardViewModel(rule, _vocabulary, this));
             Hidden = _items.Count;
             ShowMore();
             Remaining = list.Count;
@@ -478,6 +481,13 @@ public sealed partial class NeedsReviewViewModel(
             activity.Invalidate();
         };
     }
+
+    public Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item) => review.DismissCorrectionAsync(item);
+
+    /// <summary>Fix it: the Library, with the book's details open for Cataloged wrong… again.</summary>
+    public void FixCorrection(CorrectionItem item) => pages.ShowCorrection(item.EntryId);
+
+    public Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use) => review.AnswerRuleAsync(rule, use);
 
     /// <summary>
     /// A place on a "new version" card opens at the page suggested for it, as its session item or note would, so the

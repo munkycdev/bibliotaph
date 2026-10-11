@@ -76,6 +76,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly DispatcherTimer _staleTimer;
     readonly NotesService _notes;
     readonly ExportService _export;
+    readonly CorrectionService _corrections;
     int _version;
     bool _loaded;
     bool _stale;
@@ -85,10 +86,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, PinDirectory pins, ILogger<LibraryViewModel> log)
+        ExportService export, PinDirectory pins, CorrectionService corrections, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _export = export;
+        _corrections = corrections;
         Pins = pins;
         Views = views;
         _notes = notes;
@@ -186,6 +188,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>A book whose details open once the page has loaded, as when a cover on Home is clicked.</summary>
     public EntryId? DetailsOnLoad { get; set; }
+
+    /// <summary>The details of <see cref="DetailsOnLoad"/> open for Cataloged wrong…, as from a Needs review card.</summary>
+    public bool CorrectOnLoad { get; set; }
 
     public SearchState Search { get; }
 
@@ -422,8 +427,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (DetailsOnLoad is { } details)
         {
             DetailsOnLoad = null;
+            var correct = CorrectOnLoad;
+            CorrectOnLoad = false;
             var item = _known.GetValueOrDefault(details) ?? (await Task.Run(() => _queries.GetEntriesAsync([details]))).Select(Item).FirstOrDefault();
-            if (item is not null) await OpenDetails(item);
+            if (item is not null && correct) await CatalogedWrong(item);
+            else if (item is not null) await OpenDetails(item);
         }
     }
 
@@ -438,6 +446,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Sessions.Close();
         ViewDialog?.CancelCommand.Execute(null);
         Inspector?.Notes?.Flush();
+        if (Inspector is { IsCorrecting: true } correcting) EndCorrecting(correcting);
         ViewMessage = null;
         ViewUndo = null;
         Search.PropertyChanged -= OnSearchChanged;
@@ -879,13 +888,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _corrections);
             inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
             await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
             inspector.PackSplit += async (_, images) => await ShowPackSplitAsync(item, images);
+            inspector.LookAlikesAccepted += async (_, offer) => await ApplyLookAlikesAsync(offer);
+            inspector.CorrectionEnded += (_, _) => Activity.Invalidate();
             inspector.PinLabel = Pins.PinLabel(PinTarget.Entry(item.EntryId));
             Inspector = inspector;
             await ShowInspectorCollectionsAsync();
@@ -899,8 +910,72 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void CloseDetails() => Inspector = null;
 
-    /// <summary>What was typed in the details' Notes tab is saved when they close, whatever closed them.</summary>
-    partial void OnInspectorChanged(InspectorViewModel? oldValue, InspectorViewModel? newValue) => oldValue?.Notes?.Flush();
+    /// <summary>
+    /// What was typed in the details' Notes tab is saved when they close, whatever closed them, and Cataloged wrong…
+    /// ends there too.
+    /// </summary>
+    partial void OnInspectorChanged(InspectorViewModel? oldValue, InspectorViewModel? newValue)
+    {
+        oldValue?.Notes?.Flush();
+        if (oldValue is { IsCorrecting: true }) EndCorrecting(oldValue);
+    }
+
+    /// <summary>
+    /// Cataloged wrong… (scenario review, row 8), from a card's menu: the book's details, open to correct it, with
+    /// the values Bibliotaph guessed marked.
+    /// </summary>
+    [RelayCommand]
+    async Task CatalogedWrong(LibraryItemViewModel item)
+    {
+        if (Inspector?.Item.EntryId != item.EntryId) await OpenDetails(item);
+        if (Inspector is { } inspector && inspector.Item.EntryId == item.EntryId) inspector.StartCorrecting();
+    }
+
+    async void EndCorrecting(InspectorViewModel inspector)
+    {
+        try
+        {
+            await inspector.EndCorrectingAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Ending the correction of {EntryId} failed", inspector.Item.EntryId);
+        }
+    }
+
+    /// <summary>
+    /// Change them, on the details' offer: the correction repeated on the look-alikes as one bulk edit, with the
+    /// bulk edit's Undo, which takes it all back.
+    /// </summary>
+    async Task ApplyLookAlikesAsync(LookAlikeOffer offer)
+    {
+        SplitUndo = null;
+        RemoveUndo = null;
+        JoinUndo = null;
+        PackUndo = null;
+        BulkUndo = null;
+        BulkMessage = "Changing…";
+        try
+        {
+            var (problem, undo) = await Task.Run(() => _corrections.ApplyAsync(offer));
+            if (problem is not null) BulkMessage = $"The other books couldn't be changed: {problem.Message}";
+            else
+            {
+                var books = undo?.Select(s => s.EntryId).Distinct().Count() ?? 0;
+                BulkUndo = books > 0 && ReferenceEquals(_navigation.Current, this) ? undo : null;
+                BulkMessage = books == 0 ? "Those books already had these values, so nothing changed."
+                    : $"Changed {BulkEditViewModel.Books(books)} from “{offer.FolderName}”.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Correcting {Count} look-alikes of {EntryId} failed", offer.Books.Count, offer.EntryId);
+            BulkMessage = "The other books couldn't be changed.";
+        }
+        // Three books given the same value can propose a folder rule, a card in Needs review.
+        Activity.Invalidate();
+        await RefreshAsync();
+    }
 
     /// <summary>
     /// A page note in the details' Notes tab: the book opens at its pages, in the copy it opens now where they were
