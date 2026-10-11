@@ -13,6 +13,16 @@ public class MetadataTextTests
     [InlineData("---", "")]
     public void Normalizes_for_comparison(string text, string expected) => Assert.Equal(expected, MetadataText.Normalize(text));
 
+    [Fact]
+    public void Normalizes_text_holding_half_of_a_surrogate_pair()
+    {
+        // In code, not attributes: attribute strings are stored as UTF-8, which can't hold a lone surrogate.
+        Assert.Equal("kobold press", MetadataText.Normalize("Kobold\uD835 Press"));
+        Assert.Equal("kobold press", MetadataText.Normalize("\uDC00Kobold Press\uD835"));
+        Assert.Equal("kobold a press", MetadataText.Normalize("Kobold \uD835\uDC00 Press"));
+        Assert.Equal("\uFFFDA\uFFFD", MetadataText.UnicodeForm("\uDC00\uD835\uDC00\uD835", System.Text.NormalizationForm.FormKC));
+    }
+
     [Theory]
     [InlineData("3", 3, 3, false)]
     [InlineData("1-5", 1, 5, false)]

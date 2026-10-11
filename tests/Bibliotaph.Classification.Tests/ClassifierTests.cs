@@ -286,6 +286,25 @@ public class EvidenceCheckTests
     }
 
     [Fact]
+    public void Text_holding_half_of_a_surrogate_pair_is_still_checked()
+    {
+        // PDF text extraction can leave a lone surrogate, and the model can copy it into its quote.
+        const string Credits = "Credits: Written by Ana Ruiz \uD835. \uDC00 \u00A9 2019 Kobold Press for Dungeons & Dragons";
+        var excerpt = new Excerpt([new ExcerptPage(0, Credits, ExcerptPart.Opening)], [], 64);
+
+        var result = EvidenceCheck.Check(
+            [
+                Claim("authors", "Ana Ruiz", 1, "Written by Ana Ruiz \uD835"),
+                Claim("publisher", "Kobold Press", 1, "\uDC00 \u00A9 2019 Kobold Press"),
+                Claim("system", "Dungeons & Dragons", 1, "\uD835 for Dungeons & Dragons"),
+            ],
+            excerpt, p => p == 0 ? Credits : null, Vocabulary);
+
+        Assert.Empty(result.Dropped);
+        Assert.Equal(3, result.Accepted.Count);
+    }
+
+    [Fact]
     public void Values_a_page_talked_the_model_into_stand_only_where_that_page_says_them()
     {
         var result = Check(
