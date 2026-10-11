@@ -66,6 +66,20 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
 
     public SessionItemTarget Target { get; } = target;
 
+    /// <summary>
+    /// Where it opens online, in the online reader (online libraries plan, O2b): the page added with Add this page, or
+    /// the page of a whole book owned only online. Null for an item that opens a file.
+    /// </summary>
+    public string? OnlineLink { get; init; }
+
+    /// <summary>The book's own page online, which the online reader keeps to (its site); <see cref="OnlineLink"/> when it has none.</summary>
+    public string? BookLink { get; init; }
+
+    /// <summary>"D&amp;D Beyond", where <see cref="OnlineLink"/> is.</summary>
+    public string? OnlinePlace { get; init; }
+
+    public bool OpensOnline => OnlineLink is not null;
+
     /// <summary>The label as shown and edited; blank shows the book's title.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Heading), nameof(AccessibleName))]
@@ -96,8 +110,8 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     [ObservableProperty]
     public partial string Draft { get; set; } = "";
 
-    /// <summary>"The Drowned Abbey · p. 42–44", "… · Whole book".</summary>
-    public string Where => $"{BookTitle} · {Pages(Item.Range)}";
+    /// <summary>"The Drowned Abbey · p. 42–44", "… · Whole book", "… · Page on D&amp;D Beyond".</summary>
+    public string Where => Item.Link is not null ? $"{BookTitle} · Page on {OnlinePlace ?? "the web"}" : $"{BookTitle} · {Pages(Item.Range)}";
 
     /// <summary>For the reader's counter and the item's own line: "p. 42–44", "Whole book".</summary>
     public static string Pages(PageRange? range)
@@ -115,14 +129,14 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
 
     public bool CanOpen => Target.CanOpen;
 
-    /// <summary>Dimmed: its file can't be reached, or it's owned elsewhere.</summary>
-    public bool IsDimmed => !Target.CanOpen;
+    /// <summary>Dimmed: its file can't be reached, or it's owned elsewhere with nowhere to open.</summary>
+    public bool IsDimmed => !Target.CanOpen && !OpensOnline;
 
     /// <summary>The pages weren't found in the book as it is now: "This page changed: check it".</summary>
     public bool IsChanged => Target.State == SessionItemState.Changed;
 
     /// <summary>Why it can't open, or what opening it will do differently; null for an ordinary item.</summary>
-    public string? Reason => Target.Reason;
+    public string? Reason => OpensOnline ? $"Opens on {OnlinePlace ?? "the web"} in the online reader." : Target.Reason;
 
     public bool HasReason => Reason is not null;
 
@@ -166,8 +180,15 @@ public static class SessionPackRows
                 var target = targets[item.Id];
                 var card = cards.GetValueOrDefault(item.EntryId)
                     ?? ((target.DocumentId ?? item.Range?.DocumentId) is { } d && documents.TryGetValue(d, out var doc) ? doc with { EntryId = item.EntryId } : null);
+                // A page added online, or a whole book owned only online, opens in the online reader (O2b).
+                var online = item.Link ?? (target.State == SessionItemState.NoFile ? card?.OnlineLink : null);
                 var row = new SessionItemRow(item, ++number, card?.Title ?? "A book no longer in your library",
-                    card is null ? null : new LibraryItemViewModel(card, covers), target);
+                    card is null ? null : new LibraryItemViewModel(card, covers), target)
+                {
+                    OnlineLink = online,
+                    BookLink = card?.OnlineLink ?? online,
+                    OnlinePlace = card?.OnlineLabel ?? (online is null ? null : OnlineReaders.SiteOf(online)),
+                };
                 row.MoveTargets = [.. moves.Where(m => m.Id != (item.SectionId ?? SessionStore.NoSection)).Select(m => new SectionMove(row, m.Id, $"Move to {m.Label}"))];
                 rows.Add(row);
             }
@@ -180,6 +201,12 @@ public static class SessionPackRows
         }
         return rows;
     }
+
+    /// <summary>A page of a book owned online opens in the online reader, at that page (online libraries plan, O2b).</summary>
+    public static OnlineReaderRequest? OnlineRequest(SessionItemRow row) =>
+        row is { OpensOnline: true, OnlineLink: { } link }
+            ? new OnlineReaderRequest(row.Item.EntryId, row.BookTitle, row.BookLink ?? link) { Place = row.OnlinePlace, At = link }
+            : null;
 
     /// <summary>
     /// What opens an item (choice 14): its pages in the file it resolved to, keeping no reading position; a whole pack

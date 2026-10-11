@@ -131,8 +131,8 @@ public partial class SessionReaderView
                         Header = new TextBlock { Text = page.Heading, Margin = new Thickness(12, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 360 },
                         Command = model.OpenAtHandCommand,
                         CommandParameter = new AtHandPage(binder.Pack.Title, page),
-                        IsEnabled = page.CanOpen,
-                        ToolTip = page.CanOpen ? page.Where : page.Reason,
+                        IsEnabled = page.CanOpen || page.OpensOnline,
+                        ToolTip = page.CanOpen || page.OpensOnline ? page.Where : page.Reason,
                     };
                     AutomationProperties.SetName(item, $"{page.Heading}, from {binder.Pack.Title}");
                     menu.Items.Add(item);

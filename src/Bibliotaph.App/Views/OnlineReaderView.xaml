@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:OnlineReaderViewModel}">
@@ -18,9 +19,10 @@
   </UserControl.Resources>
 
   <!--
-    The online reader (online libraries, O2b): the service's own page, with the reader's heart, pin, note and Pop out
-    around it. Bibliotaph copies no text from it, so there is no find, page box, thumbnails or page notes.
+    The online reader (online libraries, O2b): the service's own page, with the reader's heart, pin, note, Add this page
+    and Pop out around it. Bibliotaph copies no text from it, so there is no find, page box, thumbnails or page notes.
   -->
+  <Grid>
   <DockPanel>
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -37,6 +39,16 @@
                 ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" Command="{Binding TogglePinCommand}" />
         <Button x:Name="OnlineNote" Style="{StaticResource Bt.Link}" Content="{Binding NoteLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                 Command="{Binding ToggleNoteCommand}" ToolTip="The book's own note, beside the page" Margin="8,0,0,0" />
+        <Border Style="{StaticResource Divider}" />
+        <!-- Add this page (choice 20): the page in view, as a link in a binder. -->
+        <Button x:Name="OnlineAddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add this page" c:Ui.Icon="{StaticResource Icon.Plus}"
+                Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current binder" AutomationProperties.Name="Add this page to a binder" />
+        <Button x:Name="OnlineAddPageMenu" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Margin="2,0,0,0"
+                ToolTip="Add to another binder" AutomationProperties.Name="Add to another binder" Click="AddPageMenu_Click">
+          <Button.ContextMenu>
+            <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddPageToSessionCommand}" />
+          </Button.ContextMenu>
+        </Button>
         <Border Style="{StaticResource Divider}" />
         <Button x:Name="OnlineInBrowser" Style="{StaticResource Bt.Link}" Content="Open in your browser" Command="{Binding OpenInBrowserCommand}"
                 ToolTip="Open this page in your everyday browser" Margin="0,0,8,0" />
@@ -56,6 +68,20 @@
     <TextBlock x:Name="OnlineNotice" DockPanel.Dock="Top" Text="{Binding Notice}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                Margin="0,0,0,8" Visibility="{Binding Notice, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
+    <!-- What Add this page did, with Undo. -->
+    <Border DockPanel.Dock="Top" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6"
+            Padding="14,10" Margin="0,0,0,8" Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionMessageCommand}" />
+        <Button x:Name="OnlineUndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
+                Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock x:Name="OnlineSessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
     <!-- The book's own note, beside the page rather than over it: the browser draws over anything laid on top. -->
     <Border DockPanel.Dock="Right" Width="280" Margin="12,0,0,0" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
             BorderThickness="1" CornerRadius="8" Padding="14" Visibility="{Binding ShowNote, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -71,4 +97,16 @@
       <wv2:WebView2 x:Name="Web" AutomationProperties.Name="{Binding Title, StringFormat='{}{0} online'}" />
     </Border>
   </DockPanel>
+
+  <!--
+    Naming a new binder or picking one, as a dialog over the reader. The browser draws over anything laid on it, so it
+    is hidden while the dialog is open. Esc or Cancel closes it.
+  -->
+  <Grid Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Border Background="{DynamicResource Bt.Shadow}" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+      <v:SessionDialogView x:Name="OnlineSessionDialog" DataContext="{Binding Sessions.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+    </ScrollViewer>
+  </Grid>
+  </Grid>
 </UserControl>

@@ -32,6 +32,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly LibraryQueries _queries;
     readonly CoverImages _covers;
     readonly ReaderWindows _readers;
+    readonly OnlineReaders _online;
     readonly INavigationService _navigation;
     readonly ILogger<SessionPackViewModel> _log;
     readonly DispatcherTimer _notesTimer;
@@ -40,8 +41,9 @@ public sealed partial class SessionPackViewModel : PageViewModel
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        CoverImages covers, ReaderWindows readers, INavigationService navigation, ILogger<SessionPackViewModel> log)
+        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, ILogger<SessionPackViewModel> log)
     {
+        _online = online;
         Actions = actions;
         _sessions = sessions;
         _sessionPages = sessionPages;
@@ -201,13 +203,21 @@ public sealed partial class SessionPackViewModel : PageViewModel
     [RelayCommand]
     async Task OpenItem(SessionItemRow row)
     {
-        if (await RequestAsync(row) is { } request) _readers.OpenInMainWindow(request);
+        if (SessionPackRows.OnlineRequest(row) is { } online)
+        {
+            if (await _online.OpenAsync(online) is { } problem) Actions.Say(problem);
+        }
+        else if (await RequestAsync(row) is { } request) _readers.OpenInMainWindow(request);
     }
 
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task OpenItemInNewWindow(SessionItemRow row)
     {
-        if (await RequestAsync(row) is { } request) await _readers.OpenInNewWindowAsync(request);
+        if (SessionPackRows.OnlineRequest(row) is { } online)
+        {
+            if (await _online.OpenInWindowAsync(online) is { } problem) Actions.Say(problem);
+        }
+        else if (await RequestAsync(row) is { } request) await _readers.OpenInNewWindowAsync(request);
     }
 
     async Task<ViewerRequest?> RequestAsync(SessionItemRow row)

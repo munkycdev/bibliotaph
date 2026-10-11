@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011165000_CatalogAskHistory";
+    public override string LastMigrationId => "20261011210526_CatalogBinderLinks";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -1057,6 +1057,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("Label")
                     .HasColumnType("TEXT")
                     .HasColumnName("label");
+
+                b.Property<string>("Link")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("link");
 
                 b.Property<string>("Note")
                     .HasColumnType("TEXT")

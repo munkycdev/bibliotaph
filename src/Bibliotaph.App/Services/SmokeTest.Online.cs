@@ -150,6 +150,8 @@ static partial class SmokeTest
         reader.NoteText = noteBefore ?? "";
         await reader.SaveNoteAsync();
 
+        await AddOnlinePageAsync(services, window, reader);
+
         var windows = services.GetRequiredService<ReaderWindows>();
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlinePopOut"), "Pop out");
         await WaitUntilAsync(window, () => windows.Find(m => m is OnlineReaderViewModel) is not null && shell.CurrentPage is not OnlineReaderViewModel,
@@ -163,6 +165,52 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
     }
+
+    /// <summary>
+    /// Add this page (O2b): the page in view goes into the current binder as a link labelled with the page's title, and
+    /// opening it from the binder's list opens the online reader at that page. The binder is deleted afterwards.
+    /// </summary>
+    static async Task AddOnlinePageAsync(IServiceProvider services, Window window, OnlineReaderViewModel reader)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        var sessions = services.GetRequiredService<SessionsService>();
+        var binder = await sessions.CreateAsync("Smoke online pages");
+        await services.GetRequiredService<SessionDirectory>().LoadAsync();
+        try
+        {
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlineAddPage" && b.IsVisible), "Add this page");
+            await WaitUntilAsync(window, () => reader.Sessions.Message?.StartsWith("Added", StringComparison.Ordinal) == true,
+                () => $"Add this page didn't add the page ({reader.Sessions.Message ?? "no message"}).");
+            var item = Assert1((await sessions.GetAsync(binder.Id))!.Items, "the binder's items");
+            if (item.Link != reader.Address || item.EntryId != reader.Request.EntryId || string.IsNullOrEmpty(item.Label))
+                throw new InvalidOperationException($"Add this page added {item.Link} labelled {item.Label ?? "nothing"}, not {reader.Address}.");
+
+            services.GetRequiredService<SessionPages>().Edit(binder.Id);
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Edit binder didn't open the binder's list.");
+            var pack = (SessionPackViewModel)shell.CurrentPage!;
+            var row = pack.Rows.OfType<SessionItemRow>().Single();
+            if (!row.OpensOnline || row.IsDimmed) throw new InvalidOperationException($"The binder's online page doesn't open online ({row.Reason}).");
+            await AuditAsync(window, "a binder with a page owned online");
+            pack.OpenItemCommand.Execute(row);
+            await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel { Request.At: { } at } && at == item.Link,
+                () => "Opening the binder's online page didn't open the online reader at it.");
+            await WaitForPageAsync(window, (OnlineReaderViewModel)shell.CurrentPage!);
+            navigation.GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel, () => "Back didn't return to the binder's list.");
+            navigation.GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage == reader, () => "Back didn't return to the online reader.");
+            await WaitForPageAsync(window, reader);
+        }
+        finally
+        {
+            await sessions.DeleteAsync(binder.Id);
+            await services.GetRequiredService<SessionDirectory>().LoadAsync();
+        }
+    }
+
+    static T Assert1<T>(IReadOnlyList<T> items, string what) =>
+        items.Count == 1 ? items[0] : throw new InvalidOperationException($"Expected one of {what}, found {items.Count}.");
 
     /// <summary>Waits for the online reader's browser to show the made-up page; the browser takes a while to start.</summary>
     static async Task WaitForPageAsync(Window window, OnlineReaderViewModel reader)

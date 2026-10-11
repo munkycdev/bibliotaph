@@ -1,3 +1,4 @@
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -20,6 +21,13 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     public OnlineReaderRequest Request { get; } = request;
 
+    /// <summary>Add this page and its binder menu, with the note of what it did and Undo.</summary>
+    public SessionActions Sessions { get; } = readers.NewSessionActions();
+
+    /// <summary>The title of the page in view, which labels it in a binder.</summary>
+    [ObservableProperty]
+    public partial string? PageTitle { get; set; }
+
     public override Route Route => Route.OnlineReader;
 
     public override string Title => Request.Title;
@@ -37,8 +45,8 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     internal OnlineBrowsers Browsers => readers.Browsers;
 
-    /// <summary>The page to open: where the reader was, or the book's page.</summary>
-    public Uri Start => Uri.TryCreate(Request.At ?? Request.Link, UriKind.Absolute, out var start) ? start : new Uri("about:blank");
+    /// <summary>The page to open: the one last in view (going Back to the reader shows it again), or the book's page.</summary>
+    public Uri Start => Uri.TryCreate(Address, UriKind.Absolute, out var start) ? start : new Uri("about:blank");
 
     /// <summary>"On D&amp;D Beyond", under the title.</summary>
     public string PlaceLine => Request.Place is { } place ? $"On {place}" : _site ?? "";
@@ -99,6 +107,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     public override void Unload()
     {
+        Sessions.Close();
         readers.Pins.Changed -= OnPinsChanged;
         _ = SaveNoteAsync();
     }
@@ -148,6 +157,20 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
         }
     }
 
+    /// <summary>Add this page (choice 20): the page in view, as a link item labelled with its title, to the current binder.</summary>
+    [RelayCommand]
+    void AddPage() => AddPageTo(null);
+
+    /// <summary>The binder menu's choices: another binder, a new one, or Choose….</summary>
+    [RelayCommand]
+    void AddPageToSession(SessionRequest request) => AddPageTo(request.Choice);
+
+    void AddPageTo(SessionMenuChoice? choice) =>
+        Sessions.AddOnlinePage(Request.EntryId, Address, OnlineReaders.LabelOf(PageTitle, Request.Place), choice);
+
+    [RelayCommand]
+    void DismissSessionMessage() => Sessions.Close();
+
     [RelayCommand]
     void OpenInBrowser() => Notice = readers.OpenInBrowser(Address);
 
@@ -168,7 +191,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
     {
         if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)) return false;
         if (uri.Scheme is "about" or "data" or "blob") return true;
-        if (uri.IsFile) return Start.IsFile;
+        if (uri.IsFile) return Uri.TryCreate(Request.At ?? Request.Link, UriKind.Absolute, out var opened) && opened.IsFile;
         if (OnlineReaders.SiteOf(address) is not { } site || _site is null) return false;
         return OnSite(site, _site) || signInSites.Any(s => OnSite(site, s));
     }

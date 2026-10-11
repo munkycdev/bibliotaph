@@ -77,6 +77,27 @@ public sealed class SessionStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_page_owned_online_keeps_its_address_through_removing_duplicating_and_deleting()
+    {
+        var (_, bridge) = await AddBookAsync("bridge.pdf", 'c');
+        var pack = await _sessions.CreateAsync("Online pages", null, Ct);
+        const string Link = "https://example.com/sources/bridge/goblins#lair";
+
+        var added = await _sessions.AddItemsAsync(pack.Id, [new NewSessionItem(bridge, Label: "Goblin lair", Link: Link), new NewSessionItem(bridge)], ct: Ct);
+        Assert.Equal([Link, null], (await _sessions.GetAsync(pack.Id, Ct))!.Items.Select(i => i.Link));
+
+        var removed = await _sessions.RemoveItemsAsync([added[0]], Ct);
+        await _sessions.RestoreItemsAsync(removed, Ct);
+        Assert.Equal(Link, (await _sessions.GetAsync(pack.Id, Ct))!.Items.Single(i => i.Label == "Goblin lair").Link);
+
+        var copy = (await _sessions.DuplicateAsync(pack.Id, "Copy", Ct))!;
+        Assert.Equal(Link, (await _sessions.GetAsync(copy.Id, Ct))!.Items.Single(i => i.Label == "Goblin lair").Link);
+
+        var restored = await _sessions.RestoreAsync((await _sessions.DeleteAsync(pack.Id, Ct))!, Ct);
+        Assert.Equal(Link, (await _sessions.GetAsync(restored.Id, Ct))!.Items.Single(i => i.Label == "Goblin lair").Link);
+    }
+
+    [Fact]
     public async Task Moving_up_and_down_crosses_section_headings_and_stops_at_the_ends()
     {
         var (_, abbey) = await AddBookAsync("abbey.pdf", 'a');

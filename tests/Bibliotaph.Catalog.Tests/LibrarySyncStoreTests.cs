@@ -85,7 +85,7 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
         Assert.Equal(AssertionState.Confirmed, (await db.Assertions.SingleAsync(a => a.EntryId == otherBook.Value && a.Field == "type", Ct)).State);
     }
 
-    /// <summary>Two books, metadata decisions, marks, notes, nested collections, a saved search, a binder with pages, pins, a term and a "not the same book".</summary>
+    /// <summary>Two books, metadata decisions, marks, notes, nested collections, a saved search, a binder with pages and an online page, pins, a term and a "not the same book".</summary>
     static async Task<SyncSnapshot> FillAsync(CatalogDatabase database)
     {
         var contexts = new Factory(database);
@@ -112,6 +112,8 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
         var section = await sessions.AddSectionAsync(binder.Id, "Maps", Ct);
         await sessions.AddItemsAsync(binder.Id, [new NewSessionItem(abbey, new PageRange(abbeyDocument.Value, 7, 7, "5", "5"), "Bell tower", "Start here")], section.Id, Ct);
         await sessions.AddItemsAsync(binder.Id, [new NewSessionItem(bridge)], ct: Ct);
+        // A page of a book owned online, added with Add this page.
+        await sessions.AddItemsAsync(binder.Id, [new NewSessionItem(bridge, Label: "Goblin lair", Link: "https://example.com/sources/bridge/goblins#lair")], ct: Ct);
         var pins = new PinStore(contexts);
         await pins.PinAsync(PinTarget.Collection(campaign.Id), Ct);
         await pins.PinAsync(PinTarget.Entry(abbey), Ct);
@@ -121,6 +123,7 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
         var snapshot = await Store(database).ReadAsync(Ct);
         await using var db = database.CreateContext();
         Assert.Contains(SyncKeys.For(SyncKeys.SavedSearch, (await db.SmartViews.SingleAsync(v => v.Id == view.Id, Ct)).SyncId), snapshot.Records.Keys);
+        Assert.Contains(snapshot.Records.Values, r => r.GetValueOrDefault(SyncFields.Link) is { } link && link.Contains("goblins#lair", StringComparison.Ordinal));
         return snapshot;
     }
 
@@ -171,7 +174,8 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
         Assert.Single(result.NotApplied, k => k.StartsWith(SyncKeys.Item, StringComparison.Ordinal));
         Assert.DoesNotContain(SyncKeys.ForBook(Hash('b')), result.NotApplied);
         var after = await Store(_second).ReadAsync(Ct);
-        Assert.Single(after.Records, r => r.Key.StartsWith(SyncKeys.Item, StringComparison.Ordinal));
+        // The bridge's two items, the whole book and its page online, are here.
+        Assert.Equal(2, after.Records.Count(r => r.Key.StartsWith(SyncKeys.Item, StringComparison.Ordinal)));
     }
 
     [Fact]

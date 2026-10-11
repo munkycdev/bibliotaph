@@ -1,5 +1,8 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Bibliotaph.App.ViewModels;
 using Microsoft.Web.WebView2.Core;
@@ -18,7 +21,11 @@ public partial class OnlineReaderView
     {
         InitializeComponent();
         Loaded += async (_, _) => await StartAsync();
-        Unloaded += (_, _) => Web.Dispose();
+        Unloaded += (_, _) =>
+        {
+            if (Model is { } model) model.Sessions.PropertyChanged -= Sessions_PropertyChanged;
+            Web.Dispose();
+        };
     }
 
     OnlineReaderViewModel? Model => DataContext as OnlineReaderViewModel;
@@ -27,6 +34,7 @@ public partial class OnlineReaderView
     {
         if (_started || Model is not { } model) return;
         _started = true;
+        model.Sessions.PropertyChanged += Sessions_PropertyChanged;
         if (model.Browsers.OnlyFiles && !model.Start.IsFile)
         {
             // The smoke test reads no real site.
@@ -63,8 +71,24 @@ public partial class OnlineReaderView
             else model.OpenOutside(e.Uri);
         };
         core.SourceChanged += (_, _) => model.Address = core.Source;
+        core.DocumentTitleChanged += (_, _) => model.PageTitle = core.DocumentTitle;
         core.HistoryChanged += (_, _) => (model.CanGoBack, model.CanGoForward) = (core.CanGoBack, core.CanGoForward);
         core.Navigate(model.Start.AbsoluteUri);
+    }
+
+    /// <summary>The browser draws over the binder dialog, so it is hidden while the dialog is open.</summary>
+    void Sessions_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SessionActions.Dialog) && sender is SessionActions sessions)
+            Web.Visibility = sessions.Dialog is null ? Visibility.Visible : Visibility.Hidden;
+    }
+
+    void AddPageMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu } button) return;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     void Back_Click(object sender, RoutedEventArgs e) => Web.CoreWebView2?.GoBack();
@@ -80,7 +104,12 @@ public partial class OnlineReaderView
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (e.Key == Key.F5 && Web.CoreWebView2 is { } core)
+        if (e.Key == Key.Escape && Model?.Sessions.Dialog is not null)
+        {
+            Model.Sessions.Close();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F5 && Web.CoreWebView2 is { } core)
         {
             core.Reload();
             e.Handled = true;

@@ -23,7 +23,8 @@ public sealed record OnlineReaderRequest(EntryId EntryId, string Title, string L
 /// numbers or page notes.
 /// </summary>
 public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows, INavigationService navigation, IShellLauncher launcher,
-    FavoritesService favorites, PinDirectory pins, NotesService notes, OnlineImports imports, SettingsStore settings, ILogger<OnlineReaders> log)
+    FavoritesService favorites, PinDirectory pins, NotesService notes, OnlineImports imports, SettingsStore settings, Func<SessionActions> sessionActions,
+    ILogger<OnlineReaders> log)
 {
     bool? _inApp;
 
@@ -38,6 +39,9 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
     internal NotesService Notes => notes;
 
     internal ILogger Log => log;
+
+    /// <summary>Add this page's binder actions, one set per reader.</summary>
+    internal SessionActions NewSessionActions() => sessionActions();
 
     /// <summary>Whether books owned online open in Bibliotaph (the default) rather than the everyday browser.</summary>
     public async Task<bool> OpensInAppAsync()
@@ -67,9 +71,17 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
     /// </summary>
     public async Task<string?> OpenAsync(OnlineReaderRequest request)
     {
-        if (!await OpensInAppAsync() || OnlineBrowsers.RuntimeVersion is null) return OpenInBrowser(request.Link);
+        if (!await OpensInAppAsync() || OnlineBrowsers.RuntimeVersion is null) return OpenInBrowser(request.At ?? request.Link);
         navigation.Show(Create(request));
         ReaderWindows.BringMainForward();
+        return null;
+    }
+
+    /// <summary>Opens a book owned online in a reader window of its own (a binder's Open in new window), or the everyday browser as <see cref="OpenAsync"/> does.</summary>
+    public async Task<string?> OpenInWindowAsync(OnlineReaderRequest request)
+    {
+        if (!await OpensInAppAsync() || OnlineBrowsers.RuntimeVersion is null) return OpenInBrowser(request.At ?? request.Link);
+        await windows.HostAsync(Create(request, poppedOut: true));
         return null;
     }
 
@@ -105,6 +117,25 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
     /// </summary>
     IReadOnlyList<string> SignInSites(string link) =>
         imports.Readers.FirstOrDefault(r => SiteOf(r.LibraryPage.AbsoluteUri) is { } site && site == SiteOf(link))?.SignInSites ?? [];
+
+    /// <summary>
+    /// A binder item's label for a page: its title without the site's name after it ("Goblins - Monsters - D&amp;D
+    /// Beyond" gives "Goblins - Monsters"); null when the page has none.
+    /// </summary>
+    public static string? LabelOf(string? pageTitle, string? place)
+    {
+        var label = pageTitle?.Trim();
+        if (string.IsNullOrEmpty(label)) return null;
+        if (place is not null)
+        {
+            foreach (var separator in (string[])[" - ", " | ", " – ", " — "])
+            {
+                var suffix = separator + place;
+                if (label.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && label.Length > suffix.Length) return label[..^suffix.Length].Trim();
+            }
+        }
+        return label;
+    }
 
     /// <summary>A page's site: its host without "www.", lowercase; null for a link that isn't on the web.</summary>
     public static string? SiteOf(string link) =>
