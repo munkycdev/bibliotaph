@@ -28,6 +28,10 @@ public sealed record SmartViewDefinition(
     LibrarySort Sort = LibrarySort.RecentlyAdded,
     LibraryLayout Layout = LibraryLayout.Grid,
     ResultsTab Tab = ResultsTab.Documents,
+    string? Style = null,
+    string? Duration = null,
+    int? Players = null,
+    string? Store = null,
     bool HideParts = false)
 {
     public const int CurrentVersion = 1;

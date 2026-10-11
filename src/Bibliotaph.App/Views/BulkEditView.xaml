@@ -168,7 +168,7 @@
             <Button DockPanel.Dock="Right" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding AddTypedCommand}" Margin="8,0,0,0"
                     AutomationProperties.Name="{Binding AddLabel}" />
             <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding AddText, UpdateSourceTrigger=PropertyChanged}"
-                     AutomationProperties.Name="{Binding AddLabel}" ToolTip="Separate values with commas">
+                     AutomationProperties.Name="{Binding AddLabel}" ToolTip="{Binding AddHint}">
               <TextBox.InputBindings>
                 <KeyBinding Key="Enter" Command="{Binding AddTypedCommand}" />
               </TextBox.InputBindings>

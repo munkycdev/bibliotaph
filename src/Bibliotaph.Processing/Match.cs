@@ -17,7 +17,7 @@ namespace Bibliotaph.Processing;
 /// and so do the adventures marked in its book's file (slice 5 plan, choice 12).
 /// </summary>
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
-    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, PartsService? parts = null) : IStage
+    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, MetadataHints? hints = null, PartsService? parts = null) : IStage
 {
     /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
     internal static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
@@ -35,6 +35,9 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
             return new StageOutcome.Later(HintsWait, "Waiting for its hints from names.");
 
         var texts = await queries.GetAllPageTextsAsync(job.DocumentId, ct);
+        // Hints from names usually run before the text is in, so they are read again now for the store a watermark
+        // names (scenario review, row 7). Nothing is projected unless that changed them.
+        if (hints is not null) await hints.RefreshAsync(job.DocumentId, ct);
         var fingerprints = PageFingerprints.Compute(texts);
         await index.SetFingerprintsAsync(job.DocumentId, fingerprints, ct);
         if (places is not null) await places.CheckAsync(job.DocumentId, fingerprinted: true, ct);

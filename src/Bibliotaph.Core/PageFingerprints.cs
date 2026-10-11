@@ -33,6 +33,16 @@ public static class PageFingerprints
     }
 
     /// <summary>
+    /// Whether a line of these pages repeats on half or more of them, as a watermark or a running header does: the same
+    /// lines <see cref="Compute"/> leaves out. <see cref="Watermarks"/> leaves them out of what a model reads too.
+    /// </summary>
+    public static Func<string, bool> Repeats(IReadOnlyList<string?> pageTexts)
+    {
+        var repeated = RepeatedLines([.. pageTexts.Select(Lines)]);
+        return line => repeated.Count > 0 && Lines(line) is [var only] && repeated.Contains(Shape(only));
+    }
+
+    /// <summary>
     /// Whether two files hold the same book page for page: the same number of pages, every page's fingerprint equal
     /// (pages without one in the same places), and enough of them fingerprinted that the match means something.
     /// </summary>

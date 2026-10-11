@@ -5,10 +5,10 @@ using System.Text;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Two made-up PDFs for the smoke test (slice 4i), built in memory by hand since the app has no PDF writer: one locked
-/// with a password, and one protected by a security handler no reader has, as DRM looks to PDFium. Nothing in them
-/// comes from a real book. The Pdf.Host tests compile this file too, to check PDFium reads them as the smoke test
-/// expects.
+/// Made-up PDFs for the smoke test, built in memory by hand since the app has no PDF writer: one locked with a
+/// password, one protected by a security handler no reader has, as DRM looks to PDFium (slice 4i), and a short book
+/// whose index page is plain text with no links. Nothing in them comes from a real book. The Pdf.Host tests compile
+/// this file too, to check PDFium reads them as the smoke test expects.
 /// </summary>
 public static class SmokePdfs
 {
@@ -17,6 +17,16 @@ public static class SmokePdfs
 
     /// <summary>What the locked book's one page says, which a search finds once it is unlocked.</summary>
     public const string LockedPhrase = "lantern beneath the locked gate";
+
+    /// <summary>The index book's title, as its file is named.</summary>
+    public const string IndexedTitle = "Smoke Index Book";
+
+    /// <summary>The index book's PDF page that holds its index, printed page 3.</summary>
+    public const int IndexPage = 3;
+
+    /// <summary>The index page's entries, each with the printed page its number names; "Mill wheel" names a range, 1-2.</summary>
+    public static IReadOnlyList<(string Entry, int Page)> IndexEntries { get; } =
+        [("Bridges", 1), ("Dragons", 2), ("Mill wheel", 1), ("River crossings", 1), ("Wyrms", 2)];
 
     /// <summary>Permissions with every right but copying text out (bit 5 clear), as a store's PDF often has.</summary>
     const int NoCopying = -20;
@@ -46,6 +56,37 @@ public static class SmokePdfs
     public static byte[] Protected() =>
         Build(Latin1("BT /F1 18 Tf 72 700 Td (A protected page) Tj ET"), "/Filter /BibliotaphSmokeRights /V 1 /Length 40", FileId("protected"));
 
+    /// <summary>
+    /// Four pages and no links: a title page labelled "i", printed pages 1 and 2, and printed page 3, an index whose
+    /// entries (<see cref="IndexEntries"/>) end in the pages they are on, under an "Index" bookmark.
+    /// </summary>
+    public static byte[] Indexed()
+    {
+        string[][] pages =
+        [
+            [IndexedTitle, "A made-up book for the smoke test."],
+            ["The Bridge and the Mill", "An old stone bridge crosses the river.", "The mill wheel turns at midnight."],
+            ["Dragons", "A wyrm sleeps under the hill."],
+            ["Index", "Bridges, 1", "Dragons, 2", "Mill wheel, 1-2", "River crossings, 1", "Wyrms, 2"],
+        ];
+        // Objects 1-3 are the catalog, the page tree and the font; each page and its content stream follow; then the outline.
+        var outline = 4 + (2 * pages.Length);
+        var objects = new List<byte[]>
+        {
+            Latin1($"<< /Type /Catalog /Pages 2 0 R /Outlines {outline} 0 R /PageLabels << /Nums [0 << /S /r >> 1 << /S /D >>] >> >>"),
+            Latin1($"<< /Type /Pages /Kids [{string.Join(' ', pages.Select((_, i) => $"{4 + (2 * i)} 0 R"))}] /Count {pages.Length} >>"),
+            Latin1("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),
+        };
+        foreach (var lines in pages)
+        {
+            objects.Add(Latin1($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents {objects.Count + 2} 0 R >>"));
+            objects.Add(Stream(Latin1($"BT /F1 14 Tf 72 720 Td 18 TL {string.Concat(lines.Select(l => $"({l}) Tj T* "))}ET")));
+        }
+        objects.Add(Latin1($"<< /Type /Outlines /First {outline + 1} 0 R /Last {outline + 1} 0 R /Count 1 >>"));
+        objects.Add(Latin1($"<< /Title (Index) /Parent {outline} 0 R /Dest [{4 + (2 * IndexPage)} 0 R /Fit] >>"));
+        return Write(objects, $"/Root 1 0 R /Info << /Title ({IndexedTitle}) /Producer (Bibliotaph smoke fixture) >>");
+    }
+
     /// <summary>A catalog, one page, its content stream (object 4), a standard font and the encryption dictionary.</summary>
     static byte[] Build(byte[] content, string encryption, byte[] id)
     {
@@ -58,7 +99,13 @@ public static class SmokePdfs
             Latin1("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),
             Latin1($"<< {encryption} >>"),
         };
+        var hex = Convert.ToHexString(id);
+        return Write(objects, $"/Root 1 0 R /Encrypt {objects.Count} 0 R /ID [<{hex}> <{hex}>]");
+    }
 
+    /// <summary>A PDF file of these objects, numbered from 1, with its cross-reference table and the trailer's entries.</summary>
+    static byte[] Write(List<byte[]> objects, string trailer)
+    {
         using var pdf = new System.IO.MemoryStream();
         pdf.Write(Latin1("%PDF-1.4\n%âãÏÓ\n"));
         var offsets = new List<long>();
@@ -72,9 +119,7 @@ public static class SmokePdfs
         var xref = pdf.Position;
         var table = new StringBuilder($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
         foreach (var offset in offsets) table.Append(CultureInfo.InvariantCulture, $"{offset:D10} 00000 n \n");
-        var hex = Convert.ToHexString(id);
-        table.Append(CultureInfo.InvariantCulture,
-            $"trailer\n<< /Size {objects.Count + 1} /Root 1 0 R /Encrypt {objects.Count} 0 R /ID [<{hex}> <{hex}>] >>\nstartxref\n{xref}\n%%EOF\n");
+        table.Append(CultureInfo.InvariantCulture, $"trailer\n<< /Size {objects.Count + 1} {trailer} >>\nstartxref\n{xref}\n%%EOF\n");
         pdf.Write(Latin1(table.ToString()));
         return pdf.ToArray();
     }

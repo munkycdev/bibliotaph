@@ -36,12 +36,18 @@ public sealed class SyntheticPdfs : IDisposable
         WatermarkedForDale = Write("watermarked-dale.pdf", BuildPages(Watermark(BookPages, "Dale Example", 98765)));
         RevisedForAna = Write("revised-ana.pdf", BuildPages(Watermark(RevisedPages, "Ana Example", 5678)));
         ExpandedForAna = Write("expanded-ana.pdf", BuildPages(Watermark(ExpandedPages, "Ana Example", 1234)));
+        WatermarkedByStore = Write("watermarked-store.pdf", BuildPages(
+            [.. BookPages.Select((lines, i) => (string[])[.. lines, $"{WatermarkBuyer} · Order #{WatermarkOrder} · Bundle of Holding", $"{i + 1}"])]));
         LockedNoCopying = Write("locked-no-copying.pdf", Bibliotaph.App.Services.SmokePdfs.Locked());
         Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
         Linked = Write("linked.pdf", BuildLinked());
         Compilation = Write("compilation.pdf", BuildPages(CompilationPages, CompilationOutline));
         QuietCompilation = Write("quiet-compilation.pdf", BuildPages(QuietCompilationPages, QuietCompilationOutline));
+        Indexed = Write("indexed.pdf", Bibliotaph.App.Services.SmokePdfs.Indexed());
     }
+
+    /// <summary>The smoke test's four-page book whose index page is plain text, with no links.</summary>
+    public string Indexed { get; }
 
     /// <summary>
     /// Three pages: page 0 an index whose <see cref="LinkedEntry"/> line links to page 2 and whose second line links to
@@ -139,6 +145,15 @@ public sealed class SyntheticPdfs : IDisposable
     /// so the two files differ in every page's bytes but are copies of one book.
     /// </summary>
     public string WatermarkedForAna { get; }
+
+    /// <summary>
+    /// <see cref="BookPages"/> as a store watermarks it: every page names <see cref="WatermarkBuyer"/>, their order
+    /// <see cref="WatermarkOrder"/> and the store, Bundle of Holding (scenario review, row 7).
+    /// </summary>
+    public string WatermarkedByStore { get; }
+
+    public const string WatermarkBuyer = "Ana Example";
+    public const int WatermarkOrder = 48213;
 
     /// <summary><see cref="WatermarkedForAna"/>'s book, watermarked for another buyer.</summary>
     public string WatermarkedForDale { get; }

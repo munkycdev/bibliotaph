@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,7 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly CollectionDirectory _collections;
     readonly SessionDirectory _binders;
     readonly SettingsStore _store;
+    readonly LibrarySync _sync;
     readonly ILogger<ShellViewModel> _log;
     readonly DispatcherTimer _searchDelay;
 
@@ -32,8 +34,19 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
-        SettingsStore store, IUpdateService updates, ILogger<ShellViewModel> log)
+        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, ILogger<ShellViewModel> log)
     {
+        _sync = sync;
+        PlainSearch = plainSearch;
+        plainSearch.SearchRequested += (_, text) =>
+        {
+            SearchText = text;
+            SubmitSearch();
+        };
+        plainSearch.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PlainSearchViewModel.IsOn)) OnPropertyChanged(nameof(SearchPlaceholder));
+        };
         _pins = pins;
         _opener = opener;
         _collections = collections;
@@ -104,8 +117,15 @@ public sealed partial class ShellViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         _searchDelay.Stop();
-        _searchDelay.Start();
+        // In Ask mode the box holds a request, which is read on Enter rather than searched as it is typed.
+        if (!PlainSearch.IsOn) _searchDelay.Start();
     }
+
+    /// <summary>Ask beside the search box (scenario review, row 5): a request in plain English read as a search.</summary>
+    public PlainSearchViewModel PlainSearch { get; }
+
+    /// <summary>The empty box's hint, which says what it takes in Ask mode.</summary>
+    public string SearchPlaceholder => PlainSearch.IsOn ? "Ask for books in plain English…" : "Search books, topics, passages…";
 
     /// <summary>Searches now (Enter, or a pause in typing) and shows the results in the Library.</summary>
     [RelayCommand]
@@ -144,6 +164,21 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public string AppearanceToggleLabel => _theme.IsDark ? "Switch to light appearance" : "Switch to dark appearance";
 
+    async Task ReloadMergedAsync()
+    {
+        try
+        {
+            await _views.LoadAsync();
+            await _collections.LoadAsync();
+            await _binders.LoadAsync();
+            await _pins.LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Showing the work merged from another PC failed");
+        }
+    }
+
     public async Task StartAsync()
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
@@ -153,6 +188,9 @@ public sealed partial class ShellViewModel : ObservableObject
         await _collections.LoadAsync();
         await _binders.LoadAsync();
         await _pins.LoadAsync();
+        // Another PC's collections, binders, saved searches and pins, once merged in; the library refreshes on its own.
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        _sync.Merged += (_, _) => dispatcher.InvokeAsync(ReloadMergedAsync);
         var start = await StartPageAsync();
         _navigation.NavigateTo(start);
         Activity.Start();

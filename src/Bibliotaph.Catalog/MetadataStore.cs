@@ -21,7 +21,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 {
     /// <summary>The origins the Hints from names stage owns: it replaces their suggestions each time it runs.</summary>
     public static IReadOnlyList<AssertionOrigin> HintOrigins { get; } =
-        [AssertionOrigin.Embedded, AssertionOrigin.Folder, AssertionOrigin.Filename, AssertionOrigin.Rule];
+        [AssertionOrigin.Embedded, AssertionOrigin.Folder, AssertionOrigin.Filename, AssertionOrigin.Rule, AssertionOrigin.FolderRule];
 
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
@@ -68,6 +68,14 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         }
         return ((await assertions.ToListAsync(ct)).ToLookup(a => a.EntryId, ToClaim),
             (await rejections.Select(r => new { r.EntryId, r.Field, r.NormalizedValue }).ToListAsync(ct)).ToLookup(r => r.EntryId, r => (r.Field, r.NormalizedValue)));
+    }
+
+    /// <summary>The entries with any value the user confirmed or set, whose books can show the user's conventions.</summary>
+    public async Task<IReadOnlyList<EntryId>> GetDecidedEntryIdsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = await db.Assertions.AsNoTracking().Where(a => a.State == AssertionState.Confirmed).Select(a => a.EntryId).Distinct().ToListAsync(ct);
+        return [.. ids.Select(id => new EntryId(id))];
     }
 
     static List<long> Raw(IEnumerable<EntryId> entryIds) => [.. entryIds.Select(e => e.Value).Distinct()];
@@ -343,6 +351,79 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         if (kept.Count > 0) await SetValuesAsync(entryId, field, kept, ct);
     }
 
+    /// <summary>
+    /// What the user decided about a field on another PC, merged by library sync (library sync plan, choice 5): exactly
+    /// <paramref name="values"/> (stored form) are kept and exactly <paramref name="rejected"/> (normalised) are
+    /// rejected. A suggestion here with the same text is confirmed, keeping its evidence; otherwise the value becomes
+    /// the user's own. A value kept here that isn't kept there goes back to being a suggestion (the user's own is
+    /// superseded), and a rejection that isn't there is lifted. Returns whether anything changed.
+    /// </summary>
+    public async Task<bool> ApplySyncedAsync(EntryId entryId, MetadataField field, IReadOnlyList<string> values, IReadOnlyList<string> rejected,
+        CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var (rows, rejections) = await LoadFieldAsync(db, entryId, field, ct);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var wantRejected = rejected.ToHashSet(StringComparer.Ordinal);
+        var wanted = values.Select(v => (Value: v, Normalized: MetadataValues.Normalize(field, v)))
+            .Where(v => v.Normalized.Length > 0 && !wantRejected.Contains(v.Normalized)).DistinctBy(v => v.Normalized).ToList();
+        if (!field.Multiple && wanted.Count > 1) wanted = wanted[..1];
+        var changed = false;
+
+        foreach (var lifted in rejections.Where(r => !wantRejected.Contains(r.NormalizedValue)).ToList())
+        {
+            db.Rejections.Remove(lifted);
+            rejections.Remove(lifted);
+            foreach (var row in rows.Where(r => r.NormalizedValue == lifted.NormalizedValue && r.State == AssertionState.Rejected)) Undecide(row);
+            changed = true;
+        }
+        foreach (var normalized in wantRejected.Order(StringComparer.Ordinal))
+            changed |= Reject(db, entryId, field, normalized, rows, rejections, now);
+
+        foreach (var row in rows.Where(r => r.State == AssertionState.Confirmed && wanted.All(w => w.Normalized != r.NormalizedValue)))
+        {
+            Undecide(row);
+            changed = true;
+        }
+        foreach (var (value, normalized) in wanted)
+        {
+            var json = JsonSerializer.Serialize(value);
+            var same = rows.Where(r => r.NormalizedValue == normalized).ToList();
+            // Kept with exactly this text already: the next look at this PC's work reads the same value back.
+            if (same.Any(r => r.State == AssertionState.Confirmed && r.ValueJson == json)) continue;
+            foreach (var other in same.Where(r => r.State == AssertionState.Confirmed)) Undecide(other);
+            var suggestion = same.Where(r => r.Origin != AssertionOrigin.User && r.ValueJson == json && r.State is AssertionState.Provisional or AssertionState.Rejected)
+                .OrderByDescending(r => EffectiveMetadata.Priority(r.Origin)).ThenByDescending(r => r.CreatedUtc).FirstOrDefault();
+            if (suggestion is not null)
+            {
+                suggestion.State = AssertionState.Confirmed;
+                suggestion.DecidedUtc = now;
+            }
+            else
+            {
+                var added = NewAssertion(entryId, null, new MetadataProposal(field, value, AssertionOrigin.User), AssertionState.Confirmed, now);
+                db.Assertions.Add(added);
+                rows.Add(added);
+            }
+            changed = true;
+        }
+        if (!field.Multiple && wanted.Count == 1)
+            foreach (var aside in rows.Where(r => r.State == AssertionState.SetAside))
+            {
+                aside.State = AssertionState.Superseded;
+                aside.DecidedUtc = now;
+                changed = true;
+            }
+        if (changed) await db.SaveChangesAsync(ct);
+        return changed;
+
+        void Undecide(Assertion row)
+        {
+            row.State = row.Origin == AssertionOrigin.User ? AssertionState.Superseded : AssertionState.Provisional;
+            row.DecidedUtc = row.Origin == AssertionOrigin.User ? now : null;
+        }
+    }
+
     /// <summary>A field's assertions and rejections as they are now, so a decision about it can be undone exactly.</summary>
     public async Task<FieldSnapshot> SnapshotAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
@@ -367,7 +448,8 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     /// A bulk edit (slice 4e): the same changes to fields of many entries, in one transaction, by the inspector's
     /// per-value rules. Set makes a single-value field's value the user's own, as <see cref="SetValuesAsync"/> does.
     /// Add puts a value in a multi-value field and keeps the values it shows, as "Use this" does, which confirms them;
-    /// Remove rejects a value the field shows, from every source now and later, as "Not right" does. Reset is "Reset to
+    /// Remove rejects a value the field shows, from every source now and later, as "Not right" does, in a field with one
+    /// value too (a correction offered to look-alikes, scenario review, row 8). Reset is "Reset to
     /// suggestion". A field with no change, and an entry a change makes no difference to, are left as they are.
     /// Returns the snapshot, from before, of each field it changed, which <see cref="RestoreAsync(IReadOnlyCollection{FieldSnapshot}, CancellationToken)"/>
     /// puts back.
@@ -379,7 +461,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         {
             if (change.Action == BulkAction.Reset ? change.Value is not null : string.IsNullOrEmpty(change.Value))
                 throw new ArgumentException($"{change.Action} of {change.Field} has the wrong value.", nameof(changes));
-            if (change.Action == BulkAction.Set && change.Field.Multiple || change.Action is BulkAction.Add or BulkAction.Remove && !change.Field.Multiple)
+            if (change.Action == BulkAction.Set && change.Field.Multiple || change.Action == BulkAction.Add && !change.Field.Multiple)
                 throw new ArgumentException($"{change.Action} doesn't apply to {change.Field}.", nameof(changes));
         }
         var byField = changes.GroupBy(c => c.Field).ToList();
@@ -591,7 +673,7 @@ public enum BulkAction
     /// <summary>Puts a value in a multi-value field.</summary>
     Add,
 
-    /// <summary>Takes a value out of a multi-value field and rejects it, so no source suggests it again.</summary>
+    /// <summary>Takes a value out of a field and rejects it, so no source suggests it again.</summary>
     Remove,
 
     /// <summary>Back to suggestions: forgets the user's decisions about the field.</summary>

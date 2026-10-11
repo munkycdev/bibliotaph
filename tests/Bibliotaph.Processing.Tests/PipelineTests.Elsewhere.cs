@@ -59,4 +59,35 @@ public sealed partial class PipelineTests
         var back = await _elsewhere.UndoRemoveAsync(removed, Ct);
         Assert.Equal("Drowned Abbey", (await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).Single(c => c.EntryId == back).Title);
     }
+
+    [Fact]
+    public async Task Files_already_in_the_library_are_offered_to_a_book_added_elsewhere_and_after_a_title_or_publisher_changes()
+    {
+        Copy(pdfs.WatermarkedForAna, "Purchases/Ember Vault.pdf");
+        await _roots.AddAsync(_library, Ct);
+        await _service.StartAsync(Ct);
+        await SettleAsync();
+        var search = new LibraryQueries(_index);
+        var file = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+        Assert.Equal("Ember Vault", file.Title);
+        Assert.Null(await _metadata.SetAsync(file.EntryId, MetadataFields.Publisher, "Gilded Press", Ct));
+
+        // A publisher that says otherwise rules the file out; a title in other letters, with no publisher, doesn't.
+        var (other, _) = await _elsewhere.AddAsync(new ElsewhereDraft("Ember Vault", Publisher: "Kobold Works"), Ct);
+        Assert.Equal(0, await _elsewhere.CountPendingAsync(Ct));
+        var (printed, _) = await _elsewhere.AddAsync(new ElsewhereDraft("ember vault", AlsoOwn: ["Print"]), Ct);
+        var match = Assert.Single(await _elsewhere.GetPendingAsync(Ct)).Match;
+        Assert.Equal((printed, file.DocumentId, file.EntryId), (match.EntryId, match.DocumentId, match.FileEntryId));
+        // A pair is asked about once.
+        Assert.Equal(0, await _elsewhere.CheckFilesAsync([printed!.Value, file.EntryId], Ct));
+
+        // Changes are checked as they are projected: the other book's publisher now agrees, then a file is renamed.
+        _elsewhere.CheckFilesWhenProjected();
+        var (glass, _) = await _elsewhere.AddAsync(new ElsewhereDraft("Glass Tower"), Ct);
+        Assert.Null(await _metadata.SetAsync(other!.Value, MetadataFields.Publisher, "Gilded Press", Ct));
+        await SettleUntilAsync(async () => await _elsewhere.CountPendingAsync(Ct) == 2);
+        Assert.Null(await _metadata.SetAsync(file.EntryId, MetadataFields.Title, "Glass Tower", Ct));
+        await SettleUntilAsync(async () => await _elsewhere.CountPendingAsync(Ct) == 3);
+        Assert.Equal([printed.Value, other.Value, glass!.Value], (await _elsewhere.GetPendingAsync(Ct)).Select(p => p.Match.EntryId));
+    }
 }

@@ -61,6 +61,10 @@ public sealed partial class PipelineTests
             await sessions.ResolveAsync((await sessions.GetAsync(pack.Id, Ct))!.Items, Ct);
         async Task<IReadOnlyDictionary<long, PagePlace>> NotesAsync() =>
             await notes.ResolveAsync(await notes.GetPageNotesAsync(book.EntryId, Ct), Ct);
+        // The notes as the details list them, or a reader open on a document: which pages, and whether they were found there.
+        async Task<IReadOnlyDictionary<long, (long Document, int First, int Last, bool Found)>> ListedAsync(long? documentId = null) =>
+            (await notes.ListAsync(await notes.GetPageNotesAsync(book.EntryId, Ct), documentId, Ct))
+                .ToDictionary(n => n.Key, n => (n.Value.Pages.DocumentId, n.Value.Pages.FirstPdfPage, n.Value.Pages.LastPdfPage, n.Value.Found));
 
         // The revised edition is saved over the file while Match is held, so it is read but has no fingerprints yet.
         _matchGate.Held = true;
@@ -100,6 +104,15 @@ public sealed partial class PipelineTests
         Assert.Equal(new PagePlace(revised, 3, 3, PagePlaceState.OtherCopy), placed[bellNote.Id]);
         Assert.Equal(new PagePlace(revised, 3, 3, PagePlaceState.Changed, PagePlaces.ChangedReason), placed[cryptNote.Id]);
 
+        // The details list the notes at the pages they open at now: the bell tower's a page on, the crypt's at the
+        // same page, to be checked. A reader open on the first edition lists them at the pages they were made on.
+        var listed = await ListedAsync();
+        Assert.Equal((revised, 3, 3, true), listed[bellNote.Id]);
+        Assert.Equal((revised, 3, 3, true), listed[cryptNote.Id]);
+        listed = await ListedAsync(book.DocumentId);
+        Assert.Equal((book.DocumentId, 2, 2, true), listed[bellNote.Id]);
+        Assert.Equal((book.DocumentId, 3, 3, true), listed[cryptNote.Id]);
+
         // One card for the new version: two places found their page, two need a look, those first.
         var card = Assert.Single((await review.GetQueueAsync(Ct)).Revisions!);
         Assert.Equal((book.EntryId, revised, 2, 2), (card.EntryId, card.DocumentId, card.Found, card.NeedLook));
@@ -111,13 +124,28 @@ public sealed partial class PipelineTests
         Assert.Equal((revised, 3), await _reading.GetPlaceAsync(revised, Ct));
         Assert.Equal(3, await reading.GetPositionAsync(revised, Ct));
 
-        // Use this page on the card for the item, and in the reader for the note, at the page the user went to.
+        // Use this page on the card for the item, and in the reader for the note, at the page the user went to. Each
+        // says so, so a binder or reader showing the place follows it.
+        var binderChanges = 0;
+        var notesChanged = new List<EntryId>();
+        sessions.Changed += (_, _) => binderChanges++;
+        notes.PageNotesChanged += (_, entry) => notesChanged.Add(entry);
         var undo = await review.UsePlaceAsync(card.Places[0], Ct);
         Assert.NotNull(undo);
+        Assert.Equal(1, binderChanges);
         Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Ready), (await ItemsAsync())[crypt]);
+        Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Ready), await sessions.ResolveItemAsync(crypt, Ct));
         card = Assert.Single((await review.GetQueueAsync(Ct)).Revisions!);
         Assert.Equal((2, 1), (card.Found, card.NeedLook));
         Assert.Equal(PageCheck.Checked, card.Places.Single(p => p.Place.OwnerId == crypt && p.Place.Kind == PlaceKind.SessionItem).Outcome);
+
+        // The note's place taken on the card and undone there says so too.
+        var noteUndo = await review.UsePlaceAsync(card.Places.Single(p => p.Place.OwnerId == cryptNote.Id && p.Place.Kind == PlaceKind.PageNote), Ct);
+        Assert.Equal([book.EntryId], notesChanged);
+        await noteUndo!();
+        Assert.Equal([book.EntryId, book.EntryId], notesChanged);
+        Assert.Equal(1, binderChanges);
+        Assert.Equal(new PagePlace(revised, 3, 3, PagePlaceState.Changed, PagePlaces.ChangedReason), (await NotesAsync())[cryptNote.Id]);
         Assert.NotNull(await notes.UsePageAsync(cryptNote.Id, revised, 4, 4, Ct));
         Assert.Equal(new PagePlace(revised, 4, 4, PagePlaceState.Ready), (await NotesAsync())[cryptNote.Id]);
         Assert.Empty((await review.GetQueueAsync(Ct)).Revisions!);
@@ -125,6 +153,7 @@ public sealed partial class PipelineTests
 
         // Undo puts the item back as it was, needing a look, and the card with it.
         await undo();
+        Assert.Equal(2, binderChanges);
         Assert.Equal(new SessionItemTarget(revised, 3, 3, SessionItemState.Changed, PagePlaces.ChangedReason), (await ItemsAsync())[crypt]);
         card = Assert.Single((await review.GetQueueAsync(Ct)).Revisions!);
         Assert.Equal((2, 1), (card.Found, card.NeedLook));
@@ -133,6 +162,19 @@ public sealed partial class PipelineTests
         await _places.CheckAsync(revised, ct: Ct);
         Assert.Equal(new PagePlace(revised, 4, 4, PagePlaceState.Ready), (await NotesAsync())[cryptNote.Id]);
         Assert.Equal((revised, 3), await _reading.GetPlaceAsync(revised, Ct));
+
+        // Notes made in the new edition, read in the first one, a copy the book doesn't open: the bell tower is found
+        // a page back by its fingerprint; the cloister isn't in it, so that note lists at the same page, not found.
+        var ladderNote = (await notes.AddPageNoteAsync(revised, 3, 3, "The ladder is rotten", Ct))!;
+        var cloisterNote = (await notes.AddPageNoteAsync(revised, 2, 2, "Moss hides a trapdoor", Ct))!;
+        listed = await ListedAsync(book.DocumentId);
+        Assert.Equal((book.DocumentId, 2, 2, true), listed[ladderNote.Id]);
+        Assert.Equal((book.DocumentId, 2, 2, false), listed[cloisterNote.Id]);
+        Assert.Equal((2, 2, true), await _places.MatchAsync(ladderNote.Range, book.DocumentId, Ct));
+        // In the edition it opens, they list at their own pages.
+        listed = await ListedAsync();
+        Assert.Equal((revised, 3, 3, true), listed[ladderNote.Id]);
+        Assert.Equal((revised, 2, 2, true), listed[cloisterNote.Id]);
     }
 
     [Theory]
