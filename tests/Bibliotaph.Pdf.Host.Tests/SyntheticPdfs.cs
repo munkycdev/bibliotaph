@@ -39,7 +39,11 @@ public sealed class SyntheticPdfs : IDisposable
         LockedNoCopying = Write("locked-no-copying.pdf", Bibliotaph.App.Services.SmokePdfs.Locked());
         Protected = Write("protected-rights.pdf", Bibliotaph.App.Services.SmokePdfs.Protected());
         Linked = Write("linked.pdf", BuildLinked());
+        Indexed = Write("indexed.pdf", Bibliotaph.App.Services.SmokePdfs.Indexed());
     }
+
+    /// <summary>The smoke test's four-page book whose index page is plain text, with no links.</summary>
+    public string Indexed { get; }
 
     /// <summary>
     /// Three pages: page 0 an index whose <see cref="LinkedEntry"/> line links to page 2 and whose second line links to

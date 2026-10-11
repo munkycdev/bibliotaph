@@ -27,8 +27,12 @@ public enum ViewerMode
     Problem,
 }
 
-/// <summary>An open PDF for the page surface: its renderer, what the worker said about it, and where to start.</summary>
-public sealed record OpenPdf(PdfRenderer Renderer, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop);
+/// <summary>
+/// An open PDF for the page surface: its renderer, what the worker said about it, where to start, and where its printed
+/// page numbers are (for links made from an index page's numbers), worked out the first time a page asks.
+/// </summary>
+public sealed record OpenPdf(PdfRenderer Renderer, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop,
+    Func<Task<PrintedPages>>? Numbering = null);
 
 /// <summary>The marks on the pages; the one at <see cref="Current"/> stands out.</summary>
 public sealed record HighlightSet(IReadOnlyList<PageHighlight> Items, int Current)
@@ -46,7 +50,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 }
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
-public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, PdfWorkerPool Workers, IPasswordVault Vault,
+public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, ILogger<ViewerViewModel> Log);
@@ -66,6 +70,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     ViewerRequest? _request;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
+    readonly IndexQueries _index;
     readonly PdfWorkerPool _workers;
     readonly IPasswordVault _vault;
     readonly OtherApps _otherApps;
@@ -107,6 +112,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _request = request;
         _library = services.Library;
         _queries = services.Queries;
+        _index = services.Index;
         _workers = services.Workers;
         _vault = services.Vault;
         _otherApps = services.OtherApps;
@@ -942,7 +948,9 @@ public sealed partial class ViewerViewModel : PageViewModel
             var top = _resume is null && _termHighlights is [{ Rects: [var first, ..] }, ..] ? first.Top : (double?)null;
             CurrentPageIndex = start;
             OnCurrentPageIndexChanged(start);
-            Pdf = new OpenPdf(renderer, doc, TextAsync, start, top);
+            var documentId = source.DocumentId;
+            var printed = new Lazy<Task<PrintedPages>>(() => PrintedPagesAsync(documentId, doc));
+            Pdf = new OpenPdf(renderer, doc, TextAsync, start, top, () => printed.Value);
             Highlights = new HighlightSet(_termHighlights, _termHighlights.Count > 0 && _resume is null ? 0 : -1);
             Mode = ViewerMode.Pdf;
             _ = LoadPageNotesAsync();
@@ -1046,6 +1054,18 @@ public sealed partial class ViewerViewModel : PageViewModel
                 .Select(w => new PageHighlight(page, [new PageRect(w.Left, w.Top, w.Right, w.Bottom)])));
         }
         return [.. found.Where(h => h.Rects.Count > 0).OrderByDescending(h => h.Rects[0].Top).ThenBy(h => h.Rects[0].Left)];
+    }
+
+    /// <summary>
+    /// Where the book's printed page numbers are: its page labels, or failing those the numbers printed at the top or
+    /// foot of its pages in the indexed text. Neither means none are guessed at (<see cref="PrintedPages"/>).
+    /// </summary>
+    Task<PrintedPages> PrintedPagesAsync(long documentId, DocInfo doc)
+    {
+        var labelled = PrintedPages.FromLabels(doc.PageLabels, doc.PageCount);
+        if (labelled.IsKnown) return Task.FromResult(labelled);
+        // Every page's text is read and looked through, so off the UI thread.
+        return Task.Run(async () => PrintedPages.FromFolios((await _index.GetPageTextsAsync(documentId)).Select(t => (t.PdfPage, t.Text)), doc.PageCount));
     }
 
     /// <summary>A page's selectable text: the PDF's own, or the words OCR read from a scanned page.</summary>
