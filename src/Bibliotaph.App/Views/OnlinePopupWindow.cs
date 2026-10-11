@@ -68,7 +68,8 @@ public sealed class OnlinePopupWindow : Window
         core.DocumentTitleChanged += (_, _) => Title = string.IsNullOrWhiteSpace(core.DocumentTitle) ? $"{_serviceName} · Bibliotaph" : $"{core.DocumentTitle} · Bibliotaph";
         core.WindowCloseRequested += (_, _) => Close();
         core.NewWindowRequested += async (_, e) => await HostAsync(e, this, _browsers, _serviceName, _log);
-        core.NavigationCompleted += (_, e) => _showsPage |= e.IsSuccess;
+        // A blank tab a page writes into shows nothing either; only a page loaded from the web counts.
+        core.NavigationCompleted += (_, e) => _showsPage |= e.IsSuccess && Uri.TryCreate(core.Source, UriKind.Absolute, out var shown) && shown.Scheme is "http" or "https" or "file";
         core.DownloadStarting += async (_, e) =>
         {
             var download = await _browsers.Downloads.TakeAsync(e, _serviceName);

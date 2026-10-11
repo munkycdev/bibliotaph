@@ -286,7 +286,7 @@ static partial class SmokeTest
             if (!tab.Saved || !string.Equals(System.IO.Path.GetDirectoryName(tab.Path), inside, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"The download from a new tab went to {tab.Path} ({tab.Status}), not the downloads folder.");
             await WaitUntilAsync(browser, () => !Application.Current.Windows.OfType<Views.OnlinePopupWindow>().Any(),
-                () => "The new tab that only downloaded stayed open.");
+                () => $"The new tab that only downloaded stayed open (shown: {Application.Current.Windows.OfType<Views.OnlinePopupWindow>().Any(w => w.IsVisible)}).");
 
             var relative = System.IO.Path.GetRelativePath(root.Path, download.Path);
             var library = services.GetRequiredService<LibraryStore>();
