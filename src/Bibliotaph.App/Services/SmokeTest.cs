@@ -115,7 +115,8 @@ static partial class SmokeTest
             await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
                 () => UseSmartViewsAsync(services, window, books));
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
-            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back", () => AddElsewhereAsync(services, window, books));
+            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back, and one offered a file already in the library",
+                () => AddElsewhereAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
@@ -2113,10 +2114,46 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == Title && i.IsElsewhere), () => "Undo didn't bring the book back.");
 
         var back = page.Items.Single(i => i.Title == Title);
-        if (await services.GetRequiredService<ElsewhereService>().RemoveAsync(back.EntryId) is null)
+        var elsewhere = services.GetRequiredService<ElsewhereService>();
+        if (await elsewhere.RemoveAsync(back.EntryId) is null)
             throw new InvalidOperationException("The book owned elsewhere couldn't be removed again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was.");
+
+        // A book added with the title of a file already in the library is offered that file in Needs review. By file:
+        // earlier checks rename some cards.
+        var gazetteer = (await services.GetRequiredService<LibraryStore>().GetRelativePathsAsync())
+            .First(p => p.RelativePath.EndsWith("Gazetteer of the Marches.pdf", StringComparison.Ordinal)).DocumentId;
+        var file = page.Items.FirstOrDefault(i => !i.IsPack && !i.IsElsewhere && i.DocumentId == gazetteer)
+            ?? throw new InvalidOperationException("The gazetteer's card isn't in the Library.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog again.");
+        var second = page.AddElsewhereDialog!;
+        second.Title = file.Title;
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == second.SaveCommand), "Add to library");
+        await WaitUntilAsync(window, () => page.AddElsewhereDialog is null && page.Items.Any(i => i.Title == file.Title && i.IsElsewhere),
+            () => $"Saving “{file.Title}” didn't add a book owned elsewhere.");
+        var named = page.Items.First(i => i.Title == file.Title && i.IsElsewhere);
+        page.CloseDetailsCommand.Execute(null);
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.NeedsReview);
+        var review = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        review.IsSuggestionsTab = true;
+        await review.ReloadCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => !review.IsLoading && review.Cards.OfType<ElsewhereCardViewModel>().Any(c => c.Item.Match.DocumentId == gazetteer),
+            () => $"Needs review doesn't offer the gazetteer as the file of “{file.Title}”.");
+        var offer = review.Cards.OfType<ElsewhereCardViewModel>().First(c => c.Item.Match.DocumentId == gazetteer);
+        if (offer.Heading != $"You own {file.Title} elsewhere. Is this its file?") throw new InvalidOperationException($"The card asks “{offer.Heading}”.");
+        if (offer.IsDone || !offer.SameBookCommand.CanExecute(null)) throw new InvalidOperationException("The card doesn't offer Same book.");
+        await AuditAsync(window, "a file already in the library offered to a book owned elsewhere");
+
+        if (await elsewhere.RemoveAsync(named.EntryId) is null) throw new InvalidOperationException($"“{file.Title}” owned elsewhere couldn't be removed.");
+        services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
+        page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open again.");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was after the second book.");
     }
 
     /// <summary>

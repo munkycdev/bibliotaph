@@ -126,6 +126,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     {
         await _service.StopAsync(CancellationToken.None);
         _service.Dispose();
+        _elsewhere.Dispose();
         await _writer.StopAsync(CancellationToken.None);
         _writer.Dispose();
         await _workers.DisposeAsync();
