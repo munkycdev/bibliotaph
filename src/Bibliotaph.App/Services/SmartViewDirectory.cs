@@ -31,7 +31,8 @@ public sealed record SmartViewDefinition(
     string? Style = null,
     string? Duration = null,
     int? Players = null,
-    string? Store = null)
+    string? Store = null,
+    bool HideParts = false)
 {
     public const int CurrentVersion = 1;
 

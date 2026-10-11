@@ -125,6 +125,17 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT text FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
     }
 
+    /// <summary>
+    /// Each page's printed label, in page order (null for a page without one), so pages can be typed as the file
+    /// numbers them outside the reader, as in the details' adventures (slice 5). Empty until the file's pages are read.
+    /// </summary>
+    public async Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string?>(new CommandDefinition(
+            "SELECT label FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
+    }
+
     /// <summary>Each page's fingerprint, in page order (null for a page without one).</summary>
     public async Task<IReadOnlyList<string?>> GetFingerprintsAsync(long documentId, CancellationToken ct = default)
     {

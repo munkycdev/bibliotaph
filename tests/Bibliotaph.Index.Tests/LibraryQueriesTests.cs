@@ -452,6 +452,74 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal(4, Connection.ExecuteScalar<long>("SELECT count(*) FROM doc"));
     }
 
+    /// <summary>Marks pages 2 and 3 of the gazetteer as an adventure of its own, as the projection records one (slice 5).</summary>
+    async Task<EntryId> AddPartAsync()
+    {
+        var store = new IndexStore(Writer, Clock);
+        var part = new EntryId(60);
+        await store.SetEntriesAsync(
+            [
+                new EntryDocRow(EntryOf(Gazetteer), Gazetteer, EntryKind.Whole) { Parts = 1 },
+                new EntryDocRow(part, Gazetteer, EntryKind.Part) { ParentEntryId = EntryOf(Gazetteer), Pages = new PartPages(1, 2) },
+            ], Ct);
+        await store.SetMetadataAsync([new EntryMetaRow
+        {
+            EntryId = part,
+            Title = "The Mill Dragon",
+            KindLabel = "Adventure",
+            LevelMin = 3,
+            LevelMax = 5,
+            Levels = LevelState.Known,
+            Facets = [new("type", "adventure", "Adventure", true)],
+        }], Ct);
+        await store.SetPageCoverAsync(Gazetteer, 1, "hash1-p1.jpg", Ct);
+        return part;
+    }
+
+    [Fact]
+    public async Task An_adventure_inside_a_file_is_a_card_of_its_own_with_its_first_page_as_cover()
+    {
+        var part = await AddPartAsync();
+
+        var cards = (await _library.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(c => c.EntryId);
+        var card = cards[part];
+        Assert.Equal((Gazetteer, "The Mill Dragon", 2, "hash1-p1.jpg", true), (card.DocumentId, card.Title, card.PageCount, card.Cover, card.IsPart));
+        Assert.Equal((EntryOf(Gazetteer), "Gazetteer of the Marches", new PartPages(1, 2)), (card.ParentEntryId!.Value, card.ParentTitle, card.Pages!.Value));
+        Assert.Equal("in Gazetteer of the Marches · pp. 2–3", card.PartLine);
+        Assert.Equal(1, cards[EntryOf(Gazetteer)].Parts);
+        Assert.Null(cards[EntryOf(Gazetteer)].PartLine);
+
+        // type:adventure level:3 finds it; its file's name and folders don't.
+        Assert.Equal([part], (await _library.ListAsync(new LibraryFilter(), Plan("type:adventure level:3"), ct: Ct)).Select(e => e.EntryId));
+        Assert.Equal([part], (await _library.SearchDocumentsAsync(Plan("mill dragon"), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId));
+        Assert.Equal([EntryOf(Gazetteer)], (await _library.SearchDocumentsAsync(Plan("marches"), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId));
+
+        // Adventures inside files: Hide.
+        var hidden = await _library.ListAsync(new LibraryFilter(HideParts: true), ct: Ct);
+        Assert.DoesNotContain(hidden, e => e.IsPart);
+        Assert.Equal(4, hidden.Count);
+    }
+
+    [Fact]
+    public async Task A_page_inside_an_adventure_is_found_under_the_adventure_and_others_under_the_file()
+    {
+        var part = await AddPartAsync();
+
+        var results = await _library.SearchPagesAsync(Plan("dragon"), new LibraryFilter(), ct: Ct);
+
+        var byEntry = results.Entries.ToDictionary(e => e.Entry.EntryId, e => e.Pages.Select(p => p.PdfPage).ToList());
+        Assert.Equal([1], byEntry[part]);
+        Assert.Equal([3], byEntry[EntryOf(Gazetteer)]);
+        Assert.Equal(1, results.Entries.Single(e => e.Entry.EntryId == part).MatchingPages);
+        Assert.Equal(3, results.MatchingPages); // none counted twice
+
+        // With adventures hidden, or filtered out, their pages go with the file again.
+        var hidden = await _library.SearchPagesAsync(Plan("dragon"), new LibraryFilter(HideParts: true), ct: Ct);
+        Assert.Equal([1, 3], hidden.Entries.Single(e => e.Entry.EntryId == EntryOf(Gazetteer)).Pages.Select(p => p.PdfPage).Order());
+        var files = await _library.SearchPagesAsync(Plan("dragon -type:adventure"), new LibraryFilter(), ct: Ct);
+        Assert.Equal([1, 3], files.Entries.Single(e => e.Entry.EntryId == EntryOf(Gazetteer)).Pages.Select(p => p.PdfPage).Order());
+    }
+
     [Fact]
     public async Task Details_cover_ocr_and_stages()
     {

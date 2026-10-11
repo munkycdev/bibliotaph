@@ -38,7 +38,7 @@ public sealed class PinOpener(LibraryPages library, SessionPages binders, Reader
 
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel book)
     {
-        if (!book.IsPack) return new ViewerRequest(book.DocumentId, book.Title) { Resume = true };
+        if (!book.IsPack) return book.BookRequest();
         var images = await Task.Run(() => queries.GetPackImagesAsync(book.EntryId));
         if (images.Count == 0) return null;
         var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();

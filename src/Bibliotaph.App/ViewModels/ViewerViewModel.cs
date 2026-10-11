@@ -44,17 +44,22 @@ public sealed record HighlightSet(IReadOnlyList<PageHighlight> Items, int Curren
 /// <summary>A place to scroll to: a page, and with <see cref="PdfTop"/> a spot on it (PDF points from the bottom).</summary>
 public sealed record PageTarget(int PageIndex, double? PdfTop);
 
-/// <summary>A bookmark in the book's outline, with the page it goes to as the reader would name it.</summary>
+/// <summary>
+/// A bookmark in the book's outline, with the page it goes to as the reader would name it. <see cref="InPart"/> marks
+/// one inside the adventure being read (slice 5 plan, choice 11), which the Contents panel shades.
+/// </summary>
 public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string Page)
 {
     public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
+
+    public bool InPart { get; init; }
 }
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -88,6 +93,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly ReadingService _reading;
     readonly SessionsService _sessions;
     readonly NotesService _notes;
+    readonly PartsService _parts;
     readonly PagePlaces _places;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
@@ -103,6 +109,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>The open PDF's file, held so a file extracted from a ZIP stays while the book is open.</summary>
     LocalFile? _file;
     IReadOnlyList<string?> _labels = [];
+    /// <summary>The open PDF's bookmarks as it lists them, kept so a bookmark can be indexed as an adventure to the next one at its depth.</summary>
+    IReadOnlyList<(int Page, int Depth)> _bookmarks = [];
     PageTarget? _resume;
     int _version;
     IReadOnlyList<PageHighlight> _termHighlights = [];
@@ -141,6 +149,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _sessions = services.Sessions;
         Sessions = services.SessionActions();
         _notes = services.Notes;
+        _parts = services.Parts;
         _places = services.Places;
         _log = services.Log;
         _windows = windows;
@@ -186,6 +195,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             _request = request with { Zoom = Zoom };
             MarkItemPages();
             OnPropertyChanged(nameof(Title));
+            ShowPart();
             Sessions.Close();
             ShowSessionBanner();
             // The pages are laid out again at the item's first page, on the renderer already open: as quick as a
@@ -201,6 +211,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _resume = null;
         _request = request;
         OnPropertyChanged(nameof(Title));
+        ShowPart();
         OnPropertyChanged(nameof(IsInPack));
         OnPropertyChanged(nameof(PackPosition));
         PreviousImageCommand.NotifyCanExecuteChanged();
@@ -282,7 +293,8 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     public override Route Route => Route.Viewer;
 
-    public override string Title => _request?.Title ?? "Reader";
+    /// <summary>The book's title; for an adventure inside a file, its own and the file's (slice 5 plan, choice 11).</summary>
+    public override string Title => _request is { Part: { } part } request ? $"{request.Title} · in {part.FileTitle}" : _request?.Title ?? "Reader";
 
     /// <summary>True for an image opened from a pack: Previous and Next step through its images.</summary>
     public bool IsInPack => _request?.Pack is { Count: > 0 };
@@ -331,7 +343,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible), nameof(StripVisible))]
-    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -464,6 +476,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     partial void OnCurrentPageIndexChanged(int value)
     {
         PageEntry = PageNumbers.Display(value, _labels);
+        OnPropertyChanged(nameof(PartPosition));
         Strip.SetCurrent(value);
         if (Mode == ViewerMode.Pdf && KeepsPlace)
         {
@@ -537,6 +550,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _noticeTimer.Stop();
         Sessions.Close();
         NoteDialog?.CancelCommand.Execute(null);
+        PartEditor?.CancelCommand.Execute(null);
         NoteMessage = null;
         NoteUndo = null;
         _notes.PageNotesChanged -= OnPageNotesChanged;
@@ -1064,6 +1078,107 @@ public sealed partial class ViewerViewModel : PageViewModel
         NoteUndo = null;
     }
 
+    // Adventures inside the file (slice 5).
+
+    /// <summary>The open file was opened from an adventure's card, so its pages stand out and Find looks in them.</summary>
+    public bool IsPart => _request?.Part is not null;
+
+    /// <summary>"page 3 of 19 of this adventure", or that the page in view is outside it (slice 5 plan, choice 11).</summary>
+    public string PartPosition
+    {
+        get
+        {
+            if (_request?.Part is not { } part || Mode != ViewerMode.Pdf) return "";
+            if (!part.Pages.Contains(CurrentPageIndex)) return "outside this adventure";
+            var at = (CurrentPageIndex - part.Pages.First + 1).ToString("N0", CultureInfo.CurrentCulture);
+            return $"page {at} of {part.Pages.Count.ToString("N0", CultureInfo.CurrentCulture)} of this adventure";
+        }
+    }
+
+    /// <summary>Find looks in the whole file rather than the adventure's pages.</summary>
+    [ObservableProperty]
+    public partial bool FindWholeFile { get; set; }
+
+    partial void OnFindWholeFileChanged(bool value)
+    {
+        _foundText = "";
+        if (FindText.Trim().Length > 0) FindCommand.Execute(null);
+    }
+
+    /// <summary>The pages Find looks in: the adventure's, unless the reader asked for the whole file.</summary>
+    PartPages? FindScope => FindWholeFile ? null : _request?.Part?.Pages;
+
+    /// <summary>Marking pages as an adventure, or the bookmark being indexed as one, over the pages.</summary>
+    [ObservableProperty]
+    public partial PartEditorViewModel? PartEditor { get; private set; }
+
+    void ShowPart()
+    {
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(IsPart));
+        OnPropertyChanged(nameof(PartPosition));
+        if (FindWholeFile) FindWholeFile = false;
+        // Opened again on the same file as another adventure, or as the whole file: the shading follows.
+        var pages = _request?.Part?.Pages;
+        if (Outline.Any(o => o.InPart != (pages?.Contains(o.PageIndex) == true)))
+            Outline = [.. Outline.Select(o => o with { InPart = pages?.Contains(o.PageIndex) == true })];
+    }
+
+    bool CanMarkPages() => Mode == ViewerMode.Pdf;
+
+    /// <summary>Mark as adventure (slice 5 plan, choice 4): the page in view to start with, widened in the editor.</summary>
+    [RelayCommand(CanExecute = nameof(CanMarkPages))]
+    void MarkPages()
+    {
+        var page = PageNumbers.Display(CurrentPageIndex, _labels);
+        OpenPartEditor("Mark pages as an adventure", "", page, "");
+    }
+
+    /// <summary>
+    /// A bookmark's Index as its own adventure (slice 5 plan, choice 4): its pages run to the next bookmark at the same
+    /// depth, or the end of the file, and its title is the bookmark's, all of which the editor can change.
+    /// </summary>
+    [RelayCommand]
+    void IndexBookmark(OutlineEntry? entry)
+    {
+        if (entry is null || Mode != ViewerMode.Pdf) return;
+        var index = -1;
+        for (var i = 0; i < _bookmarks.Count; i++)
+        {
+            if (_bookmarks[i].Page != entry.PageIndex || Math.Min(_bookmarks[i].Depth, 5) != entry.Depth) continue;
+            index = i;
+            break;
+        }
+        var pages = index < 0 ? new PartPages(entry.PageIndex, entry.PageIndex) : PartRanges.FromBookmark(_bookmarks, index, PageCount);
+        var (from, to) = (PageNumbers.Display(pages.First, _labels), pages.Count == 1 ? "" : PageNumbers.Display(pages.Last, _labels));
+        OpenPartEditor("Index as its own adventure", entry.Title, from, to);
+    }
+
+    void OpenPartEditor(string heading, string title, string from, string to)
+    {
+        if (_request is not { } request) return;
+        PartEditor?.CancelCommand.Execute(null);
+        var editor = new PartEditorViewModel(heading, "Make its card", title, from, to, FindPage, async (name, pages) =>
+        {
+            try
+            {
+                var added = await Task.Run(() => _parts.AddAsync(request.DocumentId, pages, name));
+                if (added.Problem is null) ShowNotice($"“{name}” has a card of its own in the Library now.");
+                return added.Problem;
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Marking pages of document {DocumentId} as an adventure failed", request.DocumentId);
+                return "That didn't work. The log has the details.";
+            }
+        });
+        editor.Closed += (_, _) =>
+        {
+            if (PartEditor == editor) PartEditor = null;
+        };
+        PartEditor = editor;
+    }
+
     int? FindPage(string text) => PageNumbers.Find(text, _labels, PageCount);
 
     void OpenNoteDialog(PageNoteDialogViewModel dialog, Func<PageNoteDialogResult, Task> then)
@@ -1181,10 +1296,15 @@ public sealed partial class ViewerViewModel : PageViewModel
             _file = file;
             _labels = doc.PageLabels;
             LinkBackPage = null;
+            _bookmarks = [.. doc.Outline.Select(o => (o.PageIndex, o.Depth))];
             Outline = [.. doc.Outline
                 .Where(o => o.PageIndex >= 0 && o.PageIndex < doc.PageCount && !string.IsNullOrWhiteSpace(o.Title))
-                .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels)))];
+                .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels))
+                {
+                    InPart = request.Part?.Pages.Contains(o.PageIndex) == true,
+                })];
             PageCount = doc.PageCount;
+            ShowPart();
             CanCopy = doc.CanCopy;
             Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
 
@@ -1388,6 +1508,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         try
         {
             hits = await renderer.FindAsync(text, -1, MaxFindHits);
+            // Reading an adventure inside a file, Find looks in its pages unless told otherwise (slice 5 plan, choice 11).
+            if (FindScope is { } scope) hits = [.. hits.Where(h => scope.Contains(h.PageIndex))];
         }
         catch (Exception ex) when (ex is WorkerException or InvalidOperationException)
         {
@@ -1401,7 +1523,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (_findHits.Count == 0)
         {
             _findIndex = -1;
-            FindStatus = "No matches";
+            FindStatus = FindScope is null ? "No matches" : "No matches in this adventure";
             Highlights = new HighlightSet(_termHighlights, -1);
             return;
         }

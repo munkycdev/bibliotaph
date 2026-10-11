@@ -66,6 +66,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
+    readonly PartsService _parts;
     readonly FavoritesService _favorites;
     readonly LibraryPages _pages;
     readonly ILogger<LibraryViewModel> _log;
@@ -86,9 +87,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, PinDirectory pins, CorrectionService corrections, ILogger<LibraryViewModel> log)
+        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _parts = parts;
         _export = export;
         _corrections = corrections;
         Pins = pins;
@@ -117,6 +119,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         KindChoice = KindChoices[0];
         AiChoice = AiChoices[0];
         CopiesChoice = CopiesChoices[0];
+        PartsChoice = PartsChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -284,6 +287,24 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowCopiesChoice { get; private set; }
+
+    /// <summary>
+    /// Adventures inside files (slice 5 plan, choice 9): shown as cards of their own, or hidden so only their files
+    /// show. Offered once there are some, or while Hide is chosen.
+    /// </summary>
+    public IReadOnlyList<Choice<bool>> PartsChoices { get; } = [new(false, "Show"), new(true, "Hide")];
+
+    [ObservableProperty]
+    public partial Choice<bool> PartsChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowPartsChoice { get; private set; }
+
+    partial void OnPartsChoiceChanged(Choice<bool> value)
+    {
+        if (value is null) PartsChoice = PartsChoices[0];
+        else Refresh();
+    }
 
     public IReadOnlyList<Choice<LibrarySort>> SortChoices => IsSearching ? SearchSorts : BrowseSorts;
 
@@ -641,13 +662,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var away = await _library.GetUnavailableAsync();
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
-                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice));
+                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice), HideParts: PartsChoice.Value);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
+            var parts = await Task.Run(() => _queries.CountPartsAsync());
             if (version == _version)
             {
                 ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
                 ShowCopiesChoice = withCopies > 0 || CopiesChoice.Value;
+                ShowPartsChoice = parts > 0 || PartsChoice.Value;
             }
             if (!IsSearching)
             {
@@ -738,7 +761,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
             || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
-            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null;
+            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null || PartsChoice.Value;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -859,6 +882,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         KindChoice = KindChoices[0];
         AiChoice = AiChoices[0];
         CopiesChoice = CopiesChoices[0];
+        PartsChoice = PartsChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -888,13 +912,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _corrections);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts, _log, _corrections);
             inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
             await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
             inspector.PackSplit += async (_, images) => await ShowPackSplitAsync(item, images);
+            inspector.ShowEntryRequested += async (_, entryId) => await ShowDetailsAsync(entryId);
+            inspector.PartRemoved += async (_, removed) => await ShowPartRemovedAsync(removed.Removed, removed.Title);
             inspector.LookAlikesAccepted += async (_, offer) => await ApplyLookAlikesAsync(offer);
             inspector.CorrectionEnded += (_, _) => Activity.Invalidate();
             inspector.PinLabel = Pins.PinLabel(PinTarget.Entry(item.EntryId));
@@ -909,6 +935,22 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [RelayCommand]
     void CloseDetails() => Inspector = null;
+
+    /// <summary>Another card's details, as an adventure's file from its details: found in the list, or read from the index.</summary>
+    async Task ShowDetailsAsync(EntryId entryId)
+    {
+        var item = _known.GetValueOrDefault(entryId) ?? (await Task.Run(() => _queries.GetEntriesAsync([entryId]))).Select(Item).FirstOrDefault();
+        if (item is not null) await OpenDetails(item);
+    }
+
+    /// <summary>After an adventure's own Remove adventure: the library without its card, and its file's details with Undo.</summary>
+    async Task ShowPartRemovedAsync(RemovedPart removed, string title)
+    {
+        Inspector = null;
+        await RefreshAsync();
+        await ShowDetailsAsync(removed.ParentEntryId);
+        Inspector?.ShowPartRemoved(removed, title);
+    }
 
     /// <summary>
     /// What was typed in the details' Notes tab is saved when they close, whatever closed them, and Cataloged wrong…
@@ -1021,6 +1063,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     ViewerRequest PageRequest(PageHitViewModel page)
     {
         var title = _known.TryGetValue(page.Hit.EntryId, out var item) ? item.Title : "";
+        // A page in an adventure inside a file opens as the adventure, its pages shaded (slice 5 plan, choice 10).
+        if (item?.Entry is { IsPart: true, Pages: { } pages } part && part.DocumentId == page.Hit.DocumentId)
+            return PartOpen.Open(page.Hit.DocumentId, title, part.EntryId, part.ParentTitle, pages) with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
@@ -1122,7 +1167,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// </summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
     {
-        if (!item.Entry.IsPack) return new ViewerRequest(item.DocumentId, item.Title) { Resume = true };
+        if (!item.Entry.IsPack) return item.BookRequest();
         documentId ??= item.Entry.MatchedDocumentId;
         var images = await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId));
         if (images.Count == 0) return null;
@@ -1923,7 +1968,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>What the Library shows now, as a Smart View would keep it.</summary>
     public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
         SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
-        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value);
+        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value, PartsChoice.Value);
 
     void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
     {
@@ -1976,6 +2021,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             KindChoice = KindChoices.FirstOrDefault(c => c.Value == view.Kind) ?? KindChoices[0];
             AiChoice = AiChoices.FirstOrDefault(c => c.Value == view.Ai) ?? AiChoices[0];
             CopiesChoice = CopiesChoices.FirstOrDefault(c => c.Value == view.Copies) ?? CopiesChoices[0];
+            PartsChoice = PartsChoices.FirstOrDefault(c => c.Value == view.HideParts) ?? PartsChoices[0];
             SystemChoice = Pick(SystemChoices, AllSystems, view.System);
             TypeChoice = Pick(TypeChoices, AllTypes, view.Type);
             OwnChoice = Pick(OwnChoices, AnyOwn, view.Own);

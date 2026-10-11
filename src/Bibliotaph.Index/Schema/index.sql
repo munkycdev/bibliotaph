@@ -102,10 +102,23 @@ CREATE TABLE entry_doc (
     copies       INTEGER NOT NULL DEFAULT 1,     -- how many files of the book the entry has: "2 copies"
     name         TEXT,                           -- a pack's name, from its folder or ZIP; the title until one is set
     members      INTEGER NOT NULL DEFAULT 0,     -- a pack's images: "120 images"
-    added_utc    TEXT                            -- when a book owned elsewhere was added; a file's card uses its document's
+    added_utc    TEXT,                           -- when a book owned elsewhere was added; a file's card uses its document's
+    parent_id    INTEGER,                        -- an adventure inside a file (slice 5): the file's entry
+    first_page   INTEGER,                        -- and its first and last PDF pages in document_id
+    last_page    INTEGER,
+    parts        INTEGER NOT NULL DEFAULT 0      -- a file's adventures: "5 adventures"
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
+CREATE INDEX entry_doc_parent ON entry_doc (parent_id) WHERE parent_id IS NOT NULL;
+
+-- The cover of an adventure inside a file (slice 5): its first page, drawn like a document's cover.
+CREATE TABLE page_cover (
+    document_id  INTEGER NOT NULL,
+    pdf_page     INTEGER NOT NULL,
+    cover        TEXT    NOT NULL,               -- cover file name in the cache folder
+    PRIMARY KEY (document_id, pdf_page)
+) WITHOUT ROWID;
 
 -- A pack's images in file name order, for its mosaic cover, its inspector grid and stepping through it in the viewer.
 -- member_entry_id is the image's own entry, hidden while it's in the pack.
@@ -260,4 +273,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 14;
+PRAGMA user_version = 15;

@@ -95,6 +95,7 @@ public sealed partial class NeedsReviewViewModel(
     ReaderWindows readers,
     CoverImages covers,
     BookTextActions text,
+    PartsService parts,
     LibraryPages pages,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
@@ -223,6 +224,7 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             foreach (var match in list.Elsewhere ?? []) Cards.Add(new ElsewhereCardViewModel(match, this));
             foreach (var revision in list.Revisions ?? []) Cards.Add(new RevisionCardViewModel(revision, this));
+            foreach (var part in list.Parts ?? []) Cards.Add(new UnplacedPartCardViewModel(part, await GetPageLabelsAsync(part.DocumentId), this));
             foreach (var correction in list.Corrections ?? []) Cards.Add(new CorrectionCardViewModel(correction, this));
             foreach (var rule in list.Rules ?? []) Cards.Add(new FolderRuleCardViewModel(rule, _vocabulary, this));
             Hidden = _items.Count;
@@ -470,6 +472,32 @@ public sealed partial class NeedsReviewViewModel(
 
     public async Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer) =>
         await review.AnswerElsewhereAsync(item.Match, answer) ?? (() => Task.CompletedTask);
+
+    public Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId) => Task.Run(() => parts.GetPageLabelsAsync(documentId));
+
+    public async Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages)
+    {
+        var moved = await Task.Run(() => parts.SetPagesAsync(part.EntryId, part.DocumentId, pages));
+        activity.Invalidate();
+        if (moved.Undo is not { } undo) return (moved.Problem, null);
+        async Task UndoAsync()
+        {
+            await Task.Run(undo);
+            activity.Invalidate();
+        }
+        return (null, UndoAsync);
+    }
+
+    public async Task<Func<Task>> RemovePartAsync(UnplacedPart part)
+    {
+        var removed = await Task.Run(() => parts.RemoveAsync(part.EntryId));
+        activity.Invalidate();
+        return removed is null ? () => Task.CompletedTask : async () =>
+        {
+            await Task.Run(() => parts.RestoreAsync(removed));
+            activity.Invalidate();
+        };
+    }
 
     public async Task<Func<Task>?> UsePlaceAsync(RevisionPlace place)
     {

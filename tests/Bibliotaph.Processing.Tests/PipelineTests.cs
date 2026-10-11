@@ -60,6 +60,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     readonly HeldStage.Gate _matchGate = new();
     readonly TestPasswords _passwords = new();
     IndexStore _indexStore = null!;
+    PartStore _partStore = null!;
+    PartsService _parts = null!;
     CorrectionStore _correctionStore = null!;
     FolderRules _folderRules = null!;
 
@@ -102,7 +104,10 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _notes = new NoteStore(contexts);
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
             favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes);
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector);
+        _partStore = new PartStore(contexts);
+        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
+            _partStore);
+        _parts = new PartsService(_partStore, entries, _queries, projector, services);
         var packStore = new PackStore(contexts);
         _correctionStore = new CorrectionStore(contexts);
         var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore, _correctionStore);
@@ -112,7 +117,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var versions = new VersionStore(contexts, entries);
         _pageRefs = new PageRefStore(contexts);
         _places = new PagePlaces(_pageRefs, entries, library, _queries, _reading);
-        _copies = new CopiesService(entries, versions, library, _queries, projector, _places);
+        _copies = new CopiesService(entries, versions, library, _queries, projector, _places, _parts);
         var elsewhere = new ElsewhereStore(contexts, entries);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
@@ -124,7 +129,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints), new OcrStage(services), classify,
-                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints), _matchGate),
+                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints, parts: _parts), _matchGate),
             ],
             new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },

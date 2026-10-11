@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:v="clr-namespace:Bibliotaph.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:NeedsReviewViewModel}">
   <UserControl.Resources>
@@ -378,6 +379,36 @@
                       Command="{Binding UseRuleCommand}" Margin="0,0,8,8" ToolTip="Suggest this for every file in the folder, new ones too" />
               <Button x:Name="NoRule" Content="No thanks" Command="{Binding NoRuleCommand}" Margin="0,0,8,8"
                       ToolTip="No rule. Bibliotaph won't suggest this one again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
+    <!-- An adventure inside a file whose pages weren't found in the file as it is now (slice 5): set its pages, or remove it. -->
+    <DataTemplate DataType="{x:Type vm:UnplacedPartCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Adventure in a file" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open its file"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open the file {0} is in'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <Border Margin="0,12,0,0" Visibility="{Binding Editor, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <v:PartEditorView DataContext="{Binding Editor}" />
+            </Border>
+            <WrapPanel Margin="0,16,0,0" Visibility="{Binding IsEditing, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="Set its pages" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                      Command="{Binding SetPagesCommand}" Margin="0,0,8,8" ToolTip="Type its first and last pages as the file numbers them" />
+              <Button Content="Remove adventure" Command="{Binding RemovePartCommand}" Margin="0,0,8,8"
+                      ToolTip="Its card goes; its pages are only the file's again. Undo brings it back." />
             </WrapPanel>
           </StackPanel>
         </Grid>

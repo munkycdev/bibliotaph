@@ -28,24 +28,46 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     public async Task<EntryMetadata> GetAsync(EntryId entryId, CancellationToken ct = default) =>
         (await GetManyAsync([entryId], ct)).GetValueOrDefault(entryId) ?? new EntryMetadata(entryId, [], []);
 
-    /// <summary>Metadata for <paramref name="entryIds"/>, or for every entry with any when it is null.</summary>
+    /// <summary>
+    /// Metadata for <paramref name="entryIds"/>, or for every entry with any when it is null. An adventure inside a
+    /// file (slice 5 plan, choice 8) has its file's game system, edition, publisher, series, year and setting as well
+    /// as its own values, unless it has confirmed its own (<see cref="PartMetadata"/>).
+    /// </summary>
     public async Task<IReadOnlyDictionary<EntryId, EntryMetadata>> GetManyAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct = default)
     {
+        if (entryIds is { Count: 0 }) return new Dictionary<EntryId, EntryMetadata>();
         await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = entryIds is null ? null : Raw(entryIds);
+        var (claims, rejected) = await LoadAsync(db, ids, ct);
+        var result = claims.Select(g => g.Key).Union(rejected.Select(g => g.Key))
+            .ToDictionary(id => new EntryId(id), id => new EntryMetadata(new EntryId(id), [.. claims[id]], [.. rejected[id]]));
+
+        var parts = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Part && e.ParentEntryId != null);
+        if (ids is not null) parts = parts.Where(e => ids.Contains(e.Id));
+        var partRows = await parts.Select(e => new { e.Id, Parent = e.ParentEntryId!.Value }).ToListAsync(ct);
+        if (partRows.Count == 0) return result;
+        var (fileClaims, fileRejections) = ids is null ? (claims, rejected) : await LoadAsync(db, [.. partRows.Select(p => p.Parent).Distinct()], ct);
+        foreach (var part in partRows)
+        {
+            var file = EffectiveMetadata.Compute(fileClaims[part.Parent], fileRejections[part.Parent]);
+            result[new EntryId(part.Id)] = new EntryMetadata(new EntryId(part.Id), PartMetadata.Inherit([.. claims[part.Id]], file), [.. rejected[part.Id]]);
+        }
+        return result;
+    }
+
+    /// <summary>The claims and rejections of <paramref name="ids"/>, or of every entry when it is null, by entry.</summary>
+    static async Task<(ILookup<long, MetadataClaim> Claims, ILookup<long, (string Field, string Normalized)> Rejections)> LoadAsync(CatalogDbContext db,
+        List<long>? ids, CancellationToken ct)
+    {
         var assertions = db.Assertions.AsNoTracking();
         var rejections = db.Rejections.AsNoTracking();
-        if (entryIds is not null)
+        if (ids is not null)
         {
-            if (entryIds.Count == 0) return new Dictionary<EntryId, EntryMetadata>();
-            var ids = Raw(entryIds);
             assertions = assertions.Where(a => ids.Contains(a.EntryId));
             rejections = rejections.Where(r => ids.Contains(r.EntryId));
         }
-        var claims = (await assertions.ToListAsync(ct)).ToLookup(a => a.EntryId, ToClaim);
-        var rejected = (await rejections.Select(r => new { r.EntryId, r.Field, r.NormalizedValue }).ToListAsync(ct))
-            .ToLookup(r => r.EntryId, r => (r.Field, r.NormalizedValue));
-        return claims.Select(g => g.Key).Union(rejected.Select(g => g.Key))
-            .ToDictionary(id => new EntryId(id), id => new EntryMetadata(new EntryId(id), [.. claims[id]], [.. rejected[id]]));
+        return ((await assertions.ToListAsync(ct)).ToLookup(a => a.EntryId, ToClaim),
+            (await rejections.Select(r => new { r.EntryId, r.Field, r.NormalizedValue }).ToListAsync(ct)).ToLookup(r => r.EntryId, r => (r.Field, r.NormalizedValue)));
     }
 
     /// <summary>The entries with any value the user confirmed or set, whose books can show the user's conventions.</summary>
@@ -267,9 +289,15 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>"Keep this": confirms the values a field shows now, so no later suggestion replaces them.</summary>
+    /// <summary>
+    /// "Keep this": confirms the values a field shows now, so no later suggestion replaces them. A value an adventure
+    /// shows only because its file suggests it (slice 5) becomes the adventure's own.
+    /// </summary>
     public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
+        var inherited = PartMetadata.Inherited.Contains(field)
+            ? [.. (await GetAsync(entryId, ct)).Compute()[field].Values.Where(v => !v.Confirmed && PartMetadata.IsInherited(v.Source))]
+            : new List<EffectiveValue>();
         await using var db = await contexts.CreateDbContextAsync(ct);
         var (rows, rejections) = await LoadFieldAsync(db, entryId, field, ct);
         var current = Compute(field, rows, rejections);
@@ -280,6 +308,8 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
             row.State = AssertionState.Confirmed;
             row.DecidedUtc = now;
         }
+        foreach (var value in inherited)
+            db.Assertions.Add(NewAssertion(entryId, null, new MetadataProposal(field, value.Value, AssertionOrigin.User), AssertionState.Confirmed, now));
         await db.SaveChangesAsync(ct);
     }
 
