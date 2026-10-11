@@ -13,8 +13,9 @@ namespace Bibliotaph.Viewer;
 /// <summary>
 /// The pages of one PDF in a virtualized scroll list. It works out which pages are in view and asks the renderer for
 /// exactly those pixels: a quick preview first, then the full page, then the next pages in the scroll direction.
-/// Above 200% a page is drawn as tiles over its preview. It shows search highlights and lets the reader select text
-/// on a page and copy it.
+/// Above 200% a page is drawn as tiles over its preview. It shows search highlights, lets the reader select text
+/// on a page and copy it, and follows the page's links; a page with no links of its own whose text lists printed page
+/// numbers, as an index or contents page does, gets links made from them.
 /// </summary>
 public partial class PdfPagesView
 {
@@ -50,6 +51,8 @@ public partial class PdfPagesView
     readonly ObservableCollection<ViewerPage> _pages = [];
     PdfRenderer? _renderer;
     Func<int, Task<PageTextLayer>>? _textSource;
+    Func<Task<PrintedPages>>? _printedPages;
+    IReadOnlySet<int> _listedPages = new HashSet<int>();
     ScrollViewer? _scroll;
     VirtualizingStackPanel? _panel;
     double _dipPerPoint = 1;
@@ -111,13 +114,20 @@ public partial class PdfPagesView
     /// <summary>The page in view changed, by scrolling or by <see cref="GoToPage"/>.</summary>
     public event EventHandler? CurrentPageChanged;
 
-    /// <summary>Shows a newly opened document. <paramref name="text"/> gives a page's selectable text when it's needed.</summary>
-    public void Load(PdfRenderer renderer, DocInfo doc, Func<int, Task<PageTextLayer>> text, int pageIndex = 0, double? pdfTop = null)
+    /// <summary>
+    /// Shows a newly opened document. <paramref name="text"/> gives a page's selectable text when it's needed, and
+    /// <paramref name="printedPages"/> where the book's printed page numbers are, for the links made from an index or
+    /// contents page's numbers; without it, only the PDF's own links work.
+    /// </summary>
+    public void Load(PdfRenderer renderer, DocInfo doc, Func<int, Task<PageTextLayer>> text, int pageIndex = 0, double? pdfTop = null,
+        Func<Task<PrintedPages>>? printedPages = null)
     {
         Unload();
         _renderer = renderer;
         _renderer.Rendered += OnRendered;
         _textSource = text;
+        _printedPages = printedPages;
+        _listedPages = PageReferences.ListedPages([.. doc.Outline.Select(o => (o.Title, o.PageIndex, o.Depth))], doc.PageCount);
         for (var i = 0; i < doc.PageCount; i++)
         {
             var size = i < doc.PageSizes.Count ? doc.PageSizes[i] : new PageSize(612, 792);
@@ -137,6 +147,8 @@ public partial class PdfPagesView
         }
         _renderer = null;
         _textSource = null;
+        _printedPages = null;
+        _listedPages = new HashSet<int>();
         ClearSelection();
         _highlights = [];
         _currentHighlight = -1;
@@ -499,28 +511,67 @@ public partial class PdfPagesView
         var at = ToPdf(hovered, e.GetPosition(over));
         var link = hovered.LinkAt(at.X, at.Y);
         over.Cursor = link is null ? null : Cursors.Hand;
-        object? tip = link switch
-        {
-            null => null,
-            { Uri: { } uri } => uri,
-            _ => _pages.Count > link.PageIndex && _pages[link.PageIndex].Label is { } label ? $"Go to page {label}" : $"Go to page {link.PageIndex + 1}",
-        };
+        object? tip = link is null ? null : TipFor(link);
         if (!Equals(over.ToolTip, tip)) over.ToolTip = tip;
     }
 
-    Task<IReadOnlyList<PageLink>> LinksOf(ViewerPage page) => page.Links ??= LoadLinksAsync(page);
+    /// <summary>
+    /// What a link's tooltip says: the web address, or "Go to page 34" as the book numbers its pages. A link made from
+    /// a printed number in a book without page labels names the PDF page too, since the rest of the reader counts PDF
+    /// pages there: "Go to page 34 (PDF page 36)".
+    /// </summary>
+    public string TipFor(PageLink link)
+    {
+        if (link.Uri is { } uri) return uri;
+        var label = link.PageIndex < _pages.Count ? _pages[link.PageIndex].Label : null;
+        var pdf = (link.PageIndex + 1).ToString(CultureInfo.CurrentCulture);
+        if (link.Printed is { } number)
+        {
+            var printed = number.ToString(CultureInfo.CurrentCulture);
+            var same = label is null ? number == link.PageIndex + 1 : label.Trim() == number.ToString(CultureInfo.InvariantCulture);
+            return same ? $"Go to page {printed}" : $"Go to page {printed} (PDF page {pdf})";
+        }
+        return label is not null ? $"Go to page {label}" : $"Go to page {pdf}";
+    }
+
+    /// <summary>A page's links, read once: the PDF's own, or those made from its printed page numbers.</summary>
+    public Task<IReadOnlyList<PageLink>> LinksOf(ViewerPage page) => page.Links ??= LoadLinksAsync(page);
 
     async Task<IReadOnlyList<PageLink>> LoadLinksAsync(ViewerPage page)
     {
         try
         {
-            return _renderer is { } renderer ? await renderer.GetLinksAsync(page.Index) : [];
+            if (_renderer is not { } renderer) return [];
+            var (printedPages, listed) = (_printedPages, _listedPages.Contains(page.Index));
+            var links = await renderer.GetLinksAsync(page.Index);
+            // A page with links of its own keeps them, and gets none guessed beside them.
+            if (links.Count > 0 || printedPages is null) return links;
+            var layer = await TextOf(page);
+            return NumberLinks(layer, await printedPages(), listed);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Links are a convenience, like selection: a page whose links can't be read just has none.
             return [];
         }
+    }
+
+    /// <summary>
+    /// Links made from the printed page numbers on an index or contents page, one per number (a range as a whole goes to
+    /// its first page), over the number's characters.
+    /// </summary>
+    static List<PageLink> NumberLinks(PageTextLayer layer, PrintedPages printed, bool listed)
+    {
+        var links = new List<PageLink>();
+        foreach (var reference in PageReferences.Find(layer.Text, printed, listed))
+        {
+            var rects = layer.RectsOf(reference.Range);
+            if (rects.Count == 0) continue;
+            var box = rects.Aggregate((a, b) => a.Union(b));
+            // A point of slack around the digits, so a narrow "4" is not fiddly to hit.
+            links.Add(new PageLink(new PageRect(box.Left - 1, box.Top + 1, box.Right + 1, box.Bottom - 1), reference.PageIndex, null, null, reference.Printed));
+        }
+        return links;
     }
 
     void Pages_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
