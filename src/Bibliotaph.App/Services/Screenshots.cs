@@ -55,13 +55,13 @@ static class Screenshots
             var book = (title is null ? library.Items.FirstOrDefault(i => i.CanOpen)
                 : library.Items.FirstOrDefault(i => i.CanOpen && i.Title.Contains(title, StringComparison.OrdinalIgnoreCase)))
                 ?? throw new InvalidOperationException($"No book in the Library matches {title}.");
-            services.GetRequiredService<ReaderWindows>().OpenInMainWindow(new ViewerRequest(book.DocumentId, book.Title, page));
+            // A whole page, with the thumbnails beside it, set before it opens so the page asked for stays in view.
+            var readers = services.GetRequiredService<ReaderWindows>();
+            readers.ShowsStrip = true;
+            readers.OpenInMainWindow(new ViewerRequest(book.DocumentId, book.Title, page) { Zoom = Bibliotaph.Viewer.PdfPagesView.FitPage });
             var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The reader didn't open.");
             await WaitAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, "The book didn't open.");
             if (!viewer.IsPdf) throw new InvalidOperationException($"The book didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
-            // A whole page, with the thumbnails beside it.
-            viewer.Zoom = Bibliotaph.Viewer.PdfPagesView.FitPage;
-            viewer.ShowStrip = true;
             await SaveAsync(window, System.IO.Path.Combine(output, "reader.png"));
             Log.Information("Screenshots saved in {Folder}", output);
             return 0;
