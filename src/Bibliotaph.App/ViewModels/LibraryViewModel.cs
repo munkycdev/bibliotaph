@@ -61,6 +61,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly LibraryFolders _folders;
     readonly MetadataService _metadata;
     readonly INavigationService _navigation;
+    readonly SettingsLinks _settings;
     readonly ReaderWindows _readers;
     readonly IndexingService _indexing;
     readonly CopiesService _copies;
@@ -86,7 +87,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     int _moreFiltersOn;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
+        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
         ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ILogger<LibraryViewModel> log)
@@ -115,6 +116,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _folders = folders;
         _metadata = metadata;
         _navigation = navigation;
+        _settings = settings;
         _readers = readers;
         _log = log;
         _text = text;
@@ -1276,9 +1278,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand]
     void CheckDownload() => _navigation.NavigateTo(Route.DownloadCheck);
 
-    /// <summary>Online libraries (O2): books owned on online services, imported from their library pages.</summary>
+    /// <summary>
+    /// Online libraries (O2): books owned on online services, imported from their library pages. A section of Settings,
+    /// with how books owned online show and open, rather than a page of its own.
+    /// </summary>
     [RelayCommand]
-    void OpenOnlineLibraries() => _navigation.NavigateTo(Route.OnlineLibraries);
+    void OpenOnlineLibraries() => _settings.Open(SettingsSection.OnlineLibraries);
 
     // Books owned elsewhere (F5a).
 

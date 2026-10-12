@@ -18,8 +18,6 @@ public enum Route
     DownloadCheck,
     /// <summary>What the AI is reading now, and the last books it read (Built-in AI plan, choice 13).</summary>
     AiReading,
-    /// <summary>Books owned on online services, imported from their library pages (online libraries, O2).</summary>
-    OnlineLibraries,
     /// <summary>A book owned online, read on its service's page (online libraries, O2b); by route alone, the Library.</summary>
     OnlineReader,
 }

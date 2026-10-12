@@ -94,7 +94,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
     LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies,
-    SiteIconImages siteIcons, OnlineReaders onlineReaders, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
+    ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
     public override string Label => "Library";
@@ -132,53 +132,7 @@ public sealed partial class LibrarySectionViewModel(
         await LoadFolderLabelsAsync();
         await LoadFolderRulesAsync();
         StartOnLibrary = await settings.GetAsync(SettingKeys.StartPage) == nameof(Route.Library);
-        _loadingSiteIcons = true;
-        ShowSiteIcons = await siteIcons.IsOnAsync();
-        ReadOnlineInApp = await onlineReaders.OpensInAppAsync();
-        _loadingSiteIcons = false;
         if (folders.TakePickRequest()) await AddFolder();
-    }
-
-    bool _loadingSiteIcons;
-
-    /// <summary>
-    /// Show site icons (online libraries plan, choice 12): a book owned online shows its site's icon in its badge,
-    /// fetched once from the site. Off, it shows a plain cloud and nothing is fetched.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool ShowSiteIcons { get; set; } = true;
-
-    /// <summary>
-    /// Read books owned online in Bibliotaph (online libraries plan, choice 19): Open shows the service's page in the
-    /// online reader. Off, it opens in the everyday browser.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool ReadOnlineInApp { get; set; } = true;
-
-    async partial void OnReadOnlineInAppChanged(bool value)
-    {
-        if (_loadingSiteIcons) return;
-        try
-        {
-            await onlineReaders.SetOpensInAppAsync(value);
-        }
-        catch (Exception ex)
-        {
-            log.LogError(ex, "Saving the online reader setting failed");
-        }
-    }
-
-    async partial void OnShowSiteIconsChanged(bool value)
-    {
-        if (_loadingSiteIcons) return;
-        try
-        {
-            await siteIcons.SetOnAsync(value);
-        }
-        catch (Exception ex)
-        {
-            log.LogError(ex, "Saving the site icons setting failed");
-        }
     }
 
     /// <summary>Start on: the Library rather than Home when Bibliotaph opens (slice 3 plan, choice 7).</summary>
