@@ -65,6 +65,9 @@ public static class SettingKeys
     /// <summary>Where a book owned online opens: "app" (the online reader, the default) or "browser" (online libraries, O2b).</summary>
     public const string OnlineReader = "library.online-reader";
 
+    /// <summary>"False" shows a service's pages in the online reader as the service draws them; otherwise Reading mode is on (choice 24).</summary>
+    public const string OnlineReadingMode = "library.online-reading-mode";
+
     /// <summary>
     /// The folder a store's download goes to from Bibliotaph's browser (online libraries plan, O5): a library folder or
     /// one inside it; empty or absent leaves downloads to the browser's own Downloads folder.

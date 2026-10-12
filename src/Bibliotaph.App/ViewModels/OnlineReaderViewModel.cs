@@ -1,6 +1,7 @@
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -13,11 +14,12 @@ namespace Bibliotaph.App.ViewModels;
 /// browser and tells this model which page is in view. Links within the service's site (and the sites it signs in
 /// on) stay here; a link anywhere else opens in the everyday browser (choice 22).
 /// </summary>
-public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, OnlineReaders readers, IReadOnlyList<string> signInSites)
+public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, OnlineReaders readers, IOnlineLibraryReader? service)
     : PageViewModel
 {
     readonly string? _site = OnlineReaders.SiteOf(request.Link);
     string? _savedNote;
+    bool _loadingReadingMode;
 
     public OnlineReaderRequest Request { get; } = request;
 
@@ -87,11 +89,37 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     public string NoteLabel => ShowNote ? "Hide note" : "Note";
 
+    /// <summary>Reading mode's stylesheet for the book's service (choice 24); null for a service without one.</summary>
+    public string? ReadingStyle => service?.ReadingStyle;
+
+    public bool HasReadingMode => ReadingStyle is not null;
+
+    /// <summary>The service's pages without its menus, ads and footer. On unless the user turned it off, for every book.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReadingModeAction))]
+    public partial bool ReadingMode { get; set; }
+
+    public string ReadingModeAction => ReadingMode ? "Show the whole page, with the site's menus" : "Reading mode: hide the site's menus, ads and footer";
+
+    async partial void OnReadingModeChanged(bool value)
+    {
+        if (!_loadingReadingMode) await readers.SetReadingModeAsync(value);
+    }
+
     public override async Task LoadAsync()
     {
         readers.Pins.Changed -= OnPinsChanged;
         readers.Pins.Changed += OnPinsChanged;
         ShowPinned();
+        try
+        {
+            _loadingReadingMode = true;
+            ReadingMode = HasReadingMode && await readers.ReadingModeAsync();
+        }
+        finally
+        {
+            _loadingReadingMode = false;
+        }
         try
         {
             IsFavorite = await Task.Run(() => readers.Favorites.IsFavoriteAsync(Request.EntryId));
@@ -139,6 +167,9 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
     [RelayCommand]
     void ToggleNote() => ShowNote = !ShowNote;
 
+    [RelayCommand]
+    void ToggleReadingMode() => ReadingMode = !ReadingMode;
+
     /// <summary>Keeps the note once it changes, as the details do, when the note box loses focus or the reader closes.</summary>
     [RelayCommand]
     public async Task SaveNoteAsync()
@@ -166,7 +197,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
     void AddPageToSession(SessionRequest request) => AddPageTo(request.Choice);
 
     void AddPageTo(SessionMenuChoice? choice) =>
-        Sessions.AddOnlinePage(Request.EntryId, Address, OnlineReaders.LabelOf(PageTitle, Request.Place), choice);
+        Sessions.AddOnlinePage(Request.EntryId, Address, OnlinePages.LabelOf(PageTitle, Request.Place, Request.Title, service), choice);
 
     [RelayCommand]
     void DismissSessionMessage() => Sessions.Close();
@@ -193,7 +224,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
         if (uri.Scheme is "about" or "data" or "blob") return true;
         if (uri.IsFile) return Uri.TryCreate(Request.At ?? Request.Link, UriKind.Absolute, out var opened) && opened.IsFile;
         if (OnlineReaders.SiteOf(address) is not { } site || _site is null) return false;
-        return OnSite(site, _site) || signInSites.Any(s => OnSite(site, s));
+        return OnSite(site, _site) || (service?.SignInSites ?? []).Any(s => OnSite(site, s));
     }
 
     static bool OnSite(string host, string site) => host == site || host.EndsWith("." + site, StringComparison.Ordinal);

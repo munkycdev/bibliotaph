@@ -23,10 +23,11 @@ public sealed record OnlineReaderRequest(EntryId EntryId, string Title, string L
 /// numbers or page notes.
 /// </summary>
 public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows, INavigationService navigation, IShellLauncher launcher,
-    FavoritesService favorites, PinDirectory pins, NotesService notes, OnlineImports imports, SettingsStore settings, Func<SessionActions> sessionActions,
+    FavoritesService favorites, PinDirectory pins, NotesService notes, SettingsStore settings, Func<SessionActions> sessionActions,
     ILogger<OnlineReaders> log)
 {
     bool? _inApp;
+    bool? _readingMode;
 
     internal OnlineBrowsers Browsers => browsers;
 
@@ -65,6 +66,35 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
         _inApp = inApp;
     }
 
+    /// <summary>Whether the online reader shows a service's pages in Reading mode (choice 24): on unless the user turned it off.</summary>
+    public async Task<bool> ReadingModeAsync()
+    {
+        if (_readingMode is { } known) return known;
+        try
+        {
+            _readingMode = await settings.GetAsync(SettingKeys.OnlineReadingMode) != "False";
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Reading the Reading mode setting failed");
+            _readingMode = true;
+        }
+        return _readingMode.Value;
+    }
+
+    public async Task SetReadingModeAsync(bool on)
+    {
+        _readingMode = on;
+        try
+        {
+            await settings.SetAsync(SettingKeys.OnlineReadingMode, on ? "True" : "False");
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving the Reading mode setting failed");
+        }
+    }
+
     /// <summary>
     /// Opens a book owned online: in the main window's online reader, or in the everyday browser when the setting says
     /// so or Bibliotaph's browser can't run here. Returns what to tell the user when it couldn't, or null.
@@ -87,7 +117,7 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
 
     /// <summary>A reader for <paramref name="request"/>; <paramref name="poppedOut"/> for a window of its own.</summary>
     public OnlineReaderViewModel Create(OnlineReaderRequest request, bool poppedOut = false) =>
-        new(request, this, SignInSites(request.Link)) { IsPoppedOut = poppedOut };
+        new(request, this, OnlinePages.ServiceOf(request.Link)) { IsPoppedOut = poppedOut };
 
     /// <summary>Moves the main window's online reader to a window of its own, at the page in view; the main window goes Back.</summary>
     public async Task PopOutAsync(OnlineReaderViewModel reader)
@@ -111,35 +141,6 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
         return launcher.Open(address) is { } error ? $"Windows couldn't open its page: {error}" : null;
     }
 
-    /// <summary>
-    /// Sites a service signs in on besides its own, which the reader follows too (D&amp;D Beyond signs in on Wizards of
-    /// the Coast's site).
-    /// </summary>
-    IReadOnlyList<string> SignInSites(string link) =>
-        imports.Readers.FirstOrDefault(r => SiteOf(r.LibraryPage.AbsoluteUri) is { } site && site == SiteOf(link))?.SignInSites ?? [];
-
-    /// <summary>
-    /// A binder item's label for a page: its title without the site's name after it ("Goblins - Monsters - D&amp;D
-    /// Beyond" gives "Goblins - Monsters"); null when the page has none.
-    /// </summary>
-    public static string? LabelOf(string? pageTitle, string? place)
-    {
-        var label = pageTitle?.Trim();
-        if (string.IsNullOrEmpty(label)) return null;
-        if (place is not null)
-        {
-            foreach (var separator in (string[])[" - ", " | ", " – ", " — "])
-            {
-                var suffix = separator + place;
-                if (label.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && label.Length > suffix.Length) return label[..^suffix.Length].Trim();
-            }
-        }
-        return label;
-    }
-
-    /// <summary>A page's site: its host without "www.", lowercase; null for a link that isn't on the web.</summary>
-    public static string? SiteOf(string link) =>
-        Uri.TryCreate(link, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"
-            ? (uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host).ToLowerInvariant()
-            : null;
+    /// <inheritdoc cref="OnlinePages.SiteOf"/>
+    public static string? SiteOf(string link) => OnlinePages.SiteOf(link);
 }
