@@ -5,6 +5,7 @@ using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -447,6 +448,9 @@ public sealed class DocumentHitsViewModel(LibraryItemViewModel item, IReadOnlyLi
 
     public bool HasMore => More.Length > 0;
 }
+
+/// <summary>A filter that is on, as a chip under the Library's toolbar: <see cref="Clear"/> turns it off.</summary>
+public sealed record FilterChip(string Label, string Name, IRelayCommand Clear);
 
 /// <summary>An option in a filter or sort menu.</summary>
 public sealed record Choice<T>(T Value, string Label)
