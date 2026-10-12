@@ -32,6 +32,7 @@ public partial class App : Application
         var measureViewer = e.Args.Contains("--measure-viewer");
         var pilot = e.Args.Contains("--pilot");
         var dev = e.Args.Contains("--dev");
+        var screenshots = Argument(e.Args, "--screenshots");
         var paths = DataRootArgument(e.Args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
         foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
 
@@ -62,8 +63,9 @@ public partial class App : Application
 
             var services = _host.Services;
             ProjectMetadataInBackground(services);
-            if (!_smokeTest && !measureSearch && !measureViewer) BackUpWeeklyInBackground(services);
-            if (!_smokeTest && !measureSearch && !measureViewer) DownloadEngineInBackground(services);
+            var everyday = !_smokeTest && !measureSearch && !measureViewer && screenshots is null;
+            if (everyday) BackUpWeeklyInBackground(services);
+            if (everyday) DownloadEngineInBackground(services);
             if (measureSearch)
             {
                 Shutdown(await SearchMeasurement.RunAsync(services));
@@ -88,6 +90,8 @@ public partial class App : Application
             if (restored is not null && !_smokeTest) AppRestart.Tell(restored);
 
             if (_smokeTest) Shutdown(await SmokeTest.RunAsync(services, window, Argument(e.Args, "--smoke-files")));
+            else if (screenshots is not null)
+                Shutdown(await Screenshots.RunAsync(services, window, screenshots, Argument(e.Args, "--screenshot-files"), RawArgument(e.Args, "--screenshot-open")));
         }
         catch (Exception ex)
         {
@@ -112,6 +116,13 @@ public partial class App : Application
     {
         var at = Array.IndexOf(args, name);
         return at >= 0 && at + 1 < args.Length ? System.IO.Path.GetFullPath(args[at + 1]) : null;
+    }
+
+    /// <summary>The text given after <paramref name="name"/>, as it is, if any.</summary>
+    static string? RawArgument(string[] args, string name)
+    {
+        var at = Array.IndexOf(args, name);
+        return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
     }
 
     static IHost BuildHost(AppPaths paths, bool pilot, bool dev, bool smokeTest)

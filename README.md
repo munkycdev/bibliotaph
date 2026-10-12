@@ -14,10 +14,19 @@ handouts spread over folders, and you keep thinking "I own something for this, b
 - **Your files stay put.** Bibliotaph never moves, renames, edits or deletes them. It only reads them.
 - **It works offline.** Everything lives on your PC. There's no account, no subscription and no cloud service.
 - **AI is optional, and local.** If you want, an AI model running on your own PC fills in each book's system, type and
-  levels, quoting the page it found them on. Without it, everything else still works.
+  levels, quoting the page it found them on. Bibliotaph can download and run one itself, or use Ollama, LM Studio or
+  another model server you already have. Without it, everything else still works.
 
-> Bibliotaph is in early development. Early versions are for trying out: expect rough edges, and changes from one
-> version to the next.
+Version 1.0 is Bibliotaph's first release. Everything below is in it.
+
+<p align="center">
+  <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
+</p>
+<p align="center">
+  <img src="docs/images/reader.png" width="860" alt="Treasure Island open in the reader at a colour plate, with the page thumbnails below">
+</p>
+<p align="center"><sub>The books in these pictures are public-domain scans from the
+<a href="https://archive.org">Internet Archive</a>.</sub></p>
 
 ## Install
 
@@ -46,7 +55,8 @@ network drives and OneDrive, and notices when files are added, moved or changed.
 
 **Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while
 **Inside documents** shows the matching pages, with a snippet. Click a page and the book opens right there. Add
-`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel. With AI on,
+`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel: the filters
+you set show as chips you can clear one at a time. With AI on,
 **Ask** takes a request in plain English, such as "a short heist for four players", and turns it into a search you can
 check. [Searching](docs/guide/searching.md)
 
@@ -61,11 +71,17 @@ where it came from; your own corrections always win. Copies of the same book sha
 one image pack, and the adventures inside an anthology get cards of their own.
 [Cataloging](docs/guide/cataloging.md)
 
+**Knows the books you own online.** Bring in your D&D Beyond and Demiplane libraries, and the books waiting in your
+Humble Bundle and DriveThruRPG libraries, so a search shows what you own wherever it is. You sign in to each site
+yourself in Bibliotaph's own browser, then read a book online in Bibliotaph's reader, or download a store's book
+into your library. Bibliotaph never stores your passwords. [Online libraries](docs/guide/online-libraries.md)
+
 **Keeps you organized.** Mark favorites, gather books into collections, save searches you use often, and pin any of
 them to the sidebar. [Collections, favorites and pins](docs/guide/organizing.md)
 
-**Gets a session ready.** A binder holds the books and pages for your next session, in order, with your notes. At the
-table, step through it with **Next** and **Previous**, and keep a rules binder at hand.
+**Gets a session ready.** A binder holds the books and pages for your next session, in order, with your notes. A binder
+can hold pages of books you read online, too. At the table, step through it with **Next** and **Previous**, and keep
+a rules binder at hand.
 [Binders](docs/guide/binders.md)
 
 **Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and sync with a second PC
@@ -79,9 +95,10 @@ through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guid
 4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs and adventures.
 5. [Collections, favorites and pins](docs/guide/organizing.md)
 6. [Binders](docs/guide/binders.md): prepare a session and run it.
-7. [AI](docs/guide/ai.md): what it does, what it sends, and how to set it up.
-8. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
-9. [Questions and answers](docs/guide/faq.md)
+7. [Online libraries](docs/guide/online-libraries.md): D&D Beyond, Demiplane, Humble Bundle and DriveThruRPG.
+8. [AI](docs/guide/ai.md): what it does, what it sends, and how to set it up.
+9. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
+10. [Questions and answers](docs/guide/faq.md)
 
 ## Help and feedback
 

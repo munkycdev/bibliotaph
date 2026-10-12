@@ -12,7 +12,7 @@ You need Windows 10 (version 1809 or later) or Windows 11, on a 64-bit PC.
 3. Run the file you downloaded. Bibliotaph installs for your Windows account only, so there's no administrator
    password to type, and it opens when it's done.
 
-Bibliotaph isn't code-signed yet, so Windows may show "Windows protected your PC" the first time. Click **More info**,
+Bibliotaph isn't code-signed, so Windows may show "Windows protected your PC" the first time. Click **More info**,
 then **Run anyway**.
 
 From then on, open Bibliotaph from the Start menu.
@@ -27,7 +27,8 @@ updates and opens again. If you don't, the update goes in the next time you star
 
 Uninstall Bibliotaph from Windows' **Settings > Apps** like any other app. Your books aren't touched. Your catalog
 (corrections, notes, collections, binders) is kept in `%LOCALAPPDATA%\Bibliotaph`, so it's still there if you install
-again. Delete that folder if you want it gone too.
+again. Delete that folder if you want it gone too. It also holds the built-in AI's model, if you downloaded one, and
+the sign-ins of Bibliotaph's browser.
 
 ## Add your folders
 
@@ -43,6 +44,9 @@ themselves. Folders on USB drives, network drives and OneDrive all work; see
 [OneDrive, drives and other PCs](onedrive-and-other-pcs.md).
 
 Removing a folder keeps your notes, collections and corrections, and never deletes a file.
+
+Own books on D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG? They can join your library too; see
+[Online libraries](online-libraries.md).
 
 ### Folder names count
 
@@ -80,12 +84,13 @@ The sidebar on the left has the main pages:
 | **Binders** | The books and pages for each session, in order. |
 | **Needs review** | Suggestions to check and files that need something from you. The number is how many are waiting. |
 | **Pinned** | Anything you've pinned: a book, Favorites, a collection, a binder or a saved search. |
-| **Settings** | At the bottom: folders, processing, appearance, AI, vocabulary, passwords and backups. |
+| **Settings** | At the bottom: processing, folders, online libraries, appearance, Needs review, vocabulary, AI, passwords and backups. |
 
 The search box at the top is always there. **Ctrl+K** jumps to it from anywhere.
 
-In the Library, click a cover to see its details on the right, then click **Open** there to read it. Right-click a
-cover for everything else you can do with it, including **Open** and **Open in new window**.
+In the Library, click a cover to see its details on the right, then click **Open** there to read it. Click anywhere
+outside the details, or press **Esc**, to close them. Right-click a cover for everything else you can do with it,
+including **Open** and **Open in new window**.
 
 **Ctrl+/** lists every keyboard shortcut. **Settings > Appearance** switches between light, dark and Windows'
 own setting, and **Settings > Library > Start on** chooses whether Bibliotaph opens on Home or the Library.
@@ -95,3 +100,4 @@ own setting, and **Settings > Library > Start on** chooses whether Bibliotaph op
 - [Searching](searching.md) to find things.
 - [Cataloging](cataloging.md) to understand the details and fix the odd mistake.
 - [Binders](binders.md) to get a session ready.
+- [Online libraries](online-libraries.md) for the books you own on D&D Beyond, Demiplane and online stores.

@@ -20,6 +20,8 @@ The binder you worked on last is your current one. Home shows it under **Continu
   the reader is labelled after the bookmark it's under.
 - **A range of pages**: in the reader, the menu beside **Add page** has **Add pages…**. Give the range a label you'll
   recognize at the table, such as "Warehouse ambush", and pick a section.
+- **A page you read online**: in the online reader, **Add this page** adds the page you're on, such as a chapter of a
+  book on D&D Beyond, labelled with the page's own name. See [Online libraries](online-libraries.md#pages-in-binders).
 
 Each of these adds to your current binder, and lets you pick another binder or make a new one. A book can be in a
 binder more than once, at different pages.
@@ -31,6 +33,9 @@ the middle, and the binder's notes are on the right.
 
 - **Next** and **Previous** (or **Ctrl+Right** and **Ctrl+Left**) open each item at its first page. The next item in
   the same book shows at once, and the next book is opened in the background so it's ready when you get there.
+- A page you read online opens in the online reader, right there in the binder, signed in as you. **Next** and
+  **Previous** step between PDFs and pages online alike. If you've chosen to read online books in your everyday
+  browser, the binder says so: open the page from **Edit binder** or **At hand** instead.
 - The reader's header shows where you are, such as "p. 42–44 · 1 of 3". Wander off into the rest of the book, and
   **Back to this item's pages** brings you back. In the page thumbnails, the item's pages are marked.
 - **Add this page** adds the page you're looking at straight after the item in hand, ready to name.

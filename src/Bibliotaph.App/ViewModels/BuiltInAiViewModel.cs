@@ -65,7 +65,7 @@ public sealed partial class BuiltInAiViewModel(
         {
             var model = BuiltInModels.Embedding;
             if (!model.IsPinned)
-                return "Ask this book finds passages by their words. Finding them by what they mean as well needs an embedding model, which this version of Bibliotaph can't download yet.";
+                return "Ask this book finds passages by their words. Finding them by what they mean as well needs an embedding model, which comes from a model server rather than the built-in AI.";
             return EmbeddingState == BuiltInModelState.Downloaded
                 ? $"{model.Name} is downloaded, so Ask this book finds passages by what they mean as well as by their words."
                 : $"Download {model.Name} ({BuiltInModelDownloads.Gb(model.Bytes)}) so Ask this book finds passages by what they mean as well as by their words.";

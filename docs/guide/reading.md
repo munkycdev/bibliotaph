@@ -3,7 +3,8 @@
 [Bibliotaph](../../README.md) › Guide › Reading
 
 Bibliotaph has its own reader, so you don't need to switch to another PDF app. A book opened from the Library or Home
-opens where you left it; one opened from a search result opens at the matching page.
+opens where you left it; one opened from a search result opens at the matching page. A book you own online, such as on
+D&D Beyond, opens in the online reader instead; see [Online libraries](online-libraries.md#read-a-book-you-own-online).
 
 ## Getting around a book
 
@@ -57,10 +58,11 @@ You can ask follow-up questions: "And where is his mill?" is understood in the l
 the panel shows "Looked for: …" when it reworded your question to search. Each book keeps its conversation (its last
 50 questions), and lists it again when you reopen the book. **New conversation** starts afresh.
 
-Ask finds pages by their words. With an embedding model, it also finds them by meaning, so "who's behind the
-disappearances" can find a page that never says "disappearances". Set one up under **Ask this book** in
-**Settings > AI**: download one for the built-in AI, or name one such as nomic-embed-text on your model server. The
-first time you ask a book, its pages are prepared in the background, and the panel says how far it has got.
+Ask finds pages by their words. With a model server, it can also find them by meaning, so "who's behind the
+disappearances" can find a page that never says "disappearances". Download an embedding model such as
+nomic-embed-text on your server, then choose it under **Embedding model, for Ask this book** in **Settings > AI**. The
+first time you ask a book, its pages are prepared in the background, and the panel says how far it has got. The
+built-in AI finds pages by their words.
 
 ## Windows of their own
 
@@ -92,8 +94,6 @@ WebP images need Microsoft's free WebP Image Extensions from the Microsoft Store
   **Try again**.
 - **A book whose file has gone** offers **Find it**, which looks through every library folder, and
   **Show last folder**.
-
-**Open in another app** (on a book's menu and in its details) opens any book in your usual PDF app instead.
 
 ## Next
 
