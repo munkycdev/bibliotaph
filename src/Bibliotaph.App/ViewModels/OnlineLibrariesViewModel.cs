@@ -13,12 +13,15 @@ using Microsoft.Win32;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Library &gt; Online libraries (online libraries plan, choice 1): the services a library page can be read from, the
+/// Settings &gt; Online libraries (online libraries plan, choice 1): the services a library page can be read from, the
 /// preview of what importing it does (choice 6), the import with Undo, and the books from earlier imports the page no
-/// longer lists (choice 7). One page for the whole app, so a preview is still here after a look at the Library.
+/// longer lists (choice 7). With them, how books owned online show and open (choices 12 and 19), which were in Settings
+/// &gt; Library, so everything about online libraries is in one place. One section for the whole app, so a preview is
+/// still here after a look at the Library.
 /// </summary>
 public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
-    INavigationService navigation, ILogger<OnlineLibrariesViewModel> log) : PageViewModel
+    INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders,
+    ILogger<OnlineLibrariesViewModel> log) : SettingsSectionViewModel
 {
     OnlinePage? _page;
 
@@ -27,13 +30,9 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     Func<string, CancellationToken, Task<byte[]?>>? _covers;
     Func<Task>? _undo;
 
-    public override Route Route => Route.OnlineLibraries;
+    public override SettingsSection Section => SettingsSection.OnlineLibraries;
 
-    public override string Title => "Online libraries";
-
-    public override string Section => "Library";
-
-    public override Route? SectionRoute => Route.Library;
+    public override string Label => "Online libraries";
 
     /// <summary>The services, in the order the readers are listed.</summary>
     public IReadOnlyList<OnlineServiceViewModel> Services => field ??= [.. imports.Readers.Select(r => new OnlineServiceViewModel(r, this))];
@@ -160,7 +159,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         _undo = null;
         Problem = null;
         await ShowPlanAsync(reader, combined);
-        if (navigation.Current != this) navigation.NavigateTo(Route.OnlineLibraries);
+        if (navigation.Current is not SettingsViewModel || !IsSelected) links.Open(SettingsSection.OnlineLibraries);
         Application.Current.MainWindow?.Activate();
         var books = combined.Books.Count == 1 ? "1 book" : $"{combined.Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
         return $"Read {books}. Bibliotaph shows what importing them does; nothing is imported until you press Import there.";
@@ -188,6 +187,62 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         catch (Exception ex)
         {
             log.LogError(ex, "Reading the downloads folder failed");
+        }
+        _loadingSettings = true;
+        try
+        {
+            ShowSiteIcons = await siteIcons.IsOnAsync();
+            ReadOnlineInApp = await onlineReaders.OpensInAppAsync();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Reading the online library settings failed");
+        }
+        finally
+        {
+            _loadingSettings = false;
+        }
+    }
+
+    bool _loadingSettings;
+
+    /// <summary>
+    /// Show site icons (online libraries plan, choice 12): a book owned online shows its site's icon in its badge,
+    /// fetched once from the site. Off, it shows a plain cloud and nothing is fetched.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowSiteIcons { get; set; } = true;
+
+    /// <summary>
+    /// Read books owned online in Bibliotaph (online libraries plan, choice 19): Open shows the service's page in the
+    /// online reader. Off, it opens in the everyday browser.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ReadOnlineInApp { get; set; } = true;
+
+    async partial void OnShowSiteIconsChanged(bool value)
+    {
+        if (_loadingSettings) return;
+        try
+        {
+            await siteIcons.SetOnAsync(value);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving the site icons setting failed");
+        }
+    }
+
+    async partial void OnReadOnlineInAppChanged(bool value)
+    {
+        if (_loadingSettings) return;
+        try
+        {
+            await onlineReaders.SetOpensInAppAsync(value);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving the online reader setting failed");
         }
     }
 
@@ -350,7 +405,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     internal static string Describe(IReadOnlyList<MetadataField> fields) => string.Join(", ", fields.Select(f => f.Label));
 }
 
-/// <summary>A service on the Online libraries page: its name, and opening it in the browser.</summary>
+/// <summary>A service in Settings &gt; Online libraries: its name, and opening it in the browser.</summary>
 public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, OnlineLibrariesViewModel page)
 {
     public IOnlineLibraryReader Reader { get; } = reader;

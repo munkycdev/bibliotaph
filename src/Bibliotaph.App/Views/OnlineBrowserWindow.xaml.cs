@@ -19,7 +19,7 @@ namespace Bibliotaph.App.Views;
 /// The in-app browser's window for one service (online libraries, O2). It opens the service's library page once and
 /// never navigates, clicks or scrolls by itself (choice 3). As each page shows, the service's reader looks at it, and
 /// Read this page lights up when it lists the user's books; pressing it hands those books, and the cover images the
-/// page loaded, to the Online libraries page. Nothing is fetched for them (choice 9). The site's icon is kept for the
+/// page loaded, to Settings &gt; Online libraries. Nothing is fetched for them (choice 9). The site's icon is kept for the
 /// badge on its books (choice 12).
 /// </summary>
 public partial class OnlineBrowserWindow
@@ -104,7 +104,7 @@ public partial class OnlineBrowserWindow
         State.Status = $"Sign in on {_reader.Name}'s own page if it asks, and open your library. Read this page lights up when the page lists your books.";
         if (_reader.LinkField != MetadataFields.AlsoOwn)
             State.Status += await _browsers.Downloads.FolderAsync() is null
-                ? " Its Download buttons save to your Downloads folder; choose a downloads folder on the Online libraries page to have Bibliotaph read what you download."
+                ? " Its Download buttons save to your Downloads folder; choose a downloads folder in Settings > Online libraries to have Bibliotaph read what you download."
                 : " Its Download buttons save into your downloads folder, and Bibliotaph reads each file.";
         core.Navigate(_start.AbsoluteUri);
     }
