@@ -488,6 +488,10 @@
           <Button x:Name="PackSelected" Content="Pack together" c:Ui.Icon="{StaticResource Icon.LayoutGrid}" Margin="0,4,8,4" Command="{Binding PackSelectedCommand}"
                   ToolTip="Put the selected images and packs into one pack" AutomationProperties.Name="Put the selected images and packs into one pack"
                   Visibility="{Binding CanPackSelected, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="RemoveSelectedParts" Content="Remove adventures" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,4,8,4"
+                  Command="{Binding RemoveSelectedPartsCommand}" ToolTip="Take away the selected adventures' cards. Their pages stay in their files."
+                  AutomationProperties.Name="Remove the selected adventures"
+                  Visibility="{Binding CanRemoveSelectedParts, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button x:Name="RemoveSelectedFromCollection" Content="Remove from collection" Margin="0,4,8,4" Command="{Binding RemoveSelectedFromCollectionCommand}"
                   ToolTip="Take the selected books out of this collection. They stay in your library."
                   Visibility="{Binding IsCollection, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -511,6 +515,8 @@
                   Padding="12,0,0,0" AutomationProperties.Name="Undo Same book" Visibility="{Binding HasJoinUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoRemoveCommand}"
                   Padding="12,0,0,0" AutomationProperties.Name="Undo the removal" Visibility="{Binding HasRemoveUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="UndoParts" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoPartsCommand}"
+                  Padding="12,0,0,0" AutomationProperties.Name="Undo Remove adventures" Visibility="{Binding HasPartsUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="{Binding BulkMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
         </DockPanel>
       </Border>

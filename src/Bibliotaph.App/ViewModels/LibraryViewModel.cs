@@ -515,11 +515,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         }
         _staleTimer.Stop();
         // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
-        BulkUndo = null;
-        SplitUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
+        ClearUndos();
         BulkMessage = null;
         AddElsewhereDialog = null;
         SameBookDialog = null;
@@ -1067,11 +1063,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// </summary>
     async Task ApplyLookAlikesAsync(LookAlikeOffer offer)
     {
-        SplitUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
-        BulkUndo = null;
+        ClearUndos();
         BulkMessage = "Changing…";
         try
         {
@@ -1325,10 +1317,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     async Task ShowRemovedAsync(LibraryItemViewModel item, RemovedEntry removed)
     {
         Inspector = null;
-        BulkUndo = null;
-        SplitUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
+        ClearUndos();
         RemoveUndo = removed;
         BulkMessage = $"Removed {item.Title} from your library.";
         await RefreshAsync();
@@ -1366,10 +1355,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     async Task ShowPackSplitAsync(LibraryItemViewModel pack, IReadOnlyList<EntryId> images)
     {
         Inspector = null;
-        BulkUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
+        ClearUndos();
         SplitUndo = (pack.EntryId, images);
         BulkMessage = $"Split {pack.Title} into {images.Count.ToString("N0", CultureInfo.CurrentCulture)} {(images.Count == 1 ? "image" : "images")}.";
         await RefreshAsync();
@@ -1447,6 +1433,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         OnPropertyChanged(nameof(CanJoinSelected));
         PackSelectedCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanPackSelected));
+        RemoveSelectedPartsCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanRemoveSelectedParts));
     }
 
     /// <summary>Select: a checkbox on every book, and a click ticks a book instead of opening its details.</summary>
@@ -1513,11 +1501,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             Filter = "CSV (*.csv)|*.csv",
         };
         if (dialog.ShowDialog(System.Windows.Application.Current.MainWindow) != true) return;
-        SplitUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
-        BulkUndo = null;
+        ClearUndos();
         try
         {
             var rows = await _export.WriteCsvAsync(dialog.FileName, Selection.EntryIds);
@@ -1535,10 +1519,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         BulkEdit = null;
         if (result is null) return;
         // Leaving the Library while it applied ends the Undo, as leaving afterwards would.
-        SplitUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
+        ClearUndos();
         BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
         BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
             : $"Edited {BulkEditViewModel.Books(result.Books)}.";
@@ -1603,10 +1584,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         SameBookDialog = null;
         OnPropertyChanged(nameof(CanJoinSelected));
         if (result is null) return;
-        BulkUndo = null;
-        SplitUndo = null;
-        RemoveUndo = null;
-        PackUndo = null;
+        ClearUndos();
         // Leaving the Library while it joined ends the Undo, as leaving afterwards would.
         JoinUndo = ReferenceEquals(_navigation.Current, this) ? result.Join : null;
         var title = _known.TryGetValue(result.Join.EntryId, out var card) ? card.Title : "one book";
@@ -1678,10 +1656,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         PackDialog = null;
         OnPropertyChanged(nameof(CanPackSelected));
         if (result is null) return;
-        BulkUndo = null;
-        SplitUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
+        ClearUndos();
         // Leaving the Library while it packed ends the Undo, as leaving afterwards would.
         PackUndo = ReferenceEquals(_navigation.Current, this) ? result.Result : null;
         BulkMessage = result.Message;
@@ -1715,6 +1690,82 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             BulkMessage = "The pack couldn't be put back as it was. Use Split into separate images in its details.";
         }
         await RefreshAsync();
+    }
+
+    // Remove adventures: the ticked adventures' cards go at once, as each one's own Remove adventure would.
+
+    /// <summary>Remove adventures fits ticked cards that are all adventures inside files, as Pack together fits only images.</summary>
+    public bool CanRemoveSelectedParts => !IsRemovingParts && Selection.HasAny && Selection.Items.All(c => c.IsPart);
+
+    bool IsRemovingParts { get; set; }
+
+    /// <summary>Remove adventures: each ticked adventure's card goes and its pages are its file's again, with one Undo for them all.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveSelectedParts))]
+    async Task RemoveSelectedParts()
+    {
+        var cards = Selection.Items;
+        var removed = new List<RemovedPart>();
+        IsRemovingParts = true;
+        OnSelectionChanged();
+        Inspector = null;
+        ClearUndos();
+        BulkMessage = "Removing…";
+        try
+        {
+            foreach (var card in cards)
+                if (await Task.Run(() => _parts.RemoveAsync(card.EntryId)) is { } part) removed.Add(part);
+            BulkMessage = $"Removed {LibraryItemViewModel.Adventures(removed.Count)}. Their pages are only their files' again.";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Removing {Count} selected adventures failed after {Removed}", cards.Count, removed.Count);
+            BulkMessage = removed.Count == 0 ? "The adventures couldn't be removed."
+                : $"Only {LibraryItemViewModel.Adventures(removed.Count)} could be removed.";
+        }
+        // Leaving the Library while it removed ends the Undo, as leaving afterwards would.
+        PartsUndo = removed.Count > 0 && ReferenceEquals(_navigation.Current, this) ? removed : null;
+        IsRemovingParts = false;
+        Selection.Clear();
+        await RefreshAsync();
+    }
+
+    /// <summary>The adventures the last Remove adventures took away, until the next edit or until the Library is left.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPartsUndo))]
+    [NotifyCanExecuteChangedFor(nameof(UndoPartsCommand))]
+    public partial IReadOnlyList<RemovedPart>? PartsUndo { get; private set; }
+
+    public bool HasPartsUndo => PartsUndo is not null;
+
+    /// <summary>Brings the removed adventures back, each as a card with what was set on it.</summary>
+    [RelayCommand(CanExecute = nameof(HasPartsUndo))]
+    async Task UndoParts()
+    {
+        if (PartsUndo is not { } removed) return;
+        PartsUndo = null;
+        BulkMessage = "Undoing…";
+        try
+        {
+            foreach (var part in removed.Reverse()) await Task.Run(() => _parts.RestoreAsync(part));
+            BulkMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Undoing the removal of {Count} adventures failed", removed.Count);
+            BulkMessage = "The adventures couldn't all be brought back. Mark their pages again from their files' details.";
+        }
+        await RefreshAsync();
+    }
+
+    /// <summary>Ends every Undo the note under the Select bar offers, before another change says what it did.</summary>
+    void ClearUndos()
+    {
+        BulkUndo = null;
+        SplitUndo = null;
+        RemoveUndo = null;
+        JoinUndo = null;
+        PackUndo = null;
+        PartsUndo = null;
     }
 
     /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>

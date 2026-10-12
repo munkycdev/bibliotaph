@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+- **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
+  with one Undo for them all.
+
 ## 1.0.0 · 12 October 2026
 
 Bibliotaph's first release: a Windows app that catalogs the RPG books, maps and handouts you already have, where they

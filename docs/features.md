@@ -124,7 +124,7 @@ An anthology can hold several adventures, each with a card of its own: its own d
 
 Bibliotaph also proposes adventures from a file's bookmarks and the blurbs on their first pages ("for four characters of 3rd level"), and with AI on the model helps find them, quoting each one's own pages. A proposal never makes cards by itself: Needs review shows "This file looks like it holds 5 adventures." with a ticked list, **Accept** and **Not split**, and remembers the answer. With AI on, each adventure is then read on its own pages.
 
-An adventure opens its file at its first page, says "page 3 of 19 of this adventure", and limits Find to it unless **Whole file** is ticked. Page hits are listed under the adventure they fall in, and **Adventures inside files** shows or hides these cards.
+An adventure opens its file at its first page, says "page 3 of 19 of this adventure", and limits Find to it unless **Whole file** is ticked. Page hits are listed under the adventure they fall in, and **Adventures inside files** shows or hides these cards. **Remove adventure** in its details, or **Remove adventures** for several ticked in Select mode, takes the cards away with Undo.
 
 ### Books owned elsewhere
 

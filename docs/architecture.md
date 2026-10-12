@@ -254,7 +254,7 @@ Notes are a book's own note and notes on page ranges; they are found again in ot
 - **MVVM.** CommunityToolkit.Mvvm source-generated view models; services from the generic host's DI container. Long-running work is hosted services in Processing.
 - **Navigation.** Routes for Home, Library, Collections, Binders, Needs review, Settings, the reader, the online reader, Check a download and AI reading. A back stack restores search, filters, selection and scroll position when leaving the reader. The sidebar's Pinned group lists pins in order, reorderable by drag or Alt+Up and Alt+Down. Reader windows and a binder can pop out into windows of their own.
 - **Theme.** The design's colour tokens are brushes in Light and Dark dictionaries, following the Windows app mode unless overridden, plus a Contrast dictionary built live from the system colours under a Windows contrast theme. DM Sans for the interface and Libre Caslon Display for display headings, both embedded; Lucide icons as geometry resources. Animations are off when Windows' animation effects are.
-- **Library.** The cover grid uses `VirtualizingWrapPanel`, with covers decoded off the UI thread at display size and frozen. Filters show as chips; Select mode drives bulk edits, Same book, Pack together, collections and export.
+- **Library.** The cover grid uses `VirtualizingWrapPanel`, with covers decoded off the UI thread at display size and frozen. Filters show as chips; Select mode drives bulk edits, Same book, Pack together, Remove adventures, collections and export.
 - **Accessibility.** Per-monitor DPI, automation names on every control, a keyboard path for every action, and Ctrl+/ to list shortcuts (Ctrl+K search, Ctrl+F find in book).
 
 ## Safety and secrets
