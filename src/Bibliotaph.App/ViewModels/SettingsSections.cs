@@ -195,7 +195,7 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
     }
 }
 
-/// <summary>Settings > Start over: a development aid, last in the list so it isn't chosen by accident, and removed before 1.0.</summary>
+/// <summary>Settings > Start over: a development aid, shown only with --dev, and last in the list so it isn't chosen by accident.</summary>
 public sealed partial class StartOverSectionViewModel(StartOver startOver) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.StartOver;

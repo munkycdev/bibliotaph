@@ -157,7 +157,7 @@
           <StackPanel Margin="4,0,0,0">
             <TextBlock Text="Read books owned online in Bibliotaph" FontSize="12" />
             <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
-                       Text="Open shows a book you own on D&amp;D Beyond on its own page, in a reader like the PDF reader, signed in through Bibliotaph's browser. Off, it opens in your everyday browser." />
+                       Text="Open shows a book you own on D&amp;D Beyond or Demiplane on its own page, in a reader like the PDF reader, signed in through Bibliotaph's browser. Off, it opens in your everyday browser." />
           </StackPanel>
         </CheckBox>
       </StackPanel>

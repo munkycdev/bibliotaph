@@ -1,6 +1,6 @@
 # Bibliotaph — Product and UX Specification
 
-Version: 0.3 · 8 October 2026 · Status: product name, Section 14 defaults and the architecture accepted; detailed requirements remain a working specification. Architecture: [architecture.md](architecture.md)
+Version: 1.0 · 12 October 2026 · Status: Bibliotaph 1.0, the first release, is built from this specification. Where 1.0 differs from it in detail, [architecture.md](architecture.md) and the [user guide](guide/getting-started.md) describe what was built. Architecture: [architecture.md](architecture.md)
 
 Product name: Bibliotaph. Selected by Dave on 7 October 2026. Visual direction follows [bibliotaph-ui-mockups.html](bibliotaph-ui-mockups.html). Implementation stack decided 8 October 2026 (see Section 13).
 

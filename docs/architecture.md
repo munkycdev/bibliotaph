@@ -1,6 +1,6 @@
 # Bibliotaph architecture
 
-Version 1.0 · agreed by Dave on 8 October 2026 · companion to [product-spec.md](product-spec.md) (v0.3)
+Version 1.0 · agreed by Dave on 8 October 2026 · describes Bibliotaph 1.0, the first release (12 October 2026) · companion to [product-spec.md](product-spec.md) (v1.0)
 
 One WPF app on .NET 11, PDFium in a small pool of isolated worker processes, two SQLite files (user work in one, a rebuildable index in the other) with FTS5 search, and an in-process durable job queue.
 

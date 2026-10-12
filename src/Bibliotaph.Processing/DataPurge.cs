@@ -3,7 +3,7 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Start over, while Bibliotaph is in development (to be removed before 1.0): deletes everything Bibliotaph keeps
+/// Start over, a development aid shown only with --dev: deletes everything Bibliotaph keeps
 /// about the library (catalog.db with the folder list and settings, index.db, covers, backups) and never a source
 /// file. Asked for while the app runs and done at the next start, before anything opens the databases, because
 /// Windows won't delete an open SQLite file. Logs stay, so a problem right after starting over can be diagnosed.

@@ -17,7 +17,7 @@ public sealed class DevMode(bool on)
 }
 
 /// <summary>
-/// Settings > Start over, shown only with --dev while Bibliotaph is in development (to be removed before 1.0). Forgets
+/// Settings > Start over, shown only with --dev, as a development aid. Forgets
 /// remembered PDF passwords and saved endpoint keys at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
 /// </summary>

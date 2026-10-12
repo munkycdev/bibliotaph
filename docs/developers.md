@@ -7,7 +7,7 @@ SQLite file (`catalog.db`, EF Core with migrations) and a rebuildable search ind
 with FTS5), and an in-process durable job queue does the reading.
 
 - [architecture.md](architecture.md) is the agreed design. Change it by pull request.
-- [product-spec.md](product-spec.md) is the product spec (v0.3).
+- [product-spec.md](product-spec.md) is the product spec (v1.0).
 - [bibliotaph-ui-mockups.html](bibliotaph-ui-mockups.html) is the visual target.
 - The user guide starts at the [README](../README.md) and lives in [guide/](guide/).
 
@@ -100,6 +100,21 @@ A version tag `vMAJOR.MINOR.PATCH` (such as `v1.0.0`) runs `.github/workflows/re
 a self-contained win-x64 publish, Velopack's pack, and a draft GitHub Release holding `BibliotaphApp-win-Setup.exe`
 and the update files. Nothing is public until someone presses Publish on the draft. Installed copies update from
 published releases only. See "Installer", "Releases" and "Updates" in [architecture.md](architecture.md).
+
+## README screenshots
+
+`docs\images\library.png` and `docs\images\reader.png` show public-domain books, never a real library. To take them
+again, fetch the books (the first time), then run a build with an empty data root:
+
+```powershell
+.\tools\Screenshots\get-books.ps1 -Folder $env:TEMP\bibliotaph-demo\books
+.\src\Bibliotaph.App\bin\Release\net11.0-windows\Bibliotaph.exe --screenshots docs\images `
+    --screenshot-files $env:TEMP\bibliotaph-demo\books --data-root $env:TEMP\bibliotaph-demo\data `
+    --screenshot-open "Treasure Island|1"
+```
+
+It indexes the books, then saves the Library and the named book open at that PDF page, in the light theme at 1440 by
+900. Run it again on the same data root to retake them without indexing again.
 
 ## To do when .NET 11 ships (November 2026)
 
