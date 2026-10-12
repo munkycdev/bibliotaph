@@ -2449,8 +2449,18 @@ static partial class SmokeTest
 
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
+        // Open on D&D Beyond in the details opens the same reader.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OpenOnline" && b.IsVisible), "Open on D&D Beyond");
-        await WaitUntilAsync(window, () => launcher.Opened.Count == opened + 1, () => "Open on D&D Beyond in the details didn't open the page.");
+        if (OnlineBrowsers.RuntimeVersion is null)
+            await WaitUntilAsync(window, () => launcher.Opened.Count == opened + 1, () => "Open on D&D Beyond in the details didn't open the page.");
+        else
+        {
+            await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel { Request.Link: Link },
+                () => $"Open on D&D Beyond in the details showed {shell.CurrentPage?.GetType().Name}, not the online reader.");
+            services.GetRequiredService<INavigationService>().GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage == page, () => "Back from the online reader didn't return to the Library.");
+            card = page.Items.First(i => i.EntryId == card.EntryId);
+        }
         page.CloseDetailsCommand.Execute(null);
 
         var search = services.GetRequiredService<SearchState>();

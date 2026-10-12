@@ -1085,9 +1085,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
     }
 
-    /// <summary>Open on…, from a card's menu or the details: the book's page where the user owns it online.</summary>
+    /// <summary>
+    /// Open on…, from a card's menu or the details: the book's page where the user owns it online, in the online reader
+    /// unless Settings sends it to the everyday browser.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanOpenOnline))]
-    void OpenOnline(LibraryItemViewModel item) => _text.OpenOnline(item);
+    Task OpenOnline(LibraryItemViewModel item) => _text.ReadOnlineAsync(item);
 
     static bool CanOpenOnline(LibraryItemViewModel? item) => item is { HasOnlineLink: true };
 
