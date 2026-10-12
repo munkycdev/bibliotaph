@@ -1,6 +1,6 @@
 # OneDrive, drives and other PCs
 
-[Bibliotaph](../../README.md) › Guide › OneDrive, drives and other PCs
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › OneDrive, drives and other PCs
 
 ## OneDrive
 
@@ -95,6 +95,6 @@ the same book.
 
 **Stop syncing** ends it on that PC. Only the sync files go in that folder, never Bibliotaph's catalog itself.
 
-## Next
+---
 
-- [Questions and answers](faq.md)
+Previous: [AI](ai.md) · Next: [Questions and answers](faq.md)

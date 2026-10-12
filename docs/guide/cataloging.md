@@ -1,6 +1,6 @@
 # Cataloging
 
-[Bibliotaph](../../README.md) › Guide › Cataloging
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Cataloging
 
 Bibliotaph fills in each book's details by itself, so you don't have to type them. You only step in when something's
 wrong, and your corrections always win: reading a book again, or a new AI suggestion, never undoes them.
@@ -159,7 +159,6 @@ added. Its menu has **Reprocess with OCR on every page…** for a scan whose tex
 **Forget its text**, on a book's right-click menu, removes its pages, search text, cover and AI results from
 Bibliotaph and stops reading it. The file isn't touched. **Read it again** brings it back.
 
-## Next
+---
 
-- [Collections, favorites and pins](organizing.md)
-- [AI](ai.md)
+Previous: [Reading](reading.md) · Next: [Collections, favorites and pins](organizing.md)

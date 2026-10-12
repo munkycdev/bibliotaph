@@ -1,6 +1,6 @@
 # Binders
 
-[Bibliotaph](../../README.md) › Guide › Binders
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Binders
 
 A binder is your next session, gathered in one place: the books and pages you'll need, in the order you'll need them,
 with your notes. At the table you step through it instead of hunting through folders.
@@ -79,7 +79,6 @@ Binder items point at pages, and follow them:
 - **A book on a drive that isn't plugged in**, or a file that's gone: the item stays in the binder, saying why, with
   **Try again** or **Find it**.
 
-## Next
+---
 
-- [AI](ai.md)
-- [OneDrive, drives and other PCs](onedrive-and-other-pcs.md)
+Previous: [Collections, favorites and pins](organizing.md) · Next: [Online libraries](online-libraries.md)

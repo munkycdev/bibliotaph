@@ -1,6 +1,6 @@
 # Questions and answers
 
-[Bibliotaph](../../README.md) › Guide › Questions and answers
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Questions and answers
 
 ## Safety and privacy
 
@@ -35,9 +35,8 @@ and **Open in another app** opens it in the app that can.
 ## Getting going
 
 **Windows said "Windows protected your PC". Is that safe?**
-Bibliotaph isn't code-signed, so Windows doesn't recognize the publisher. Click **More info**, then
-**Run anyway**. Only download it from this project's
-[Releases page](https://github.com/munkycdev/bibliotaph/releases/latest).
+Bibliotaph isn't code-signed, so Windows doesn't recognize the publisher. Click **More info**, then **Run anyway**.
+Only download it from this project's [Releases page](https://github.com/munkycdev/bibliotaph/releases/latest).
 
 **Does it run on a Mac, Linux, a phone or a tablet?**
 No. Bibliotaph is a Windows app, for Windows 10 (version 1809 or later) and Windows 11.
@@ -88,5 +87,9 @@ in **About Bibliotaph** (in Settings) copies the version numbers to paste in. Pl
 from one.
 
 **How do I uninstall it?**
-From Windows' **Settings > Apps**. Your books aren't touched, and your catalog stays in `%LOCALAPPDATA%\Bibliotaph` in
-case you install again. Delete that folder if you want it gone too.
+From Windows' **Settings > Apps**, like any other app. Your books aren't touched; see
+[Uninstall](getting-started.md#uninstall) for what's left behind.
+
+---
+
+Previous: [OneDrive, drives and other PCs](onedrive-and-other-pcs.md) · Back to [the guide](../../README.md#the-guide)

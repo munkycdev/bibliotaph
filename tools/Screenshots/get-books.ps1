@@ -9,7 +9,7 @@ this script downloads them into the folder given, named by title, skipping any a
 
     Bibliotaph.exe --screenshots <pictures> --screenshot-files <folder> --data-root <empty folder> --screenshot-open "Treasure Island|1"
 
-See docs\developers.md, "README screenshots".
+See CONTRIBUTING.md, "README screenshots".
 #>
 param([Parameter(Mandatory)][string]$Folder)
 $ErrorActionPreference = 'Stop'
