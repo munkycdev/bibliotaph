@@ -7,10 +7,14 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:OnlineLibrariesViewModel}">
-  <!-- Online libraries (O2): the services, a library page's preview grouped by what importing does, and the books missing. -->
-  <StackPanel MaxWidth="860" HorizontalAlignment="Left" Margin="0,0,42,24">
-    <TextBlock Text="Online libraries." Style="{StaticResource Text.H1}" />
-    <TextBlock Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" TextWrapping="Wrap"
+  <!--
+    Settings > Online libraries (O2): the services, a library page's preview grouped by what importing does, and the
+    books missing, then the downloads folder, the browser's sign-ins and how books owned online show and open. Settings
+    gives it its width and the page title, so it starts with its own heading as the other sections do.
+  -->
+  <StackPanel>
+    <TextBlock Text="Online libraries" Style="{StaticResource Text.H2}" />
+    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
                Text="Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never browses on its own." />
 
     <ItemsControl x:Name="OnlineServices" ItemsSource="{Binding Services}" Focusable="False" AutomationProperties.Name="Online services">
@@ -50,7 +54,8 @@
       <DockPanel>
         <Button x:Name="ImportOnline" DockPanel.Dock="Right" Style="{StaticResource Bt.Button.Primary}" Content="{Binding ImportLabel}"
                 Command="{Binding ImportCommand}" AutomationProperties.Name="{Binding ImportLabel}" Margin="16,0,0,0" VerticalAlignment="Center" />
-        <TextBlock x:Name="OnlineSummary" Text="{Binding Summary}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <!-- Below the section's own heading, so a row's size rather than a second heading's. -->
+        <TextBlock x:Name="OnlineSummary" Text="{Binding Summary}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
       </DockPanel>
 
       <ItemsControl ItemsSource="{Binding Groups}" Focusable="False" AutomationProperties.Name="What importing does">
@@ -131,5 +136,31 @@
                    Text="It keeps you signed in between imports, apart from your everyday browser. Signing out forgets every sign-in, cookie and page it kept." />
       </StackPanel>
     </DockPanel>
+
+    <!-- How books owned online show and open, here rather than in Settings > Library so online libraries are in one place. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Books you own online" FontSize="14" FontWeight="SemiBold" />
+        <!-- Online libraries plan, choice 12: the badge on a book owned online shows its site's own icon, fetched once. -->
+        <CheckBox x:Name="ShowSiteIcons" Margin="0,12,0,0" IsChecked="{Binding ShowSiteIcons}" VerticalContentAlignment="Top"
+                  Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Show site icons">
+          <StackPanel Margin="4,0,0,0">
+            <TextBlock Text="Show site icons" FontSize="12" />
+            <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                       Text="A book you own online shows its site's icon, such as D&amp;D Beyond's, in the corner of its cover. Bibliotaph fetches each site's icon once and keeps it. Off, a plain cloud shows and nothing is fetched." />
+          </StackPanel>
+        </CheckBox>
+
+        <!-- Online libraries plan, choice 19: a book owned online opens in Bibliotaph's online reader, or the everyday browser. -->
+        <CheckBox x:Name="ReadOnlineInApp" Margin="0,16,0,0" IsChecked="{Binding ReadOnlineInApp}" VerticalContentAlignment="Top"
+                  Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Read books owned online in Bibliotaph">
+          <StackPanel Margin="4,0,0,0">
+            <TextBlock Text="Read books owned online in Bibliotaph" FontSize="12" />
+            <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                       Text="Open shows a book you own on D&amp;D Beyond on its own page, in a reader like the PDF reader, signed in through Bibliotaph's browser. Off, it opens in your everyday browser." />
+          </StackPanel>
+        </CheckBox>
+      </StackPanel>
+    </Border>
   </StackPanel>
 </UserControl>

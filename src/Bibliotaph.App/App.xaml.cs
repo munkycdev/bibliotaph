@@ -342,7 +342,7 @@ public partial class App : Application
         builder.Services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
         builder.Services.AddSingleton<DownloadCheckViewModel>();
-        // One Online libraries page, so a preview is still there after a look at the Library.
+        // One Settings > Online libraries, so a preview is still there after a look at the Library.
         builder.Services.AddSingleton<OnlineLibrariesViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<PlainSearchViewModel>();
@@ -365,7 +365,6 @@ public partial class App : Application
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
         Route.AiReading => services.GetRequiredService<AiReadingViewModel>(),
-        Route.OnlineLibraries => services.GetRequiredService<OnlineLibrariesViewModel>(),
         // An online reader opens with its book (OnlineReaders); by route alone, the Library.
         Route.OnlineReader => services.GetRequiredService<LibraryViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),

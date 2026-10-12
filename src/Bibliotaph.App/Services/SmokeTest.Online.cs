@@ -14,8 +14,9 @@ static partial class SmokeTest
 {
     /// <summary>
     /// Online libraries (O2): a made-up D&amp;D Beyond library page, saved with its covers beside the data root by
-    /// verify.ps1, imported from Library &gt; Online libraries. The preview, the two new books with their links and
-    /// covers, the preview again with both imported, then Undo and the library as it was.
+    /// verify.ps1, imported from Settings &gt; Online libraries, which the Library's Import from an online library
+    /// opens. The preview, the two new books with their links and covers, the preview again with both imported, then
+    /// Undo and the library as it was.
     /// </summary>
     static async Task ImportOnlineLibraryAsync(IServiceProvider services, Window window, int books)
     {
@@ -33,8 +34,11 @@ static partial class SmokeTest
         await Settle(window);
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
-        await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open its page.");
-        var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
+        var page = (OnlineLibrariesViewModel)(await ExpectSettingsAsync(window, shell, SettingsSection.OnlineLibraries, "The Library's Import from an online library")).Selected;
+        // How books owned online show and open moved here from Settings > Library, so everything online is in one place.
+        await Settle(window);
+        if (Descendants<CheckBox>(window).Count(c => c.Name is "ShowSiteIcons" or "ReadOnlineInApp" && c.IsVisible) != 2)
+            throw new InvalidOperationException("Settings > Online libraries doesn't show Show site icons and Read books owned online in Bibliotaph.");
         if (page.Services.Select(s => s.Name).ToList() is not ["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"])
             throw new InvalidOperationException($"Online libraries lists {string.Join(", ", page.Services.Select(s => s.Name))}.");
 
@@ -232,17 +236,13 @@ static partial class SmokeTest
         var inside = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "Store downloads")).FullName;
         var outside = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(data, "not-a-library")).FullName;
 
-        var navigation = services.GetRequiredService<INavigationService>();
-        var shell = services.GetRequiredService<ShellViewModel>();
-        navigation.NavigateTo(Route.OnlineLibraries);
-        await WaitUntilAsync(window, () => shell.CurrentPage is OnlineLibrariesViewModel, () => "Online libraries didn't open.");
-        var page = (OnlineLibrariesViewModel)shell.CurrentPage!;
+        var page = (OnlineLibrariesViewModel)(await OpenSettingsAsync(services, window, SettingsSection.OnlineLibraries)).Selected;
         await page.UseDownloadsFolderAsync(outside);
         if (page.DownloadsProblem is null || page.HasDownloadsFolder) throw new InvalidOperationException("A downloads folder outside the library was taken.");
         await page.UseDownloadsFolderAsync(inside);
         if (page.DownloadsProblem is not null || page.DownloadsFolder != inside) throw new InvalidOperationException($"The downloads folder wasn't taken: {page.DownloadsProblem}");
         await Settle(window);
-        await AuditAsync(window, "Online libraries with a downloads folder");
+        await AuditAsync(window, "Settings > Online libraries with a downloads folder");
 
         var downloads = services.GetRequiredService<OnlineDownloads>();
         // A store's row: its browser signs in and downloads, and a page that isn't its library has nothing to read.

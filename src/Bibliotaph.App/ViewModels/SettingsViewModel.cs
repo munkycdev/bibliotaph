@@ -19,21 +19,20 @@ public sealed partial class SettingsViewModel : PageViewModel
     bool _showing;
 
     public SettingsViewModel(
-        SettingsLinks links, AboutBox about, ShortcutsBox shortcuts, LibrarySectionViewModel library, ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance,
-        ReviewSectionViewModel review, VocabularyViewModel vocabulary, AiSettingsViewModel ai, PasswordsSectionViewModel passwords,
-        BackupSectionViewModel backup, StartOverSectionViewModel startOver, DevMode dev,
+        SettingsLinks links, AboutBox about, ShortcutsBox shortcuts, LibrarySectionViewModel library, OnlineLibrariesViewModel online,
+        ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance, ReviewSectionViewModel review, VocabularyViewModel vocabulary,
+        AiSettingsViewModel ai, PasswordsSectionViewModel passwords, BackupSectionViewModel backup, StartOverSectionViewModel startOver, DevMode dev,
         ILogger<SettingsViewModel> log)
     {
         _links = links;
         _about = about;
         _shortcuts = shortcuts;
         _log = log;
-        SettingsSectionViewModel[] sections = [processing, library, appearance, review, vocabulary, ai, passwords, backup];
+        SettingsSectionViewModel[] sections = [processing, library, online, appearance, review, vocabulary, ai, passwords, backup];
         // Start over only with --dev (slice 4l plan, choice 7).
         Sections = dev.IsOn ? [.. sections, startOver] : sections;
-        foreach (var section in Sections) section.PropertyChanged += OnSectionChanged;
         Selected = processing;
-        processing.IsSelected = true;
+        MarkSelected();
     }
 
     public override Route Route => Route.Settings;
@@ -42,7 +41,10 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>The section list stays put while the chosen section scrolls beside it.</summary>
     public override bool ScrollsItself => true;
 
-    /// <summary>The section list, in order: Processing first; Start over, when the app started with --dev, last.</summary>
+    /// <summary>
+    /// The section list, in order: Processing first, Online libraries after Library; Start over, when the app started
+    /// with --dev, last.
+    /// </summary>
     public IReadOnlyList<SettingsSectionViewModel> Sections { get; }
 
     /// <summary>The section filling the page.</summary>
@@ -57,9 +59,20 @@ public sealed partial class SettingsViewModel : PageViewModel
         if (Sections.FirstOrDefault(s => s.Section == section) is { } shown) Select(shown);
     }
 
+    /// <summary>
+    /// Online libraries is one section for the whole app, so it outlives this page: the list listens to the sections
+    /// only while it shows, rather than the section holding on to every Settings page opened, and marks its own choice
+    /// again, since another Settings page may have chosen or left that section since.
+    /// </summary>
     public override async Task LoadAsync()
     {
         if (_links.TakeRequest() is { } requested) Show(requested);
+        MarkSelected();
+        foreach (var section in Sections)
+        {
+            section.PropertyChanged -= OnSectionChanged;
+            section.PropertyChanged += OnSectionChanged;
+        }
         _showing = true;
         await Selected.LoadAsync();
     }
@@ -67,7 +80,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     public override void Unload()
     {
         _showing = false;
+        foreach (var section in Sections) section.PropertyChanged -= OnSectionChanged;
         Selected.Unload();
+    }
+
+    void MarkSelected()
+    {
+        foreach (var section in Sections) section.IsSelected = ReferenceEquals(section, Selected);
     }
 
     /// <summary>A section chosen in the list.</summary>
@@ -82,7 +101,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     {
         var previous = Selected;
         Selected = section;
-        foreach (var other in Sections) other.IsSelected = ReferenceEquals(other, section);
+        MarkSelected();
         OnPropertyChanged(nameof(Selected));
         if (!_showing) return;
         if (!ReferenceEquals(previous, section)) previous.Unload();
