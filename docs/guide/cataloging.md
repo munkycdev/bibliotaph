@@ -128,6 +128,10 @@ helps find them too, and reads each adventure on its own pages to fill in its de
 The file's card says how many adventures it holds. **Adventures inside files** in the filters shows or hides their
 cards. Search results group page hits under the adventure they fall in.
 
+**Remove adventure** in an adventure's details takes its card away; its pages are only the file's again, and the file
+itself is never changed. To remove several at once, tick their cards in **Select** mode and click
+**Remove adventures**. Either way, **Undo** brings them back.
+
 ## Books you own elsewhere
 
 Own a book in print or on a virtual tabletop? In the Library, click **Owned elsewhere** and choose

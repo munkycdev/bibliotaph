@@ -15,8 +15,9 @@ static partial class SmokeTest
     /// The smoke PDF's Chapter One bookmark indexed as its own adventure from the reader's Contents panel: its card
     /// says which file and page it is on and the file's card counts it; a page in it is found under it, and one outside
     /// it under the file. Opened from that hit, the reader names both, shades its bookmark, says where in it the page
-    /// is, and Find looks in it unless Whole file is ticked. Its details remove it, Undo brings it back, and it is
-    /// removed again so later checks see the book as it was.
+    /// is, and Find looks in it unless Whole file is ticked. Its details remove it and Undo brings it back. Then, with
+    /// a second adventure, Select mode's Remove adventures takes both away, Undo brings them back, and they are removed
+    /// again so later checks see the book as it was.
     /// </summary>
     static async Task UsePartsAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -103,11 +104,39 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => library.Inspector is { Parts: [{ Title: Title }] } && Part() is not null, () => "Undo didn't bring the adventure back.");
         await AuditAsync(window, "a file's details with its adventures");
 
-        // Removed again, so later checks see the book as it was.
-        var inspector = library.Inspector!;
-        await inspector.RemovePartCommand.ExecuteAsync(inspector.Parts[0]);
         library.CloseDetailsCommand.Execute(null);
-        await WaitUntilAsync(window, () => Part() is null && File() is { PartsLabel: "" }, () => "Removing the adventure left its card.");
+
+        // Remove adventures in Select mode: not offered with the file ticked too; with a second adventure, both
+        // cards go at once, Undo brings both back, and they go again so later checks see the book as it was.
+        const string Second = "The Front Matter";
+        var added = await services.GetRequiredService<PartsService>().AddAsync(documentId, new PartPages(0, 0), Second);
+        if (added.Problem is not null) throw new InvalidOperationException($"The second adventure wasn't marked: {added.Problem}");
+        await library.RefreshAsync();
+        LibraryItemViewModel[] Parts() => [.. library.Items.Where(i => i.DocumentId == documentId && i.IsPart)];
+        await WaitUntilAsync(window, () => Parts().Length == 2 && File() is { PartsLabel: "2 adventures" }, () => "The Library doesn't show both adventures.");
+        library.StartSelectingCommand.Execute(null);
+        library.ClearSelectionCommand.Execute(null);
+        await library.ActivateCommand.ExecuteAsync(File()!);
+        await library.ActivateCommand.ExecuteAsync(Parts()[0]);
+        if (library.CanRemoveSelectedParts) throw new InvalidOperationException("Remove adventures is offered with the file ticked.");
+        await library.ActivateCommand.ExecuteAsync(File()!);
+        await library.ActivateCommand.ExecuteAsync(Parts()[1]);
+        await Settle(window);
+        if (!library.CanRemoveSelectedParts || Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveSelectedParts") is not { IsVisible: true } remove)
+            throw new InvalidOperationException("Remove adventures isn't offered for two adventures.");
+        await AuditAsync(window, "Select mode with adventures ticked");
+        Click(remove, "Remove adventures");
+        await WaitUntilAsync(window, () => library.HasPartsUndo && Parts().Length == 0 && File() is { PartsLabel: "" } && Shown(window, "UndoParts"),
+            () => $"Remove adventures didn't take both cards away with Undo ({library.BulkMessage}).");
+        if (library.BulkMessage != "Removed 2 adventures. Their pages are only their files' again.")
+            throw new InvalidOperationException($"Remove adventures says “{library.BulkMessage}”.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoParts"), "Undo Remove adventures");
+        await WaitUntilAsync(window, () => !library.HasPartsUndo && Parts().Select(p => p.Title).Order().SequenceEqual([Second, Title]),
+            () => "Undo didn't bring both adventures back.");
+        foreach (var part in Parts()) await library.ActivateCommand.ExecuteAsync(part);
+        await library.RemoveSelectedPartsCommand.ExecuteAsync(null);
+        library.StopSelectingCommand.Execute(null);
+        await WaitUntilAsync(window, () => Parts().Length == 0 && File() is { PartsLabel: "" }, () => "Removing the adventures left their cards.");
     }
 
     /// <summary>
