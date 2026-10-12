@@ -159,9 +159,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         else if (await RequestAsync(item) is { } request) readers.OpenInMainWindow(request);
     }
 
-    /// <summary>Open on…, from a cover's menu: the book's page where the user owns it online.</summary>
+    /// <summary>Open on…, from a cover's menu: the book's page where the user owns it online, in the online reader as Open does.</summary>
     [RelayCommand(CanExecute = nameof(CanOpenOnline))]
-    void OpenOnline(LibraryItemViewModel item) => text.OpenOnline(item);
+    Task OpenOnline(LibraryItemViewModel item) => text.ReadOnlineAsync(item);
 
     static bool CanOpenOnline(LibraryItemViewModel? item) => item is { HasOnlineLink: true };
 

@@ -14,8 +14,8 @@ namespace Bibliotaph.App.Services;
 public sealed class BookTextActions(OtherApps otherApps, OnlineBooks online, OnlineReaders readers, ForgetText forget, ILogger<BookTextActions> log)
 {
     /// <summary>
-    /// Opens a book owned only online, as Open does: in the online reader, or the everyday browser when Settings says so
-    /// (online libraries, O2b). Says so when it can't.
+    /// Opens a book's page where the user owns it online, as Open does for a book owned only online: in the online
+    /// reader, or the everyday browser when Settings says so (online libraries, O2b). Says so when it can't.
     /// </summary>
     public async Task ReadOnlineAsync(LibraryItemViewModel item)
     {
@@ -28,8 +28,8 @@ public sealed class BookTextActions(OtherApps otherApps, OnlineBooks online, Onl
         if (await readers.OpenAsync(request) is { } problem) Tell(problem, item.OnlineAction);
     }
 
-    /// <summary>Opens the book's page where the user owns it online (online libraries, O1). Says so when it can't.</summary>
-    public void OpenOnline(LibraryItemViewModel item)
+    /// <summary>Opens the book's page where the user owns it online in the everyday browser (online libraries, O1). Says so when it can't.</summary>
+    void OpenOnline(LibraryItemViewModel item)
     {
         if (online.Open(item.OnlineLink) is { } problem) Tell(problem, item.OnlineAction);
     }

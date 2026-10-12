@@ -730,7 +730,7 @@
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
-                <!-- Online libraries (O1): the book's page where it is owned online, in the browser. -->
+                <!-- Online libraries (O1, O2b): the book's page where it is owned online, in the online reader. -->
                 <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" HorizontalAlignment="Left"
                         Margin="0,8,0,0" ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
                         Command="{Binding DataContext.OpenOnlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
