@@ -664,11 +664,8 @@
 
     <!-- .bt-drawer: the inspector, over the page. Esc, the close button or a click outside closes it. -->
     <Grid Grid.RowSpan="3" Visibility="{Binding Inspector, Converter={StaticResource Bt.VisibleWhenSet}}">
-      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}">
-        <Border.InputBindings>
-          <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDetailsCommand}" />
-        </Border.InputBindings>
-      </Border>
+      <Border x:Name="DrawerShade" Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" MouseLeftButtonDown="DrawerShade_MouseLeftButtonDown"
+              MouseLeftButtonUp="DrawerShade_MouseLeftButtonUp" />
       <Border x:Name="Drawer" HorizontalAlignment="Right" Width="440" Margin="0,-36,0,0" DataContext="{Binding Inspector}"
               Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,0,0"
               IsVisibleChanged="Drawer_IsVisibleChanged" d:DataContext="{d:DesignInstance vm:InspectorViewModel}">
