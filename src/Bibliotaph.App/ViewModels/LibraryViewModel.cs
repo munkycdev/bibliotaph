@@ -687,9 +687,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>Runs the current view's query. A newer refresh supersedes an older one still running.</summary>
     public async Task RefreshAsync()
     {
-        ShowActiveFilters();
-        // The constructor sets the filters, which would otherwise query before the page is shown.
+        // The constructor sets the filters, which would otherwise query before the page is shown (and before all are set).
         if (!_loaded) return;
+        ShowActiveFilters();
         var version = ++_version;
         try
         {
