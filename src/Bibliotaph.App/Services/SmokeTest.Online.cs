@@ -168,8 +168,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Add this page (O2b): the page in view goes into the current binder as a link labelled with the page's title, and
-    /// opening it from the binder's list opens the online reader at that page. The binder is deleted afterwards.
+    /// Add this page (O2b): the page in view goes into the current binder as a link labelled with the page's title,
+    /// opening it from the binder's list opens the online reader at that page, and the binder's reader shows it there in
+    /// place of its file reader. The binder is deleted afterwards.
     /// </summary>
     static async Task AddOnlinePageAsync(IServiceProvider services, Window window, OnlineReaderViewModel reader)
     {
@@ -199,6 +200,16 @@ static partial class SmokeTest
             await WaitForPageAsync(window, (OnlineReaderViewModel)shell.CurrentPage!);
             navigation.GoBack();
             await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel, () => "Back didn't return to the binder's list.");
+
+            // The binder's own reader shows the page in the online reader, in place of its file reader; the binder pops out, not the page.
+            services.GetRequiredService<SessionPages>().Open(binder.Id);
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, Online.Request.At: { } at } && at == item.Link,
+                () => "The binder's reader didn't show its online page in the online reader.");
+            await WaitForPageAsync(window, ((SessionReaderViewModel)shell.CurrentPage!).Online!);
+            if (Descendants<Button>(window).Any(b => b.Name is "OnlinePopOut" && b.IsVisible)) throw new InvalidOperationException("The binder's online page offers its own Pop out.");
+            await AuditAsync(window, "a binder's reader at a page owned online");
+            navigation.GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel, () => "Back didn't return to the binder's list from its reader.");
             navigation.GoBack();
             await WaitUntilAsync(window, () => shell.CurrentPage == reader, () => "Back didn't return to the online reader.");
             await WaitForPageAsync(window, reader);

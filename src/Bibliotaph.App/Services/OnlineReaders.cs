@@ -115,9 +115,12 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
         return null;
     }
 
-    /// <summary>A reader for <paramref name="request"/>; <paramref name="poppedOut"/> for a window of its own.</summary>
-    public OnlineReaderViewModel Create(OnlineReaderRequest request, bool poppedOut = false) =>
-        new(request, this, OnlinePages.ServiceOf(request.Link)) { IsPoppedOut = poppedOut };
+    /// <summary>
+    /// A reader for <paramref name="request"/>; <paramref name="poppedOut"/> for a window of its own, <paramref name="inBinder"/>
+    /// for a binder's reader, which hosts it in place of its file reader.
+    /// </summary>
+    public OnlineReaderViewModel Create(OnlineReaderRequest request, bool poppedOut = false, bool inBinder = false) =>
+        new(request, this, OnlinePages.ServiceOf(request.Link)) { IsPoppedOut = poppedOut, IsInBinder = inBinder };
 
     /// <summary>Moves the main window's online reader to a window of its own, at the page in view; the main window goes Back.</summary>
     public async Task PopOutAsync(OnlineReaderViewModel reader)
