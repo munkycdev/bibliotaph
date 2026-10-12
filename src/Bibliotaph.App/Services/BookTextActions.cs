@@ -8,10 +8,32 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// What a book's card menu and its details do about its text (slice 4i plan, choices 4 and 6): Open in another app for
-/// a file Bibliotaph can't read, and Forget its text and Read it again. The page that runs one refreshes after it.
+/// a file Bibliotaph can't read, and Forget its text and Read it again; and Open on… for a book owned online. The page
+/// that runs one refreshes after it.
 /// </summary>
-public sealed class BookTextActions(OtherApps otherApps, ForgetText forget, ILogger<BookTextActions> log)
+public sealed class BookTextActions(OtherApps otherApps, OnlineBooks online, OnlineReaders readers, ForgetText forget, ILogger<BookTextActions> log)
 {
+    /// <summary>
+    /// Opens a book's page where the user owns it online, as Open does for a book owned only online: in the online
+    /// reader, or the everyday browser when Settings says so (online libraries, O2b). Says so when it can't.
+    /// </summary>
+    public async Task ReadOnlineAsync(LibraryItemViewModel item)
+    {
+        if (item.OnlineLink is not { } link)
+        {
+            OpenOnline(item);
+            return;
+        }
+        var request = new OnlineReaderRequest(item.EntryId, item.Title, link) { Place = item.Entry.OnlineLabel };
+        if (await readers.OpenAsync(request) is { } problem) Tell(problem, item.OnlineAction);
+    }
+
+    /// <summary>Opens the book's page where the user owns it online in the everyday browser (online libraries, O1). Says so when it can't.</summary>
+    void OpenOnline(LibraryItemViewModel item)
+    {
+        if (online.Open(item.OnlineLink) is { } problem) Tell(problem, item.OnlineAction);
+    }
+
     /// <summary>Opens the book's file in the default app for it. Says so when it can't.</summary>
     public async Task OpenElsewhereAsync(long documentId)
     {

@@ -36,6 +36,7 @@ public partial class LibraryView
         Loaded += (_, _) => Attach(DataContext as LibraryViewModel);
         AddBookCommand(BookCommands.Open, m => m.OpenBookCommand);
         AddBookCommand(BookCommands.OpenInNewWindow, m => m.OpenBookInNewWindowCommand);
+        AddBookCommand(BookCommands.OpenOnline, m => m.OpenOnlineCommand);
         AddBookCommand(BookCommands.Details, m => m.OpenDetailsCommand);
         AddBookCommand(BookCommands.Ask, m => m.AskBookCommand);
         AddBookCommand(BookCommands.ToggleFavorite, m => m.ToggleFavoriteCommand);
@@ -126,6 +127,27 @@ public partial class LibraryView
         menu.PlacementTarget = button;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// A click outside the inspector closes it, on the button's release: closing on the press would leave the release
+    /// to the card under it, which opens that card's details at once. Only a press outside counts, so selecting a
+    /// note's text and letting go outside leaves it open.
+    /// </summary>
+    void DrawerShade_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = ((UIElement)sender).CaptureMouse();
+    }
+
+    void DrawerShade_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var shade = (UIElement)sender;
+        if (!shade.IsMouseCaptured) return;
+        shade.ReleaseMouseCapture();
+        e.Handled = true;
+        // Pressed outside but let go over the inspector, or off the page: it stays.
+        if (shade.InputHitTest(e.GetPosition(shade)) is null || Drawer.InputHitTest(e.GetPosition(Drawer)) is not null) return;
+        _model?.CloseDetailsCommand.Execute(null);
     }
 
     /// <summary>Keyboard focus goes into the inspector when it opens and back to where it was when it closes.</summary>

@@ -31,6 +31,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly LibraryQueries _queries;
     readonly CoverImages _covers;
     readonly ReaderWindows _readers;
+    readonly OnlineReaders _online;
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
     readonly ILogger<SessionReaderViewModel> _log;
@@ -43,8 +44,9 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        SessionDirectory directory, PinDirectory pins, ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, PinDirectory pins, OnlineReaders online, ILogger<SessionReaderViewModel> log)
     {
+        _online = online;
         _directory = directory;
         _pins = pins;
         _sessions = sessions;
@@ -89,6 +91,13 @@ public sealed partial class SessionReaderViewModel : PageViewModel
 
     /// <summary>The reader for the page in hand.</summary>
     public ViewerViewModel Viewer => field ??= CreateViewer();
+
+    /// <summary>
+    /// The item in hand when it is a page owned online: the online reader, in the reader's place, so Next and Previous
+    /// step between files and pages online alike. Null for a file, or when such pages open in the everyday browser.
+    /// </summary>
+    [ObservableProperty]
+    public partial OnlineReaderViewModel? Online { get; private set; }
 
     ViewerViewModel CreateViewer()
     {
@@ -232,11 +241,16 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                     await Viewer.ShowAsync(at);
                 }
                 else if (again.CanOpen && Viewer.Here() is not null) await Viewer.LoadAsync();
+                else if (again.OpensOnline && Online is { } online) await ShowOnlineAsync(online.Here());
                 else await OpenAsync(again);
                 _ = ReadAheadAsync();
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
-            else Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add page in the reader.");
+            else
+            {
+                ShowOnline(null);
+                Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add page in the reader.");
+            }
         }
         catch (Exception ex)
         {
@@ -254,6 +268,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             Rows.Clear();
             HasItems = false;
             Current = null;
+            ShowOnline(null);
             Viewer.ShowUnavailable("This binder isn't there any more.", "It was deleted. Go back to Binders to pick another.");
             return false;
         }
@@ -283,6 +298,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         IsLoaded = false;
         _sessions.Changed -= OnSessionsChanged;
         Viewer.Unload();
+        Online?.Unload();
         if (_notesDirty) _ = SaveNotesAsync();
     }
 
@@ -293,6 +309,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _pins.Changed -= OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
         if (_notesDirty) await SaveNotesAsync();
+        Online?.Unload();
         await Viewer.CloseWindowAsync();
     }
 
@@ -412,7 +429,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         try
         {
-            if (await SessionPackRows.RequestAsync(page.Row, page.BinderTitle, _queries) is { } request) await _readers.OpenInNewWindowAsync(request);
+            if (SessionPackRows.OnlineRequest(page.Row) is { } online) await _online.OpenInWindowAsync(online);
+            else if (await SessionPackRows.RequestAsync(page.Row, page.BinderTitle, _queries) is { } request) await _readers.OpenInNewWindowAsync(request);
         }
         catch (Exception ex)
         {
@@ -448,20 +466,51 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         Current = row;
         _currentId = row.Id;
-        if (!row.CanOpen)
+        if (row.OpensOnline)
         {
+            if (SessionPackRows.OnlineRequest(row) is { } online && await _online.OpensInAppAsync() && OnlineBrowsers.RuntimeVersion is not null)
+            {
+                if (Current == row) await ShowOnlineAsync(online);
+            }
+            else
+            {
+                // Settings > Library sends pages owned online to the everyday browser, or Bibliotaph's browser can't run here.
+                ShowOnline(null);
+                Viewer.ShowUnavailable($"{row.Heading} is a page on {row.OnlinePlace ?? "the web"}.",
+                    "Pages owned online open in your everyday browser: open it from the binder's page, or from At hand.");
+            }
+        }
+        else if (!row.CanOpen)
+        {
+            ShowOnline(null);
             // Its folder offline or its file gone: the reader says what to do, and Try again opens it once it's back.
             if (row.Target.Away is { } away) Viewer.ShowAway(away, () => RefreshRowsAsync(reopen: true));
             else Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", row.Reason ?? "Its file can't be reached.");
         }
         else
         {
+            ShowOnline(null);
             var request = await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
             if (Current != row) return;
             if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
             else await Viewer.ShowAsync(request);
         }
         if (Current == row) _ = ReadAheadAsync();
+    }
+
+    /// <summary>The online reader at <paramref name="request"/>'s page, in the reader's place.</summary>
+    async Task ShowOnlineAsync(OnlineReaderRequest request)
+    {
+        var reader = _online.Create(request, inBinder: true);
+        ShowOnline(reader);
+        await reader.LoadAsync();
+    }
+
+    void ShowOnline(OnlineReaderViewModel? reader)
+    {
+        if (ReferenceEquals(reader, Online)) return;
+        Online?.Unload();
+        Online = reader;
     }
 
     /// <summary>

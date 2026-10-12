@@ -123,7 +123,8 @@ CREATE TABLE entry_doc (
     parent_id    INTEGER,                        -- an adventure inside a file (slice 5): the file's entry
     first_page   INTEGER,                        -- and its first and last PDF pages in document_id
     last_page    INTEGER,
-    parts        INTEGER NOT NULL DEFAULT 0      -- a file's adventures: "5 adventures"
+    parts        INTEGER NOT NULL DEFAULT 0,     -- a file's adventures: "5 adventures"
+    cover        TEXT                            -- a book owned elsewhere's cover, from its online library (cache/covers)
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
@@ -182,13 +183,15 @@ CREATE TABLE entry_meta (
 );
 
 -- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own, store), for filters, facet
--- counts and field search. value is the term key.
+-- counts and field search. value is the term key; link is the value's web link (own and store), the first when it
+-- has several.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
     field        TEXT    NOT NULL,
     value        TEXT    NOT NULL,
     label        TEXT    NOT NULL,
     confirmed    INTEGER NOT NULL,
+    link         TEXT,
     PRIMARY KEY (entry_id, field, value)
 ) WITHOUT ROWID;
 
@@ -290,4 +293,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 16;
+PRAGMA user_version = 18;

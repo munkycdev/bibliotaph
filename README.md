@@ -14,10 +14,19 @@ handouts spread over folders, and you keep thinking "I own something for this, b
 - **Your files stay put.** Bibliotaph never moves, renames, edits or deletes them. It only reads them.
 - **It works offline.** Everything lives on your PC. There's no account, no subscription and no cloud service.
 - **AI is optional, and local.** If you want, an AI model running on your own PC fills in each book's system, type and
-  levels, quoting the page it found them on. Without it, everything else still works.
+  levels, quoting the page it found them on. Bibliotaph can download and run one itself, or use Ollama, LM Studio or
+  another model server you already have. Without it, everything else still works.
 
-> Bibliotaph is in early development. Early versions are for trying out: expect rough edges, and changes from one
-> version to the next.
+Version 1.0 is Bibliotaph's first release. Everything below is in it.
+
+<p align="center">
+  <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
+</p>
+<p align="center">
+  <img src="docs/images/reader.png" width="860" alt="Treasure Island open in the reader at a colour plate, with the page thumbnails below">
+</p>
+<p align="center"><sub>The books in these pictures are public-domain scans from the
+<a href="https://archive.org">Internet Archive</a>.</sub></p>
 
 ## Install
 
@@ -36,76 +45,15 @@ when it suits you. Nothing restarts in the middle of a game.
 
 More in [Getting started](docs/guide/getting-started.md).
 
-<!-- Code signing policy: PR #70's "## Code signing policy" section goes here, after Install. -->
-
-## What it does
-
-**Indexes what you have, where it is.** Add your folders and Bibliotaph reads every PDF, JPG, PNG and WebP in them,
-ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
-network drives and OneDrive, and notices when files are added, moved or changed.
-
-**Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while
-**Inside documents** shows the matching pages, with a snippet. Click a page and the book opens right there. Add
-`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel. With AI on,
-**Ask** takes a request in plain English, such as "a short heist for four players", and turns it into a search you can
-check. [Searching](docs/guide/searching.md)
-
-**Reads books inside the app.** A fast reader with contents, find in the book, zoom, page thumbnails and notes on
-pages. In an index or contents page, the printed page numbers become links. Open as many books in their own windows
-as you like. With AI on, **Ask this book** answers a question from the book's own pages, with every claim citing the
-page it came from. [Reading](docs/guide/reading.md)
-
-**Fills in the catalog for you.** Each book gets a title, game system, type, levels, players, duration, setting,
-themes and more, suggested from folder names, the file itself and, if you turn it on, AI. Every suggestion shows
-where it came from; your own corrections always win. Copies of the same book share one card, folders of maps become
-one image pack, and the adventures inside an anthology get cards of their own.
-[Cataloging](docs/guide/cataloging.md)
-
-**Keeps you organized.** Mark favorites, gather books into collections, save searches you use often, and pin any of
-them to the sidebar. [Collections, favorites and pins](docs/guide/organizing.md)
-
-**Gets a session ready.** A binder holds the books and pages for your next session, in order, with your notes. At the
-table, step through it with **Next** and **Previous**, and keep a rules binder at hand.
-[Binders](docs/guide/binders.md)
-
-**Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and sync with a second PC
-through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md)
-
-## The guide
-
-1. [Getting started](docs/guide/getting-started.md): install, add your folders, find your way around.
-2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, filters and saved searches.
-3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
-4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs and adventures.
-5. [Collections, favorites and pins](docs/guide/organizing.md)
-6. [Binders](docs/guide/binders.md): prepare a session and run it.
-7. [AI](docs/guide/ai.md): what it does, what it sends, and how to set it up.
-8. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
-9. [Questions and answers](docs/guide/faq.md)
-
-## Help and feedback
-
-Found a bug or have an idea? [Open an issue](https://github.com/munkycdev/bibliotaph/issues) (you'll need a free
-GitHub account). **About Bibliotaph** in Settings has **Copy details**, which copies the version numbers to paste into
-it. Please never attach a PDF or a page from a book you bought.
-
-Security problems go through private vulnerability reporting; see [SECURITY.md](SECURITY.md).
-
-## For developers
-
-Bibliotaph is a WPF app on .NET 11, with PDFium in isolated worker processes and SQLite with FTS5 for search. Build
-steps, the verify script, the project layout and how to contribute are in [docs/developers.md](docs/developers.md).
-The design is in [docs/architecture.md](docs/architecture.md) and the product spec in
-[docs/product-spec.md](docs/product-spec.md).
-
 ## Code signing policy
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
 [SignPath Foundation](https://signpath.org/).
 
-Releases are built only by the Release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)), on
-GitHub-hosted runners, from a version tag in this repository. The workflow sends the installer it built,
-`BibliotaphApp-win-Setup.exe`, to SignPath, and a maintainer approves each signing request by hand. The programs the
+Signing isn't set up yet; this is how it will work. Releases are built only by the Release workflow
+([.github/workflows/release.yml](.github/workflows/release.yml)), on GitHub-hosted runners, from a version tag in this
+repository. The workflow sends the installer it built, `BibliotaphApp-win-Setup.exe`, to SignPath, and a maintainer
+approves each signing request by hand. The programs the
 installer carries from other projects (the .NET runtime, PDFium, llama.cpp's `llama-server` and Velopack's updater)
 keep their own publishers' signatures, or none, and aren't signed as Bibliotaph's.
 
@@ -122,6 +70,10 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
 - **Updates.** An installed copy checks this repository's GitHub Releases when it starts and once a day, and downloads
   a newer version if there is one.
 - **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
+- **Online libraries.** When you open D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG in Bibliotaph's browser, it
+  talks to that site the way any browser does, signed in as you. Bibliotaph reads a page only when you press
+  **Read this page**, and never sees or keeps your password; see [Online libraries](docs/guide/online-libraries.md).
+  The browser is Microsoft Edge WebView2, which follows Microsoft's own privacy statement.
 - **An AI server you set up.** If you point Settings > AI at a model server instead of the built-in AI, Bibliotaph
   sends it excerpts from your books to catalogue them, and what you type into Ask and Ask this book. A server on
   another machine or a hosted service is your choice and is covered by its own terms; see
@@ -129,6 +81,74 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
 
 Library sync only writes a file to a folder you pick. If that folder is in OneDrive, OneDrive uploads it, not
 Bibliotaph.
+
+## What it does
+
+**Indexes what you have, where it is.** Add your folders and Bibliotaph reads every PDF, JPG, PNG and WebP in them,
+ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
+network drives and OneDrive, and notices when files are added, moved or changed.
+
+**Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while
+**Inside documents** shows the matching pages, with a snippet. Click a page and the book opens right there. Add
+`system:`, `type:adventure`, `level:3` or `players:4` to narrow things down, or use the **Filters** panel: the filters
+you set show as chips you can clear one at a time. With AI on,
+**Ask** takes a request in plain English, such as "a short heist for four players", and turns it into a search you can
+check. [Searching](docs/guide/searching.md)
+
+**Reads books inside the app.** A fast reader with contents, find in the book, zoom, page thumbnails and notes on
+pages. In an index or contents page, the printed page numbers become links. Open as many books in their own windows
+as you like. With AI on, **Ask this book** answers a question from the book's own pages, with every claim citing the
+page it came from. [Reading](docs/guide/reading.md)
+
+**Fills in the catalog for you.** Each book gets a title, game system, type, levels, players, duration, setting,
+themes and more, suggested from folder names, the file itself and, if you turn it on, AI. Every suggestion shows
+where it came from; your own corrections always win. Copies of the same book share one card, folders of maps become
+one image pack, and the adventures inside an anthology get cards of their own.
+[Cataloging](docs/guide/cataloging.md)
+
+**Knows the books you own online.** Bring in your D&D Beyond and Demiplane libraries, and the books waiting in your
+Humble Bundle and DriveThruRPG libraries, so a search shows what you own wherever it is. You sign in to each site
+yourself in Bibliotaph's own browser, then read a book online in Bibliotaph's reader, or download a store's book
+into your library. Bibliotaph never stores your passwords. [Online libraries](docs/guide/online-libraries.md)
+
+**Keeps you organized.** Mark favorites, gather books into collections, save searches you use often, and pin any of
+them to the sidebar. [Collections, favorites and pins](docs/guide/organizing.md)
+
+**Gets a session ready.** A binder holds the books and pages for your next session, in order, with your notes. A binder
+can hold pages of books you read online, too. At the table, step through it with **Next** and **Previous**, and keep
+a rules binder at hand.
+[Binders](docs/guide/binders.md)
+
+**Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and sync with a second PC
+through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md)
+
+## The guide
+
+1. [Getting started](docs/guide/getting-started.md): install, add your folders, find your way around.
+2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, filters and saved searches.
+3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
+4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs and adventures.
+5. [Collections, favorites and pins](docs/guide/organizing.md)
+6. [Binders](docs/guide/binders.md): prepare a session and run it.
+7. [Online libraries](docs/guide/online-libraries.md): D&D Beyond, Demiplane, Humble Bundle and DriveThruRPG.
+8. [AI](docs/guide/ai.md): what it does, what it sends, and how to set it up.
+9. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
+10. [Questions and answers](docs/guide/faq.md)
+
+## Help and feedback
+
+Found a bug or have an idea? [Open an issue](https://github.com/munkycdev/bibliotaph/issues) (you'll need a free
+GitHub account). **About Bibliotaph** in Settings has **Copy details**, which copies the version numbers to paste into
+it. Please never attach a PDF or a page from a book you bought.
+
+Security problems go through private vulnerability reporting; see [SECURITY.md](SECURITY.md).
+
+## For developers
+
+Bibliotaph is a WPF app on .NET 11, with PDFium in isolated worker processes and SQLite with FTS5 for search. Build
+steps, the verify script, the project layout and how to contribute are in [CONTRIBUTING.md](CONTRIBUTING.md). The
+design is in [docs/architecture.md](docs/architecture.md), and what each feature does in
+[docs/features.md](docs/features.md).
 
 ## Licence
 

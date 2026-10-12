@@ -32,6 +32,7 @@ public partial class App : Application
         var measureViewer = e.Args.Contains("--measure-viewer");
         var pilot = e.Args.Contains("--pilot");
         var dev = e.Args.Contains("--dev");
+        var screenshots = Argument(e.Args, "--screenshots");
         var paths = DataRootArgument(e.Args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
         foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
 
@@ -62,8 +63,9 @@ public partial class App : Application
 
             var services = _host.Services;
             ProjectMetadataInBackground(services);
-            if (!_smokeTest && !measureSearch && !measureViewer) BackUpWeeklyInBackground(services);
-            if (!_smokeTest && !measureSearch && !measureViewer) DownloadEngineInBackground(services);
+            var everyday = !_smokeTest && !measureSearch && !measureViewer && screenshots is null;
+            if (everyday) BackUpWeeklyInBackground(services);
+            if (everyday) DownloadEngineInBackground(services);
             if (measureSearch)
             {
                 Shutdown(await SearchMeasurement.RunAsync(services));
@@ -88,6 +90,8 @@ public partial class App : Application
             if (restored is not null && !_smokeTest) AppRestart.Tell(restored);
 
             if (_smokeTest) Shutdown(await SmokeTest.RunAsync(services, window, Argument(e.Args, "--smoke-files")));
+            else if (screenshots is not null)
+                Shutdown(await Screenshots.RunAsync(services, window, screenshots, Argument(e.Args, "--screenshot-files"), RawArgument(e.Args, "--screenshot-open")));
         }
         catch (Exception ex)
         {
@@ -112,6 +116,13 @@ public partial class App : Application
     {
         var at = Array.IndexOf(args, name);
         return at >= 0 && at + 1 < args.Length ? System.IO.Path.GetFullPath(args[at + 1]) : null;
+    }
+
+    /// <summary>The text given after <paramref name="name"/>, as it is, if any.</summary>
+    static string? RawArgument(string[] args, string name)
+    {
+        var at = Array.IndexOf(args, name);
+        return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
     }
 
     static IHost BuildHost(AppPaths paths, bool pilot, bool dev, bool smokeTest)
@@ -180,6 +191,10 @@ public partial class App : Application
         builder.Services.AddSingleton<NotesService>();
         builder.Services.AddSingleton<ReadingService>();
         builder.Services.AddSingleton<DownloadCheck>();
+        builder.Services.AddSingleton<OnlineImports>();
+        builder.Services.AddSingleton<OnlineBrowsers>();
+        builder.Services.AddSingleton<OnlineReaders>();
+        builder.Services.AddSingleton<OnlineDownloads>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<CoverCache>();
@@ -275,6 +290,12 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
         builder.Services.AddSingleton<CoverImages>();
+        // Site icons for books owned online, fetched once per site; the smoke test has a stand-in for the web.
+        builder.Services.AddSingleton(sp => new SiteIcons(sp.GetRequiredService<AppPaths>(),
+            smokeTest ? new System.Net.Http.HttpClient(new SmokeSiteIcons()) : new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) },
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<SiteIcons>>()));
+        builder.Services.AddSingleton<SiteIconImages>();
+        builder.Services.AddSingleton<OnlineBooks>();
         builder.Services.AddSingleton<PageThumbnails>();
         if (smokeTest)
         {
@@ -332,6 +353,8 @@ public partial class App : Application
         builder.Services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
         builder.Services.AddSingleton<DownloadCheckViewModel>();
+        // One Settings > Online libraries, so a preview is still there after a look at the Library.
+        builder.Services.AddSingleton<OnlineLibrariesViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
@@ -353,6 +376,8 @@ public partial class App : Application
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
         Route.AiReading => services.GetRequiredService<AiReadingViewModel>(),
+        // An online reader opens with its book (OnlineReaders); by route alone, the Library.
+        Route.OnlineReader => services.GetRequiredService<LibraryViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };

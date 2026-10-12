@@ -395,9 +395,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [NotifyPropertyChangedFor(nameof(IsDetailsTab))]
     public partial bool IsNotesTab { get; set; }
 
-    /// <summary>Pin or Unpin: the book in the sidebar's Pinned group (Pinned Views plan, choice 7), kept current by the Library.</summary>
+    /// <summary>Whether the book is in the sidebar's Pinned group (Pinned Views plan, choice 7), kept current by the Library.</summary>
     [ObservableProperty]
-    public partial string PinLabel { get; set; } = "Pin";
+    [NotifyPropertyChangedFor(nameof(PinLabel), nameof(PinAction))]
+    public partial bool IsPinned { get; set; }
+
+    public string PinLabel => IsPinned ? "Unpin" : "Pin";
+
+    /// <summary>The pin button's tooltip and name.</summary>
+    public string PinAction => IsPinned ? "Unpin from the sidebar and Home" : "Pin to the sidebar and Home";
 
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 

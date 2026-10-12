@@ -488,6 +488,53 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         return snapshots;
     }
 
+    /// <summary>
+    /// An import from an online library (online libraries plan, choices 4 to 7), in one transaction. Each book with no
+    /// <see cref="ImportedBook.EntryId"/> becomes a new book owned elsewhere whose values are the user's own, with
+    /// <paramref name="quote"/> ("Imported from your D&amp;D Beyond library on 11 Oct 2026") as their evidence. A book
+    /// with one gets its changes on that card, as a bulk edit makes them. Values are in stored form. Returns what Undo
+    /// needs: the cards added, and every field changed on cards that were already there.
+    /// </summary>
+    public async Task<ImportReceipt> ImportAsync(IReadOnlyList<ImportedBook> books, string quote, CancellationToken ct = default)
+    {
+        if (books.Any(b => b.EntryId is null && b.Changes.Any(c => c.Action is not (BulkAction.Set or BulkAction.Add) || string.IsNullOrEmpty(c.Value))))
+            throw new ArgumentException("A new book has only values to set or add.", nameof(books));
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var now = _clock.GetUtcNow().UtcDateTime;
+
+        var added = new List<Entry>();
+        foreach (var book in books.Where(b => b.EntryId is null))
+        {
+            var entry = new Entry { Kind = EntryKind.Elsewhere, CreatedUtc = now };
+            foreach (var change in book.Changes.DistinctBy(c => (c.Field.Key, MetadataValues.Normalize(c.Field, c.Value!))))
+                entry.Assertions.Add(NewAssertion(default, null, new MetadataProposal(change.Field, change.Value!, AssertionOrigin.User, quote),
+                    AssertionState.Confirmed, now));
+            db.Entries.Add(entry);
+            added.Add(entry);
+        }
+
+        var changed = new List<FieldSnapshot>();
+        var existing = books.Where(b => b.EntryId is not null).GroupBy(b => b.EntryId!.Value).ToList();
+        if (existing.Count > 0)
+        {
+            var (rows, rejected) = await LoadFieldsAsync(db, [.. existing.Select(g => g.Key.Value)],
+                [.. existing.SelectMany(g => g.SelectMany(b => b.Changes)).Select(c => c.Field.Key).Distinct()], ct);
+            foreach (var group in existing)
+                foreach (var field in group.SelectMany(b => b.Changes).GroupBy(c => c.Field))
+                {
+                    var fieldRows = rows[(group.Key.Value, field.Key.Key)].ToList();
+                    var rejections = rejected[(group.Key.Value, field.Key.Key)].ToList();
+                    var before = Snapshot(group.Key, field.Key, fieldRows, rejections);
+                    if (ApplyBulk(db, group.Key, field.Key, [.. field], fieldRows, rejections, now)) changed.Add(before);
+                }
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new ImportReceipt([.. added.Select(e => (new EntryId(e.Id), e.SyncId))], changed);
+    }
+
     /// <summary>Undo for a bulk edit: puts every field back as its snapshot found it, in one transaction.</summary>
     public async Task RestoreAsync(IReadOnlyCollection<FieldSnapshot> snapshots, CancellationToken ct = default)
     {
@@ -682,6 +729,15 @@ public enum BulkAction
 
 /// <summary>One change in a bulk edit. <see cref="Value"/> is in stored form (a term's key, "1-5"); Reset has none.</summary>
 public sealed record BulkChange(MetadataField Field, BulkAction Action, string? Value = null);
+
+/// <summary>
+/// One book of an import from an online library: a new book owned elsewhere when <see cref="EntryId"/> is null, or
+/// changes to a card already in the library.
+/// </summary>
+public sealed record ImportedBook(EntryId? EntryId, IReadOnlyList<BulkChange> Changes);
+
+/// <summary>What an import did, for Undo: the books it added, and the fields it changed on cards already there.</summary>
+public sealed record ImportReceipt(IReadOnlyList<(EntryId EntryId, Guid SyncId)> Added, IReadOnlyList<FieldSnapshot> Changed);
 
 /// <summary>A field's assertion states and rejections at one moment, which <see cref="MetadataStore.RestoreAsync(FieldSnapshot, CancellationToken)"/> puts back.</summary>
 public sealed record FieldSnapshot(EntryId EntryId, MetadataField Field, IReadOnlyList<FieldSnapshot.Row> Rows, IReadOnlyList<FieldSnapshot.Rejected> Rejections)

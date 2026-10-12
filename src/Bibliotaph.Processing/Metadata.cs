@@ -15,10 +15,12 @@ namespace Bibliotaph.Processing;
 /// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name),
 /// when it was last opened (entry_opened) and the text of its notes, its own and its pages', for search (entry_note). index.db holds
 /// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
+/// <paramref name="covers"/> finds the covers books owned elsewhere got from their online library.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
     SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null, FavoriteStore? favorites = null,
-    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null, NoteStore? notes = null) : IDisposable
+    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null, NoteStore? notes = null,
+    CoverCache? covers = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -152,8 +154,9 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         return entryIds;
     }
 
-    internal static EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
+    EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
     {
+        Cover = entry.SyncId is { } syncId ? covers?.FindElsewhere(syncId) : null,
         Name = entry.Name,
         AddedUtc = entry.AddedUtc,
         Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
@@ -222,10 +225,12 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             foreach (var value in effective[field].Values)
                 facets.Add(new FacetRow(field.Key, value.Value, vocabulary.Label(field.Vocabulary!, value.Value), value.Confirmed));
 
-        // Where to get it is filtered and searched by store; a store with two links is one facet.
-        var stores = MetadataFields.GetItFrom;
-        foreach (var store in effective[stores].Values.GroupBy(v => StoreLink.Parse(v.Value).Store, StringComparer.Ordinal))
-            facets.Add(new FacetRow(stores.Key, store.Key, vocabulary.Label(stores.Vocabulary!, store.Key), store.Any(v => v.Confirmed)));
+        // Where to get it and where else it is owned are filtered and searched by term; a term with two links is one
+        // facet, which keeps the first link (a confirmed one first) for cards to open.
+        foreach (var field in MetadataFields.All.Where(f => f.Kind == FieldKind.Store))
+            foreach (var term in effective[field].Values.GroupBy(v => StoreLink.Parse(v.Value).Store, StringComparer.Ordinal))
+                facets.Add(new FacetRow(field.Key, term.Key, vocabulary.Label(field.Vocabulary!, term.Key), term.Any(v => v.Confirmed),
+                    term.OrderByDescending(v => v.Confirmed).Select(v => StoreLink.Parse(v.Value).Url).FirstOrDefault(u => u is not null)));
 
         // An edition implies its system, so filtering by D&D finds books only known to be 5e.
         var edition = effective[MetadataFields.Edition].First;
@@ -451,11 +456,32 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
             added |= isNew;
             values.Add(value!);
         }
+        if (field.Kind == FieldKind.Store) values = WithoutBareDuplicates(values);
         await metadata.SetValuesAsync(entryId, field, values, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([entryId], ct);
         if (rules is not null && values.Count > 0) await rules.ConsiderAsync([entryId], [field], ct);
         return null;
+    }
+
+    /// <summary>
+    /// What was typed for a field in stored form, read as <see cref="SetAsync"/> reads it, without saving: for a value
+    /// made elsewhere, such as an import from an online library. A name the vocabulary doesn't know becomes the user's
+    /// own term (Added). Returns the problem instead when a value can't be stored.
+    /// </summary>
+    public async Task<(IReadOnlyList<string> Values, MetadataProblem? Problem, bool Added)> StoredAsync(MetadataField field, string typed,
+        CancellationToken ct = default)
+    {
+        var values = new List<string>();
+        var added = false;
+        foreach (var part in MetadataValues.Split(field, typed))
+        {
+            var (value, problem, isNew) = await ReadAsync(field, part, ct);
+            if (problem is not null) return ([], problem, added);
+            added |= isNew;
+            values.Add(value!);
+        }
+        return (values, null, added);
     }
 
     /// <summary>
@@ -467,7 +493,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         if (Check(field, part) is { } problem) return (null, problem, false);
         if (field.Kind == FieldKind.Store)
         {
-            var (term, name, url) = StoreLink.Read(part, await vocabularies.GetAsync(ct));
+            var (term, name, url) = StoreLink.Read(part, await vocabularies.GetAsync(ct), field);
             var key = term?.Key ?? (await vocabularies.ResolveOrAddAsync(field.Vocabulary!, name, ct)).Key;
             return (new StoreLink(key, url).ToString(), null, term is null);
         }
@@ -479,6 +505,16 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         var value = MetadataValues.Parse(field, part).Value!;
         if (field.Vocabulary is { } aliases && (await vocabularies.GetAsync(ct)).Resolve(aliases, value) is { } known) value = known.Label;
         return (value, null, false);
+    }
+
+    /// <summary>
+    /// A linked field's values, leaving out a place given both bare and with a link: "D&amp;D Beyond" ticked and its link
+    /// typed is the link alone.
+    /// </summary>
+    static List<string> WithoutBareDuplicates(List<string> values)
+    {
+        var linked = values.Select(StoreLink.Parse).Where(v => v.HasLink).Select(v => v.Store).ToHashSet(StringComparer.Ordinal);
+        return [.. values.Where(v => StoreLink.Parse(v) is var parsed && (parsed.HasLink || !linked.Contains(parsed.Store))).Distinct(StringComparer.Ordinal)];
     }
 
     /// <summary>Why a typed value can't be stored in a field, or null when it can.</summary>

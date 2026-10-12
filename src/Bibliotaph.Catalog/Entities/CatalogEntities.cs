@@ -557,7 +557,8 @@ public sealed class SessionSection
 
 /// <summary>
 /// One item in a pack: a whole book, or with <see cref="PageRefId"/> a page range of it, with the game master's own
-/// label and a one-line note. The same book can be in a pack any number of times.
+/// label and a one-line note. The same book can be in a pack any number of times. With <see cref="Link"/> it is a page
+/// of a book owned online instead (online libraries plan, O2b): the address that page was at.
 /// </summary>
 public sealed class SessionItem
 {
@@ -570,6 +571,8 @@ public sealed class SessionItem
     public long EntryId { get; set; }
     public long? PageRefId { get; set; }
     public PageRef? PageRef { get; set; }
+    /// <summary>A page of a book owned online, "Add this page" in the online reader: its address. Null for a book's file or pages.</summary>
+    public string? Link { get; set; }
     /// <summary>"Warehouse ambush"; null shows the book's title.</summary>
     public string? Label { get; set; }
     public string? Note { get; set; }

@@ -38,6 +38,8 @@ static partial class SmokeTest
         PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
         var navigation = services.GetRequiredService<INavigationService>();
+        // Online readers and the in-app browser open only the made-up pages here, never a real site.
+        services.GetRequiredService<OnlineBrowsers>().OnlyFiles = true;
         var failed = new List<string>();
 
         // A failed check is logged and the rest still run, so one CI round shows every broken check, not just the
@@ -118,11 +120,13 @@ static partial class SmokeTest
             await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
                 () => UseSmartViewsAsync(services, window, books));
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
-            await Check("a book owned elsewhere added, found by where it is owned, removed and brought back, and one offered a file already in the library",
+            await Check("a book owned elsewhere added, found by where it is owned, given a D&D Beyond link it opens with its site's icon on its badge, removed and brought back, and one offered a file already in the library",
                 () => AddElsewhereAsync(services, window, books));
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
+            await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
+            await Check("a book read online in the online reader, its note kept, popped out and brought back", () => ReadOnlineBookAsync(services, window));
             await Check("the model pilot in Settings > AI and its blind review page", () => RunPilotAsync(services, window));
             await Check("a new version's place that needs a look listed in Needs review, its page used from the card and undone, with a binder open in a window following it",
                 () => ReviewRevisionAsync(services, window));
@@ -166,6 +170,8 @@ static partial class SmokeTest
                 () => BackUpAndPreviewRestoreAsync(services, window));
             await Check("Settings > Backup > Sync with another PC refusing Bibliotaph's data folder, writing this PC's sync file to the folder picked and merging another PC's collection, then stopped",
                 () => SyncWithAnotherPcAsync(services, window));
+            await Check("a store's download saved by the in-app browser into a downloads folder inside the library, listed in its window and read into the library, after a folder outside the library was refused",
+                () => DownloadFromStoreAsync(services, window));
             // Last: the made-up library's books can't be read once its folder is found offline.
             await Check("a library folder that can't be reached: its books marked Offline, one opened to a prompt to plug in its drive, the sidebar and its Settings card saying so",
                 () => ShowOfflineFolderAsync(services, window));
@@ -417,8 +423,10 @@ static partial class SmokeTest
 
         page.Layout = LibraryLayout.List;
         page.ShowFilters = true;
+        page.ShowMoreFilters = true;
         await Settle(window);
         await AuditAsync(window, "the Library as a list, with its filters");
+        page.ShowMoreFilters = false;
         await EditMetadataAsync(window, page, books);
         await BulkEditAsync(window, page, search, books);
 
@@ -477,6 +485,9 @@ static partial class SmokeTest
         page.CopiesChoice = page.CopiesChoices.Single(c => c.Value);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs", CopiesLabel: "2 copies" }],
             () => $"Filtering by copies shows {string.Join(", ", page.Items.Select(i => $"{i.Title} ({i.CopiesLabel})"))}.");
+        // The filter shows as a chip, and counts on the Filters button and the folded More filters.
+        if (page.ActiveFilters is not [{ Label: "Books with copies" }] || page.FiltersLabel != "Filters · 1" || page.MoreFiltersLabel != "More filters · 1")
+            throw new InvalidOperationException($"The Copies filter shows as {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}, {page.FiltersLabel}, {page.MoreFiltersLabel}.");
         var lairs = page.Items[0];
         await page.OpenDetailsCommand.ExecuteAsync(lairs);
         await WaitUntilAsync(window, () => page.Inspector is { Copies.Count: 2 }, () => "The inspector doesn't list the lairs' two copies.");
@@ -495,10 +506,13 @@ static partial class SmokeTest
         await AuditAsync(window, "a book's details with two copies");
 
         page.CloseDetailsCommand.Execute(null);
-        page.CopiesChoice = page.CopiesChoices[0];
-        page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
-        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the Copies filter didn't bring back all {books} books.");
+        await Settle(window);
+        await AuditAsync(window, "the Library with a filter on, as a chip");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.ActiveFilters[0].Clear && b.IsVisible), "the Copies chip's ×");
+        page.Layout = LibraryLayout.Grid;
+        await WaitUntilAsync(window, () => page.Items.Count == books && !page.HasActiveFilters && !page.CopiesChoice.Value,
+            () => $"The Copies chip's × didn't bring back all {books} books.");
     }
 
     /// <summary>
@@ -1611,8 +1625,9 @@ static partial class SmokeTest
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.HasBooks && home.RecentlyAdded.Count > 0 && home.Pins.Items is [{ Target.Kind: PinKind.Favorites }],
             () => "Home doesn't show the library and its Favorites pin.");
+        await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "HomePin" && b.IsVisible), () => "Home's Favorites pin isn't showing.");
         await Settle(window);
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin"), "Favorites pinned on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && b.IsVisible), "Favorites pinned on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items.Count: 1 }, () => "Favorites on Home didn't open Favorites.");
         var fromHome = (LibraryViewModel)shell.CurrentPage!;
 
@@ -1696,9 +1711,12 @@ static partial class SmokeTest
         // Its pin on Home opens it with its search and filter.
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Haunted places" }], () => "Home doesn't show the saved search's pin.");
+        // Home draws its pins after they load, so the button is waited for until it shows, not only the pin.
+        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Haunted places" }]
+                && Descendants<Button>(window).Any(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places") && b.IsVisible),
+            () => "Home doesn't show the saved search's pin.");
         await Settle(window);
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places")), "the saved search on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places") && b.IsVisible), "the saved search on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView.Name: "Haunted places", IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
                 && shown.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.Pinned[1].IsActive,
             () => "The saved search on Home didn't open with its search and filter.");
@@ -1834,9 +1852,11 @@ static partial class SmokeTest
 
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
-        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Spring campaign" }], () => "Home doesn't show the pinned collection, renamed.");
+        await WaitUntilAsync(window, () => home.Pins.Items is [_, { Label: "Spring campaign" }]
+                && Descendants<Button>(window).Any(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign") && b.IsVisible),
+            () => "Home doesn't show the pinned collection, renamed.");
         await AuditAsync(window, "Home with a pinned collection");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign")), "the pinned collection on Home");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Spring campaign") && b.IsVisible), "the pinned collection on Home");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { IsCollection: true, Heading: "Spring campaign" }, () => "The pin on Home didn't open the collection.");
 
         // Delete: Collections again, with Maps moved up and Undo bringing the campaign back around it.
@@ -2310,7 +2330,7 @@ static partial class SmokeTest
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog.");
         var dialog = page.AddElsewhereDialog!;
         dialog.Title = Title;
@@ -2340,6 +2360,8 @@ static partial class SmokeTest
         search.Search("");
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books + 1, () => "Clearing the search didn't bring the library back.");
 
+        await UseOnlineLinkAsync(services, window, page, card, books);
+
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveFromLibrary"), "Remove from library");
@@ -2360,7 +2382,7 @@ static partial class SmokeTest
             .First(p => p.RelativePath.EndsWith("Gazetteer of the Marches.pdf", StringComparison.Ordinal)).DocumentId;
         var file = page.Items.FirstOrDefault(i => !i.IsPack && !i.IsElsewhere && i.DocumentId == gazetteer)
             ?? throw new InvalidOperationException("The gazetteer's card isn't in the Library.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.AddElsewhereCommand), "Add a book I own elsewhere");
+        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog again.");
         var second = page.AddElsewhereDialog!;
         second.Title = file.Title;
@@ -2388,6 +2410,76 @@ static partial class SmokeTest
         page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was after the second book.");
+    }
+
+    /// <summary>
+    /// Online libraries (O1): the book owned elsewhere gets a D&amp;D Beyond link in Also own. Its card opens the link
+    /// (through the smoke test's launcher, so no browser starts), its badge shows the site's icon, the details offer
+    /// Open on D&amp;D Beyond, and where: and On this PC tell it from the books with files.
+    /// </summary>
+    static async Task UseOnlineLinkAsync(IServiceProvider services, Window window, LibraryViewModel page, LibraryItemViewModel card, int books)
+    {
+        const string Link = "https://www.dndbeyond.com/sources/dnd/smoke-atlas";
+        var problem = await services.GetRequiredService<MetadataService>().SetAsync(card.EntryId, MetadataFields.AlsoOwn, $"Print, {Link}");
+        if (problem is not null) throw new InvalidOperationException($"Also own refused the link: {problem.Message}");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => card.OpensOnline && card.BadgeLabel == "D&D Beyond",
+            () => $"The card has no online link after Also own got one (badge “{card.BadgeLabel}”).");
+        await WaitUntilAsync(window, () => card.SiteIcon is not null, () => "The card's badge has no site icon.");
+        if (!page.OpenBookCommand.CanExecute(card)) throw new InvalidOperationException("A book owned online can't be opened.");
+
+        var launcher = services.GetRequiredService<IShellLauncher>() as SmokeShellLauncher
+            ?? throw new InvalidOperationException("The smoke test has no stand-in launcher.");
+        await Settle(window);
+        await AuditAsync(window, "a book owned online, with its site's badge");
+
+        // Open reads it in the online reader (O2b), which in the smoke test loads no real site; without the browser's
+        // runtime it opens in the everyday browser instead.
+        var opened = launcher.Opened.Count;
+        var shell = services.GetRequiredService<ShellViewModel>();
+        await page.OpenBookCommand.ExecuteAsync(card);
+        if (OnlineBrowsers.RuntimeVersion is null)
+        {
+            if (launcher.Opened.Count != opened + 1 || launcher.Opened[^1] != Link)
+                throw new InvalidOperationException($"Open didn't open the book's page: {string.Join(", ", launcher.Opened.Skip(opened))}");
+            opened++;
+        }
+        else
+        {
+            await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel { Request.Link: Link },
+                () => $"Open showed {shell.CurrentPage?.GetType().Name}, not the online reader.");
+            services.GetRequiredService<INavigationService>().GoBack();
+            var id = card.EntryId;
+            await WaitUntilAsync(window, () => shell.CurrentPage == page && page.Items.Any(i => i.EntryId == id),
+                () => "Back from the online reader didn't return to the Library.");
+            card = page.Items.First(i => i.EntryId == id);
+        }
+
+        await page.OpenDetailsCommand.ExecuteAsync(card);
+        await Settle(window);
+        // Open on D&D Beyond in the details opens the same reader.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OpenOnline" && b.IsVisible), "Open on D&D Beyond");
+        if (OnlineBrowsers.RuntimeVersion is null)
+            await WaitUntilAsync(window, () => launcher.Opened.Count == opened + 1, () => "Open on D&D Beyond in the details didn't open the page.");
+        else
+        {
+            await WaitUntilAsync(window, () => shell.CurrentPage is OnlineReaderViewModel { Request.Link: Link },
+                () => $"Open on D&D Beyond in the details showed {shell.CurrentPage?.GetType().Name}, not the online reader.");
+            services.GetRequiredService<INavigationService>().GoBack();
+            await WaitUntilAsync(window, () => shell.CurrentPage == page, () => "Back from the online reader didn't return to the Library.");
+            card = page.Items.First(i => i.EntryId == card.EntryId);
+        }
+        page.CloseDetailsCommand.Execute(null);
+
+        var search = services.GetRequiredService<SearchState>();
+        search.Search("where:elsewhere");
+        await WaitUntilAsync(window, () => page.Items is [{ OpensOnline: true }], () => "where:elsewhere didn't find only the book owned online.");
+        search.Search("");
+        await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books + 1, () => "Clearing where: didn't bring the library back.");
+        page.KindChoice = page.KindChoices.Single(c => c.Value == KindFilter.Here);
+        await WaitUntilAsync(window, () => page.Items.Count == books && page.Items.All(i => !i.IsElsewhere), () => "On this PC still shows the book owned online.");
+        page.KindChoice = page.KindChoices[0];
+        await WaitUntilAsync(window, () => page.Items.Count == books + 1, () => "All kinds didn't bring the book owned online back.");
     }
 
     /// <summary>

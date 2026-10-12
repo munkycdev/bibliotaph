@@ -1,0 +1,166 @@
+<UserControl x:Class="Bibliotaph.App.Views.OnlineLibrariesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:OnlineLibrariesViewModel}">
+  <!--
+    Settings > Online libraries (O2): the services, a library page's preview grouped by what importing does, and the
+    books missing, then the downloads folder, the browser's sign-ins and how books owned online show and open. Settings
+    gives it its width and the page title, so it starts with its own heading as the other sections do.
+  -->
+  <StackPanel>
+    <TextBlock Text="Online libraries" Style="{StaticResource Text.H2}" />
+    <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
+               Text="Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never browses on its own." />
+
+    <ItemsControl x:Name="OnlineServices" ItemsSource="{Binding Services}" Focusable="False" AutomationProperties.Name="Online services">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:OnlineServiceViewModel}">
+          <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,10">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Margin="16,0,0,0">
+                <Button x:Name="OpenService" Style="{StaticResource Bt.Button.Primary}" Content="{Binding OpenLabel}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
+                        Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
+                <Button Style="{StaticResource Bt.Link}" Content="Import a saved page…" Margin="0,8,0,0" HorizontalAlignment="Right"
+                        Command="{Binding DataContext.ImportSavedPageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        AutomationProperties.Name="{Binding Name, StringFormat='Import a saved {0} library page'}" />
+              </StackPanel>
+              <StackPanel>
+                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock x:Name="OnlineProblem" Text="{Binding Problem}" FontSize="12" Foreground="{DynamicResource Bt.Text}" Margin="0,12,0,0" TextWrapping="Wrap"
+               Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+    <!-- What the last import or removal did, with Undo. -->
+    <DockPanel Margin="0,16,0,0" Visibility="{Binding Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Button x:Name="UndoOnline" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+              Command="{Binding UndoCommand}" Visibility="{Binding CanUndo, Converter={StaticResource Bt.VisibleWhenTrue}}"
+              AutomationProperties.Name="Undo the import" Margin="16,0,0,0" />
+      <TextBlock x:Name="OnlineMessage" Text="{Binding Message}" FontSize="13" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+    </DockPanel>
+
+    <StackPanel Visibility="{Binding HasPlan, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,16,0,0">
+      <DockPanel>
+        <Button x:Name="ImportOnline" DockPanel.Dock="Right" Style="{StaticResource Bt.Button.Primary}" Content="{Binding ImportLabel}"
+                Command="{Binding ImportCommand}" AutomationProperties.Name="{Binding ImportLabel}" Margin="16,0,0,0" VerticalAlignment="Center" />
+        <!-- Below the section's own heading, so a row's size rather than a second heading's. -->
+        <TextBlock x:Name="OnlineSummary" Text="{Binding Summary}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+      </DockPanel>
+
+      <ItemsControl ItemsSource="{Binding Groups}" Focusable="False" AutomationProperties.Name="What importing does">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:OnlineGroupViewModel}">
+            <StackPanel Margin="0,24,0,0">
+              <TextBlock Text="{Binding Heading}" FontSize="15" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" Margin="0,4,0,8" TextWrapping="Wrap" />
+              <Border Style="{StaticResource Bt.Rule}" />
+              <ItemsControl ItemsSource="{Binding Items}" Focusable="False" AutomationProperties.Name="{Binding Label}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:OnlineRowViewModel}">
+                    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,8">
+                      <DockPanel>
+                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChosen}" IsEnabled="{Binding CanChoose}" VerticalAlignment="Top" Margin="0,2,10,0"
+                                  Visibility="{Binding CanChoose, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  AutomationProperties.Name="{Binding Title, StringFormat='Import {0}'}" />
+                        <StackPanel>
+                          <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Margin="0,24,0,0" Visibility="{Binding HasMissing, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="No longer in this library" FontSize="15" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,8" TextWrapping="Wrap"
+                   Text="Books imported before that this page doesn't list. Nothing is removed unless you remove it." />
+        <Border Style="{StaticResource Bt.Rule}" />
+        <ItemsControl x:Name="MissingBooks" ItemsSource="{Binding Missing}" Focusable="False" AutomationProperties.Name="No longer in this library">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:MissingBookViewModel}">
+              <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,8">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Remove from library" Command="{Binding RemoveCommand}" Margin="16,0,0,0"
+                          AutomationProperties.Name="{Binding Title, StringFormat='Remove {0} from your library'}" />
+                  <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </DockPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- O5: where a store's own Download button saves, inside the library so the file is read like any other. -->
+    <DockPanel Margin="0,32,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,0,0,0">
+        <Button x:Name="ChooseDownloadsFolder" Content="Choose folder…" Command="{Binding ChooseDownloadsFolderCommand}" />
+        <Button x:Name="ClearDownloadsFolder" Style="{StaticResource Bt.Link}" Content="Stop using it" Command="{Binding ClearDownloadsFolderCommand}" Margin="12,0,0,0"
+                VerticalAlignment="Center" Visibility="{Binding HasDownloadsFolder, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                AutomationProperties.Name="Stop using a downloads folder" />
+      </StackPanel>
+      <StackPanel>
+        <TextBlock Text="Downloads" FontSize="14" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="When you press a store's own Download button in Bibliotaph's browser, the file goes here, a library folder or one inside it, and joins your library. Nothing downloads unless you press Download." />
+        <TextBlock x:Name="DownloadsFolderLine" Text="{Binding DownloadsLine}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
+        <TextBlock x:Name="DownloadsProblemLine" Text="{Binding DownloadsProblem}" FontSize="12" Foreground="{DynamicResource Bt.Text}" Margin="0,6,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding DownloadsProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- Choice 2: the browser keeps its sign-ins between imports; this forgets them all. -->
+    <DockPanel Margin="0,32,0,0">
+      <Button x:Name="SignOutBrowser" DockPanel.Dock="Right" Content="Sign out of all services" Command="{Binding SignOutCommand}" Margin="16,0,0,0"
+              VerticalAlignment="Top" />
+      <StackPanel>
+        <TextBlock Text="Bibliotaph's browser" FontSize="14" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="It keeps you signed in between imports, apart from your everyday browser. Signing out forgets every sign-in, cookie and page it kept." />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- How books owned online show and open, here rather than in Settings > Library so online libraries are in one place. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Books you own online" FontSize="14" FontWeight="SemiBold" />
+        <!-- Online libraries plan, choice 12: the badge on a book owned online shows its site's own icon, fetched once. -->
+        <CheckBox x:Name="ShowSiteIcons" Margin="0,12,0,0" IsChecked="{Binding ShowSiteIcons}" VerticalContentAlignment="Top"
+                  Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Show site icons">
+          <StackPanel Margin="4,0,0,0">
+            <TextBlock Text="Show site icons" FontSize="12" />
+            <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                       Text="A book you own online shows its site's icon, such as D&amp;D Beyond's, in the corner of its cover. Bibliotaph fetches each site's icon once and keeps it. Off, a plain cloud shows and nothing is fetched." />
+          </StackPanel>
+        </CheckBox>
+
+        <!-- Online libraries plan, choice 19: a book owned online opens in Bibliotaph's online reader, or the everyday browser. -->
+        <CheckBox x:Name="ReadOnlineInApp" Margin="0,16,0,0" IsChecked="{Binding ReadOnlineInApp}" VerticalContentAlignment="Top"
+                  Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Read books owned online in Bibliotaph">
+          <StackPanel Margin="4,0,0,0">
+            <TextBlock Text="Read books owned online in Bibliotaph" FontSize="12" />
+            <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                       Text="Open shows a book you own on D&amp;D Beyond or Demiplane on its own page, in a reader like the PDF reader, signed in through Bibliotaph's browser. Off, it opens in your everyday browser." />
+          </StackPanel>
+        </CheckBox>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

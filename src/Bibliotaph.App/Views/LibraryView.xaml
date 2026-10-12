@@ -107,8 +107,18 @@
         <DockPanel Margin="0,0,42,24">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
                       Visibility="{Binding ShowsLibraryActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <Button x:Name="AddElsewhere" Content="Add a book I own elsewhere" c:Ui.Icon="{StaticResource Icon.Plus}"
-                    Margin="0,0,8,0" Command="{Binding AddElsewhereCommand}" ToolTip="A book you own in print or on a virtual tabletop, with no file here" />
+            <!-- Books with no file here: one added by hand, or a whole online library imported (online libraries, O2). -->
+            <Button x:Name="OwnedElsewhere" Content="Owned elsewhere" c:Ui.Icon="{StaticResource Icon.Cloud}" Margin="0,0,8,0" Click="DropDown_Click"
+                    ToolTip="Books you own in print, on a virtual tabletop or on an online service, with no file here">
+              <Button.ContextMenu>
+                <ContextMenu Style="{StaticResource Bt.Menu}">
+                  <MenuItem x:Name="AddElsewhere" Header="Add a book I own elsewhere…" Command="{Binding AddElsewhereCommand}"
+                            AutomationProperties.Name="Add a book I own elsewhere" />
+                  <MenuItem x:Name="OnlineLibraries" Header="Import from an online library…" Command="{Binding OpenOnlineLibrariesCommand}"
+                            AutomationProperties.Name="Import from an online library" />
+                </ContextMenu>
+              </Button.ContextMenu>
+            </Button>
             <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
                     Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
             <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
@@ -215,7 +225,8 @@
                   </DockPanel>
                 </Border>
               </Popup>
-              <Button Content="Filters" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}" Margin="0,0,8,8" />
+              <Button x:Name="FiltersButton" Content="{Binding FiltersLabel}" c:Ui.Icon="{StaticResource Icon.SlidersHorizontal}" Command="{Binding ToggleFiltersCommand}"
+                      Margin="0,0,8,8" AutomationProperties.Name="Filters" AutomationProperties.HelpText="{Binding FiltersLabel}" />
               <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortChoice}"
                         AutomationProperties.Name="Sort" Margin="0,0,8,8" />
               <Border Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center" Margin="0,0,0,8"
@@ -238,83 +249,112 @@
           </Grid>
         </Border>
 
-        <!-- Two rows of filters at most before they scroll, so a short window (or 200% scaling) still has room for the books. -->
-        <ScrollViewer Grid.Row="2" Margin="0,15,42,-12" MaxHeight="140" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+        <!--
+          The filters: the four most books are found by first, then the rest folded under More filters in groups. Two
+          rows at most before they scroll, so a short window (or 200% scaling) still has room for the books; more while
+          the groups are open.
+        -->
+        <ScrollViewer Grid.Row="2" Margin="0,15,42,-12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       Focusable="False" Visibility="{Binding ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <WrapPanel>
-            <StackPanel Margin="0,0,12,12">
-              <TextBlock Text="Kind" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding KindChoices}" SelectedItem="{Binding KindChoice}"
-                        AutomationProperties.Name="Kind" MinWidth="150" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12">
-              <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FolderChoices}" SelectedItem="{Binding FolderChoice}"
-                        AutomationProperties.Name="Source folder" MinWidth="200" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12">
-              <TextBlock Text="Game system" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SystemChoices}" SelectedItem="{Binding SystemChoice}"
-                        AutomationProperties.Name="Game system" MinWidth="180" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12">
-              <TextBlock Text="Type" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding TypeChoices}" SelectedItem="{Binding TypeChoice}"
-                        AutomationProperties.Name="Type" MinWidth="160" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12">
-              <TextBlock Text="Character level" Style="{StaticResource FieldLabel}" />
-              <StackPanel Orientation="Horizontal">
-                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding LevelChoices}" SelectedItem="{Binding LevelChoice}"
-                          AutomationProperties.Name="Character level" MinWidth="110" MaxDropDownHeight="320" />
-                <CheckBox Content="Include unknown levels" IsChecked="{Binding IncludeUnknownLevels}" Margin="10,0,0,0" VerticalAlignment="Center"
-                          FontSize="11" Foreground="{DynamicResource Bt.Text}"
-                          Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <ScrollViewer.Style>
+            <Style TargetType="ScrollViewer">
+              <Setter Property="MaxHeight" Value="140" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding ShowMoreFilters}" Value="True">
+                  <Setter Property="MaxHeight" Value="300" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </ScrollViewer.Style>
+          <StackPanel>
+            <WrapPanel>
+              <StackPanel Margin="0,0,12,12">
+                <TextBlock Text="Game system" Style="{StaticResource FieldLabel}" />
+                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding SystemChoices}" SelectedItem="{Binding SystemChoice}"
+                          AutomationProperties.Name="Game system" MinWidth="180" />
               </StackPanel>
+              <StackPanel Margin="0,0,12,12">
+                <TextBlock Text="Type" Style="{StaticResource FieldLabel}" />
+                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding TypeChoices}" SelectedItem="{Binding TypeChoice}"
+                          AutomationProperties.Name="Type" MinWidth="160" />
+              </StackPanel>
+              <StackPanel Margin="0,0,12,12">
+                <TextBlock Text="Character level" Style="{StaticResource FieldLabel}" />
+                <StackPanel Orientation="Horizontal">
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding LevelChoices}" SelectedItem="{Binding LevelChoice}"
+                            AutomationProperties.Name="Character level" MinWidth="110" MaxDropDownHeight="320" />
+                  <CheckBox Content="Include unknown levels" IsChecked="{Binding IncludeUnknownLevels}" Margin="10,0,0,0" VerticalAlignment="Center"
+                            FontSize="11" Foreground="{DynamicResource Bt.Text}"
+                            Visibility="{Binding HasLevelChoice, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                </StackPanel>
+              </StackPanel>
+              <StackPanel Margin="0,0,12,12">
+                <TextBlock Text="Players" Style="{StaticResource FieldLabel}" />
+                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding PlayersChoices}" SelectedItem="{Binding PlayersChoice}"
+                          AutomationProperties.Name="Players" MinWidth="130" ToolTip="Books written for this many players" />
+              </StackPanel>
+              <Button x:Name="MoreFilters" Style="{StaticResource Bt.Link}" Content="{Binding MoreFiltersLabel}" Command="{Binding ToggleMoreFiltersCommand}"
+                      VerticalAlignment="Bottom" Margin="0,0,16,20" ToolTip="Style, duration, where books live, and housekeeping" />
+              <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
+            </WrapPanel>
+            <StackPanel x:Name="MoreFilterGroups" Visibility="{Binding ShowMoreFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <TextBlock Text="THE ADVENTURE" Style="{StaticResource Text.Eyebrow}" Margin="0,4,0,8" Visibility="{Binding ShowAdventureFilters, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <WrapPanel Visibility="{Binding ShowAdventureFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStyleChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Style" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StyleChoices}" SelectedItem="{Binding StyleChoice}"
+                            AutomationProperties.Name="Style" MinWidth="150" ToolTip="The kind of adventure: a heist, a dungeon crawl, a hexcrawl" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowDurationChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Duration" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding DurationChoices}" SelectedItem="{Binding DurationChoice}"
+                            AutomationProperties.Name="Duration" MinWidth="150" ToolTip="How long it takes to play: a one-shot, a few sessions, a campaign" />
+                </StackPanel>
+              </WrapPanel>
+              <TextBlock Text="WHERE IT LIVES" Style="{StaticResource Text.Eyebrow}" Margin="0,4,0,8" />
+              <WrapPanel>
+                <StackPanel Margin="0,0,12,12">
+                  <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding FolderChoices}" SelectedItem="{Binding FolderChoice}"
+                            AutomationProperties.Name="Source folder" MinWidth="200" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding OwnChoices}" SelectedItem="{Binding OwnChoice}"
+                            AutomationProperties.Name="Also own" MinWidth="150" ToolTip="Books you also own in print or on a virtual tabletop" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStoreChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Get it from" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StoreChoices}" SelectedItem="{Binding StoreChoice}"
+                            AutomationProperties.Name="Get it from" MinWidth="150" ToolTip="Where you got it, or can get it again" />
+                </StackPanel>
+              </WrapPanel>
+              <TextBlock Text="HOUSEKEEPING" Style="{StaticResource Text.Eyebrow}" Margin="0,4,0,8" />
+              <WrapPanel>
+                <StackPanel Margin="0,0,12,12">
+                  <TextBlock Text="Kind" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding KindChoices}" SelectedItem="{Binding KindChoice}"
+                            AutomationProperties.Name="Kind" MinWidth="150" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
+                            AutomationProperties.Name="Read by AI" MinWidth="150" ToolTip="Books a model has read and catalogued" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCopiesChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
+                            AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowPartsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
+                  <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PartsChoices}" SelectedItem="{Binding PartsChoice}"
+                            AutomationProperties.Name="Adventures inside files" MinWidth="150"
+                            ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
+                </StackPanel>
+              </WrapPanel>
             </StackPanel>
-            <StackPanel Margin="0,0,12,12">
-              <TextBlock Text="Players" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding PlayersChoices}" SelectedItem="{Binding PlayersChoice}"
-                        AutomationProperties.Name="Players" MinWidth="130" ToolTip="Books written for this many players" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStyleChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="Style" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StyleChoices}" SelectedItem="{Binding StyleChoice}"
-                        AutomationProperties.Name="Style" MinWidth="150" ToolTip="The kind of adventure: a heist, a dungeon crawl, a hexcrawl" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowDurationChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="Duration" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding DurationChoices}" SelectedItem="{Binding DurationChoice}"
-                        AutomationProperties.Name="Duration" MinWidth="150" ToolTip="How long it takes to play: a one-shot, a few sessions, a campaign" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowStoreChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="Get it from" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding StoreChoices}" SelectedItem="{Binding StoreChoice}"
-                        AutomationProperties.Name="Get it from" MinWidth="150" ToolTip="Where you got it, or can get it again" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowAiChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="AI" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding AiChoices}" SelectedItem="{Binding AiChoice}"
-                        AutomationProperties.Name="Read by AI" MinWidth="150" ToolTip="Books a model has read and catalogued" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCopiesChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding CopiesChoices}" SelectedItem="{Binding CopiesChoice}"
-                        AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowPartsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
-              <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PartsChoices}" SelectedItem="{Binding PartsChoice}"
-                        AutomationProperties.Name="Adventures inside files" MinWidth="150"
-                        ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
-            </StackPanel>
-            <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />
-              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding OwnChoices}" SelectedItem="{Binding OwnChoice}"
-                        AutomationProperties.Name="Also own" MinWidth="150" ToolTip="Books you also own in print or on a virtual tabletop" />
-            </StackPanel>
-            <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
-          </WrapPanel>
+          </StackPanel>
         </ScrollViewer>
 
         <!-- .bt-sectionline -->
@@ -329,6 +369,30 @@
                       Command="{Binding ClearScopeCommand}" />
             </StackPanel>
           </Border>
+          <!-- The filters that are on, with the panel open or closed; each chip's × turns its filter off. -->
+          <DockPanel Margin="0,0,0,6" Visibility="{Binding HasActiveFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="ClearFilterChips" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Clear filters" VerticalAlignment="Top"
+                    Margin="12,4,0,0" Command="{Binding ClearFiltersCommand}" Visibility="{Binding HasSeveralFilters, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+            <ItemsControl x:Name="FilterChips" ItemsSource="{Binding ActiveFilters}" Focusable="False" AutomationProperties.Name="Filters on"
+                          KeyboardNavigation.TabNavigation="Continue">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:FilterChip}">
+                  <Border Style="{StaticResource Bt.Chip}" Padding="10,2,2,2" Margin="0,0,6,6" AutomationProperties.Name="{Binding Label}">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+                      <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0"
+                              Padding="2" ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}" Command="{Binding Clear}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DockPanel>
           <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out (choice 9). -->
           <StackPanel Visibility="{Binding HasSubCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <ItemsControl x:Name="SubCollections" ItemsSource="{Binding SubCollections}" ItemTemplate="{StaticResource CollectionCard}"
@@ -654,11 +718,8 @@
 
     <!-- .bt-drawer: the inspector, over the page. Esc, the close button or a click outside closes it. -->
     <Grid Grid.RowSpan="3" Visibility="{Binding Inspector, Converter={StaticResource Bt.VisibleWhenSet}}">
-      <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}">
-        <Border.InputBindings>
-          <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDetailsCommand}" />
-        </Border.InputBindings>
-      </Border>
+      <Border x:Name="DrawerShade" Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" MouseLeftButtonDown="DrawerShade_MouseLeftButtonDown"
+              MouseLeftButtonUp="DrawerShade_MouseLeftButtonUp" />
       <Border x:Name="Drawer" HorizontalAlignment="Right" Width="440" Margin="0,-36,0,0" DataContext="{Binding Inspector}"
               Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,0,0"
               IsVisibleChanged="Drawer_IsVisibleChanged" d:DataContext="{d:DesignInstance vm:InspectorViewModel}">
@@ -705,48 +766,63 @@
                     <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
                   </Border>
                 </WrapPanel>
-                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
-                <Button x:Name="RemoveFromLibrary" Content="Remove from library" HorizontalAlignment="Left" Margin="0,16,0,0"
-                        ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
-                        Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <StackPanel Orientation="Horizontal" Margin="0,16,0,0" Visibility="{Binding CanOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              </StackPanel>
+            </Grid>
+
+            <!--
+              The book's actions, in one row under the cover: what it opens with on the left, labelled (they wrap when there
+              are many); pin, binder and Cataloged wrong… on the right, as icons.
+            -->
+            <DockPanel Margin="0,20,0,-8">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,8">
+                <Button x:Name="PinBook" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pin}" c:Ui.IsActive="{Binding IsPinned}"
+                        ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" CommandParameter="{Binding Item}"
+                        Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <!-- Add to binder (slice 3c): the current session, another or a new one. -->
+                <Button x:Name="AddToSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="2,0,0,0"
+                        Click="DropDown_Click" ToolTip="Add to binder" AutomationProperties.Name="Add to binder">
+                  <Button.ContextMenu>
+                    <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
+                  </Button.ContextMenu>
+                </Button>
+                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
+                <Button x:Name="CatalogedWrong" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="2,0,0,0"
+                        ToolTip="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Cataloged wrong…"
+                        Command="{Binding StartCorrectingCommand}" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              </StackPanel>
+              <WrapPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,8,8" Visibility="{Binding CanOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
                           AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0}'}"
                           Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           c:NewWindowGesture.Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
-                  <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="6,0,0,0"
+                  <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="4,0,0,0"
                           ToolTip="Open in new window (Shift+Enter)" AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0} in new window'}"
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
+                <!-- Online libraries (O1, O2b): the book's page where it is owned online, in the online reader. -->
+                <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
+                        ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
+                        Command="{Binding DataContext.OpenOnlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding Item}" Visibility="{Binding Item.HasOnlineLink, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- Ask this book (Ask plan, choice 11): shown only for a PDF with text while AI is on, when it can run. -->
-                <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" Margin="0,0,8,8"
                         ToolTip="Open this book with its Ask panel, to ask it a question" AutomationProperties.Name="Ask this book"
                         Command="{Binding DataContext.AskBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}"
                         Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
-                <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" HorizontalAlignment="Left"
-                        Margin="0,8,0,0" ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
+                <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
+                        ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
                         Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- Add to binder (slice 3c): the current session, another or a new one. -->
-                <Button x:Name="AddToSession" Content="Add to binder" c:Ui.Icon="{StaticResource Icon.NotebookPen}" HorizontalAlignment="Left"
-                        Margin="0,8,0,0" Click="DropDown_Click" ToolTip="Add this book to a binder">
-                  <Button.ContextMenu>
-                    <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
-                  </Button.ContextMenu>
-                </Button>
-                <Button x:Name="PinBook" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                        ToolTip="Pinned books show in the sidebar and on Home" CommandParameter="{Binding Item}"
-                        Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
-                <Button x:Name="CatalogedWrong" Content="Cataloged wrong…" c:Ui.Icon="{StaticResource Icon.Pencil}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                        ToolTip="Correct its details: the values Bibliotaph guessed are marked" Command="{Binding StartCorrectingCommand}"
-                        Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-              </StackPanel>
-            </Grid>
-
+                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
+                <Button x:Name="RemoveFromLibrary" Content="Remove from library" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
+                        ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
+                        Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </WrapPanel>
+            </DockPanel>
             <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
               <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />

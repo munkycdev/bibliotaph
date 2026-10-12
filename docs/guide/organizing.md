@@ -1,15 +1,15 @@
 # Collections, favorites and pins
 
-[Bibliotaph](../../README.md) › Guide › Collections, favorites and pins
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Collections, favorites and pins
 
 None of this moves or copies a file. A book can be in as many collections as you like, and removing it from one only
 takes it out of the group.
 
 ## Favorites
 
-Mark a book with a heart: hover over its cover and click the heart, or choose **Add to favorites** on its right-click
-menu, in its details or in the reader's toolbar. **Favorites**, pinned in the sidebar from the start, shows them all, and `favorite:yes` finds
-them in a search. For an image in a pack, the heart goes on the pack.
+Mark a book with a heart: hover over its cover and click the heart, choose **Add to favorites** on its right-click
+menu, or click the heart in its details or in the reader's toolbar. **Favorites**, pinned in the sidebar from the
+start, shows them all, and `favorite:yes` finds them in a search. For an image in a pack, the heart goes on the pack.
 
 ## Collections
 
@@ -31,18 +31,14 @@ Every change shows **Undo** for a moment.
 ## Pins
 
 Pin anything you go back to often, and it shows in the sidebar's **Pinned** group and on Home. You can pin a book,
-Favorites, a collection, a binder or a saved search: look for **Pin** on a book's menu, in its details and in the
-reader, and on the page of a collection, binder, saved search or Favorites.
+Favorites, a collection, a binder or a saved search: choose **Pin** on a book's menu, or click the pin button in its
+details or in the reader, or on the page of a collection, binder, saved search or Favorites.
 
 Drag a pin up or down the sidebar to reorder it, or select it and press **Alt+Up** or **Alt+Down**. Right-click a pin
-for **Move up**, **Move down** and **Unpin**.
+for **Move up**, **Move down** and **Unpin**, and for a saved search, **Rename…** and **Delete**.
 
-Clicking a pinned book opens it where you left it.
-
-## Home
-
-Home is where you pick up: **Continue preparing** shows your next binder, then **Recently opened**,
-**Recently added** and your pins. Prefer to start in the Library? Change **Start on** in **Settings > Library**.
+Clicking a pinned book opens it where you left it. A book you own online opens in the online reader; see
+[Online libraries](online-libraries.md).
 
 ## Saved searches
 
@@ -54,6 +50,6 @@ See [Saved searches](searching.md#saved-searches).
 In **Select** mode, **Export these** saves the ticked books as a CSV file for a spreadsheet. **Settings > Backup** can
 export the whole library the same way; see [OneDrive, drives and other PCs](onedrive-and-other-pcs.md#backups).
 
-## Next
+---
 
-- [Binders](binders.md): get a session ready.
+Previous: [Cataloging](cataloging.md) · Next: [Binders](binders.md)

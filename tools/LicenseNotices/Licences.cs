@@ -50,6 +50,8 @@ static class Licences
     public static readonly KnownFile[] Files =
     [
         new("SQLite", "blessing", "SQLite is Public Domain"),
+        // The in-app browser's control and loader; the browser itself is the Edge WebView2 Runtime, part of Windows.
+        new("Microsoft.Web.WebView2", "BSD-3-Clause", "The name of Microsoft Corporation, or the names of its contributors"),
     ];
 
     /// <summary>

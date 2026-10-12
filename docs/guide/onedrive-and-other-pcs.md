@@ -1,6 +1,6 @@
 # OneDrive, drives and other PCs
 
-[Bibliotaph](../../README.md) › Guide › OneDrive, drives and other PCs
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › OneDrive, drives and other PCs
 
 ## OneDrive
 
@@ -56,7 +56,8 @@ drops, the folder goes offline like an unplugged drive.
   each week, and keeps the last four. **Open backups folder** shows them.
 - A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay
   where they are. Passwords for protected PDFs and AI keys aren't in it either; Bibliotaph asks again when it needs
-  them.
+  them. Nor are the sign-ins of Bibliotaph's browser: sign in to your online libraries again after a restore on a new
+  PC.
 - **Include the search index** makes backups much larger, but a restored library is searchable straight away instead
   of after your books are read again.
 
@@ -76,23 +77,24 @@ for a spreadsheet. **Export JSON…** saves everything in the catalog, for other
 
 ## A second PC
 
-To use your library on two Windows PCs, say a desktop and a laptop, turn on **Sync with another PC** in
+To use your library on two Windows PCs, say a desktop and a laptop, set up **Sync with another PC** in
 **Settings > Backup** on both:
 
-1. Click **Choose a folder** and pick a folder both PCs can see, such as one in OneDrive.
+1. Click **Choose a folder…** and pick a folder both PCs can see, such as one in OneDrive.
 2. Each PC writes a small file of its own there, and reads the other's. Changes go across within a few seconds of the
    folder syncing, or straight away with **Sync now**.
 3. The status line says when it last merged, such as "Last merged from DESKTOP-2 at 09:14.", or what went wrong.
 
-What travels: your corrections, hearts, notes, collections, saved searches, binders, pins, vocabulary, books you own
-elsewhere and your answers in Needs review. Where both PCs change the same thing, the newer change wins; changes to
-different things are all kept.
+What travels: your corrections, hearts, notes, collections, saved searches, binders (with any pages online in them),
+pins, vocabulary, books you own elsewhere (imported ones too) and your answers in Needs review. Where both PCs change
+the same thing, the newer change wins; changes to different things are all kept.
 
-What doesn't: your library folders, where you left each book, and settings. Add your folders on each PC. Books are
-matched by their content, so the same file in a different place on each PC is still the same book.
+What doesn't: your library folders, where you left each book, settings, and the sign-ins of Bibliotaph's browser. Add
+your folders on each PC. Books are matched by their content, so the same file in a different place on each PC is still
+the same book.
 
 **Stop syncing** ends it on that PC. Only the sync files go in that folder, never Bibliotaph's catalog itself.
 
-## Next
+---
 
-- [Questions and answers](faq.md)
+Previous: [AI](ai.md) · Next: [Questions and answers](faq.md)

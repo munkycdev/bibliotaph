@@ -37,6 +37,15 @@ public sealed class CoverCache(AppPaths paths)
 
     public string PathFor(string fileName) => Path.Combine(Folder, fileName);
 
+    /// <summary>
+    /// What a book owned elsewhere's cover is kept under (online libraries plan, choice 9): its entry's sync id, which
+    /// stays the same however its card changes. The cover comes from its online library, so importing again remakes it.
+    /// </summary>
+    public static string ElsewhereKey(Guid syncId) => string.Create(CultureInfo.InvariantCulture, $"elsewhere-{syncId:N}");
+
+    /// <summary>The cover kept for a book owned elsewhere, as a name for the card, or null when it has none.</summary>
+    public string? FindElsewhere(Guid syncId) => FileName(ElsewhereKey(syncId)) is var name && File.Exists(PathFor(name)) ? name : null;
+
     /// <summary>Writes a cover through a temporary file, so a reader never sees half of one.</summary>
     public string Write(string contentHash, byte[] jpeg)
     {

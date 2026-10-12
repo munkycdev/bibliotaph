@@ -56,13 +56,16 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
 
     /// <summary>For a file, how many adventures are marked in it.</summary>
     public int Parts { get; init; }
+
+    /// <summary>A book owned elsewhere's cover, from its online library: a name in the covers cache. A file's card shows its document's.</summary>
+    public string? Cover { get; init; }
 }
 
 /// <summary>An image in a pack: the document it shows, its own entry and its file name.</summary>
 public sealed record EntryMemberRow(long DocumentId, EntryId MemberEntryId, string Name);
 
-/// <summary>One value of a vocabulary field: a term key and its label.</summary>
-public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed);
+/// <summary>One value of a vocabulary field: a term key and its label, and its web link when it has one (own, store).</summary>
+public sealed record FacetRow(string Field, string Value, string Label, bool Confirmed, string? Link = null);
 
 /// <summary>Whether a document's levels are known, known not to apply, or unknown.</summary>
 public enum LevelState
@@ -319,11 +322,11 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 var entryId = entry.EntryId.Value;
                 c.Execute(
                     """
-                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts)
-                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts)
+                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover)
+                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts, @cover)
                     ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies,
                         name = excluded.name, members = excluded.members, added_utc = excluded.added_utc, parent_id = excluded.parent_id,
-                        first_page = excluded.first_page, last_page = excluded.last_page, parts = excluded.parts
+                        first_page = excluded.first_page, last_page = excluded.last_page, parts = excluded.parts, cover = excluded.cover
                     """,
                     new
                     {
@@ -338,6 +341,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         first = entry.Pages?.First,
                         last = entry.Pages?.Last,
                         parts = entry.Parts,
+                        cover = entry.Cover,
                     }, t);
                 RemoveMembers(c, t, entryId);
                 c.Execute("INSERT INTO entry_member (entry_id, ord, document_id, member_entry_id, name) VALUES (@entryId, @ord, @DocumentId, @member, @Name)",
@@ -394,8 +398,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         row.ConfirmedText,
                         row.ProvisionalText,
                     }, t);
-                c.Execute("INSERT INTO entry_facet (entry_id, field, value, label, confirmed) VALUES (@entryId, @Field, @Value, @Label, @Confirmed)",
-                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { entryId, f.Field, f.Value, f.Label, f.Confirmed }), t);
+                c.Execute("INSERT INTO entry_facet (entry_id, field, value, label, confirmed, link) VALUES (@entryId, @Field, @Value, @Label, @Confirmed, @Link)",
+                    row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { entryId, f.Field, f.Value, f.Label, f.Confirmed, f.Link }), t);
                 RefreshEntrySearch(c, t, entryId);
             }
         }, ct);

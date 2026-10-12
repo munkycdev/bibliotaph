@@ -1,6 +1,6 @@
 # Searching
 
-[Bibliotaph](../../README.md) › Guide › Searching
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Searching
 
 The search box at the top of the window searches your whole library. Click it or press **Ctrl+K**, and start typing:
 results update as you type, in the Library.
@@ -54,7 +54,8 @@ and **Esc** closes it (press **Esc** again to clear the search).
 | `author:` | Words in an author's name | `author:doe` |
 | `series:` | Words in the series name | `series:chronicles` |
 | `store:` | Where you can get it again (also `from:`) | `store:kickstarter` |
-| `own:` | Where else you own it: in print, on a VTT | `own:print` |
+| `own:` | Where else you own it: in print, on a VTT, on D&D Beyond | `own:print` |
+| `where:` | `here` for books with a file on this PC, `elsewhere` for books you own only somewhere else | `where:elsewhere` |
 | `tag:` | One of your own tags | `tag:prep` |
 | `favorite:` | `yes` for books with a heart, `no` for the rest | `favorite:yes` |
 | `collection:` | Books in a collection (in quotes if it has spaces) | `collection:"Winter campaign"` |
@@ -84,10 +85,20 @@ needs AI, with a link to [set it up](ai.md).
 
 ## Filters
 
-**Filters** in the Library's toolbar opens a panel with drop-downs for the same things: kind (books, images, image
-packs, owned elsewhere), source folder, game system, type, character level (with **Include unknown levels**), players,
-style, duration, where to get it, also own, whether AI has read it, and books with more than one file. A filter and a
-search work together. **Clear filters** puts them all back.
+**Filters** in the Library's toolbar opens a panel of drop-downs. The four you'll use most come first: **Game system**,
+**Type**, **Character level** (with **Include unknown levels**) and **Players**. **More filters** opens the rest, in
+three groups:
+
+- **The adventure**: **Style** and **Duration**, once some book has one.
+- **Where it lives**: **Source folder**, **Also own** and **Get it from**.
+- **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
+  read it), **Copies** (books in more than one file) and **Adventures inside files**.
+
+While they're folded away, **More filters** says how many of them are on, such as "More filters · 1".
+
+The filters that are on show as chips above the results, whether the panel is open or not, and the button counts them:
+**Filters · 2**. Click the × on a chip to turn that filter off, or **Clear filters** beside the chips, once there are
+several, to turn them all off. A filter and a search work together.
 
 The toolbar also has the order (**Best match**, **Recently added**, **Recently opened**, **Title A–Z**,
 **Publisher A–Z**) and a switch between covers and a list.
@@ -107,7 +118,6 @@ Inside a collection, the Library shows only that collection's books, and a chip 
 × (**Show your whole library**) to search everything again. A binder's **Show these books in the Library** does the
 same for the books in a binder.
 
-## Next
+---
 
-- [Reading](reading.md): what to do once a book is open, including asking a book a question.
-- [Collections, favorites and pins](organizing.md)
+Previous: [Getting started](getting-started.md) · Next: [Reading](reading.md)

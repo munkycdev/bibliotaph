@@ -100,6 +100,10 @@ public static class SyncFields
     public const string Position = "position";
     public const string Card = "book";
     public const string Pages = "pages";
+
+    /// <summary>A binder item that is a page of a book owned online: the page's address.</summary>
+    public const string Link = "link";
+
     public const string Label = "label";
     public const string Text = "text";
     public const string ShortLabel = "short";

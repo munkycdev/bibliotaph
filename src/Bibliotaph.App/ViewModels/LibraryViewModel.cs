@@ -61,6 +61,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly LibraryFolders _folders;
     readonly MetadataService _metadata;
     readonly INavigationService _navigation;
+    readonly SettingsLinks _settings;
     readonly ReaderWindows _readers;
     readonly IndexingService _indexing;
     readonly CopiesService _copies;
@@ -83,9 +84,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     bool _loaded;
     bool _stale;
     bool _holdRefresh;
+    int _moreFiltersOn;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, ReaderWindows readers,
+        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
         ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ILogger<LibraryViewModel> log)
@@ -114,6 +116,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         _folders = folders;
         _metadata = metadata;
         _navigation = navigation;
+        _settings = settings;
         _readers = readers;
         _log = log;
         _text = text;
@@ -215,10 +218,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
 
-    /// <summary>Books, single images, image packs (F4 plan, choice 10) or books owned elsewhere (F5 plan, choice 8).</summary>
+    /// <summary>
+    /// Books, single images, image packs (F4 plan, choice 10), everything with a file on this PC (online libraries, O1)
+    /// or books owned elsewhere (F5 plan, choice 8).
+    /// </summary>
     public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
         [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs"),
-            new(KindFilter.Elsewhere, "Owned elsewhere")];
+            new(KindFilter.Here, "On this PC"), new(KindFilter.Elsewhere, "Owned elsewhere")];
 
     /// <summary>
     /// Where else books are owned (F5 plan, choice 8): "Also own: any", then Print, Foundry VTT and so on with how many
@@ -242,6 +248,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial Choice<string?> StyleChoice { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
     public partial bool ShowStyleChoice { get; private set; }
 
     public ObservableCollection<Choice<string?>> DurationChoices { get; } = [AnyDuration];
@@ -250,6 +257,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial Choice<string?> DurationChoice { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
     public partial bool ShowDurationChoice { get; private set; }
 
     /// <summary>Where to get it (scenario review, row 7), with how many books each store has; shown once some book has one.</summary>
@@ -353,6 +361,32 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowFilters { get; set; }
+
+    /// <summary>
+    /// The filters past the common four (game system, type, level, players), in groups: the adventure, where the book
+    /// lives, and housekeeping. Folded away until asked for; the chips show any of them that are on.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MoreFiltersLabel))]
+    public partial bool ShowMoreFilters { get; set; }
+
+    /// <summary>The filters that are on, as chips under the toolbar, so they show with the panel closed; a chip's × turns one off.</summary>
+    public ObservableCollection<FilterChip> ActiveFilters { get; } = [];
+
+    public bool HasActiveFilters => ActiveFilters.Count > 0;
+
+    /// <summary>Clear filters beside the chips, once there is more than one to clear.</summary>
+    public bool HasSeveralFilters => ActiveFilters.Count > 1;
+
+    /// <summary>"Filters", or "Filters · 2" with two on.</summary>
+    public string FiltersLabel => ActiveFilters.Count > 0 ? $"Filters · {ActiveFilters.Count.ToString(CultureInfo.CurrentCulture)}" : "Filters";
+
+    /// <summary>"More filters", with how many of them are on while they are folded away.</summary>
+    public string MoreFiltersLabel => ShowMoreFilters ? "Fewer filters"
+        : _moreFiltersOn > 0 ? $"More filters · {_moreFiltersOn.ToString(CultureInfo.CurrentCulture)}" : "More filters";
+
+    /// <summary>The adventure's group shows once Style or Duration does.</summary>
+    public bool ShowAdventureFilters => ShowStyleChoice || ShowDurationChoice;
 
     public bool IsDocumentsTab { get => Tab == ResultsTab.Documents; set { if (value) Tab = ResultsTab.Documents; } }
 
@@ -655,8 +689,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>Runs the current view's query. A newer refresh supersedes an older one still running.</summary>
     public async Task RefreshAsync()
     {
-        // The constructor sets the filters, which would otherwise query before the page is shown.
+        // The constructor sets the filters, which would otherwise query before the page is shown (and before all are set).
         if (!_loaded) return;
+        ShowActiveFilters();
         var version = ++_version;
         try
         {
@@ -878,6 +913,45 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void ToggleFilters() => ShowFilters = !ShowFilters;
 
     [RelayCommand]
+    void ToggleMoreFilters() => ShowMoreFilters = !ShowMoreFilters;
+
+    /// <summary>The chips for the filters that are on, common ones first, each turning its filter off.</summary>
+    void ShowActiveFilters()
+    {
+        List<FilterChip> chips = [];
+        var more = 0;
+        void Add(bool on, string label, string filter, Action clear, bool folded = false)
+        {
+            if (!on) return;
+            chips.Add(new FilterChip(label, $"Turn off the {filter} filter", new RelayCommand(clear)));
+            if (folded) more++;
+        }
+        Add(SystemChoice.Value is not null, Uncounted(SystemChoice.Label), "game system", () => SystemChoice = AllSystems);
+        Add(TypeChoice.Value is not null, Uncounted(TypeChoice.Label), "type", () => TypeChoice = AllTypes);
+        Add(LevelChoice.Value is not null, IncludeUnknownLevels ? $"{LevelChoice.Label} or unknown" : LevelChoice.Label, "character level",
+            () => LevelChoice = AnyLevel);
+        Add(PlayersChoice.Value is not null, PlayersChoice.Label, "players", () => PlayersChoice = AnyPlayers);
+        Add(StyleChoice.Value is not null, Uncounted(StyleChoice.Label), "style", () => StyleChoice = AnyStyle, folded: true);
+        Add(DurationChoice.Value is not null, Uncounted(DurationChoice.Label), "duration", () => DurationChoice = AnyDuration, folded: true);
+        Add(FolderChoice.Value is not null, $"Folder: {FolderChoice.Label}", "source folder", () => FolderChoice = AllFolders, folded: true);
+        Add(OwnChoice.Value is not null, $"Also own: {Uncounted(OwnChoice.Label)}", "also own", () => OwnChoice = AnyOwn, folded: true);
+        Add(StoreChoice.Value is not null, $"Get it from: {Uncounted(StoreChoice.Label)}", "get it from", () => StoreChoice = AnyStore, folded: true);
+        Add(KindChoice.Value != KindFilter.All, KindChoice.Label, "kind", () => KindChoice = KindChoices[0], folded: true);
+        Add(AiChoice.Value != AiFilter.All, AiChoice.Label, "AI", () => AiChoice = AiChoices[0], folded: true);
+        Add(CopiesChoice.Value, CopiesChoice.Label, "copies", () => CopiesChoice = CopiesChoices[0], folded: true);
+        Add(PartsChoice.Value, "Adventures inside files hidden", "adventures inside files", () => PartsChoice = PartsChoices[0], folded: true);
+
+        _moreFiltersOn = more;
+        OnPropertyChanged(nameof(MoreFiltersLabel));
+        if (ActiveFilters.Select(c => c.Label).SequenceEqual(chips.Select(c => c.Label))) return;
+        ActiveFilters.Clear();
+        foreach (var chip in chips) ActiveFilters.Add(chip);
+        OnPropertyChanged(nameof(HasActiveFilters));
+        OnPropertyChanged(nameof(HasSeveralFilters));
+        OnPropertyChanged(nameof(FiltersLabel));
+    }
+
+    [RelayCommand]
     void ClearFilters()
     {
         _holdRefresh = true;
@@ -925,7 +999,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             inspector.PartRemoved += async (_, removed) => await ShowPartRemovedAsync(removed.Removed, removed.Title);
             inspector.LookAlikesAccepted += async (_, offer) => await ApplyLookAlikesAsync(offer);
             inspector.CorrectionEnded += (_, _) => Activity.Invalidate();
-            inspector.PinLabel = Pins.PinLabel(PinTarget.Entry(item.EntryId));
+            inspector.IsPinned = Pins.IsPinned(PinTarget.Entry(item.EntryId));
             Inspector = inspector;
             await ShowInspectorCollectionsAsync();
         }
@@ -1071,12 +1145,28 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
-    /// <summary>Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu.</summary>
-    [RelayCommand(CanExecute = nameof(CanOpenBook))]
+    /// <summary>
+    /// Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu; a book owned
+    /// only online opens its page in the browser (online libraries, O1).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
     {
-        if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
+        if (item.OpensOnline) await _text.ReadOnlineAsync(item);
+        else if (await RequestAsync(item) is { } request) _readers.OpenInMainWindow(request);
     }
+
+    /// <summary>
+    /// Open on…, from a card's menu or the details: the book's page where the user owns it online, in the online reader
+    /// unless Settings sends it to the everyday browser.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenOnline))]
+    Task OpenOnline(LibraryItemViewModel item) => _text.ReadOnlineAsync(item);
+
+    static bool CanOpenOnline(LibraryItemViewModel? item) => item is { HasOnlineLink: true };
+
+    /// <summary>A card opens when it has a file, or a page online.</summary>
+    static bool CanOpenCard(LibraryItemViewModel? item) => item is { CanOpen: true } or { OpensOnline: true };
 
     /// <summary>
     /// The heart on a cover, in a card's menu or in the details (slice 3 plan, choice 5): marks the book as a favorite,
@@ -1187,6 +1277,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>Check a download (F5b): which files in a folder or ZIP the library already has, on a page of its own.</summary>
     [RelayCommand]
     void CheckDownload() => _navigation.NavigateTo(Route.DownloadCheck);
+
+    /// <summary>
+    /// Online libraries (O2): books owned on online services, imported from their library pages. A section of Settings,
+    /// with how books owned online show and open, rather than a page of its own.
+    /// </summary>
+    [RelayCommand]
+    void OpenOnlineLibraries() => _settings.Open(SettingsSection.OnlineLibraries);
 
     // Books owned elsewhere (F5a).
 
@@ -1691,7 +1788,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void OnPinsChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(PinLabel));
-        Inspector?.PinLabel = Pins.PinLabel(PinTarget.Entry(Inspector.Item.EntryId));
+        Inspector?.IsPinned = Pins.IsPinned(PinTarget.Entry(Inspector.Item.EntryId));
         ShowSavedSearchRows();
     }
 

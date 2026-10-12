@@ -1,6 +1,6 @@
 # Cataloging
 
-[Bibliotaph](../../README.md) › Guide › Cataloging
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Cataloging
 
 Bibliotaph fills in each book's details by itself, so you don't have to type them. You only step in when something's
 wrong, and your corrections always win: reading a book again, or a new AI suggestion, never undoes them.
@@ -16,11 +16,25 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 
 ## The details panel
 
-Click a cover in the Library to open its details on the right. The **Details** tab shows:
+Click a cover in the Library to open its details on the right. Click anywhere outside them, even on another card, or
+press **Esc**, to close them.
+
+Under the cover is a row of buttons for what you can do with the book:
+
+- **Open**, and the button beside it to open it in a new window.
+- **Open on D&D Beyond** (named after its service), for a book you also own online. See
+  [Online libraries](online-libraries.md).
+- **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
+- **Open in another app**, for a protected book Bibliotaph can't read.
+- **Remove from library**, for a book you own elsewhere.
+- On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
+
+The **Details** tab shows:
 
 - The fields: title, game system, edition, type, levels, players, duration, style, setting, themes, environments,
-  publisher, authors, series, year, your tags, where else you own it (**Also own**) and where to get it
-  (**Get it from**, a store with an optional link).
+  publisher, authors, series, year, your tags, where else you own it (**Also own**, with the book's page online if you
+  like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
+  **More fields**.
 - **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
 - **Where it is**: the file's folder, with **Show in File Explorer**.
 - **Copies**, when the book is in more than one file.
@@ -38,10 +52,10 @@ The **Notes** tab has a note for the whole book, saved as you type, and the note
 
 ### Cataloged wrong
 
-When a book is plainly wrong, right-click it (in the Library or on Home) and choose **Cataloged wrong…**, or use the
-same button in its details. Every field shows, and each guess carries a **Guessed** mark with its evidence open, so you
-can see what to fix. If you leave without changing anything, Needs review keeps a "You said this book was cataloged
-wrong" card with **Fix it**.
+When a book is plainly wrong, right-click it (in the Library or on Home) and choose **Cataloged wrong…**, or click the
+pencil button under the cover in its details. Every field shows, and each guess carries a **Guessed** mark with its
+evidence open, so you can see what to fix. If you leave without changing anything, Needs review keeps a "You said this
+book was cataloged wrong" card with **Fix it**, and **It's fine now** if you change your mind.
 
 After you fix a field, Bibliotaph offers to fix the same guess on other books in that folder, for example
 "Change 1 other book from “Horror” too?", with **Undo** afterwards. And when you set the same value on three books
@@ -71,8 +85,11 @@ usable while its card waits. It has two lists:
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
 
-**Files needing attention**: files that couldn't be read, with the reason. Locked PDFs have **Open to unlock**,
-protected ones **Open in another app**, and **Try again** and **Try all again** give the others another go.
+**Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
+Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
+protected ones **Open in another app**, and **Try again** and **Try all again** give the others another go. When
+Bibliotaph hit a bug, **Copy details** copies the version and the error, without file names, to paste into a bug
+report.
 
 Every decision has **Undo**. **Settings > Needs review** chooses what waits for a look: **When unsure** (only what
 sources disagree about, and missing titles) or **All suggestions**.
@@ -113,9 +130,14 @@ cards. Search results group page hits under the adventure they fall in.
 
 ## Books you own elsewhere
 
-Own a book in print or on a virtual tabletop? **Add a book I own elsewhere** in the Library gives it a card with no
-file, so it shows up in searches alongside the rest. **Also own** records where (print, a VTT, or your own words) on
-any card. If a file with that title turns up later, Needs review asks whether it's that book's file.
+Own a book in print or on a virtual tabletop? In the Library, click **Owned elsewhere** and choose
+**Add a book I own elsewhere…**. It gets a card with no file, so it shows up in searches alongside the rest, with a
+badge on its cover saying where it is. **Also own** records where (print, a VTT, or your own words) on any card, and
+can take the book's page online, such as "D&D Beyond https://…", which **Open** then opens. If a file with that title
+turns up later, Needs review asks whether it's that book's file.
+
+Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
+with **Import from an online library…** on the same menu. See [Online libraries](online-libraries.md).
 
 ## Check a download
 
@@ -137,7 +159,6 @@ added. Its menu has **Reprocess with OCR on every page…** for a scan whose tex
 **Forget its text**, on a book's right-click menu, removes its pages, search text, cover and AI results from
 Bibliotaph and stops reading it. The file isn't touched. **Read it again** brings it back.
 
-## Next
+---
 
-- [Collections, favorites and pins](organizing.md)
-- [AI](ai.md)
+Previous: [Reading](reading.md) · Next: [Collections, favorites and pins](organizing.md)

@@ -210,7 +210,7 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
         if (Field.Kind == FieldKind.Store)
         {
             // Filed as the inspector files it when applied: a known store by key with its link, a new one as typed.
-            var (store, name, url) = StoreLink.Read(typed, Vocabulary);
+            var (store, name, url) = StoreLink.Read(typed, Vocabulary, Field);
             return store is null ? (MetadataText.Tidy(typed), url is null ? name : $"{name} · {url}", true)
                 : (new StoreLink(store.Key, url).ToString(), Display(new StoreLink(store.Key, url).ToString()), false);
         }
@@ -222,7 +222,7 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
     }
 
     /// <summary>"new type", "new setting": how a name the vocabulary doesn't know is shown until it is added.</summary>
-    protected string NewNote => $"new {Field.Vocabulary}";
+    protected string NewNote => $"new {(Field == MetadataFields.AlsoOwn ? "place" : Field.Vocabulary)}";
 }
 
 /// <summary>
@@ -414,7 +414,7 @@ public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
     public string AddLabel => $"Add to {Lower}";
 
     /// <summary>How to type values to add: "Separate values with commas", or how a store and its link go.</summary>
-    public string AddHint => Field.Kind == FieldKind.Store ? MetadataFieldViewModel.StoreHint : "Separate values with commas";
+    public string AddHint => Field.Kind == FieldKind.Store ? MetadataFieldViewModel.LinkHint(Field) : "Separate values with commas";
 
     [ObservableProperty]
     public partial string AddText { get; set; } = "";

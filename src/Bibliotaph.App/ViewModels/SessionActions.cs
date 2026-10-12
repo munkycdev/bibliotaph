@@ -56,6 +56,16 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         AddTo(choice ?? CurrentChoice(), what, async id =>
             await (wholeFile ? sessions.AddDocumentAsync(id, documentId) : sessions.AddPagesAsync(id, documentId, page, page)) is { } added ? [added] : []);
 
+    /// <summary>
+    /// Add this page in the online reader (online libraries plan, O2b): the page of a book owned online at
+    /// <paramref name="link"/>, labelled <paramref name="label"/>, to the current binder or the one picked in the menu.
+    /// </summary>
+    public void AddOnlinePage(EntryId book, string link, string? label, SessionMenuChoice? choice = null)
+    {
+        IReadOnlyList<NewSessionItem> items = [new NewSessionItem(book, Label: label, Link: link)];
+        AddTo(choice ?? CurrentChoice(), "the page", id => sessions.AddAsync(id, items));
+    }
+
     SessionMenuChoice CurrentChoice() =>
         Directory.Current is { } current ? new(SessionMenuKind.Session, current.Id, "") : new(SessionMenuKind.New, null, "");
 

@@ -56,6 +56,24 @@ public static class SettingKeys
     /// <summary>"False" keeps files that indexing downloaded on this device; otherwise they go back to online-only (Dale's review, row 2).</summary>
     public const string ReturnOnlineOnly = "online-only.return";
 
+    /// <summary>
+    /// "False" shows a plain mark instead of a site's own icon on books owned online, and fetches none (online libraries
+    /// plan, choice 12); otherwise icons show.
+    /// </summary>
+    public const string SiteIcons = "library.site-icons";
+
+    /// <summary>Where a book owned online opens: "app" (the online reader, the default) or "browser" (online libraries, O2b).</summary>
+    public const string OnlineReader = "library.online-reader";
+
+    /// <summary>"False" shows a service's pages in the online reader as the service draws them; otherwise Reading mode is on (choice 24).</summary>
+    public const string OnlineReadingMode = "library.online-reading-mode";
+
+    /// <summary>
+    /// The folder a store's download goes to from Bibliotaph's browser (online libraries plan, O5): a library folder or
+    /// one inside it; empty or absent leaves downloads to the browser's own Downloads folder.
+    /// </summary>
+    public const string DownloadsFolder = "library.downloads-folder";
+
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
     public const string StartPage = "start-page";
 

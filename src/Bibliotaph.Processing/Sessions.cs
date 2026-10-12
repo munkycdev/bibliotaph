@@ -33,6 +33,9 @@ public enum SessionItemState
 
     /// <summary>A book owned elsewhere, with no file at all.</summary>
     NoFile,
+
+    /// <summary>A page of a book owned online (online libraries plan, O2b): it opens in the online reader, at its address.</summary>
+    Online,
 }
 
 /// <summary>
@@ -42,7 +45,7 @@ public enum SessionItemState
 public sealed record SessionItemTarget(long? DocumentId, int FirstPage, int LastPage, SessionItemState State, string? Reason = null, string? LastPath = null,
     AwayFile? Away = null)
 {
-    public bool CanOpen => DocumentId is not null && State is not (SessionItemState.Unreachable or SessionItemState.NoFile);
+    public bool CanOpen => DocumentId is not null && State is not (SessionItemState.Unreachable or SessionItemState.NoFile or SessionItemState.Online);
 }
 
 /// <summary>
@@ -217,16 +220,18 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
     /// copy: in the same file as it was added, as it is; in another copy or version, at the pages whose fingerprints
     /// match; failing that, in the file it was added from if that is still there; otherwise at the same printed page of
     /// the current copy, marked <see cref="SessionItemState.Changed"/>. A new version still being read isn't judged
-    /// yet. It never jumps somewhere else silently. An item with no file to open says why (choice 15).
+    /// yet. It never jumps somewhere else silently. An item with no file to open says why (choice 15). A page of a book
+    /// owned online opens in the online reader.
     /// </summary>
     public async Task<IReadOnlyDictionary<long, SessionItemTarget>> ResolveAsync(IReadOnlyList<SessionItemInfo> items, CancellationToken ct = default)
     {
         var result = new Dictionary<long, SessionItemTarget>();
         if (items.Count == 0) return result;
+        foreach (var item in items.Where(i => i.Link is not null)) result[item.Id] = new SessionItemTarget(null, 0, 0, SessionItemState.Online);
         var ranged = items.Where(i => i.Range is not null).ToList();
         var resolved = await places.ResolveAsync([.. ranged.Select(i => (i.EntryId, i.Range!))], ct);
         for (var i = 0; i < ranged.Count; i++) result[ranged[i].Id] = ToTarget(resolved[i]);
-        var wholes = items.Where(i => i.Range is null).ToList();
+        var wholes = items.Where(i => i.Range is null && i.Link is null).ToList();
         if (wholes.Count == 0) return result;
         var current = await places.CurrentDocumentsAsync([.. wholes.Select(i => i.EntryId).Distinct()], ct);
         var readable = (await library.GetReadableAsync([.. current.Values.OfType<long>().Distinct()], ct)).ToHashSet();

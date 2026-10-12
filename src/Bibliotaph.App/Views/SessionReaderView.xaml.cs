@@ -49,6 +49,18 @@ public partial class SessionReaderView
         _model?.RenameStarted += OnRenameStarted;
         _model?.PropertyChanged += OnModelChanged;
         FitNotes();
+        ShowOnline();
+    }
+
+    /// <summary>
+    /// A page owned online in the reader's place: a new online reader view for each one, as the online reader is made
+    /// afresh each time it shows, and none while the binder's view is away (the old one lets go of its browser).
+    /// </summary>
+    void ShowOnline()
+    {
+        var online = _model?.Online;
+        if (OnlineHost.Child is FrameworkElement { DataContext: var shown } && ReferenceEquals(shown, online)) return;
+        OnlineHost.Child = online is null ? null : new OnlineReaderView { DataContext = online };
     }
 
     void FitNotes()
@@ -78,6 +90,7 @@ public partial class SessionReaderView
     void OnModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SessionReaderViewModel.ShowNotes) && !_folding) _foldedForRoom = false;
+        if (e.PropertyName == nameof(SessionReaderViewModel.Online)) ShowOnline();
     }
 
     void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -131,8 +144,8 @@ public partial class SessionReaderView
                         Header = new TextBlock { Text = page.Heading, Margin = new Thickness(12, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 360 },
                         Command = model.OpenAtHandCommand,
                         CommandParameter = new AtHandPage(binder.Pack.Title, page),
-                        IsEnabled = page.CanOpen,
-                        ToolTip = page.CanOpen ? page.Where : page.Reason,
+                        IsEnabled = page.CanOpen || page.OpensOnline,
+                        ToolTip = page.CanOpen || page.OpensOnline ? page.Where : page.Reason,
                     };
                     AutomationProperties.SetName(item, $"{page.Heading}, from {binder.Pack.Title}");
                     menu.Items.Add(item);

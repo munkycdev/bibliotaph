@@ -202,7 +202,7 @@ public static class MetadataValues
             case FieldKind.Store:
                 var (name, url, problem) = StoreLink.Split(tidy);
                 return problem is not null ? (null, problem)
-                    : MetadataText.Normalize(name).Length == 0 && url is null ? (null, $"{field.Label} needs a store's name or a web link.")
+                    : MetadataText.Normalize(name).Length == 0 && url is null ? (null, field == MetadataFields.GetItFrom ? $"{field.Label} needs a store's name or a web link." : $"{field.Label} needs a name or a web link.")
                     : (tidy, null);
             case FieldKind.Year:
                 return int.TryParse(tidy, NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year is >= EarliestYear and <= LatestYear

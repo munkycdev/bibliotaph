@@ -81,6 +81,8 @@ function Invoke-Smoke {
     $sync = Join-Path $run 'sync/Bibliotaph sync'
     New-Item -ItemType Directory -Force $sync | Out-Null
     Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-sync.json') (Join-Path $sync 'SMOKE-PC-2.json')
+    # A made-up online library page saved with its images, which the smoke test imports (beside the data root, never in it).
+    Copy-Item (Join-Path $root 'tests/fixtures/online') (Join-Path $run 'online') -Recurse
 
     $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"", '--smoke-files', "`"$files`"" -PassThru
     # The checks take about two minutes on a developer's PC and grow with each feature, so the limit leaves room: it is
@@ -93,7 +95,11 @@ function Invoke-Smoke {
     $log = @(Get-ChildItem (Join-Path $data 'logs') -Filter *.log | Get-Content)
     if ($app.ExitCode -eq 0) {
         if ($inCi) { $log }
-        Remove-Item $run -Recurse -Force
+        # The in-app browser's processes can hold its profile for a moment after the app closes.
+        foreach ($try in 1..10) {
+            try { Remove-Item $run -Recurse -Force -ErrorAction Stop; break }
+            catch { if ($try -eq 10) { Write-Warning "The smoke test's folder $run couldn't be removed: $($_.Exception.Message)" } else { Start-Sleep 1 } }
+        }
         Write-Host 'Smoke test passed.'
         return
     }

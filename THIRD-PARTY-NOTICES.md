@@ -36,6 +36,7 @@ made with the font.
 | SQLitePCLRaw (via Microsoft.Data.Sqlite) | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
 | SQLite | Public domain | https://sqlite.org |
 | Velopack (installer and updates) | MIT | https://github.com/velopack/velopack |
+| Microsoft.Web.WebView2 (the in-app browser's control and `WebView2Loader.dll`; the browser itself is the Edge WebView2 Runtime that comes with Windows, not shipped) | BSD-3-Clause | https://aka.ms/webview |
 | llama.cpp and ggml: `llama-server.exe` and its libraries in `aiworker\`, the built-in AI's engine (Vulkan build, downloaded and checked by `build/fetch-engine.ps1`; not a NuGet package) | MIT (`licenses/LICENSE-llama.cpp.txt`) | https://github.com/ggml-org/llama.cpp |
 | LLVM OpenMP runtime (`libomp.dll` in `aiworker\`, which comes with llama.cpp's Windows build) | Apache-2.0 WITH LLVM-exception (`licenses/LICENSE-LLVM-OpenMP.txt`) | https://github.com/llvm/llvm-project |
 | .NET and Windows Desktop runtimes (the installed app is self-contained) | MIT | https://github.com/dotnet |

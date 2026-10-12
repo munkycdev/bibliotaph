@@ -89,6 +89,9 @@ public class SearchQueryTests
     [InlineData("favourite:Y dragon", "AND(favorite:yes, dragon)")]
     [InlineData("fav:false", "favorite:no")]
     [InlineData("-favorite:yes", "-favorite:yes")]
+    [InlineData("where:elsewhere", "where:elsewhere")]
+    [InlineData("where:Online dragon", "AND(where:elsewhere, dragon)")]
+    [InlineData("-where:here", "-where:here")]
     [InlineData("collection:\"Winter campaign\" maps", "AND(collection:\"Winter campaign\", maps)")]
     [InlineData("collections:wint*", "collection:wint*")]
     [InlineData("players:4", "players:4")]
@@ -133,6 +136,12 @@ public class SearchQueryTests
     [InlineData("favorite:ye*")]
     public void A_favorite_that_isnt_yes_or_no_is_reported(string text) =>
         Assert.Contains("favorite: can be yes or no", OnlyIssue(text).Message, StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("where:attic")]
+    [InlineData("where:her*")]
+    public void A_where_that_isnt_here_or_elsewhere_is_reported(string text) =>
+        Assert.Contains("where: can be here or elsewhere", OnlyIssue(text).Message, StringComparison.Ordinal);
 
     [Theory]
     [InlineData("title:", "needs a value")]

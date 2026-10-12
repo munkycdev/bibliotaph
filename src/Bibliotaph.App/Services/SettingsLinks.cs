@@ -6,6 +6,8 @@ namespace Bibliotaph.App.Services;
 public enum SettingsSection
 {
     Library,
+    /// <summary>Importing from online services, and how books owned online show and open.</summary>
+    OnlineLibraries,
     Processing,
     Appearance,
     Review,
@@ -17,8 +19,9 @@ public enum SettingsSection
 }
 
 /// <summary>
-/// Opens Settings at a section: the sidebar's status line opens Processing, and Add folder and Manage folders
-/// elsewhere open Library. A Settings page already showing switches section instead of opening another.
+/// Opens Settings at a section: the sidebar's status line opens Processing, Add folder and Manage folders elsewhere
+/// open Library, and the Library's Import from an online library opens Online libraries. A Settings page already
+/// showing switches section instead of opening another.
 /// </summary>
 public sealed class SettingsLinks(INavigationService navigation)
 {

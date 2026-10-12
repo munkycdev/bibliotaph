@@ -1,19 +1,19 @@
-# For developers
+# Contributing to Bibliotaph
 
-[Bibliotaph](../README.md) › For developers
+[Bibliotaph](README.md) › Contributing
 
 Bibliotaph is a WPF app on .NET 11. PDFium runs in a small pool of isolated worker processes, user work lives in one
 SQLite file (`catalog.db`, EF Core with migrations) and a rebuildable search index in another (`index.db`, plain SQL
 with FTS5), and an in-process durable job queue does the reading.
 
-- [architecture.md](architecture.md) is the agreed design. Change it by pull request.
-- [product-spec.md](product-spec.md) is the product spec (v0.3).
-- [bibliotaph-ui-mockups.html](bibliotaph-ui-mockups.html) is the visual target.
-- The user guide starts at the [README](../README.md) and lives in [guide/](guide/).
+- [docs/architecture.md](docs/architecture.md) is the design.
+- [docs/features.md](docs/features.md) describes what each feature does.
+- [docs/bibliotaph-ui-mockups.html](docs/bibliotaph-ui-mockups.html) is the visual target.
+- The user guide starts at the [README](README.md) and lives in [docs/guide/](docs/guide/).
 
 ## Build and run
 
-Needs the .NET 11 SDK (release candidate until GA in November 2026) on Windows x64.
+Needs the .NET 11 SDK on Windows x64.
 
 ```powershell
 dotnet build Bibliotaph.slnx
@@ -21,14 +21,19 @@ dotnet test --solution Bibliotaph.slnx
 dotnet run --project src\Bibliotaph.App
 ```
 
+Until .NET 11's general release (due November 2026), Bibliotaph builds on the release candidate: `global.json` asks
+for the RC SDK, `DotNetPackagesVersion` in `Directory.Packages.props` names the RC packages, and the workflows install
+the SDK with `dotnet-quality: preview`. At GA all three move to the GA versions.
+
 The app keeps its databases and logs in `%LOCALAPPDATA%\Bibliotaph`. To try it against a throwaway folder instead:
 
 ```powershell
 dotnet run --project src\Bibliotaph.App -- --data-root $env:TEMP\bibliotaph-scratch
 ```
 
-`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it; it does not
-replace looking at the app.
+`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it.
+
+## The verify script
 
 Before pushing, run the same checks as CI (in PowerShell 7):
 
@@ -56,9 +61,12 @@ steps are skipped.
 | `src/Bibliotaph.Viewer` | The page viewer. |
 | `src/Bibliotaph.App` | The WPF shell, theme, fonts, icons and composition root. |
 | `tests/` | xUnit v3 on Microsoft Testing Platform. PDF tests build synthetic PDFs at run time. |
+| `build/` | The verify script, and the script that fetches the built-in AI's engine. |
 | `tools/IconGen` | Turns the Lucide SVGs it holds into `src/Bibliotaph.App/Icons/Icons.xaml`. |
 | `tools/AppIcon` | Draws the app icon (`src/Bibliotaph.App/Assets/Bibliotaph.ico` and `.svg`) from the mockup's monogram. |
 | `tools/LicenseNotices` | Writes the licence file of every shipped package into `licenses\packages` (verify's Licenses step). |
+| `tools/OcrBakeoff` | Compares OCR engines on your own scanned books. Its report quotes them, so keep it out of the repository. |
+| `tools/Screenshots` | Fetches the public-domain books for the README's screenshots (see below). |
 | `spikes/pdf-feasibility` | The PDF spike, kept for reference. Its own solution; not built by CI. |
 
 ## Rules the build enforces
@@ -68,7 +76,9 @@ steps are skipped.
   everywhere except Processing, Pdf.Host, the PDF worker, tests and tools. CI proves it by adding `File.WriteAllText`
   to Core and expecting `RS0030`.
 - Package versions live only in `Directory.Packages.props`.
-- No fixture cut from a purchased book is ever committed. Test PDFs are generated with PDFsharp when the tests run.
+- A new package must be permissive or GPL-3.0-compatible; verify's Licenses step fails on any other.
+- No fixture cut from a purchased book is ever committed. Test PDFs are generated with PDFsharp when the tests run, and
+  the repository ignores `*.pdf`.
 
 ## Common tasks
 
@@ -98,28 +108,39 @@ python tools\AppIcon\make_icon.py
 
 A version tag `vMAJOR.MINOR.PATCH` (such as `v1.0.0`) runs `.github/workflows/release.yml`: every CI check,
 a self-contained win-x64 publish, Velopack's pack, and a draft GitHub Release holding `BibliotaphApp-win-Setup.exe`
-and the update files. Nothing is public until someone presses Publish on the draft. Installed copies update from
-published releases only. See "Installer", "Releases" and "Updates" in [architecture.md](architecture.md).
+and the update files. The draft stays private until it's published, and installed copies update from published
+releases only. See "Installer", "Releases" and "Updates" in [docs/architecture.md](docs/architecture.md).
 
-## To do when .NET 11 ships (November 2026)
+## README screenshots
 
-- Raise `global.json` to the GA SDK, set `DotNetPackagesVersion` in `Directory.Packages.props` to the GA packages, and
-  change `dotnet-quality` in `.github/workflows/ci.yml` and `.github/workflows/release.yml` to `ga`.
+`docs\images\library.png` and `docs\images\reader.png` show public-domain books, never a real library. To take them
+again, fetch the books (the first time), then run a Release build with an empty data root:
+
+```powershell
+.\tools\Screenshots\get-books.ps1 -Folder $env:TEMP\bibliotaph-demo\books
+.\src\Bibliotaph.App\bin\Release\net11.0-windows\Bibliotaph.exe --screenshots docs\images `
+    --screenshot-files $env:TEMP\bibliotaph-demo\books --data-root $env:TEMP\bibliotaph-demo\data `
+    --screenshot-open "Treasure Island|1"
+```
+
+It indexes the books, then saves the Library and the named book open at that PDF page, in the light theme at 1440 by
+900. Run it again on the same data root to retake them without indexing again.
 
 ## Contributing
 
-Issues and ideas are welcome. Pull requests are not being taken yet while the architecture settles; open an issue
-first. Never attach or commit a file cut from a purchased book: tests build their own PDFs, and the repo ignores
-`*.pdf` for that reason. The repository is public, so examples use invented book titles and paths.
+Issues and ideas are welcome: [open an issue](https://github.com/munkycdev/bibliotaph/issues). Pull requests aren't
+being taken yet, so start with an issue.
 
-Security problems go through private vulnerability reporting; see [SECURITY.md](../SECURITY.md).
+- Never attach or commit a file cut from a purchased book, or a page or text from one.
+- The repository is public, so examples, tests and issues use invented book titles and paths.
+
+Security problems go through private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-Bibliotaph is `GPL-3.0-or-later` ([LICENSE](../LICENSE)), with one additional permission under section 7 so the app
+Bibliotaph is `GPL-3.0-or-later` ([LICENSE](LICENSE)), with one additional permission under section 7 so the app
 can ship Microsoft's Windows SDK projection, which it uses for Windows' text recognition
-([LICENSE-EXCEPTION.md](../LICENSE-EXCEPTION.md)). Fonts, icons and packages keep their own licences
-([THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)). A new package must be permissive or GPL-3.0-compatible; verify's
-Licenses step fails on any other.
+([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). Fonts, icons and packages keep their own licences
+([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
 
 Any contribution is made under the same licence.

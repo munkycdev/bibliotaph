@@ -1,6 +1,6 @@
 # AI
 
-[Bibliotaph](../../README.md) › Guide › AI
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › AI
 
 AI is optional. Without it, Bibliotaph still finds, searches and opens everything, and fills in what it can from folder
 names and the files themselves. With it, a model running on your own PC reads a little of each book and suggests the
@@ -52,7 +52,8 @@ Bibliotaph never switches to a cloud service by itself.
 threw away and why. **Delete model** frees the space.
 
 The built-in AI uses your graphics card when it can and falls back to the processor, which is much slower. It only
-runs while it has books to read.
+runs while it has books to read. With it, **Ask this book** finds pages by their words only; finding them by meaning
+needs a model server with an embedding model.
 
 ## Set it up: a model server
 
@@ -64,6 +65,9 @@ runs while it has books to read.
 
 If the server needs a key, type it under **Key, only if the server needs one**. It's kept in Windows Credential
 Manager and never shown again.
+
+**Embedding model, for Ask this book** lets **Ask this book** find pages by what they mean, not only by their words.
+Download one such as nomic-embed-text on the server first, then choose it here.
 
 ## Day to day
 
@@ -77,8 +81,8 @@ Manager and never shown again.
 - Changing the model never re-reads your books on its own. **Settings > AI** counts the books an earlier model read and
   offers **Reclassify**, with the number, to read them again.
 - **Files needing attention** in Needs review lists books the AI couldn't read, with **Try all again**.
+  **Settings > AI** counts them too, with **Try again** (or, alongside books an earlier model read, **Reclassify**).
 
-## Next
+---
 
-- [Cataloging](cataloging.md): checking and correcting suggestions.
-- [Questions and answers](faq.md)
+Previous: [Online libraries](online-libraries.md) · Next: [OneDrive, drives and other PCs](onedrive-and-other-pcs.md)

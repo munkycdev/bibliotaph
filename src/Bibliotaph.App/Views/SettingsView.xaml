@@ -64,6 +64,7 @@
 
     <!-- One view per section; the larger ones are their own views. -->
     <DataTemplate DataType="{x:Type vm:LibrarySectionViewModel}"><views:LibrarySectionView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:OnlineLibrariesViewModel}"><views:OnlineLibrariesView /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:ProcessingSectionViewModel}"><views:ProcessingSectionView /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:VocabularyViewModel}"><views:VocabularyView /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:AiSettingsViewModel}"><views:AiSettingsView /></DataTemplate>
@@ -154,7 +155,7 @@
         <TextBlock Text="DEVELOPMENT AID" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
         <TextBlock Text="Start over" Style="{StaticResource Text.H2}" />
         <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,16"
-                   Text="Forgets every folder, the index, covers, settings and remembered passwords, then restarts. Your files are not touched. Here while Bibliotaph is in development; it goes before 1.0." />
+                   Text="Forgets every folder, the index, covers, settings and remembered passwords, then restarts. Your files are not touched. A development aid, shown only when Bibliotaph starts with --dev." />
         <Button Content="Start over…" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Left"
                 Command="{Binding StartOverCommand}" />
       </StackPanel>

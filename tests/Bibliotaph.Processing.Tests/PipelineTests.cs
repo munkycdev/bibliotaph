@@ -104,7 +104,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _sessions = new SessionStore(contexts);
         _notes = new NoteStore(contexts);
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
-            favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes);
+            favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes, covers: new CoverCache(_paths));
         _partStore = new PartStore(contexts);
         var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
             _partStore);
