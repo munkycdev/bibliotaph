@@ -1,6 +1,6 @@
 # Getting started
 
-[Bibliotaph](../../README.md) › Guide › Getting started
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Getting started
 
 ## Install
 
@@ -59,12 +59,13 @@ switch it off under **Folder names** in **Settings > Library**.
 Home shows **Indexing your library.** with progress, and books appear in the Library as soon as they're found. You can
 search and read straight away: a book becomes searchable as soon as its text has been read, while the rest carry on.
 
-Bibliotaph works through your library in steps: it finds the files, reads their text, makes covers, reads scanned
-pages with Windows' text recognition, and (if you turn it on) asks AI to fill in the details. A big library can take
-hours the first time. After that, only new and changed files are read.
+Bibliotaph finds the files, reads their text, makes covers, reads scanned pages with Windows' text recognition and,
+if you turn it on, asks AI to fill in the details. A big library can take hours the first time. After that, only new
+and changed files are read.
 
 - It only works while Bibliotaph is open. Closing the app stops it; reopening carries on where it left off.
-- **Settings > Processing** shows each step, the time left, and pause buttons for indexing, text recognition and AI.
+- **Settings > Processing** shows each step and the time left, with **Pause indexing**, **Pause reading scans** and
+  **Pause AI**.
 - Files that couldn't be read are listed in **Needs review**, under **Files needing attention**.
 
 ### Set up AI, or not
@@ -95,9 +96,6 @@ including **Open** and **Open in new window**.
 **Ctrl+/** lists every keyboard shortcut. **Settings > Appearance** switches between light, dark and Windows'
 own setting, and **Settings > Library > Start on** chooses whether Bibliotaph opens on Home or the Library.
 
-## Next
+---
 
-- [Searching](searching.md) to find things.
-- [Cataloging](cataloging.md) to understand the details and fix the odd mistake.
-- [Binders](binders.md) to get a session ready.
-- [Online libraries](online-libraries.md) for the books you own on D&D Beyond, Demiplane and online stores.
+Next: [Searching](searching.md)

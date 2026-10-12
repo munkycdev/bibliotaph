@@ -111,9 +111,9 @@ Security problems go through private vulnerability reporting; see [SECURITY.md](
 ## For developers
 
 Bibliotaph is a WPF app on .NET 11, with PDFium in isolated worker processes and SQLite with FTS5 for search. Build
-steps, the verify script, the project layout and how to contribute are in [docs/developers.md](docs/developers.md).
-The design is in [docs/architecture.md](docs/architecture.md) and the product spec in
-[docs/product-spec.md](docs/product-spec.md).
+steps, the verify script, the project layout and how to contribute are in [CONTRIBUTING.md](CONTRIBUTING.md). The
+design is in [docs/architecture.md](docs/architecture.md), and what each feature does in
+[docs/features.md](docs/features.md).
 
 ## Licence
 

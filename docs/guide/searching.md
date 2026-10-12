@@ -1,6 +1,6 @@
 # Searching
 
-[Bibliotaph](../../README.md) › Guide › Searching
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Searching
 
 The search box at the top of the window searches your whole library. Click it or press **Ctrl+K**, and start typing:
 results update as you type, in the Library.
@@ -118,7 +118,6 @@ Inside a collection, the Library shows only that collection's books, and a chip 
 × (**Show your whole library**) to search everything again. A binder's **Show these books in the Library** does the
 same for the books in a binder.
 
-## Next
+---
 
-- [Reading](reading.md): what to do once a book is open, including asking a book a question.
-- [Collections, favorites and pins](organizing.md)
+Previous: [Getting started](getting-started.md) · Next: [Reading](reading.md)

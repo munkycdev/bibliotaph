@@ -1,6 +1,6 @@
 # Collections, favorites and pins
 
-[Bibliotaph](../../README.md) › Guide › Collections, favorites and pins
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Collections, favorites and pins
 
 None of this moves or copies a file. A book can be in as many collections as you like, and removing it from one only
 takes it out of the group.
@@ -40,11 +40,6 @@ for **Move up**, **Move down** and **Unpin**, and for a saved search, **Rename�
 Clicking a pinned book opens it where you left it. A book you own online opens in the online reader; see
 [Online libraries](online-libraries.md).
 
-## Home
-
-Home is where you pick up: **Continue preparing** shows your next binder, then **Recently opened**,
-**Recently added** and your pins. Prefer to start in the Library? Change **Start on** in **Settings > Library**.
-
 ## Saved searches
 
 A saved search keeps a search with its filters and order, and runs it again each time, so new books show up in it.
@@ -55,6 +50,6 @@ See [Saved searches](searching.md#saved-searches).
 In **Select** mode, **Export these** saves the ticked books as a CSV file for a spreadsheet. **Settings > Backup** can
 export the whole library the same way; see [OneDrive, drives and other PCs](onedrive-and-other-pcs.md#backups).
 
-## Next
+---
 
-- [Binders](binders.md): get a session ready.
+Previous: [Cataloging](cataloging.md) · Next: [Binders](binders.md)

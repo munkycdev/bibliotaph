@@ -1,408 +1,190 @@
-# Bibliotaph — Product and UX Specification
+# Bibliotaph features
 
-Version: 1.0 · 12 October 2026 · Status: Bibliotaph 1.0, the first release, is built from this specification. Where 1.0 differs from it in detail, [architecture.md](architecture.md) and the [user guide](guide/getting-started.md) describe what was built. Architecture: [architecture.md](architecture.md)
+What Bibliotaph does and why. For how it's built, see [architecture.md](architecture.md); for how to use it, see the [user guide](guide/getting-started.md).
 
-Product name: Bibliotaph. Selected by Dave on 7 October 2026. Visual direction follows [bibliotaph-ui-mockups.html](bibliotaph-ui-mockups.html). Implementation stack decided 8 October 2026 (see Section 13).
+## What it's for
 
-## 1. Product intent
+Bibliotaph helps a game master find and use the RPG material they already own, without cataloging every file by hand or reorganizing their folders. The question it answers is: **"What do I own that would help me prepare or run this session?"**
 
-Help a game master discover and use the RPG material they already own, without manually cataloging every file or reorganizing their existing folders.
+It is a Windows desktop library that indexes PDFs, maps and handouts where they already are, fills in useful RPG details by itself, and finds both books and the pages inside them. It works only while it is open, needs no server, and is fully usable without AI.
 
-The defining question is: **“What do I own that would help me prepare or run this session?”**
+It is made for a game master with a large, mixed collection across several game systems and editions, who wants to prepare a game, track down a half-remembered passage, browse what they own, add a new bundle, run a session from prepared pages, and fix the odd mistake without becoming a full-time librarian.
 
-The application is a Windows-first desktop library that indexes existing files in place, automatically proposes useful RPG metadata, and returns both books and relevant pages. It runs when opened, requires no always-on server or Docker installation, and remains useful without an AI connection.
+### Principles
 
-This specification consolidates the preceding discussion into proposed requirements. “Must” indicates required behavior for the assigned release, not a claim that the feature is already implemented. Performance and quality figures below are proposed acceptance targets to validate with Dave’s collection.
+1. **Find useful content quickly.** Browsing, searching and opening the right page come first.
+2. **Leave the files where they are.** Bibliotaph reads files and never renames, moves, edits or deletes them.
+3. **Automate routine cataloging.** The user reviews exceptions, not every book.
+4. **Show the evidence.** Suggested, confirmed and unknown values look different, and every suggestion says where it came from.
+5. **Preserve the user's work.** Reading a book again never erases corrections, notes, collections or binders.
+6. **Make partial success useful.** A book is searchable as soon as its text is in.
+7. **Keep operation simple.** Closing the app stops its work; opening it again carries on.
 
-### Product principles
+## Core concepts
 
-1. **Find useful content quickly.** Discovery, browsing, and opening the right page are the primary activities.
-2. **Keep the files where they are.** Original files and folder structures remain untouched.
-3. **Automate routine cataloging.** Review exceptions rather than approve every document.
-4. **Show the evidence.** Inferences, confirmed values, and unknowns must be distinguishable.
-5. **Preserve user work.** Reindexing must not erase corrections, notes, collections, or session packs.
-6. **Make partial success useful.** A book can be searchable while OCR or AI processing continues.
-7. **Keep operation simple.** Closing the app stops its processing; reopening resumes it.
+- **Library folder**: a folder of original files the user has added, with everything under it.
+- **Book**, or card: one thing the library lists. Identical files are one book with several **Copies**; a changed file is a new version of the same book.
+- **Collection**: a hand-picked, nestable group of books. A book can be in any number.
+- **Saved search**: a search with its filters and order, run again each time it opens.
+- **Binder**: the books and page ranges for a session, in order, with notes.
+- **Pin**: a sidebar shortcut to a book, Favorites, a collection, a binder or a saved search.
+- **Suggestion**: a value with its source and evidence, until the user keeps or rejects it.
 
-### Primary user and jobs
+"Adventures" and "Maps" are filters, not shelves: a sourcebook with maps is still a sourcebook, and turns up when looking for maps.
 
-The initial user is a game master with a large, mixed collection of purchased books, bundles, adventures, supplements, maps, and handouts across multiple RPG systems and editions.
+## Main journeys
 
-| Job | Desired outcome |
+- **First run**: add folders and start browsing at once; books appear as they are read, and Home asks **Fill in the catalog with AI?** Nothing has to be organized first.
+- **Find an adventure**: filter by system, type, level and players, add a word, open the right page, add it to a binder; or **Ask** in plain English.
+- **Find something inside a book**: search a phrase and open the matching page, with the words highlighted.
+- **Add a bundle**: copy it into a library folder; files already owned are recognized. **Check a download** says what's new before anything is copied.
+- **Prepare and run a session**: gather books and page ranges in a binder and step through them at the table.
+
+## Screens
+
+The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), the **Pinned** group and **Settings**. The search box is always at the top (**Ctrl+K**).
+
+**Home** shows **Continue preparing** (the next binder), **Recently opened**, **Recently added** and the pins. **Settings > Library > Start on** can open the Library instead.
+
+**Library** shows every book, map and handout as covers or a list, with a details panel on the right. A cover shows its title and only the status that matters: a heart, a spark once AI has read it, a count of adventures inside, a badge saying where a book owned elsewhere lives. **Select** mode edits, groups, joins or exports many books at once; bulk editing shows mixed values as mixed and previews before saving. Almost every change in the app has **Undo**.
+
+**Collections** gathers books around a campaign, setting or idea. Collections nest, a book in an inner one counts in the outer one (**Only books added here** hides those), and a collection opens in the Library, ready to search and filter. Deleting one never removes a book.
+
+## Search
+
+The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with fields such as `type:adventure level:3`. There is a field for every detail Bibliotaph keeps, plus `favorite:`, `collection:`, `folder:`, `format:` and `where:`; any field takes `unknown`. The **search guide** under the box explains each field and lists its values with book counts.
+
+Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
+
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+
+**Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
+
+**Ask** (the sparkle button, with AI set up) turns a request in plain English, such as "something creepy for four level-3 characters", into editable chips with notes on anything it changed and why. Nothing runs until **Search**, which puts the chips in the box as an ordinary search. Ask uses only the search box's own fields and the user's own words: it never adds a system, level or tag that wasn't asked for, and never fills in what isn't known.
+
+## Reading
+
+Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably.
+
+**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack.
+
+**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model on a model server, by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
+
+## Binders
+
+A binder holds a session's books and pages in order, with a title, an optional date and notes. Items are whole books, single pages or labelled page ranges ("Warehouse ambush"), optionally under sections such as **Adventure**, **Maps**, **Encounters** and **Rules**. A book can appear several times at different pages. Pages are added from search results or the reader's **Add page**, into the binder worked on last unless another is picked.
+
+Opening a binder shows its items on the left, the reader in the middle and its notes on the right. **Next** and **Previous** open each item at its first page, with the next book opened ahead so it shows at once; **Back to this item's pages** returns after wandering, and the binder can **Pop out** to a second screen.
+
+A binder marked **Keep at hand during games** holds rules and references; from any other binder, **At hand** opens its pages in a separate window. Binders are for the game master's own preparation, not a display for players.
+
+## Cataloging
+
+### What Bibliotaph records
+
+| Field | Notes |
 |---|---|
-| Prepare a game | Find a suitable adventure, maps, encounters, and rules |
-| Remember something half-forgotten | Locate a passage using a phrase, topic, or rough description |
-| Explore owned material | Browse attractive covers and discover related resources |
-| Add a bundle | Point at its folder and let the app perform routine cataloging |
-| Run a session | Open prepared books and page references with minimal navigation |
-| Maintain the library | Correct occasional mistakes without becoming a full-time librarian |
+| Title, publisher, authors, series, year | From the file, its name or AI |
+| Game system, edition | Editions stay distinct; an edition implies its system |
+| Type | Adventure, rulebook, bestiary, setting, supplement, map pack, handout…; several allowed |
+| Levels | A range within the game system; unknown and "no levels" differ |
+| Players | A stated party size, such as 4–6 |
+| Duration | One-shot, short (2–3 sessions), long (4 or more) or campaign, only when stated |
+| Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation… |
+| Themes, environments, setting | Tone and subject; where it happens; named settings |
+| Your tags | The user's own labels, never filled by AI |
+| Also own | Where else it's owned: print, a virtual tabletop, an online library, with an optional link |
+| Get it from | Where to get it again: a store, with an optional link, shared by every copy |
 
-## 2. Scope and release boundaries
+File facts (format, pages, files, copies) are shown, not edited. Unknown stays unknown: nothing is inferred from what a sampled page doesn't mention.
 
-### Release A — usable personal library
+### Where values come from
 
-This is the first end-to-end release. It must include automatic classification; a PDF grid with manual tags alone does not satisfy the product goal.
+Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
 
-| Area | Release A requirement |
-|---|---|
-| Sources | Multiple local folders; recursive PDF, JPG, and PNG discovery; exclusions |
-| Processing | Hashing, text extraction, covers, page-aware indexing, selective OCR |
-| Cataloging | Folder/filename hints; editable structured metadata; AI-assisted classification |
-| Discovery | Cover grid, detail list, filters, full-text search, page results |
-| Reading | Embedded PDF viewer, page navigation, text search, external opening |
-| Organization | Favorites, manual collections, saved searches |
-| Preparation | Basic ordered session packs containing files and page ranges |
-| Protection | Password handling, permission-aware capabilities, metadata-only records |
-| Maintenance | Durable work queue, pause/resume, review exceptions, relink missing files |
-| Portability | Catalog backup/restore and metadata export; originals excluded by default |
+**Cataloged wrong…** shows every field with each guess marked **Guessed** and its evidence open. After a fix, Bibliotaph offers to fix the same guess on look-alike books in that folder; after the same value is set on three books in a folder, it offers a folder rule.
 
-Release A supports an AI-disabled mode and one fully implemented AI provider adapter. Provider choice is a technical discovery decision. The architecture must permit local and cloud adapters; shipping every provider is not a release gate. A local provider may require an optional separately installed model runtime, but that runtime must not be needed for the core library.
+**Settings > Vocabulary** holds the terms books are filed under, each with other names ("5e" for an edition, say), which folder names, searches, AI and typing all go through.
 
-### Release B — richer discovery
+### Needs review
 
-Semantic retrieval, editable natural-language query interpretation, related resources, compact table mode, richer map filters, and optional vision analysis of image-only maps. Hybrid search combines lexical and semantic results while preserving explicit filters.
+Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer and proposed adventures. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
 
-### Release C — grounded assistance and broader formats
+A card shows the current value, the suggestion and its evidence. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
 
-Library Q&A with page citations; optional detected sections such as encounters or tables; EPUB support; richer session notes and export. These features require separate acceptance work and must not delay Release A.
+### Copies, versions and packs
 
-### Explicitly outside the initial product
+Files with the same text on every page, such as copies stamped for different buyers, become one book; **Make current** chooses which opens and **Not the same book** splits one off. A file sharing most of its pages, or its title and publisher, with a book is asked about as a new version: nothing is joined without asking unless the text is identical. **Same book** joins cards by hand.
 
-Cloud sync, multi-user accounts, player portals, VTT integration, campaign authoring, character sheets, ebook conversion, source-file renaming or deletion, DRM removal, a plugin marketplace, and running a background server. No built-in storefront or recommendation engine for buying more books.
+A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand.
 
-Bibliotaph is a Windows desktop app. Phone and tablet apps, a web version and macOS or Linux builds are out of scope (decided by Dave on 10 October 2026); the core, data and PDFium layers stay portable in case that changes. Using one library on a second Windows PC is served by a library sync file (§10): each PC writes its user work to a folder the user picks (such as OneDrive) and merges the other PC's file, books matched by content hash, newest change per field winning. There is no sync service. The SQLite files themselves never go in a synced folder.
+### Adventures inside a file
 
-## 3. Information architecture
+An anthology can hold several adventures, each with a card of its own: its own details, its first page as cover, and the file and pages it is in. It takes the file's system, edition, publisher, series, year and setting unless it has its own. The file is never split or changed. The user marks adventures from the reader, a bookmark or the details.
 
-Permanent navigation: **Home · Library · Collections · Sessions · Needs Review**. User-created saved searches appear under **Smart Views**. Settings and processing status remain available at the bottom of the navigation rail.
+Bibliotaph also proposes adventures from a file's bookmarks and the blurbs on their first pages ("for four characters of 3rd level"), and with AI on the model helps find them, quoting each one's own pages. A proposal never makes cards by itself: Needs review shows "This file looks like it holds 5 adventures." with a ticked list, **Accept** and **Not split**, and remembers the answer. With AI on, each adventure is then read on its own pages.
 
-The search box is persistently available. Its default scope is the entire library; a visible scope control can restrict it to a collection or session. Entering a search from a collection must not silently limit the search without displaying that scope.
+An adventure opens its file at its first page, says "page 3 of 19 of this adventure", and limits Find to it unless **Whole file** is ticked. Page hits are listed under the adventure they fall in, and **Adventures inside files** shows or hides these cards.
 
-### Core concepts
+### Books owned elsewhere
 
-| Concept | Meaning |
-|---|---|
-| Source folder | A watched root containing original files |
-| Document | A catalog entry representing one specific content version |
-| File location | A path at which that document exists; identical copies can share a document |
-| Page | An addressable page with extracted text and optional printed page label |
-| Collection | A manually curated, non-exclusive group of documents |
-| Smart View | A saved query and filters that update as the catalog changes |
-| Session pack | An ordered working set of document and page-range references |
-| Metadata assertion | A value with origin, evidence, and review state |
-| Capability | An operation currently available for a particular document |
+**Add a book I own elsewhere…** makes a card with no file, for a book in print or on a virtual tabletop, so it turns up in searches, collections and binders. When a file with its title arrives, Needs review asks "Is this its file?".
 
-“Books,” “Adventures,” and “Maps” are shortcuts or filters, not mutually exclusive storage containers. A sourcebook with maps stays a sourcebook and can also appear in searches for map-containing documents.
+## Online libraries
 
-## 4. Main user journeys
+Books owned online join the library as books owned elsewhere:
 
-### 4.1 First run: make existing folders useful
+- **D&D Beyond** and **Demiplane**: books read on the service's site, recorded under **Also own** with their link, and opened in Bibliotaph's online reader.
+- **Humble Bundle** and **DriveThruRPG** (DMs Guild included): books bought to download, listed under **Get it from** with their link until the file is downloaded.
 
-1. Explain that the app builds a local catalog and leaves source files in place.
-2. Choose one or more folders using the native folder picker.
-3. Preview discovered counts by supported file format, excluded folders, and inaccessible paths.
-4. Offer folder-label inference with examples. Store folder names as provenance; do not turn every path segment into an authoritative tag.
-5. Select AI mode: disabled, supported local provider, or supported cloud provider. Explain what data the selected provider receives. Cloud analysis requires explicit opt-in.
-6. Start indexing and open Library immediately. Newly discovered items appear incrementally.
-7. Display separate progress for discovery, text/OCR, and classification; show usable documents before the complete queue finishes.
+**Import from an online library…** opens each service in Bibliotaph's own browser (WebView2), where the user signs in on the service's own page; Bibliotaph never sees the password. The browser opens the library page and then only does what the user does. **Read this page** shows a preview (**New**, **Already in your library**, **Imported before**), and nothing is imported until **Import**, which has **Undo**. Only owned books are imported, only empty fields are filled, and covers are only pictures the page already showed. **Import a saved page…** reads a page saved from the everyday browser instead. Nothing is stored, fetched or scraped automatically, and **Sign out of all services** forgets every sign-in.
 
-Scanning must not require the user to choose a taxonomy before seeing their books. Supply a modest editable vocabulary and improve it through corrections.
+The **online reader** shows the service's own page inside Bibliotaph, signed in through the same browser, with **Add this page** for binders and **Reading mode** to hide D&D Beyond's menus and ads. Links off the book's site open in the everyday browser. It copies no text from the page, so it has no find, page notes or Ask. **Read books owned online in Bibliotaph** can send these books to the everyday browser instead.
 
-### 4.2 Find an adventure
+A **Downloads** folder inside a library folder receives files the user downloads with a store's own **Download** button. Each is read like any new file, and Needs review offers it to the matching book owned elsewhere.
 
-Release A: select Adventures, filter by system and level, add a topic or phrase, inspect matches, open a relevant page, and add the result to a session.
+## Files and processing
 
-Release B: enter “Something creepy for four level-3 characters that fits in three hours.” Show an editable interpretation: adventure, level 3, horror-like tone, target duration 180 minutes, party size 4. A value is a strict constraint only when the user applies or confirms it. Missing duration or party-size data must be labeled unknown rather than invented. If only approximate matches exist, say which constraints are unmet.
+Bibliotaph reads PDF, JPG, PNG and WebP files, including inside ZIPs, which are never unpacked. Files are known by their content: a moved or renamed file keeps its card and everything attached to it, and a deleted one stays, marked missing. A folder on an unplugged drive shows as offline and its books stay searchable; opening one names the drive, with **Try again**. Network folders are best effort.
 
-### 4.3 Find something inside a book
+When a file's content changes, it becomes the new version of its book. Binder items and page notes follow their pages into it by the pages' text; one that can't be found opens at the same printed page marked "This page changed: check it", with **Use this page**. Bibliotaph never silently jumps to an unrelated page.
 
-Search “chase through a city.” Return grouped page hits with book title, page label, PDF page position, snippet, and match explanation. Selecting a hit opens the embedded viewer at that page with highlights where extraction coordinates allow. The user can pin the page or a page range into a session pack.
+Processing runs in steps (finding files, text, covers, hints from names, text recognition on scanned pages, matching copies, AI), each with its own status. Indexing, text recognition and AI pause separately. A damaged file fails alone, without stopping the queue. **Reprocess** reads a file again, keeping the user's work, and can recognize text on every page of a bad scan.
 
-### 4.4 Add a purchased bundle
+OneDrive's online-only files are indexed too, local files first, pausing while a download would leave less than 2 GB free. A file Bibliotaph downloaded is returned to online-only once read, so a cloud library bigger than the disk can be indexed; only the local copy goes, and a setting turns this off.
 
-The next scan discovers new files. Existing content hashes avoid redundant processing. Classification populates supported metadata, while conflicts and unknowns enter Needs Review. The summary reads, for example, “84 discovered · 70 searchable · 9 processing · 5 need attention,” using actual counts rather than a single ambiguous completion percentage.
+## Passwords and protection
 
-### 4.5 Prepare and run a session
+A PDF with a password keeps its card and asks for the password when opened. **Remember it on this PC** (off by default) keeps it in Windows Credential Manager, and **Make its text searchable** (on by default) lets Bibliotaph index it. A PDF that forbids copying is indexed and read, with copy off. A DRM-protected or unreadable book keeps a card the user can fill in, with **Open in another app**.
 
-Create a named pack, add whole documents or specific page ranges, label items, optionally group them into Adventure, Maps, Encounters, and Rules, then reorder them. Run mode presents the ordered items and a large viewer with next/previous item controls. This is a personal preparation surface, not a player-facing presentation mode.
+Bibliotaph never guesses passwords, removes DRM or bypasses permissions. Passwords and keys never go in the catalog, logs, backups, exports or prompts. **Forget its text** removes a book's pages, search text, cover, AI results and Ask conversation and stops reading it, keeping the card and the user's work; earlier backups may still hold that text.
 
-## 5. Screen and interaction specification
+## AI and privacy
 
-### 5.1 Home
+AI is optional. With it, a model reads a bounded excerpt of each book (opening pages, contents, introduction, back cover and a sample of the rest) and suggests every field except tags, Also own and Get it from. The model runs either **Built in**, downloaded once and run on the PC with nothing sent anywhere, or on a **model server** the user runs, such as Ollama or LM Studio. A server off this computer's network needs **Send excerpts to this server** ticked, and Bibliotaph never switches to a cloud service by itself.
 
-Purpose: resume work and rediscover useful material.
+Every AI value quotes the page it came from, and a quote that isn't on that page throws the value away. Book text is data, never instructions: it can't change a setting or a decision, and an answer can only fill in suggestions. The model sees a few books the user has already sorted out as examples, never watermark lines, and logs hold counts, never book text.
 
-Content priority: resume last session pack; recently opened; recently added; favorite collections. Release B adds related-resource suggestions with a clear reason such as “Related to your Gribbits collection.” Avoid a compulsory activity dashboard. Users can set Library as their startup screen.
+**Library folders sent to AI** keeps a folder away from the model. **See what the AI is reading** shows what the check kept and threw away. Changing the model never re-reads books unless the user asks (**Reclassify**). If the model stops answering, AI waits and everything else carries on.
 
-### 5.2 Library browser
+There is no account, tracking or cloud service. Bibliotaph goes online only for updates, AI model downloads, a model server the user set up, and online libraries.
 
-Desktop layout: a narrow navigation rail, the main browsing area, and an optional details inspector. Filters open in a collapsible panel within the browsing area rather than permanently adding a fourth dense column.
+## Your data
 
-The toolbar contains scope, search, active filter chips, result count, sort, and view toggle. Sort options: relevance while searching, title, recently added, recently opened, publisher. Display preferences persist per view.
+The catalog lives on the PC, apart from the books. The user's work (corrections, notes, collections, binders, saved searches, pins) is kept separate from what can be rebuilt (text, covers, search index), so a rebuild never touches it.
 
-**Cover grid:** document cover or image thumbnail, title, system/edition, type, favorite indicator, and exceptional status only. Preserve aspect ratios and letterbox unusual maps. Hover actions also appear on keyboard focus. Failed covers use an attractive title placeholder.
+- **Backups**: made on demand and weekly (the last four kept), without books, passwords, keys or sign-ins; optionally with the search index. Restoring lets moved folders be pointed to their new place.
+- **Sync with another PC**: each PC writes its own small file to a folder the user picks, such as one in OneDrive, and merges the other's. The user's work travels; folders, reading places, settings and sign-ins don't. Books are matched by content, the newer change wins, and deletions carry across. There is no sync service, and the catalog itself never goes in that folder.
+- **Export**: CSV (a row per book) and JSON (the whole catalog).
 
-**Detail list:** small cover, title, publisher, system, document type, level range, and a short snippet or metadata summary. Search uses this mode by default; browsing uses the cover grid. Changing view preserves query, selection, and scroll position where practical.
+A catalog upgrade backs up first. Updates download in the background and go in when the user clicks **Update ready: restart to update**, or at the next start; nothing restarts by itself.
 
-Single selection shows the inspector. Double-click or the explicit Open action opens the document; keyboard Enter does the same. Right-click and an accessible overflow menu expose Add to collection, Add to session, Favorite, Edit metadata, Open externally, and Show in folder.
+## Design and accessibility
 
-Bulk selection provides additive/removal tag operations, collection membership, and metadata changes with a preview of affected fields. Mixed values are shown as mixed, never as blank values that accidentally overwrite existing data. Reversible catalog actions offer Undo.
+The look comes from [bibliotaph-ui-mockups.html](bibliotaph-ui-mockups.html): a contemporary media library with readable type, generous cover space, a restrained green accent and quiet chrome, in light and dark themes that follow Windows unless changed. No faux parchment or fantasy lettering on controls. Title and cover come first, then system and type, then details.
 
-### 5.3 Search and filters
+Everything works from the keyboard, with visible focus, named controls for screen readers, no hover-only actions, layouts that hold at 200% scaling, Windows contrast themes, and no animation when Windows turns animations off. **Ctrl+/** lists every shortcut.
 
-Release A supports ordinary words, quoted phrases, and documented field syntax such as `type:adventure level:3`. Unsupported syntax produces a readable error and preserves the query. Fields autocomplete; special characters can be quoted. Suggested initial fields: title, publisher, system, edition, type, level, players, duration, style, theme, store, tag, and format.
+## Out of scope
 
-Facet rules:
-
-- Different dimensions combine with AND; multiple choices within one dimension default to OR.
-- A level filter matches a document when the requested level lies within its stated minimum/maximum, for the selected system. Level has no assumed meaning across unrelated systems.
-- Unknown is a first-class filter value. Unknown level or duration does not satisfy a strict numeric filter; an explicit “Include unknown” switch can broaden it.
-- D&D editions and compatibility claims remain distinct. Do not silently treat 2014 and 2024 rules compatibility as equivalent.
-- Counts reflect the current query and other dimensions; the selected facet’s counts describe potential matches within that dimension.
-- Save View captures query, filters, scope, sort, and layout, not a frozen result list.
-
-Results have two principal tabs: **Documents** and **Inside documents**, with counts. “Maps” is a filter rather than a third overlapping result universe. Release A can find standalone images by metadata and PDF pages by extracted text; it does not promise visual understanding of unlabeled map artwork.
-
-Document ranking initially favors exact titles, then confirmed metadata, provisional metadata, and body text. Page results group hits by document with Expand matches. Snippets must come from the indexed page, not AI-written paraphrases presented as quotations. Explicit filters are never silently relaxed.
-
-Release B adds semantic ranking and explains matches as “Text match,” “Metadata match,” or “Related meaning.” Do not display uncalibrated similarity scores as confidence percentages.
-
-Zero results show active constraints, a clear-all action, and optional broaden-search suggestions. Incomplete indexing displays coverage: for example, “Searching text in 680 of 742 documents; remaining files are processing or unavailable.”
-
-### 5.4 Document viewer and inspector
-
-The reading workspace provides a back action that restores prior search state, document title, favorite, Add to session, and Open externally.
-
-The viewer has page jump, zoom, fit width/page, thumbnails or outline, search within the book, and text selection with copy where the PDF’s permissions allow it (scanned pages use their OCR text). Opening from search lands on the hit. Display both labels when they differ: “Printed p. 42 · PDF page 46 of 180.” Persist last reading position independently from temporary search navigation.
-
-The right inspector has **Details**, **Notes**, and eventually **Related** tabs. Details include editable metadata, tags, source paths, capabilities, and classification evidence. Source paths remain secondary information.
-
-Each inferred field has a subtle Suggested indicator. Expanding it shows origin, evidence page(s), and whether the value was inferred from limited sampling. Human-confirmed values are locked against automatic replacement. Never place a decorative “AI confidence 94%” on the entire book.
-
-Release A notes are catalog notes and page-linked notes; PDF annotation editing is deferred. For JPG/PNG, use an image viewer with zoom and pan; no fictitious page count is required.
-
-### 5.5 Needs Review
-
-Separate **Metadata suggestions** from **Files needing attention**. Reasons include conflicting system/edition, ambiguous title, new vocabulary, password required, unreadable file, missing location, and failed processing.
-
-For metadata, show current value, proposed value, evidence, and Accept/Edit/Reject. Permit field-level decisions and bulk actions over genuinely comparable cases. Rejection persists against repeat processing of the same proposal; a new model version must not quietly erase it.
-
-High-evidence, low-risk metadata can be applied provisionally under the user’s automation policy. Default automation requires supporting evidence and no conflict. Unsupported guesses remain unknown. Ambiguous fields enter review while the rest of the document remains usable. The user can choose “Review all suggestions” without changing the catalog model.
-
-Review is never a blocking prerequisite for browsing. Dismissing an issue hides its notification, not the document or failure state.
-
-### 5.6 Collections and Sessions
-
-Collections can be nested; membership is non-exclusive. Removing a collection removes only its grouping. Smart Views are edited through their saved query; users cannot manually add a document to make it satisfy the query.
-
-Session packs support title, optional date, notes, ordering, sections, and references to a document or page range. A reference can have a custom label such as “Warehouse ambush.” A document can appear several times at different pages. Copying a pack copies references and notes, not source files.
-
-Missing resources remain visible with Relink. If a source version changes, page references require revalidation; never silently jump to the same numeric page in unrelated revised content.
-
-### 5.7 Settings and processing
-
-Settings areas: Sources, AI and privacy, Vocabulary, Processing, Appearance/accessibility, Backup/export. Source settings expose last scan, availability, counts, exclusions, and Rescan. Remove source explains whether catalog entries are retained or forgotten; source files are always preserved.
-
-Processing status provides pause/resume, current stage, queued count, failures, retry, and resource preference. Start with conservative resource use. OCR and AI can be paused independently of discovery and browsing. When the app closes, active work checkpoints safely; optional tray operation is a later enhancement, not the default.
-
-### 5.8 Adventures inside a file (slice 5)
-
-A compilation file can hold several adventures, and each can be a card of its own: marked by hand from a bookmark in the reader's Contents panel, from Mark as adventure in the reader, or from "Adventures in this file" in the file's details, as a first and last page typed as the file prints them. The file is never split or changed. An adventure's card has its first page as cover and says which file and pages it is in; it has its own title, type, levels and other values, and takes the file's system, edition, publisher, series, year and setting unless it has its own. The file's card counts its adventures, and the Library can hide them. A page found inside an adventure is listed under it. Opening one opens the file at its first page, with its pages marked in Contents, "page 3 of 19 of this adventure" in the toolbar, and Find limited to it unless Whole file is ticked. Copies of the file share its adventures, and a new version finds each by its first page; one it can't find goes to Needs Review.
-
-Bibliotaph also proposes a file's adventures from its bookmarks and the blurbs on their first pages ("for four characters of 3rd level"), leaving out credits, introductions, appendices, indexes and the licence. A proposal never makes cards by itself: Needs Review shows one card per file, "This file looks like it holds 5 adventures", with a ticked list of titles and pages, Edit, Accept and Not split. The answer is remembered, so the file isn't proposed again.
-
-When AI is set up and the rules find nothing, the model that classifies the file is also shown its bookmarks, its contents page and the first page of each bookmarked section, and asked which are self-contained adventures, with their titles and levels. Each answer needs a quote found on that section's pages, as for every AI value; what passes is the same Needs Review card, marked as read with AI. Every adventure with a card, however it was marked, is then classified by AI on its own pages, so its type, levels, themes and the rest come from its pages rather than the whole book's.
-
-## 6. Metadata and classification requirements
-
-### Metadata dimensions
-
-| Dimension | Examples / semantics |
-|---|---|
-| Identity | Title, subtitle, authors, publisher, series, publication year |
-| Format | PDF, JPG, PNG; determined from actual file type |
-| Game system | Dungeons & Dragons, Pathfinder, Call of Cthulhu, system-agnostic, unknown |
-| Edition / compatibility | Explicit edition and separately sourced compatibility claims |
-| Document types | Adventure, rulebook, bestiary, setting, supplement, map pack, handout; multiple allowed |
-| Levels | Optional system-scoped min/max; unknown and not applicable are distinct |
-| Players | Optional stated party size as a minimum–maximum ("for 4–6 characters"), usually from the cover or back cover |
-| Duration | Stated length in sessions: one-shot, short (2–3 sessions), long (4 or more), campaign; with origin; never assume all one-shots last three hours |
-| Setting | Named settings; multiple or unknown |
-| Environments | Urban, forest, coastal, underground, arctic, jungle, ruins, space, station, starship, alien world |
-| Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation, monster hunt, wilderness |
-| Themes and tone | Horror, mystery, political intrigue, comedic, fey; the kind of adventure is Style |
-| Content features | Maps, monsters, NPCs, tables, player options, spells, items |
-| Map properties | Grid/gridless, scale, dimensions, location type; unknown unless evidenced |
-| Get it from | Where the book can be got again: one or more stores (Kickstarter, BackerKit, DriveThruRPG, itch.io, a bundle, the publisher's site, Bundle of Holding, Game On Tabletop, other), each with an optional link; shared by every copy and version; a watermark gives only its store, never the buyer's name or order number |
-| User tags | Flexible labels that supplement structured dimensions |
-| Description | Short sourced summary; generated summaries labeled accordingly |
-| File facts | Size, page count, content hash, paths, timestamps, language, capabilities |
-
-Do not infer absence from incomplete analysis. If the sampled pages contain no maps, “contains maps” remains unknown rather than false. A creature appearing once in a 400-page rulebook should not automatically become a prominent book-level theme.
-
-### Vocabulary behavior
-
-Provide editable starter vocabularies and aliases. Normalize spelling and exact equivalents, but preserve useful distinctions: a haunted mansion can be a narrower concept under haunted locations rather than being flattened into it. New model-proposed terms enter a vocabulary review queue or map to existing terms when the equivalence is clear. Merging terms previews affected documents and is reversible.
-
-### Classification process
-
-1. Gather embedded metadata, filename and folder clues.
-2. Extract text with page boundaries; assess whether OCR is needed per page.
-3. Identify informative sections such as title page, contents, introduction, and headings.
-4. Send bounded text and explicit field definitions to the selected classifier.
-5. Require structured output, evidence references, and an unknown option.
-6. Validate types, ranges, vocabulary, contradictory claims, and referenced pages.
-7. Apply eligible provisional assertions; queue exceptions; preserve user overrides.
-
-Store provider/model, prompt/schema version, input content version, analyzed page coverage, and processing timestamp. Reclassification is explicit or triggered by changed content/settings, not on every application launch. Cache completed work. Local model availability and cloud rate limits must not block ordinary searching.
-
-Treat document text as untrusted content: instructions inside a PDF cannot change system prompts, activate tools, transmit other files, or change provider settings. Classification is a bounded data transformation.
-
-## 7. File lifecycle and indexing
-
-Use file events while running and reconciliation scans on startup/manual request; neither event streams nor timestamps alone are authoritative. Wait for files being copied to stabilize before processing. Avoid symbolic-link cycles and overlapping-root duplicate discovery.
-
-Use inexpensive file facts to detect candidates for hashing, then content hashes to identify exact duplicates. Exact duplicates share derived content and expose all locations. Files with identical text on every page, such as copies watermarked for different buyers, are joined as copies of one book, with Undo. Revised or similar files are proposed for review and never joined without asking.
-
-When a file moves, reconcile by identity/hash and preserve annotations and memberships. If a path’s content changes, record a new content version of the same book, make it the one that opens, and rebuild affected derived data. Metadata overrides persist but may be flagged for review; page anchors are marked stale where their validity is uncertain.
-
-Distinguish an unavailable drive/root from a missing file. Never mass-mark files deleted because a removable drive is unplugged. Network shares are best-effort sources in Release A. Cloud placeholder (online-only) files are always indexed, which downloads them as the queue reaches them: local files are processed first, first run shows how much will download, and downloading pauses when free disk space runs low. Decided by Dave on 8 October 2026. Once indexed, a file that was online-only before Bibliotaph read it is returned to online-only, so a cloud library larger than the disk can be indexed; a setting, on by default, controls this. Only the local copy goes: the file's content, path and timestamps are unchanged, and files the user downloaded themselves are left alone. Decided by Dave on 10 October 2026; not built yet.
-
-Each processing stage has independent status: pending, running, complete, partial, blocked, failed, or skipped. Jobs are durable, idempotent, cancellable, and retryable. A corrupt PDF cannot halt the batch. Retries have limits; disk-full or credential failures stop affected work and expose a clear recovery action.
-
-OCR must preserve page mapping, avoid rewriting originals, and retain quality indicators. Multicolumn layouts and poor scans can degrade retrieval; low-quality extraction is visible. Enforce limits on page rendering, decompression, memory, and task duration to isolate pathological files.
-
-## 8. Passwords, restrictions, and external DRM
-
-Protection type and available capabilities are separate. Capability records include render, extract text, index, thumbnail, and open externally, plus a reason when unavailable.
-
-| Situation | Required experience |
-|---|---|
-| Ordinary PDF | Normal processing subject to parser support |
-| Open password required | Catalog visible; prompt on use or queue Password needed |
-| Correct password supplied | Enable permitted operations; offer a “Remember this password” option (off by default) stored in the OS credential vault, keyed by content hash |
-| Wrong password | Preserve record and queue; retry only on user input |
-| Extraction restricted | Offer permitted viewing and metadata search; explain indexing limitation |
-| External DRM | Keep metadata-only record and launch configured authorized reader where available |
-| Unknown encryption / unsupported file | Explain limitation; retain catalog information and external-open option |
-
-No password guessing, DRM removal, or permission bypass is part of the product. Reader integrations are capability-dependent; external launching does not guarantee page navigation or entitlement.
-
-Passwords and API keys must not appear in the catalog database, logs, exports, or prompts. Use the OS credential vault when saving secrets. Unlocking for indexing creates readable derived data; explain this before indexing protected content and allow view-only use. Removing a stored password does not pretend to erase already indexed content: provide a separate Purge derived content action that removes text, previews, embeddings, and cached AI payloads for that document. Metadata and user notes can be retained by explicit choice. Backups may still contain earlier derived data and must be described accordingly.
-
-## 9. AI, privacy, and offline behavior
-
-The catalog, original-file access, manual editing, lexical search, and viewing work offline after necessary components are installed. AI is optional at runtime even though AI-assisted classification is a required product capability.
-
-Before cloud processing, disclose the configured provider and whether extracted text, page images, or both will be transmitted. Default to bounded text for classification; vision requires separate selection. Support per-source exclusions and a local-only setting. Never fall back from local processing to a cloud provider automatically.
-
-Cloud work has per-run document limits, a usage summary, and a configurable spend limit where costs can be tracked. If pricing is unavailable, show token/request limits rather than a fabricated currency estimate. Do not promise provider retention policies the app cannot control.
-
-Release B embeddings and generation are separately configurable capabilities; changing an embedding model triggers a controlled rebuild because vectors from incompatible models cannot be mixed. Generation failure does not invalidate completed text indexing.
-
-Release C Q&A answers only from retrieved library evidence, cites exact documents/pages, distinguishes quotations from synthesis, and says when evidence is insufficient. It cannot assume every passage in every owned book has been searched successfully.
-
-## 10. Data ownership and recovery
-
-Keep user-authored catalog data separate from rebuildable derived content. A full index rebuild may replace text, thumbnails, and embeddings, but must preserve collections, tags, overrides, notes, and session references.
-
-Backup includes the catalog and user work, with optional derived data. Source PDFs/images are excluded unless a future explicit archive feature is added. Restore previews required root-path remapping and missing resources. Secrets are excluded and re-entered after restore.
-
-Export documented JSON for full catalog portability and CSV for flat metadata. Include stable IDs, relative/source paths, hashes, provenance, collection memberships, and page-reference conventions in the structured export. Do not imply CSV alone can preserve every nested structure.
-
-Sync with another PC (Settings > Backup): each PC writes its user work to `<folder>\Bibliotaph sync\<PC name>.json` in a folder the user picks, a few seconds after the work changes and at close, and merges the other PCs' files at start, when one changes, and on Sync now. Per field the newer change wins, so two PCs editing different things both keep them, and deletions reach the other PC. Books are matched by content hash, what the user made (collections, binders, saved searches, notes) by a stable id; work on a book only the other PC has waits and is applied when the same file shows up. Library files, folder locations, reading places and settings stay on their PC. The databases never go in the folder: Settings says so and refuses Bibliotaph's own data folder. A status line says when the other PC's work was last merged, or what went wrong (folder offline, an unreadable file, two PCs with the same name).
-
-Database migrations require a pre-migration backup and a recovery path. Failed upgrades must not destroy the only copy of user-created catalog data.
-
-## 11. Visual design and accessibility
-
-Visual direction: a contemporary media library with readable typography, generous cover space, restrained accent color, and quiet application chrome. Avoid faux parchment, ornate fantasy lettering for controls, and excessive administrative detail. Dark and light themes use the same information hierarchy.
-
-Prioritize title and cover, then game system/type, then situational details. Status indicators appear when they change what the user can do; the browser should not be a wall of badges.
-
-All key flows must work by keyboard, with visible focus, labeled controls, screen-reader names, and no hover-only actions. Use text plus icons for status, sufficient contrast, scalable text, reduced-motion support, and readable layouts at Windows display scaling up to 200%. At narrower widths, collapse the inspector and filters into drawers rather than shrinking the reader to an unusable strip.
-
-Suggested shortcuts: Ctrl+K global search, Ctrl+F search within the current book, Enter open selected result, Esc close transient panel, and normal platform multi-select conventions. Document and expose shortcuts; avoid overriding text-editing behavior.
-
-Empty states must tell the user what is missing and provide one relevant action. Error messages state the affected operation and a recovery action; technical diagnostics are expandable.
-
-## 12. Quality targets and acceptance scenarios
-
-### Proposed measurable targets
-
-Benchmark on a documented Windows laptop, local SSD, a 5,000-document catalog, and a separately recorded indexed-page count. Capture hardware, corpus composition, and warm/cold cache conditions; these are goals, not measured claims.
-
-| Measure | Proposed gate |
-|---|---|
-| Warm lexical search/filter | 95th percentile within 1 second |
-| First usable library view | Within 3 seconds after normal launch |
-| Responsiveness during processing | Navigation remains interactive; no processing on UI thread |
-| Source integrity | Zero unintended source-file writes across acceptance corpus |
-| Recovery | Restart after interruption without lost user edits or duplicated memberships |
-| Classification precision | At least 95% correct among automatically applied title/system/type/publisher assertions on reviewed pilot set |
-| Classification usefulness | At least 70% of evaluable core fields populated without human edits on the same set; report unknowns and coverage separately |
-| Exception burden | Target fewer than 20% of ordinary readable pilot documents needing core-metadata correction |
-| Page fidelity | All tested hits open their indexed PDF page; printed labels verified where available |
-
-Select a representative pilot of approximately 100 files: ordinary digital books, scans, multi-column text, obscure independent works, long compilations, password-protected PDFs, duplicates, revised editions, standalone maps, and malformed files. Report extraction failures and difficult categories explicitly; do not inflate classification quality by excluding them silently. Adjust automatic application thresholds based on observed precision, not model self-reported certainty.
-
-### Release A acceptance scenarios
-
-| ID | Scenario | Pass condition |
-|---|---|---|
-| A01 | Add overlapping source folders | One catalog document per exact content version; all relevant paths retained |
-| A02 | Search before indexing finishes | Completed documents searchable; remaining coverage disclosed |
-| A03 | Find a phrase on a known page | Correct snippet and exact PDF page open |
-| A04 | Review an AI error and rescan | Corrected field retained; rejected proposal not reapplied |
-| A05 | Process a scanned and mixed PDF | OCR only where needed; page references remain aligned |
-| A06 | Rename/move a file | Identity, collections, and session references retained after reconciliation |
-| A07 | Disconnect a source drive | Source shown offline; entries not deleted |
-| A08 | Replace a PDF with a revised edition | Content change detected; stale page references flagged |
-| A09 | Unlock a password PDF | Permitted capabilities enabled; optional saved secret outside catalog |
-| A10 | Encounter unsupported DRM | Metadata usable and external-open path offered without claimed full-text support |
-| A11 | Interrupt indexing or lose AI connection | Resume eligible jobs; completed work and user edits preserved |
-| A12 | Filter by level with unknown metadata | Strict results exclude unknowns unless explicitly included |
-| A13 | Add and reorder page ranges in a session | Each entry opens the correct range and preserves custom labels |
-| A14 | Disable AI and network | Existing library, lexical search, editing, and reading remain usable |
-| A15 | Restore backup on a different root path | User work restored; files remapped or clearly marked unavailable |
-| A16 | Classify a PDF containing malicious instructions | Content cannot alter provider configuration or trigger unrelated actions |
-| A17 | Use keyboard and high display scaling | Core workflows remain accessible without clipped primary controls |
-| A18 | Process a corrupt or extremely large file | Failure isolated; queue continues and reason is recoverable |
-
-## 13. Technical direction and implementation sequence
-
-This is a product specification, not a final engineering design. The engineering design is [architecture.md](architecture.md), agreed on 8 October 2026: WPF on .NET 11 with PDFium in isolated worker processes, SQLite with FTS5 (a migrated catalog database for user work and a rebuildable index database), Windows OCR (chosen over Tesseract by a bake-off in slice 1), and a local-first, configurable AI adapter (OpenAI-compatible endpoint). The PDF feasibility spike is in `spikes/pdf-feasibility/`.
-
-A .NET-oriented implementation is a reasonable candidate given the intended builder’s experience. Validate the actual PDF rendering/extraction, encrypted-document behavior, OCR packaging, local search, and installer experience before selecting the UI framework. Avoid tying product requirements to an untested dependency or assuming optional local inference is effortless on a particular GPU.
-
-Candidate modules: desktop shell; source scanner; document processor; metadata/classification service; search service; viewer; organization/session service; durable job queue; credentials and backup service. Keep these as internal boundaries unless a concrete need justifies separate processes.
-
-### Build slices
-
-1. **Feasibility slice (done for PDF, 8 October 2026; OCR still to test):** representative files through extraction, rendering, OCR, password handling, and an installable shell. Validate dependency licensing before committing to distribution.
-2. **Vertical discovery slice:** select folder → discover → index pages → search → open exact page. Prove identity and source-file preservation.
-3. **Catalog automation slice:** structured metadata → one AI adapter → evidence validation → correction/review → persistent overrides.
-4. **Preparation slice:** collections, saved views, session page references, and browsing polish.
-5. **Release hardening:** move/offline/version behavior, restart recovery, backup/restore, accessibility, and pilot acceptance gates.
-6. **Release B:** semantic retrieval and natural-language interpretation only after establishing a measurable lexical-search baseline.
-
-## 14. Decisions and open questions
-
-Dave accepted all proposed defaults on 7 October 2026 and subsequently selected Bibliotaph as the product name. These decisions are the agreed baseline. Implementation choices and validation work identified below remain open.
-
-| Decision | Accepted baseline | When to revisit |
-|---|---|---|
-| Platform | Windows first; WPF on .NET 11 (decided 8 October 2026) | Move to .NET 12 LTS when it ships |
-| Storage | Index files in place; no source modifications | Stable product constraint |
-| Running model | Process while app is open | If unattended indexing becomes important |
-| Supported media | PDF, JPG, PNG initially | EPUB and additional image formats after core delivery |
-| Provider breadth | One complete adapter in Release A: local first (OpenAI-compatible endpoint), endpoint and model configurable | Add a cloud adapter only if local misses the pilot gates |
-| AI automation | Evidence-backed provisional metadata; review exceptions | Calibrate using pilot corpus |
-| Page search | Included in Release A | Stable product requirement |
-| Semantic search | Release B | Pull forward only if lexical baseline demonstrably fails core tasks |
-| Session packs | Basic page-linked packs in Release A | Validate use during an actual game |
-| Protected content | Authorized use, explicit derived-data choice, metadata fallback | Validate with representative owned files |
-| Folder taxonomy | Preserve provenance; propose mappings | Tune after seeing actual folder structure |
-| Product name | Bibliotaph | Selected; visual branding remains open |
-
-Before implementation, gather collection size/page volume, representative files, source locations, likely use of removable/cloud drives, and preference for local versus cloud classification. These inputs refine sizing and dependency choices; they do not change the central promise: find useful owned material without turning its owner into the tagging department.
+Bibliotaph is a Windows app for Windows 10 (1809 or later) and 11, with no phone, tablet, web, macOS or Linux version. It has no sync service, accounts, player-facing display, virtual tabletop connection, campaign authoring, character sheets, EPUB support or ebook conversion, plugins, background service or tray mode, and no store or recommendations. It never changes source files, never removes DRM, and never reads an online library on its own.

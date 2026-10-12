@@ -1,6 +1,6 @@
 # Online libraries
 
-[Bibliotaph](../../README.md) › Guide › Online libraries
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Online libraries
 
 Not every book you own is a file on your PC. Some you read on a website, such as D&D Beyond or Demiplane. Others you
 bought from a store, such as Humble Bundle or DriveThruRPG, and haven't downloaded. Bibliotaph can bring them into your
@@ -52,15 +52,15 @@ unless you remove it.
 ### A saved page instead
 
 Bibliotaph's browser needs the Microsoft Edge WebView2 Runtime. Windows 11 has it; on Windows 10 you may need to install
-it from Microsoft. Without it, or if **Read this page** doesn't recognise your library, import a saved page:
+it from Microsoft. Without it, or if **Read this page** doesn't recognize your library, import a saved page:
 
 1. In your everyday browser, open your library, signed in, and save it with **Save as**, choosing
    **Webpage, complete**. That keeps the covers too.
 2. In **Settings > Online libraries**, click **Import a saved page…** and pick the file. The same preview shows.
 
-Bibliotaph's browser has **Save page…** too. It saves the page as it shows, signed in as you, without pictures. It's
-the way to send a page that **Read this page** doesn't recognise to whoever looks into it. It holds what the page showed
-you, so share it only with people you trust.
+Bibliotaph's browser has **Save page…** too. It saves the page as it shows, signed in as you, without pictures, for
+when you want to show someone a page that **Read this page** doesn't recognize. It holds whatever the page showed you,
+so share it only with people you trust.
 
 ## Read a book you own online
 
@@ -128,7 +128,6 @@ site's own icon. Bibliotaph fetches each site's icon once and keeps it. Untick *
 Bibliotaph's browser keeps you signed in between visits, apart from your everyday browser. **Sign out of all services**
 in **Settings > Online libraries** forgets every sign-in, cookie and page it kept.
 
-## Next
+---
 
-- [Binders](binders.md)
-- [Cataloging](cataloging.md#books-you-own-elsewhere)
+Previous: [Binders](binders.md) · Next: [AI](ai.md)
