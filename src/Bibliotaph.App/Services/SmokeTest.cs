@@ -423,8 +423,10 @@ static partial class SmokeTest
 
         page.Layout = LibraryLayout.List;
         page.ShowFilters = true;
+        page.ShowMoreFilters = true;
         await Settle(window);
         await AuditAsync(window, "the Library as a list, with its filters");
+        page.ShowMoreFilters = false;
         await EditMetadataAsync(window, page, books);
         await BulkEditAsync(window, page, search, books);
 
@@ -483,6 +485,9 @@ static partial class SmokeTest
         page.CopiesChoice = page.CopiesChoices.Single(c => c.Value);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs", CopiesLabel: "2 copies" }],
             () => $"Filtering by copies shows {string.Join(", ", page.Items.Select(i => $"{i.Title} ({i.CopiesLabel})"))}.");
+        // The filter shows as a chip, and counts on the Filters button and the folded More filters.
+        if (page.ActiveFilters is not [{ Label: "Books with copies" }] || page.FiltersLabel != "Filters · 1" || page.MoreFiltersLabel != "More filters · 1")
+            throw new InvalidOperationException($"The Copies filter shows as {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}, {page.FiltersLabel}, {page.MoreFiltersLabel}.");
         var lairs = page.Items[0];
         await page.OpenDetailsCommand.ExecuteAsync(lairs);
         await WaitUntilAsync(window, () => page.Inspector is { Copies.Count: 2 }, () => "The inspector doesn't list the lairs' two copies.");
@@ -501,10 +506,13 @@ static partial class SmokeTest
         await AuditAsync(window, "a book's details with two copies");
 
         page.CloseDetailsCommand.Execute(null);
-        page.CopiesChoice = page.CopiesChoices[0];
-        page.Layout = LibraryLayout.Grid;
         page.ShowFilters = false;
-        await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the Copies filter didn't bring back all {books} books.");
+        await Settle(window);
+        await AuditAsync(window, "the Library with a filter on, as a chip");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.ActiveFilters[0].Clear && b.IsVisible), "the Copies chip's ×");
+        page.Layout = LibraryLayout.Grid;
+        await WaitUntilAsync(window, () => page.Items.Count == books && !page.HasActiveFilters && !page.CopiesChoice.Value,
+            () => $"The Copies chip's × didn't bring back all {books} books.");
     }
 
     /// <summary>

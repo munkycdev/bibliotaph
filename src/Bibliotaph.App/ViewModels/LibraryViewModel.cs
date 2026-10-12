@@ -84,6 +84,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     bool _loaded;
     bool _stale;
     bool _holdRefresh;
+    int _moreFiltersOn;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
@@ -247,6 +248,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial Choice<string?> StyleChoice { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
     public partial bool ShowStyleChoice { get; private set; }
 
     public ObservableCollection<Choice<string?>> DurationChoices { get; } = [AnyDuration];
@@ -255,6 +257,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial Choice<string?> DurationChoice { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
     public partial bool ShowDurationChoice { get; private set; }
 
     /// <summary>Where to get it (scenario review, row 7), with how many books each store has; shown once some book has one.</summary>
@@ -358,6 +361,32 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowFilters { get; set; }
+
+    /// <summary>
+    /// The filters past the common four (game system, type, level, players), in groups: the adventure, where the book
+    /// lives, and housekeeping. Folded away until asked for; the chips show any of them that are on.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MoreFiltersLabel))]
+    public partial bool ShowMoreFilters { get; set; }
+
+    /// <summary>The filters that are on, as chips under the toolbar, so they show with the panel closed; a chip's × turns one off.</summary>
+    public ObservableCollection<FilterChip> ActiveFilters { get; } = [];
+
+    public bool HasActiveFilters => ActiveFilters.Count > 0;
+
+    /// <summary>Clear filters beside the chips, once there is more than one to clear.</summary>
+    public bool HasSeveralFilters => ActiveFilters.Count > 1;
+
+    /// <summary>"Filters", or "Filters · 2" with two on.</summary>
+    public string FiltersLabel => ActiveFilters.Count > 0 ? $"Filters · {ActiveFilters.Count.ToString(CultureInfo.CurrentCulture)}" : "Filters";
+
+    /// <summary>"More filters", with how many of them are on while they are folded away.</summary>
+    public string MoreFiltersLabel => ShowMoreFilters ? "Fewer filters"
+        : _moreFiltersOn > 0 ? $"More filters · {_moreFiltersOn.ToString(CultureInfo.CurrentCulture)}" : "More filters";
+
+    /// <summary>The adventure's group shows once Style or Duration does.</summary>
+    public bool ShowAdventureFilters => ShowStyleChoice || ShowDurationChoice;
 
     public bool IsDocumentsTab { get => Tab == ResultsTab.Documents; set { if (value) Tab = ResultsTab.Documents; } }
 
@@ -660,8 +689,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>Runs the current view's query. A newer refresh supersedes an older one still running.</summary>
     public async Task RefreshAsync()
     {
-        // The constructor sets the filters, which would otherwise query before the page is shown.
+        // The constructor sets the filters, which would otherwise query before the page is shown (and before all are set).
         if (!_loaded) return;
+        ShowActiveFilters();
         var version = ++_version;
         try
         {
@@ -881,6 +911,45 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [RelayCommand]
     void ToggleFilters() => ShowFilters = !ShowFilters;
+
+    [RelayCommand]
+    void ToggleMoreFilters() => ShowMoreFilters = !ShowMoreFilters;
+
+    /// <summary>The chips for the filters that are on, common ones first, each turning its filter off.</summary>
+    void ShowActiveFilters()
+    {
+        List<FilterChip> chips = [];
+        var more = 0;
+        void Add(bool on, string label, string filter, Action clear, bool folded = false)
+        {
+            if (!on) return;
+            chips.Add(new FilterChip(label, $"Turn off the {filter} filter", new RelayCommand(clear)));
+            if (folded) more++;
+        }
+        Add(SystemChoice.Value is not null, Uncounted(SystemChoice.Label), "game system", () => SystemChoice = AllSystems);
+        Add(TypeChoice.Value is not null, Uncounted(TypeChoice.Label), "type", () => TypeChoice = AllTypes);
+        Add(LevelChoice.Value is not null, IncludeUnknownLevels ? $"{LevelChoice.Label} or unknown" : LevelChoice.Label, "character level",
+            () => LevelChoice = AnyLevel);
+        Add(PlayersChoice.Value is not null, PlayersChoice.Label, "players", () => PlayersChoice = AnyPlayers);
+        Add(StyleChoice.Value is not null, Uncounted(StyleChoice.Label), "style", () => StyleChoice = AnyStyle, folded: true);
+        Add(DurationChoice.Value is not null, Uncounted(DurationChoice.Label), "duration", () => DurationChoice = AnyDuration, folded: true);
+        Add(FolderChoice.Value is not null, $"Folder: {FolderChoice.Label}", "source folder", () => FolderChoice = AllFolders, folded: true);
+        Add(OwnChoice.Value is not null, $"Also own: {Uncounted(OwnChoice.Label)}", "also own", () => OwnChoice = AnyOwn, folded: true);
+        Add(StoreChoice.Value is not null, $"Get it from: {Uncounted(StoreChoice.Label)}", "get it from", () => StoreChoice = AnyStore, folded: true);
+        Add(KindChoice.Value != KindFilter.All, KindChoice.Label, "kind", () => KindChoice = KindChoices[0], folded: true);
+        Add(AiChoice.Value != AiFilter.All, AiChoice.Label, "AI", () => AiChoice = AiChoices[0], folded: true);
+        Add(CopiesChoice.Value, CopiesChoice.Label, "copies", () => CopiesChoice = CopiesChoices[0], folded: true);
+        Add(PartsChoice.Value, "Adventures inside files hidden", "adventures inside files", () => PartsChoice = PartsChoices[0], folded: true);
+
+        _moreFiltersOn = more;
+        OnPropertyChanged(nameof(MoreFiltersLabel));
+        if (ActiveFilters.Select(c => c.Label).SequenceEqual(chips.Select(c => c.Label))) return;
+        ActiveFilters.Clear();
+        foreach (var chip in chips) ActiveFilters.Add(chip);
+        OnPropertyChanged(nameof(HasActiveFilters));
+        OnPropertyChanged(nameof(HasSeveralFilters));
+        OnPropertyChanged(nameof(FiltersLabel));
+    }
 
     [RelayCommand]
     void ClearFilters()
