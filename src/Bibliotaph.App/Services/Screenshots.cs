@@ -59,6 +59,9 @@ static class Screenshots
             var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The reader didn't open.");
             await WaitAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, "The book didn't open.");
             if (!viewer.IsPdf) throw new InvalidOperationException($"The book didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+            // A whole page, with the thumbnails beside it.
+            viewer.Zoom = Bibliotaph.Viewer.PdfPagesView.FitPage;
+            viewer.ShowStrip = true;
             await SaveAsync(window, System.IO.Path.Combine(output, "reader.png"));
             Log.Information("Screenshots saved in {Folder}", output);
             return 0;
@@ -110,7 +113,10 @@ static class Screenshots
         }
     }
 
-    /// <summary>Lets covers and pages finish loading, then draws the window's content, without its frame, to a PNG.</summary>
+    /// <summary>
+    /// Lets covers and pages finish loading, then draws the window's content, without its frame, to a PNG, on the
+    /// window's own background, which the content leaves showing through.
+    /// </summary>
     static async Task SaveAsync(Window window, string path)
     {
         for (var i = 0; i < 20; i++)
@@ -120,9 +126,16 @@ static class Screenshots
         }
         var content = (FrameworkElement)window.Content;
         var dpi = VisualTreeHelper.GetDpi(window);
-        var bitmap = new RenderTargetBitmap((int)Math.Round(content.ActualWidth * dpi.DpiScaleX), (int)Math.Round(content.ActualHeight * dpi.DpiScaleY),
+        var bounds = new Rect(0, 0, content.ActualWidth, content.ActualHeight);
+        var visual = new DrawingVisual();
+        using (var drawing = visual.RenderOpen())
+        {
+            drawing.DrawRectangle(window.Background ?? Brushes.White, null, bounds);
+            drawing.DrawRectangle(new VisualBrush(content) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, bounds);
+        }
+        var bitmap = new RenderTargetBitmap((int)Math.Round(bounds.Width * dpi.DpiScaleX), (int)Math.Round(bounds.Height * dpi.DpiScaleY),
             dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
-        bitmap.Render(content);
+        bitmap.Render(visual);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var png = new System.IO.MemoryStream();
