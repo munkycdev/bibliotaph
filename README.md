@@ -23,7 +23,7 @@ Version 1.0 is Bibliotaph's first release. Everything below is in it.
   <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
 </p>
 <p align="center">
-  <img src="docs/images/reader.png" width="860" alt="A book open in the reader, with its contents beside the page">
+  <img src="docs/images/reader.png" width="860" alt="Treasure Island open in the reader at a colour plate, with the page thumbnails below">
 </p>
 <p align="center"><sub>The books in these pictures are public-domain scans from the
 <a href="https://archive.org">Internet Archive</a>.</sub></p>
