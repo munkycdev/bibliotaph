@@ -43,7 +43,10 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
     /// <summary>In a window of its own rather than the main window.</summary>
     public bool IsPoppedOut { get; init; }
 
-    public bool IsInMainWindow => !IsPoppedOut;
+    /// <summary>In a binder's reader, in place of its file reader: the binder pops out, not the page.</summary>
+    public bool IsInBinder { get; init; }
+
+    public bool IsInMainWindow => !IsPoppedOut && !IsInBinder;
 
     internal OnlineBrowsers Browsers => readers.Browsers;
 

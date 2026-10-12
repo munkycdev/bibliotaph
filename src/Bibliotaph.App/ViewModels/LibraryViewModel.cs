@@ -930,7 +930,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             inspector.PartRemoved += async (_, removed) => await ShowPartRemovedAsync(removed.Removed, removed.Title);
             inspector.LookAlikesAccepted += async (_, offer) => await ApplyLookAlikesAsync(offer);
             inspector.CorrectionEnded += (_, _) => Activity.Invalidate();
-            inspector.PinLabel = Pins.PinLabel(PinTarget.Entry(item.EntryId));
+            inspector.IsPinned = Pins.IsPinned(PinTarget.Entry(item.EntryId));
             Inspector = inspector;
             await ShowInspectorCollectionsAsync();
         }
@@ -1719,7 +1719,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void OnPinsChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(PinLabel));
-        Inspector?.PinLabel = Pins.PinLabel(PinTarget.Entry(Inspector.Item.EntryId));
+        Inspector?.IsPinned = Pins.IsPinned(PinTarget.Entry(Inspector.Item.EntryId));
         ShowSavedSearchRows();
     }
 
