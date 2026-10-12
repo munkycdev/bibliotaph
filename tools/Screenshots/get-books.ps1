@@ -14,18 +14,18 @@ See docs\developers.md, "README screenshots".
 param([Parameter(Mandatory)][string]$Folder)
 $ErrorActionPreference = 'Stop'
 $books = [ordered]@{
-    'Little Wars'                            = 'littlewarsgamefo00welluoft'
-    'Floor Games'                            = 'floorgames00well'
-    'The Red Fairy Book'                     = 'redfairybook00lang'
-    'The Blue Fairy Book'                    = 'cu31924011575739'
-    'The Story of King Arthur and His Knights' = 'storyofkingarth100pyle'
-    'The Merry Adventures of Robin Hood'     = 'merryadventureso00pyle2'
-    'Treasure Island'                        = 'treasureisland00stev2'
-    'The King in Yellow'                     = 'kinginyellow00chamrich'
-    'Dracula'                                = 'dracu00stok'
-    'The Wonderful Wizard of Oz'             = 'wonderfulwizardo00baumiala'
-    'Dorothy and the Wizard in Oz'           = 'dorothywizardino00baum'
-    'King Solomon''s Mines'                  = 'kingsolomonsmine00hagguoft'
+    'Howard Pyle''s Book of Pirates'            = 'howardpylesbooko00pyle_0'
+    'The Story of the Champions of the Round Table' = 'storyofchampions00pyle'
+    'The Story of King Arthur and His Knights'  = 'storyofkingarth100pyle'
+    'The Merry Adventures of Robin Hood'        = 'merryadventureso00pyle2'
+    'The Red Fairy Book'                        = 'redfairybook00lang'
+    'The Blue Fairy Book'                       = 'cu31924011575739'
+    'The Arabian Nights Entertainments'         = 'McGillLibrary-rbsc_bourke_arabian-nights-entertainment_PJ7715L361898-15699'
+    'The Heroes'                                = 'heroesorgreekfai00king3'
+    'Treasure Island'                           = 'treasureisland00stev2'
+    'Dracula'                                   = 'dracu00stok'
+    'The Wonderful Wizard of Oz'                = 'wonderfulwizardo00baumiala'
+    'Dorothy and the Wizard in Oz'              = 'dorothywizardino00baum'
 }
 New-Item -ItemType Directory -Force $Folder | Out-Null
 foreach ($title in $books.Keys) {
