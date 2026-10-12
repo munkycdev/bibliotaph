@@ -14,7 +14,7 @@ See docs\developers.md, "README screenshots".
 param([Parameter(Mandatory)][string]$Folder)
 $ErrorActionPreference = 'Stop'
 $books = [ordered]@{
-    'Howard Pyle''s Book of Pirates'            = 'howardpylesbooko00pyle_0'
+    'The Green Fairy Book'                      = 'greenfairybook00lang'
     'The Story of the Champions of the Round Table' = 'storyofchampions00pyle'
     'The Story of King Arthur and His Knights'  = 'storyofkingarth100pyle'
     'The Merry Adventures of Robin Hood'        = 'merryadventureso00pyle2'
