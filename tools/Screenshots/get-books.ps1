@@ -32,12 +32,15 @@ foreach ($title in $books.Keys) {
     $target = Join-Path $Folder "$title.pdf"
     if (Test-Path $target) { continue }
     $id = $books[$title]
-    $files = (Invoke-RestMethod "https://archive.org/metadata/$id/files" -TimeoutSec 60).result
-    # The scan with its text layer; a black-and-white copy only when there is no other.
-    $pdf = $files | Where-Object { $_.name -like '*.pdf' -and $_.name -notlike '*_bw.pdf' } | Select-Object -First 1
-    if (-not $pdf) { $pdf = $files | Where-Object { $_.name -like '*.pdf' } | Select-Object -First 1 }
-    if (-not $pdf) { Write-Warning "$title ($id) has no PDF."; continue }
-    Write-Host "$title <- $id/$($pdf.name)"
-    Invoke-WebRequest "https://archive.org/download/$id/$([uri]::EscapeDataString($pdf.name))" -OutFile "$target.partial" -UseBasicParsing -TimeoutSec 600
-    Move-Item "$target.partial" $target -Force
+    try {
+        $files = (Invoke-RestMethod "https://archive.org/metadata/$id/files" -TimeoutSec 60).result
+        # The scan with its text layer; a black-and-white copy only when there is no other.
+        $pdf = $files | Where-Object { $_.name -like '*.pdf' -and $_.name -notlike '*_bw.pdf' } | Select-Object -First 1
+        if (-not $pdf) { $pdf = $files | Where-Object { $_.name -like '*.pdf' } | Select-Object -First 1 }
+        if (-not $pdf) { Write-Warning "$title ($id) has no PDF."; continue }
+        Write-Host "$title <- $id/$($pdf.name)"
+        Invoke-WebRequest "https://archive.org/download/$id/$([uri]::EscapeDataString($pdf.name))" -OutFile "$target.partial" -UseBasicParsing -TimeoutSec 600
+        Move-Item "$target.partial" $target -Force
+    }
+    catch { Write-Warning "$title ($id) didn't download: $($_.Exception.Message)" }
 }
