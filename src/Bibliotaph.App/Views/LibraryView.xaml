@@ -715,53 +715,63 @@
                     <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
                   </Border>
                 </WrapPanel>
-                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
-                <Button x:Name="RemoveFromLibrary" Content="Remove from library" HorizontalAlignment="Left" Margin="0,16,0,0"
-                        ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
-                        Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <StackPanel Orientation="Horizontal" Margin="0,16,0,0" Visibility="{Binding CanOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              </StackPanel>
+            </Grid>
+
+            <!--
+              The book's actions, in one row under the cover: what it opens with on the left, labelled (they wrap when there
+              are many); pin, binder and Cataloged wrong… on the right, as icons.
+            -->
+            <DockPanel Margin="0,20,0,-8">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,8">
+                <Button x:Name="PinBook" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pin}" c:Ui.IsActive="{Binding IsPinned}"
+                        ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" CommandParameter="{Binding Item}"
+                        Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <!-- Add to binder (slice 3c): the current session, another or a new one. -->
+                <Button x:Name="AddToSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="2,0,0,0"
+                        Click="DropDown_Click" ToolTip="Add to binder" AutomationProperties.Name="Add to binder">
+                  <Button.ContextMenu>
+                    <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
+                  </Button.ContextMenu>
+                </Button>
+                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
+                <Button x:Name="CatalogedWrong" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="2,0,0,0"
+                        ToolTip="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Cataloged wrong…"
+                        Command="{Binding StartCorrectingCommand}" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              </StackPanel>
+              <WrapPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,8,8" Visibility="{Binding CanOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
                           AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0}'}"
                           Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           c:NewWindowGesture.Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
-                  <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="6,0,0,0"
+                  <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="4,0,0,0"
                           ToolTip="Open in new window (Shift+Enter)" AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0} in new window'}"
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
                 <!-- Online libraries (O1, O2b): the book's page where it is owned online, in the online reader. -->
-                <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" HorizontalAlignment="Left"
-                        Margin="0,8,0,0" ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
+                <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
+                        ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
                         Command="{Binding DataContext.OpenOnlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.HasOnlineLink, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- Ask this book (Ask plan, choice 11): shown only for a PDF with text while AI is on, when it can run. -->
-                <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" Margin="0,0,8,8"
                         ToolTip="Open this book with its Ask panel, to ask it a question" AutomationProperties.Name="Ask this book"
                         Command="{Binding DataContext.AskBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}"
                         Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
-                <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" HorizontalAlignment="Left"
-                        Margin="0,8,0,0" ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
+                <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
+                        ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
                         Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- Add to binder (slice 3c): the current session, another or a new one. -->
-                <Button x:Name="AddToSession" Content="Add to binder" c:Ui.Icon="{StaticResource Icon.NotebookPen}" HorizontalAlignment="Left"
-                        Margin="0,8,0,0" Click="DropDown_Click" ToolTip="Add this book to a binder">
-                  <Button.ContextMenu>
-                    <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
-                  </Button.ContextMenu>
-                </Button>
-                <Button x:Name="PinBook" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                        ToolTip="Pinned books show in the sidebar and on Home" CommandParameter="{Binding Item}"
-                        Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
-                <Button x:Name="CatalogedWrong" Content="Cataloged wrong…" c:Ui.Icon="{StaticResource Icon.Pencil}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                        ToolTip="Correct its details: the values Bibliotaph guessed are marked" Command="{Binding StartCorrectingCommand}"
-                        Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-              </StackPanel>
-            </Grid>
-
+                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
+                <Button x:Name="RemoveFromLibrary" Content="Remove from library" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
+                        ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
+                        Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </WrapPanel>
+            </DockPanel>
             <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
               <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />
