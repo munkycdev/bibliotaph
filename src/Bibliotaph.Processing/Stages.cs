@@ -354,11 +354,11 @@ public sealed class TextStage(StageServices s) : IStage
             }
 
             // Read back rather than counted from the scores: a page flagged for OCR before Text ran (Reprocess with OCR
-            // on every page) keeps its flag whatever its text layer scores. Classify and Match wait for OCR by themselves,
-            // so they can be queued now either way.
+            // on every page) keeps its flag whatever its text layer scores. Classify, Match and the whole-book scan wait
+            // for OCR by themselves, so they can be queued now either way; the scan also waits behind everything else.
             var next = (await s.Queries.GetPagesNeedingOcrAsync(job.DocumentId, ct)).Count > 0
-                ? new[] { Stage.Ocr, Stage.Classify, Stage.Match }
-                : [Stage.Classify, Stage.Match];
+                ? new[] { Stage.Ocr, Stage.Classify, Stage.Match, Stage.ChapterScan }
+                : [Stage.Classify, Stage.Match, Stage.ChapterScan];
             return failedPages == 0
                 ? new StageOutcome.Done(StageStatus.Complete, next)
                 : new StageOutcome.Done(StageStatus.Partial, next, $"{failedPages} page(s) could not be read.");

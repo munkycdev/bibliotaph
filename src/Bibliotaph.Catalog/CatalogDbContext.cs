@@ -17,6 +17,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<PackDecision> PackDecisions => Set<PackDecision>();
     public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
     public DbSet<PartProposal> PartProposals => Set<PartProposal>();
+    public DbSet<ChapterScan> ChapterScans => Set<ChapterScan>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
@@ -101,6 +102,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<PartProposal>(e => e.HasIndex(p => p.ContentHash).IsUnique());
+        modelBuilder.Entity<ChapterScan>(e => e.HasIndex(s => s.ContentHash).IsUnique());
 
         modelBuilder.Entity<PackDecision>(e =>
         {

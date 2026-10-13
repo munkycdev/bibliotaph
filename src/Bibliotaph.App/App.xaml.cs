@@ -227,9 +227,11 @@ public partial class App : Application
             new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
         // The smoke test has a stand-in model server of its own, for Ask this book (SmokeModel).
+        builder.Services.AddSingleton(sp => new ModelActivity(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(),
             smokeTest ? SmokeModel.ClientsFor(sp.GetRequiredService<IApiKeyStore>()) : null,
-            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey)));
+            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey),
+            sp.GetRequiredService<ModelActivity>()));
         builder.Services.AddSingleton<AskQueries>();
         builder.Services.AddSingleton<AskService>();
         builder.Services.AddSingleton<ExampleFinder>();
@@ -257,6 +259,11 @@ public partial class App : Application
         builder.Services.AddSingleton<AiReadingFeed>();
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
+        builder.Services.AddSingleton<ChapterScanStore>();
+        builder.Services.AddSingleton<ChapterQueries>();
+        builder.Services.AddSingleton<ChapterProjection>();
+        builder.Services.AddSingleton<IStage, ChapterScanStage>();
+        builder.Services.AddSingleton<ChapterScanService>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<FolderRules>();
@@ -416,6 +423,8 @@ public partial class App : Application
             try
             {
                 await services.GetRequiredService<MetadataProjector>().ProjectAllAsync();
+                // What the AI found in each chapter, kept in catalog.db, back into a rebuilt index.db.
+                await services.GetRequiredService<ChapterProjection>().RestoreAsync();
             }
             catch (Exception ex)
             {

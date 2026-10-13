@@ -243,7 +243,7 @@
     <Border Grid.Row="2" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,1,1"
             Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
       <DockPanel>
-        <!-- Contents: the PDF's bookmarks. -->
+        <!-- Contents: the PDF's bookmarks, or the chapters the AI read when it has none, with what was found in each. -->
         <Border DockPanel.Dock="Left" Width="250" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0"
                 Visibility="{Binding OutlineVisible, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <DockPanel>
@@ -267,8 +267,14 @@
                         </ContextMenu>
                       </DockPanel.ContextMenu>
                       <TextBlock DockPanel.Dock="Right" Text="{Binding Page}" Style="{StaticResource Text.Small}" Margin="8,5,6,5" VerticalAlignment="Top" />
-                      <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
-                                 Margin="6,5,0,5" />
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
+                                   Margin="6,5,0,5" />
+                        <!-- What the AI found reading this chapter: about the chapter, not the whole book. -->
+                        <TextBlock Text="{Binding Found}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="6,-3,0,5"
+                                   ToolTip="Found by the AI reading this chapter"
+                                   Visibility="{Binding HasFound, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      </StackPanel>
                     </DockPanel>
                   </Border>
                   <DataTemplate.Triggers>

@@ -213,7 +213,8 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
                 var filter = new LibraryFilter(await library.GetVisibleEntryIdsAsync());
                 if (field.Kind == SearchFieldKind.Format)
                     return SearchGuide.FormatValues((await queries.GetFormatCountsAsync(filter)).Select(Value));
-                var counts = await queries.GetFacetCountsAsync(field.Metadata?.Vocabulary ?? field.Name, filter);
+                // A field with no vocabulary of its own, such as creatures found in chapters, lists what its facets hold.
+                var counts = await queries.GetFacetCountsAsync(field.Metadata?.Vocabulary ?? SearchPlan.FacetFields(field.Field)?[0] ?? field.Name, filter);
                 return (IReadOnlyList<GuideValue>)[.. counts.Select(Value)];
             });
             _values[field.Field] = values;

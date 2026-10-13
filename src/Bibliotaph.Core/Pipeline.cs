@@ -31,15 +31,27 @@ public static class Pipeline
         Stage.Classify => 1,
         // 2: new-version cards, so a library matched before gets them.
         Stage.Match => 2,
+        // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
+        Stage.ChapterScan => 1,
         _ => 1,
     };
 
     public static Lane LaneOf(Stage stage) => stage switch
     {
         Stage.Ocr => Lane.Ocr,
-        Stage.Classify => Lane.Classify,
+        // Shares the AI's lane, so pausing AI work pauses it too and it never asks the model while a book is classified.
+        Stage.Classify or Stage.ChapterScan => Lane.Classify,
         _ => Lane.Index,
     };
+
+    /// <summary>
+    /// The priority every chapter-scan job is queued at, below the default of 0, so a book waiting to be classified is
+    /// always leased first: reading whole books is a long, optional pass that should never hold anything up.
+    /// </summary>
+    public const int BackgroundPriority = -100;
+
+    /// <summary>Whether a stage is a long, optional pass that runs only when nothing else in its lane is waiting.</summary>
+    public static bool IsBackground(Stage stage) => stage == Stage.ChapterScan;
 
     /// <summary>
     /// The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR, Classify and

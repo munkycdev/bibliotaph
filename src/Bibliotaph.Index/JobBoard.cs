@@ -34,6 +34,8 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
 
     internal static void Enqueue(SqliteConnection c, SqliteTransaction t, long documentId, string contentHash, Stage stage, int priority, string now)
     {
+        // A background pass stays behind everything, whatever queued it: a book opened first still has its own stages first.
+        if (Pipeline.IsBackground(stage)) priority = Pipeline.BackgroundPriority;
         var inserted = c.Execute(
             """
             INSERT INTO job (document_id, content_hash, stage, stage_version, priority, created_utc)
@@ -207,10 +209,16 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             return leased.Count;
         }, ct);
 
-    /// <summary>Moves a document's waiting jobs to the front of the queue, as when the user opens it.</summary>
+    /// <summary>
+    /// Moves a document's waiting jobs to the front of the queue, as when the user opens it. A background pass, such as
+    /// reading the whole book chapter by chapter, stays at the back: opening a book is no reason to start it.
+    /// </summary>
     public Task PrioritizeAsync(long documentId, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
-            c.Execute("UPDATE job SET priority = 100, not_before_utc = NULL WHERE document_id = @documentId AND status = 'pending'", new { documentId }, t), ct);
+            c.Execute("UPDATE job SET priority = 100, not_before_utc = NULL WHERE document_id = @documentId AND status = 'pending' AND stage NOT IN @background",
+                new { documentId, background = Background }, t), ct);
+
+    static readonly string[] Background = [.. Enum.GetValues<Stage>().Where(Pipeline.IsBackground).Select(s => s.ToString())];
 
     /// <summary>Gives a document's failed and blocked jobs another full set of attempts.</summary>
     public Task RetryAsync(long documentId, CancellationToken ct = default) => RetryAsync([documentId], ct);

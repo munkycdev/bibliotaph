@@ -47,9 +47,10 @@ and **Esc** closes it (press **Esc** again to clear the search).
 | `players:` | Party size | `players:4`, `players:3-5` |
 | `duration:` | One-shot, short, long or campaign | `duration:one-shot` |
 | `style:` | The kind of adventure: heist, dungeon crawl, hexcrawl… | `style:heist` |
-| `theme:` | A theme or tone, such as horror | `theme:horror` |
-| `environment:` | Where it happens | `environment:urban` |
-| `setting:` | A campaign setting | `setting:"my homebrew"` |
+| `theme:` | A theme or tone, such as horror, in the book or one of its chapters | `theme:horror` |
+| `environment:` | Where it happens, in the book or one of its chapters | `environment:urban` |
+| `setting:` | A campaign setting, in the book or one of its chapters | `setting:"my homebrew"` |
+| `creature:` | A creature the AI found in one of its chapters (also `monster:`) | `creature:owlbear` |
 | `publisher:` | Words in the publisher's name | `publisher:mossbank` |
 | `author:` | Words in an author's name | `author:doe` |
 | `series:` | Words in the series name | `series:chronicles` |

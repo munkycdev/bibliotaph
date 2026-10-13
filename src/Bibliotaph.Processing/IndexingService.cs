@@ -255,6 +255,18 @@ public sealed class IndexingService(
         return queued;
     }
 
+    /// <summary>
+    /// Runs a stage again for one document that has been through it, as "Scan again" does for a whole-book scan.
+    /// A job still waiting runs anyway. Returns whether it was queued again.
+    /// </summary>
+    public async Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default)
+    {
+        var queued = await queue.RerunAsync(stage, documentId, ct);
+        _laneSignals[Pipeline.LaneOf(stage)].Set();
+        RaiseChanged();
+        return queued;
+    }
+
     /// <summary>Gives a document's failed and blocked stages another go, as from Files needing attention.</summary>
     public Task RetryAsync(long documentId, CancellationToken ct = default) => RetryAsync([documentId], ct);
 
@@ -374,6 +386,12 @@ public sealed class IndexingService(
         {
             var backfilled = await queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued the search for other copies for {Count} documents", backfilled);
+        }
+        // And reading whole books, chapter by chapter, which comes after everything else and waits for AI to be on.
+        if (_stages.ContainsKey(Stage.ChapterScan))
+        {
+            var backfilled = await queue.EnqueueMissingAsync(Stage.ChapterScan, after: Stage.Text, stoppingToken);
+            if (backfilled > 0) _log.LogInformation("Queued whole-book scans for {Count} documents", backfilled);
         }
         WatchGates();
 

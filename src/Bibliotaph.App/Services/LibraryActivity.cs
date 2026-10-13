@@ -212,7 +212,7 @@ public sealed partial class LibraryActivity : ObservableObject
 
     public bool ShowOcrPause => HasOcrWork || OcrPaused;
 
-    /// <summary>Documents waiting for the AI while it is on, so Pause AI would pause something.</summary>
+    /// <summary>Documents waiting for the AI while it is on, to catalogue or to scan whole, so Pause AI would pause something.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAiPause))]
     public partial bool HasAiWork { get; private set; }
@@ -256,7 +256,7 @@ public sealed partial class LibraryActivity : ObservableObject
             SuggestionCount = await _review.CountAsync();
             HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
             HasOcrWork = Progress.PagesAwaitingOcr > 0;
-            HasAiWork = AiOn && Progress.ToClassify > 0;
+            HasAiWork = AiOn && (Progress.ToClassify > 0 || Progress.ToScanWhole > 0);
             Summary = Describe();
             OfflineText = Counts.OfflineFolders == 0 ? "" : $"{Counts.OfflineFolders:N0} {Plural(Counts.OfflineFolders, "folder", "folders")} offline";
             UpdatePhases(DateTimeOffset.UtcNow);
@@ -286,10 +286,15 @@ public sealed partial class LibraryActivity : ObservableObject
         if (Progress.Indexing > 0) return $"Indexing · {Progress.Searchable:N0} of {Progress.Documents:N0} searchable";
         if (Progress.PagesAwaitingOcr > 0)
             return OcrPaused ? "Reading scanned pages paused" : $"Reading scanned pages · {Progress.PagesAwaitingOcr:N0} left";
-        if (HasAiWork)
+        if (HasAiWork && Progress.ToClassify > 0)
             return AiPaused ? "Cataloguing with AI paused"
                 : IsAiWaiting ? "Cataloguing with AI is waiting"
                 : $"Cataloguing with AI · {Progress.ToClassify:N0} left";
+        // Reading whole books comes last and is slow, so it says how far it has got rather than what is left.
+        if (HasAiWork)
+            return AiPaused ? "Scanning whole books paused"
+                : IsAiWaiting ? "Scanning whole books is waiting"
+                : $"Scanning whole books · {Progress.ScannedWhole:N0} of {Progress.ScannedWhole + Progress.ToScanWhole:N0}";
         return Progress.Documents == 0 ? "Nothing to process" : $"Up to date · {Progress.Documents:N0} {Plural(Progress.Documents, "item", "items")}";
     }
 
@@ -340,7 +345,10 @@ public sealed partial class LibraryActivity : ObservableObject
             });
         }
         if (_indexing.Running(Lane.Ocr) is { } ocr) lines.Add($"Reading scanned pages of {await TitleAsync(ocr.DocumentId)}");
-        if (_indexing.Running(Lane.Classify) is { } ai) lines.Add($"Asking the AI about {await TitleAsync(ai.DocumentId)}");
+        if (_indexing.Running(Lane.Classify) is { } ai)
+            lines.Add(ai.Stage == Stage.ChapterScan
+                ? $"Scanning the chapters of {await TitleAsync(ai.DocumentId)}"
+                : $"Asking the AI about {await TitleAsync(ai.DocumentId)}");
         return lines;
     }
 

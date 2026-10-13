@@ -53,13 +53,22 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
     public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
 
     public bool InPart { get; init; }
+
+    /// <summary>
+    /// What the AI found reading the chapter that starts here ("Setting: … · Creatures: …"), or null. It describes the
+    /// chapter, not the book.
+    /// </summary>
+    public string? Found { get; init; }
+
+    public bool HasFound => Found is not null;
 }
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, ILogger<ViewerViewModel> Log,
+    ChapterScanService? Chapters = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -94,6 +103,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly SessionsService _sessions;
     readonly NotesService _notes;
     readonly PartsService _parts;
+    readonly ChapterScanService? _chapters;
     readonly PagePlaces _places;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
@@ -151,6 +161,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _notes = services.Notes;
         _parts = services.Parts;
         _places = services.Places;
+        _chapters = services.Chapters;
         _log = services.Log;
         _windows = windows;
         Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
@@ -1367,6 +1378,7 @@ public sealed partial class ViewerViewModel : PageViewModel
                 })];
             PageCount = doc.PageCount;
             ShowPart();
+            _ = ShowChaptersAsync(source.DocumentId, doc.PageCount, doc.PageLabels, version);
             CanCopy = doc.CanCopy;
             Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
 
@@ -1521,6 +1533,40 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>Goes to a bookmark's page (click or Enter in the Contents panel).</summary>
     [RelayCommand]
     void OpenOutlineEntry(OutlineEntry entry) => GoTo(entry.PageIndex, null);
+
+    /// <summary>
+    /// Adds what the AI found in each chapter to the contents, under the bookmark the chapter starts at. A book with no
+    /// bookmarks lists the scanned chapters themselves, so its contents panel has something to offer.
+    /// </summary>
+    async Task ShowChaptersAsync(long documentId, int pageCount, IReadOnlyList<string?> labels, int version)
+    {
+        if (_chapters is not { } service) return;
+        try
+        {
+            var chapters = await Task.Run(() => service.GetChaptersAsync(documentId));
+            if (version != _version || chapters.Count == 0) return;
+            var found = chapters.Where(c => c.Tags.Count > 0)
+                .ToDictionary(c => c.FirstPage, c => "Found inside: " + string.Join(" · ", ChapterFields.Describe(c.Tags)));
+            if (Outline.Count > 0)
+            {
+                // The shallowest bookmark at a chapter's first page is the chapter's own.
+                var starts = Outline.Select((o, i) => (o, i)).Where(p => found.ContainsKey(p.o.PageIndex))
+                    .GroupBy(p => p.o.PageIndex).Select(g => g.MinBy(p => p.o.Depth).i).ToHashSet();
+                if (starts.Count > 0) Outline = [.. Outline.Select((o, i) => starts.Contains(i) ? o with { Found = found[o.PageIndex] } : o)];
+                return;
+            }
+            var pages = _request?.Part?.Pages;
+            Outline = [.. chapters.Where(c => c.FirstPage < pageCount).Select(c => new OutlineEntry(c.Title, c.FirstPage, 0, PageNumbers.Display(c.FirstPage, labels))
+            {
+                InPart = pages?.Contains(c.FirstPage) == true,
+                Found = found.GetValueOrDefault(c.FirstPage),
+            })];
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Couldn't read the chapters found in document {DocumentId}", documentId);
+        }
+    }
 
     [RelayCommand]
     void ToggleOutline() => ShowOutline = !ShowOutline;

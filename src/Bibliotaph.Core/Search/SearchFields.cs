@@ -90,6 +90,10 @@ public static class SearchFields
     public static readonly SearchFieldInfo Environment = new(SearchField.Environment, "environment", ["env"], SearchFieldKind.Term,
         "where it happens", "environment:urban", MetadataFields.Environments);
 
+    /// <summary>Free text with no vocabulary: the guide lists the creatures found in the library's chapters.</summary>
+    public static readonly SearchFieldInfo Creature = new(SearchField.Creature, "creature", ["creatures", "monster"], SearchFieldKind.Term,
+        "a creature found in one of its chapters by the AI", "creature:dragon");
+
     public static readonly SearchFieldInfo Own = new(SearchField.Own, "own", [], SearchFieldKind.Term,
         "where else you own it: in print, on a VTT", "own:foundry", MetadataFields.AlsoOwn);
 
@@ -116,8 +120,8 @@ public static class SearchFields
 
     /// <summary>Every field, in the order the field guide lists them: the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
-        [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Own, Store, Tag, Favorite,
-            Where, Collection, Format, Folder];
+        [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Creature, Own, Store, Tag,
+            Favorite, Where, Collection, Format, Folder];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
     public static IReadOnlyList<string> Coming { get; } = ["length"];

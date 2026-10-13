@@ -7,6 +7,10 @@
 - **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Scan whole books** in Settings > AI (on by default) has the AI read every page of each catalogued book, a few
+  chapters at a time, when it has nothing else to do. A book's details show what it found under **Found inside the
+  book**, the reader's contents show it beside each chapter, and `setting:`, `environment:`, `theme:` and the new
+  `creature:` search find books by their chapters. The book's own details are never changed.
 
 ## 1.0.0 · 12 October 2026
 

@@ -28,15 +28,19 @@ public sealed partial class PipelineTests
 
         public Func<ModelRequest, string> Answer { get; set; } = _ => "{}";
 
+        /// <summary>Awaited before answering, as a slow model is: a test can hold a request until it has done something.</summary>
+        public Func<ModelRequest, CancellationToken, Task>? Hold { get; set; }
+
         public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) => Down
             ? throw new ModelEndpointException("Nothing is answering at http://localhost:11434/. Is the model server running?")
             : Task.FromResult(new EndpointInfo(EndpointKind.Ollama, "0.0-test", ["fake-8b", "fake-14b"]));
 
-        public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
+        public async Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
         {
             if (Down) throw new ModelEndpointException("Nothing is answering at http://localhost:11434/. Is the model server running?");
             Requests.Enqueue(request);
-            return Task.FromResult(Answer(request));
+            if (Hold is { } hold) await hold(request, ct);
+            return Answer(request);
         }
     }
 

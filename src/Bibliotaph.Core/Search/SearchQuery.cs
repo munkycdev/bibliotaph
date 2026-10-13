@@ -35,10 +35,10 @@ public enum SearchField
     /// <summary><c>type:</c>, a document type: adventure, bestiary, map.</summary>
     Type,
 
-    /// <summary><c>setting:</c>, a campaign setting.</summary>
+    /// <summary><c>setting:</c>, a campaign setting: the book's own, or one the AI found in one of its chapters.</summary>
     Setting,
 
-    /// <summary><c>theme:</c>, a theme or tone such as horror or fey.</summary>
+    /// <summary><c>theme:</c>, a theme or tone such as horror or fey, the book's own or one of its chapters'.</summary>
     Theme,
 
     /// <summary><c>style:</c>, the kind of adventure: heist, dungeon crawl, hexcrawl.</summary>
@@ -47,7 +47,7 @@ public enum SearchField
     /// <summary><c>duration:</c>, how long it takes to play: one-shot, short, long, campaign.</summary>
     Duration,
 
-    /// <summary><c>environment:</c>, where it happens: urban, underground.</summary>
+    /// <summary><c>environment:</c>, where it happens: urban, underground. The book's own, or one of its chapters'.</summary>
     Environment,
 
     /// <summary><c>own:</c>, where else the book is owned: print, foundry.</summary>
@@ -72,6 +72,9 @@ public enum SearchField
     /// <c>where:</c> here for the books with a file on this PC, elsewhere for those owned only somewhere else.
     /// </summary>
     Where,
+
+    /// <summary><c>creature:</c>, a creature the AI found in one of the book's chapters: dragon, ghoul.</summary>
+    Creature,
 }
 
 /// <summary>
