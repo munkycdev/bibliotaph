@@ -19,8 +19,8 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
     {
         _first = new CatalogDatabase(Path.Combine(_dir, "first.db"), Path.Combine(_dir, "backups"));
         _second = new CatalogDatabase(Path.Combine(_dir, "second.db"), Path.Combine(_dir, "backups"));
-        await _first.MigrateAsync(Ct);
-        await _second.MigrateAsync(Ct);
+        await _first.MigrateFromTemplateAsync(Ct);
+        await _second.MigrateFromTemplateAsync(Ct);
     }
 
     public ValueTask DisposeAsync()

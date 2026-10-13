@@ -22,7 +22,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _metadata = new MetadataStore(new Factory(_database), _clock);
         (_first, _second, _third) = (await TestEntries.AddAsync(_database, 'a'), await TestEntries.AddAsync(_database, 'b'), await TestEntries.AddAsync(_database, 'c'));
     }

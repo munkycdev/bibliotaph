@@ -1,4 +1,5 @@
 using Bibliotaph.Catalog;
+using Bibliotaph.Catalog.Tests;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
@@ -88,7 +89,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         foreach (var directory in paths.Directories) Directory.CreateDirectory(directory);
         var clock = new Clock(start);
         var catalog = new CatalogDatabase(paths.CatalogDatabase, paths.Backups, clock);
-        await catalog.MigrateAsync(Ct);
+        await catalog.MigrateFromTemplateAsync(Ct);
         var pc = new Pc(name, paths, catalog, clock);
         pc.Start();
         return pc;

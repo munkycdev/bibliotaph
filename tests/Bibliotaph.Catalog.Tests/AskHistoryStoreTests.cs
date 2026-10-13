@@ -21,7 +21,7 @@ public sealed class AskHistoryStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         var contexts = new Factory(_database);
         _library = new LibraryStore(contexts);
         _entries = new EntryStore(contexts);

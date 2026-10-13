@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Bibliotaph.Catalog;
+using Bibliotaph.Catalog.Tests;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Classification;
 using Bibliotaph.Core;
@@ -98,7 +99,7 @@ public sealed class LibraryAskTests : IAsyncLifetime
         var paths = new AppPaths(Path.Combine(_dir, "data"));
         foreach (var directory in paths.Directories) Directory.CreateDirectory(directory);
         _catalog = new CatalogDatabase(paths.CatalogDatabase, paths.Backups);
-        await _catalog.MigrateAsync(Ct);
+        await _catalog.MigrateFromTemplateAsync(Ct);
         var contexts = new Factory(_catalog);
         _index = IndexDatabase.ForFile(paths.IndexDatabase);
         await _index.InitializeAsync(Ct);
