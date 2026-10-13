@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Your tags can find themselves.** In **Settings > Vocabulary > Your tags**, give a tag the words that signal it
+  ("Undead": undead, zombie, lich) and every book whose pages use them often enough gets it as a suggestion, without
+  reading any file again. New books are checked as they're read, and a tag you reject on a book stays rejected.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 

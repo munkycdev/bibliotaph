@@ -51,6 +51,8 @@ public sealed class ForgetText(
         foreach (var hash in hashes) DeletePictures(hash);
         await classifications.ForgetAsync(hashes, ct);
         await metadata.ForgetAiAsync(entryId, hashes, ct);
+        // Tags guessed from its pages go too; one the user kept stays.
+        await metadata.ReplaceTagGuessesAsync([entryId], [], ct);
         // Ask this book's conversation quotes the book, so it goes with the text.
         await askHistory.ClearAsync(entryId, ct);
         await projector.ProjectAsync([entryId], ct);

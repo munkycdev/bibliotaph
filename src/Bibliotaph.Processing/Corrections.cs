@@ -140,12 +140,13 @@ public sealed class FolderRules(CorrectionStore store, LibraryStore library, Met
     /// <summary>
     /// The values set on at least <paramref name="threshold"/> of these books for <paramref name="field"/>, with how
     /// many books each, most first. Every value the user decided counts: typed, chosen, set in bulk or kept, since a
-    /// typed value that matches a suggestion is stored as that suggestion kept. A value from a folder rule doesn't.
+    /// typed value that matches a suggestion is stored as that suggestion kept. A value from a folder rule doesn't, nor
+    /// one of the user's tags kept where its words found it: the tag already reaches every book that uses them.
     /// </summary>
     public static IReadOnlyList<(string Value, int Books)> RepeatedValues(IEnumerable<EntryMetadata> books, MetadataField field, int threshold = Threshold) =>
         [.. books
             .SelectMany(b => b.Claims
-                .Where(c => c.Field == field.Key && c.Origin != AssertionOrigin.FolderRule && c.State == AssertionState.Confirmed
+                .Where(c => c.Field == field.Key && c.Origin is not (AssertionOrigin.FolderRule or AssertionOrigin.UserTag) && c.State == AssertionState.Confirmed
                     && b.Rejections.All(r => r.Field != field.Key || r.Normalized != c.Normalized))
                 .DistinctBy(c => c.Normalized)
                 .Select(c => (b.EntryId, Claim: c)))

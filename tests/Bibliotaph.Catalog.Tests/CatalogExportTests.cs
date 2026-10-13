@@ -126,6 +126,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.IgnoredFolderLabels.Add(new IgnoredFolderLabel { Folder = "adventures", Vocabulary = "type", TermKey = "adventure", CreatedUtc = now });
         db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entry.Id, CreatedUtc = now });
         db.FolderRules.Add(new FolderRule { SourceRootId = root.Id, Folder = "Fey Court", Field = "system", Value = "pathfinder", State = FolderRuleState.On, Books = 3, CreatedUtc = now, DecidedUtc = now });
+        db.UserTags.Add(new UserTag { Name = "Undead", NormalizedName = "undead", WordsJson = "[\"undead\",\"zombie\"]", CreatedUtc = now, UpdatedUtc = now });
         db.SyncStates.Add(new SyncState { Key = "c:7f0c3a2e-5b1d-4c9a-8e2f-0a1b2c3d4e5f", FieldsJson = """{"name":{"value":"\"Campaign\"","changedUtc":"2026-10-10T09:00:00Z"}}""" });
         await db.SaveChangesAsync(Ct);
 

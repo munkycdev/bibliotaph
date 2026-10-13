@@ -382,6 +382,24 @@ public sealed class FolderRule
     public DateTime? DecidedUtc { get; set; }
 }
 
+/// <summary>
+/// One of the user's own tags, defined in Settings > Vocabulary with the words that signal it ("Undead": undead,
+/// zombie, lich). Books whose pages use the words often enough get the tag as a guess on Your tags
+/// (<see cref="Core.AssertionOrigin.UserTag"/>), which stays a guess until the user keeps it.
+/// </summary>
+public sealed class UserTag
+{
+    public long Id { get; set; }
+    /// <summary>The tag as it reads, and as its guesses store it.</summary>
+    public required string Name { get; set; }
+    /// <summary>The name in comparison form, which no other tag may share.</summary>
+    public required string NormalizedName { get; set; }
+    /// <summary>The words and phrases that signal it, as typed, as a JSON array.</summary>
+    public required string WordsJson { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+}
+
 /// <summary>A folder label the user switched off in Settings > Library: that folder name no longer suggests that term.</summary>
 public sealed class IgnoredFolderLabel
 {

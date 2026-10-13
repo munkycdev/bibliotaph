@@ -155,6 +155,24 @@ or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the 
 other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and add or remove other names. Folder names,
 searches and what you type all go through these names.
 
+### Your tags
+
+Your tags are your own labels, and the **Your tags** tab of **Settings > Vocabulary** can find them for you. Give a tag
+a name and the words that signal it, separated by commas: **Undead** with "undead, zombie, lich", say. Bibliotaph looks
+for the words in the pages it has already read, so nothing is read again, and a book whose pages use them often enough
+gets the tag, marked **Suggested** like any other guess. Open the mark to see the words and the pages they're on.
+
+- **Often enough** means the words are on at least 3 of the book's pages, and on at least one page in 20. A passing
+  mention, or a few pages in a thick rulebook, doesn't count.
+- A word also finds words that start with it, as in search: "zombie" finds "zombies". Several words together, such as
+  "old mill", are found only together. To see what a word would find first, search for it on the **Inside documents**
+  tab.
+- **Keep this** makes the tag yours on that book. **Not right** takes it off, and it never comes back to that book,
+  even if you change the tag's words or make the tag again.
+- Changing a tag's name or words looks through your books again. **Delete tag** takes its suggestions away; books
+  where you kept it keep it.
+- New books are checked once their text has been read, scanned pages included.
+
 ## Reading a book again
 
 **Reprocess** in the details reads the file again (pages, text, cover and hints from names), keeping everything you

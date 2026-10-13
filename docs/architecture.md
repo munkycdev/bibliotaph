@@ -95,7 +95,7 @@ Beside them are `backups\`, `logs\`, the WebView2 profile (`browser\`), the buil
 
 - **Files and documents.** `source_root` (path, volume serial, availability), `file_location` (root, relative path, size, modified time, NTFS file ID, content hash, state: present, missing or online-only; a file inside a ZIP points at its ZIP and records its entry path and CRC) and `document`, one row per distinct content (hash, format, page count, capabilities, protection).
 - **Entries.** An `entry` is what the library lists and the user catalogs: a whole document, a part (an adventure inside a file), a pack of images, or a book owned elsewhere with no file. `entry_source` says which documents an entry shows, with a page range for a part, and which is current. Joins (`entry_join`) record the rows they moved, so Undo and "Not the same book" can move them back. `copy_decision`, `version_proposal`, `elsewhere_match`, `pack_decision` and `part_proposal` remember the user's answers to Match, packs and parts, so nothing is asked twice.
-- **Metadata.** `assertion` holds every value with its origin (embedded, folder, file name, rule, folder rule, AI, user), evidence pages and quote, run and state. The effective value is computed from it, never stored over it. `rejection`, `vocabulary_term`, `vocabulary_alias`, `ignored_folder_label`, `folder_rule`, `correction_request` and `classification_run` sit beside it, so a rebuilt index never loses a model's evidence or the record of what was read.
+- **Metadata.** `assertion` holds every value with its origin (embedded, folder, file name, rule, folder rule, user tag, AI, user), evidence pages and quote, run and state. The effective value is computed from it, never stored over it. `rejection`, `vocabulary_term`, `vocabulary_alias`, `ignored_folder_label`, `folder_rule`, `user_tag`, `correction_request` and `classification_run` sit beside it, so a rebuilt index never loses a model's evidence or the record of what was read.
 - **The user's own things.** `favorite`, `reading_state`, `collection` and `collection_item`, `smart_view` (saved searches), `pin`, `note`, `session_pack`, `session_section` and `session_item` (binders), `page_ref`, `ask_turn` (Ask this book conversations), `setting` and `sync_state`.
 
 A `page_ref` is a page range on a document, with the printed label and page fingerprint of its first and last pages, so binder items and page notes can be found again in another copy or version.
@@ -136,7 +136,7 @@ Each stage has its own status per document (pending, running, complete, partial,
 4. **Covers.**
 5. **Rule hints.** Folder names, the file name and the PDF's own information become provisional assertions (see Metadata).
 6. **OCR.** Flagged pages only, page numbering kept.
-7. **Match.** Fingerprints each page from stored text and finds copies and new versions (see Copies and versions).
+7. **Match.** Fingerprints each page from stored text and finds copies and new versions (see Copies and versions), then checks the book against the user's tags (see User tags).
 8. **Classify.** Has the AI read the book, when AI is set up and on (see Metadata).
 
 Stages 2 to 6 read the file; Reprocess runs them again while the old text stays searchable. Match and Classify read only stored text, wait for the book's OCR, and backfill existing libraries without opening a PDF.
@@ -191,7 +191,7 @@ JPG, PNG and WebP open in an image view with zoom and pan, decoded at a capped s
 
 ### Effective values
 
-`EffectiveMetadata` (Core) computes each field from its assertions, never storing the result. Origins rank user 100, folder rule 60, AI 50, rule 30, embedded 20, folder 15, file name 10. For a single-value field the latest confirmed value wins and is never replaced by a suggestion; otherwise the best-ranked suggestion applies and the rest are alternatives. For a multi-value field the value is every confirmed value plus the top origin's suggestions that arrived after the user's last decision there. A closed field needs review when an alternative arrives after the last decision. Rejections (entry, field, normalised value) suppress a value from every origin, including later models. Every decision, bulk edit and correction is undone from a snapshot of the field's assertions and rejections.
+`EffectiveMetadata` (Core) computes each field from its assertions, never storing the result. Origins rank user 100, folder rule and user tag 60, AI 50, rule 30, embedded 20, folder 15, file name 10. For a single-value field the latest confirmed value wins and is never replaced by a suggestion; otherwise the best-ranked suggestion applies and the rest are alternatives. For a multi-value field the value is every confirmed value plus the top origin's suggestions that arrived after the user's last decision there. A closed field needs review when an alternative arrives after the last decision. Rejections (entry, field, normalised value) suppress a value from every origin, including later models. Every decision, bulk edit and correction is undone from a snapshot of the field's assertions and rejections.
 
 ### Rule hints and folder rules
 
@@ -204,6 +204,10 @@ When the user decides the same value for a field on three or more books directly
 `MetadataReview` (Core) decides the cards: a closed field whose sources disagree, a book with no usable title, and optionally every unconfirmed value. Copies disagree, new versions, packs, parts, folder rules, new terms, changed pages and correction requests have cards of their own.
 
 Vocabularies (systems, editions, types, settings, styles, themes, environments, durations, stores, places owned) live in `catalog.db` as terms with aliases and parents, seeded from versioned starter sets. A name means one term per vocabulary. A term the model proposes that the vocabulary doesn't know becomes a pending term whose values are held back until the user adds, maps or rejects it. After a vocabulary edit, every book is projected and hinted again in the background.
+
+### User tags
+
+The user's own tags live in `catalog.db` (`user_tag`: name, comparison name, the words as JSON). `UserTagService` turns a tag's words into an FTS5 expression of quoted words (a word of three letters or more also as a prefix, as search reads it) and asks `page_fts` which cards' pages have any of them, through `entry_doc`, so an adventure counts only its own page range. A card whose words are on at least 3 pages and at least 5% of its pages with text (`UserTagRule`) gets a provisional `tags` assertion of origin user tag, with the words as its quote and up to 12 of the pages as evidence. Saving a tag replaces its guesses across the library as rule hints are replaced: a guess made again keeps its row and age, and decided rows and rejections are never touched. Deleting a tag removes its undecided guesses. Match, once a book's text and OCR are in, checks it against every tag, and Forget its text removes its undecided guesses. Tag definitions stay on each PC; the tags on books travel with the metadata decisions.
 
 ### Classification
 

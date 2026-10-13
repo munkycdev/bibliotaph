@@ -92,7 +92,7 @@ A binder marked **Keep at hand during games** holds rules and references; from a
 | Duration | One-shot, short (2–3 sessions), long (4 or more) or campaign, only when stated |
 | Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation… |
 | Themes, environments, setting | Tone and subject; where it happens; named settings |
-| Your tags | The user's own labels, never filled by AI |
+| Your tags | The user's own labels, never filled by AI; a tag defined with its words is suggested for books whose pages use them |
 | Also own | Where else it's owned: print, a virtual tabletop, an online library, with an optional link |
 | Get it from | Where to get it again: a store, with an optional link, shared by every copy |
 
@@ -100,11 +100,13 @@ File facts (format, pages, files, copies) are shown, not edited. Unknown stays u
 
 ### Where values come from
 
-Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
+Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, the words of the user's own tags, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
 
 **Cataloged wrong…** shows every field with each guess marked **Guessed** and its evidence open. After a fix, Bibliotaph offers to fix the same guess on look-alike books in that folder; after the same value is set on three books in a folder, it offers a folder rule.
 
 **Settings > Vocabulary** holds the terms books are filed under, each with other names ("5e" for an edition, say), which folder names, searches, AI and typing all go through.
+
+**Your tags** there are the user's own, each with the words that signal it ("Undead": undead, zombie, lich). Saving one looks for the words in the pages already indexed, without reading any file again, and suggests the tag for each book whose pages use them on at least 3 pages and at least one page in 20, so a passing mention or a few pages of a thick rulebook don't count. New books are checked once their text is in. Changing a tag looks again, deleting one takes its suggestions away, and the user's own decisions win: a kept tag stays, and a rejected one never comes back to that book.
 
 ### Needs review
 

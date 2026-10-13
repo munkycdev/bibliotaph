@@ -408,6 +408,24 @@ static partial class SmokeTest
         vocabulary.Terms.First().EditCommand.Execute(null);
         await Settle(window);
         await AuditAsync(window, "Settings > Vocabulary with a term open");
+        if (decide)
+        {
+            // Your tags: one is added, listed and opened for editing, then deleted, so it guesses nothing later steps see.
+            vocabulary.Vocabularies.Single(v => v.Key == VocabularyViewModel.TagsKey).IsSelected = true;
+            vocabulary.NewTagName = "Smoke signals";
+            vocabulary.NewTagWords = "owlbear, old mill";
+            await vocabulary.AddTagCommand.ExecuteAsync(null);
+            await WaitUntilAsync(window, () => vocabulary.Tags.Any(t => t.Name == "Smoke signals"),
+                () => $"Adding a tag said {vocabulary.AddProblem ?? vocabulary.AddNote}, and it isn't listed.");
+            var tag = vocabulary.Tags.Single(t => t.Name == "Smoke signals");
+            tag.EditCommand.Execute(null);
+            await Settle(window);
+            await AuditAsync(window, "Settings > Vocabulary's tags with a tag open");
+            await tag.DeleteCommand.ExecuteAsync(null);
+            await WaitUntilAsync(window, () => vocabulary.Tags.All(t => t.Name != "Smoke signals"), () => "Deleting the tag left it listed.");
+            vocabulary.Vocabularies[2].IsSelected = true;
+            await Settle(window);
+        }
         while (shell.CurrentPage is not LibraryViewModel && navigation.GoBack()) await Settle(window);
     }
 
