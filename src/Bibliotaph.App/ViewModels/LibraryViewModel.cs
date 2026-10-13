@@ -125,6 +125,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         AiChoice = AiChoices[0];
         CopiesChoice = CopiesChoices[0];
         PartsChoice = PartsChoices[0];
+        CollectionChoice = CollectionChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -296,6 +297,22 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowCopiesChoice { get; private set; }
+
+    /// <summary>Books in some collection, or in none yet: shown once there are collections, or while it is chosen.</summary>
+    public IReadOnlyList<Choice<CollectionFilter>> CollectionChoices { get; } =
+        [new(CollectionFilter.All, "All books"), new(CollectionFilter.InOne, "In a collection"), new(CollectionFilter.NotInOne, "Not in a collection")];
+
+    [ObservableProperty]
+    public partial Choice<CollectionFilter> CollectionChoice { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowCollectionChoice { get; private set; }
+
+    partial void OnCollectionChoiceChanged(Choice<CollectionFilter> value)
+    {
+        if (value is null) CollectionChoice = CollectionChoices[0];
+        else Refresh();
+    }
 
     /// <summary>
     /// Adventures inside files: shown as cards of their own, or hidden so only their files show. Offered once there
@@ -694,7 +711,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var away = await _library.GetUnavailableAsync();
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
-                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice), HideParts: PartsChoice.Value);
+                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice), HideParts: PartsChoice.Value,
+                Collections: CollectionChoice.Value);
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             var parts = await Task.Run(() => _queries.CountPartsAsync());
@@ -703,6 +721,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
                 ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
                 ShowCopiesChoice = withCopies > 0 || CopiesChoice.Value;
                 ShowPartsChoice = parts > 0 || PartsChoice.Value;
+                ShowCollectionChoice = Collections.Directory.ChildrenOf(null).Count > 0 || CollectionChoice.Value != CollectionFilter.All;
             }
             if (!IsSearching)
             {
@@ -793,7 +812,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
             || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
-            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null || PartsChoice.Value;
+            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null || PartsChoice.Value
+            || CollectionChoice.Value != CollectionFilter.All;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -935,6 +955,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Add(AiChoice.Value != AiFilter.All, AiChoice.Label, "AI", () => AiChoice = AiChoices[0], folded: true);
         Add(CopiesChoice.Value, CopiesChoice.Label, "copies", () => CopiesChoice = CopiesChoices[0], folded: true);
         Add(PartsChoice.Value, "Adventures inside files hidden", "adventures inside files", () => PartsChoice = PartsChoices[0], folded: true);
+        Add(CollectionChoice.Value != CollectionFilter.All, CollectionChoice.Label, "collection", () => CollectionChoice = CollectionChoices[0], folded: true);
 
         _moreFiltersOn = more;
         OnPropertyChanged(nameof(MoreFiltersLabel));
@@ -954,6 +975,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         AiChoice = AiChoices[0];
         CopiesChoice = CopiesChoices[0];
         PartsChoice = PartsChoices[0];
+        CollectionChoice = CollectionChoices[0];
         FolderChoice = AllFolders;
         SystemChoice = AllSystems;
         TypeChoice = AllTypes;
@@ -2129,7 +2151,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>What the Library shows now, as a Smart View would keep it.</summary>
     public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
         SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
-        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value, PartsChoice.Value);
+        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value, PartsChoice.Value,
+        CollectionChoice.Value);
 
     void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
     {
@@ -2183,6 +2206,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             AiChoice = AiChoices.FirstOrDefault(c => c.Value == view.Ai) ?? AiChoices[0];
             CopiesChoice = CopiesChoices.FirstOrDefault(c => c.Value == view.Copies) ?? CopiesChoices[0];
             PartsChoice = PartsChoices.FirstOrDefault(c => c.Value == view.HideParts) ?? PartsChoices[0];
+            CollectionChoice = CollectionChoices.FirstOrDefault(c => c.Value == view.Collections) ?? CollectionChoices[0];
             SystemChoice = Pick(SystemChoices, AllSystems, view.System);
             TypeChoice = Pick(TypeChoices, AllTypes, view.Type);
             OwnChoice = Pick(OwnChoices, AnyOwn, view.Own);

@@ -44,10 +44,10 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         Kind = kind;
         Heading = heading;
         ActionText = actionText;
-        _packs = packs;
+        _packs = [.. packs.OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase)];
         _findPage = findPage;
         _sections = sections;
-        Shown = packs;
+        Shown = _packs;
         PackChoices = [.. packs.Select(p => new Choice<long>(p.Id, p.Title))];
     }
 
