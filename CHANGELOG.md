@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Double-click a book** in the Library to open it; a single click still shows its details.
+- **Remove from library** is on the right-click menu of a book you own elsewhere, as well as in its details.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 
