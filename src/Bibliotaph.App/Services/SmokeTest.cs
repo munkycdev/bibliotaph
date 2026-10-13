@@ -319,8 +319,8 @@ static partial class SmokeTest
 
     /// <summary>
     /// Needs review's cards, the sidebar count, and Settings > Vocabulary. With <paramref name="decide"/>, it also
-    /// accepts and undoes a conflict, rejects, undoes and adds a new term, types a title, and splits One-shot out of
-    /// Adventure; otherwise it only draws them (the decisions are made by then).
+    /// accepts and undoes a conflict, rejects, undoes and adds a new term, types a title, narrows the page with Show, and
+    /// splits One-shot out of Adventure; otherwise it only draws them (the decisions are made by then).
     /// </summary>
     static async Task ReviewAsync(IServiceProvider services, Window window, bool decide)
     {
@@ -384,6 +384,17 @@ static partial class SmokeTest
             await WaitUntilAsync(window, () => version.IsDone, () => "Make it current didn't decide the new version card.");
             await version.UndoCommand.ExecuteAsync(null);
             if (version.IsDone) throw new InvalidOperationException("Undo didn't bring the new version card back.");
+
+            // Show narrows the page to one kind of card, decided ones included so their Undo stays, and Everything brings the rest back.
+            var newTerms = page.ShowChoices.FirstOrDefault(c => c.Name == "New terms") ?? throw new InvalidOperationException("Needs review's Show menu has no New terms.");
+            page.Show = newTerms;
+            await Settle(window);
+            if (!page.Cards.Contains(term) || !page.Cards.All(c => c is TermCardViewModel))
+                throw new InvalidOperationException($"Show New terms shows {string.Join(", ", page.Cards.Select(c => c.GetType().Name).Distinct())}.");
+            await AuditAsync(window, "Needs review showing new terms");
+            page.Show = page.ShowChoices[0];
+            await Settle(window);
+            if (!page.Cards.Contains(version) || !page.Cards.Contains(conflict)) throw new InvalidOperationException("Show Everything didn't bring every card back.");
         }
         page.IsFilesTab = true;
         await Settle(window);
@@ -528,6 +539,21 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by D&D shows {page.Items.Count} books, not 1.");
         page.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the filters didn't bring back all {books} books.");
+
+        // The edition's type-ahead filter finds the 5th edition by another of its names; picking it makes a chip in the
+        // box and above the results, whose × takes it off.
+        var edition = page.ChipFilters.Single(b => b.Field == MetadataFields.Edition);
+        await WaitUntilAsync(window, () => edition.IsOffered && page.ShowAboutFilters, () => "The Library offers no edition filter to type in.");
+        edition.Text = "5e";
+        await WaitUntilAsync(window, () => edition.Suggestions.Any(s => s.Value == "dnd-5e"), () => "Typing 5e in the edition filter didn't offer the 5th edition.");
+        edition.PickCommand.Execute(edition.Suggestions.First(s => s.Value == "dnd-5e"));
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && edition.Chips.Count == 1 && page.ActiveFilters.Any(c => c.Label == "Edition: 5th edition"),
+            () => $"Picking the 5th edition shows {page.Items.Count} books and the chips {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}.");
+        var editionChip = page.ActiveFilters.First(c => c.Label == "Edition: 5th edition");
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == editionChip.Clear && b.IsVisible), "the 5th edition chip's ×");
+        await WaitUntilAsync(window, () => page.Items.Count == books && edition.Chips.Count == 0 && !page.HasActiveFilters,
+            () => $"The 5th edition chip's × didn't bring back all {books} books.");
 
         await WaitUntilAsync(window, () => page.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
             () => "The book a model read isn't marked, or the filters don't offer the AI choice.");
