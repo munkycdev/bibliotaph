@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Collapse the sidebar** to its icons with the button beside Settings or **Ctrl+B**. It stays the way you left it.
 - **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
   letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box
   find books with any of them, boxes narrow together, and saved searches keep them.

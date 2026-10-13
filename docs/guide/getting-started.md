@@ -87,6 +87,10 @@ The sidebar on the left has the main pages:
 | **Pinned** | Anything you've pinned: a book, Favorites, a collection, a binder or a saved search. |
 | **Settings** | At the bottom: processing, folders, online libraries, appearance, Needs review, vocabulary, AI, passwords and backups. |
 
+The **Collapse sidebar** button beside Settings, or **Ctrl+B**, folds the sidebar down to its icons for more room;
+point at an icon for its name. The same button, now at the top, opens it again. Bibliotaph remembers which way you
+left it.
+
 The search box at the top is always there. **Ctrl+K** jumps to it from anywhere.
 
 In the Library, click a cover to see its details on the right, then click **Open** there to read it. Click anywhere
