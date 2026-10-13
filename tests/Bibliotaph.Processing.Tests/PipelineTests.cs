@@ -35,6 +35,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     MetadataService _metadata = null!;
     MetadataStore _metadataStore = null!;
     MetadataProjector _projector = null!;
+    StageServices _stages = null!;
     PackService _packs = null!;
     MetadataHints _hints = null!;
     VocabularyStore _vocabulary = null!;
@@ -107,7 +108,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
             favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes, covers: new CoverCache(_paths));
         _partStore = new PartStore(contexts);
-        var services = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
+        var services = _stages = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
             _partStore);
         _parts = new PartsService(_partStore, entries, _queries, projector, services);
         var packStore = new PackStore(contexts);

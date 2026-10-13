@@ -88,6 +88,11 @@
       <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <!-- A file whose first page is blank or a title sheet can show a better page on its card. -->
+        <Button x:Name="UseAsCover" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,0"
+                Command="{Binding UseAsCoverCommand}" ToolTip="Use this page as the cover" ToolTipService.ShowOnDisabled="True"
+                AutomationProperties.Name="Use this page as the cover"
+                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <!-- Mark as adventure (slice 5): pages of this file as an adventure with a card of its own. -->
         <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
                 Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"
@@ -168,7 +173,7 @@
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
         </StackPanel>
-        <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
+        <!-- A file from a pack, an image or a PDF: step through its files (F4 plan, choice 7). -->
         <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
           <StackPanel.Style>
             <Style TargetType="StackPanel">
@@ -181,15 +186,22 @@
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
                 </MultiDataTrigger>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPdf}" Value="True" />
+                    <Condition Binding="{Binding IsInPack}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
               </Style.Triggers>
             </Style>
           </StackPanel.Style>
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous image (Left arrow)"
-                  AutomationProperties.Name="Previous image" Command="{Binding PreviousImageCommand}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="{Binding PreviousStepTip}"
+                  AutomationProperties.Name="{Binding PreviousStepName}" Command="{Binding PreviousImageCommand}" />
           <TextBlock Text="{Binding PackPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0"
-                     AutomationProperties.Name="Image in pack" />
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next image (Right arrow)"
-                  AutomationProperties.Name="Next image" Command="{Binding NextImageCommand}" />
+                     AutomationProperties.Name="Place in pack" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="{Binding NextStepTip}"
+                  AutomationProperties.Name="{Binding NextStepName}" Command="{Binding NextImageCommand}" />
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">

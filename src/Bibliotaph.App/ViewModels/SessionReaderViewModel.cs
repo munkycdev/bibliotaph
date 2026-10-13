@@ -538,9 +538,12 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         }
     }
 
-    /// <summary>A whole pack, or an image, opens in the image viewer, which is quick enough not to need opening ahead.</summary>
+    /// <summary>
+    /// An image, or a whole pack whose first file is one, opens in the image viewer, which is quick enough not to need
+    /// opening ahead. A pack's card shows its first file, so its format is that file's.
+    /// </summary>
     static bool OpensAsImage(SessionItemRow row) =>
-        row.Item.Range is null && row.Cover is { } cover && (cover.IsPack || SourceFormats.IsImage(cover.Entry.Format));
+        row.Item.Range is null && row.Cover is { } cover && SourceFormats.IsImage(cover.Entry.Format);
 
     [RelayCommand]
     void ToggleNotes() => ShowNotes = !ShowNotes;

@@ -57,6 +57,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
     readonly CorrectionService? _corrections;
+    readonly ChosenCovers? _chosen;
     /// <summary>The metadata as last shown, so a correction can be compared with what the field held before it.</summary>
     EffectiveMetadata _shown = EffectiveMetadata.Empty;
     /// <summary>The user changed or kept a value since Cataloged wrong… opened the editor.</summary>
@@ -66,9 +67,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
-        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections)
+        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections, ChosenCovers? chosen)
     {
         _elsewhere = elsewhere;
+        _chosen = chosen;
         _corrections = corrections;
         Item = item;
         _metadata = metadata;
@@ -82,23 +84,36 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         ShowProcessing(details?.Entry ?? item.Entry, details);
     }
 
-    /// <summary>A pack's images, for its grid; empty for anything else.</summary>
+    /// <summary>A pack's files, images and PDFs, for its grid; empty for anything else.</summary>
     public IReadOnlyList<PackImageViewModel> PackImages { get; }
 
     public bool IsPack => Item.IsPack;
 
-    public string PackImagesHeading => $"IMAGES ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    /// <summary>A pack with PDFs among its images: it speaks of files, not images.</summary>
+    bool HasPdfs => Item.HasPdfMembers || PackImages.Any(i => i.IsPdf);
 
-    /// <summary>Raised after "Split into separate images", with the images that got their cards back.</summary>
+    public string PackImagesHeading => $"{(HasPdfs ? "FILES" : "IMAGES")} ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    /// <summary>The grid's name for screen readers.</summary>
+    public string PackImagesName => HasPdfs ? "Files in the pack" : "Images in the pack";
+
+    public string SplitPackLabel => HasPdfs ? "Split into separate files" : "Split into separate images";
+
+    public string SplitPackTip => HasPdfs
+        ? "Give every file its own card again. Bibliotaph won't pack this folder again."
+        : "Give every image its own card again. Bibliotaph won't pack this folder again.";
+
+    /// <summary>Raised after "Split into separate images" (or files), with the files that got their cards back.</summary>
     public event EventHandler<IReadOnlyList<EntryId>>? PackSplit;
 
     /// <summary>
-    /// "Split into separate images": every image gets its card back, and the folder isn't packed again.
+    /// "Split into separate images", or "files" when PDFs are in the pack: every file gets its card back, and the
+    /// folder isn't packed again.
     /// </summary>
     [RelayCommand]
     async Task SplitPack()
     {
-        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } images) PackSplit?.Invoke(this, images);
+        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } files) PackSplit?.Invoke(this, files);
     }
 
     /// <summary>
@@ -120,6 +135,40 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     async Task RemoveFromLibrary()
     {
         if (await Task.Run(() => _elsewhere.RemoveAsync(Item.EntryId)) is { } removed) Removed?.Invoke(this, removed);
+    }
+
+    /// <summary>A book owned elsewhere can have a picture of the user's own as its cover.</summary>
+    public bool CanChooseCover => IsElsewhere && _chosen is not null;
+
+    /// <summary>The book shows a cover the user chose, which Remove the cover takes away.</summary>
+    [ObservableProperty]
+    public partial bool HasChosenCover { get; private set; }
+
+    /// <summary>Why the picture picked can't be the cover.</summary>
+    [ObservableProperty]
+    public partial string? CoverProblem { get; private set; }
+
+    /// <summary>"Choose a cover image…": a picture from anywhere, shrunk to cover size and kept by Bibliotaph.</summary>
+    [RelayCommand]
+    async Task ChooseCover()
+    {
+        if (_chosen is null) return;
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = $"Choose a cover for {Item.Title}", Filter = ChosenCovers.FileFilter };
+        if (dialog.ShowDialog() != true) return;
+        CoverProblem = await Task.Run(() => _chosen.ChooseAsync(Item.EntryId, dialog.FileName));
+        if (CoverProblem is not null) return;
+        HasChosenCover = true;
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    async Task RemoveCover()
+    {
+        if (_chosen is null) return;
+        await Task.Run(() => _chosen.RemoveAsync(Item.EntryId));
+        CoverProblem = null;
+        HasChosenCover = false;
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
@@ -358,7 +407,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
+    public string Eyebrow => Item.IsPack ? HasPdfs ? "PACK" : "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
         : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
@@ -415,7 +464,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
-        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null)
+        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null, ChosenCovers? chosen = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -424,14 +473,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (item.IsElsewhere) locations = [];
         else if (item.IsPack)
         {
-            // A pack is where its folder or ZIP is; its images are listed below, each with its own file. Images added by
+            // A pack is where its folder or ZIP is; its files are listed below, each with its own file. Files added by
             // hand, or a pack made by hand, name the other folders they are in.
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
+            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+            var noun = item.HasPdfMembers || images.Any(i => i.IsPdf) ? "files" : "images";
             locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
-                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Images.ToString("N0", CultureInfo.CurrentCulture)} of its images {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
-            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Files.ToString("N0", CultureInfo.CurrentCulture)} of its {noun} {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
         }
         else
         {
@@ -441,7 +491,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections, chosen);
+        if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts, log);
         return inspector;
@@ -543,6 +594,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         };
         if (!string.IsNullOrEmpty(entry.FolderHint)) facts.Add(new("Folders", entry.FolderHint));
         if (details is null) return facts;
+        // A pack's card shows its first file: what that file says of itself isn't the pack's.
+        if (entry.IsPack)
+        {
+            facts.Add(new("Search", entry.PdfMembers > 0 ? "Found by its files' names, and by the text of its PDFs" : "Found by its name"));
+            return facts;
+        }
 
         facts.Add(new("Search", SearchText(entry, details)));
         // From how its stages stopped, not the file's encryption flag: that is set on any PDF with a security handler,

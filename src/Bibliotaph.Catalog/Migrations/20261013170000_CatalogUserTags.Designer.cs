@@ -340,6 +340,10 @@ partial class CatalogUserTags
                     .HasColumnType("TEXT")
                     .HasColumnName("content_hash");
 
+                b.Property<int?>("CoverPage")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("cover_page");
+
                 b.Property<DateTime>("CreatedUtc")
                     .HasColumnType("TEXT")
                     .HasColumnName("created_utc");
