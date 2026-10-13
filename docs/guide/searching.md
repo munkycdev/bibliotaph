@@ -89,15 +89,25 @@ needs AI, with a link to [set it up](ai.md).
 
 **Filters** in the Library's toolbar opens a panel of drop-downs. The four you'll use most come first: **Game system**,
 **Type**, **Character level** (with **Include unknown levels**) and **Players**. **More filters** opens the rest, in
-three groups:
+four groups:
 
 - **The adventure**: **Style** and **Duration**, once some book has one.
+- **About the book**: **Setting**, **Themes**, **Environments**, **Publisher** and **Edition**, each a box you type in,
+  once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
 - **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
-  read it), **Copies** (books in more than one file) and **Adventures inside files** (inside their book, shown as
-  cards of their own, or hidden).
+  read it), **Copies** (books in more than one file), **Adventures inside files** (inside their book, shown as cards
+  of their own, or hidden) and **Collection** (books in a collection, or not in one yet).
+
+Each drop-down lists its choices by name, with how many books each has and **Unknown** last.
 
 While they're folded away, **More filters** says how many of them are on, such as "More filters · 1".
+
+The **About the book** boxes are for fields with too many values for a menu. Start typing, say "marsh" in
+**Environments**, and the box lists the values in your library that match, with how many books have each; other names
+count too, so "5e" finds the 5th edition. Click one, or pick it with the arrow keys and Enter, and it becomes a chip
+under the box. Several chips in one box find books with any of them: two settings show the books set in either. Boxes
+work together like the other filters, so a setting and a theme show only the books with both.
 
 The filters that are on show as chips above the results, whether the panel is open or not, and the button counts them:
 **Filters · 2**. Click the × on a chip to turn that filter off, or **Clear filters** beside the chips, once there are
@@ -109,7 +119,7 @@ The toolbar also has the order (**Best match**, **Recently added**, **Recently o
 ## Saved searches
 
 When you've got a search, filter or order you'll want again, click **Save search** and give it a name. It keeps the
-search, not the results, so new books that match show up in it. It's pinned to the sidebar straight away.
+search and every filter, the **About the book** chips too, not the results, so new books that match show up in it. It's pinned to the sidebar straight away.
 
 Open a saved search and change something, and the Library says "You've changed this saved search." with
 **Update saved search** and **Save as new**. The **Saved searches** button in the Library lists every one, pinned or

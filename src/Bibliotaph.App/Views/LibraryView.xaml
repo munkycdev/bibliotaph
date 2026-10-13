@@ -42,6 +42,45 @@
       <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
+    <!-- A filter that is on, as a chip whose × turns it off: above the results, and under a type-ahead filter's box. -->
+    <DataTemplate x:Key="FilterChipTemplate" DataType="{x:Type vm:FilterChip}">
+      <Border Style="{StaticResource Bt.Chip}" Padding="10,2,2,2" Margin="0,0,6,6" AutomationProperties.Name="{Binding Label}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0"
+                  Padding="2" ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}" Command="{Binding Clear}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!--
+      A value a type-ahead filter offers. The box keeps keyboard focus while the list is open, so rows don't take it:
+      the arrow keys move the highlight from the box, and Enter picks it.
+    -->
+    <Style x:Key="SuggestionRow" TargetType="Button">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="8,5">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+              </Trigger>
+              <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+              </DataTrigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- The inspector's section headings: in the text colour and a size up from the eyebrow, so they break up a long drawer. -->
     <Style x:Key="DrawerHead" TargetType="TextBlock" BasedOn="{StaticResource Text.Eyebrow}">
       <Setter Property="FontSize" Value="12" />
@@ -301,7 +340,7 @@
                           AutomationProperties.Name="Players" MinWidth="130" ToolTip="Books written for this many players" />
               </StackPanel>
               <Button x:Name="MoreFilters" Style="{StaticResource Bt.Link}" Content="{Binding MoreFiltersLabel}" Command="{Binding ToggleMoreFiltersCommand}"
-                      VerticalAlignment="Bottom" Margin="0,0,16,20" ToolTip="Style, duration, where books live, and housekeeping" />
+                      VerticalAlignment="Bottom" Margin="0,0,16,20" ToolTip="Style, duration, setting, publisher, where books live, and housekeeping" />
               <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Bottom" Margin="0,0,0,12" />
             </WrapPanel>
             <StackPanel x:Name="MoreFilterGroups" Visibility="{Binding ShowMoreFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -318,6 +357,78 @@
                             AutomationProperties.Name="Duration" MinWidth="150" ToolTip="How long it takes to play: a one-shot, a few sessions, a campaign" />
                 </StackPanel>
               </WrapPanel>
+              <!--
+                Type-ahead filters for fields with too many values for a menu: typing lists the matching values with their
+                counts, and picking one adds a chip under the box. A box's chips widen it; the boxes narrow together.
+              -->
+              <TextBlock Text="ABOUT THE BOOK" Style="{StaticResource Text.Eyebrow}" Margin="0,4,0,8" Visibility="{Binding ShowAboutFilters, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <ItemsControl x:Name="ChipFilters" ItemsSource="{Binding ChipFilters}" Focusable="False" AutomationProperties.Name="About the book"
+                            KeyboardNavigation.TabNavigation="Continue" Visibility="{Binding ShowAboutFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:ChipFilterViewModel}">
+                    <StackPanel Width="200" Margin="0,0,12,12" Visibility="{Binding IsOffered, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                      <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+                      <TextBox x:Name="ChipFilterBox" Style="{StaticResource Bt.TextBox}" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                               ToolTip="{Binding Hint}" AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Hint}">
+                        <TextBox.InputBindings>
+                          <KeyBinding Key="Enter" Command="{Binding PickHighlightedCommand}" />
+                          <KeyBinding Key="Down" Command="{Binding HighlightNextCommand}" />
+                          <KeyBinding Key="Up" Command="{Binding HighlightPreviousCommand}" />
+                          <KeyBinding Key="Escape" Command="{Binding DismissCommand}" />
+                        </TextBox.InputBindings>
+                      </TextBox>
+                      <!-- Open while the box has focus and something matches; a popup doesn't take the window's text colour, so it is set here. -->
+                      <Popup PlacementTarget="{Binding ElementName=ChipFilterBox}" Placement="Bottom" AllowsTransparency="True" Focusable="False" StaysOpen="True"
+                             MinWidth="{Binding ActualWidth, ElementName=ChipFilterBox}">
+                        <Popup.Style>
+                          <Style TargetType="Popup">
+                            <Setter Property="IsOpen" Value="False" />
+                            <Style.Triggers>
+                              <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                  <Condition Binding="{Binding HasSuggestions}" Value="True" />
+                                  <Condition Binding="{Binding PlacementTarget.IsKeyboardFocused, RelativeSource={RelativeSource Self}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="IsOpen" Value="True" />
+                              </MultiDataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Popup.Style>
+                        <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="7"
+                                Margin="0,4,0,0" Padding="4" MaxWidth="320" TextElement.Foreground="{DynamicResource Bt.Text}"
+                                TextElement.FontFamily="{StaticResource Font.Sans}" TextElement.FontSize="11">
+                          <ItemsControl ItemsSource="{Binding Suggestions}" Focusable="False" AutomationProperties.Name="{Binding Label, StringFormat='{}{0} that match'}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate DataType="{x:Type vm:ChipSuggestion}">
+                                <Button Style="{StaticResource SuggestionRow}" AutomationProperties.Name="{Binding Spoken}"
+                                        Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                                  <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Margin="10,0,0,0" Text="{Binding Count}" Foreground="{DynamicResource Bt.Muted}" />
+                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Bt.Text}" />
+                                  </DockPanel>
+                                </Button>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </Border>
+                      </Popup>
+                      <ItemsControl ItemsSource="{Binding Chips}" ItemTemplate="{StaticResource FilterChipTemplate}" Focusable="False" Margin="0,6,0,0"
+                                    KeyboardNavigation.TabNavigation="Continue" AutomationProperties.Name="{Binding Label, StringFormat='{}{0} picked'}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <TextBlock Text="WHERE IT LIVES" Style="{StaticResource Text.Eyebrow}" Margin="0,4,0,8" />
               <WrapPanel>
                 <StackPanel Margin="0,0,12,12">
@@ -359,6 +470,12 @@
                             AutomationProperties.Name="Adventures inside files" MinWidth="150"
                             ToolTip="Adventures marked inside a compilation: inside their book, where a search still finds them; as cards of their own; or hidden" />
                 </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCollectionChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Collection" Style="{StaticResource FieldLabel}" />
+                  <ComboBox x:Name="CollectionsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding CollectionChoices}"
+                            SelectedItem="{Binding CollectionChoice}" AutomationProperties.Name="Collection" MinWidth="150"
+                            ToolTip="Books you've put in a collection, or those in none yet" />
+                </StackPanel>
               </WrapPanel>
             </StackPanel>
           </StackPanel>
@@ -380,24 +497,13 @@
           <DockPanel Margin="0,0,0,6" Visibility="{Binding HasActiveFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <Button x:Name="ClearFilterChips" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Clear filters" VerticalAlignment="Top"
                     Margin="12,4,0,0" Command="{Binding ClearFiltersCommand}" Visibility="{Binding HasSeveralFilters, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-            <ItemsControl x:Name="FilterChips" ItemsSource="{Binding ActiveFilters}" Focusable="False" AutomationProperties.Name="Filters on"
-                          KeyboardNavigation.TabNavigation="Continue">
+            <ItemsControl x:Name="FilterChips" ItemsSource="{Binding ActiveFilters}" ItemTemplate="{StaticResource FilterChipTemplate}" Focusable="False"
+                          AutomationProperties.Name="Filters on" KeyboardNavigation.TabNavigation="Continue">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <WrapPanel />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type vm:FilterChip}">
-                  <Border Style="{StaticResource Bt.Chip}" Padding="10,2,2,2" Margin="0,0,6,6" AutomationProperties.Name="{Binding Label}">
-                    <StackPanel Orientation="Horizontal">
-                      <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
-                      <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0"
-                              Padding="2" ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}" Command="{Binding Clear}" />
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
             </ItemsControl>
           </DockPanel>
           <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out (choice 9). -->
@@ -545,6 +651,7 @@
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
+               c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource CoverItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemsPanel>
@@ -592,6 +699,7 @@
       <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
+               c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemTemplate>
@@ -831,11 +939,20 @@
                         Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
+                <!-- A book with no file has no page to draw a cover from: the user can pick a picture of their own. -->
+                <Button x:Name="ChooseCover" Content="Choose a cover image…" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,8"
+                        ToolTip="Use a picture of your own as this book's cover" Command="{Binding ChooseCoverCommand}"
+                        Visibility="{Binding CanChooseCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <Button x:Name="RemoveCover" Content="Remove the cover" c:Ui.Icon="{StaticResource Icon.X}" Margin="0,0,8,8"
+                        ToolTip="Stop using the picture you chose as this book's cover" Command="{Binding RemoveCoverCommand}"
+                        Visibility="{Binding HasChosenCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <Button x:Name="RemoveFromLibrary" Content="Remove from library" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
                         ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
                         Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </WrapPanel>
             </DockPanel>
+            <TextBlock Text="{Binding CoverProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Visibility="{Binding CoverProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
             <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
               <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />

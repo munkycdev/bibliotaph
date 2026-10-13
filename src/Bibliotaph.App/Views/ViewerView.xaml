@@ -88,6 +88,11 @@
       <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <!-- A file whose first page is blank or a title sheet can show a better page on its card. -->
+        <Button x:Name="UseAsCover" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,0"
+                Command="{Binding UseAsCoverCommand}" ToolTip="Use this page as the cover" ToolTipService.ShowOnDisabled="True"
+                AutomationProperties.Name="Use this page as the cover"
+                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <!-- Mark as adventure (slice 5): pages of this file as an adventure with a card of its own. -->
         <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
                 Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"

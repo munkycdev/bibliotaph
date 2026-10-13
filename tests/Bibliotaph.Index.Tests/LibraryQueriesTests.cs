@@ -290,6 +290,10 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal([Lairs, HauntedInn], (await DocumentsAsync("-collection:\"Winter campaign\"")).Order());
         Assert.Empty(await DocumentsAsync("collection:winter"));
         Assert.Equal([Gazetteer], (await _library.ListAsync(new LibraryFilter(Group: ScopeKeys.CollectionOwn(12)), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([Gazetteer, TavernMap],
+            (await _library.ListAsync(new LibraryFilter(Collections: CollectionFilter.InOne), ct: Ct)).Select(e => e.DocumentId).Order());
+        Assert.Equal([Lairs, HauntedInn],
+            (await _library.ListAsync(new LibraryFilter(Collections: CollectionFilter.NotInOne), ct: Ct)).Select(e => e.DocumentId).Order());
 
         var counts = await _library.CountGroupsAsync("collection:", null, Ct);
         Assert.Equal(2, counts[ScopeKeys.Collection(12)]);

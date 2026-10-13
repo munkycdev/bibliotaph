@@ -10,7 +10,8 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// What a Smart View shows: the Library's search text, filters, scope, order, layout and tab, never a list of books.
-/// Stored as JSON with a version, so a later app can read an older view. <see cref="Adventures"/> says where the
+/// Stored as JSON with a version, so a later app can read an older view; one saved before a filter existed reads with
+/// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips. <see cref="Adventures"/> says where the
 /// adventures inside files show; <see cref="HideParts"/> is how a view from before there was a choice of three said
 /// so, and is read only from those.
 /// </summary>
@@ -35,6 +36,8 @@ public sealed record SmartViewDefinition(
     int? Players = null,
     string? Store = null,
     bool HideParts = false,
+    CollectionFilter Collections = CollectionFilter.All,
+    PickedValues? Picked = null,
     AdventureCards Adventures = AdventureCards.InBooks)
 {
     /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
