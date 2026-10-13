@@ -179,8 +179,8 @@ static partial class SmokeTest
     /// <summary>
     /// Ask your library: with AI on, on the stand-in model server, a question typed in the top bar in Ask mode and sent
     /// with Answer from my books finds the dragon's page in the smoke PDF among the books the Library shows, and the
-    /// stand-in's answer arrives checked, citing a page that mentions the dragon by its book and page; the citation
-    /// opens that book at that page. Ask is closed and AI put back afterwards.
+    /// stand-in's answer arrives checked, citing a page that mentions the dragon by its book and page; the citation, or
+    /// the smoke book's link among the pages read when another book is cited, opens the smoke book at its page. Ask is closed and AI put back afterwards.
     /// </summary>
     static async Task AskLibraryAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -229,9 +229,15 @@ static partial class SmokeTest
             var link = block.Inlines.OfType<Hyperlink>().FirstOrDefault() ?? throw new InvalidOperationException("The answer's citation isn't a link.");
             if (AutomationProperties.GetName(link) is not { } name || !name.StartsWith("Open ", StringComparison.Ordinal) || !name.EndsWith($", p. {page.Page}", StringComparison.Ordinal))
                 throw new InvalidOperationException($"The citation is named “{AutomationProperties.GetName(link)}”.");
-            ((IInvokeProvider)ContentElementAutomationPeer.CreatePeerForElement(link).GetPattern(PatternInterface.Invoke)).Invoke();
-            await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { IsPdf: true } viewer
-                    && viewer.CurrentPageIndex == page.PdfPage && viewer.Here()?.DocumentId == page.DocumentId,
+            // The other books are made up, with no file to open, so the smoke book's own page is opened from its link
+            // in the pages read when the citation is to one of them.
+            if (page.DocumentId == documentId)
+                ((IInvokeProvider)ContentElementAutomationPeer.CreatePeerForElement(link).GetPattern(PatternInterface.Invoke)).Invoke();
+            else
+                Click(Descendants<Button>(window).FirstOrDefault(b => b.DataContext is LibraryAskPassageRow { Passage: { PdfPage: 1 } read }
+                    && read.DocumentId == documentId), "the smoke book's page among the pages read");
+            await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { IsPdf: true, CurrentPageIndex: 1 } viewer
+                    && viewer.Here()?.DocumentId == documentId,
                 () => "The citation didn't open the book at its page.");
             shell.PlainSearch.IsOn = false;
             shell.SearchText = "";
