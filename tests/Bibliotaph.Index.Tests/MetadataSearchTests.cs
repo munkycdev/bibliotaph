@@ -219,6 +219,18 @@ public sealed class MetadataSearchTests : IndexFixture
     }
 
     [Fact]
+    public async Task Facet_choices_are_in_name_order_with_unknown_last()
+    {
+        foreach (var field in new[] { "system", "type" })
+        {
+            var counts = await _library.GetFacetCountsAsync(field, new LibraryFilter(), ct: Ct);
+            var named = counts.Where(c => c.Value != SearchQuery.Unknown).Select(c => c.Label).ToList();
+            Assert.Equal(named.Order(StringComparer.OrdinalIgnoreCase), named);
+            Assert.Equal(SearchQuery.Unknown, counts[^1].Value);
+        }
+    }
+
+    [Fact]
     public async Task Format_counts_are_most_common_first_within_the_scope()
     {
         var formats = await _library.GetFormatCountsAsync(new LibraryFilter(), Ct);

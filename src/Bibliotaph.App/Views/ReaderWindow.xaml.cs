@@ -34,6 +34,7 @@ public partial class ReaderWindow
         }
         else
         {
+            if (model is OnlineReaderViewModel) Host.Margin = new Thickness(22, 18, 22, 18);
             // A binder's title arrives as it loads, and changes if it's renamed.
             SetBinding(TitleProperty, new Binding(nameof(PageViewModel.Title)));
         }

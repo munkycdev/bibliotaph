@@ -55,7 +55,7 @@ public sealed class CollectionDirectory
             _byId = all.ToDictionary(c => c.Id);
             CollectionMenu.Choices =
             [
-                .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount)
+                .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount).OrderBy(c => PathOf(c.Id), StringComparer.CurrentCultureIgnoreCase)
                     .Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, $"Add to {c.Name}", PathOf(c.Id))),
                 new(CollectionMenuKind.New, null, "Add to a new collection…", null),
                 .. all.Count > RecentCount ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, "Add to another collection…", null)] : Array.Empty<CollectionMenuChoice>(),
@@ -73,12 +73,9 @@ public sealed class CollectionDirectory
     /// <summary>The collections a book was added to itself, for the chips in its details.</summary>
     public Task<IReadOnlyList<long>> CollectionsOfAsync(EntryId entryId) => _collections.GetForEntryAsync(entryId);
 
-    /// <summary>
-    /// The collections inside <paramref name="parentId"/>, or at the top: pinned first, in the sidebar's order, then by
-    /// name.
-    /// </summary>
+    /// <summary>The collections inside <paramref name="parentId"/>, or at the top, by name. Only the sidebar keeps the pinned ones' own order.</summary>
     public IReadOnlyList<CollectionInfo> ChildrenOf(long? parentId) =>
-        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.PinPosition ?? int.MaxValue).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
+        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
 
     /// <summary>"Campaign › Maps": the collection's name after those of the collections it sits in.</summary>
     public string PathOf(long collectionId)
