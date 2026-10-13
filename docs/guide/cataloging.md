@@ -26,7 +26,7 @@ Under the cover is a row of buttons for what you can do with the book:
   [Online libraries](online-libraries.md).
 - **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
 - **Open in another app**, for a protected book Bibliotaph can't read.
-- **Remove from library**, for a book you own elsewhere.
+- **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
 The **Details** tab shows:
@@ -84,6 +84,10 @@ usable while its card waits. It has two lists:
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
+
+When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
+elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+waiting.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
 Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
