@@ -48,7 +48,7 @@ The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs rev
 
 **Library** shows every book, map and handout as covers or a list, with a details panel on the right. A cover shows its title and only the status that matters: a heart, a spark once AI has read it, a count of adventures inside, a badge saying where a book owned elsewhere lives. **Select** mode edits, groups, joins or exports many books at once; bulk editing shows mixed values as mixed and previews before saving. Almost every change in the app has **Undo**.
 
-**Collections** gathers books around a campaign, setting or idea. Collections nest, a book in an inner one counts in the outer one (**Only books added here** hides those), and a collection opens in the Library, ready to search and filter. Deleting one never removes a book. Needs review offers to make a folder of three or more books a collection; one made that way gains the books that land in its folder later, until the user adds or removes a book by hand.
+**Collections** gathers books around a campaign, setting or idea. Collections nest, a book in an inner one counts in the outer one (**Only books added here** hides those), and a collection opens in the Library, ready to search and filter. Deleting one never removes a book. Needs review offers to make a folder of three or more books a collection; one made that way gains the books that land in its folder later, until the user adds or removes a book by hand. It also suggests books for a collection that share its series, or its setting and system, with most of its books (at least three, and 60%).
 
 ## Search
 
@@ -108,7 +108,7 @@ Suggestions come from folder and file names that match a vocabulary term, the PD
 
 ### Needs review
 
-Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer, proposed adventures and folders that could be collections. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
+Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer, proposed adventures, folders that could be collections and books that could join one. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
 
 A card shows the current value, the suggestion and its evidence. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
 

@@ -414,6 +414,42 @@
       </Border>
     </DataTemplate>
 
+    <!-- Books that could join a collection: the books, each opening, with Accept, Not now and Never. -->
+    <DataTemplate DataType="{x:Type vm:CollectionSuggestionCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Add to collection?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+            <TextBlock x:Name="SuggestionHeading" Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <ItemsControl ItemsSource="{Binding Books}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="Books suggested">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Style="{StaticResource Bt.Link}" Content="{Binding Title}" HorizontalAlignment="Left" Margin="0,2,0,0" ToolTip="Open this book"
+                          Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                          AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <WrapPanel Margin="0,16,0,0">
+              <Button x:Name="AcceptSuggestion" Style="{StaticResource Bt.Button.Primary}" Content="Accept" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding AcceptCommand}" Margin="0,0,8,8" ToolTip="Add these books to the collection" />
+              <Button Content="Not now" Command="{Binding NotNowCommand}" Margin="0,0,8,8" ToolTip="Ask again the next time this list is made" />
+              <Button Content="Never" Command="{Binding NeverCommand}" Margin="0,0,8,8"
+                      ToolTip="Bibliotaph won't suggest these books for this collection again" />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- A file that looks like a compilation (slice 5b): its adventures, ticked, with Accept, Edit and Not split. -->
     <DataTemplate DataType="{x:Type vm:PartProposalCardViewModel}">
       <Border Style="{StaticResource Card}">

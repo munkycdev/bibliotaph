@@ -175,6 +175,37 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
             .ToDictionary(g => g.Key, g => (IReadOnlySet<EntryId>)g.Select(r => new EntryId(r.EntryId)).ToHashSet());
     }
 
+    /// <summary>The books the user said Never to adding to each collection, as (collection, entry) pairs.</summary>
+    public async Task<IReadOnlySet<(long CollectionId, EntryId EntryId)>> GetDeclinedAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.CollectionDeclines.AsNoTracking().Select(d => new { d.CollectionId, d.EntryId }).ToListAsync(ct);
+        return rows.Select(r => (r.CollectionId, new EntryId(r.EntryId))).ToHashSet();
+    }
+
+    /// <summary>Never for these books in this collection. Returns those that weren't declined already, for Undo.</summary>
+    public async Task<IReadOnlyList<EntryId>> DeclineAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (!await db.Collections.AnyAsync(c => c.Id == collectionId, ct)) return [];
+        var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+        var already = await db.CollectionDeclines.Where(d => d.CollectionId == collectionId && ids.Contains(d.EntryId)).Select(d => d.EntryId).ToListAsync(ct);
+        var exists = await db.Entries.Where(e => ids.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct);
+        var added = exists.Except(already).ToList();
+        var now = Now;
+        db.CollectionDeclines.AddRange(added.Select(id => new CollectionDecline { CollectionId = collectionId, EntryId = id, CreatedUtc = now }));
+        await db.SaveChangesAsync(ct);
+        return [.. added.Select(id => new EntryId(id))];
+    }
+
+    /// <summary>Undo for <see cref="DeclineAsync"/>: those books can be suggested for the collection again.</summary>
+    public async Task UndeclineAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = entryIds.Select(e => e.Value).ToList();
+        await db.CollectionDeclines.Where(d => d.CollectionId == collectionId && ids.Contains(d.EntryId)).ExecuteDeleteAsync(ct);
+    }
+
     /// <summary>The collections an entry was added to directly, for the inspector's chips.</summary>
     public async Task<IReadOnlyList<long>> GetForEntryAsync(EntryId entryId, CancellationToken ct = default)
     {

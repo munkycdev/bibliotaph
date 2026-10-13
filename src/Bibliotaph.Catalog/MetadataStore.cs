@@ -70,6 +70,24 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
             (await rejections.Select(r => new { r.EntryId, r.Field, r.NormalizedValue }).ToListAsync(ct)).ToLookup(r => r.EntryId, r => (r.Field, r.NormalizedValue)));
     }
 
+    /// <summary>
+    /// The cards with a suggested or confirmed value of <paramref name="field"/> among <paramref name="normalized"/>
+    /// (comparison forms): a rough cut, since another value may win, for the caller to check against what each card
+    /// shows. Cards joined into another and images in a pack aren't among them.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> FindAsync(MetadataField field, IReadOnlyCollection<string> normalized, CancellationToken ct = default)
+    {
+        if (normalized.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var values = normalized.ToList();
+        var ids = await db.Assertions.AsNoTracking()
+            .Where(a => a.Field == field.Key && values.Contains(a.NormalizedValue)
+                && (a.State == AssertionState.Provisional || a.State == AssertionState.Confirmed)
+                && a.Entry.MergedIntoEntryId == null && (a.Entry.ParentEntryId == null || a.Entry.Kind == EntryKind.Part))
+            .Select(a => a.EntryId).Distinct().ToListAsync(ct);
+        return [.. ids.Select(id => new EntryId(id))];
+    }
+
     /// <summary>The entries with any value the user confirmed or set, whose books can show the user's conventions.</summary>
     public async Task<IReadOnlyList<EntryId>> GetDecidedEntryIdsAsync(CancellationToken ct = default)
     {

@@ -90,7 +90,8 @@ pins, vocabulary, books you own elsewhere (imported ones too) and your answers i
 the same thing, the newer change wins; changes to different things are all kept.
 
 What doesn't: your library folders, where you left each book, settings, the sign-ins of Bibliotaph's browser, and
-whether a collection made from a folder still follows that folder (the collection itself travels). Add
+whether a collection made from a folder still follows that folder (the collection itself travels), and the books you
+said Never to for a collection. Add
 your folders on each PC. Books are matched by their content, so the same file in a different place on each PC is still
 the same book.
 

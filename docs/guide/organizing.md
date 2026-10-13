@@ -45,6 +45,19 @@ collection “Ashen Vale” from these 12 books?" for each folder with three or 
   letter changes. The collections travel to your other PCs with library sync like any other; whether one follows its
   folder is kept on each PC.
 
+### Books for your collections
+
+Needs review also looks for books that belong in a collection you have: "Add these 4 books to “Ashen Vale”?". It
+looks at what most of the collection's books share, meaning at least three of them and at least 60% of the books you
+added to it, and suggests the books outside it that share it too:
+
+- the same **series**, or
+- the same **setting** and **game system** together.
+
+**Accept** adds them, with **Undo**; it doesn't stop a collection made from a folder following that folder. **Not
+now** puts the card away until Needs review makes its list again. **Never** means those books aren't suggested for that
+collection again, though a book that fits later still can be. Never is kept on each PC.
+
 ## Pins
 
 Pin anything you go back to often, and it shows in the sidebar's **Pinned** group and on Home. You can pin a book,

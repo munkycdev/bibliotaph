@@ -8,6 +8,8 @@
   field, with a count for each.
 - **Collections from folders**: Needs review offers to make a folder of three or more books a collection, nested as
   the folders are. Books that land in the folder later join it, until you change its books by hand.
+- **Books for collections**: Needs review suggests books that share a series, or a setting and game system, with most
+  of a collection's books.
 
 ## 1.0.0 · 12 October 2026
 

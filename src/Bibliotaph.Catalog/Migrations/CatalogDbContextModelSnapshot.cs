@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261013180000_CatalogFolderCollections";
+    public override string LastMigrationId => "20261013190000_CatalogCollectionDeclines";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -204,6 +204,27 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("ContentHash", "Model", "PromptVersion");
 
                 b.ToTable("classification_run");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionDecline", b =>
+            {
+                b.Property<long>("CollectionId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("collection_id");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.HasKey("CollectionId", "EntryId");
+
+                b.HasIndex("EntryId");
+
+                b.ToTable("collection_decline");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionFolder", b =>
@@ -1494,6 +1515,21 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsRequired();
 
                 b.Navigation("Entry");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionDecline", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.CollectionNode", null)
+                    .WithMany()
+                    .HasForeignKey("CollectionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionFolder", b =>

@@ -24,6 +24,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
+    public DbSet<CollectionDecline> CollectionDeclines => Set<CollectionDecline>();
     public DbSet<SmartView> SmartViews => Set<SmartView>();
     public DbSet<Pin> Pins => Set<Pin>();
     public DbSet<Note> Notes => Set<Note>();
@@ -209,6 +210,14 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<SourceRoot>().WithMany().HasForeignKey(f => f.SourceRootId).OnDelete(DeleteBehavior.Cascade);
             // A deleted collection leaves its folder answered, so the folder isn't asked about again.
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(f => f.CollectionId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CollectionDecline>(e =>
+        {
+            e.HasKey(d => new { d.CollectionId, d.EntryId });
+            e.HasIndex(d => d.EntryId);
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(d => d.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(d => d.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SmartView>(e => e.HasIndex(v => v.Name));

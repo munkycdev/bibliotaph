@@ -130,6 +130,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         await db.SaveChangesAsync(Ct);
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });
+        db.CollectionDeclines.Add(new CollectionDecline { CollectionId = collection.Id, EntryId = joined.Id, CreatedUtc = now });
         db.CollectionFolders.Add(new CollectionFolder { SourceRootId = root.Id, Folder = "Winter campaign", State = FolderCollectionState.Linked, CollectionId = collection.Id, DecidedUtc = now });
         // A new catalog has Favorites pinned already.
         db.Pins.Add(new Pin { Kind = PinKind.Collection, Position = 1, CollectionId = collection.Id });

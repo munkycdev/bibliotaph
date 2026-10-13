@@ -507,6 +507,17 @@ public sealed class CollectionItem
 }
 
 /// <summary>
+/// A book the user said Never to adding to a collection, from Needs review's suggestions: it isn't suggested for that
+/// collection again. It stays on this PC.
+/// </summary>
+public sealed class CollectionDecline
+{
+    public long CollectionId { get; set; }
+    public long EntryId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
 /// A folder Needs review asked about making a collection from, and the answer. A linked collection gains the books
 /// that land in the folder later. The folder is named by its library folder and its path under it, so a drive letter
 /// that changes doesn't lose it; the row stays on this PC, while the collection itself travels in the library sync

@@ -480,6 +480,22 @@ public sealed class IndexQueries(IndexDatabase database)
             new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
     }
 
+    /// <summary>The title each of these cards shows, and the document it opens (null for a book owned elsewhere).</summary>
+    public async Task<IReadOnlyDictionary<EntryId, (string Title, long? DocumentId)>> GetCardTitlesAsync(IReadOnlyCollection<EntryId> entryIds,
+        CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return new Dictionary<EntryId, (string, long?)>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, long? DocumentId, string? Title)>(new CommandDefinition(
+            """
+            SELECT e.entry_id, e.document_id, coalesce(m.title, e.name, d.display_title)
+            FROM entry_doc e LEFT JOIN entry_meta m ON m.entry_id = e.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE e.entry_id IN (SELECT value FROM json_each(@ids))
+            """,
+            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
+        return rows.ToDictionary(r => new EntryId(r.EntryId), r => (r.Title ?? $"Document {r.EntryId}", r.DocumentId));
+    }
+
     /// <summary>
     /// The entries with Needs review cards, by title, with the document each shows (null before Probe has added it)
     /// and how many cards each has.

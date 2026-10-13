@@ -31,6 +31,7 @@ public interface IReviewActions
     void FixCorrection(CorrectionItem item);
     Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use);
     Task<Func<Task>> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer);
+    Task<Func<Task>> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -681,6 +682,56 @@ public sealed partial class FolderCollectionCardViewModel(FolderCollectionPropos
 
     [RelayCommand]
     void ShowFolder() => Actions.ShowFolder(Path);
+}
+
+/// <summary>
+/// Books that could join a collection: "Add these 4 books to “X”?", because they share what most of its books share.
+/// Accept adds them; Not now puts the card away until the list is made again; Never isn't asked again for these books.
+/// </summary>
+public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggestion suggestion, Vocabulary vocabulary, IReviewActions actions)
+    : DecidedCardViewModel(actions)
+{
+    public CollectionSuggestion Suggestion { get; } = suggestion;
+
+    public string Title => Suggestion.Name;
+
+    public IReadOnlyList<SuggestedBook> Books => Suggestion.Books;
+
+    string What => Books.Count == 1 ? "this book" : $"these {Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
+
+    string Added => Books.Count == 1 ? "1 book" : $"{Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
+
+    public string Heading => $"Add {What} to “{Suggestion.Name}”?";
+
+    /// <summary>What most of the collection's books share, which these share too.</summary>
+    public string Detail
+    {
+        get
+        {
+            var reasons = new List<string>();
+            if (Suggestion.Series is { } series) reasons.Add($"are in the series “{series}”");
+            if (Suggestion.Setting is { } setting && Suggestion.System is { } system)
+                reasons.Add($"are set in {vocabulary.Label(MetadataFields.Settings.Vocabulary!, setting)} for {vocabulary.Label(MetadataFields.System.Vocabulary!, system)}");
+            return $"Most of the books in this collection {string.Join(", or ", reasons)}, and so {(Books.Count == 1 ? "is this one" : "are these")}.";
+        }
+    }
+
+    [RelayCommand]
+    Task Accept() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Accept), $"Added {Added} to “{Suggestion.Name}”.");
+
+    [RelayCommand]
+    Task NotNow() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.NotNow),
+        $"“{Suggestion.Name}” can wait. It's asked about again the next time this list is made.");
+
+    [RelayCommand]
+    Task Never() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Never),
+        $"Bibliotaph won't suggest {(Books.Count == 1 ? "this book" : "these books")} for “{Suggestion.Name}” again.");
+
+    [RelayCommand]
+    void OpenBook(SuggestedBook book)
+    {
+        if (book.DocumentId is { } id) Actions.OpenDocument(id, book.Title);
+    }
 }
 
 /// <summary>How a folder rule reads, on its Needs review card and in Settings > Library.</summary>
