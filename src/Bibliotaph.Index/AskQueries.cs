@@ -58,6 +58,26 @@ public sealed class AskQueries(IndexDatabase database)
         return [.. rows.Select(r => new WordHit(r.PageId, (int)r.PdfPage, r.Rank))];
     }
 
+    /// <summary>
+    /// For each FTS5 expression (one word of a question each), how many of the book's pages it finds: how rare the word
+    /// is in this book. One count a word, for the few words of a question.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> CountPagesAsync(long documentId, IReadOnlyList<string> matches, CancellationToken ct = default)
+    {
+        if (matches.Count == 0) return [];
+        await using var connection = database.OpenRead();
+        var counts = new List<int>(matches.Count);
+        foreach (var match in matches)
+        {
+            counts.Add((int)await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+                """
+                SELECT count(*) FROM page_fts JOIN page p ON p.id = page_fts.rowid
+                WHERE page_fts MATCH @match AND p.document_id = @documentId
+                """, new { match, documentId }, cancellationToken: ct)));
+        }
+        return counts;
+    }
+
     /// <summary>These pages of the book, with their labels and text.</summary>
     public async Task<IReadOnlyList<AskPageRow>> GetPagesAsync(long documentId, IReadOnlyCollection<long> pageIds, CancellationToken ct = default)
     {

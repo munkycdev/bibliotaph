@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Ask this book finds the right pages more consistently:** index and contents pages no longer crowd out the pages
+  that answer, a question's rare words count for more than its common ones when deciding whether the book covers it,
+  the AI answers without "thinking" first, and a book is prepared for finding by meaning as soon as it's opened.
 - **Your tags can find themselves.** In **Settings > Vocabulary > Your tags**, give a tag the words that signal it
   ("Undead": undead, zombie, lich) and every book whose pages use them often enough gets it as a suggestion, without
   reading any file again. New books are checked as they're read, and a tag you reject on a book stays rejected.

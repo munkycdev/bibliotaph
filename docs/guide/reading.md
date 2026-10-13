@@ -63,7 +63,8 @@ the panel shows "Looked for: …" when it reworded your question to search. Each
 50 questions), and lists it again when you reopen the book. **New conversation** starts afresh.
 
 Ask finds pages by their words. With an embedding model, built in or on a model server, it can also find them by
-meaning, so "who's behind the disappearances" can find a page that never says "disappearances"; see [AI](ai.md). The first time you ask a book that way, its pages are prepared in the background,
+meaning, so "who's behind the disappearances" can find a page that never says "disappearances"; see [AI](ai.md). A
+book's pages are prepared for that in the background as soon as you open it,
 and the panel says how far it has got.
 
 ## Windows of their own
