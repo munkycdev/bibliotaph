@@ -17,11 +17,11 @@ public sealed record DroppedClaim(ClassifierClaim Claim, string Reason);
 public sealed record EvidenceResult(IReadOnlyList<CheckedClaim> Accepted, IReadOnlyList<DroppedClaim> Dropped);
 
 /// <summary>
-/// The evidence check (architecture, "Evidence check"; choice 9). A claim stands only if its quote appears in the indexed
-/// text of the page it cites, ignoring case, spacing, hyphenation, ligatures, accents, punctuation and quote style; the
-/// quote shows the value wherever a value is printed rather than judged (a title, a name, a year, a game system); and
-/// the value is the right type, in range and, for a closed field, in the vocabulary or a new term worth proposing.
-/// Anything a model makes up, or that a book's text talked it into, has no quote on the page and is dropped (A16).
+/// The evidence check (architecture, "Evidence check"). A claim stands only if its quote appears in the indexed text of
+/// the page it cites, ignoring case, spacing, hyphenation, ligatures, accents, punctuation and quote style; the quote
+/// shows the value wherever a value is printed rather than judged (a title, a name, a year, a game system); and the
+/// value is the right type, in range and, for a closed field, in the vocabulary or a new term worth proposing. Anything
+/// a model makes up, or that a book's text talked it into, has no quote on the page and is dropped.
 /// </summary>
 public static partial class EvidenceCheck
 {

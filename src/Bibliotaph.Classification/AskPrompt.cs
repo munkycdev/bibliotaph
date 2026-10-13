@@ -6,14 +6,15 @@ namespace Bibliotaph.Classification;
 /// <summary>A page sent with a question: the number it is cited by, its PDF page, the bookmark it is under and its text as sent.</summary>
 public sealed record AskPromptPage(string Marker, int PdfPage, string? Heading, string Text);
 
-/// <summary>An earlier question in the conversation and its answer, sent with a follow-up so it can be understood (choice 10).</summary>
+/// <summary>
+/// An earlier question in the conversation and its answer, sent with a follow-up so it can be understood.
+/// </summary>
 public sealed record AskEarlierTurn(string Question, string Answer);
 
 /// <summary>
-/// Ask this book's prompt (Ask plan, step 4 and choices 6, 8 and 9): the rules in the system message and nothing from
-/// the book; the question, then the pages as [Page N] blocks inside the same guarded &lt;book-excerpt&gt; block
-/// classification uses, in the user message. The answer is prose with [p. N] after each claim, which
-/// <see cref="AskAnswerCheck"/> checks against the pages sent.
+/// Ask this book's prompt: the rules in the system message and nothing from the book; the question, then the pages as
+/// [Page N] blocks inside the same guarded &lt;book-excerpt&gt; block classification uses, in the user message. The
+/// answer is prose with [p. N] after each claim, which <see cref="AskAnswerCheck"/> checks against the pages sent.
 /// </summary>
 public static class AskPrompt
 {
@@ -35,7 +36,7 @@ public static class AskPrompt
     /// <summary>A rewritten question longer than this isn't a question; the follow-up is used as typed.</summary>
     const int MaxRewriteCharacters = 300;
 
-    /// <summary>The context Ask asks for (choice 9): about 6,000 tokens of pages, the rules, and room for the answer.</summary>
+    /// <summary>The context Ask asks for: about 6,000 tokens of pages, the rules, and room for the answer.</summary>
     public const int ContextTokens = 12_288;
 
     /// <summary>A few sentences or a short list; more is cut off.</summary>
@@ -64,7 +65,9 @@ public static class AskPrompt
         return text.ToString();
     }
 
-    /// <summary>The rules for turning a follow-up into a question that stands on its own (choice 10): nothing from the book.</summary>
+    /// <summary>
+    /// The rules for turning a follow-up into a question that stands on its own: nothing from the book.
+    /// </summary>
     public static string RewriteSystemMessage { get; } = string.Join(Environment.NewLine,
         "You rewrite a follow-up question about a book so that it can be understood without the conversation before it.",
         "Replace words like \"it\", \"they\", \"that one\" and \"there\" with what they mean, from the conversation.",

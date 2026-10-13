@@ -12,10 +12,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Every session pack, kept in memory for the pages and menus (slice 3 plan, choices 12 and 13): the current one (worked
-/// on last), which Add to session adds to, and the cards the Sessions page and Home show. It reloads after any pack
-/// changes, on the UI thread, with the game systems in the library that a binder kept at hand can be for (Binders plan,
-/// choice 9).
+/// Every session pack, kept in memory for the pages and menus: the current one (worked on last), which Add to session
+/// adds to, and the cards the Sessions page and Home show. It reloads after any pack changes, on the UI thread, with
+/// the game systems in the library that a binder kept at hand can be for.
 /// </summary>
 public sealed class SessionDirectory
 {

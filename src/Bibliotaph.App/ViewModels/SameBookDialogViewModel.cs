@@ -36,8 +36,8 @@ public sealed partial class SameBookFile(long documentId, string card, string na
 public sealed record SameBookResult(BookJoin Join, int Cards);
 
 /// <summary>
-/// Same book (multi-select plan, choices 2 to 5): the ticked cards' files, with which one opens, before they join as
-/// one book. Values the cards disagree on go to Needs review, so the dialog doesn't ask about them.
+/// Same book: the ticked cards' files, with which one opens, before they join as one book. Values the cards disagree
+/// on go to Needs review, so the dialog doesn't ask about them.
 /// </summary>
 public sealed partial class SameBookDialogViewModel : ObservableObject
 {
@@ -49,7 +49,7 @@ public sealed partial class SameBookDialogViewModel : ObservableObject
         _copies = copies;
         _cards = [.. cards.Select(c => c.EntryId)];
         Files = [.. files.Select(f => ToFile(f.Copy, f.Card))];
-        // The file found most recently opens unless the user picks another: usually the newer version (choice 4).
+        // The file found most recently opens unless the user picks another: usually the newer version.
         var newest = files.MaxBy(f => (f.Copy.Copy.AddedUtc, f.Copy.Copy.DocumentId)).Copy.Copy.DocumentId;
         Files.First(f => f.DocumentId == newest).Opens = true;
         var count = cards.Count.ToString("N0", CultureInfo.CurrentCulture);

@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App;
 
-// Disks coming and going (slice 4g plan, choice 4). Windows tells every top-level window when a drive letter arrives
-// or goes, so a library folder on a USB disk comes back as soon as the disk is plugged in, without Look for changes,
-// and reads as offline as soon as it is pulled out. Network shares don't announce themselves; the indexing service
-// looks at offline folders again every few minutes for those.
+// Disks coming and going. Windows tells every top-level window when a drive letter arrives or goes, so a library
+// folder on a USB disk comes back as soon as the disk is plugged in, without Look for changes, and reads as offline as
+// soon as it is pulled out. Network shares don't announce themselves; the indexing service looks at offline folders
+// again every few minutes for those.
 public partial class MainWindow
 {
     const int WmDeviceChange = 0x0219;

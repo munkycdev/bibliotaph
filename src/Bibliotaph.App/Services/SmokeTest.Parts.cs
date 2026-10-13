@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Slice 5: an adventure inside a file, marked by hand in the reader, as a card of its own.</summary>
+/// <summary>An adventure inside a file, marked by hand in the reader, as a card of its own.</summary>
 static partial class SmokeTest
 {
     /// <summary>
@@ -140,9 +140,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 5b: a proposal that the smoke PDF holds two adventures, as the rules would make from bookmarks and blurbs,
-    /// is one Needs review card. Not split folds it and Undo brings it back; Edit renames one, the other is unticked,
-    /// and Accept makes one card, which Undo takes away. Not split at the end leaves the book as it was.
+    /// A proposal that the smoke PDF holds two adventures, as the rules would make from bookmarks and blurbs, is one
+    /// Needs review card. Not split folds it and Undo brings it back; Edit renames one, the other is unticked, and Accept
+    /// makes one card, which Undo takes away. Not split at the end leaves the book as it was.
     /// </summary>
     static async Task ReviewPartProposalAsync(IServiceProvider services, Window window, long documentId)
     {

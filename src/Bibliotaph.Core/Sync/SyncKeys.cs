@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Bibliotaph.Core.Sync;
 
 /// <summary>
-/// How the library sync file names user work (library sync plan, choice 4). A book with files is named by a content
-/// hash, so two PCs that indexed the same file agree on it without ever having talked; everything the user made gets a
-/// sync id (a GUID made once, on the PC that made it) and is named by that. Pins are named by what they point at.
+/// How the library sync file names user work. A book with files is named by a content hash, so two PCs that indexed the
+/// same file agree on it without ever having talked; everything the user made gets a sync id (a GUID made once, on the
+/// PC that made it) and is named by that. Pins are named by what they point at.
 /// </summary>
 public static class SyncKeys
 {
@@ -68,7 +68,7 @@ public static class SyncKeys
         key.StartsWith(Book, StringComparison.Ordinal) ? key[Book.Length..] : key.StartsWith(Pack, StringComparison.Ordinal) ? key[Pack.Length..] : null;
 }
 
-/// <summary>The names of the fields a sync record carries (library sync plan, choice 5).</summary>
+/// <summary>The names of the fields a sync record carries.</summary>
 public static class SyncFields
 {
     /// <summary>A card's metadata field, by its key: "m.title". The value says what the user decided: values kept and values rejected.</summary>

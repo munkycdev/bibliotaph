@@ -4,9 +4,8 @@ using Microsoft.Win32;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// How much memory the computer's biggest graphics card has, so Settings > AI can suggest the model that fits (Built-in
-/// AI plan, choice 5). Read from the display drivers' registry entries, which say it in full; WMI's AdapterRAM stops at
-/// 4 GB.
+/// How much memory the computer's biggest graphics card has, so Settings > AI can suggest the model that fits. Read
+/// from the display drivers' registry entries, which say it in full; WMI's AdapterRAM stops at 4 GB.
 /// </summary>
 public sealed class GraphicsMemory(ILogger<GraphicsMemory> log)
 {

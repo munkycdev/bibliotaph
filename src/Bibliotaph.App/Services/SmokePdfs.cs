@@ -6,9 +6,9 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// Made-up PDFs for the smoke test, built in memory by hand since the app has no PDF writer: one locked with a
-/// password, one protected by a security handler no reader has, as DRM looks to PDFium (slice 4i), and a short book
-/// whose index page is plain text with no links. Nothing in them comes from a real book. The Pdf.Host tests compile
-/// this file too, to check PDFium reads them as the smoke test expects.
+/// password, one protected by a security handler no reader has, as DRM looks to PDFium, and a short book whose index
+/// page is plain text with no links. Nothing in them comes from a real book. The Pdf.Host tests compile this file too,
+/// to check PDFium reads them as the smoke test expects.
 /// </summary>
 public static class SmokePdfs
 {

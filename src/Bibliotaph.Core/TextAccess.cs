@@ -1,8 +1,8 @@
 namespace Bibliotaph.Core;
 
 /// <summary>
-/// Why a file's text won't be read by itself, as its card and details say (slice 4i plan, choices 3, 4 and 6). A
-/// readable file's text is searchable once its Text stage has run; the others wait on the user, or never come.
+/// Why a file's text won't be read by itself, as its card and details say. A readable file's text is searchable once
+/// its Text stage has run; the others wait on the user, or never come.
 /// </summary>
 public enum TextAccess
 {

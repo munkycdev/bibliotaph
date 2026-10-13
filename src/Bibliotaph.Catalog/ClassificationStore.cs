@@ -15,9 +15,9 @@ public sealed record RunRecord(
 public sealed record ClassificationSummary(int Current, int Earlier);
 
 /// <summary>
-/// Classification runs in catalog.db (choice 5): which model and prompt read which content, and with what outcome. The
-/// Classify stage skips content the current model and prompt have already classified, so neither an index.db rebuild
-/// nor a restart sends a book to the model again.
+/// Classification runs in catalog.db: which model and prompt read which content, and with what outcome. The Classify
+/// stage skips content the current model and prompt have already classified, so neither an index.db rebuild nor a
+/// restart sends a book to the model again.
 /// </summary>
 public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -39,7 +39,7 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
 
     /// <summary>
     /// Whether <paramref name="model"/> and this prompt version have already classified the adventure
-    /// <paramref name="partId"/> on its own pages, in any copy of its file (slice 5 plan, choice 6).
+    /// <paramref name="partId"/> on its own pages, in any copy of its file.
     /// </summary>
     public async Task<bool> HasRunOnAsync(EntryId partId, string model, int promptVersion, CancellationToken ct = default)
     {
@@ -72,8 +72,8 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     }
 
     /// <summary>
-    /// Forgets the runs that read these copies, for "Forget its text" (slice 4i plan, choice 6): the book no longer
-    /// counts as read by a model, and "Read it again" sends it to the model again while AI is on. Returns how many went.
+    /// Forgets the runs that read these copies, for "Forget its text": the book no longer counts as read by a model,
+    /// and "Read it again" sends it to the model again while AI is on. Returns how many went.
     /// </summary>
     public async Task<int> ForgetAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
     {

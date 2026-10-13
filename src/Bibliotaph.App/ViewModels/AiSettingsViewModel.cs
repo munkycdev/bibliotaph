@@ -23,10 +23,9 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 }
 
 /// <summary>
-/// Settings > AI (choice 10): Built in or a model server (Built-in AI plan, choice 7); for a server, its address and
-/// model, a key if it needs one, and Test; which library folders are sent, and how far classification has got, with
-/// Reclassify. AI is off until a model is set up and switched on; an endpoint off this computer and network needs the
-/// user's say-so as well.
+/// Settings > AI: Built in or a model server; for a server, its address and model, a key if it needs one, and Test;
+/// which library folders are sent, and how far classification has got, with Reclassify. AI is off until a model is
+/// set up and switched on; an endpoint off this computer and network needs the user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
@@ -48,7 +47,7 @@ public sealed partial class AiSettingsViewModel(
 
     /// <summary>
     /// The page shows Built in rather than the model server: when the built-in AI is in use, and for anyone who hasn't
-    /// set AI up at all (choice 7). Showing it changes nothing until a model is chosen or downloaded.
+    /// set AI up at all. Showing it changes nothing until a model is chosen or downloaded.
     /// </summary>
     [ObservableProperty]
     public partial bool ShowBuiltIn { get; private set; }
@@ -129,8 +128,8 @@ public sealed partial class AiSettingsViewModel(
     partial void OnModelChanged(string value) => Dirty = true;
 
     /// <summary>
-    /// The server's embedding model, which Ask this book finds passages by meaning with (Ask plan, choice 3), or empty
-    /// for none, and Ask finds them by their words.
+    /// The server's embedding model, which Ask this book finds passages by meaning with, or empty for none, and Ask
+    /// finds them by their words.
     /// </summary>
     [ObservableProperty]
     public partial string EmbeddingModel { get; set; } = "";
@@ -340,7 +339,7 @@ public sealed partial class AiSettingsViewModel(
 
     bool CanSave() => Dirty && HasEndpoint() && Model.Trim().Length > 0;
 
-    /// <summary>Saves the endpoint, model and key. A new model doesn't reclassify anything by itself (choice 10).</summary>
+    /// <summary>Saves the endpoint, model and key. A new model doesn't reclassify anything by itself.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]
     async Task SaveAsync()
     {

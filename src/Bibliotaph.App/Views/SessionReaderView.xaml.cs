@@ -11,11 +11,11 @@ using Bibliotaph.App.ViewModels;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// A binder's reader (Binders plan, choices 1 to 8). Renaming a page in the list is the view's business: a double-click
-/// starts it, the name's box takes the keyboard, and Enter, Esc or leaving the box ends it. On a narrow window (the
-/// minimum size, or 200% scaling) the notes panel folds away by itself to leave the reader its room, and comes back
-/// when there's room again, unless it was shown or hidden by hand in between. At hand's menu is filled each time it
-/// opens: a heading per group when there's more than one, then each binder with its pages.
+/// A binder's reader. Renaming a page in the list is the view's business: a double-click starts it, the name's box
+/// takes the keyboard, and Enter, Esc or leaving the box ends it. On a narrow window (the minimum size, or 200%
+/// scaling) the notes panel folds away by itself to leave the reader its room, and comes back when there's room again,
+/// unless it was shown or hidden by hand in between. At hand's menu is filled each time it opens: a heading per group
+/// when there's more than one, then each binder with its pages.
 /// </summary>
 public partial class SessionReaderView
 {

@@ -20,8 +20,8 @@ public enum FileLocationState
 }
 
 /// <summary>
-/// Whether a library card's file can be opened now (slice 4g plan, choices 1 and 5). A card whose files are all offline
-/// or missing stays in the library, dimmed and marked, rather than dropping out.
+/// Whether a library card's file can be opened now. A card whose files are all offline or missing stays in the library,
+/// dimmed and marked, rather than dropping out.
 /// </summary>
 public enum EntryAvailability
 {
@@ -40,12 +40,12 @@ public enum ProtectionType
     Unsupported,
 }
 
-/// <summary>What a library card stands for (catalog entry design, choice 1).</summary>
+/// <summary>What a library card stands for.</summary>
 public enum EntryKind
 {
     /// <summary>A book or a single image: one document, or several copies of it.</summary>
     Whole,
-    /// <summary>An adventure inside a file: a page range of its parent entry's documents (slice 5).</summary>
+    /// <summary>An adventure inside a file: a page range of its parent entry's documents.</summary>
     Part,
     /// <summary>Many images shown as one card.</summary>
     Pack,
@@ -53,7 +53,7 @@ public enum EntryKind
     Elsewhere,
 }
 
-/// <summary>What a pin in the sidebar's Pinned group opens (Pinned Views plan, choice 2).</summary>
+/// <summary>What a pin in the sidebar's Pinned group opens.</summary>
 public enum PinKind
 {
     /// <summary>A book, opened where it was left.</summary>
@@ -76,8 +76,8 @@ public enum AssertionOrigin
     Ai,
     User,
     /// <summary>
-    /// A folder rule the user agreed to (scenario review, row 8): files in that folder, and its subfolders, get its value
-    /// as a suggestion. Ranked above the AI, since the user made it, but still only a suggestion.
+    /// A folder rule the user agreed to: files in that folder, and its subfolders, get its value as a suggestion.
+    /// Ranked above the AI, since the user made it, but still only a suggestion.
     /// </summary>
     FolderRule,
 }
@@ -95,8 +95,8 @@ public enum AssertionState
     AwaitingTerm,
     /// <summary>
     /// A value the user set on another card of the same book, for a field with one value, that disagreed with this
-    /// card's when the two were joined as copies (F2). Held out of the metadata, and offered by a "Copies disagree"
-    /// card in Needs review until the user decides the field.
+    /// card's when the two were joined as copies. Held out of the metadata, and offered by a "Copies disagree" card in
+    /// Needs review until the user decides the field.
     /// </summary>
     SetAside,
 }
@@ -128,7 +128,7 @@ public enum Stage
     Ocr,
     Classify,
 
-    /// <summary>Fingerprints a document's pages from its stored text and joins it to a copy of the same book (F2).</summary>
+    /// <summary>Fingerprints a document's pages from its stored text and joins it to a copy of the same book.</summary>
     Match,
 }
 
@@ -139,7 +139,7 @@ public enum CopyAnswer
     NotSameBook,
 }
 
-/// <summary>What happens to the images in a folder or ZIP (F4 plan, choices 2 to 4).</summary>
+/// <summary>What happens to the images in a folder or ZIP.</summary>
 public enum PackAnswer
 {
     /// <summary>Its images are one pack card, and images added later join it.</summary>
@@ -150,15 +150,15 @@ public enum PackAnswer
     /// </summary>
     Split,
     /// <summary>
-    /// A smaller or mixed folder waiting in Needs review: "Make these 12 images one card?" (choice 3). Its images keep
-    /// their own cards until the user answers.
+    /// A smaller or mixed folder waiting in Needs review: "Make these 12 images one card?" Its images keep their own
+    /// cards until the user answers.
     /// </summary>
     Proposed,
 }
 
 /// <summary>
-/// Where a folder rule stands (scenario review, row 8): proposed in Needs review after the user set the same value on
-/// several books from one folder, then switched on or off by the user's answer or in Settings > Library folders.
+/// Where a folder rule stands: proposed in Needs review after the user set the same value on several books from one
+/// folder, then switched on or off by the user's answer or in Settings > Library folders.
 /// </summary>
 public enum FolderRuleState
 {
@@ -172,7 +172,7 @@ public enum FolderRuleState
     Off,
 }
 
-/// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review (F5 plan, choice 6).</summary>
+/// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review.</summary>
 public enum ElsewhereAnswer
 {
     /// <summary>The file joins the book's card, which then opens it.</summary>
@@ -182,7 +182,7 @@ public enum ElsewhereAnswer
     SeparateBook,
 }
 
-/// <summary>Where a proposal of the adventures inside a file came from (slice 5 plan, choices 5 and 6).</summary>
+/// <summary>Where a proposal of the adventures inside a file came from.</summary>
 public enum PartProposalSource
 {
     /// <summary>Its bookmarks and the blurbs on their first pages.</summary>
@@ -192,7 +192,7 @@ public enum PartProposalSource
     Ai,
 }
 
-/// <summary>The user's answer to "This file looks like it holds 5 adventures" in Needs review (slice 5 plan, choice 7).</summary>
+/// <summary>The user's answer to "This file looks like it holds 5 adventures" in Needs review.</summary>
 public enum PartProposalAnswer
 {
     /// <summary>The ticked adventures got cards of their own.</summary>
@@ -202,7 +202,7 @@ public enum PartProposalAnswer
     NotSplit,
 }
 
-/// <summary>Why Match thinks one file may be a new version of another (F2 plan, choice 4).</summary>
+/// <summary>Why Match thinks one file may be a new version of another.</summary>
 public enum VersionEvidence
 {
     /// <summary>Most of the smaller file's pages have the same text as pages of the other.</summary>
@@ -226,9 +226,9 @@ public enum VersionAnswer
 }
 
 /// <summary>
-/// What was found when a session item's or a page note's pages were looked for in a new version of their book (slice
-/// 4h plan, choice 4). Kept on the page reference, so a session or a note shows it without looking again, and Needs
-/// review can count the places that need a look.
+/// What was found when a session item's or a page note's pages were looked for in a new version of their book. Kept on
+/// the page reference, so a session or a note shows it without looking again, and Needs review can count the places
+/// that need a look.
 /// </summary>
 public enum PageCheck
 {

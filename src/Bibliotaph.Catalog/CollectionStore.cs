@@ -21,9 +21,9 @@ public sealed record CollectionDeletion(long Id, long? ParentId, string Name, st
     IReadOnlyList<(long EntryId, DateTime AddedUtc)> Items, IReadOnlyList<long> Children);
 
 /// <summary>
-/// Collections (slice 3 plan, choices 8 to 10): nested to any depth, holding entries only. Each change returns the
-/// entries whose collections changed, including those that are in a moved or deleted collection through a
-/// sub-collection, so the caller can project their marks.
+/// Collections: nested to any depth, holding entries only. Each change returns the entries whose collections changed,
+/// including those that are in a moved or deleted collection through a sub-collection, so the caller can project their
+/// marks.
 /// </summary>
 public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -82,8 +82,8 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
     }
 
     /// <summary>
-    /// Deletes a collection, never its books: its sub-collections move up a level (choice 8). Returns what Undo needs,
-    /// or null if it doesn't exist, and the entries whose collections changed.
+    /// Deletes a collection, never its books: its sub-collections move up a level. Returns what Undo needs, or null if
+    /// it doesn't exist, and the entries whose collections changed.
     /// </summary>
     public async Task<(CollectionDeletion? Deleted, IReadOnlyList<EntryId> Changed)> DeleteAsync(long collectionId, CancellationToken ct = default)
     {
@@ -170,7 +170,7 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
 
     /// <summary>
     /// The scope rows for these entries, or for every entry when <paramref name="entryIds"/> is null: each collection
-    /// an entry was added to, and every collection above it (choice 9), plus the collection itself on its own.
+    /// an entry was added to, and every collection above it, plus the collection itself on its own.
     /// </summary>
     public async Task<IReadOnlyList<(EntryId EntryId, string Scope)>> GetScopesAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {

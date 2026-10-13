@@ -406,8 +406,8 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
         var (id, entryId) = (book.DocumentId, book.EntryId);
 
-        // The user keeps the folder's edition, says it isn't an adventure, and adds a tag of their own. (Notes, which
-        // arrive in slice 3, are user data in catalog.db like these.)
+        // The user keeps the folder's edition, says it isn't an adventure, and adds a tag of their own. (Notes are user
+        // data in catalog.db like these.)
         await _metadata.ConfirmAsync(entryId, Core.Metadata.MetadataFields.Edition, Ct);
         await _metadata.RejectAsync(entryId, Core.Metadata.MetadataFields.Types, "adventure", Ct);
         Assert.Null(await _metadata.SetAsync(entryId, Core.Metadata.MetadataFields.Tags, "Friday game", Ct));

@@ -46,10 +46,10 @@ public sealed partial class PlainSearchPartViewModel(InterpretedPart part) : Obs
 }
 
 /// <summary>
-/// Ask, beside the search box (scenario review, row 5): a request in plain English, read by AI as the search box's own
-/// fields and words and shown as chips with notes before anything runs. The chips can be changed or removed; Search
-/// puts them in the box as ordinary query text and runs it, so the syntax stays in view and can be changed too.
-/// Without AI, Ask says it needs it and links to Settings > AI, and the search box works as it always has.
+/// Ask, beside the search box: a request in plain English, read by AI as the search box's own fields and words and
+/// shown as chips with notes before anything runs. The chips can be changed or removed; Search puts them in the box
+/// as ordinary query text and runs it, so the syntax stays in view and can be changed too. Without AI, Ask says it
+/// needs it and links to Settings > AI, and the search box works as it always has.
 /// </summary>
 public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch, SettingsLinks settings, ILogger<PlainSearchViewModel> log) : ObservableObject
 {

@@ -3,7 +3,7 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Reading an online library's page (online libraries, O2 and O4), on made-up pages shaped like the real ones.</summary>
+/// <summary>Reading an online library's page, on made-up pages shaped like the real ones.</summary>
 public sealed class OnlineLibrariesTests
 {
     static readonly string Fixture = Path.Combine(AppContext.BaseDirectory, "online", "dndbeyond-library.html");

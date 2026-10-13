@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// "This file looks like it holds 5 adventures" (slice 5 plan, choice 7): the file's card, the copy the proposal was
-/// read from, and the adventures proposed, in page order.
+/// "This file looks like it holds 5 adventures": the file's card, the copy the proposal was read from, and the
+/// adventures proposed, in page order.
 /// </summary>
 public sealed record PartProposalItem(EntryId FileEntryId, string FileTitle, long DocumentId, PartProposalSource Source, IReadOnlyList<ProposedPart> Parts);
 
@@ -17,11 +17,11 @@ public sealed record PartProposalItem(EntryId FileEntryId, string FileTitle, lon
 public sealed record ProposalAccepted(IReadOnlyList<EntryId> Parts, string? Problem = null, Func<Task>? Undo = null);
 
 /// <summary>
-/// Proposes the adventures inside compilation files and settles the proposals in Needs review (slice 5 plan, choices
-/// 5 and 7). The rules read a file's bookmarks and the blurbs on their first pages as Hints from names reads its
-/// names; a proposal never makes cards by itself. Accept makes a card for each ticked adventure, with the levels its
-/// blurb gave as a suggestion; "Not split" says the file is one book. Either answer is remembered for every copy of
-/// the file, by content hash, and can be undone.
+/// Proposes the adventures inside compilation files and settles the proposals in Needs review. The rules read a
+/// file's bookmarks and the blurbs on their first pages as Hints from names reads its names; a proposal never makes
+/// cards by itself. Accept makes a card for each ticked adventure, with the levels its blurb gave as a suggestion;
+/// "Not split" says the file is one book. Either answer is remembered for every copy of the file, by content hash,
+/// and can be undone.
 /// </summary>
 public sealed class PartProposalService(PartProposalStore proposals, PartsService parts, EntryStore entries, IndexQueries queries,
     ILogger<PartProposalService>? log = null)
@@ -44,9 +44,9 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
     }
 
     /// <summary>
-    /// Whether a model should be asked which of a document's bookmarks are adventures (choice 6): it is a copy of a
-    /// book's own file with no adventures marked, nothing was proposed from this copy yet, and no copy's proposal was
-    /// answered. The rules' proposal comes first, from the file's own words, and a model never replaces it.
+    /// Whether a model should be asked which of a document's bookmarks are adventures: it is a copy of a book's own
+    /// file with no adventures marked, nothing was proposed from this copy yet, and no copy's proposal was answered.
+    /// The rules' proposal comes first, from the file's own words, and a model never replaces it.
     /// </summary>
     public async Task<bool> WantsModelAsync(long documentId, CancellationToken ct = default)
     {

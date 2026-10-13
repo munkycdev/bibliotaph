@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Sessions (slice 3 plan, choice 12): every session pack as a card, the upcoming ones by date, then those kept at hand
-/// during games by title (Binders plan, choice 13), then those without a date by when they were worked on, then Earlier
-/// ones (date passed), folded. A card opens the pack's page; New session makes one and opens it.
+/// Sessions: every session pack as a card, the upcoming ones by date, then those kept at hand during games by title,
+/// then those without a date by when they were worked on, then Earlier ones (date passed), folded. A card opens the
+/// pack's page; New session makes one and opens it.
 /// </summary>
 public sealed partial class SessionsViewModel(SessionActions actions, SessionPages sessionPages, LibraryPages pages, ILogger<SessionsViewModel> log)
     : PageViewModel

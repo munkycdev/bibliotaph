@@ -33,8 +33,8 @@ public sealed record PilotBookReview(PilotBook Book, string Title, bool Answered
 public sealed record PilotAnswer(string Typed, bool NotInBook);
 
 /// <summary>
-/// The model pilot (slice 2d): picks the books, runs each model over them into pilot.db with the Classify lane paused,
-/// takes the user's answers on the review page (and, by choice, into the catalog), and scores the models into a report.
+/// The model pilot: picks the books, runs each model over them into pilot.db with the Classify lane paused, takes
+/// the user's answers on the review page (and, by choice, into the catalog), and scores the models into a report.
 /// None of it runs unless the app starts with --pilot. pilot.db keys books by document, since a model reads one copy
 /// of a book; the catalog's values for a book are its entry's.
 /// </summary>
@@ -42,7 +42,7 @@ public sealed class PilotService(
     PilotStore store, AiSettings ai, IndexingService indexing, IndexQueries queries, LibraryStore library, EntryStore entries, ClassifierInputs inputs,
     MetadataService metadata, VocabularyStore vocabularies, TimeProvider? clock = null, ILogger<PilotService>? log = null)
 {
-    /// <summary>The models the plan names (choice P3); Settings lets the user change the list.</summary>
+    /// <summary>The models tried by default; Settings lets the user change the list.</summary>
     public const string DefaultModels = "qwen3:8b, llama3.1:8b, gemma3:12b";
 
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
@@ -139,10 +139,10 @@ public sealed class PilotService(
         [.. text.Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.Ordinal)];
 
     /// <summary>
-    /// Has each model read each book on the list it hasn't read yet (choices P2 and P3), storing what it proposed in
-    /// pilot.db and nothing in the catalog. The Classify lane is paused meanwhile, so the GPU serves one thing at a time.
-    /// Cancelling pauses: the next run carries on where this one stopped. A book whose answer can't be used counts as
-    /// that model's failure; an endpoint that stops answering ends the run with its message.
+    /// Has each model read each book on the list it hasn't read yet, storing what it proposed in pilot.db and nothing
+    /// in the catalog. The Classify lane is paused meanwhile, so the GPU serves one thing at a time. Cancelling
+    /// pauses: the next run carries on where this one stopped. A book whose answer can't be used counts as that
+    /// model's failure; an endpoint that stops answering ends the run with its message.
     /// </summary>
     public async Task<PilotRunEnd> RunAsync(IReadOnlyList<string> models, IProgress<PilotProgress>? progress = null, CancellationToken ct = default)
     {
@@ -229,8 +229,8 @@ public sealed class PilotService(
     }
 
     /// <summary>
-    /// A book for the review page (choice P5): for each core field, the values the models kept and the catalog's own,
-    /// merged and in alphabetical order so nothing says which model gave which, and the answer so far. Before the book is
+    /// A book for the review page: for each core field, the values the models kept and the catalog's own, merged and
+    /// in alphabetical order so nothing says which model gave which, and the answer so far. Before the book is
     /// answered, a value the user confirmed in the catalog is the starting answer.
     /// </summary>
     public async Task<PilotBookReview> GetReviewAsync(PilotBook book, CancellationToken ct = default)
@@ -316,7 +316,7 @@ public sealed class PilotService(
         return PilotScoring.Score(models, runs, proposals, await store.GetAnswersAsync(ct), new PilotMatcher(await vocabularies.GetAsync(ct)));
     }
 
-    /// <summary>Writes report.html in the pilot folder (choice P7) and returns where it is. It stays on this computer.</summary>
+    /// <summary>Writes report.html in the pilot folder and returns where it is. It stays on this computer.</summary>
     public async Task<string> WriteReportAsync(CancellationToken ct = default)
     {
         var books = await LoadBooksAsync(ct);

@@ -15,8 +15,8 @@ public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, 
 
 /// <summary>
 /// Everything in Needs review's Metadata suggestions tab, and the vocabulary to label it with. <see cref="Parts"/> are
-/// the adventures whose pages weren't found in the copy their file shows now (slice 5), and <see cref="Proposals"/> the
-/// files that look like they hold several adventures (slice 5b).
+/// the adventures whose pages weren't found in the copy their file shows now, and <see cref="Proposals"/> the files
+/// that look like they hold several adventures.
 /// </summary>
 public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions,
     IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null,
@@ -29,7 +29,7 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
 }
 
 /// <summary>
-/// Needs review's metadata suggestions (spec 5.5): which cards there are, and the user's decisions about them. Every
+/// Needs review's metadata suggestions: which cards there are, and the user's decisions about them. Every
 /// decision about a field can be undone exactly, from a snapshot taken before it; a decision about a new term, from
 /// what it changed. The entries are projected again after each, so the library and the count keep up.
 /// </summary>
@@ -64,8 +64,8 @@ public sealed class ReviewService(
     /// <summary>
     /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards, the
     /// folders proposed as packs, the files that may be those of books owned elsewhere, the new versions with places
-    /// that need a look, the books said to be cataloged wrong, the folder rules proposed (scenario review, row 8), the
-    /// adventures whose pages weren't found, and the files that look like they hold adventures.
+    /// that need a look, the books said to be cataloged wrong, the folder rules proposed, the adventures whose pages
+    /// weren't found, and the files that look like they hold adventures.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
         await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct)
@@ -108,8 +108,8 @@ public sealed class ReviewService(
         rules is null ? () => Task.CompletedTask : await rules.SetAsync(rule, use, ct);
 
     /// <summary>
-    /// Use this page on a "new version" card (slice 4h plan, choice 3): the place points at the page suggested for it
-    /// in the new version from now on, checked. Returns what undoes it, or null when the place is gone.
+    /// Use this page on a "new version" card: the place points at the page suggested for it in the new version from now
+    /// on, checked. Returns what undoes it, or null when the place is gone.
     /// </summary>
     public async Task<Func<Task>?> UsePlaceAsync(RevisionPlace place, CancellationToken ct = default) =>
         places is null ? null : await places.UseAsync(place.Place, place.Check.DocumentId, place.Check.FirstPdfPage, place.Check.LastPdfPage, ct);

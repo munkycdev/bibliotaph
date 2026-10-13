@@ -45,9 +45,9 @@ public static class Csv
 }
 
 /// <summary>
-/// Export (slice 4j plan, choice 7): a CSV with one row per book for spreadsheets, from Settings > Backup or for the
-/// books ticked in the Library; or JSON with everything in catalog.db, for moving the library somewhere else.
-/// Passwords and AI keys are never in either.
+/// Export: a CSV with one row per book for spreadsheets, from Settings > Backup or for the books ticked in the
+/// Library; or JSON with everything in catalog.db, for moving the library somewhere else. Passwords and AI keys are
+/// never in either.
 /// </summary>
 public sealed class ExportService(LibraryStore library, EntryStore entries, MetadataStore metadata, VocabularyStore vocabularies, PackStore packs,
     CatalogExport catalog, TimeProvider? clock = null)

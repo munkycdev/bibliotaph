@@ -48,7 +48,7 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
     /// <summary>A pack's images, in file name order.</summary>
     public IReadOnlyList<EntryMemberRow> Members { get; init; } = [];
 
-    /// <summary>For an adventure inside a file (slice 5), the file's entry.</summary>
+    /// <summary>For an adventure inside a file, the file's entry.</summary>
     public EntryId? ParentEntryId { get; init; }
 
     /// <summary>For an adventure inside a file, its first and last PDF pages in <see cref="DocumentId"/>.</summary>
@@ -279,17 +279,17 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     public Task SetCoverAsync(long documentId, string? cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
-    /// <summary>Records the cover drawn from one page of a document: an adventure's first page (slice 5 plan, choice 9).</summary>
+    /// <summary>Records the cover drawn from one page of a document: an adventure's first page.</summary>
     public Task SetPageCoverAsync(long documentId, int pdfPage, string cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute(
             "INSERT INTO page_cover (document_id, pdf_page, cover) VALUES (@documentId, @pdfPage, @cover) ON CONFLICT DO UPDATE SET cover = excluded.cover",
             new { documentId, pdfPage, cover }, t), ct);
 
     /// <summary>
-    /// "Forget its text" (slice 4i plan, choice 6), the purge of derived content: a document's pages with their search
-    /// text and OCR words, its bookmarks and its cover go in one transaction, and so do its jobs and stage statuses, in
-    /// place of which a skipped Probe says why. Its doc row stays, so the card keeps its title, page count and the
-    /// file's own information. Returns false, changing nothing, while one of its stages is running.
+    /// "Forget its text", the purge of derived content: a document's pages with their search text and OCR words, its
+    /// bookmarks and its cover go in one transaction, and so do its jobs and stage statuses, in place of which a
+    /// skipped Probe says why. Its doc row stays, so the card keeps its title, page count and the file's own
+    /// information. Returns false, changing nothing, while one of its stages is running.
     /// </summary>
     public Task<bool> ForgetTextAsync(long documentId, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
@@ -551,8 +551,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     /// <summary>
     /// Rebuilds an entry's entry_fts row from its document's doc row and its projected metadata. The effective title
     /// (or a pack's name) is the title; the file name's title, the PDF's own information and the folder names are
-    /// provisional text, except for an adventure inside a file (slice 5), which those describe less than its file. An
-    /// entry whose document Probe hasn't reached has no row yet; a book owned elsewhere has one from its metadata alone.
+    /// provisional text, except for an adventure inside a file, which those describe less than its file. An entry whose
+    /// document Probe hasn't reached has no row yet; a book owned elsewhere has one from its metadata alone.
     /// </summary>
     static void RefreshEntrySearch(SqliteConnection c, SqliteTransaction t, long entryId)
     {

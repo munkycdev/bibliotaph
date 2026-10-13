@@ -7,8 +7,8 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// Easier corrections (scenario review, row 8) through the real pipeline: a correction offered to look-alikes, folder
-/// rules proposed and used, the Cataloged wrong card in Needs review, and worked examples for the classifier.
+/// Easier corrections through the real pipeline: a correction offered to look-alikes, folder rules proposed and used,
+/// the Cataloged wrong card in Needs review, and worked examples for the classifier.
 /// </summary>
 public sealed partial class PipelineTests
 {

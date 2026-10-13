@@ -52,10 +52,10 @@ public sealed class ValueSuggestionViewModel(SearchFieldInfo searchField, GuideV
 
 /// <summary>
 /// The panel under the search box that lists the fields you can search, and after a field's colon the values in your
-/// library (slice 4 plan, item 4b). It opens when the box gets focus while empty, narrows to the field names that
-/// start with the word at the cursor, and opens anywhere with Ctrl+Space. Picking a row raises <see cref="Edited"/>
-/// with the new text and cursor; the window applies it to the box, which keeps focus throughout. The logic of what
-/// to offer is <see cref="SearchGuide"/>'s; this keeps the state and loads the values.
+/// library. It opens when the box gets focus while empty, narrows to the field names that start with the word at the
+/// cursor, and opens anywhere with Ctrl+Space. Picking a row raises <see cref="Edited"/> with the new text and
+/// cursor; the window applies it to the box, which keeps focus throughout. The logic of what to offer is
+/// <see cref="SearchGuide"/>'s; this keeps the state and loads the values.
 /// </summary>
 public sealed partial class SearchGuideViewModel(LibraryQueries queries, LibraryStore library, ILogger<SearchGuideViewModel> log) : ObservableObject
 {

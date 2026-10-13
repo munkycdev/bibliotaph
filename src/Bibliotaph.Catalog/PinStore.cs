@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog;
 
-/// <summary>What a pin points at: a book, Favorites, a collection, a binder or a saved search (Pinned Views plan, choice 2).</summary>
+/// <summary>What a pin points at: a book, Favorites, a collection, a binder or a saved search.</summary>
 public readonly record struct PinTarget(PinKind Kind, long? Id)
 {
     public static PinTarget Favorites => new(PinKind.Favorites, null);
@@ -23,8 +23,8 @@ public readonly record struct PinTarget(PinKind Kind, long? Id)
 public sealed record PinInfo(long Id, PinTarget Target, int Position);
 
 /// <summary>
-/// The sidebar's Pinned group (Pinned Views plan, choices 3 to 5): one ordered list of pins of every kind. New pins go
-/// to the bottom. The stores that delete a pin's target say where its pin stood, so Undo puts it back there.
+/// The sidebar's Pinned group: one ordered list of pins of every kind. New pins go to the bottom. The stores that
+/// delete a pin's target say where its pin stood, so Undo puts it back there.
 /// </summary>
 public sealed class PinStore(IDbContextFactory<CatalogDbContext> contexts)
 {
@@ -55,8 +55,8 @@ public sealed class PinStore(IDbContextFactory<CatalogDbContext> contexts)
     }
 
     /// <summary>
-    /// Moves the target's pin to <paramref name="index"/> in the list (Pinned Views plan, choices 4 and 8), clamped to its
-    /// ends, renumbering every pin in one save. Returns false if it isn't pinned or is already there.
+    /// Moves the target's pin to <paramref name="index"/> in the list, clamped to its ends, renumbering every pin in
+    /// one save. Returns false if it isn't pinned or is already there.
     /// </summary>
     public async Task<bool> MoveAsync(PinTarget target, int index, CancellationToken ct = default)
     {

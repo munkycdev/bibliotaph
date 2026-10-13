@@ -10,7 +10,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 4j: a backup restored on another computer, with its library folders somewhere else (A15).</summary>
+/// <summary>A backup restored on another computer, with its library folders somewhere else.</summary>
 public sealed partial class PipelineTests
 {
     /// <summary>The data folder <see cref="InitializeAsync"/> builds on; a test changes it to start again as another computer.</summary>
@@ -223,7 +223,7 @@ public sealed partial class PipelineTests
         // Nothing was read again: the index came with the backup.
         Assert.Equal(jobs, await JobsAsync());
 
-        // Settings > Library > Point to its new place, as 4g offers for an offline folder.
+        // Settings > Library > Point to its new place, as offered for an offline folder.
         Assert.Equal(RootRelocation.Relocated, await _service.RelocateRootAsync(second, later, Ct));
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         timeout.CancelAfter(Patience);

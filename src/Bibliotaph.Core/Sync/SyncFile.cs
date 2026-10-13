@@ -29,10 +29,10 @@ public static class SyncJson
 public sealed record SyncFileContent(string Machine, Guid MachineId, string? App, DateTime WrittenUtc, IReadOnlyList<SyncRecord> Records);
 
 /// <summary>
-/// The library sync file (library sync plan, choice 1): <c>&lt;folder&gt;\Bibliotaph sync\&lt;PC name&gt;.json</c>, one per
-/// PC, so no two PCs ever write the same file and the cloud sync app never sees a conflict. It holds the PC's user
-/// work keyed by content hash and sync id, each field with when it changed, and the tombstones of what was deleted.
-/// Never file locations, online-only marks, window places or caches: those belong to one PC.
+/// The library sync file: <c>&lt;folder&gt;\Bibliotaph sync\&lt;PC name&gt;.json</c>, one per PC, so no two PCs ever
+/// write the same file and the cloud sync app never sees a conflict. It holds the PC's user work keyed by content hash
+/// and sync id, each field with when it changed, and the tombstones of what was deleted. Never file locations,
+/// online-only marks, window places or caches: those belong to one PC.
 /// </summary>
 public static class SyncFile
 {

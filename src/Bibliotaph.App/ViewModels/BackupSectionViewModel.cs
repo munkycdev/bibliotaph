@@ -15,7 +15,7 @@ namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
 /// A library folder of the backup being restored: found where it was, pointed to its new place, or left offline to be
-/// fixed later (slice 4j plan, choice 4).
+/// fixed later.
 /// </summary>
 public sealed partial class RestoreFolderItem(RestoreFolder folder) : ObservableObject
 {
@@ -49,10 +49,10 @@ public sealed partial class RestoreFolderItem(RestoreFolder folder) : Observable
 }
 
 /// <summary>
-/// Settings > Backup (slice 4j): Back up now, the weekly backups and their folder, syncing with another PC (library sync
-/// plan), restoring a backup with its library folders found or pointed to their new places, and exporting the library
-/// as CSV or JSON. The work is <see cref="BackupService"/>'s, <see cref="LibrarySync"/>'s and <see cref="ExportService"/>'s;
-/// this asks where, and says what happened.
+/// Settings > Backup: Back up now, the weekly backups and their folder, syncing with another PC, restoring a backup
+/// with its library folders found or pointed to their new places, and exporting the library as CSV or JSON. The work
+/// is <see cref="BackupService"/>'s, <see cref="LibrarySync"/>'s and <see cref="ExportService"/>'s; this asks
+/// where, and says what happened.
 /// </summary>
 public sealed partial class BackupSectionViewModel(BackupService backups, ExportService export, LibrarySync sync, AppRestart restart, TimeProvider clock,
     ILogger<BackupSectionViewModel> log) : SettingsSectionViewModel

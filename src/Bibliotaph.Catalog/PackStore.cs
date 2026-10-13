@@ -11,7 +11,7 @@ public sealed record PackPlace(string RootPath, string FolderPath, bool IsArchiv
 }
 
 /// <summary>
-/// A smaller or mixed folder or ZIP that Needs review asks about (F4 plan, choice 3): "Make these 12 images one card?".
+/// A smaller or mixed folder or ZIP that Needs review asks about: "Make these 12 images one card?".
 /// <see cref="Images"/> are its images' documents in file name order, and <see cref="BesidePdfs"/> says PDFs share it.
 /// </summary>
 public sealed record PackProposal(EntryId PackId, PackPlace Place, string Name, IReadOnlyList<long> Images, bool BesidePdfs);
@@ -20,9 +20,9 @@ public sealed record PackProposal(EntryId PackId, PackPlace Place, string Name, 
 public sealed record PackChange(IReadOnlyList<EntryId> Changed, PackAnswer Previous);
 
 /// <summary>
-/// What Pack together did (multi-select plan, choices 8 to 11), so Undo can put it back: the pack the cards went
-/// into, whether it was made for them, the images that joined it, and the packs merged into it. <see cref="Changed"/>
-/// lists every card that changed, the pack's first, to project.
+/// What Pack together did, so Undo can put it back: the pack the cards went into, whether it was made for them, the
+/// images that joined it, and the packs merged into it. <see cref="Changed"/> lists every card that changed, the
+/// pack's first, to project.
 /// </summary>
 public sealed record PackTogether(EntryId PackId, bool Created, IReadOnlyList<EntryId> Images, IReadOnlyList<EntryId> Merged, IReadOnlyList<EntryId> Changed);
 
@@ -33,22 +33,22 @@ internal readonly record struct PlaceMove(long FromRootId, string FromPath, long
 public sealed record PackFolder(string FullPath, bool IsArchive, int Images);
 
 /// <summary>
-/// Image packs in catalog.db (F4 plan, choices 1 to 5): a folder or ZIP of many images becomes one card. Each image
-/// keeps its own entry, which points at the pack's while it is in it, so splitting gives every image its card back
-/// with anything set on it. The folders' decisions are remembered by path, so a rescan doesn't undo them. Pack
-/// together (multi-select plan) makes packs by hand, which have no folder, and merges packs: a merged pack keeps its
-/// entry, marked as merged, and its folder's new images join the pack it merged into.
+/// Image packs in catalog.db: a folder or ZIP of many images becomes one card. Each image keeps its own entry, which
+/// points at the pack's while it is in it, so splitting gives every image its card back with anything set on it. The
+/// folders' decisions are remembered by path, so a rescan doesn't undo them. Pack together makes packs by hand, which
+/// have no folder, and merges packs: a merged pack keeps its entry, marked as merged, and its folder's new images join
+/// the pack it merged into.
 /// </summary>
 public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
     /// <summary>For moving what a merged pack brings, as a copy's card is moved when it joins another.</summary>
     readonly EntryStore _entries = new(contexts, clock);
 
-    /// <summary>A folder or ZIP with at least this many images and no PDF becomes a pack by itself (choice 2).</summary>
+    /// <summary>A folder or ZIP with at least this many images and no PDF becomes a pack by itself.</summary>
     public const int AutomaticMinimum = 20;
 
     /// <summary>
-    /// A folder or ZIP with at least this many images that isn't packed by itself is proposed as a pack (choice 3).
+    /// A folder or ZIP with at least this many images that isn't packed by itself is proposed as a pack.
     /// Fewer never ask, so a book's two or three handouts don't produce a card.
     /// </summary>
     public const int ProposalMinimum = 5;
@@ -101,7 +101,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             else if (decision.Answer == PackAnswer.Proposed && automatic) decision.Answer = PackAnswer.Packed;
             if (decision.Answer != PackAnswer.Packed) continue;
 
-            // A folder whose pack merged into another fills that one (multi-select plan, choice 10).
+            // A folder whose pack merged into another fills that one.
             var packId = Resolve(merged, decision.EntryId);
             var joining = await JoinAsync(db, packId, [.. group.Images.Select(i => i.DocumentId)], ct);
             if (joining.Count == 0) continue;
@@ -249,9 +249,9 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     }
 
     /// <summary>
-    /// "Split into separate images" (choice 4): every image gets its card back, and no folder or ZIP the pack was made
-    /// from is packed again, its own or those of packs merged into it; a pack made by hand has none. Returns the
-    /// entries whose cards changed, the pack's first and then its images, or null for an entry that isn't a pack.
+    /// "Split into separate images": every image gets its card back, and no folder or ZIP the pack was made from is
+    /// packed again, its own or those of packs merged into it; a pack made by hand has none. Returns the entries whose
+    /// cards changed, the pack's first and then its images, or null for an entry that isn't a pack.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>?> SplitAsync(EntryId packId, CancellationToken ct = default)
     {
@@ -291,11 +291,11 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     }
 
     /// <summary>
-    /// Pack together (multi-select plan, choices 8 to 11): two or more cards for single images or packs become one
-    /// pack. Images only make a new pack, with no folder, that doesn't grow by itself; with a pack among them, the
-    /// images join it; with several, the newer packs merge into the oldest with their images, and what each brings
-    /// (favourites, collections, binder items, notes, values) moves as a copy's card's does. Null when the cards can't
-    /// go together: fewer than two, a book, a part, a card in a pack or merged already.
+    /// Pack together: two or more cards for single images or packs become one pack. Images only make a new pack, with
+    /// no folder, that doesn't grow by itself; with a pack among them, the images join it; with several, the newer
+    /// packs merge into the oldest with their images, and what each brings (favourites, collections, binder items,
+    /// notes, values) moves as a copy's card's does. Null when the cards can't go together: fewer than two, a book, a
+    /// part, a card in a pack or merged already.
     /// </summary>
     public async Task<PackTogether?> PackTogetherAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {

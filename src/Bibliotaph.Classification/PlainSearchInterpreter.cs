@@ -1,8 +1,8 @@
 namespace Bibliotaph.Classification;
 
 /// <summary>
-/// Reads a request in plain English as a search (scenario review, row 5). The result has passed <see cref="PlainSearchCheck"/>;
-/// running it is the caller's business, and only once the user presses Search.
+/// Reads a request in plain English as a search. The result has passed <see cref="PlainSearchCheck"/>; running it is
+/// the caller's business, and only once the user presses Search.
 /// </summary>
 public interface IPlainSearchInterpreter
 {

@@ -1,6 +1,6 @@
 namespace Bibliotaph.Core.Tests;
 
-/// <summary>Slice 5b: the rule that proposes a compilation's adventures from its bookmarks and their blurbs.</summary>
+/// <summary>The rule that proposes a compilation's adventures from its bookmarks and their blurbs.</summary>
 public class PartRulesTests
 {
     /// <summary>A made-up compilation: credits, three adventures with a page of blurb each, and an appendix.</summary>

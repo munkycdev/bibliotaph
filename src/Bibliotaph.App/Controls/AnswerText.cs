@@ -8,9 +8,9 @@ using Bibliotaph.Classification;
 namespace Bibliotaph.App.Controls;
 
 /// <summary>
-/// Shows an Ask answer, as checked, in a TextBlock (Ask plan, step 5): each citation a link that runs
-/// <see cref="CommandProperty"/> with its <see cref="AnswerPart"/>, a quotation that wasn't on its page in italics and
-/// without its marks, and a sentence whose citations were removed followed by a muted note saying so.
+/// Shows an Ask answer, as checked, in a TextBlock: each citation a link that runs <see cref="CommandProperty"/> with
+/// its <see cref="AnswerPart"/>, a quotation that wasn't on its page in italics and without its marks, and a sentence
+/// whose citations were removed followed by a muted note saying so.
 /// </summary>
 public static class AnswerText
 {

@@ -2,7 +2,7 @@ using Bibliotaph.Classification;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Ask (scenario review, row 5) through the app's AI setup, with the fake model in place of the server.</summary>
+/// <summary>Ask through the app's AI setup, with the fake model in place of the server.</summary>
 public sealed partial class PipelineTests
 {
     const string PlainSearchAnswer = """

@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Files that reading downloaded from OneDrive, waiting to go back to online-only (Dale's review, row 2).</summary>
+/// <summary>Files that reading downloaded from OneDrive, waiting to go back to online-only.</summary>
 public sealed partial class LibraryStoreTests
 {
     [Fact]

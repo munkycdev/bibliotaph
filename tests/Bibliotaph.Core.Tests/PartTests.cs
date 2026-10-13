@@ -2,7 +2,7 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Core.Tests;
 
-/// <summary>The rules for adventures inside a file (slice 5): their pages, and what they take from the file.</summary>
+/// <summary>The rules for adventures inside a file: their pages, and what they take from the file.</summary>
 public class PartTests
 {
     static readonly DateTime Now = new(2026, 10, 11, 12, 0, 0, DateTimeKind.Utc);

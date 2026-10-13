@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Adventures inside a file (slice 5): entries of kind Part with a page range of each copy of their file.</summary>
+/// <summary>Adventures inside a file: entries of kind Part with a page range of each copy of their file.</summary>
 public sealed class PartStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);

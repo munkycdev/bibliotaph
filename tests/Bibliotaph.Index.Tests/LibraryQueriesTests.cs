@@ -480,7 +480,7 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal(4, Connection.ExecuteScalar<long>("SELECT count(*) FROM doc"));
     }
 
-    /// <summary>Marks pages 2 and 3 of the gazetteer as an adventure of its own, as the projection records one (slice 5).</summary>
+    /// <summary>Marks pages 2 and 3 of the gazetteer as an adventure of its own, as the projection records one.</summary>
     async Task<EntryId> AddPartAsync()
     {
         var store = new IndexStore(Writer, Clock);

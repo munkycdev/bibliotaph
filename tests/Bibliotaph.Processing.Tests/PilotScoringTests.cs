@@ -3,7 +3,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>The model pilot's arithmetic (slice 2d): the sample, when two values mean the same, and the scores.</summary>
+/// <summary>The model pilot's arithmetic: the sample, when two values mean the same, and the scores.</summary>
 public sealed class PilotScoringTests
 {
     static readonly Vocabulary Vocabulary = new(

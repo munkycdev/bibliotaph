@@ -10,7 +10,7 @@ public sealed record ScanSummary
     public required IReadOnlyDictionary<string, int> ByFormat { get; init; }
     public int Unsupported { get; init; }
 
-    /// <summary>ZIPs, whose PDFs and images are read from inside them (F3). What they hold isn't known until then.</summary>
+    /// <summary>ZIPs, whose PDFs and images are read from inside them. What they hold isn't known until then.</summary>
     public int Archives { get; init; }
 
     public int OnlineOnly { get; init; }

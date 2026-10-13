@@ -282,7 +282,7 @@ static partial class SmokeTest
             ClassifierPrompt.Version, ClassifierPrompt.SchemaVersion, [0], DateTime.UtcNow, ClassificationStore.Complete));
         await services.GetRequiredService<MetadataProjector>().ProjectAsync([lairsEntry, gazetteerEntry]);
 
-        // A second file of the lairs in another folder, joined to its card as a copy, as Match joins one (F2).
+        // A second file of the lairs in another folder, joined to its card as a copy, as Match joins one.
         const string BackupPath = "Backup/Dragon Lairs.pdf";
         var (_, lairsTitle, lairsPages) = books.Single(b => b.Title == "Dragon Lairs");
         await library.ReconcileRootAsync(root.Id, [.. books.Select(b => b.Path).Append(BackupPath).Select(p => new ScannedFile(Relative(p), 1000, modified, false))]);
@@ -363,7 +363,7 @@ static partial class SmokeTest
             await title.SaveCommand.ExecuteAsync(null);
             if (!title.IsDone) throw new InvalidOperationException($"Typing a title didn't decide its card: {title.Problem}");
 
-            // Copies that disagree (F2): keep this card's year, then undo, so the card is drawn again in Dark.
+            // Copies that disagree: keep this card's year, then undo, so the card is drawn again in Dark.
             var years = page.Cards.OfType<ReviewCardViewModel>().FirstOrDefault(c => c is { Kind: ReviewKind.CopiesDisagree, Title: "Dragon Lairs" })
                 ?? throw new InvalidOperationException("The lairs' two years aren't a Copies disagree card.");
             if (years is not { CurrentText: "2019", ProposedText: "2020", CurrentLabel: "This card", SuggestedLabel: "The other copy" })
@@ -373,7 +373,7 @@ static partial class SmokeTest
             await WaitUntilAsync(window, () => years.IsDone, () => "Keep this card's didn't decide the Copies disagree card.");
             await years.UndoCommand.ExecuteAsync(null);
 
-            // A new version (F2): make it current, then undo, which gives the scan its own card back.
+            // A new version: make it current, then undo, which gives the scan its own card back.
             var version = page.Cards.OfType<VersionCardViewModel>().FirstOrDefault()
                 ?? throw new InvalidOperationException("The made-up new version isn't a card.");
             // Whichever of the two files is newer is the one proposed, so the card names either book.
@@ -469,8 +469,8 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// A book in two files (F2): "2 copies" in the list, the Copies filter, and the inspector's Copies section, where
-    /// Make current switches which file opens and switches it back.
+    /// A book in two files: "2 copies" in the list, the Copies filter, and the inspector's Copies section, where Make
+    /// current switches which file opens and switches it back.
     /// </summary>
     static async Task ShowCopiesAsync(Window window, IServiceProvider services, int books)
     {
@@ -606,9 +606,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Select mode and bulk editing (slice 4e): Ctrl+A and Clear, then two made-up books ticked by clicking them in the
-    /// list, drawn ticked in the covers too, and still ticked through a search that doesn't show them. Edit metadata
-    /// files a name the vocabulary doesn't know as a new type (dropped again), adds a tag to both and shows the summary;
+    /// Select mode and bulk editing: Ctrl+A and Clear, then two made-up books ticked by clicking them in the list,
+    /// drawn ticked in the covers too, and still ticked through a search that doesn't show them. Edit metadata files a
+    /// name the vocabulary doesn't know as a new type (dropped again), adds a tag to both and shows the summary;
     /// applying finds both by tag:, and Undo finds neither.
     /// </summary>
     static async Task BulkEditAsync(Window window, LibraryViewModel page, SearchState search, int books)
@@ -1080,9 +1080,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Image packs (F4a): twenty token images in a ZIP become one card with a mosaic; its inspector lists them,
-    /// one opens in the viewer, which steps to the next; Split gives them their cards back and Undo packs them again;
-    /// searching for one image's name finds the pack, which opens at that image (F4b).
+    /// Image packs: twenty token images in a ZIP become one card with a mosaic; its inspector lists them, one opens in
+    /// the viewer, which steps to the next; Split gives them their cards back and Undo packs them again; searching for
+    /// one image's name finds the pack, which opens at that image.
     /// </summary>
     static async Task UsePackAsync(IServiceProvider services, Window window)
     {
@@ -1164,16 +1164,17 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Offline folders (4g): the made-up library's folder was never on disk, so a scan finds it offline. Its books stay
-    /// in the Library, marked Offline; opening one shows the reader's prompt to plug in the drive, naming the folder,
-    /// whose Try again looks at it again; the sidebar says one folder is offline; and its card in Settings says it can't
-    /// be reached and offers Point to its new place, which no folder that can be reached does. The picker isn't opened.
+    /// Offline folders: the made-up library's folder was never on disk, so a scan finds it offline. Its books stay in
+    /// the Library, marked Offline; opening one shows the reader's prompt to plug in the drive, naming the folder,
+    /// whose Try again looks at it again; the sidebar says one folder is offline; and its card in Settings says it
+    /// can't be reached and offers Point to its new place, which no folder that can be reached does. The picker isn't
+    /// opened.
     /// </summary>
     /// <summary>
-    /// Settings > Backup (slice 4j): Back up now's work saves a ZIP of the catalog and its manifest, without the search
-    /// index unless asked; choosing that ZIP for restoring reads it back and lists the made-up library's folder, which
-    /// isn't on disk, as Not found with Point to its new place; Cancel puts the section back and drops what was read.
-    /// The file dialogs and the restart aren't driven: the section's own methods do what follows them.
+    /// Settings > Backup: Back up now's work saves a ZIP of the catalog and its manifest, without the search index
+    /// unless asked; choosing that ZIP for restoring reads it back and lists the made-up library's folder, which isn't
+    /// on disk, as Not found with Point to its new place; Cancel puts the section back and drops what was read. The
+    /// file dialogs and the restart aren't driven: the section's own methods do what follows them.
     /// </summary>
     static async Task BackUpAndPreviewRestoreAsync(IServiceProvider services, Window window)
     {
@@ -1214,11 +1215,11 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Settings > Backup > Sync with another PC (library sync plan): Bibliotaph's own data folder is refused, as the
-    /// databases must never be in a synced folder; the folder beside the data root, where build/verify.ps1 put a made-up
-    /// second PC's sync file, is taken: this PC's file is written there, and the other PC's collection is merged and shows
-    /// among the collections; Sync now merges again; Stop syncing stops. The folder picker isn't driven: the section's own
-    /// method does what follows it.
+    /// Settings > Backup > Sync with another PC: Bibliotaph's own data folder is refused, as the databases must never
+    /// be in a synced folder; the folder beside the data root, where build/verify.ps1 put a made-up second PC's sync
+    /// file, is taken: this PC's file is written there, and the other PC's collection is merged and shows among the
+    /// collections; Sync now merges again; Stop syncing stops. The folder picker isn't driven: the section's own method
+    /// does what follows it.
     /// </summary>
     static async Task SyncWithAnotherPcAsync(IServiceProvider services, Window window)
     {
@@ -1316,8 +1317,8 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Pack proposals (F4b): six images in a ZIP are too few to pack by themselves, so Needs review asks. Make a pack
-    /// makes them one card, Undo asks again, and Keep separate answers for good.
+    /// Pack proposals: six images in a ZIP are too few to pack by themselves, so Needs review asks. Make a pack makes
+    /// them one card, Undo asks again, and Keep separate answers for good.
     /// </summary>
     static async Task ProposePackAsync(IServiceProvider services, Window window)
     {
@@ -1366,9 +1367,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Pack together (multi-select plan, M2), with the handouts Keep separate left as cards of their own: two make a
-    /// pack, renamed in the dialog; a third joins it; the pack merges into the tokens' pack, the older one; Undo puts
-    /// it back, and a split at the end leaves the handouts as they were.
+    /// Pack together, with the handouts Keep separate left as cards of their own: two make a pack, renamed in the
+    /// dialog; a third joins it; the pack merges into the tokens' pack, the older one; Undo puts it back, and a split
+    /// at the end leaves the handouts as they were.
     /// </summary>
     static async Task PackTogetherAsync(IServiceProvider services, Window window)
     {
@@ -1459,11 +1460,11 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 4h: a session item made in the lairs' other copy, whose page wasn't found in the copy the book opens now,
-    /// is a "new version" card in Needs review; Use this page on the card checks it, and Undo puts it back, while the
-    /// binder, popped out into a window, follows each change without being opened again. The session is deleted at the
-    /// end, so later checks see the library as it was. What was found is seeded, since the
-    /// made-up books have no pages to fingerprint.
+    /// A session item made in the lairs' other copy, whose page wasn't found in the copy the book opens now, is a "new
+    /// version" card in Needs review; Use this page on the card checks it, and Undo puts it back, while the binder,
+    /// popped out into a window, follows each change without being opened again. The session is deleted at the end, so
+    /// later checks see the library as it was. What was found is seeded, since the made-up books have no pages to
+    /// fingerprint.
     /// </summary>
     static async Task ReviewRevisionAsync(IServiceProvider services, Window window)
     {
@@ -1532,9 +1533,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3f with 4h: a page note made in the lairs' other copy, whose page was found a page on in the copy the book
-    /// opens now, is listed in the details' Notes tab at its page there, not the page it was made on. What was found is
-    /// seeded, as in <see cref="ReviewRevisionAsync"/>; the note is deleted at the end, so later checks see the book as it was.
+    /// A page note made in the lairs' other copy, whose page was found a page on in the copy the book opens now, is
+    /// listed in the details' Notes tab at its page there, not the page it was made on. What was found is seeded, as in
+    /// <see cref="ReviewRevisionAsync"/>; the note is deleted at the end, so later checks see the book as it was.
     /// </summary>
     static async Task ListMovedPageNoteAsync(IServiceProvider services, Window window)
     {
@@ -1576,14 +1577,14 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Owned elsewhere (F5a): the Library's "Add a book I own elsewhere" dialog makes a card with no file, whose
-    /// inspector opens with Also own first and nothing to open; own:print finds it; Remove takes it away and Undo brings
-    /// it back. The book is removed again at the end, so later checks see the library as it was.
+    /// Owned elsewhere: the Library's "Add a book I own elsewhere" dialog makes a card with no file, whose inspector
+    /// opens with Also own first and nothing to open; own:print finds it; Remove takes it away and Undo brings it back.
+    /// The book is removed again at the end, so later checks see the library as it was.
     /// </summary>
     /// <summary>
-    /// Slice 3a: the details' heart marks a book; its cover shows the heart; the sidebar's Favorites opens the Library
-    /// scoped to it, with a chip whose × shows the whole library; favorite:yes finds it; Home offers the way in; and the
-    /// card menu's command unmarks it, leaving Favorites empty.
+    /// The details' heart marks a book; its cover shows the heart; the sidebar's Favorites opens the Library scoped to
+    /// it, with a chip whose × shows the whole library; favorite:yes finds it; Home offers the way in; and the card
+    /// menu's command unmarks it, leaving Favorites empty.
     /// </summary>
     static async Task UseFavoritesAsync(IServiceProvider services, Window window, int books)
     {
@@ -1603,7 +1604,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "Heart" && b.IsVisible && ReferenceEquals(b.CommandParameter, book)),
             () => "The favorite's cover doesn't show its heart.");
 
-        // A new library starts with Favorites pinned (Pinned Views plan, choice 5).
+        // A new library starts with Favorites pinned.
         var pins = Descendants<ItemsControl>(window).FirstOrDefault(i => i.Name == "Pinned");
         Click(pins is null ? null : Descendants<Button>(pins).FirstOrDefault(), "Favorites in the sidebar");
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Scope: not null, Items: [var only] } && only.EntryId == book.EntryId,
@@ -1641,9 +1642,10 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3e: a search and a filter saved, which is pinned in the sidebar and marked there; Unpin and Pin on its page;
-    /// a changed filter offers Update saved search, whose Undo puts it back; its pin on Home opens it with its search and
-    /// filter; the sidebar's Rename… renames it; Delete removes it and its pin with Undo, and it is deleted again at the end.
+    /// A search and a filter saved, which is pinned in the sidebar and marked there; Unpin and Pin on its page; a
+    /// changed filter offers Update saved search, whose Undo puts it back; its pin on Home opens it with its search and
+    /// filter; the sidebar's Rename… renames it; Delete removes it and its pin with Undo, and it is deleted again at
+    /// the end.
     /// </summary>
     static async Task UseSmartViewsAsync(IServiceProvider services, Window window, int books)
     {
@@ -1672,7 +1674,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.PinLabel == "Unpin",
             () => "Pin didn't put the search back in the sidebar, marked.");
 
-        // Unpinned, it is still in the Saved searches list, which pins it again (Pinned Views plan, choice 11).
+        // Unpinned, it is still in the Saved searches list, which pins it again.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Unpin the saved search");
         await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin", () => "Unpin didn't take the search out of the sidebar.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SavedSearches"), "Saved searches");
@@ -1746,9 +1748,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3b: a collection made on Collections, with a Maps collection inside it; books added from Select mode and
-    /// from a card's menu, with Undo; the collection's page showing its books and its sub-collection's, and only its
-    /// own with the switch; collection:"name"; the details' chips; Pin (on Home) and Rename; and Delete with Undo.
+    /// A collection made on Collections, with a Maps collection inside it; books added from Select mode and from a
+    /// card's menu, with Undo; the collection's page showing its books and its sub-collection's, and only its own with
+    /// the switch; collection:"name"; the details' chips; Pin (on Home) and Rename; and Delete with Undo.
     /// </summary>
     static async Task UseCollectionsAsync(IServiceProvider services, Window window, int books)
     {
@@ -1875,9 +1877,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Pinned Views plan, choices 6 to 8: a book pinned from its menu shows in the sidebar by its title; Favorites moves
-    /// below it with Alt+Down and back with Move up; the book's details offer Unpin, which takes it out; pinned again, the
-    /// sidebar's Unpin takes it out too.
+    /// A book pinned from its menu shows in the sidebar by its title; Favorites moves below it with Alt+Down and back
+    /// with Move up; the book's details offer Unpin, which takes it out; pinned again, the sidebar's Unpin takes it out
+    /// too.
     /// </summary>
     static async Task UsePinsAsync(IServiceProvider services, Window window, int books)
     {
@@ -1893,7 +1895,7 @@ static partial class SmokeTest
             () => "Pin didn't put the book in the sidebar under its title.");
         await AuditAsync(window, "the sidebar with a pinned book");
 
-        // Alt+Down on Favorites moves it below the book (Pinned Views plan, choice 8), and its menu's Move up moves it back.
+        // Alt+Down on Favorites moves it below the book, and its menu's Move up moves it back.
         await Settle(window);
         var favorites = Descendants<Button>(window).FirstOrDefault(b => b is { Name: "Pin", DataContext: PinnedItemViewModel { Target.Kind: PinKind.Favorites } })
             ?? throw new InvalidOperationException("There is no Favorites pin in the sidebar.");
@@ -1924,13 +1926,13 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3a: a PDF opened from the Library, left on its second page, opens there again next time; Home lists it
-    /// under Recently opened; and a search hit still opens at its own page.
+    /// A PDF opened from the Library, left on its second page, opens there again next time; Home lists it under
+    /// Recently opened; and a search hit still opens at its own page.
     /// </summary>
     /// <summary>
-    /// Slice 3f: the book's own note typed in the details' Notes tab and found by a word from it; a page note added
-    /// in the reader with Note, shown in its notes panel, deleted with Undo, listed in the details and found by a word
-    /// from it; then both cleared.
+    /// The book's own note typed in the details' Notes tab and found by a word from it; a page note added in the reader
+    /// with Note, shown in its notes panel, deleted with Undo, listed in the details and found by a word from it; then
+    /// both cleared.
     /// </summary>
     static async Task UseNotesAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -2063,15 +2065,15 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Slice 3c: New session on Sessions makes a binder and opens it, empty. In the reader, Add pages… adds pages i to 1
-    /// with a label and Add page adds the page in view, called after its bookmark. Home shows the binder under Continue
-    /// preparing, which opens its reader (Binders plan, B1). Edit binder lists both items in order; Move down swaps them
-    /// and keeps their labels; an item opens at its first page and leaves the book's kept place alone; Done goes back to
-    /// the reader. There Next opens the second item at its first page, a page is renamed in the list (F2, Enter), Add
-    /// this page adds the page in view after the item in hand with its name ready to type, and a change made elsewhere
-    /// shows. Pop out moves the binder to a window of its own, which opening it again brings forward, and Return to main
-    /// window brings it back at the same item. A section is added; Delete goes to Binders with Undo, which brings the
-    /// binder back.
+    /// New session on Sessions makes a binder and opens it, empty. In the reader, Add pages… adds pages i to 1 with a
+    /// label and Add page adds the page in view, called after its bookmark. Home shows the binder under Continue
+    /// preparing, which opens its reader. Edit binder lists both items in order; Move down swaps them and keeps their
+    /// labels; an item opens at its first page and leaves the book's kept place alone; Done goes back to the reader.
+    /// There Next opens the second item at its first page, a page is renamed in the list (F2, Enter), Add this page
+    /// adds the page in view after the item in hand with its name ready to type, and a change made elsewhere shows. Pop
+    /// out moves the binder to a window of its own, which opening it again brings forward, and Return to main window
+    /// brings it back at the same item. A section is added; Delete goes to Binders with Undo, which brings the binder
+    /// back.
     /// </summary>
     static async Task UseSessionPacksAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -2251,9 +2253,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// A binder kept at hand (Binders plan, choices 9 to 13): made from New binder with the box ticked and no date, listed
-    /// under At hand, offered by At hand in another binder, whose pick opens in a reader window while the binder in hand
-    /// stays put. Home keeps offering the game's binder to continue.
+    /// A binder kept at hand: made from New binder with the box ticked and no date, listed under At hand, offered by At
+    /// hand in another binder, whose pick opens in a reader window while the binder in hand stays put. Home keeps
+    /// offering the game's binder to continue.
     /// </summary>
     static async Task UseAtHandBinderAsync(IServiceProvider services, Window window, long documentId)
     {
@@ -2413,7 +2415,7 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Online libraries (O1): the book owned elsewhere gets a D&amp;D Beyond link in Also own. Its card opens the link
+    /// Online libraries: the book owned elsewhere gets a D&amp;D Beyond link in Also own. Its card opens the link
     /// (through the smoke test's launcher, so no browser starts), its badge shows the site's icon, the details offer
     /// Open on D&amp;D Beyond, and where: and On this PC tell it from the books with files.
     /// </summary>
@@ -2433,7 +2435,7 @@ static partial class SmokeTest
         await Settle(window);
         await AuditAsync(window, "a book owned online, with its site's badge");
 
-        // Open reads it in the online reader (O2b), which in the smoke test loads no real site; without the browser's
+        // Open reads it in the online reader, which in the smoke test loads no real site; without the browser's
         // runtime it opens in the everyday browser instead.
         var opened = launcher.Opened.Count;
         var shell = services.GetRequiredService<ShellViewModel>();
@@ -2483,8 +2485,8 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Same book (multi-select plan, M1): the scan Needs review proposes as a new version of the inn, ticked with the
-    /// inn and joined with the inn's file opening. One card with two copies, the version card gone, then Undo.
+    /// Same book: the scan Needs review proposes as a new version of the inn, ticked with the inn and joined with the
+    /// inn's file opening. One card with two copies, the version card gone, then Undo.
     /// </summary>
     static async Task JoinAsOneBookAsync(IServiceProvider services, Window window, int books)
     {
@@ -2655,9 +2657,9 @@ static partial class SmokeTest
 
     /// <summary>
     /// Settings > AI before anything is set up: AI is off, the library's folders are listed, and Built in shows first
-    /// (Built-in AI plan, choice 7) with its models, the suggested one chosen, its licence and Download, and nothing
-    /// downloading. Then with a model server: an endpoint nothing answers at says so rather than hanging or switching
-    /// AI on. Switching back to Built in keeps AI off.
+    /// with its models, the suggested one chosen, its licence and Download, and nothing downloading. Then with a model
+    /// server: an endpoint nothing answers at says so rather than hanging or switching AI on. Switching back to Built
+    /// in keeps AI off.
     /// </summary>
     static async Task ShowAiSettingsAsync(IServiceProvider services, Window window)
     {
@@ -2731,9 +2733,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// AI reading (Built-in AI plan, choices 12 and 13), reached from Settings > AI: with AI off it says so; during a
-    /// stand-in reading it shows the book, the reading progress bar and the answer's fields as they are written; once
-    /// the book is done it is first in Last read, with what was kept.
+    /// AI reading, reached from Settings > AI: with AI off it says so; during a stand-in reading it shows the book, the
+    /// reading progress bar and the answer's fields as they are written; once the book is done it is first in Last
+    /// read, with what was kept.
     /// </summary>
     static async Task ShowAiReadingAsync(IServiceProvider services, Window window)
     {
@@ -2964,9 +2966,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Settings > Processing's "Return files to online-only after indexing" (Dale's review, row 2): shown and ticked to
-    /// start with, saved off when it is unticked and on again when it is ticked. The smoke library isn't in OneDrive,
-    /// so no file goes anywhere either way.
+    /// Settings > Processing's "Return files to online-only after indexing": shown and ticked to start with, saved off
+    /// when it is unticked and on again when it is ticked. The smoke library isn't in OneDrive, so no file goes
+    /// anywhere either way.
     /// </summary>
     static async Task ToggleReturnOnlineOnlyAsync(IServiceProvider services, Window window, ProcessingSectionViewModel processing)
     {

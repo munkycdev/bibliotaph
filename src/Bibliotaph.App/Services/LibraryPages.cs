@@ -5,8 +5,8 @@ using Bibliotaph.Core;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Opens the Library as a page of its own: the whole library, a part of it such as Favorites (slice 3 plan, choice 3),
-/// or with one book's details open, as Home and the sidebar do.
+/// Opens the Library as a page of its own: the whole library, a part of it such as Favorites, or with one book's
+/// details open, as Home and the sidebar do.
 /// </summary>
 public sealed class LibraryPages(INavigationService navigation, Func<LibraryViewModel> createLibrary)
 {
@@ -40,8 +40,8 @@ public sealed class LibraryPages(INavigationService navigation, Func<LibraryView
     }
 
     /// <summary>
-    /// The whole Library with a book's editor open for Cataloged wrong… (scenario review, row 8), as from a cover's menu
-    /// on Home or a "You said this book was cataloged wrong" card.
+    /// The whole Library with a book's editor open for Cataloged wrong…, as from a cover's menu on Home or a "You said
+    /// this book was cataloged wrong" card.
     /// </summary>
     public void ShowCorrection(EntryId entryId)
     {

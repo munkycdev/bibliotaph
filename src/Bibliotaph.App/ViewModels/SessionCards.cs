@@ -47,9 +47,8 @@ public sealed class SessionSectionRow(SessionSectionInfo section)
 }
 
 /// <summary>
-/// One item in a pack (choice 12): its number, the book's cover and title, the game master's label and note, which
-/// pages, and, worked out when the pack is shown, how it opens. An item that can't open stays, dimmed, saying why
-/// (choice 15).
+/// One item in a pack: its number, the book's cover and title, the game master's label and note, which pages, and,
+/// worked out when the pack is shown, how it opens. An item that can't open stays, dimmed, saying why.
 /// </summary>
 public sealed partial class SessionItemRow(SessionItemInfo item, int number, string bookTitle, LibraryItemViewModel? cover, SessionItemTarget target) : ObservableObject
 {
@@ -67,8 +66,8 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public SessionItemTarget Target { get; } = target;
 
     /// <summary>
-    /// Where it opens online, in the online reader (online libraries plan, O2b): the page added with Add this page, or
-    /// the page of a whole book owned only online. Null for an item that opens a file.
+    /// Where it opens online, in the online reader: the page added with Add this page, or the page of a whole book
+    /// owned only online. Null for an item that opens a file.
     /// </summary>
     public string? OnlineLink { get; init; }
 
@@ -103,7 +102,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     /// <summary>The label, or the book's title when there is none.</summary>
     public string Heading => string.IsNullOrWhiteSpace(Label) ? BookTitle : Label.Trim();
 
-    /// <summary>The name being typed in a binder's list, before Enter saves it (Binders plan, choice 5).</summary>
+    /// <summary>The name being typed in a binder's list, before Enter saves it.</summary>
     [ObservableProperty]
     public partial bool IsRenaming { get; set; }
 
@@ -145,8 +144,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public string AccessibleName => $"{Number}. {Heading}, {Where}{(Reason is null ? "" : ". " + Reason)}";
 }
 
-/// <summary>What a binder's reader and its list page both show: its sections and items, each item resolved to where it opens.</summary>
-/// <summary>A binder kept at hand, with its pages, as the At hand menu lists it (Binders plan, choices 10 and 11).</summary>
+/// <summary>A binder kept at hand, with its pages, as the At hand menu lists it.</summary>
 public sealed record AtHandBinder(SessionPackInfo Pack, IReadOnlyList<SessionItemRow> Pages);
 
 /// <summary>At hand's binders under one heading: for the systems of the binder in hand, for any system, or for others.</summary>
@@ -180,7 +178,7 @@ public static class SessionPackRows
                 var target = targets[item.Id];
                 var card = cards.GetValueOrDefault(item.EntryId)
                     ?? ((target.DocumentId ?? item.Range?.DocumentId) is { } d && documents.TryGetValue(d, out var doc) ? doc with { EntryId = item.EntryId } : null);
-                // A page added online, or a whole book owned only online, opens in the online reader (O2b).
+                // A page added online, or a whole book owned only online, opens in the online reader.
                 var online = item.Link ?? (target.State == SessionItemState.NoFile ? card?.OnlineLink : null);
                 var row = new SessionItemRow(item, ++number, card?.Title ?? "A book no longer in your library",
                     card is null ? null : new LibraryItemViewModel(card, covers), target)
@@ -202,15 +200,15 @@ public static class SessionPackRows
         return rows;
     }
 
-    /// <summary>A page of a book owned online opens in the online reader, at that page (online libraries plan, O2b).</summary>
+    /// <summary>A page of a book owned online opens in the online reader, at that page.</summary>
     public static OnlineReaderRequest? OnlineRequest(SessionItemRow row) =>
         row is { OpensOnline: true, OnlineLink: { } link }
             ? new OnlineReaderRequest(row.Item.EntryId, row.BookTitle, row.BookLink ?? link) { Place = row.OnlinePlace, At = link }
             : null;
 
     /// <summary>
-    /// What opens an item (choice 14): its pages in the file it resolved to, keeping no reading position; a whole pack
-    /// at its first image. Null when it can't open.
+    /// What opens an item: its pages in the file it resolved to, keeping no reading position; a whole pack at its
+    /// first image. Null when it can't open.
     /// </summary>
     public static async Task<ViewerRequest?> RequestAsync(SessionItemRow row, string packTitle, LibraryQueries queries)
     {

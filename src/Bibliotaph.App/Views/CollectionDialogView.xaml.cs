@@ -5,8 +5,8 @@ using System.Windows.Threading;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// Naming or picking a collection, over a page (slice 3b). Keyboard focus goes into it as it opens, on the name or the
-/// picker's filter box, and back to where it was when it closes.
+/// Naming or picking a collection, over a page. Keyboard focus goes into it as it opens, on the name or the picker's
+/// filter box, and back to where it was when it closes.
 /// </summary>
 public partial class CollectionDialogView
 {

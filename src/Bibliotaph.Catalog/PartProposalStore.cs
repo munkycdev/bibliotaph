@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Catalog;
 
 /// <summary>
-/// A proposal waiting in Needs review (slice 5 plan, choice 7): the copy it was read from, the file's card, and the
-/// adventures it proposes, in page order.
+/// A proposal waiting in Needs review: the copy it was read from, the file's card, and the adventures it proposes, in
+/// page order.
 /// </summary>
 public sealed record PendingPartProposal(long Id, string ContentHash, long DocumentId, EntryId EntryId, PartProposalSource Source, IReadOnlyList<ProposedPart> Parts);
 
@@ -15,10 +15,10 @@ public sealed record PendingPartProposal(long Id, string ContentHash, long Docum
 public sealed record PartProposalState(string ContentHash, bool Existed, PartProposalAnswer? Answer);
 
 /// <summary>
-/// The adventures files seem to hold (slice 5 plan, choices 5 to 7), by the content hash of the copy they were read
-/// from. A proposal never makes cards by itself: it is one Needs review card for its file until the user accepts it
-/// or says the file is "Not split", and that answer is remembered for every copy of the file, by hash, so the file
-/// isn't proposed again whatever reads it later.
+/// The adventures files seem to hold, by the content hash of the copy they were read from. A proposal never makes
+/// cards by itself: it is one Needs review card for its file until the user accepts it or says the file is "Not
+/// split", and that answer is remembered for every copy of the file, by hash, so the file isn't proposed again
+/// whatever reads it later.
 /// </summary>
 public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -70,7 +70,7 @@ public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contex
     /// <summary>
     /// Whether there is nothing left to propose for the copy with <paramref name="contentHash"/> of the file
     /// <paramref name="fileId"/>: a proposal was read from it already, or the file's proposal was answered for one of
-    /// its copies. A model isn't asked about such a file (choice 6).
+    /// its copies. A model isn't asked about such a file.
     /// </summary>
     public async Task<bool> IsSettledAsync(EntryId fileId, string contentHash, CancellationToken ct = default)
     {

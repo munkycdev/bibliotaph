@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-// Moves and offline folders (slice 4g): a file found at a new path by its file ID keeps its location, hash and card.
+// Moves and offline folders: a file found at a new path by its file ID keeps its location, hash and card.
 public sealed partial class LibraryStoreTests
 {
     /// <summary>File IDs as the scanner's caller would read them, by relative path, recording which paths were asked about.</summary>
@@ -71,7 +71,7 @@ public sealed partial class LibraryStoreTests
         await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, readKnownIds: true, ct: Ct);
         Assert.Equal(["V:2", "V:1", "V:3"], (await LocationsAsync()).Select(l => l.NtfsFileId));
 
-        // An app saved another file over saved.pdf, keeping its size and date: only its new ID tells (slice 4h plan, choice 6).
+        // An app saved another file over saved.pdf, keeping its size and date: only its new ID tells.
         known["saved.pdf"] = "V:4";
         var result = await _library.ReconcileRootAsync(root, [File("old.pdf"), File("new.pdf"), File("saved.pdf")], fileId: ids.Read, readKnownIds: true, ct: Ct);
 

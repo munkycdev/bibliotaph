@@ -16,9 +16,8 @@ public sealed record PageKey(string Path, int PageIndex)
 }
 
 /// <summary>
-/// Remembers which pages killed a worker (crash or timeout). After <see cref="KillsToPoison"/> kills the page
-/// is poisoned and refused, so one bad book cannot loop the queue (acceptance scenario A18).
-/// In memory for now; slice 1 persists it with the job queue.
+/// Remembers which pages killed a worker (crash or timeout). After <see cref="KillsToPoison"/> kills the page is
+/// poisoned and refused, so one bad book cannot loop the queue.
 /// </summary>
 public sealed class PoisonTracker
 {

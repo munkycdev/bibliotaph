@@ -11,8 +11,8 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record PackTogetherDialogResult(PackTogetherResult Result, string Message);
 
 /// <summary>
-/// Pack together (multi-select plan, choices 8 to 11): one dialog whether the ticked cards make a new pack, add images
-/// to a pack, or merge packs, with the pack's name ready to edit.
+/// Pack together: one dialog whether the ticked cards make a new pack, add images to a pack, or merge packs, with
+/// the pack's name ready to edit.
 /// </summary>
 public sealed partial class PackTogetherDialogViewModel : ObservableObject
 {

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Image packs (F4a): which folders and ZIPs become one card, images joining later, and splitting.</summary>
+/// <summary>Image packs: which folders and ZIPs become one card, images joining later, and splitting.</summary>
 public sealed class PackStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);

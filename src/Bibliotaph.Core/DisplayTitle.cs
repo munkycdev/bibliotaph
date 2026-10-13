@@ -4,9 +4,9 @@ using System.Text.RegularExpressions;
 namespace Bibliotaph.Core;
 
 /// <summary>
-/// A readable title from a file name, used until slice 2's metadata supplies a better one:
-/// separators become spaces and download-site suffixes ("digital", "hi-res", dates) are dropped. Hyphens count as
-/// separators only in a name that has no spaces or underscores ("the-sunless-citadel"), so "Half-Elf" survives.
+/// A readable title from a file name, used until metadata supplies a better one: separators become spaces and
+/// download-site suffixes ("digital", "hi-res", dates) are dropped. Hyphens count as separators only in a name that has
+/// no spaces or underscores ("the-sunless-citadel"), so "Half-Elf" survives.
 /// </summary>
 public static partial class DisplayTitle
 {

@@ -27,7 +27,7 @@ public sealed class AskUnavailableException : Exception
 /// </summary>
 public sealed record AskPassage(int PdfPage, string Page, string? Heading, string Text, string? Phrase, bool ByWords, bool ByMeaning);
 
-/// <summary>A page the answer is read from (step 2): numbered as the reader sees it, under its bookmark, cut to its share.</summary>
+/// <summary>A page the answer is read from: numbered as the reader sees it, under its bookmark, cut to its share.</summary>
 public sealed record AskEvidence(int PdfPage, string Page, string? Heading, string Text);
 
 /// <summary>How a book's pages were found: by words alone, by words and the vectors made so far, or by words and every page's vector.</summary>
@@ -44,16 +44,16 @@ public enum AskMeaning
 }
 
 /// <summary>
-/// What retrieval found for a question (Ask this book, steps 2, 3 and 6): the passages to show, the evidence a model
-/// would read, whether both signals were too weak to ask a model at all and the pages looked at then, how much of the
-/// book has text and vectors, and why meaning couldn't be used this time, if it couldn't.
+/// What retrieval found for a question: the passages to show, the evidence a model would read, whether both signals
+/// were too weak to ask a model at all and the pages looked at then, how much of the book has text and vectors, and
+/// why meaning couldn't be used this time, if it couldn't.
 /// </summary>
 public sealed record AskFindings(string Question, IReadOnlyList<AskPassage> Passages, IReadOnlyList<AskEvidence> Evidence, bool Weak,
     IReadOnlyList<string> LookedAt, PageCoverage Coverage, AskMeaning Meaning, string? MeaningProblem);
 
 /// <summary>
-/// An answer to a question (Ask plan, steps 4 and 5): as the model wrote it, as checked against the pages sent, the
-/// model that wrote it, and the pages it was sent with the numbers they were cited by.
+/// An answer to a question: as the model wrote it, as checked against the pages sent, the model that wrote it, and
+/// the pages it was sent with the numbers they were cited by.
 /// </summary>
 public sealed record AskAnswer(string Question, string Text, CheckedAnswer Checked, string Model, IReadOnlyList<AskPromptPage> Pages);
 
@@ -68,9 +68,9 @@ public sealed record AskTurnView(AskTurnInfo Info, IReadOnlyList<AnswerPart> Par
 public sealed record AskFill(int Done, int Total, bool Running, string? Problem);
 
 /// <summary>
-/// Ask this book (Ask plan, Q1): finds the pages of one book that answer a question, by its words through the book's
-/// search index and by its meaning against each page's vector, fused by reciprocal rank, with no model asked to write
-/// anything. The first time a book is asked, its pages' vectors are made in the background by the embedding model in
+/// Ask this book: finds the pages of one book that answer a question, by its words through the book's search index
+/// and by its meaning against each page's vector, fused by reciprocal rank, with no model asked to write anything.
+/// The first time a book is asked, its pages' vectors are made in the background by the embedding model in
 /// Settings > AI and kept in index.db (page_vec); until they are all there, pages are found by words and the vectors so
 /// far. Pages go only to the endpoint in Settings, only while AI is ready (so a remote one needs its tick), and never
 /// from a folder kept from AI. The log gets counts, never text.
@@ -91,7 +91,7 @@ public sealed class AskService(
     readonly SemaphoreSlim _fillGate = new(1, 1);
     readonly CancellationTokenSource _stopping = new();
 
-    /// <summary>Whether a book can be asked at all: AI is set up and on. With AI off, the panel is hidden (choice 12).</summary>
+    /// <summary>Whether a book can be asked at all: AI is set up and on. With AI off, the panel is hidden.</summary>
     public bool IsOn => ai.Setup.IsReady;
 
     /// <summary>Whether pages can be found by meaning: an embedding model is set up for the current AI.</summary>
@@ -205,8 +205,8 @@ public sealed class AskService(
     }
 
     /// <summary>
-    /// Asks the model to answer the question from the pages <see cref="FindAsync"/> chose (Ask plan, step 4), streaming
-    /// its answer to <paramref name="progress"/>, and checks its citations and quotes against those pages (step 5).
+    /// Asks the model to answer the question from the pages <see cref="FindAsync"/> chose, streaming its answer to
+    /// <paramref name="progress"/>, and checks its citations and quotes against those pages.
     /// </summary>
     /// <exception cref="AskUnavailableException">AI is off, or the book's folder is kept from AI.</exception>
     /// <exception cref="ModelEndpointException">The model server couldn't be reached, refused, or failed while answering.</exception>
@@ -232,9 +232,9 @@ public sealed class AskService(
     }
 
     /// <summary>
-    /// A follow-up rewritten by the model to stand on its own (choice 10), from the conversation's last few turns, so its
-    /// pages can be found afresh: "what about its lair?" becomes "where is the red dragon's lair?". The first question of
-    /// a conversation, or one the model can't rewrite, is used as typed.
+    /// A follow-up rewritten by the model to stand on its own, from the conversation's last few turns, so its pages can
+    /// be found afresh: "what about its lair?" becomes "where is the red dragon's lair?". The first question of a
+    /// conversation, or one the model can't rewrite, is used as typed.
     /// </summary>
     /// <exception cref="AskUnavailableException">AI is off, or the book's folder is kept from AI.</exception>
     public async Task<(string Question, bool Rewritten)> RewriteAsync(long documentId, string followUp, IReadOnlyList<AskEarlierTurn> earlier,

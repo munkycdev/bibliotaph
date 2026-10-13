@@ -10,10 +10,10 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// What a page does with session packs (slice 3 plan, choices 11 to 13): adding books or pages to one, the current pack,
-/// another or a new one, making, editing, duplicating and deleting packs, and naming sections. Each change says what it
-/// did in a note, with Undo where there is something to undo, until the next change or until the page is left. One per
-/// page; the page shows <see cref="Dialog"/> over itself.
+/// What a page does with session packs: adding books or pages to one, the current pack, another or a new one,
+/// making, editing, duplicating and deleting packs, and naming sections. Each change says what it did in a note, with
+/// Undo where there is something to undo, until the next change or until the page is left. One per page; the page
+/// shows <see cref="Dialog"/> over itself.
 /// </summary>
 public sealed partial class SessionActions(SessionsService sessions, SessionDirectory directory, ILogger<SessionActions> log) : ObservableObject
 {
@@ -49,16 +49,16 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     }
 
     /// <summary>
-    /// Add page (choice 13): one page of the open book, called after the bookmark it sits under, or a whole image, to
-    /// the current pack or the one picked in the menu; before there is a pack, it asks for one first.
+    /// Add page: one page of the open book, called after the bookmark it sits under, or a whole image, to the current
+    /// pack or the one picked in the menu; before there is a pack, it asks for one first.
     /// </summary>
     public void AddPage(long documentId, int page, string what, SessionMenuChoice? choice = null, bool wholeFile = false) =>
         AddTo(choice ?? CurrentChoice(), what, async id =>
             await (wholeFile ? sessions.AddDocumentAsync(id, documentId) : sessions.AddPagesAsync(id, documentId, page, page)) is { } added ? [added] : []);
 
     /// <summary>
-    /// Add this page in the online reader (online libraries plan, O2b): the page of a book owned online at
-    /// <paramref name="link"/>, labelled <paramref name="label"/>, to the current binder or the one picked in the menu.
+    /// Add this page in the online reader: the page of a book owned online at <paramref name="link"/>, labelled
+    /// <paramref name="label"/>, to the current binder or the one picked in the menu.
     /// </summary>
     public void AddOnlinePage(EntryId book, string link, string? label, SessionMenuChoice? choice = null)
     {
@@ -89,8 +89,8 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     }
 
     /// <summary>
-    /// Add pages… (choice 13): From and To as typed (prefilled from the page in view or the selection), a label (from
-    /// the bookmark there), and which pack and section.
+    /// Add pages…: From and To as typed (prefilled from the page in view or the selection), a label (from the
+    /// bookmark there), and which pack and section.
     /// </summary>
     public async Task AddPagesAsync(long documentId, string from, string to, int firstPage, Func<string, int?> findPage)
     {
@@ -179,7 +179,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         if (removed is { Count: > 0 }) await FinishAsync($"Removed {what} from {pack}.", () => sessions.RestoreItemsAsync(removed));
     }
 
-    /// <summary>Duplicate (choice 11): a copy of the pack, without its date, which then opens.</summary>
+    /// <summary>Duplicate: a copy of the pack, without its date, which then opens.</summary>
     public async Task<SessionPackInfo?> DuplicateAsync(SessionPackInfo pack)
     {
         var copy = await Run(() => sessions.DuplicateAsync(pack.Id, $"{pack.Title} (copy)"), "Duplicating the session failed");

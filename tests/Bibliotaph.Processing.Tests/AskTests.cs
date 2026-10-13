@@ -12,11 +12,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// Ask this book, Q1: pages found by words alone without an embedding model, by words and meaning with one, the
+/// Ask this book: pages found by words alone without an embedding model, by words and meaning with one, the
 /// book's vectors made on the first ask and made again when the model changes, the weak-signal guard, and the books
-/// and setups that can't be asked; Q2, answers written from those pages and checked; Q3, follow-ups rewritten and
-/// answered with the conversation, which is kept on the book's entry. The model server is a stand-in that counts what
-/// it is sent.
+/// and setups that can't be asked; answers written from those pages and checked; follow-ups rewritten and answered
+/// with the conversation, which is kept on the book's entry. The model server is a stand-in that counts what it is
+/// sent.
 /// </summary>
 [Collection(SqlitePools.Name)]
 public sealed class AskTests : IAsyncLifetime

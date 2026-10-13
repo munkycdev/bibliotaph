@@ -15,15 +15,14 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record SectionMove(SessionItemRow Item, long SectionId, string Label);
 
 /// <summary>
-/// A binder's list page, for editing it (slice 3 plan, choices 11 to 15; Binders plan, choice 2): its title and date,
-/// its items in order, numbered, under their sections, and its notes beside them. Items are reordered by Move up and
-/// Move down (Alt+Up and Alt+Down) or by dragging; each opens at its pages, without moving the book's saved reading
-/// position. Done goes back to the binder's reader. Opening the page makes the binder the current one, which Add page
-/// adds to.
+/// A binder's list page, for editing it: its title and date, its items in order, numbered, under their sections, and
+/// its notes beside them. Items are reordered by Move up and Move down (Alt+Up and Alt+Down) or by dragging; each
+/// opens at its pages, without moving the book's saved reading position. Done goes back to the binder's reader.
+/// Opening the page makes the binder the current one, which Add page adds to.
 /// </summary>
 public sealed partial class SessionPackViewModel : PageViewModel
 {
-    /// <summary>The headings Add section suggests (choice 11).</summary>
+    /// <summary>The headings Add section suggests.</summary>
     public static IReadOnlyList<string> SuggestedSections { get; } = ["Adventure", "Maps", "Encounters", "Rules"];
 
     readonly SessionsService _sessions;
@@ -199,7 +198,9 @@ public sealed partial class SessionPackViewModel : PageViewModel
         await RunAsync(() => _sessions.SetNotesAsync(pack, notes), "Saving the session's notes failed");
     }
 
-    /// <summary>Opens an item at its pages in the main window (choice 14). The book's saved reading position stays as it was.</summary>
+    /// <summary>
+    /// Opens an item at its pages in the main window. The book's saved reading position stays as it was.
+    /// </summary>
     [RelayCommand]
     async Task OpenItem(SessionItemRow row)
     {
@@ -247,7 +248,9 @@ public sealed partial class SessionPackViewModel : PageViewModel
         if (await RunAsync(() => _sessions.MoveItemToAsync(move.Item.Id, move.SectionId, int.MaxValue), "Moving the item failed")) await RefreshAsync(focus: move.Item.Id);
     }
 
-    /// <summary>A drop (choice 12): the dragged item takes the place of the item it was dropped on, or goes first under a heading.</summary>
+    /// <summary>
+    /// A drop: the dragged item takes the place of the item it was dropped on, or goes first under a heading.
+    /// </summary>
     public async Task DropAsync(SessionItemRow dragged, object target)
     {
         var (section, index) = target switch

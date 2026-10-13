@@ -4,9 +4,8 @@ using System.Windows.Controls;
 namespace Bibliotaph.App.Controls;
 
 /// <summary>
-/// Names a book menu's Pin item each time the menu opens: Pin, or Unpin for a book in the sidebar's Pinned group
-/// (Pinned Views plan, choice 7). Set <c>PinMenu.IsEnabled</c> on a ContextMenu; its items running
-/// <see cref="BookCommands.TogglePin"/> are renamed.
+/// Names a book menu's Pin item each time the menu opens: Pin, or Unpin for a book in the sidebar's Pinned group. Set
+/// <c>PinMenu.IsEnabled</c> on a ContextMenu; its items running <see cref="BookCommands.TogglePin"/> are renamed.
 /// </summary>
 public static class PinMenu
 {

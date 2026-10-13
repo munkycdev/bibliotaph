@@ -15,7 +15,7 @@ public enum FieldKind
     /// <summary>A publication year.</summary>
     Year,
 
-    /// <summary>How many players it is written for: "4", "4-6" (spec §6, intended party).</summary>
+    /// <summary>How many players it is written for: "4", "4-6" (the intended party).</summary>
     Players,
 
     /// <summary>
@@ -33,8 +33,8 @@ public enum FieldKind
 public sealed record MetadataField(string Key, string Label, FieldKind Kind, bool Multiple = false, string? Vocabulary = null)
 {
     /// <summary>
-    /// Closed fields have a fixed set of meanings, so sources that disagree about them need a look (choice 4 of the
-    /// slice 2 plan). Free text never conflicts by itself: the best source wins.
+    /// Closed fields have a fixed set of meanings, so sources that disagree about them need a look. Free text never
+    /// conflicts by itself: the best source wins.
     /// </summary>
     public bool IsClosed => Kind is FieldKind.Term or FieldKind.Levels or FieldKind.Players;
 
@@ -42,8 +42,7 @@ public sealed record MetadataField(string Key, string Label, FieldKind Kind, boo
 }
 
 /// <summary>
-/// The fields Bibliotaph catalogs: slice 2's, then party size, duration and style (scenario review, row 6). Map
-/// properties and content features come later.
+/// The fields Bibliotaph catalogs. Map properties and content features come later.
 /// </summary>
 public static class MetadataFields
 {
@@ -60,7 +59,7 @@ public static class MetadataFields
     public static readonly MetadataField Players = new("players", "Players", FieldKind.Players);
 
     /// <summary>
-    /// How long it takes to play, in sessions rather than hours (spec §6: never assume every one-shot lasts three
+    /// How long it takes to play, in sessions rather than hours (never assume every one-shot lasts three
     /// hours): one-shot, short, long or campaign.
     /// </summary>
     public static readonly MetadataField Duration = new("duration", "Duration", FieldKind.Term, Vocabulary: "duration");
@@ -74,16 +73,16 @@ public static class MetadataFields
     public static readonly MetadataField Tags = new("tags", "Your tags", FieldKind.Text, Multiple: true);
 
     /// <summary>
-    /// Where else the user owns the book: in print, on a VTT (F5 plan, choice 3), with the book's page there when the
-    /// place is online (online libraries, O1): "dnd-beyond https://www.dndbeyond.com/sources/…". Only the user sets it;
-    /// no hint or model suggests it. An entry owned elsewhere, with no file here, says so first, and opens its link.
+    /// Where else the user owns the book: in print, on a VTT, with the book's page there when the place is online:
+    /// "dnd-beyond https://www.dndbeyond.com/sources/…". Only the user sets it; no hint or model suggests it. An entry
+    /// owned elsewhere, with no file here, says so first, and opens its link.
     /// </summary>
     public static readonly MetadataField AlsoOwn = new("own", "Also own", FieldKind.Store, Multiple: true, Vocabulary: "own");
 
     /// <summary>
-    /// Where the book can be got again: a store, with a link to its page there when someone has one (scenario review,
-    /// row 7). Rules suggest the store from folder and file names, the PDF's producer and a watermark's store name; the
-    /// buyer's name and order number in a watermark are never kept. No model suggests it.
+    /// Where the book can be got again: a store, with a link to its page there when someone has one. Rules suggest the
+    /// store from folder and file names, the PDF's producer and a watermark's store name; the buyer's name and order
+    /// number in a watermark are never kept. No model suggests it.
     /// </summary>
     public static readonly MetadataField GetItFrom = new("store", "Get it from", FieldKind.Store, Multiple: true, Vocabulary: "store");
 

@@ -4,7 +4,7 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Easier corrections (scenario review, row 8): which books look like a corrected one, what repeats the correction, and when a folder rule is due.</summary>
+/// <summary>Easier corrections: which books look like a corrected one, what repeats the correction, and when a folder rule is due.</summary>
 public class CorrectionsTests
 {
     static readonly DateTime T0 = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);

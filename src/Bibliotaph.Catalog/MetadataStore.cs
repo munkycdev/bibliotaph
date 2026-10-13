@@ -15,7 +15,7 @@ public sealed record EntryMetadata(EntryId EntryId, IReadOnlyList<MetadataClaim>
 /// <summary>
 /// Metadata assertions in catalog.db. Sources add suggestions; the user's decisions change assertion states and add
 /// rejections. Nothing here overwrites a value: the effective metadata is always computed from these rows, so a
-/// reindex, a new rule or a new model can only add suggestions, never undo what the user said (A04).
+/// reindex, a new rule or a new model can only add suggestions, never undo what the user said.
 /// </summary>
 public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -30,8 +30,8 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 
     /// <summary>
     /// Metadata for <paramref name="entryIds"/>, or for every entry with any when it is null. An adventure inside a
-    /// file (slice 5 plan, choice 8) has its file's game system, edition, publisher, series, year and setting as well
-    /// as its own values, unless it has confirmed its own (<see cref="PartMetadata"/>).
+    /// file has its file's game system, edition, publisher, series, year and setting as well as its own values, unless
+    /// it has confirmed its own (<see cref="PartMetadata"/>).
     /// </summary>
     public async Task<IReadOnlyDictionary<EntryId, EntryMetadata>> GetManyAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct = default)
     {
@@ -134,9 +134,9 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// "Forget its text" (slice 4i plan, choice 6): the AI's suggestions read from these copies of an entry's book go,
-    /// with the quotes from its pages they carried. What the user decided about one (kept, rejected, replaced) stays,
-    /// without its quote. Returns whether anything changed.
+    /// "Forget its text": the AI's suggestions read from these copies of an entry's book go, with the quotes from its
+    /// pages they carried. What the user decided about one (kept, rejected, replaced) stays, without its quote. Returns
+    /// whether anything changed.
     /// </summary>
     public async Task<bool> ForgetAiAsync(EntryId entryId, IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
     {
@@ -193,11 +193,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// Stores a classifier run's suggestions (slice 2c), replacing the undecided ones earlier runs of the same origin
-    /// left from the same copy (<paramref name="contentHash"/>): a value suggested again keeps its row and its age, with
-    /// this run's evidence; one not suggested again goes. What
-    /// the user decided stays as it is, a rejected value is never suggested again (A04), and a term value whose term is
-    /// pending is held until the user decides the term. Returns whether anything changed.
+    /// Stores a classifier run's suggestions, replacing the undecided ones earlier runs of the same origin left from
+    /// the same copy (<paramref name="contentHash"/>): a value suggested again keeps its row and its age, with this
+    /// run's evidence; one not suggested again goes. What the user decided stays as it is, a rejected value is never
+    /// suggested again, and a term value whose term is pending is held until the user decides the term. Returns
+    /// whether anything changed.
     /// </summary>
     public async Task<bool> ApplyRunAsync(EntryId entryId, string contentHash, string runId, AssertionOrigin origin, IReadOnlyList<MetadataProposal> proposals, CancellationToken ct = default)
     {
@@ -291,7 +291,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 
     /// <summary>
     /// "Keep this": confirms the values a field shows now, so no later suggestion replaces them. A value an adventure
-    /// shows only because its file suggests it (slice 5) becomes the adventure's own.
+    /// shows only because its file suggests it becomes the adventure's own.
     /// </summary>
     public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
@@ -352,11 +352,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// What the user decided about a field on another PC, merged by library sync (library sync plan, choice 5): exactly
-    /// <paramref name="values"/> (stored form) are kept and exactly <paramref name="rejected"/> (normalised) are
-    /// rejected. A suggestion here with the same text is confirmed, keeping its evidence; otherwise the value becomes
-    /// the user's own. A value kept here that isn't kept there goes back to being a suggestion (the user's own is
-    /// superseded), and a rejection that isn't there is lifted. Returns whether anything changed.
+    /// What the user decided about a field on another PC, merged by library sync: exactly <paramref name="values"/>
+    /// (stored form) are kept and exactly <paramref name="rejected"/> (normalised) are rejected. A suggestion here with
+    /// the same text is confirmed, keeping its evidence; otherwise the value becomes the user's own. A value kept here
+    /// that isn't kept there goes back to being a suggestion (the user's own is superseded), and a rejection that isn't
+    /// there is lifted. Returns whether anything changed.
     /// </summary>
     public async Task<bool> ApplySyncedAsync(EntryId entryId, MetadataField field, IReadOnlyList<string> values, IReadOnlyList<string> rejected,
         CancellationToken ct = default)
@@ -445,14 +445,13 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// A bulk edit (slice 4e): the same changes to fields of many entries, in one transaction, by the inspector's
-    /// per-value rules. Set makes a single-value field's value the user's own, as <see cref="SetValuesAsync"/> does.
-    /// Add puts a value in a multi-value field and keeps the values it shows, as "Use this" does, which confirms them;
-    /// Remove rejects a value the field shows, from every source now and later, as "Not right" does, in a field with one
-    /// value too (a correction offered to look-alikes, scenario review, row 8). Reset is "Reset to
-    /// suggestion". A field with no change, and an entry a change makes no difference to, are left as they are.
-    /// Returns the snapshot, from before, of each field it changed, which <see cref="RestoreAsync(IReadOnlyCollection{FieldSnapshot}, CancellationToken)"/>
-    /// puts back.
+    /// A bulk edit: the same changes to fields of many entries, in one transaction, by the inspector's per-value rules.
+    /// Set makes a single-value field's value the user's own, as <see cref="SetValuesAsync"/> does. Add puts a value in
+    /// a multi-value field and keeps the values it shows, as "Use this" does, which confirms them; Remove rejects a
+    /// value the field shows, from every source now and later, as "Not right" does, in a field with one value too (a
+    /// correction offered to look-alikes). Reset is "Reset to suggestion". A field with no change, and an entry a
+    /// change makes no difference to, are left as they are. Returns the snapshot, from before, of each field it
+    /// changed, which <see cref="RestoreAsync(IReadOnlyCollection{FieldSnapshot}, CancellationToken)"/> puts back.
     /// </summary>
     public async Task<IReadOnlyList<FieldSnapshot>> ApplyBulkAsync(IReadOnlyCollection<EntryId> entryIds, IReadOnlyList<BulkChange> changes,
         CancellationToken ct = default)
@@ -489,11 +488,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// An import from an online library (online libraries plan, choices 4 to 7), in one transaction. Each book with no
-    /// <see cref="ImportedBook.EntryId"/> becomes a new book owned elsewhere whose values are the user's own, with
-    /// <paramref name="quote"/> ("Imported from your D&amp;D Beyond library on 11 Oct 2026") as their evidence. A book
-    /// with one gets its changes on that card, as a bulk edit makes them. Values are in stored form. Returns what Undo
-    /// needs: the cards added, and every field changed on cards that were already there.
+    /// An import from an online library, in one transaction. Each book with no <see cref="ImportedBook.EntryId"/>
+    /// becomes a new book owned elsewhere whose values are the user's own, with <paramref name="quote"/> ("Imported
+    /// from your D&amp;D Beyond library on 11 Oct 2026") as their evidence. A book with one gets its changes on that
+    /// card, as a bulk edit makes them. Values are in stored form. Returns what Undo needs: the cards added, and every
+    /// field changed on cards that were already there.
     /// </summary>
     public async Task<ImportReceipt> ImportAsync(IReadOnlyList<ImportedBook> books, string quote, CancellationToken ct = default)
     {
@@ -711,7 +710,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 }
 
-/// <summary>What a bulk edit does to a field on every selected entry (slice 4e plan, choices 3 and 4).</summary>
+/// <summary>What a bulk edit does to a field on every selected entry.</summary>
 public enum BulkAction
 {
     /// <summary>Makes a single-value field's value the user's own.</summary>

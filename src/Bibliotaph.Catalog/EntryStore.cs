@@ -10,7 +10,7 @@ namespace Bibliotaph.Catalog;
 /// An entry and the document its card shows: the current source, which opens and supplies cover and pages, and how
 /// many copies (whole-document sources) the entry has. A pack shows its first image, and has a
 /// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> in file name order. A book owned elsewhere
-/// has no document and no copies. An adventure inside a file (slice 5) shows its pages of the copy its file shows.
+/// has no document and no copies. An adventure inside a file shows its pages of the copy its file shows.
 /// </summary>
 public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind Kind, int Copies = 1)
 {
@@ -20,7 +20,7 @@ public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind 
     /// <summary>For an adventure inside a file, its first and last PDF pages in <see cref="DocumentId"/>.</summary>
     public PartPages? Pages { get; init; }
 
-    /// <summary>For a file, how many adventures are marked in it (slice 5 plan, choice 9: "5 adventures").</summary>
+    /// <summary>For a file, how many adventures are marked in it ("5 adventures").</summary>
     public int Parts { get; init; }
 
     public string? Name { get; init; }
@@ -50,9 +50,9 @@ public sealed record EntryCopy(long DocumentId, string ContentHash, int? PageCou
 public sealed record CopyJoin(EntryId EntryId, EntryId JoinedEntryId);
 
 /// <summary>
-/// What Same book did (multi-select plan, choices 2 to 7), so Undo can put it back: the card the others joined, the
-/// cards that joined it in order, the copy it opened before (none for a book owned elsewhere), and the "Not the same
-/// book" answers forgotten, as pairs of content hashes.
+/// What Same book did, so Undo can put it back: the card the others joined, the cards that joined it in order, the copy
+/// it opened before (none for a book owned elsewhere), and the "Not the same book" answers forgotten, as pairs of
+/// content hashes.
 /// </summary>
 public sealed record BookJoin(EntryId EntryId, IReadOnlyList<EntryId> Joined, long? PreviousCurrent, bool WasElsewhere,
     IReadOnlyList<(string FirstHash, string SecondHash)> Forgotten);
@@ -66,8 +66,8 @@ public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnl
     int? PinPosition = null);
 
 /// <summary>
-/// Entries in catalog.db (catalog entry design): which document each library card shows, and which card a document
-/// belongs to. Processing works on documents and the user's decisions on entries; this is where one turns into the other.
+/// Entries in catalog.db: which document each library card shows, and which card a document belongs to. Processing
+/// works on documents and the user's decisions on entries; this is where one turns into the other.
 /// </summary>
 public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -121,7 +121,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     public async Task<long?> GetCurrentDocumentAsync(EntryId entryId, CancellationToken ct = default) =>
         (await GetCurrentAsync([entryId], ct)) is [var current, ..] ? current.DocumentId : null;
 
-    /// <summary>The adventures marked in the files of <paramref name="entryIds"/> (slice 5).</summary>
+    /// <summary>The adventures marked in the files of <paramref name="entryIds"/>.</summary>
     public async Task<IReadOnlyList<EntryId>> GetPartIdsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         if (entryIds.Count == 0) return [];
@@ -141,10 +141,10 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
 
     /// <summary>
     /// The document each entry's card shows, for <paramref name="entryIds"/> or, when it is null, every entry with
-    /// one. That is the current copy, unless none of its files is left and another copy's is (choice 6): then the
-    /// newest copy with a file. An entry with no file (owned elsewhere, or joined to another) isn't listed, nor is an
-    /// image in a pack: the pack is, showing its first image that has a file, with all of them as its members. A book
-    /// owned elsewhere is listed with no document (F5 plan, choice 2).
+    /// one. That is the current copy, unless none of its files is left and another copy's is: then the newest copy with
+    /// a file. An entry with no file (owned elsewhere, or joined to another) isn't listed, nor is an image in a pack:
+    /// the pack is, showing its first image that has a file, with all of them as its members. A book owned elsewhere is
+    /// listed with no document.
     /// </summary>
     public async Task<IReadOnlyList<EntryDocument>> GetCurrentAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
@@ -154,7 +154,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var sources = db.EntrySources.AsNoTracking().Where(s => s.Entry.ParentEntryId == null || s.Entry.ParentEntry!.Kind != EntryKind.Pack);
         if (ids is not null) sources = sources.Where(s => ids.Contains(s.EntryId));
         var rows = await Sources(sources).ToListAsync(ct);
-        // An adventure inside a file shows its pages in the copy its file shows (slice 5 plan, choice 9).
+        // An adventure inside a file shows its pages in the copy its file shows.
         var parentIds = rows.Where(r => r.Kind == EntryKind.Part && r.ParentEntryId is not null).Select(r => r.ParentEntryId!.Value).Distinct().ToList();
         var parentShown = parentIds.Count == 0 ? [] : (await Sources(db.EntrySources.AsNoTracking()
                 .Where(s => parentIds.Contains(s.EntryId) && s.FirstPdfPage == null)).ToListAsync(ct))
@@ -190,7 +190,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return current;
     }
 
-    /// <summary>Makes a card for a book the user owns elsewhere (F5 plan, choice 2): an entry with no sources, for their own values.</summary>
+    /// <summary>
+    /// Makes a card for a book the user owns elsewhere: an entry with no sources, for their own values.
+    /// </summary>
     public async Task<EntryId> AddElsewhereAsync(CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
@@ -200,8 +202,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// "Remove from library" (choice 5): deletes a book owned elsewhere and everything set on it, returning that for
-    /// Undo. Null for any other card: a file's card goes when its file does.
+    /// "Remove from library": deletes a book owned elsewhere and everything set on it, returning that for Undo. Null
+    /// for any other card: a file's card goes when its file does.
     /// </summary>
     public async Task<RemovedEntry?> RemoveElsewhereAsync(EntryId entryId, CancellationToken ct = default)
     {
@@ -296,9 +298,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     };
 
     /// <summary>
-    /// "Same book" on an owned-elsewhere card (F5 plan, choice 6): the file's card joins the book owned elsewhere,
-    /// which keeps everything set on it and becomes a whole entry that opens the file. What the file's card brings
-    /// moves across as a copy's does (<see cref="JoinAsCopyAsync"/>). Null when either has gone or they are one card.
+    /// "Same book" on an owned-elsewhere card: the file's card joins the book owned elsewhere, which keeps everything
+    /// set on it and becomes a whole entry that opens the file. What the file's card brings moves across as a copy's
+    /// does (<see cref="JoinAsCopyAsync"/>). Null when either has gone or they are one card.
     /// </summary>
     public async Task<CopyJoin?> JoinElsewhereAsync(EntryId elsewhereId, long documentId, CancellationToken ct = default)
     {
@@ -398,11 +400,11 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// Joins two documents found to hold the same book (choice 5). The newer document's entry joins the older one's:
-    /// its copies become copies there, without becoming current; its suggestions and runs move across; its rejections
-    /// move unless the other card has them; and a value the user set that disagrees with one set on the other card,
-    /// for a field with one value, is set aside for a "Copies disagree" card (choice 7). Returns null when they are already one card, or
-    /// the user said they are not the same book.
+    /// Joins two documents found to hold the same book. The newer document's entry joins the older one's: its copies
+    /// become copies there, without becoming current; its suggestions and runs move across; its rejections move unless
+    /// the other card has them; and a value the user set that disagrees with one set on the other card, for a field
+    /// with one value, is set aside for a "Copies disagree" card. Returns null when they are already one card, or the
+    /// user said they are not the same book.
     /// </summary>
     public async Task<CopyJoin?> JoinAsCopyAsync(long documentId, long matchedDocumentId, CancellationToken ct = default)
     {
@@ -432,8 +434,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// <summary>
     /// Moves one card onto another: its sources, its suggestions and runs, its rejections unless the other card has
     /// them, and a value the user set that disagrees with one set on the other card, for a field with one value, set
-    /// aside for a "Copies disagree" card (choice 7). The card that joined keeps its id, marked as merged. Returns what
-    /// moved, which the caller records; the caller saves.
+    /// aside for a "Copies disagree" card. The card that joined keeps its id, marked as merged. Returns what moved,
+    /// which the caller records; the caller saves.
     /// </summary>
     internal async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
     {
@@ -472,7 +474,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         }
 
         // A heart and a reading position move only to a card without one; otherwise they stay behind on the card that
-        // joined, which shows nowhere, until Not the same book brings it back (slice 3 plan, choice 19).
+        // joined, which shows nowhere, until Not the same book brings it back.
         if (await db.Favorites.SingleOrDefaultAsync(f => f.EntryId == joining, ct) is { } favorite
             && !await db.Favorites.AnyAsync(f => f.EntryId == target, ct))
         {
@@ -487,7 +489,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             db.ReadingStates.Add(new ReadingState { EntryId = target, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
             moved.Reading = true;
         }
-        // A pin moves the same way, keeping its place in the sidebar (Pinned Views plan, choice 9).
+        // A pin moves the same way, keeping its place in the sidebar.
         if (await db.Pins.SingleOrDefaultAsync(p => p.EntryId == joining, ct) is { } pin && !await db.Pins.AnyAsync(p => p.EntryId == target, ct))
         {
             pin.EntryId = target;
@@ -507,8 +509,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             item.EntryId = target;
             moved.SessionItems.Add(item.Id);
         }
-        // Notes (slice 3f): page notes all move. The card's own note moves to a card without one; to a card with one, its
-        // text is added at the end, and the note stays behind on the card that joined for Not the same book.
+        // Notes: page notes all move. The card's own note moves to a card without one; to a card with one, its text is
+        // added at the end, and the note stays behind on the card that joined for Not the same book.
         if (await db.Notes.SingleOrDefaultAsync(n => n.EntryId == joining && n.PageRefId == null, ct) is { } note)
         {
             if (await db.Notes.SingleOrDefaultAsync(n => n.EntryId == target && n.PageRefId == null, ct) is { } own)
@@ -530,8 +532,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             moved.PageNotes.Add(pageNote.Id);
         }
 
-        // Adventures marked in the joining card's file go with it (slice 5 plan, choice 12): their pages are in a copy
-        // of this book now, and are looked for in its other copies.
+        // Adventures marked in the joining card's file go with it: their pages are in a copy of this book now, and are
+        // looked for in its other copies.
         foreach (var part in await db.Entries.Where(e => e.ParentEntryId == joining && e.Kind == EntryKind.Part).ToListAsync(ct))
         {
             part.ParentEntryId = target;
@@ -609,10 +611,10 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             own.Text = own.Text[..^appended.Length];
         foreach (var pageNote in await db.Notes.Where(n => n.EntryId == entryId && moved.PageNotes.Contains(n.Id)).ToListAsync(ct))
             pageNote.EntryId = card;
-        // A pack's images go back to it, those still in the pack it merged into (multi-select plan, choice 11).
+        // A pack's images go back to it, those still in the pack it merged into.
         foreach (var member in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Members.Contains(e.Id)).ToListAsync(ct))
             member.ParentEntryId = card;
-        // So do the adventures marked in its file (slice 5).
+        // So do the adventures marked in its file.
         foreach (var part in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Parts.Contains(e.Id)).ToListAsync(ct))
             part.ParentEntryId = card;
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
@@ -621,10 +623,10 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
 
     /// <summary>
     /// "Not the same book": takes <paramref name="documentId"/> out of <paramref name="entryId"/> onto a card of its own,
-    /// and remembers that it isn't the same book as the copies it leaves. A copy that joined from a card of its own (by Match or Same book) goes back to
-    /// the card it had, with what it brought (choice 8); any other copy gets a new card. Returns the copy's card, or
-    /// null if it isn't a copy of that entry or is its only one. Without <paramref name="remember"/>, as when a
-    /// "new version?" answer is undone, nothing is remembered.
+    /// and remembers that it isn't the same book as the copies it leaves. A copy that joined from a card of its own (by
+    /// Match or Same book) goes back to the card it had, with what it brought; any other copy gets a new card. Returns
+    /// the copy's card, or null if it isn't a copy of that entry or is its only one. Without
+    /// <paramref name="remember"/>, as when a "new version?" answer is undone, nothing is remembered.
     /// </summary>
     public async Task<EntryId?> SplitCopyAsync(EntryId entryId, long documentId, bool remember = true, CancellationToken ct = default)
     {
@@ -666,9 +668,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// Records content at a path that held another document as a new version of the same book (A08): the new
-    /// document joins that document's entry and becomes its current copy. Returns the entry, or null when the earlier
-    /// document has no entry. The caller saves, inside a transaction.
+    /// Records content at a path that held another document as a new version of the same book: the new document joins
+    /// that document's entry and becomes its current copy. Returns the entry, or null when the earlier document has no
+    /// entry. The caller saves, inside a transaction.
     /// </summary>
     internal static async Task<long?> AddVersionAsync(CatalogDbContext db, Document document, long previousDocumentId, CancellationToken ct)
     {
@@ -683,12 +685,12 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// Same book (multi-select plan, choices 2 to 7): joins cards the user ticked as one book, each as Match joins a
-    /// copy. Their copies move onto the oldest card, or onto the book owned elsewhere when one is among them (as its file
-    /// would, F5 plan choice 6), with what each card brings, and <paramref name="opensDocumentId"/> becomes the copy that
-    /// opens. A "Not the same book" given for any two of their files is forgotten: the user's latest word wins. Null when
-    /// the cards can't be joined: fewer than two, a pack, a part or an image in a pack, a card that has joined another,
-    /// more than one book owned elsewhere, or an opening file that isn't one of their copies.
+    /// Same book: joins cards the user ticked as one book, each as Match joins a copy. Their copies move onto the
+    /// oldest card, or onto the book owned elsewhere when one is among them (as its file would), with what each card
+    /// brings, and <paramref name="opensDocumentId"/> becomes the copy that opens. A "Not the same book" given for any
+    /// two of their files is forgotten: the user's latest word wins. Null when the cards can't be joined: fewer than
+    /// two, a pack, a part or an image in a pack, a card that has joined another, more than one book owned elsewhere,
+    /// or an opening file that isn't one of their copies.
     /// </summary>
     public async Task<BookJoin?> JoinAsOneBookAsync(IReadOnlyCollection<EntryId> entryIds, long opensDocumentId, CancellationToken ct = default)
     {
@@ -818,25 +820,25 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         public List<long> SetAside { get; set; } = [];
         public List<long> Rejections { get; set; } = [];
         public List<string> Runs { get; set; } = [];
-        /// <summary>The card that joined brought its heart (slice 3).</summary>
+        /// <summary>The card that joined brought its heart.</summary>
         public bool Favorite { get; set; }
-        /// <summary>The card that joined brought its reading position (slice 3).</summary>
+        /// <summary>The card that joined brought its reading position.</summary>
         public bool Reading { get; set; }
-        /// <summary>The card that joined brought its pin (Pinned Views plan, choice 9).</summary>
+        /// <summary>The card that joined brought its pin.</summary>
         public bool Pin { get; set; }
-        /// <summary>The collections the card that joined brought its membership of (slice 3b).</summary>
+        /// <summary>The collections the card that joined brought its membership of.</summary>
         public List<long> Collections { get; set; } = [];
-        /// <summary>The session items that pointed at the card that joined (slice 3c).</summary>
+        /// <summary>The session items that pointed at the card that joined.</summary>
         public List<long> SessionItems { get; set; } = [];
-        /// <summary>The card that joined brought its own note, to a card without one (slice 3f).</summary>
+        /// <summary>The card that joined brought its own note, to a card without one.</summary>
         public bool Note { get; set; }
         /// <summary>The text added to the end of the surviving card's own note, from the note of the card that joined.</summary>
         public string? NoteAppended { get; set; }
         /// <summary>The page notes the card that joined brought.</summary>
         public List<long> PageNotes { get; set; } = [];
-        /// <summary>For a pack merged into another (multi-select plan, choice 9): the images that were in it.</summary>
+        /// <summary>For a pack merged into another: the images that were in it.</summary>
         public List<long> Members { get; set; } = [];
-        /// <summary>The adventures marked in the joining card's file (slice 5).</summary>
+        /// <summary>The adventures marked in the joining card's file.</summary>
         public List<long> Parts { get; set; } = [];
     }
 

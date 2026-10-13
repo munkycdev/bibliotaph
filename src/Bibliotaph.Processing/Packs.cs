@@ -10,10 +10,9 @@ namespace Bibliotaph.Processing;
 public sealed record PackTogetherResult(PackTogether Together, FieldSnapshot? Title);
 
 /// <summary>
-/// Image packs (F4 plan): makes folders and ZIPs of many images one card after hashing, proposes smaller and mixed
-/// ones in Needs review, and splits packs again on request; Pack together makes and merges packs by hand (multi-select
-/// plan). Each change stores the packs' hints from their folder names and projects the cards that changed, so the
-/// library shows them.
+/// Image packs: makes folders and ZIPs of many images one card after hashing, proposes smaller and mixed ones in
+/// Needs review, and splits packs again on request; Pack together makes and merges packs by hand. Each change stores
+/// the packs' hints from their folder names and projects the cards that changed, so the library shows them.
 /// </summary>
 public sealed class PackService(PackStore packs, MetadataProjector projector, MetadataHints hints, ILogger<PackService>? log = null,
     MetadataStore? metadata = null)
@@ -45,9 +44,9 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
         await ProjectAsync(await packs.RepackAsync(packId, images, ct), ct);
 
     /// <summary>
-    /// Pack together (multi-select plan, choices 8 to 11): the cards become one pack named <paramref name="name"/>. The
-    /// name is set as the pack's title, as the user's own, when the pack is new or merged, or when it was renamed in
-    /// the dialog. Null when the cards can't go together.
+    /// Pack together: the cards become one pack named <paramref name="name"/>. The name is set as the pack's title,
+    /// as the user's own, when the pack is new or merged, or when it was renamed in the dialog. Null when the cards
+    /// can't go together.
     /// </summary>
     public async Task<PackTogetherResult?> PackTogetherAsync(IReadOnlyCollection<EntryId> entryIds, string name, CancellationToken ct = default)
     {

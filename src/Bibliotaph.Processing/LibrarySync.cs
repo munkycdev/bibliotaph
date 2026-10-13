@@ -16,13 +16,13 @@ public sealed record SyncStatus(string? Folder, string? LastMergedFrom, DateTime
 public sealed record SyncPass(IReadOnlyList<string> MergedFrom, bool Changed, bool Wrote);
 
 /// <summary>
-/// Library sync (library sync plan): the same user work on a second Windows PC, with no sync service. Each PC writes
-/// its own sync file, <c>&lt;folder&gt;\Bibliotaph sync\&lt;PC name&gt;.json</c>, to a folder the user picks (one in
-/// OneDrive, say) a few seconds after the user's work changes and when Bibliotaph closes; at the start, when another
-/// PC's file changes, and every ten minutes, it reads the others' files and merges them, newest change per field
-/// winning (<see cref="SyncMerge"/>). The databases never go in the folder, and the folder may be offline: then the
-/// pass says so and is tried again later. Only the user's work travels; file locations, online-only marks, window
-/// places and caches stay on their PC.
+/// Library sync: the same user work on a second Windows PC, with no sync service. Each PC writes its own sync file,
+/// <c>&lt;folder&gt;\Bibliotaph sync\&lt;PC name&gt;.json</c>, to a folder the user picks (one in OneDrive, say) a
+/// few seconds after the user's work changes and when Bibliotaph closes; at the start, when another PC's file
+/// changes, and every ten minutes, it reads the others' files and merges them, newest change per field winning
+/// (<see cref="SyncMerge"/>). The databases never go in the folder, and the folder may be offline: then the pass
+/// says so and is tried again later. Only the user's work travels; file locations, online-only marks, window places
+/// and caches stay on their PC.
 /// </summary>
 public sealed partial class LibrarySync : IHostedService, IDisposable
 {

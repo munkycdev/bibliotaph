@@ -7,8 +7,8 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record CollectionDialogResult(string Name, string? Description, CollectionChoice? Choice);
 
 /// <summary>
-/// The dialog over a page for collections (slice 3 plan, choices 8 to 10): naming one (New collection, Rename), or
-/// picking one from all of them (Add to another collection, Move to), with a box that narrows the list as you type.
+/// The dialog over a page for collections: naming one (New collection, Rename), or picking one from all of them
+/// (Add to another collection, Move to), with a box that narrows the list as you type.
 /// </summary>
 public sealed partial class CollectionDialogViewModel : ObservableObject
 {

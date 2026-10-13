@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// What the "Add a book I own elsewhere" dialog collects (F5 plan, choice 1): a title, and optionally a game system,
-/// types, a publisher and where it is owned. Each is typed as the inspector takes it; multi-value fields are lists.
+/// What the "Add a book I own elsewhere" dialog collects: a title, and optionally a game system, types, a publisher
+/// and where it is owned. Each is typed as the inspector takes it; multi-value fields are lists.
 /// </summary>
 public sealed record ElsewhereDraft(string Title, string? System = null, IReadOnlyList<string>? Types = null, string? Publisher = null,
     IReadOnlyList<string>? AlsoOwn = null);
@@ -21,11 +21,11 @@ public sealed record ElsewhereDraft(string Title, string? System = null, IReadOn
 public sealed record ElsewhereItem(PendingElsewhere Match, string BookTitle, string? AlsoOwn, string FileTitle, string? Path);
 
 /// <summary>
-/// Books the user owns elsewhere, in print or on a VTT (F5 plan, choices 1 to 6): adding one, removing it again, and
-/// the Needs review cards that offer a file as its. Their metadata are the user's own values, set through
-/// <see cref="MetadataService"/> as the inspector sets them, so bulk edit, search and Undo treat them as any card's.
-/// Match asks about a file when it is new or read again; a book added, or a title or publisher changed on either
-/// side, has the files already in the library checked here by the same rule.
+/// Books the user owns elsewhere, in print or on a VTT: adding one, removing it again, and the Needs review cards
+/// that offer a file as its. Their metadata are the user's own values, set through <see cref="MetadataService"/> as
+/// the inspector sets them, so bulk edit, search and Undo treat them as any card's. Match asks about a file when it
+/// is new or read again; a book added, or a title or publisher changed on either side, has the files already in the
+/// library checked here by the same rule.
 /// </summary>
 public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches, MetadataService metadata, VocabularyStore vocabularies,
     MetadataProjector projector, LibraryStore library, IndexQueries queries, LibraryQueries cards, ILogger<ElsewhereService>? log = null)
@@ -177,7 +177,7 @@ public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches,
         if (draft.AlsoOwn is { Count: > 0 } owns) yield return (MetadataFields.AlsoOwn, string.Join(", ", owns));
     }
 
-    /// <summary>"Remove from library" (choice 5). Returns what Undo needs, or null for a card that isn't owned elsewhere.</summary>
+    /// <summary>"Remove from library". Returns what Undo needs, or null for a card that isn't owned elsewhere.</summary>
     public async Task<RemovedEntry?> RemoveAsync(EntryId entryId, CancellationToken ct = default)
     {
         var removed = await entries.RemoveElsewhereAsync(entryId, ct);
@@ -212,7 +212,7 @@ public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches,
         return items;
     }
 
-    /// <summary>Answers a card (choice 6). Returns what undoes it, or null when it isn't waiting any more.</summary>
+    /// <summary>Answers a card. Returns what undoes it, or null when it isn't waiting any more.</summary>
     public async Task<ElsewhereDecision?> AnswerAsync(PendingElsewhere match, ElsewhereAnswer answer, CancellationToken ct = default)
     {
         var decision = await matches.AnswerAsync(match.Id, answer, ct);

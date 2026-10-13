@@ -10,9 +10,9 @@ namespace Bibliotaph.Processing;
 public sealed record PlainSearchResult(Interpretation? Interpretation, string? Problem);
 
 /// <summary>
-/// The search box's Ask (scenario review, row 5): a request in plain English read by AI as the search box's own fields
-/// and words, through whichever AI is set up (built in or a model server). It needs AI; without it the search box
-/// works as it always has. Nothing here searches: the reading is shown for the user to change and run.
+/// The search box's Ask: a request in plain English read by AI as the search box's own fields and words, through
+/// whichever AI is set up (built in or a model server). It needs AI; without it the search box works as it always
+/// has. Nothing here searches: the reading is shown for the user to change and run.
 /// </summary>
 public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabularies, IndexQueries queries, ILogger<PlainSearchService>? log = null)
 {

@@ -9,10 +9,9 @@ using Velopack.Sources;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Updates from GitHub Releases (slice 4l plan, choice 4): checked at start and once a day, downloaded in the
-/// background, then offered in the sidebar as "Update ready: restart to update". Bibliotaph never restarts by itself,
-/// since the user may be mid-session at the table. An interface so the smoke test can show an update as ready without
-/// one, and never restart.
+/// Updates from GitHub Releases: checked at start and once a day, downloaded in the background, then offered in the
+/// sidebar as "Update ready: restart to update". Bibliotaph never restarts by itself, since the user may be mid-session
+/// at the table. An interface so the smoke test can show an update as ready without one, and never restart.
 /// </summary>
 public interface IUpdateService : INotifyPropertyChanged
 {

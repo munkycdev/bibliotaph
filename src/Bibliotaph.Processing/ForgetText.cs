@@ -7,11 +7,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// "Forget its text" and "Read it again" (slice 4i plan, choice 6), the spec's purge of derived content, for a book
-/// the user would rather not have readable on disk. Forgetting removes what reading the book made (its pages and their
-/// search text, its cover, the reader's thumbnails of its pages, the AI's results and Ask this book's conversation) and
-/// stops indexing it; the user's decision is kept in catalog.db, so it outlasts a rebuilt index. The file itself is never
-/// touched, and the book keeps its card and catalog details.
+/// "Forget its text" and "Read it again", a purge of derived content, for a book the user would rather not
+/// have readable on disk. Forgetting removes what reading the book made (its pages and their search text, its cover,
+/// the reader's thumbnails of its pages, the AI's results and Ask this book's conversation) and stops indexing it;
+/// the user's decision is kept in catalog.db, so it outlasts a rebuilt index. The file itself is never touched, and
+/// the book keeps its card and catalog details.
 /// </summary>
 public sealed class ForgetText(
     EntryStore entries,

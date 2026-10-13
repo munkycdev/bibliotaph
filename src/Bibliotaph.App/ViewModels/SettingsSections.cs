@@ -37,7 +37,7 @@ public abstract partial class SettingsSectionViewModel : ObservableObject
 /// <summary>
 /// Settings > Processing: indexing step by step with the time left, what each part is on now, pause and resume for
 /// each lane, and why online-only files wait. The progress itself is <see cref="LibraryActivity"/>'s, which the
-/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only (Dale's review, row 2).
+/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only.
 /// </summary>
 public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links, OnlineOnlyReturns returns,
     ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
@@ -165,7 +165,7 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
         set { if (value) _ = SetReviewAllAsync(false); }
     }
 
-    /// <summary>Needs review gets every suggestion nobody has confirmed (choice 4).</summary>
+    /// <summary>Needs review gets every suggestion nobody has confirmed.</summary>
     public bool ReviewEverything
     {
         get => _reviewAll;
@@ -213,9 +213,9 @@ public sealed partial class StartOverSectionViewModel(StartOver startOver) : Set
 public sealed record PasswordRow(string ContentHash, string Title);
 
 /// <summary>
-/// Settings > Passwords (slice 4i plan, choice 2): the books whose password was remembered in Windows Credential
-/// Manager, each with Forget, and Forget all. Forgetting one also forgets the copy kept for this sitting, so the next
-/// open asks again; text already read stays searchable until Forget its text.
+/// Settings > Passwords: the books whose password was remembered in Windows Credential Manager, each with Forget, and
+/// Forget all. Forgetting one also forgets the copy kept for this sitting, so the next open asks again; text already
+/// read stays searchable until Forget its text.
 /// </summary>
 public sealed partial class PasswordsSectionViewModel(IPasswordVault vault, UnlockedPasswords unlocked, IndexQueries queries,
     ILogger<PasswordsSectionViewModel> log) : SettingsSectionViewModel

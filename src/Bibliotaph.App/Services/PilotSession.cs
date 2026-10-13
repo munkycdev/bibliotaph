@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Whether the app started with --pilot (slice 2d, choice P2), which shows the model pilot in Settings > AI.</summary>
+/// <summary>Whether the app started with --pilot, which shows the model pilot in Settings > AI.</summary>
 public sealed class PilotMode(bool on)
 {
     public bool IsOn { get; set; } = on;
@@ -31,7 +31,7 @@ public sealed partial class PilotSession(PilotService pilot, ILogger<PilotSessio
     [ObservableProperty]
     public partial string? Problem { get; private set; }
 
-    /// <summary>The review page's "Also save as my values in the catalog", on by default (choice P5).</summary>
+    /// <summary>The review page's "Also save as my values in the catalog", on by default.</summary>
     [ObservableProperty]
     public partial bool AlsoCatalog { get; set; } = true;
 

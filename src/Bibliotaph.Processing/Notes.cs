@@ -11,10 +11,10 @@ namespace Bibliotaph.Processing;
 public sealed record PageNotePages(PagePlace Place, PageRange Pages, bool Found = true);
 
 /// <summary>
-/// Notes (slice 3 plan, choice 18): each book's own note, and notes on pages of a book, which the reader lists and a
-/// binder's reader shows. Search finds a book by the words of either: they are projected to index.db after each change.
-/// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice
-/// 2), and lists at the pages it opens at, or in a reader at its pages in the copy open there.
+/// Notes: each book's own note, and notes on pages of a book, which the reader lists and a binder's reader shows.
+/// Search finds a book by the words of either: they are projected to index.db after each change. A page note opens
+/// where its pages are in the book's current copy, found as a session item's are, and lists at the pages it opens
+/// at, or in a reader at its pages in the copy open there.
 /// </summary>
 public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
 {
@@ -77,7 +77,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         return updated;
     }
 
-    /// <summary>Where each page note opens now, by note: in the book's current copy, as a session item would (choice 2).</summary>
+    /// <summary>Where each page note opens now, by note: in the book's current copy, as a session item would.</summary>
     public async Task<IReadOnlyDictionary<long, PagePlace>> ResolveAsync(IReadOnlyList<PageNoteInfo> pageNotes, CancellationToken ct = default)
     {
         var resolved = await places.ResolveAsync([.. pageNotes.Select(n => (n.EntryId, n.Range))], ct);
@@ -112,7 +112,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         return result;
     }
 
-    /// <summary>"Use this page" on a note whose page changed (choice 2): the note is on these pages of the open document from now on.</summary>
+    /// <summary>"Use this page" on a note whose page changed: the note is on these pages of the open document from now on.</summary>
     public async Task<PageNoteInfo?> UsePageAsync(long noteId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         var used = await notes.RepointAsync(noteId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);

@@ -5,9 +5,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// The books ticked in the Library's Select mode (slice 4e), by entry. Ticks stay while the search and filters
-/// change, so books can be gathered from several searches; <see cref="SetShown"/> says which are in view, for
-/// "12 selected, 3 not shown". Slice 3's Add to collection is to read the same selection.
+/// The books ticked in the Library's Select mode, by entry. Ticks stay while the search and filters change, so books
+/// can be gathered from several searches; <see cref="SetShown"/> says which are in view, for "12 selected, 3 not
+/// shown".
 /// </summary>
 public sealed class BookSelection : ObservableObject
 {

@@ -8,10 +8,10 @@ using Microsoft.Web.WebView2.Wpf;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// A window a page in Bibliotaph's browser opened (online libraries, O5): a sign-in popup, or a store's Download button
-/// opening a new tab. Bibliotaph hosts it rather than leaving it to WebView2's own window, so a download started there
-/// goes to the downloads folder like any other, and the page that opened it keeps talking to it as sign-ins need. A
-/// window that only downloads is hidden, and closes when its download is done.
+/// A window a page in Bibliotaph's browser opened: a sign-in popup, or a store's Download button opening a new tab.
+/// Bibliotaph hosts it rather than leaving it to WebView2's own window, so a download started there goes to the
+/// downloads folder like any other, and the page that opened it keeps talking to it as sign-ins need. A window that
+/// only downloads is hidden, and closes when its download is done.
 /// </summary>
 public sealed class OnlinePopupWindow : Window
 {

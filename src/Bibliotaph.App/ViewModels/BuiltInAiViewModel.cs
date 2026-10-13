@@ -37,17 +37,17 @@ public sealed partial class BuiltInModelItem(BuiltInModel model, bool suggested)
 }
 
 /// <summary>
-/// Settings > AI's "Built in" panel (Built-in AI plan, choices 4 to 7 and 14): the models offered, the one that suits
-/// this computer's graphics card picked first, Download with progress, Pause and Cancel, Delete model, and Test.
-/// Pressing Download sets the built-in AI to that model, so books are read as soon as it arrives, even if Settings has
-/// been closed by then; a model already downloaded is used as soon as it is chosen.
+/// Settings > AI's "Built in" panel: the models offered, the one that suits this computer's graphics card picked
+/// first, Download with progress, Pause and Cancel, Delete model, and Test. Pressing Download sets the built-in AI to
+/// that model, so books are read as soon as it arrives, even if Settings has been closed by then; a model already
+/// downloaded is used as soon as it is chosen.
 /// </summary>
 public sealed partial class BuiltInAiViewModel(
     AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester,
     [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine)
     : ObservableObject
 {
-    // Ask this book's embedding model (Ask plan, choice 3), downloaded like a chat model and run by a second engine.
+    // Ask this book's embedding model, downloaded like a chat model and run by a second engine.
 
     readonly BuiltInModel _embedding = BuiltInModels.Embedding;
 

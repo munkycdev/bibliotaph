@@ -3,7 +3,7 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Classification.Tests;
 
-/// <summary>Worked examples (scenario review, row 8): which of the user's books go with a classification, and how they read in the prompt.</summary>
+/// <summary>Worked examples: which of the user's books go with a classification, and how they read in the prompt.</summary>
 public class WorkedExamplesTests
 {
     static readonly DateTime T0 = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);

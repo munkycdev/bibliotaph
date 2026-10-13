@@ -16,13 +16,13 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A binder's page (Binders plan, choices 1 to 8): its pages listed down the left, numbered under their sections, where
-/// a book's chapters sit in the reader; the reader shows the page in hand, with every other page of the book still
-/// reachable; the binder's notes sit in a panel on the right that folds away. Next and Previous (Ctrl+Right and
-/// Ctrl+Left) step through the pages, which are renamed in the list (F2). Edit binder opens the list page for sections,
-/// order and notes. Pop out moves the whole binder to a window of its own, one window per binder. At hand (choices 10
-/// and 11) opens a page of a binder kept at hand in a reader window, so the page in hand stays put. When the next page is
-/// in another book, that book is opened ahead of time with the page drawn, so Next shows it at once.
+/// A binder's page: its pages listed down the left, numbered under their sections, where a book's chapters sit in the
+/// reader; the reader shows the page in hand, with every other page of the book still reachable; the binder's notes
+/// sit in a panel on the right that folds away. Next and Previous (Ctrl+Right and Ctrl+Left) step through the pages,
+/// which are renamed in the list (F2). Edit binder opens the list page for sections, order and notes. Pop out moves
+/// the whole binder to a window of its own, one window per binder. At hand opens a page of a binder kept at hand in a
+/// reader window, so the page in hand stays put. When the next page is in another book, that book is opened ahead of
+/// time with the page drawn, so Next shows it at once.
 /// </summary>
 public sealed partial class SessionReaderViewModel : PageViewModel
 {
@@ -73,7 +73,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
 
     public override string? PinKey => PinDirectory.BinderKey(PackId);
 
-    /// <summary>Pin or Unpin: the binder in the sidebar's Pinned group (Pinned Views plan, choice 7).</summary>
+    /// <summary>Pin or Unpin: the binder in the sidebar's Pinned group.</summary>
     public string PinLabel => _pins.PinLabel(PinTarget.Binder(PackId));
 
     [RelayCommand]
@@ -387,8 +387,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     void OnDirectoryChanged(object? sender, EventArgs e) => HasAtHand = _directory.HasAtHandBesides(PackId);
 
     /// <summary>
-    /// At hand's list (choices 10 and 11): the other binders kept at hand with their pages, those for a game system of
-    /// this binder's books first, then those for any system, then the rest, each by title.
+    /// At hand's list: the other binders kept at hand with their pages, those for a game system of this binder's books
+    /// first, then those for any system, then the rest, each by title.
     /// </summary>
     public async Task<IReadOnlyList<AtHandGroup>> AtHandAsync()
     {
@@ -545,7 +545,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     [RelayCommand]
     void ToggleNotes() => ShowNotes = !ShowNotes;
 
-    /// <summary>Rename (choice 5): F2, a double-click or the pencil puts the item's name in a box to type over.</summary>
+    /// <summary>Rename: F2, a double-click or the pencil puts the item's name in a box to type over.</summary>
     [RelayCommand]
     void RenameItem(SessionItemRow row) => Rename(row, row.Label);
 
@@ -576,8 +576,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     }
 
     /// <summary>
-    /// Add this page (choice 6): the page in view, or the whole image, right after the item in hand, called after the
-    /// bookmark it sits under, with its name ready to type over.
+    /// Add this page: the page in view, or the whole image, right after the item in hand, called after the bookmark it
+    /// sits under, with its name ready to type over.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddPage))]
     async Task AddPage()
@@ -599,7 +599,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
 
     bool CanAddPage() => Pack is not null && Viewer.Mode is ViewerMode.Pdf or ViewerMode.Image;
 
-    /// <summary>Edit binder (choice 2): the list page, for sections, order, notes and the rest, in the main window.</summary>
+    /// <summary>Edit binder: the list page, for sections, order, notes and the rest, in the main window.</summary>
     [RelayCommand]
     void Edit() => _sessionPages.Edit(PackId);
 

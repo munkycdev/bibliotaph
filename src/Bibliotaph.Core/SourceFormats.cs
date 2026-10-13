@@ -1,7 +1,7 @@
 namespace Bibliotaph.Core;
 
 /// <summary>
-/// The file types Bibliotaph indexes, and the archives it reads them from (F3). Everything else in a source folder is
+/// The file types Bibliotaph indexes, and the archives it reads them from. Everything else in a source folder is
 /// counted and left alone.
 /// </summary>
 public static class SourceFormats
@@ -10,7 +10,7 @@ public static class SourceFormats
     public const string Jpeg = "jpg";
     public const string Png = "png";
 
-    /// <summary>Read through Windows' own decoder, which needs Microsoft's free WebP Image Extensions (F4 plan, choice 11).</summary>
+    /// <summary>Read through Windows' own decoder, which needs Microsoft's free WebP Image Extensions.</summary>
     public const string Webp = "webp";
 
     /// <summary>Every image format, for "format:image" and the Images kind.</summary>

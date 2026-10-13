@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 5b: the adventures a file seems to hold, one Needs review card per file, answered by content hash.</summary>
+/// <summary>The adventures a file seems to hold, one Needs review card per file, answered by content hash.</summary>
 public sealed class PartProposalStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);

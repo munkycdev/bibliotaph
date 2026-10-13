@@ -98,7 +98,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public ObservableCollection<NavItemViewModel> NavItems { get; }
 
-    /// <summary>The sidebar's Pinned group (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order.</summary>
+    /// <summary>
+    /// The sidebar's Pinned group: books, Favorites, collections, binders and saved searches, in order.
+    /// </summary>
     public ObservableCollection<PinnedItemViewModel> Pinned => _pins.Items;
 
     public NavItemViewModel Settings { get; }
@@ -121,7 +123,7 @@ public sealed partial class ShellViewModel : ObservableObject
         if (!PlainSearch.IsOn) _searchDelay.Start();
     }
 
-    /// <summary>Ask beside the search box (scenario review, row 5): a request in plain English read as a search.</summary>
+    /// <summary>Ask beside the search box: a request in plain English read as a search.</summary>
     public PlainSearchViewModel PlainSearch { get; }
 
     /// <summary>The empty box's hint, which says what it takes in Ask mode.</summary>
@@ -155,7 +157,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Indexing progress for the sidebar status line.</summary>
     public LibraryActivity Activity { get; }
 
-    /// <summary>An update downloaded in the background, which the sidebar offers once it is ready (slice 4l).</summary>
+    /// <summary>An update downloaded in the background, which the sidebar offers once it is ready.</summary>
     public IUpdateService Updates { get; }
 
     /// <summary>The sidebar's "Update ready: restart to update". Nothing restarts until it is clicked.</summary>
@@ -182,7 +184,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public async Task StartAsync()
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
-        // Settings > Library > Start on (slice 3 plan, choice 7): Home unless the Library was chosen.
+        // Settings > Library > Start on: Home unless the Library was chosen.
         // The pins show their targets' names, so those load first.
         await _views.LoadAsync();
         await _collections.LoadAsync();
@@ -221,7 +223,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     void Open(NavItemViewModel item) => Navigate(item.Route);
 
-    /// <summary>A pin (Pinned Views plan, choice 6).</summary>
+    /// <summary>A pin.</summary>
     [RelayCommand]
     Task OpenPin(PinnedItemViewModel item) => _opener.OpenAsync(item);
 
@@ -232,7 +234,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Raised after a pin moved, so the sidebar puts the keyboard back on it in its new place.</summary>
     public event EventHandler<PinTarget>? FocusPinRequested;
 
-    /// <summary>A pin's Move up, from its menu or Alt+Up (Pinned Views plan, choice 8).</summary>
+    /// <summary>A pin's Move up, from its menu or Alt+Up.</summary>
     [RelayCommand(CanExecute = nameof(CanMovePinUp))]
     Task MovePinUp(PinnedItemViewModel? item) => item is null ? Task.CompletedTask : MovePinAsync(item, Pinned.IndexOf(item) - 1);
 

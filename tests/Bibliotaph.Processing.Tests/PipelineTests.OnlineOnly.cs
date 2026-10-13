@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// "Return files to online-only after indexing" (Dale's review, row 2): a file that reading downloaded from OneDrive
-/// goes back to online-only once its stages are done with it, through a stand-in for the Windows cloud files API.
+/// "Return files to online-only after indexing": a file that reading downloaded from OneDrive goes back to online-only
+/// once its stages are done with it, through a stand-in for the Windows cloud files API.
 /// </summary>
 public sealed partial class PipelineTests
 {

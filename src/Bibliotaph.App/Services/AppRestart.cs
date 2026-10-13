@@ -7,9 +7,9 @@ using Bibliotaph.Processing;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Restarting Bibliotaph to finish a restore (slice 4j plan, choice 4), the way Start over restarts: the new process
-/// is given the same data folder and waits for this one to exit before it swaps the restored catalog in
-/// (<see cref="PendingRestore"/>), since Windows won't replace a database that is still open.
+/// Restarting Bibliotaph to finish a restore, the way Start over restarts: the new process is given the same data
+/// folder and waits for this one to exit before it swaps the restored catalog in (<see cref="PendingRestore"/>), since
+/// Windows won't replace a database that is still open.
 /// </summary>
 public sealed class AppRestart(AppPaths paths)
 {

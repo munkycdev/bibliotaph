@@ -12,15 +12,15 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// <summary>The zoom to open at, as the reader's Zoom; null fits the width.</summary>
     public double? Zoom { get; init; }
 
-    /// <summary>For an image in a pack, every image in it in order, for Previous and Next (F4 plan, choice 7).</summary>
+    /// <summary>For an image in a pack, every image in it in order, for Previous and Next.</summary>
     public IReadOnlyList<PackStep>? Pack { get; init; }
 
     /// <summary>The pack's title, under the image's.</summary>
     public string? PackTitle { get; init; }
 
     /// <summary>
-    /// An ordinary open, from the Library or Home (slice 3 plan, choice 6): the book opens at the page it was left at
-    /// last time, and the page it is left at is kept for next time. A search hit opens at its page and keeps nothing.
+    /// An ordinary open, from the Library or Home: the book opens at the page it was left at last time, and the page it
+    /// is left at is kept for next time. A search hit opens at its page and keeps nothing.
     /// </summary>
     public bool Resume { get; init; }
 
@@ -33,15 +33,15 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// <summary>A session item opened from its pack: it opens at its first page and, like a search hit, keeps no reading position.</summary>
     public SessionItemOpen? SessionItem { get; init; }
 
-    /// <summary>"Ask this book" from a card's menu or the details (Ask plan, choice 11): the book opens with its Ask panel showing.</summary>
+    /// <summary>"Ask this book" from a card's menu or the details: the book opens with its Ask panel showing.</summary>
     public bool Ask { get; init; }
 
-    /// <summary>A page note opened at its pages, which may have moved or changed in the book as it is now (slice 4h plan, choice 2).</summary>
+    /// <summary>A page note opened at its pages, which may have moved or changed in the book as it is now.</summary>
     public PageNoteOpen? PageNote { get; init; }
 
     /// <summary>
-    /// An adventure inside a file, opened from its card (slice 5 plan, choice 11): the file opens at the adventure's
-    /// first page, its pages stand out in the Contents panel, and Find looks in them unless told to look in the whole file.
+    /// An adventure inside a file, opened from its card: the file opens at the adventure's first page, its pages stand
+    /// out in the Contents panel, and Find looks in them unless told to look in the whole file.
     /// </summary>
     public PartOpen? Part { get; init; }
 }
@@ -55,8 +55,8 @@ public sealed record PartOpen(Bibliotaph.Core.EntryId EntryId, string FileTitle,
 }
 
 /// <summary>
-/// A session item being opened (slice 3 plan, choice 14): which, from which pack, and how its pages were found, so the
-/// reader can say when they are in the original file or changed, and re-point the item with Use this page.
+/// A session item being opened: which, from which pack, and how its pages were found, so the reader can say when they
+/// are in the original file or changed, and re-point the item with Use this page.
 /// </summary>
 public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.Processing.SessionItemState State, string? Reason, int FirstPage, int LastPage)
 {
@@ -65,8 +65,8 @@ public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.P
 }
 
 /// <summary>
-/// A page note being opened (slice 4h plan, choice 2): which, and how its pages were found, so the reader can say when
-/// they changed or a new version is still being read, and re-point the note with Use this page.
+/// A page note being opened: which, and how its pages were found, so the reader can say when they changed or a new
+/// version is still being read, and re-point the note with Use this page.
 /// </summary>
 public sealed record PageNoteOpen(long NoteId, Bibliotaph.Processing.PagePlaceState State, string? Reason, int FirstPage, int LastPage);
 
@@ -76,8 +76,8 @@ public sealed record PackStep(long DocumentId, string Title);
 /// <summary>
 /// Passwords that opened a book in this sitting, by content hash, so the same book opening in another window (or
 /// again in this one) isn't asked for twice, even when the reader didn't tick Remember. Those entered with "Make its
-/// text searchable" ticked are lent to indexing too (slice 4i plan, choice 1), so the book is read for search while
-/// the app runs. Held in memory only and never written anywhere; they go when the app exits.
+/// text searchable" ticked are lent to indexing too, so the book is read for search while the app runs. Held in memory
+/// only and never written anywhere; they go when the app exits.
 /// </summary>
 public sealed class UnlockedPasswords
 {

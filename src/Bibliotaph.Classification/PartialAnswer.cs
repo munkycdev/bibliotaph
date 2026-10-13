@@ -7,9 +7,9 @@ namespace Bibliotaph.Classification;
 public sealed record PartialField(string Name, IReadOnlyList<string> Values);
 
 /// <summary>
-/// Reads an answer while the model is still writing it, for the AI reading page (Built-in AI plan, choice 12): each
-/// field the answer has reached, in order, with the values whose text is complete. Nothing here is checked or stored;
-/// the evidence check runs on the whole answer as before.
+/// Reads an answer while the model is still writing it, for the AI reading page: each field the answer has reached, in
+/// order, with the values whose text is complete. Nothing here is checked or stored; the evidence check runs on the
+/// whole answer as before.
 /// </summary>
 public static class PartialAnswer
 {

@@ -5,7 +5,7 @@ using Dapper;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>ZIPs (F3): the PDFs and images inside a ZIP in a library folder are read in place, never unpacked beside it.</summary>
+/// <summary>ZIPs: the PDFs and images inside a ZIP in a library folder are read in place, never unpacked beside it.</summary>
 public sealed partial class PipelineTests
 {
     void Zip(string relative, DateTime modifiedUtc, params (string Entry, byte[] Bytes)[] members)

@@ -2,7 +2,7 @@ using System.IO.Compression;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Check a download (F5b): a folder and its ZIPs checked against the library, which it leaves as it was.</summary>
+/// <summary>Check a download: a folder and its ZIPs checked against the library, which it leaves as it was.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]

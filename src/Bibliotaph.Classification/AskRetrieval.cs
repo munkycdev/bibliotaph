@@ -22,7 +22,7 @@ public sealed record HeadingPath(IReadOnlyList<string> Titles)
 /// <summary>The few lines of a page shown under a question, and the word in them that matched it, for Find to mark.</summary>
 public sealed record Passage(string Text, string? Phrase);
 
-/// <summary>How retrieval weighs and cuts (Ask this book, choices 3, 5, 8 and 9).</summary>
+/// <summary>How retrieval weighs and cuts.</summary>
 public sealed record AskRetrievalOptions
 {
     /// <summary>How many pages each signal ranks before they are fused.</summary>
@@ -43,7 +43,7 @@ public sealed record AskRetrievalOptions
     /// <summary>At most this many pages are the evidence.</summary>
     public int MaxPages { get; init; } = 8;
 
-    /// <summary>About 6,000 tokens of pages (choice 9), at roughly four characters a token.</summary>
+    /// <summary>About 6,000 tokens of pages, at roughly four characters a token.</summary>
     public int Budget { get; init; } = 24_000;
 
     /// <summary>A page gives at most this much, so one long page can't take the whole budget.</summary>
@@ -51,9 +51,9 @@ public sealed record AskRetrievalOptions
 }
 
 /// <summary>
-/// Finding the pages of one book that answer a question, without a model (Ask this book, step 2): the question's words
-/// through the book's search index, its meaning against each page's vector, the two fused by reciprocal rank, and pages
-/// under a bookmark that matches the question lifted a little. Pure, so it is tested without an index or a server.
+/// Finding the pages of one book that answer a question, without a model: the question's words through the book's
+/// search index, its meaning against each page's vector, the two fused by reciprocal rank, and pages under a bookmark
+/// that matches the question lifted a little. Pure, so it is tested without an index or a server.
 /// </summary>
 public static class AskRetrieval
 {
@@ -119,7 +119,9 @@ public static class AskRetrieval
         return aa == 0 || bb == 0 ? 0 : dot / (Math.Sqrt(aa) * Math.Sqrt(bb));
     }
 
-    /// <summary>Every page's closeness to the question, closest first (choice 5: in process, over the one book's vectors).</summary>
+    /// <summary>
+    /// Every page's closeness to the question, closest first (in process, over the one book's vectors).
+    /// </summary>
     public static IReadOnlyList<(long PageId, double Cosine)> RankByMeaning(float[] question, IEnumerable<(long PageId, float[] Vector)> pages) =>
         [.. pages.Select(p => (p.PageId, Cosine: Cosine(question, p.Vector))).OrderByDescending(p => p.Cosine).ThenBy(p => p.PageId)];
 
@@ -149,9 +151,9 @@ public static class AskRetrieval
     }
 
     /// <summary>
-    /// The weak-signal guard (choice 8, before any model is asked): the best page by words has fewer than half the
-    /// question's words (at least one), and the best page by meaning is neither close to the question nor stands out
-    /// from the book's typical page. Without vectors, words alone decide.
+    /// The weak-signal guard (before any model is asked): the best page by words has fewer than half the question's
+    /// words (at least one), and the best page by meaning is neither close to the question nor stands out from the
+    /// book's typical page. Without vectors, words alone decide.
     /// </summary>
     /// <param name="wordCount">How many words the question has worth looking for.</param>
     /// <param name="bestCoverage">How many of them the best page by words has.</param>

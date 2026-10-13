@@ -5,9 +5,10 @@ using Bibliotaph.Index;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Opens a pin, from the sidebar or Home (Pinned Views plan, choice 6): a book where it was left, or its details when
-/// it has no file (owned elsewhere), or in the online reader when it's owned online; Favorites, a collection or a saved search in the Library; a binder in its reader.
-/// A book whose folder is offline or whose file has gone opens to the reader's prompt, which says what to do.
+/// Opens a pin, from the sidebar or Home: a book where it was left, or its details when it has no file (owned
+/// elsewhere), or in the online reader when it's owned online; Favorites, a collection or a saved search in the
+/// Library; a binder in its reader. A book whose folder is offline or whose file has gone opens to the reader's prompt,
+/// which says what to do.
 /// </summary>
 public sealed class PinOpener(LibraryPages library, SessionPages binders, ReaderWindows readers, CollectionDirectory collections, SmartViewDirectory views,
     LibraryQueries queries, OnlineReaders online)

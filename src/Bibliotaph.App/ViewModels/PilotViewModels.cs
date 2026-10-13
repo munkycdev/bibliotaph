@@ -12,8 +12,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// The Pilot section of Settings > AI, shown only with --pilot (slice 2d): pick the books, run the models overnight,
-/// review the answers, and make the report.
+/// The Pilot section of Settings > AI, shown only with --pilot: pick the books, run the models overnight, review the
+/// answers, and make the report.
 /// </summary>
 public sealed partial class PilotPanelViewModel : ObservableObject
 {
@@ -197,9 +197,9 @@ public sealed partial class PilotFieldViewModel : ObservableObject
 }
 
 /// <summary>
-/// The Pilot review page (choice P5): one book at a time, the values the models kept and the catalog's, merged with no
-/// model's name on them, and the user's answer for each field. Answers are the pilot's answer key and, by default,
-/// the user's own values in the catalog too.
+/// The Pilot review page: one book at a time, the values the models kept and the catalog's, merged with no model's
+/// name on them, and the user's answer for each field. Answers are the pilot's answer key and, by default, the user's
+/// own values in the catalog too.
 /// </summary>
 public sealed partial class PilotReviewViewModel(PilotService pilot, PilotSession session, ReaderWindows readers) : PageViewModel
 {

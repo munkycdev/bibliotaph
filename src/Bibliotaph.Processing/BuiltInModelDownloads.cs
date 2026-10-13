@@ -25,9 +25,9 @@ public sealed record ModelDownload(BuiltInModel Model, long Bytes, bool Checking
 }
 
 /// <summary>
-/// The built-in AI's models on this computer (Built-in AI plan, choice 6): downloads one when Download is pressed, into
-/// the models folder as "&lt;file&gt;.part", resuming that file after Pause or a restart, and renames it only once its
-/// SHA-256 matches the pin. One download at a time, which outlives the Settings page that started it.
+/// The built-in AI's models on this computer: downloads one when Download is pressed, into the models folder as
+/// "&lt;file&gt;.part", resuming that file after Pause or a restart, and renames it only once its SHA-256 matches the
+/// pin. One download at a time, which outlives the Settings page that started it.
 /// </summary>
 public sealed class BuiltInModelDownloads(
     BuiltInEngineOptions options, HttpClient http, Func<string, long>? freeSpace = null, TimeProvider? clock = null,
