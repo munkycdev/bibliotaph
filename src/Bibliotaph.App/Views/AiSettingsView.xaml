@@ -81,6 +81,22 @@
       </DockPanel>
     </Border>
 
+    <!-- Reading whole books, chapter by chapter, after cataloging and only while nothing else wants the AI. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+      <StackPanel>
+        <CheckBox x:Name="ScanWholeBooks" IsChecked="{Binding ScanWholeBooks}" VerticalContentAlignment="Top"
+                  Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Scan whole books">
+          <StackPanel Margin="4,0,0,0">
+            <TextBlock Text="Scan whole books" FontSize="12" />
+            <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                       Text="Once a book is catalogued, the AI reads all of it, chapter by chapter, and notes each chapter's setting, environments, themes and creatures, with the page that shows them. It goes slowly, after everything else, and stops whenever you ask the AI something. The book's own details are never changed." />
+          </StackPanel>
+        </CheckBox>
+        <TextBlock Text="{Binding ScanProgressText}" Style="{StaticResource Note}" Margin="22,4,0,0"
+                   Visibility="{Binding ScanProgressText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </Border>
+
     <!-- Built in or a model server (Built-in AI plan, choice 7) -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <DockPanel>

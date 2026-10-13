@@ -104,6 +104,7 @@ static partial class SmokeTest
                 await Check($"Settings worked through with a library in {preference}", () => ShowSettingsAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
                 await Check($"Settings > AI, built in and with no model server, in {preference}", () => ShowAiSettingsAsync(services, window));
+                await Check($"Settings > AI's Scan whole books switch in {preference}", () => ToggleScanWholeBooksAsync(services, window));
                 await Check($"the AI reading page during a stand-in reading in {preference}", () => ShowAiReadingAsync(services, window));
                 if (real is not { } files) continue;
                 await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
@@ -3076,6 +3077,38 @@ static partial class SmokeTest
         finally
         {
             returns.SettingChanged -= OnSaved;
+        }
+    }
+
+    /// <summary>
+    /// Settings > AI's "Scan whole books": shown and ticked to start with, saved off when it is unticked and on again when
+    /// it is ticked. AI is off in the smoke library, so nothing is read either way.
+    /// </summary>
+    static async Task ToggleScanWholeBooksAsync(IServiceProvider services, Window window)
+    {
+        var page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
+        var ai = services.GetRequiredService<AiSettings>();
+        var saved = 0;
+        void OnSaved(object? sender, EventArgs e) => Interlocked.Increment(ref saved);
+        ai.ScanWholeBooksChanged += OnSaved;
+        try
+        {
+            CheckBox? Box() => Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "ScanWholeBooks");
+            await WaitUntilAsync(window, () => Box() is { IsVisible: true, IsEnabled: true, IsChecked: true } && page.ScanWholeBooks && ai.ScanWholeBooks,
+                () => "Settings > AI doesn't show Scan whole books, ticked.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 1 && !page.ScanWholeBooks && !ai.ScanWholeBooks && Box()?.IsChecked == false,
+                () => "Unticking Scan whole books wasn't saved.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 2 && page.ScanWholeBooks && ai.ScanWholeBooks && Box()?.IsChecked == true,
+                () => "Ticking Scan whole books again wasn't saved.");
+            await AuditAsync(window, "Settings > AI with Scan whole books");
+        }
+        finally
+        {
+            ai.ScanWholeBooksChanged -= OnSaved;
         }
     }
 

@@ -434,6 +434,7 @@ public sealed partial class NeedsReviewViewModel(
         Stage.Ocr => "Reading scanned pages",
         Stage.Classify => "Reading with AI",
         Stage.Match => "Looking for other copies",
+        Stage.ChapterScan => "Scanning the whole book",
         _ => stage.ToString(),
     };
 

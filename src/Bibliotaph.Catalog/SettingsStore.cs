@@ -60,6 +60,12 @@ public static class SettingKeys
     public const string AiAsked = "ai.asked";
 
     /// <summary>
+    /// "False" stops the AI reading whole books chapter by chapter once their cataloging is done; otherwise it reads
+    /// them, slowly and only while nothing else wants the AI.
+    /// </summary>
+    public const string AiScanWholeBooks = "ai.scan-whole-books";
+
+    /// <summary>
     /// "False" keeps files that indexing downloaded on this device; otherwise they go back to online-only.
     /// </summary>
     public const string ReturnOnlineOnly = "online-only.return";

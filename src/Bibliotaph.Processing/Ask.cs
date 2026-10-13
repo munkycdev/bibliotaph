@@ -375,7 +375,7 @@ public sealed class AskService(
             IReadOnlyDictionary<int, HeadingPath>? headings = null;
             while (true)
             {
-                var embedder = ai.Embedder;
+                var embedder = waiting ? ai.Embedder : ai.BackgroundEmbedder;
                 var name = ai.Setup.EmbeddingName;
                 if (embedder is null || name is null || await WhyNotAsync(documentId, ct) is not null) break;
                 if (name != model)

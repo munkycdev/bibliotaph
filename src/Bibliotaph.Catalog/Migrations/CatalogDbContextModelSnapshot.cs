@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261013190000_CatalogCollectionDeclines";
+    public override string LastMigrationId => "20261013200000_CatalogChapterScans";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -146,6 +146,53 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("EntryId", "Field", "State");
 
                 b.ToTable("assertion");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.ChapterScan", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<string>("ChaptersJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("chapters_json");
+
+                b.Property<string>("ContentHash")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("content_hash");
+
+                b.Property<DateTime?>("FinishedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("finished_utc");
+
+                b.Property<string>("Model")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("model");
+
+                b.Property<int>("PromptVersion")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("prompt_version");
+
+                b.Property<string>("Provider")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("provider");
+
+                b.Property<DateTime>("StartedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("started_utc");
+
+                b.HasKey("Id");
+
+                b.HasIndex("ContentHash")
+                    .IsUnique();
+
+                b.ToTable("chapter_scan");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.ClassificationRun", b =>

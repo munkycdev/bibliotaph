@@ -17,6 +17,8 @@ year, setting, themes and environments.
 - **Your values always win.** Anything you've typed, accepted or rejected stays as it is. AI never fills in your tags.
 - **It learns from you.** The model is shown a few books you've already sorted out, from the same folder or system, as
   examples of how you catalog.
+- **It reads whole books, chapter by chapter**, once everything else is done. See
+  [Scanning whole books](#scanning-whole-books).
 - **It finds adventures inside anthologies**, and reads each one on its own pages. See
   [Cataloging](cataloging.md#adventures-inside-a-file).
 - **It reads requests in plain English** in the search box's **Ask** mode. See
@@ -70,6 +72,26 @@ Manager and never shown again.
 
 **Embedding model, for Ask this book** lets **Ask this book** find pages by what they mean, not only by their words.
 Download one such as nomic-embed-text on the server first, then choose it here.
+
+## Scanning whole books
+
+Cataloging reads only a few pages of each book. With **Scan whole books** on (in **Settings > AI**, on unless you turn
+it off), the AI then goes back and reads every page, a few chapters at a time, and notes the setting, environments,
+themes and creatures in each chapter, with the pages they're on.
+
+- **Chapters come from the book.** Bibliotaph uses the PDF's bookmarks, else its printed contents page, else runs of
+  about 25 pages. Long chapters are read in parts.
+- **It waits its turn.** It starts only after a book is catalogued, and stops the moment you use the AI for anything
+  else (cataloging, **Ask**, **Ask this book**), carrying on half a minute after you've finished. Closing Bibliotaph
+  doesn't lose its place.
+- **It never changes a book's own details.** What it finds is shown apart, under **Found inside the book** in the
+  book's details, and beside each chapter in the reader's **Contents**. **Scan again** there reads the book again.
+- **Search uses it.** `setting:`, `environment:` and `theme:` also find books by what's inside them, and `creature:`
+  finds the books with a creature in one of their chapters, such as `creature:owlbear`.
+- **Each finding is checked like any other**: its quote must be on its page, inside its chapter.
+- A book is read once. It's read again only if the file changes or you ask. What it found stays on this PC, even if
+  the index is rebuilt, and isn't part of sync.
+- **Settings > AI** shows how far it's got: "Scanning whole books · 12 of 40".
 
 ## Day to day
 

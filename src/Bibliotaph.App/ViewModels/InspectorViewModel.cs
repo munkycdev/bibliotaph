@@ -495,6 +495,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts, log);
+        await inspector.LoadChaptersAsync(log);
         return inspector;
     }
 
@@ -662,6 +663,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         Stage.Ocr => "Reading scanned pages",
         Stage.Classify => "Cataloguing with AI",
         Stage.Match => "Looking for other copies",
+        Stage.ChapterScan => "Scanning the whole book",
         _ => stage.ToString(),
     };
 
@@ -669,7 +671,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     {
         StageStatus.Complete => "Done",
         StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
-        StageStatus.Skipped => stage.Stage == Stage.Classify && stage.Reason is { } why ? why : "Not needed",
+        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan && stage.Reason is { } why ? why : "Not needed",
+        // A whole-book scan waits a long time, and says how far it has got or what it waits for.
+        StageStatus.Pending when stage.Stage == Stage.ChapterScan && stage.Reason is { } waiting => waiting,
         StageStatus.Pending => "Waiting",
         StageStatus.Running => "Working on it…",
         _ => stage.Reason ?? stage.Status.ToString(),

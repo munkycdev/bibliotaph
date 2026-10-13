@@ -218,6 +218,25 @@ public sealed class PartProposal
 }
 
 /// <summary>
+/// What the AI found reading a file chapter by chapter, kept by the file's content hash so it outlives index.db and
+/// is never asked for again while the file stays the same. Written after every batch of chapters, so a scan
+/// interrupted by closing the app carries on where it stopped; <see cref="FinishedUtc"/> is set once every chapter
+/// has been read.
+/// </summary>
+public sealed class ChapterScan
+{
+    public long Id { get; set; }
+    public required string ContentHash { get; set; }
+    public required string Provider { get; set; }
+    public required string Model { get; set; }
+    public int PromptVersion { get; set; }
+    /// <summary>The chapters, in page order, as JSON: title, first and last PDF page, whether read, and the values found with their evidence.</summary>
+    public required string ChaptersJson { get; set; }
+    public DateTime StartedUtc { get; set; }
+    public DateTime? FinishedUtc { get; set; }
+}
+
+/// <summary>
 /// The user's answer about a pair of files, by content hash, so Match never asks or joins again: "Not the same book"
 /// keeps them on separate cards.
 /// </summary>

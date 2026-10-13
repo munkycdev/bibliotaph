@@ -136,6 +136,12 @@ public enum Stage
 
     /// <summary>Fingerprints a document's pages from its stored text and joins it to a copy of the same book.</summary>
     Match,
+
+    /// <summary>
+    /// Reads a whole book chapter by chapter with the AI and tags each chapter's setting, environments, themes and
+    /// creatures, after everything else, at the lowest priority.
+    /// </summary>
+    ChapterScan,
 }
 
 /// <summary>What the user said about a pair of files that Match compared.</summary>

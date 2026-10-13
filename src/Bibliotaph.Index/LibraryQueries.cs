@@ -913,17 +913,23 @@ public sealed class LibraryQueries(IndexDatabase database)
         void AddFacet(FacetCondition facet, int i)
         {
             var fields = $"(SELECT value FROM json_each(@facetFields{i}))";
-            Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(facet.Fields));
             if (facet.IsUnknown)
             {
+                // A book with no setting of its own is still unknown, whatever its chapters have: unknown asks what the
+                // book is, and a field found only in chapters (creatures) asks for books with none found.
+                var own = facet.Fields.Where(f => !f.StartsWith(ChapterFields.InsidePrefix, StringComparison.Ordinal)).ToList();
+                Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(own.Count > 0 ? own : facet.Fields));
                 _sql.Append(" AND e.entry_id ").Append(facet.Negated ? "IN" : "NOT IN")
                     .Append($" (SELECT entry_id FROM entry_facet WHERE field IN {fields})");
                 return;
             }
+            Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(facet.Fields));
             var normalized = MetadataText.Normalize(facet.Value);
+            // A chapter's value is a term of the same vocabulary as the book's field it is filed beside.
+            var vocabulary = $"(CASE WHEN f.field LIKE '{ChapterFields.InsidePrefix}%' THEN substr(f.field, {ChapterFields.InsidePrefix.Length + 1}) ELSE f.field END)";
             var matches = facet.Prefix
-                ? $"f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = f.field AND a.alias LIKE @facetLike{i} ESCAPE '\\')"
-                : $"f.value = @facetKey{i} OR f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = f.field AND a.alias = @facetAlias{i})";
+                ? $"f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = {vocabulary} AND a.alias LIKE @facetLike{i} ESCAPE '\\')"
+                : $"f.value = @facetKey{i} OR f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = {vocabulary} AND a.alias = @facetAlias{i})";
             Add($"e.entry_id {(facet.Negated ? "NOT IN" : "IN")} (SELECT f.entry_id FROM entry_facet f WHERE f.field IN {fields} AND ({matches}))",
                 $"facetLike{i}", facet.Prefix ? Escape(normalized) + "%" : Contains(facet.Value));
             Parameters.Add($"facetKey{i}", facet.Value.ToLowerInvariant());

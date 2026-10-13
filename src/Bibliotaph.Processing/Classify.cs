@@ -82,8 +82,9 @@ public sealed record AiSetup(string? Endpoint, string? Model, string Provider, b
 /// <param name="clients">The client for a model server's endpoint; tests and the smoke test pass stand-ins.</param>
 /// <param name="builtIn">The built-in AI's chat engine, or null where the app has none (tests).</param>
 /// <param name="builtInEmbedding">The built-in AI's second engine, in embedding mode, for finding pages by meaning.</param>
+/// <param name="activity">Tracks every request a person waits on, so reading whole books gives way to them.</param>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null,
-    BuiltInEngine? builtInEmbedding = null)
+    BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null)
 {
     /// <summary>A local model can take minutes to load and read a long excerpt on a modest GPU.</summary>
     static readonly Lazy<HttpClient> Http = new(() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
@@ -93,14 +94,35 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     volatile IClassifier? _classifier;
     volatile IPlainSearchInterpreter? _interpreter;
     volatile IEmbeddingClient? _embedder;
+    volatile IEmbeddingClient? _backgroundEmbedder;
     volatile IModelClient? _chat;
+    volatile IModelClient? _background;
+    volatile bool _scanWholeBooks = true;
 
     /// <summary>The usual client for a model server: the shared HttpClient, with the endpoint's key read when a request is made.</summary>
     public static IModelClient ClientFor(string endpoint, IApiKeyStore keys) => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint));
 
     public event EventHandler? Changed;
 
+    /// <summary>Raised when "Scan whole books" is switched on or off.</summary>
+    public event EventHandler? ScanWholeBooksChanged;
+
     public AiSetup Setup => _setup;
+
+    /// <summary>When the AI is busy with something a person is waiting on. Every client made here counts its requests.</summary>
+    public ModelActivity Activity { get; } = activity ?? new ModelActivity();
+
+    /// <summary>
+    /// Whether books are read whole, chapter by chapter, once they are catalogued: on unless the user switched it off,
+    /// and only ever while AI itself is on.
+    /// </summary>
+    public bool ScanWholeBooks => _scanWholeBooks;
+
+    /// <summary>
+    /// The client reading whole books asks: the same model and server as the classifier, but its requests don't count
+    /// as the user's, since they are the ones that give way. Null while AI isn't ready.
+    /// </summary>
+    public IModelClient? Background => _background;
 
     /// <summary>The classifier for the current setup, or null while AI isn't ready.</summary>
     public IClassifier? Classifier => _classifier;
@@ -112,6 +134,12 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     public IEmbeddingClient? Embedder => _embedder;
 
     /// <summary>
+    /// The same embedder for vectors made in the background, whose requests don't count as the user's: they give way
+    /// on their own, and counting them would hold a whole-book scan off for as long as they run.
+    /// </summary>
+    public IEmbeddingClient? BackgroundEmbedder => _backgroundEmbedder;
+
+    /// <summary>
     /// The client Ask this book's answers come from: the model server, or the built-in AI, as the classifier uses.
     /// Null while AI isn't ready.
     /// </summary>
@@ -120,16 +148,27 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     /// <summary>Ask's reader of requests in plain English, over the same model, or null while AI isn't ready.</summary>
     public IPlainSearchInterpreter? Interpreter => _interpreter;
 
-    public IModelClient ClientFor(string endpoint) => _clients(endpoint);
+    public IModelClient ClientFor(string endpoint) => Activity.Track(_clients(endpoint));
 
     /// <summary>The built-in AI's engine, or null where the app has none (tests).</summary>
     public BuiltInEngine? BuiltIn => builtIn;
 
     /// <summary>The client for the built-in AI on <paramref name="model"/>: a model's id from <see cref="BuiltInModels"/>, or a file's path.</summary>
-    public IModelClient BuiltInClientFor(string model)
+    public IModelClient BuiltInClientFor(string model) => Activity.Track(UntrackedBuiltInClientFor(model));
+
+    BuiltInModelClient UntrackedBuiltInClientFor(string model)
     {
         var engine = builtIn ?? throw new InvalidOperationException("This app has no built-in AI engine.");
         return new BuiltInModelClient(engine, Http.Value, BuiltInModels.PathFor(model, engine.Options.ModelsFolder));
+    }
+
+    /// <summary>Switches reading whole books on or off, and keeps the choice.</summary>
+    public async Task SetScanWholeBooksAsync(bool on, CancellationToken ct = default)
+    {
+        await settings.SetAsync(SettingKeys.AiScanWholeBooks, on.ToString(), ct);
+        if (_scanWholeBooks == on) return;
+        _scanWholeBooks = on;
+        ScanWholeBooksChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task LoadAsync(CancellationToken ct = default)
@@ -147,6 +186,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiEmbeddingModel, ct),
             await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct),
             await settings.GetAsync(SettingKeys.AiLibraryVectors, ct) != bool.FalseString));
+        _scanWholeBooks = await settings.GetAsync(SettingKeys.AiScanWholeBooks, ct) != bool.FalseString;
     }
 
     public async Task SaveAsync(AiSetup setup, CancellationToken ct = default)
@@ -179,12 +219,14 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             BuiltInEmbeddingModel = Blank(setup.BuiltInEmbeddingModel),
         };
         _setup = setup;
-        var client = !setup.IsReady ? null
-            : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
+        var untracked = !setup.IsReady ? null
+            : setup.BuiltIn ? builtIn is null ? null : UntrackedBuiltInClientFor(setup.BuiltInModel!)
             : _clients(setup.Endpoint!);
+        var client = untracked is null ? null : Activity.Track(untracked);
         _classifier = client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!);
         _interpreter = client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!);
         _chat = client;
+        _background = untracked;
         // The same endpoint as the chat model, never another: pages go only where Settings says.
         // A built-in one is used once its file is here; the finished download refreshes this.
         _embedder = !setup.IsReady ? null
@@ -193,6 +235,8 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
                     || BuiltInModels.PathFor(setup.BuiltInEmbeddingModel, builtInEmbedding.Options.ModelsFolder) is not { } path || !File.Exists(path) ? null
                     : new BuiltInEmbeddingClient(builtInEmbedding, Http.Value, path)
             : setup.EmbeddingModel is null ? null : _clients(setup.Endpoint!) as IEmbeddingClient;
+        _backgroundEmbedder = _embedder;
+        if (_embedder is { } embedder) _embedder = Activity.Track(embedder);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

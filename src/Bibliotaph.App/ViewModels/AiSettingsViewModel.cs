@@ -31,9 +31,12 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 /// </summary>
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
-    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log)
+    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log,
+    ChapterScanService chapters)
     : SettingsSectionViewModel
 {
+    bool _loading;
+
     public override SettingsSection Section => SettingsSection.Ai;
     public override string Label => "AI";
 
@@ -209,6 +212,28 @@ public sealed partial class AiSettingsViewModel(
     [ObservableProperty]
     public partial string ProgressText { get; private set; } = "";
 
+    /// <summary>"Scan whole books": once a book is catalogued, the AI reads it chapter by chapter. On unless switched off.</summary>
+    [ObservableProperty]
+    public partial bool ScanWholeBooks { get; set; } = true;
+
+    /// <summary>How far reading whole books has got, as "Scanning whole books · 12 of 840"; empty while there is nothing to say.</summary>
+    [ObservableProperty]
+    public partial string ScanProgressText { get; private set; } = "";
+
+    async partial void OnScanWholeBooksChanged(bool value)
+    {
+        if (_loading) return;
+        try
+        {
+            await chapters.SetOnAsync(value);
+            Activity.Invalidate();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving whether whole books are scanned failed");
+        }
+    }
+
     /// <summary>Books an earlier model or prompt classified, which Reclassify would read again.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanReclassify))]
@@ -239,6 +264,15 @@ public sealed partial class AiSettingsViewModel(
         _provider = setup.Provider.Length > 0 ? setup.Provider : null;
         RemoteAllowed = setup.RemoteAllowed;
         IsOn = setup.Enabled;
+        _loading = true;
+        try
+        {
+            ScanWholeBooks = chapters.IsOn;
+        }
+        finally
+        {
+            _loading = false;
+        }
         HasSavedKey = setup.Endpoint is { } saved && ai.Keys.Find(saved) is { Length: > 0 };
         ShowBuiltIn = setup.BuiltIn || (setup.Endpoint is null && setup.Model is null);
         BuiltIn.Saved -= OnBuiltInSaved;
@@ -346,6 +380,10 @@ public sealed partial class AiSettingsViewModel(
                 : progress.ToClassify > 0
                     ? $"{summary.Current:N0} {Books(summary.Current)} classified with {model}; {progress.ToClassify:N0} waiting."
                     : $"{summary.Current:N0} {Books(summary.Current)} classified with {model}. Nothing is waiting.";
+            var scans = progress.ScannedWhole + progress.ToScanWhole;
+            ScanProgressText = model is null || !ai.Setup.Enabled || !ScanWholeBooks || scans == 0 ? ""
+                : progress.ToScanWhole > 0 ? $"Scanning whole books · {progress.ScannedWhole:N0} of {scans:N0}"
+                : $"{progress.ScannedWhole:N0} whole {Books(progress.ScannedWhole)} scanned.";
         }
         catch (Exception ex)
         {

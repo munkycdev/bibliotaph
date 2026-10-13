@@ -37,6 +37,10 @@
   the folders are. Books that land in the folder later join it, until you change its books by hand.
 - **Books for collections**: Needs review suggests books that share a series, or a setting and game system, with most
   of a collection's books.
+- **Scan whole books** in Settings > AI (on by default) has the AI read every page of each catalogued book, a few
+  chapters at a time, when it has nothing else to do. A book's details show what it found under **Found inside the
+  book**, the reader's contents show it beside each chapter, and `setting:`, `environment:`, `theme:` and the new
+  `creature:` search find books by their chapters. The book's own details are never changed.
 
 ## 1.0.0 · 12 October 2026
 

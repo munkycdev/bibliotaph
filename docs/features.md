@@ -170,6 +170,8 @@ AI is optional. With it, a model reads a bounded excerpt of each book (opening p
 
 Every AI value quotes the page it came from, and a quote that isn't on that page throws the value away. Book text is data, never instructions: it can't change a setting or a decision, and an answer can only fill in suggestions. The model sees a few books the user has already sorted out as examples, never watermark lines, and logs hold counts, never book text.
 
+**Scan whole books** (on by default) has the AI read every page once a book is catalogued, a few chapters at a time, from the PDF's bookmarks, else its printed contents page, else runs of about 25 pages. It notes each chapter's setting, environments, themes and creatures with their pages, under the same quote check, and never changes the book's own details: the details panel shows them under **Found inside the book**, with **Scan again**, and the reader's contents beside each chapter. `setting:`, `environment:` and `theme:` also match chapters, and `creature:` searches chapter creatures. The scan runs only while nothing else uses the AI, stops the moment the user asks it anything, resumes where it stopped after a restart, and is kept by file content, so it survives a rebuilt index, is redone only when the file changes or the user asks, and isn't synced.
+
 **Library folders sent to AI** keeps a folder away from the model. **See what the AI is reading** shows what the check kept and threw away. Changing the model never re-reads books unless the user asks (**Reclassify**). If the model stops answering, AI waits and everything else carries on.
 
 There is no account, tracking or cloud service. Bibliotaph goes online only for updates, AI model downloads, a model server the user set up, and online libraries.
