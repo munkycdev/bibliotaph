@@ -13,7 +13,9 @@ D&D Beyond, opens in the online reader instead; see [Online libraries](online-li
   **Ctrl+Home** and **Ctrl+End** go to the first and last page.
 - **Zoom**: the zoom buttons, **Ctrl+Plus** and **Ctrl+Minus**, or **Ctrl** and the mouse wheel. **Ctrl+0** fits the
   page to the width again.
-- **Contents**: the book's own bookmarks, in a panel on the left. Click one to go there.
+- **Contents**: the book's own bookmarks, in a panel on the left. Click one to go there. Once the AI has
+  [scanned the whole book](ai.md#scanning-whole-books), each chapter also shows the settings, environments, themes and
+  creatures found in it.
 - **Page thumbnails**: the toolbar button shows a strip of small pages along the bottom. The page you're on is
   outlined, and pages with notes have a badge. Click a thumbnail to go to it.
 - **Links**: links in the PDF work. On an index or contents page without links of its own, the printed page numbers

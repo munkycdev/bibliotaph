@@ -26,7 +26,8 @@ A collection gathers books around a campaign, a setting or an idea, such as "Win
 - **Tidy up**: **Rename**, **Move to…** and **Delete** are at the top of a collection's page. Deleting a collection
   never removes its books from your library. **Remove from collection** (in **Select** mode) takes books out.
 
-Every change shows **Undo** for a moment.
+Collections, the collections inside each one, and the **Add to collection** menu are in name order. Every change shows
+**Undo** for a moment.
 
 ### Collections from folders
 

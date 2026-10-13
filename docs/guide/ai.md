@@ -56,8 +56,11 @@ Bibliotaph never switches to a cloud service by itself.
 threw away and why. **Delete model** frees the space.
 
 The built-in AI uses your graphics card when it can and falls back to the processor, which is much slower. It only
-runs while it has books to read. **Download the embedding model** (nomic-embed-text, about 150 MB) lets **Ask this
-book** find pages by what they mean as well as by their words; without it, Ask finds pages by their words only.
+runs while it has books to read.
+
+Under **Ask this book**, **Download the embedding model** (nomic-embed-text, about 150 MB) lets **Ask this book** and
+[questions to your library](searching.md#ask-your-library-a-question) find pages by what they mean as well as by their
+words. Without it, they find pages by their words only. **Delete embedding model** frees the space.
 
 ## Set it up: a model server
 
@@ -70,8 +73,8 @@ book** find pages by what they mean as well as by their words; without it, Ask f
 If the server needs a key, type it under **Key, only if the server needs one**. It's kept in Windows Credential
 Manager and never shown again.
 
-**Embedding model, for Ask this book** lets **Ask this book** find pages by what they mean, not only by their words.
-Download one such as nomic-embed-text on the server first, then choose it here.
+**Embedding model, for Ask this book** lets **Ask this book**, and questions to your library, find pages by what they
+mean, not only by their words. Download one such as nomic-embed-text on the server first, then choose it here.
 
 ## Scanning whole books
 
@@ -102,6 +105,10 @@ themes and creatures in each chapter, with the pages they're on.
 - **Library folders sent to AI**: untick a folder to keep its books away from the model. They still get suggestions
   from their names, and you can fill them in yourself.
 - If the model isn't answering, AI waits and tries again every minute. Nothing else stops.
+- Changing the model never re-reads your books on its own. **Settings > AI** counts the books an earlier model read and
+  offers **Reclassify**, with the number, to read them again.
+- **Files needing attention** in Needs review lists books the AI couldn't read, with **Try all again**.
+  **Settings > AI** counts them too, with **Try again** (or, alongside books an earlier model read, **Reclassify**).
 
 ## Reading your library for meaning
 
@@ -113,10 +120,6 @@ Bibliotaph. Books in folders kept from AI are left out.
 
 **Settings > AI > Read the whole library for meaning** shows how many pages are read so far. Untick **Read the library
 for meaning in the background** to stop it; questions to your library then find the remaining pages by their words.
-- Changing the model never re-reads your books on its own. **Settings > AI** counts the books an earlier model read and
-  offers **Reclassify**, with the number, to read them again.
-- **Files needing attention** in Needs review lists books the AI couldn't read, with **Try all again**.
-  **Settings > AI** counts them too, with **Try again** (or, alongside books an earlier model read, **Reclassify**).
 
 ---
 

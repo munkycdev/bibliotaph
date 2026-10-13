@@ -39,6 +39,9 @@ The **Details** tab shows:
 - **Where it is**: the file's folder, with **Show in File Explorer**.
 - **Copies**, when the book is in more than one file.
 - Its collections, as chips you can remove.
+- **Found inside the book**, once the AI has [scanned the whole book](ai.md#scanning-whole-books): each chapter with
+  its pages and the settings, environments, themes and creatures found in it. These describe parts of the book, not the
+  whole book, so they never change its details. **Scan again** has the AI read it again.
 
 The **Notes** tab has a note for the whole book, saved as you type, and the notes on its pages.
 
@@ -90,8 +93,8 @@ usable while its card waits. It has two lists:
   share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
 When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
-elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
-waiting.
+elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
+such as Setting or Type. Each entry says how many are waiting, and **Everything** shows the whole list again.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
 Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
@@ -124,18 +127,18 @@ gives each image its own card again, and Bibliotaph remembers that. To make a pa
 Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
 portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
 **Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
-and its cover is still a mosaic of the first four. Opening the pack steps through its files with **Previous** and
-**Next**: PDFs open as PDFs and images as images. Its details list every file, PDFs shown by their first page, and
-**Split into separate files** gives each one its own card back, with everything you had set on it. A PDF with
-adventures marked in it can't go in a pack, since their cards name it.
+and its cover is still a mosaic of the first four. Opening the pack steps through its files with the arrows at the
+top (**Previous file** and **Next file**): PDFs open as PDFs and images as images. Its details list every file, PDFs
+shown by their first page, and **Split into separate files** gives each one its own card back, with everything you had
+set on it. A PDF with adventures marked in it can't go in a pack, since their cards name it.
 
 A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
 the pack's card.
 
 ## Adventures inside a file
 
-An anthology or a magazine can hold several adventures. Each can get a card of its own, with its own details, cover
-and page range, while the file stays one file. Mark one with **Mark as adventure** in the reader,
+An anthology or a magazine can hold several adventures. Each can be marked as an adventure of its own, with its own
+details, cover and page range, while the file stays one file. Mark one with **Mark as adventure** in the reader,
 **Index as its own adventure…** on a bookmark in the reader's Contents, or **Adventures in this file** in the details.
 
 When a file's bookmarks and first pages show it holds several adventures, Needs review says "This file looks like it
@@ -187,10 +190,11 @@ searches and what you type all go through these names.
 
 ### Your tags
 
-Your tags are your own labels, and the **Your tags** tab of **Settings > Vocabulary** can find them for you. Give a tag
-a name and the words that signal it, separated by commas: **Undead** with "undead, zombie, lich", say. Bibliotaph looks
-for the words in the pages it has already read, so nothing is read again, and a book whose pages use them often enough
-gets the tag, marked **Suggested** like any other guess. Open the mark to see the words and the pages they're on.
+Your tags are your own labels, and **Your tags** in **Settings > Vocabulary** can find them for you. Give a tag a
+name and the words that signal it, separated by commas, and click **Add tag**: **Undead** with "undead, zombie, lich",
+say. Bibliotaph looks for the words in the pages it has already read, so nothing is read again, and a book whose
+pages use them often enough gets the tag, marked **Suggested** like any other guess. Open the mark to see the words
+and the pages they're on.
 
 - **Often enough** means the words are on at least 3 of the book's pages, and on at least one page in 20. A passing
   mention, or a few pages in a thick rulebook, doesn't count.
