@@ -84,9 +84,13 @@ usable while its card waits. It has two lists:
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
+- **Collection?** "Make a collection “Ashen Vale” from these 12 books?" for a folder with three or more books in it
+  (see [Collections from folders](organizing.md#collections-from-folders)): **Accept**, **Not now** or **Never**.
+- **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
+  share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
 When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
-elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
 waiting.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.

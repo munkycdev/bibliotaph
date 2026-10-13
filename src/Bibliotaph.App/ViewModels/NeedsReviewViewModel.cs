@@ -127,6 +127,7 @@ public sealed partial class NeedsReviewViewModel(
     [
         ("terms", "New terms"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"),
         ("revisions", "Places to check"), ("parts", "Adventures"), ("corrections", "Corrections"), ("rules", "Folder rules"),
+        ("folders", "Collections from folders"), ("suggestions", "Books for collections"),
     ];
 
     /// <summary>Every card that isn't a field suggestion, made once per load so a decided one keeps its Undo whatever is shown.</summary>
@@ -279,6 +280,8 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var part in list.Parts ?? []) cards.Add(new UnplacedPartCardViewModel(part, await GetPageLabelsAsync(part.DocumentId), this));
             foreach (var correction in list.Corrections ?? []) cards.Add(new CorrectionCardViewModel(correction, this));
             foreach (var rule in list.Rules ?? []) cards.Add(new FolderRuleCardViewModel(rule, _vocabulary, this));
+            foreach (var folder in list.Folders ?? []) cards.Add(new FolderCollectionCardViewModel(folder, this));
+            foreach (var suggestion in list.Suggestions ?? []) cards.Add(new CollectionSuggestionCardViewModel(suggestion, _vocabulary, this));
             _cards = cards;
             Remaining = list.Count;
             ListChoices();
@@ -334,6 +337,8 @@ public sealed partial class NeedsReviewViewModel(
         PartProposalCardViewModel or UnplacedPartCardViewModel => "parts",
         CorrectionCardViewModel => "corrections",
         FolderRuleCardViewModel => "rules",
+        FolderCollectionCardViewModel => "folders",
+        CollectionSuggestionCardViewModel => "suggestions",
         ReviewCardViewModel field => FieldKey(field.Item),
         _ => "",
     };
@@ -664,6 +669,13 @@ public sealed partial class NeedsReviewViewModel(
     public void FixCorrection(CorrectionItem item) => pages.ShowCorrection(item.EntryId);
 
     public Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use) => review.AnswerRuleAsync(rule, use);
+
+    /// <summary>A folder that isn't waiting any more (answered meanwhile, or emptied) is done, with nothing to undo.</summary>
+    public async Task<Func<Task>> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer) =>
+        await review.AnswerFolderAsync(proposal, answer) ?? (() => Task.CompletedTask);
+
+    public async Task<Func<Task>> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer) =>
+        await review.AnswerSuggestionAsync(suggestion, answer) ?? (() => Task.CompletedTask);
 
     /// <summary>
     /// A place on a "new version" card opens at the page suggested for it, as its session item or note would, so the
