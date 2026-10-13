@@ -32,7 +32,8 @@ public sealed record SmartViewDefinition(
     string? Duration = null,
     int? Players = null,
     string? Store = null,
-    bool HideParts = false)
+    bool HideParts = false,
+    CollectionFilter Collections = CollectionFilter.All)
 {
     public const int CurrentVersion = 1;
 

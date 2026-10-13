@@ -8,7 +8,8 @@ with your notes. At the table you step through it instead of hunting through fol
 ## Make a binder
 
 On the **Binders** page, click **New binder**. Give it a title and, if you like, the date you'll play. Binders with a
-date list under **Upcoming**, soonest first; the rest under **No date yet**, and past ones behind a link at the bottom.
+date list under **Upcoming**; the rest under **No date yet**, and past ones behind a link at the bottom. Each group is in
+name order.
 
 The binder you worked on last is your current one. Home shows it under **Continue preparing**.
 
