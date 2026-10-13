@@ -85,6 +85,10 @@ usable while its card waits. It has two lists:
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
 
+When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
+elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+waiting.
+
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
 Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
 protected ones **Open in another app**, and **Try again** and **Try all again** give the others another go. When

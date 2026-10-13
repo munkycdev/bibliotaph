@@ -8,8 +8,13 @@
 - **Lists are in name order**: the filter drop-downs, the search guide's values, collections and sub-collections, the
   Add to collection menu, and binders within each group. The sidebar's Pinned list keeps the order you dragged it into.
 - **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
+- **Ask this book finds pages by meaning with the built-in AI.** Settings > AI offers nomic-embed-text (about 150 MB)
+  to download, so Ask no longer matches words only.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
+- **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
+  field, with a count for each.
 
 ## 1.0.0 · 12 October 2026
 

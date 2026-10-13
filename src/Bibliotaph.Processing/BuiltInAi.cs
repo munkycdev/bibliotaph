@@ -494,13 +494,12 @@ public static class BuiltInModels
 
     /// <summary>
     /// nomic-embed-text v1.5 (Apache-2.0), which finds a book's pages by meaning for Ask this book, run by a second
-    /// engine in embedding mode. Its file isn't pinned yet: the build that added it couldn't reach Hugging Face to
-    /// check the file, and a hash nobody checked is no check. Until <see cref="BuiltInModel.IsPinned"/>, the built-in AI
-    /// asks books by their words alone. To pin it, fill in the repository's commit, the file's size and its SHA-256
-    /// (from the file's LFS pointer on Hugging Face).
+    /// engine in embedding mode. Pinned like the chat models: the repository's commit, the file's size and its SHA-256
+    /// from the file's LFS pointer on Hugging Face.
     /// </summary>
-    public static BuiltInModel Embedding { get; } = new("nomic-embed-text-v1.5", "nomic-embed-text v1.5", "nomic-ai/nomic-embed-text-v1.5-GGUF", "",
-        "nomic-embed-text-v1.5.Q8_0.gguf", 0, "", 1 * GiB, "Apache-2.0", new("https://huggingface.co/nomic-ai/nomic-embed-text-v1.5"));
+    public static BuiltInModel Embedding { get; } = new("nomic-embed-text-v1.5", "nomic-embed-text v1.5", "nomic-ai/nomic-embed-text-v1.5-GGUF",
+        "0188c9bf409793f810680a5a431e7b899c46104c", "nomic-embed-text-v1.5.Q8_0.gguf", 146_146_432,
+        "3e24342164b3d94991ba9692fdc0dd08e3fd7362e0aacc396a9a5c54a544c3b7", 1 * GiB, "Apache-2.0", new("https://huggingface.co/nomic-ai/nomic-embed-text-v1.5"));
 
     public static BuiltInModel? Find(string? id) => All.FirstOrDefault(m => m.Id == id);
 

@@ -406,7 +406,10 @@ public sealed class TextStage(StageServices s) : IStage
     }
 }
 
-/// <summary>Covers: the first page (or the image itself) as a JPEG in the cover cache. A missing cover is not an error.</summary>
+/// <summary>
+/// Covers: the first page, or the page the user chose, or the image itself, as a JPEG in the cover cache. A missing
+/// cover is not an error.
+/// </summary>
 public sealed class CoversStage(StageServices s) : IStage
 {
     public Stage Stage => Stage.Covers;
@@ -417,6 +420,7 @@ public sealed class CoversStage(StageServices s) : IStage
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
 
         byte[]? jpeg;
+        var key = job.ContentHash;
         if (SourceFormats.IsImage(source.Format))
         {
             var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
@@ -431,7 +435,10 @@ public sealed class CoversStage(StageServices s) : IStage
             await using (session)
             {
                 if (session.Doc.PageCount == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "The PDF has no pages.");
-                jpeg = await StageHelpers.DrawCoverAsync(s, session, 0, ct);
+                // A chosen page is kept under its own name, so a card already showing the first page loads the new one.
+                var page = await s.Library.GetCoverPageAsync(job.DocumentId, ct) is var chosen && chosen < session.Doc.PageCount ? chosen : 0;
+                if (page > 0) key = CoverCache.PageKey(job.ContentHash, page);
+                jpeg = await StageHelpers.DrawCoverAsync(s, session, page, ct);
                 // The adventures marked in the file have their first pages as covers.
                 if (s.Parts is not null)
                     await StageHelpers.DrawPartCoversAsync(s, session, job.DocumentId, job.ContentHash,
@@ -440,7 +447,7 @@ public sealed class CoversStage(StageServices s) : IStage
         }
 
         if (jpeg is null) return new StageOutcome.Done(StageStatus.Skipped, [], "No cover could be drawn.");
-        await s.Index.SetCoverAsync(job.DocumentId, s.Covers.Write(job.ContentHash, jpeg), ct);
+        await s.Index.SetCoverAsync(job.DocumentId, s.Covers.Write(key, jpeg), ct);
         return StageOutcome.Complete();
     }
 }

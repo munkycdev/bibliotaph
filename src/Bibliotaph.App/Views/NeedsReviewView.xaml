@@ -541,6 +541,11 @@
     <Border Style="{StaticResource Bt.Rule}" />
 
     <StackPanel MaxWidth="720" HorizontalAlignment="Left" Visibility="{Binding IsSuggestionsTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel Orientation="Horizontal" Margin="0,18,0,0" Visibility="{Binding HasShowChoices, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="Show" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,10,0" />
+        <ComboBox x:Name="ReviewShow" Style="{StaticResource Bt.Select}" ItemsSource="{Binding ShowChoices}" SelectedItem="{Binding Show}" DisplayMemberPath="Label"
+                  AutomationProperties.Name="Show" MinWidth="200" MaxDropDownHeight="420" />
+      </StackPanel>
       <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,18,0,0"
               Visibility="{Binding HasUpdates, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <DockPanel>
