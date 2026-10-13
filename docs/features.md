@@ -56,7 +56,7 @@ The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with field
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
-**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
 
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 

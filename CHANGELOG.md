@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
+  letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box
+  find books with any of them, boxes narrow together, and saved searches keep them.
 - **Ask this book finds pages by meaning with the built-in AI.** Settings > AI offers nomic-embed-text (about 150 MB)
   to download, so Ask no longer matches words only.
 - **Double-click a book** in the Library to open it; a single click still shows its details.
