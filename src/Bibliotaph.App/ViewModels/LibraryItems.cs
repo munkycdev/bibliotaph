@@ -185,16 +185,22 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// </summary>
     public string Byline => Entry.MatchedMember ?? Entry.PartLine ?? Entry.Publisher ?? Entry.FolderHint ?? "";
 
-    /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack, "Print · Foundry VTT" for a book owned elsewhere.</summary>
-    public string SizeLabel => IsPack ? ImagesLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
+    /// <summary>
+    /// Pages for a PDF, the format for an image, "120 images" for a pack ("6 files" with PDFs in it), "Print · Foundry
+    /// VTT" for a book owned elsewhere.
+    /// </summary>
+    public string SizeLabel => IsPack ? MembersLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
 
-    /// <summary>Many images shown as one card: its cover is a mosaic of its first four.</summary>
+    /// <summary>Many files shown as one card: its cover is a mosaic of its first four.</summary>
     public bool IsPack => Entry.IsPack;
 
-    /// <summary>"120 images", for a pack.</summary>
-    public string ImagesLabel => IsPack ? Images(Entry.Members) : "";
+    /// <summary>A pack with PDFs in it as well as images, such as a party's character sheets: it counts files, not images.</summary>
+    public bool HasPdfMembers => IsPack && Entry.PdfMembers > 0;
 
-    /// <summary>The covers of a pack's first four images, for its mosaic. Each loads the first time a cell asks for it.</summary>
+    /// <summary>"120 images", or "6 files" when PDFs are among them, for a pack.</summary>
+    public string MembersLabel => IsPack ? Members(Entry) : "";
+
+    /// <summary>The covers of a pack's first four files, for its mosaic. Each loads the first time a cell asks for it.</summary>
     public IReadOnlyList<CoverTile> Mosaic
     {
         get
@@ -341,7 +347,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(Initial));
         OnPropertyChanged(nameof(IsAiRead));
         OnPropertyChanged(nameof(AiTip));
-        OnPropertyChanged(nameof(ImagesLabel));
+        OnPropertyChanged(nameof(HasPdfMembers));
+        OnPropertyChanged(nameof(MembersLabel));
         OnPropertyChanged(nameof(Mosaic));
         OnPropertyChanged(nameof(IsFavorite));
         OnPropertyChanged(nameof(FavoriteAction));
@@ -366,8 +373,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";
 
+    public static string Files(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "file" : "files")}";
+
+    /// <summary>A pack's size: "120 images" while every file in it is an image, "6 files" once PDFs are among them.</summary>
+    public static string Members(LibraryEntry pack) => pack.PdfMembers > 0 ? Files(pack.Members) : Images(pack.Members);
+
     public static string Describe(LibraryEntry entry) =>
-        entry.IsPack ? $"Image pack · {Images(entry.Members)}"
+        entry.IsPack ? entry.PdfMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
         : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
         : entry.PageCount is { } pages ? $"PDF · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
@@ -402,12 +414,15 @@ public sealed class CoverTile(string name, CoverImages covers) : ObservableObjec
     }
 }
 
-/// <summary>An image in a pack's inspector grid: its name and cover. Clicking it opens it in the viewer.</summary>
+/// <summary>A file in a pack's inspector grid, an image or a PDF: its name and cover. Clicking it opens it in the viewer.</summary>
 public sealed class PackImageViewModel(PackImage image, CoverImages covers)
 {
     public PackImage Image { get; } = image;
 
     public string Name => Image.Name;
+
+    /// <summary>A PDF in the pack, marked as one on its cover, which is its first page.</summary>
+    public bool IsPdf => Image.Format == SourceFormats.Pdf;
 
     public CoverTile? Tile { get; } = image.Cover is { } cover ? new CoverTile(cover, covers) : null;
 }

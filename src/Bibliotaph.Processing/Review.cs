@@ -15,17 +15,19 @@ public sealed record ReviewItem(EntryId EntryId, long DocumentId, string Title, 
 
 /// <summary>
 /// Everything in Needs review's Metadata suggestions tab, and the vocabulary to label it with. <see cref="Parts"/> are
-/// the adventures whose pages weren't found in the copy their file shows now, and <see cref="Proposals"/> the files
-/// that look like they hold several adventures.
+/// the adventures whose pages weren't found in the copy their file shows now, <see cref="Proposals"/> the files that
+/// look like they hold several adventures, <see cref="Folders"/> the folders that could be collections, and
+/// <see cref="Suggestions"/> the books that could join a collection.
 /// </summary>
 public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<PendingTerm> Terms, Vocabulary Vocabulary, IReadOnlyList<VersionItem> Versions,
     IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null,
     IReadOnlyList<CorrectionItem>? Corrections = null, IReadOnlyList<FolderRuleInfo>? Rules = null, IReadOnlyList<UnplacedPart>? Parts = null,
-    IReadOnlyList<PartProposalItem>? Proposals = null)
+    IReadOnlyList<PartProposalItem>? Proposals = null, IReadOnlyList<FolderCollectionProposal>? Folders = null,
+    IReadOnlyList<CollectionSuggestion>? Suggestions = null)
 {
     public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0)
         + (Corrections?.Count ?? 0) + (Rules?.Count ?? 0) + (Parts?.Count ?? 0)
-        + (Proposals?.Count ?? 0);
+        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0);
 }
 
 /// <summary>
@@ -48,7 +50,9 @@ public sealed class ReviewService(
     CorrectionService? corrections = null,
     FolderRules? rules = null,
     PartsService? parts = null,
-    PartProposalService? proposals = null)
+    PartProposalService? proposals = null,
+    FolderCollections? folders = null,
+    CollectionSuggestions? suggestions = null)
 {
     public async Task<bool> GetReviewAllAsync(CancellationToken ct = default) =>
         await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
@@ -65,7 +69,8 @@ public sealed class ReviewService(
     /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards, the
     /// folders proposed as packs, the files that may be those of books owned elsewhere, the new versions with places
     /// that need a look, the books said to be cataloged wrong, the folder rules proposed, the adventures whose pages
-    /// weren't found, and the files that look like they hold adventures.
+    /// weren't found, the files that look like they hold adventures, the folders that could be collections, and the
+    /// books that could join collections.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
         await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct)
@@ -73,14 +78,19 @@ public sealed class ReviewService(
             + (places is null ? 0 : await places.CountRevisionsAsync(ct))
             + (corrections is null ? 0 : (await corrections.GetWaitingAsync(ct)).Count) + (rules is null ? 0 : (await rules.GetProposedAsync(ct)).Count)
             + (parts is null ? 0 : (await parts.GetUnplacedAsync(ct)).Count)
-            + (proposals is null ? 0 : await proposals.CountPendingAsync(ct));
+            + (proposals is null ? 0 : await proposals.CountPendingAsync(ct))
+            + (folders is null ? 0 : await folders.CountAsync(ct))
+            + (suggestions is null ? 0 : await suggestions.CountAsync(ct));
 
     /// <summary>
     /// The cards: sources that disagree first, then missing titles, then other suggestions, each by title. The cards
-    /// come from catalog.db, so they are current even when a projection is still on its way.
+    /// come from catalog.db, so they are current even when a projection is still on its way. Making the list again
+    /// brings back the cards put away with Not now.
     /// </summary>
     public async Task<ReviewList> GetQueueAsync(CancellationToken ct = default)
     {
+        folders?.ClearNotNow();
+        suggestions?.ClearNotNow();
         var reviewAll = await GetReviewAllAsync(ct);
         var entries = await queries.GetReviewEntriesAsync(ct);
         var all = await metadata.GetManyAsync([.. entries.Select(e => e.EntryId)], ct);
@@ -96,8 +106,20 @@ public sealed class ReviewService(
         return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct),
             await packs.GetProposalsAsync(ct), elsewhere is null ? [] : await elsewhere.GetPendingAsync(ct), places is null ? [] : await places.GetRevisionsAsync(ct),
             corrections is null ? [] : await corrections.GetWaitingAsync(ct), rules is null ? [] : await rules.GetProposedAsync(ct),
-            parts is null ? [] : await parts.GetUnplacedAsync(ct), proposals is null ? [] : await proposals.GetPendingAsync(ct));
+            parts is null ? [] : await parts.GetUnplacedAsync(ct), proposals is null ? [] : await proposals.GetPendingAsync(ct),
+            folders is null ? [] : await folders.GetProposalsAsync(ct), suggestions is null ? [] : await suggestions.GetSuggestionsAsync(ct));
     }
+
+    /// <summary>
+    /// Answers "Make a collection from these books?": Accept, Not now or Never. Returns what undoes it, or null when the
+    /// folder isn't waiting any more.
+    /// </summary>
+    public async Task<Func<Task>?> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer, CancellationToken ct = default) =>
+        folders is null ? null : await folders.AnswerAsync(proposal, answer, ct);
+
+    /// <summary>Answers "Add these books to this collection?": Accept, Not now or Never. Returns what undoes it.</summary>
+    public async Task<Func<Task>?> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer, CancellationToken ct = default) =>
+        suggestions is null ? null : await suggestions.AnswerAsync(suggestion, answer, ct);
 
     /// <summary>"It's fine now" on a "cataloged wrong" card. Returns what brings the card back.</summary>
     public async Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item, CancellationToken ct = default) =>

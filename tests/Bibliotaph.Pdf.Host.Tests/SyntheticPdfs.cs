@@ -44,7 +44,32 @@ public sealed class SyntheticPdfs : IDisposable
         Compilation = Write("compilation.pdf", BuildPages(CompilationPages, CompilationOutline));
         QuietCompilation = Write("quiet-compilation.pdf", BuildPages(QuietCompilationPages, QuietCompilationOutline));
         Indexed = Write("indexed.pdf", Bibliotaph.App.Services.SmokePdfs.Indexed());
+        ChapterBook = Write("chapter-book.pdf", BuildPages(ChapterBookPages, ChapterBookOutline));
     }
+
+    /// <summary>
+    /// A made-up 50-page book with a title page, then a top-level bookmark for each of three chapters: a short one, one
+    /// too long to read in one go, and an appendix. Each chapter names what lives in it on its own pages.
+    /// </summary>
+    public string ChapterBook { get; }
+
+    public const string ChapterBookTitle = "The Hollow Crown";
+
+    public static readonly string[][] ChapterBookPages =
+    [
+        [ChapterBookTitle, "Written by Ana Ruiz"],
+        ["Chapter 1: The Drowned Road", "The road sinks into the marsh where bog goblins wait in the reeds."],
+        .. Enumerable.Range(2, 7).Select(i => (string[])[$"The party wades on through the black water of the marsh, day {i}."]),
+        ["Chapter 2: Halls of the Ash King", "Beneath the mountain the dwarven halls lie full of ash and silence."],
+        .. Enumerable.Range(10, 20).Select(i => (string[])[$"Ash drifts through the empty halls of the dwarves, hall {i}."]),
+        ["A red dragon sleeps on the hoard of the ash king in the deepest hall."],
+        .. Enumerable.Range(31, 14).Select(i => (string[])[$"Ash drifts through the empty halls of the dwarves, hall {i}."]),
+        ["Appendix: Creatures", "Bog goblins are small, cruel and always hungry."],
+        .. Enumerable.Range(46, 4).Select(i => (string[])[$"More notes on the creatures of the marsh, note {i}."]),
+    ];
+
+    static readonly (string Title, int Page)[] ChapterBookOutline =
+        [("Chapter 1: The Drowned Road", 1), ("Chapter 2: Halls of the Ash King", 9), ("Appendix: Creatures", 45)];
 
     /// <summary>The smoke test's four-page book whose index page is plain text, with no links.</summary>
     public string Indexed { get; }
@@ -291,7 +316,7 @@ public sealed class SyntheticPdfs : IDisposable
     static readonly (string Title, int Page)[] QuietCompilationOutline = [("Credits", 0), ("The Bell Tower", 1), ("Fog Market", 3), ("Appendix: Fog Beasts", 5)];
 
     /// <summary>A page per entry, each line drawn as real text, with top-level bookmarks if any.</summary>
-    static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
+    public static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
     {
         using var document = new PdfDocument();
         var font = new XFont(EmbeddedFontResolver.Family, 12);

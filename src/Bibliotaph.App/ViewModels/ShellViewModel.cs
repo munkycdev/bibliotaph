@@ -166,6 +166,27 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public string AppearanceToggleLabel => _theme.IsDark ? "Switch to light appearance" : "Switch to dark appearance";
 
+    /// <summary>The sidebar folded to its icons, as it was last left on this PC. Its button or Ctrl+B folds and unfolds it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SidebarToggleLabel))]
+    public partial bool IsSidebarCollapsed { get; private set; }
+
+    public string SidebarToggleLabel => IsSidebarCollapsed ? "Expand the sidebar (Ctrl+B)" : "Collapse the sidebar (Ctrl+B)";
+
+    [RelayCommand]
+    async Task ToggleSidebar()
+    {
+        IsSidebarCollapsed = !IsSidebarCollapsed;
+        try
+        {
+            await _store.SetAsync(SettingKeys.SidebarCollapsed, IsSidebarCollapsed ? "1" : "");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Saving whether the sidebar is collapsed failed");
+        }
+    }
+
     async Task ReloadMergedAsync()
     {
         try
@@ -193,9 +214,23 @@ public sealed partial class ShellViewModel : ObservableObject
         // Another PC's collections, binders, saved searches and pins, once merged in; the library refreshes on its own.
         var dispatcher = Dispatcher.CurrentDispatcher;
         _sync.Merged += (_, _) => dispatcher.InvokeAsync(ReloadMergedAsync);
+        IsSidebarCollapsed = await SidebarCollapsedAsync();
         var start = await StartPageAsync();
         _navigation.NavigateTo(start);
         Activity.Start();
+    }
+
+    async Task<bool> SidebarCollapsedAsync()
+    {
+        try
+        {
+            return await _store.GetAsync(SettingKeys.SidebarCollapsed) == "1";
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Reading whether the sidebar is collapsed failed");
+            return false;
+        }
     }
 
     async Task<Route> StartPageAsync()

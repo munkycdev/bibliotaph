@@ -173,7 +173,7 @@
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
         </StackPanel>
-        <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
+        <!-- A file from a pack, an image or a PDF: step through its files (F4 plan, choice 7). -->
         <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
           <StackPanel.Style>
             <Style TargetType="StackPanel">
@@ -186,15 +186,22 @@
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
                 </MultiDataTrigger>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPdf}" Value="True" />
+                    <Condition Binding="{Binding IsInPack}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
               </Style.Triggers>
             </Style>
           </StackPanel.Style>
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous image (Left arrow)"
-                  AutomationProperties.Name="Previous image" Command="{Binding PreviousImageCommand}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="{Binding PreviousStepTip}"
+                  AutomationProperties.Name="{Binding PreviousStepName}" Command="{Binding PreviousImageCommand}" />
           <TextBlock Text="{Binding PackPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0"
-                     AutomationProperties.Name="Image in pack" />
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next image (Right arrow)"
-                  AutomationProperties.Name="Next image" Command="{Binding NextImageCommand}" />
+                     AutomationProperties.Name="Place in pack" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="{Binding NextStepTip}"
+                  AutomationProperties.Name="{Binding NextStepName}" Command="{Binding NextImageCommand}" />
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
@@ -248,7 +255,7 @@
     <Border Grid.Row="2" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,1,1"
             Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
       <DockPanel>
-        <!-- Contents: the PDF's bookmarks. -->
+        <!-- Contents: the PDF's bookmarks, or the chapters the AI read when it has none, with what was found in each. -->
         <Border DockPanel.Dock="Left" Width="250" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0"
                 Visibility="{Binding OutlineVisible, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <DockPanel>
@@ -272,8 +279,14 @@
                         </ContextMenu>
                       </DockPanel.ContextMenu>
                       <TextBlock DockPanel.Dock="Right" Text="{Binding Page}" Style="{StaticResource Text.Small}" Margin="8,5,6,5" VerticalAlignment="Top" />
-                      <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
-                                 Margin="6,5,0,5" />
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
+                                   Margin="6,5,0,5" />
+                        <!-- What the AI found reading this chapter: about the chapter, not the whole book. -->
+                        <TextBlock Text="{Binding Found}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="6,-3,0,5"
+                                   ToolTip="Found by the AI reading this chapter"
+                                   Visibility="{Binding HasFound, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      </StackPanel>
                     </DockPanel>
                   </Border>
                   <DataTemplate.Triggers>

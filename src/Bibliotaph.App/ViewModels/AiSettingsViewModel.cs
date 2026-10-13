@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
@@ -24,14 +25,18 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 
 /// <summary>
 /// Settings > AI: Built in or a model server; for a server, its address and model, a key if it needs one, and Test;
-/// which library folders are sent, and how far classification has got, with Reclassify. AI is off until a model is
+/// which library folders are sent, and how far classification has got, with Reclassify; with an embedding model, how far
+/// the library has been read for meaning, which can be switched off. AI is off until a model is
 /// set up and switched on; an endpoint off this computer and network needs the user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
-    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, ILogger<AiSettingsViewModel> log)
+    PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log,
+    ChapterScanService chapters)
     : SettingsSectionViewModel
 {
+    bool _loading;
+
     public override SettingsSection Section => SettingsSection.Ai;
     public override string Label => "AI";
 
@@ -207,6 +212,28 @@ public sealed partial class AiSettingsViewModel(
     [ObservableProperty]
     public partial string ProgressText { get; private set; } = "";
 
+    /// <summary>"Scan whole books": once a book is catalogued, the AI reads it chapter by chapter. On unless switched off.</summary>
+    [ObservableProperty]
+    public partial bool ScanWholeBooks { get; set; } = true;
+
+    /// <summary>How far reading whole books has got, as "Scanning whole books · 12 of 840"; empty while there is nothing to say.</summary>
+    [ObservableProperty]
+    public partial string ScanProgressText { get; private set; } = "";
+
+    async partial void OnScanWholeBooksChanged(bool value)
+    {
+        if (_loading) return;
+        try
+        {
+            await chapters.SetOnAsync(value);
+            Activity.Invalidate();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving whether whole books are scanned failed");
+        }
+    }
+
     /// <summary>Books an earlier model or prompt classified, which Reclassify would read again.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanReclassify))]
@@ -237,6 +264,15 @@ public sealed partial class AiSettingsViewModel(
         _provider = setup.Provider.Length > 0 ? setup.Provider : null;
         RemoteAllowed = setup.RemoteAllowed;
         IsOn = setup.Enabled;
+        _loading = true;
+        try
+        {
+            ScanWholeBooks = chapters.IsOn;
+        }
+        finally
+        {
+            _loading = false;
+        }
         HasSavedKey = setup.Endpoint is { } saved && ai.Keys.Find(saved) is { Length: > 0 };
         ShowBuiltIn = setup.BuiltIn || (setup.Endpoint is null && setup.Model is null);
         BuiltIn.Saved -= OnBuiltInSaved;
@@ -255,6 +291,9 @@ public sealed partial class AiSettingsViewModel(
         // Choosing the section that is showing loads it again, without an Unload in between.
         Activity.Refreshed -= OnActivityRefreshed;
         Activity.Refreshed += OnActivityRefreshed;
+        libraryVectors.Changed -= OnLibraryVectorsChanged;
+        libraryVectors.Changed += OnLibraryVectorsChanged;
+        ShowLibraryVectors();
         await RefreshProgressAsync();
         if (ShowPilot) await Pilot.LoadAsync();
         if (setup.Endpoint is not null && !ShowBuiltIn) _ = ConnectAsync();
@@ -263,12 +302,67 @@ public sealed partial class AiSettingsViewModel(
     public override void Unload()
     {
         Activity.Refreshed -= OnActivityRefreshed;
+        libraryVectors.Changed -= OnLibraryVectorsChanged;
         BuiltIn.Saved -= OnBuiltInSaved;
         BuiltIn.Unload();
         Pilot.Unload();
     }
 
     void OnActivityRefreshed(object? sender, EventArgs e) => _ = RefreshProgressAsync();
+
+    void OnLibraryVectorsChanged(object? sender, EventArgs e) => Application.Current?.Dispatcher.InvokeAsync(ShowLibraryVectors);
+
+    /// <summary>With an embedding model set, the library is read for meaning in the background, and this section says how far it has got.</summary>
+    [ObservableProperty]
+    public partial bool HasLibraryVectors { get; private set; }
+
+    /// <summary>"Read the whole library for meaning": on unless switched off. Switching it saves at once.</summary>
+    public bool ReadLibrary
+    {
+        get => ai.Setup.LibraryVectors;
+        set
+        {
+            if (value == ai.Setup.LibraryVectors) return;
+            _ = SaveReadLibraryAsync(value);
+        }
+    }
+
+    async Task SaveReadLibraryAsync(bool on)
+    {
+        try
+        {
+            await ai.SaveAsync(ai.Setup with { LibraryVectors = on });
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            log.LogError(ex, "Saving whether to read the library for meaning failed");
+        }
+        OnPropertyChanged(nameof(ReadLibrary));
+        ShowLibraryVectors();
+    }
+
+    /// <summary>"12,345 of 98,765 pages read for meaning (13%). Waiting while the AI is in use."</summary>
+    [ObservableProperty]
+    public partial string LibraryVectorsText { get; private set; } = "";
+
+    void ShowLibraryVectors()
+    {
+        var status = libraryVectors.Status;
+        HasLibraryVectors = status.State != LibraryVectorsState.Unavailable;
+        OnPropertyChanged(nameof(ReadLibrary));
+        if (!HasLibraryVectors) return;
+        var share = status.Pages == 0 ? "" : $" ({(double)status.WithVectors / status.Pages:P0})";
+        var counted = $"{status.WithVectors:N0} of {status.Pages:N0} pages read for meaning{share}.";
+        LibraryVectorsText = status.State switch
+        {
+            LibraryVectorsState.Off => counted + " Switched off: questions to the library find the other pages by their words.",
+            LibraryVectorsState.Reading => counted + " Reading the rest in the background.",
+            LibraryVectorsState.Waiting => counted + " Waiting while the AI is in use.",
+            LibraryVectorsState.Done => counted + " Every page is read.",
+            LibraryVectorsState.Stopped => counted + $" Stopped for now: {status.Problem ?? "the model server didn't answer"}. It tries again in a few minutes.",
+            _ => counted,
+        };
+    }
 
     async Task RefreshProgressAsync()
     {
@@ -286,6 +380,10 @@ public sealed partial class AiSettingsViewModel(
                 : progress.ToClassify > 0
                     ? $"{summary.Current:N0} {Books(summary.Current)} classified with {model}; {progress.ToClassify:N0} waiting."
                     : $"{summary.Current:N0} {Books(summary.Current)} classified with {model}. Nothing is waiting.";
+            var scans = progress.ScannedWhole + progress.ToScanWhole;
+            ScanProgressText = model is null || !ai.Setup.Enabled || !ScanWholeBooks || scans == 0 ? ""
+                : progress.ToScanWhole > 0 ? $"Scanning whole books · {progress.ScannedWhole:N0} of {scans:N0}"
+                : $"{progress.ScannedWhole:N0} whole {Books(progress.ScannedWhole)} scanned.";
         }
         catch (Exception ex)
         {

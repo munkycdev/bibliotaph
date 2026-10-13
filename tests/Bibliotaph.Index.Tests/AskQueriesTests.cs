@@ -51,6 +51,18 @@ public sealed class AskQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task Counts_the_asked_books_pages_with_each_word_as_search_finds_it()
+    {
+        await AddBookAsync(1, "The lich waits.", "Rules for spells.", "More rules.", "The rules of the lich's crypt.");
+        await AddBookAsync(2, "Another lich, in another book.");
+
+        var counts = await _ask.CountPagesAsync(1, ["\"lich\"*", "\"rule\"*", "\"phylactery\"*"], Ct);
+
+        Assert.Equal([2, 3, 0], counts);
+        Assert.Empty(await _ask.CountPagesAsync(1, [], Ct));
+    }
+
+    [Fact]
     public async Task Pages_come_with_their_labels_and_text_and_labels_line_up_with_pdf_pages()
     {
         await AddBookAsync(1, "Front.", "Chapter One.");

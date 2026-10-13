@@ -71,6 +71,8 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
             AssertionOrigin.Rule => (claim.Field == MetadataFields.GetItFrom.Key ? "Named in the file's watermark" : "Written in the file's name or title") + quote,
             AssertionOrigin.FolderRule => string.IsNullOrWhiteSpace(claim.Quote) ? "From your rule for this library folder" : $"From your rule for the folder “{claim.Quote}”",
             AssertionOrigin.Ai => "Suggested by the AI model" + quote + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
+            AssertionOrigin.UserTag => "Your words for this tag are on its pages" + quote
+                + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
             _ => claim.Origin.ToString(),
         };
         return claim.Origin != AssertionOrigin.User && claim.State == AssertionState.Confirmed ? $"You kept this. {source}" : source;

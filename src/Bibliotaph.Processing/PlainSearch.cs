@@ -14,7 +14,8 @@ public sealed record PlainSearchResult(Interpretation? Interpretation, string? P
 /// whichever AI is set up (built in or a model server). It needs AI; without it the search box works as it always
 /// has. Nothing here searches: the reading is shown for the user to change and run.
 /// </summary>
-public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabularies, IndexQueries queries, ILogger<PlainSearchService>? log = null)
+public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabularies, IndexQueries queries, ILogger<PlainSearchService>? log = null,
+    AiUse? use = null)
 {
     readonly ILogger _log = log ?? NullLogger<PlainSearchService>.Instance;
 
@@ -29,6 +30,7 @@ public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabulari
     {
         if (ai.Interpreter is not { } interpreter) return new PlainSearchResult(null, PlainSearchText.NeedsAi);
         if (string.IsNullOrWhiteSpace(request)) return new PlainSearchResult(null, "Type what you're looking for first, then press Enter.");
+        using var busy = use?.Begin();
         var context = new PlainSearchContext(await vocabularies.GetAsync(ct), await queries.GetSystemsWithoutLevelsAsync(ct));
         try
         {

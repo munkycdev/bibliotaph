@@ -80,6 +80,12 @@ public enum AssertionOrigin
     /// Ranked above the AI, since the user made it, but still only a suggestion.
     /// </summary>
     FolderRule,
+    /// <summary>
+    /// One of the user's own tags, defined in Settings > Vocabulary with the words that signal it, guessed for a book
+    /// whose pages use those words often enough (<see cref="Metadata.UserTagRule"/>). The user made the rule, so it
+    /// ranks with a folder rule, but it stays a guess until the user keeps it.
+    /// </summary>
+    UserTag,
 }
 
 public enum AssertionState
@@ -130,6 +136,12 @@ public enum Stage
 
     /// <summary>Fingerprints a document's pages from its stored text and joins it to a copy of the same book.</summary>
     Match,
+
+    /// <summary>
+    /// Reads a whole book chapter by chapter with the AI and tags each chapter's setting, environments, themes and
+    /// creatures, after everything else, at the lowest priority.
+    /// </summary>
+    ChapterScan,
 }
 
 /// <summary>What the user said about a pair of files that Match compared.</summary>
@@ -170,6 +182,22 @@ public enum FolderRuleState
 
     /// <summary>Declined, or switched off: it suggests nothing and isn't proposed again.</summary>
     Off,
+}
+
+/// <summary>
+/// What became of a folder Needs review asked about making a collection from. A folder with any answer isn't asked
+/// about again.
+/// </summary>
+public enum FolderCollectionState
+{
+    /// <summary>Made into a collection that follows the folder: books that land in the folder later join it.</summary>
+    Linked,
+
+    /// <summary>Made into a collection that the user has since changed by hand, so it no longer follows the folder.</summary>
+    Unlinked,
+
+    /// <summary>Never: no collection, and the folder isn't asked about again.</summary>
+    Declined,
 }
 
 /// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review.</summary>

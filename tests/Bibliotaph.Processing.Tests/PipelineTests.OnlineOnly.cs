@@ -270,6 +270,12 @@ public sealed partial class PipelineTests
         await _service.StartAsync(Ct);
         await SettleAsync();
         await WaitForAsync(() => Task.FromResult(_cloud.Returned.Count == 1), "The ZIP didn't go back.");
+        // The catalog is marked after the file goes back, so the rows can still read Present for a moment.
+        await WaitForAsync(async () =>
+        {
+            await using var marking = _catalog.CreateContext();
+            return await marking.FileLocations.AllAsync(f => f.State == FileLocationState.OnlineOnly, Ct);
+        }, "The ZIP's rows weren't marked online-only.");
 
         Assert.Equal([zip], _cloud.Returned);
         Assert.Equal(["Complete", "Complete"], statusesWhenReturned);

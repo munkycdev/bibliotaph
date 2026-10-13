@@ -70,14 +70,14 @@ public sealed record AskFill(int Done, int Total, bool Running, string? Problem)
 /// <summary>
 /// Ask this book: finds the pages of one book that answer a question, by its words through the book's search index
 /// and by its meaning against each page's vector, fused by reciprocal rank, with no model asked to write anything.
-/// The first time a book is asked, its pages' vectors are made in the background by the embedding model in
-/// Settings > AI and kept in index.db (page_vec); until they are all there, pages are found by words and the vectors so
-/// far. Pages go only to the endpoint in Settings, only while AI is ready (so a remote one needs its tick), and never
-/// from a folder kept from AI. The log gets counts, never text.
+/// When a book is opened in the reader (or first asked), its pages' vectors are made in the background by the
+/// embedding model in Settings > AI and kept in index.db (page_vec); until they are all there, pages are found by words
+/// and the vectors so far. Pages go only to the endpoint in Settings, only while AI is ready (so a remote one needs its
+/// tick), and never from a folder kept from AI. The log gets counts, never text.
 /// </summary>
 public sealed class AskService(
     AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, EntryStore entries, AskHistoryStore history,
-    ILogger<AskService>? log = null, AskRetrievalOptions? options = null) : IDisposable
+    ILogger<AskService>? log = null, AskRetrievalOptions? options = null, AiUse? use = null) : IDisposable
 {
     /// <summary>A turn's checked pieces as kept: kinds by name, so catalog.db reads sensibly in any SQLite tool.</summary>
     static readonly JsonSerializerOptions PartsJson = new() { Converters = { new JsonStringEnumConverter() } };
@@ -89,6 +89,9 @@ public sealed class AskService(
     readonly AskRetrievalOptions _options = options ?? new AskRetrievalOptions();
     readonly ConcurrentDictionary<long, AskFill> _fills = new();
     readonly SemaphoreSlim _fillGate = new(1, 1);
+
+    /// <summary>Books opened or asked whose vectors wait for the gate: the library's background reading gives way to them.</summary>
+    int _waitingFills;
     readonly CancellationTokenSource _stopping = new();
 
     /// <summary>Whether a book can be asked at all: AI is set up and on. With AI off, the panel is hidden.</summary>
@@ -130,6 +133,7 @@ public sealed class AskService(
     public async Task<AskFindings> FindAsync(long documentId, string question, CancellationToken ct = default)
     {
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
+        using var busy = use?.Begin();
         var started = Stopwatch.GetTimestamp();
         var setup = ai.Setup;
         var embedder = ai.Embedder;
@@ -162,17 +166,24 @@ public sealed class AskService(
             }
         }
 
+        // The texts of every page either signal ranked: the evidence comes from them, and an index or contents page,
+        // which has the question's words without answering it, is told apart by its text and pushed down.
+        var candidates = wordHits.Select(h => h.PageId).Concat(meaning?.Take(_options.RankDepth).Select(m => m.PageId) ?? []).ToHashSet();
+        var rows = (await ask.GetPagesAsync(documentId, candidates, ct)).ToDictionary(r => r.PageId);
+        var lists = rows.Values.Where(r => AskRetrieval.IsListLike(r.Text)).Select(r => r.PageId).ToHashSet();
+
         var outline = await queries.GetOutlineAsync(documentId, ct);
         var headings = AskRetrieval.Headings([.. outline.Select(o => new BookHeading(o.Title, o.PdfPage, o.Depth))], pdfPageOf.Values.Distinct());
         var underMatching = AskRetrieval.UnderMatchingHeadings(words, headings);
         var boosted = pdfPageOf.Where(p => underMatching.Contains(p.Value)).Select(p => p.Key).ToHashSet();
-        var ranked = AskRetrieval.Fuse([.. wordHits.Select(h => h.PageId)], meaning is null ? [] : [.. meaning.Select(m => m.PageId)], boosted, _options);
+        var ranked = AskRetrieval.Fuse([.. wordHits.Select(h => h.PageId)], meaning is null ? [] : [.. meaning.Select(m => m.PageId)], boosted, _options, lists);
 
-        // The texts of the pages that could be evidence, and of the best few by words for the weak-signal guard.
-        var wanted = ranked.Take(_options.RankDepth).Select(r => r.PageId).Concat(wordHits.Take(5).Select(h => h.PageId)).ToHashSet();
-        var rows = (await ask.GetPagesAsync(documentId, wanted, ct)).ToDictionary(r => r.PageId);
-        var bestCoverage = wordHits.Take(5).Select(h => rows.TryGetValue(h.PageId, out var row) ? AskRetrieval.Coverage(words, row.Text) : 0).DefaultIfEmpty(0).Max();
-        var weak = AskRetrieval.IsWeak(words.Count, bestCoverage, meaning?.Select(m => m.Cosine).ToList(), _options);
+        // The weak-signal guard weighs each word by how rare it is in this book, and reads the best few pages by words
+        // that aren't lists: an index has every word of a question and would always pass.
+        var pagesWith = words.Count == 0 ? [] : await ask.CountPagesAsync(documentId, [.. words.Select(AskRetrieval.WordMatch)], ct);
+        var best = wordHits.Where(h => !lists.Contains(h.PageId)).Take(_options.GuardPages).Select(h => rows.TryGetValue(h.PageId, out var row) ? row.Text : "");
+        var wordShare = AskRetrieval.WordShare(words, pagesWith, best);
+        var weak = AskRetrieval.IsWeak(wordShare, meaning?.Select(m => m.Cosine).ToList(), _options);
 
         var labels = await ask.GetLabelsAsync(documentId, ct);
         var chosen = weak ? [] : AskRetrieval.Choose(ranked, rows.ToDictionary(r => r.Key, r => new AskPage(r.Key, r.Value.PdfPage, r.Value.Text)), _options);
@@ -191,8 +202,9 @@ public sealed class AskService(
         var meaningState = model is null || embedder is null ? AskMeaning.Off
             : coverage.WithVectors > 0 && coverage.WithVectors >= coverage.WithText ? AskMeaning.On
             : AskMeaning.Partial;
-        _log.LogInformation("Asked document {DocumentId}: {Words} pages by words, {Meaning} by meaning, {Evidence} chosen{Weak} in {Ms:0} ms",
-            documentId, wordHits.Count, meaning?.Count ?? 0, evidence.Count, weak ? ", signals too weak to answer" : "",
+        _log.LogInformation(
+            "Asked document {DocumentId}: {Words} pages by words, {Meaning} by meaning, {Lists} read as lists, {Evidence} chosen{Weak} in {Ms:0} ms",
+            documentId, wordHits.Count, meaning?.Count ?? 0, lists.Count, evidence.Count, weak ? ", signals too weak to answer" : "",
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return new AskFindings(question, passages, evidence, weak, lookedAt, coverage, meaningState, problem);
     }
@@ -218,6 +230,7 @@ public sealed class AskService(
         var model = ai.Setup.ModelName;
         if (client is null || model is null) throw new AskUnavailableException("Ask this book uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
+        using var busy = use?.Begin();
         var pages = PromptPages(findings);
         var user = AskPrompt.UserMessage(findings.Question, pages, earlier);
         var started = Stopwatch.GetTimestamp();
@@ -243,6 +256,7 @@ public sealed class AskService(
         if (earlier.Count == 0) return (followUp, false);
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
         if (ai.Chat is not { } client || ai.Setup.ModelName is not { } model) return (followUp, false);
+        using var busy = use?.Begin();
         try
         {
             var reply = await client.CompleteAsync(new ModelRequest(model, AskPrompt.RewriteSystemMessage, AskPrompt.RewriteUserMessage(earlier, followUp), null,
@@ -296,23 +310,51 @@ public sealed class AskService(
     }
 
     /// <summary>
+    /// Starts making the book's page vectors as it is opened in the reader, so they are there by the time it is asked
+    /// and the same question asked twice is found by the same signals. Does nothing with AI off, without an embedding
+    /// model, or for a book whose library folder is kept from AI.
+    /// </summary>
+    public async Task PrepareAsync(long documentId, CancellationToken ct = default)
+    {
+        if (!IsOn || !HasEmbeddingModel || await WhyNotAsync(documentId, ct) is not null) return;
+        StartFill(documentId);
+    }
+
+    /// <summary>
     /// Starts making the book's page vectors in the background, unless they are being made already or there is no
     /// embedding model. One book at a time; another waits its turn.
     /// </summary>
-    public void StartFill(long documentId)
+    void StartFill(long documentId)
     {
         if (!HasEmbeddingModel || _stopping.IsCancellationRequested) return;
         if (_fills.TryGetValue(documentId, out var fill) && fill.Running) return;
         _fills[documentId] = new AskFill(fill?.Done ?? 0, fill?.Total ?? 0, true, null);
         FillChanged?.Invoke(this, documentId);
-        _ = Task.Run(() => FillAsync(documentId, _stopping.Token));
+        Interlocked.Increment(ref _waitingFills);
+        _ = Task.Run(() => FillAsync(documentId, null, waiting: true, _stopping.Token));
+    }
+
+    /// <summary>
+    /// Makes the vectors of a book the library's background reading has reached, as a book opened in the reader has
+    /// them made, one book at a time with those. Between batches it gives way when <paramref name="giveWay"/> says so,
+    /// or a book being opened or asked is waiting, and stops, keeping what it made; the next call carries on from
+    /// there. Returns how far the book got, or null when it couldn't start (the app is closing, or the book is already
+    /// being done).
+    /// </summary>
+    public async Task<AskFill?> FillInBackgroundAsync(long documentId, Func<bool> giveWay, CancellationToken ct = default)
+    {
+        if (!HasEmbeddingModel || _stopping.IsCancellationRequested) return null;
+        if (_fills.TryGetValue(documentId, out var fill) && fill.Running) return null;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct, _stopping.Token);
+        return await FillAsync(documentId, () => Volatile.Read(ref _waitingFills) > 0 || giveWay(), waiting: false, stop.Token);
     }
 
     /// <summary>
     /// Makes vectors for the book's pages that have text and none from the current model, a few pages at a time, and
-    /// first drops those another model made. Stops at the first failure, saying why; asking again carries on.
+    /// first drops those another model made. Stops at the first failure, saying why; asking again carries on. With
+    /// <paramref name="giveWay"/>, also stops quietly between batches when it says so. Null when it never started.
     /// </summary>
-    async Task FillAsync(long documentId, CancellationToken ct)
+    async Task<AskFill?> FillAsync(long documentId, Func<bool>? giveWay, bool waiting, CancellationToken ct)
     {
         var made = 0;
         var started = Stopwatch.GetTimestamp();
@@ -324,14 +366,16 @@ public sealed class AskService(
         }
         catch (OperationCanceledException)
         {
-            return;
+            if (waiting) Interlocked.Decrement(ref _waitingFills);
+            return null;
         }
+        if (waiting) Interlocked.Decrement(ref _waitingFills);
         try
         {
             IReadOnlyDictionary<int, HeadingPath>? headings = null;
             while (true)
             {
-                var embedder = ai.Embedder;
+                var embedder = waiting ? ai.Embedder : ai.BackgroundEmbedder;
                 var name = ai.Setup.EmbeddingName;
                 if (embedder is null || name is null || await WhyNotAsync(documentId, ct) is not null) break;
                 if (name != model)
@@ -341,6 +385,7 @@ public sealed class AskService(
                 }
                 var coverage = await ask.GetCoverageAsync(documentId, model, EmbeddingText.Version, ct);
                 Report(documentId, new AskFill(coverage.WithVectors, coverage.WithText, true, null));
+                if (giveWay?.Invoke() == true) break;
                 var batch = await ask.GetPagesWithoutVectorsAsync(documentId, model, EmbeddingText.Version, FillBatch, ct);
                 if (batch.Count == 0) break;
                 if (headings is null)
@@ -362,7 +407,9 @@ public sealed class AskService(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return;
+            // Closing, or the library's reading stopped: what was made is kept, and the book shows as not being done.
+            if (_fills.TryGetValue(documentId, out var stopped)) _fills[documentId] = stopped with { Running = false };
+            return null;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -377,7 +424,9 @@ public sealed class AskService(
             _log.LogInformation("Made {Pages} page vectors for document {DocumentId} with {Model} in {Seconds:0.0} s",
                 made, documentId, model, Stopwatch.GetElapsedTime(started).TotalSeconds);
         var final = model is null ? null : await ask.GetCoverageAsync(documentId, model, EmbeddingText.Version, CancellationToken.None);
-        Report(documentId, new AskFill(final?.WithVectors ?? 0, final?.WithText ?? 0, false, problem));
+        var done = new AskFill(final?.WithVectors ?? 0, final?.WithText ?? 0, false, problem);
+        Report(documentId, done);
+        return done;
     }
 
     void Report(long documentId, AskFill fill)

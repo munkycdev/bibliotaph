@@ -148,12 +148,14 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new MetadataStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new ClassificationStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new CorrectionStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new UserTagStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
 
         // index.db: derived, rebuildable. One writer; reads on their own connections.
         builder.Services.AddSingleton(sp => IndexDatabase.ForFile(paths.IndexDatabase, sp.GetRequiredService<ILogger<IndexDatabase>>()));
         builder.Services.AddSingleton<IndexWriter>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexWriter>());
         builder.Services.AddSingleton<IndexQueries>();
+        builder.Services.AddSingleton<UserTagQueries>();
         builder.Services.AddSingleton<LibraryQueries>();
 
         // PDFium runs only in worker processes; none starts until something asks for a page.
@@ -179,7 +181,10 @@ public partial class App : Application
         builder.Services.AddSingleton<ReadingStore>();
         builder.Services.AddSingleton<FavoritesService>();
         builder.Services.AddSingleton<CollectionStore>();
+        builder.Services.AddSingleton<FolderCollectionStore>();
         builder.Services.AddSingleton<CollectionsService>();
+        builder.Services.AddSingleton<FolderCollections>();
+        builder.Services.AddSingleton<CollectionSuggestions>();
         builder.Services.AddSingleton<PageRefStore>();
         builder.Services.AddSingleton<PagePlaces>();
         builder.Services.AddSingleton<SessionStore>();
@@ -228,11 +233,16 @@ public partial class App : Application
             new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
         // The smoke test has a stand-in model server of its own, for Ask this book (SmokeModel).
+        builder.Services.AddSingleton(sp => new ModelActivity(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(),
             smokeTest ? SmokeModel.ClientsFor(sp.GetRequiredService<IApiKeyStore>()) : null,
-            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey)));
+            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey),
+            sp.GetRequiredService<ModelActivity>()));
         builder.Services.AddSingleton<AskQueries>();
+        builder.Services.AddSingleton(sp => new AiUse(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<AskService>();
+        builder.Services.AddSingleton<LibraryAskQueries>();
+        builder.Services.AddSingleton<LibraryAskService>();
         builder.Services.AddSingleton<ExampleFinder>();
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
@@ -258,12 +268,18 @@ public partial class App : Application
         builder.Services.AddSingleton<AiReadingFeed>();
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
+        builder.Services.AddSingleton<ChapterScanStore>();
+        builder.Services.AddSingleton<ChapterQueries>();
+        builder.Services.AddSingleton<ChapterProjection>();
+        builder.Services.AddSingleton<IStage, ChapterScanStage>();
+        builder.Services.AddSingleton<ChapterScanService>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<FolderRules>();
         builder.Services.AddSingleton<MetadataService>();
         builder.Services.AddSingleton<CorrectionService>();
         builder.Services.AddSingleton<VocabularyService>();
+        builder.Services.AddSingleton<UserTagService>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
         builder.Services.AddSingleton<PlainSearchService>();
@@ -275,6 +291,9 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+        // Reading the whole library for meaning, slowly and last of all.
+        builder.Services.AddSingleton<LibraryVectors>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryVectors>());
         // Library sync: after indexing, so it stops first and writes this PC's file one last time.
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
@@ -290,6 +309,7 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryFolders>();
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
+        builder.Services.AddSingleton<LibraryAskScope>();
         builder.Services.AddSingleton<CoverImages>();
         // Site icons for books owned online, fetched once per site; the smoke test has a stand-in for the web.
         builder.Services.AddSingleton(sp => new SiteIcons(sp.GetRequiredService<AppPaths>(),
@@ -357,6 +377,7 @@ public partial class App : Application
         // One Settings > Online libraries, so a preview is still there after a look at the Library.
         builder.Services.AddSingleton<OnlineLibrariesViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
+        builder.Services.AddSingleton<LibraryAskViewModel>();
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
@@ -418,6 +439,8 @@ public partial class App : Application
             try
             {
                 await services.GetRequiredService<MetadataProjector>().ProjectAllAsync();
+                // What the AI found in each chapter, kept in catalog.db, back into a rebuilt index.db.
+                await services.GetRequiredService<ChapterProjection>().RestoreAsync();
             }
             catch (Exception ex)
             {

@@ -50,8 +50,20 @@ public static class SettingKeys
     /// <summary>The built-in AI's embedding model, by its id: "nomic-embed-text-v1.5". Set when it is downloaded.</summary>
     public const string AiBuiltInEmbeddingModel = "ai.built-in.embedding";
 
+    /// <summary>
+    /// "False" stops the library's pages being read for meaning in the background, for questions to the whole library;
+    /// otherwise, with an embedding model set, they are.
+    /// </summary>
+    public const string AiLibraryVectors = "ai.embedding.library";
+
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
+
+    /// <summary>
+    /// "False" stops the AI reading whole books chapter by chapter once their cataloging is done; otherwise it reads
+    /// them, slowly and only while nothing else wants the AI.
+    /// </summary>
+    public const string AiScanWholeBooks = "ai.scan-whole-books";
 
     /// <summary>
     /// "False" keeps files that indexing downloaded on this device; otherwise they go back to online-only.
@@ -80,6 +92,9 @@ public static class SettingKeys
 
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home.</summary>
     public const string StartPage = "start-page";
+
+    /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
+    public const string SidebarCollapsed = "sidebar-collapsed";
 
     /// <summary>The folder library sync writes this PC's sync file to and reads the other PCs' from; empty or missing while sync is off.</summary>
     public const string SyncFolder = "sync.folder";

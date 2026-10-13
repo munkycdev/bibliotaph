@@ -104,6 +104,7 @@ static partial class SmokeTest
                 await Check($"Settings worked through with a library in {preference}", () => ShowSettingsAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
                 await Check($"Settings > AI, built in and with no model server, in {preference}", () => ShowAiSettingsAsync(services, window));
+                await Check($"Settings > AI's Scan whole books switch in {preference}", () => ToggleScanWholeBooksAsync(services, window));
                 await Check($"the AI reading page during a stand-in reading in {preference}", () => ShowAiReadingAsync(services, window));
                 if (real is not { } files) continue;
                 await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
@@ -112,6 +113,7 @@ static partial class SmokeTest
             }
             await Check("every route drawn in the Windows contrast theme's colours", () => ShowContrastAsync(services, window));
             await Check("the Keyboard shortcuts popup, from Ctrl+/ and from the Settings link", () => ShowShortcutsAsync(services, window));
+            await Check("the sidebar collapsed to its icons and expanded again", () => CollapseSidebarAsync(window));
             await Check("Ask with AI off saying it needs AI, its link to Settings > AI, and the search box searching as before",
                 () => PlainSearchWithoutAiAsync(services, window, books));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
@@ -124,6 +126,8 @@ static partial class SmokeTest
                 () => AddElsewhereAsync(services, window, books));
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
+            await Check("a folder of three books proposed as a collection in Needs review, made with Accept and undone",
+                () => MakeFolderCollectionAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
             await Check("a book read online in the online reader, its note kept, popped out and brought back", () => ReadOnlineBookAsync(services, window));
@@ -152,6 +156,8 @@ static partial class SmokeTest
                     () => ReviewPartProposalAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF opened from Ask this book in its details and asked a question: the answer streamed with its citations checked and opening the page with the quotation marked, the page found by meaning on asking again, and Ask hidden with AI off",
                     () => AskBookAsync(services, window, reprocessed.Pdf));
+                await Check("a question to the whole library from Ask in the top bar, answered with a citation naming the book and page that opens the book at that page",
+                    () => AskLibraryAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a binder's next page in another book opened ahead of time with its page drawn, and shown from it by Next",
                     () => ReadAheadAcrossBooksAsync(services, window, reprocessed.Pdf));
@@ -159,6 +165,8 @@ static partial class SmokeTest
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
                 await Check("two images kept separate made a pack with Pack together, a third added, the pack merged into the tokens' pack, and Undo",
                     () => PackTogetherAsync(services, window));
+                await Check("a PDF and an image made a pack of files with Pack together, the PDF's page found under the pack, and split into separate files",
+                    () => PackFilesTogetherAsync(services, window));
                 await Check("a locked PDF and one with DRM marked on their cards, in their details and in Needs review; the protected one opened in another app; the locked one unlocked without Remember, Copy off, and searchable",
                     () => UseProtectedBooksAsync(services, window));
                 await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
@@ -419,6 +427,24 @@ static partial class SmokeTest
         vocabulary.Terms.First().EditCommand.Execute(null);
         await Settle(window);
         await AuditAsync(window, "Settings > Vocabulary with a term open");
+        if (decide)
+        {
+            // Your tags: one is added, listed and opened for editing, then deleted, so it guesses nothing later steps see.
+            vocabulary.Vocabularies.Single(v => v.Key == VocabularyViewModel.TagsKey).IsSelected = true;
+            vocabulary.NewTagName = "Smoke signals";
+            vocabulary.NewTagWords = "owlbear, old mill";
+            await vocabulary.AddTagCommand.ExecuteAsync(null);
+            await WaitUntilAsync(window, () => vocabulary.Tags.Any(t => t.Name == "Smoke signals"),
+                () => $"Adding a tag said {vocabulary.AddProblem ?? vocabulary.AddNote}, and it isn't listed.");
+            var tag = vocabulary.Tags.Single(t => t.Name == "Smoke signals");
+            tag.EditCommand.Execute(null);
+            await Settle(window);
+            await AuditAsync(window, "Settings > Vocabulary's tags with a tag open");
+            await tag.DeleteCommand.ExecuteAsync(null);
+            await WaitUntilAsync(window, () => vocabulary.Tags.All(t => t.Name != "Smoke signals"), () => "Deleting the tag left it listed.");
+            vocabulary.Vocabularies[2].IsSelected = true;
+            await Settle(window);
+        }
         while (shell.CurrentPage is not LibraryViewModel && navigation.GoBack()) await Settle(window);
     }
 
@@ -1436,13 +1462,13 @@ static partial class SmokeTest
             if (page.BulkMessage != message) throw new InvalidOperationException($"Pack together says “{page.BulkMessage}”, not “{message}”.");
         }
 
-        // A book can't go in a pack, and a pack isn't a copy of a book.
+        // A PDF can go in a pack with images, but a pack isn't a copy of a book.
         var innId = DocumentOf("Haunted Inn.pdf");
         var inn = page.Items.Single(i => i.DocumentId == innId);
         page.StartSelectingCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(Handout(1));
         await page.ActivateCommand.ExecuteAsync(inn);
-        if (page.CanPackSelected) throw new InvalidOperationException("Pack together is offered for a book.");
+        if (!page.CanPackSelected) throw new InvalidOperationException("Pack together isn't offered for a PDF and an image.");
         await page.ActivateCommand.ExecuteAsync(inn);
         await page.ActivateCommand.ExecuteAsync(Card("Smoke Tokens"));
         if (page.CanJoinSelected) throw new InvalidOperationException("Same book is offered for a pack.");
@@ -3051,6 +3077,38 @@ static partial class SmokeTest
         finally
         {
             returns.SettingChanged -= OnSaved;
+        }
+    }
+
+    /// <summary>
+    /// Settings > AI's "Scan whole books": shown and ticked to start with, saved off when it is unticked and on again when
+    /// it is ticked. AI is off in the smoke library, so nothing is read either way.
+    /// </summary>
+    static async Task ToggleScanWholeBooksAsync(IServiceProvider services, Window window)
+    {
+        var page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
+        var ai = services.GetRequiredService<AiSettings>();
+        var saved = 0;
+        void OnSaved(object? sender, EventArgs e) => Interlocked.Increment(ref saved);
+        ai.ScanWholeBooksChanged += OnSaved;
+        try
+        {
+            CheckBox? Box() => Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "ScanWholeBooks");
+            await WaitUntilAsync(window, () => Box() is { IsVisible: true, IsEnabled: true, IsChecked: true } && page.ScanWholeBooks && ai.ScanWholeBooks,
+                () => "Settings > AI doesn't show Scan whole books, ticked.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 1 && !page.ScanWholeBooks && !ai.ScanWholeBooks && Box()?.IsChecked == false,
+                () => "Unticking Scan whole books wasn't saved.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 2 && page.ScanWholeBooks && ai.ScanWholeBooks && Box()?.IsChecked == true,
+                () => "Ticking Scan whole books again wasn't saved.");
+            await AuditAsync(window, "Settings > AI with Scan whole books");
+        }
+        finally
+        {
+            ai.ScanWholeBooksChanged -= OnSaved;
         }
     }
 

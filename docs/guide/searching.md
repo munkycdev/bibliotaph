@@ -49,9 +49,10 @@ and **Esc** closes it (press **Esc** again to clear the search).
 | `players:` | Party size | `players:4`, `players:3-5` |
 | `duration:` | One-shot, short, long or campaign | `duration:one-shot` |
 | `style:` | The kind of adventure: heist, dungeon crawl, hexcrawl… | `style:heist` |
-| `theme:` | A theme or tone, such as horror | `theme:horror` |
-| `environment:` | Where it happens | `environment:urban` |
-| `setting:` | A campaign setting | `setting:"my homebrew"` |
+| `theme:` | A theme or tone, such as horror, in the book or one of its chapters | `theme:horror` |
+| `environment:` | Where it happens, in the book or one of its chapters | `environment:urban` |
+| `setting:` | A campaign setting, in the book or one of its chapters | `setting:"my homebrew"` |
+| `creature:` | A creature the AI found in one of its chapters (also `monster:`) | `creature:owlbear` |
 | `publisher:` | Words in the publisher's name | `publisher:mossbank` |
 | `author:` | Words in an author's name | `author:doe` |
 | `series:` | Words in the series name | `series:chronicles` |
@@ -85,6 +86,26 @@ Ask only uses fields and words you could have typed yourself, and only your own 
 level or tag you didn't ask for. Click the button again to go back to ordinary searching. Without AI, Ask says it
 needs AI, with a link to [set it up](ai.md).
 
+## Ask your library a question
+
+In Ask mode you can also ask a question about what's *in* your books, such as "how does grappling work?" or "which
+adventures have a lich in a crypt?". Type it and press **Ctrl+Enter**, or click **Answer from my books**. Bibliotaph
+looks through the pages of your books, picks the few that answer it best (no more than three from any one book), and
+the AI answers from those pages only.
+
+- **Each claim cites its book and page**, like *[The Sunken Keep, p. 112]*. Click it to open that book at that page,
+  with the quoted words marked. The pages it read are listed under the answer, and each opens its page too.
+- **It asks the books the Library shows.** Filter the Library first (by game system, type, setting, theme and so
+  on, or with fields such as `system:` and `setting:` in the search box) to ask only those books. The panel says which
+  filters it used. The words you searched for don't narrow it: the question has its own.
+- **When your books don't cover it, it says so** instead of making something up, and names the pages that came
+  closest.
+- Books in a folder [kept from AI](ai.md#day-to-day) are never read or sent.
+
+Pages are found by their words, and by their meaning once your library has been read for it (see
+[AI](ai.md#reading-your-library-for-meaning)). Until then, books that haven't been read for meaning still take part by
+their words.
+
 ## Filters
 
 **Filters** in the Library's toolbar opens a panel of drop-downs. The four you'll use most come first: **Game system**,
@@ -95,7 +116,7 @@ four groups:
 - **About the book**: **Setting**, **Themes**, **Environments**, **Publisher** and **Edition**, each a box you type in,
   once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
-- **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
+- **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
   read it), **Copies** (books in more than one file), **Adventures inside files** (inside their book, shown as cards
   of their own, or hidden) and **Collection** (books in a collection, or not in one yet).
 

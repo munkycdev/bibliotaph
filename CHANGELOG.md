@@ -2,10 +2,17 @@
 
 ## Unreleased
 
-- **Adventures stay inside their book** while you browse the Library: the anthology's card says how many it holds and
-  its details list them. A search still finds each adventure, shown with its book's cover and an **Adventure** ribbon,
-  in place of the book when both match. **Adventures inside files** in More filters shows them as cards again.
-
+- **Ask your library a question:** in Ask mode, **Answer from my books** (or Ctrl+Enter) answers from the pages of
+  every book the Library shows, citing each claim's book and page as a link that opens it there, and saying plainly
+  when your books don't cover it. With an embedding model, your whole library is read for meaning in the background,
+  pausing while you use the AI; **Settings > AI** shows how far it has got and can switch it off.
+- **Ask this book finds the right pages more consistently:** index and contents pages no longer crowd out the pages
+  that answer, a question's rare words count for more than its common ones when deciding whether the book covers it,
+  the AI answers without "thinking" first, and a book is prepared for finding by meaning as soon as it's opened.
+- **Your tags can find themselves.** In **Settings > Vocabulary > Your tags**, give a tag the words that signal it
+  ("Undead": undead, zombie, lich) and every book whose pages use them often enough gets it as a suggestion, without
+  reading any file again. New books are checked as they're read, and a tag you reject on a book stays rejected.
+- **Collapse the sidebar** to its icons with the button beside Settings or **Ctrl+B**. It stays the way you left it.
 - **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
   letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box
   find books with any of them, boxes narrow together, and saved searches keep them.
@@ -18,10 +25,25 @@
 - **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Packs hold PDFs too.** Tick PDFs, such as character sheets or pregens, with images or packs in Select mode and
+  **Pack together** makes them one card, "Pack · 6 files". Opening it steps through its files, PDFs opening as PDFs;
+  their pages are found under the pack; **Split into separate files** gives each its card back. Folders are still
+  packed automatically only for their images.
 - **Choose a cover image…** gives a book you own elsewhere a cover of your own, from the Add dialog or its details.
 - **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
 - **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
   field, with a count for each.
+- **Collections from folders**: Needs review offers to make a folder of three or more books a collection, nested as
+  the folders are. Books that land in the folder later join it, until you change its books by hand.
+- **Books for collections**: Needs review suggests books that share a series, or a setting and game system, with most
+  of a collection's books.
+- **Scan whole books** in Settings > AI (on by default) has the AI read every page of each catalogued book, a few
+  chapters at a time, when it has nothing else to do. A book's details show what it found under **Found inside the
+  book**, the reader's contents show it beside each chapter, and `setting:`, `environment:`, `theme:` and the new
+  `creature:` search find books by their chapters. The book's own details are never changed.
+- **Adventures stay inside their book** while you browse the Library: the anthology's card says how many it holds and
+  its details list them. A search still finds each adventure, shown with its book's cover and an **Adventure** ribbon,
+  in place of the book when both match. **Adventures inside files** in More filters shows them as cards again.
 
 ## 1.0.0 · 12 October 2026
 

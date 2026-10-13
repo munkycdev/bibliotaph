@@ -9,7 +9,7 @@ namespace Bibliotaph.Processing;
 /// <summary>
 /// "Forget its text" and "Read it again", a purge of derived content, for a book the user would rather not
 /// have readable on disk. Forgetting removes what reading the book made (its pages and their search text, its cover,
-/// the reader's thumbnails of its pages, the AI's results and Ask this book's conversation) and stops indexing it;
+/// the reader's thumbnails of its pages, the AI's results, what it found in each chapter and Ask this book's conversation) and stops indexing it;
 /// the user's decision is kept in catalog.db, so it outlasts a rebuilt index. The file itself is never touched, and
 /// the book keeps its card and catalog details.
 /// </summary>
@@ -24,7 +24,8 @@ public sealed class ForgetText(
     MetadataStore metadata,
     MetadataProjector projector,
     AskHistoryStore askHistory,
-    ILogger<ForgetText>? log = null)
+    ILogger<ForgetText>? log = null,
+    ChapterScanStore? chapterScans = null)
 {
     readonly ILogger _log = log ?? NullLogger<ForgetText>.Instance;
 
@@ -50,7 +51,11 @@ public sealed class ForgetText(
 
         foreach (var hash in hashes) DeletePictures(hash);
         await classifications.ForgetAsync(hashes, ct);
+        // What the AI found in each chapter quotes the book too; index.db's copy went with the pages.
+        if (chapterScans is not null) await chapterScans.ForgetAsync(hashes, ct);
         await metadata.ForgetAiAsync(entryId, hashes, ct);
+        // Tags guessed from its pages go too; one the user kept stays.
+        await metadata.ReplaceTagGuessesAsync([entryId], [], ct);
         // Ask this book's conversation quotes the book, so it goes with the text.
         await askHistory.ClearAsync(entryId, ct);
         await projector.ProjectAsync([entryId], ct);

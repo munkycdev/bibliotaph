@@ -20,11 +20,12 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>), since it is optional and may wait
 /// for an endpoint for as long as the user likes; only a book it failed for good also needs attention. <see cref="Withheld"/> counts the documents whose
 /// text won't be read by itself: locked, protected or forgotten (<see cref="TextAccess"/>), so nothing says they are still
-/// being read.
+/// being read. Reading whole books chapter by chapter is counted apart too (<see cref="ToScanWhole"/>,
+/// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book.
 /// </summary>
 public sealed record IndexProgress(
     long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
-    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0)
+    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0, long ToScanWhole = 0, long ScannedWhole = 0)
 {
     /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
     public long Indexed => Math.Max(0, Queued - Indexing);
@@ -62,7 +63,7 @@ public sealed class IndexQueries(IndexDatabase database)
                 count(*) FILTER (WHERE status IN ('pending', 'leased')) AS Pending,
                 count(*) FILTER (WHERE status = 'failed')              AS Failed
             FROM job
-            WHERE stage <> 'Classify'
+            WHERE stage NOT IN ('Classify', 'ChapterScan')
             """, cancellationToken: ct));
     }
 
@@ -74,18 +75,20 @@ public sealed class IndexQueries(IndexDatabase database)
             SELECT
                 (SELECT count(*) FROM doc) AS Documents,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped')) AS Searchable,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Classify') AS Processing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Classify', 'ChapterScan')) AS Processing,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
                     (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify')) AS Indexing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify', 'ChapterScan')) AS Indexing,
                 (SELECT count(DISTINCT document_id) FROM stage_status) AS Queued,
                 (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Pending', 'Running')) AS ToClassify,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Complete', 'Partial', 'Skipped')) AS Classified,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status = 'Failed') AS ClassifyFailed,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE stage IN ('Probe', 'Text') AND (
-                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason = @protected) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld
+                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason = @protected) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld,
+                (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Pending', 'Running')) AS ToScanWhole,
+                (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Complete', 'Partial')) AS ScannedWhole
             """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, forgotten = TextAccessReasons.Forgotten },
             cancellationToken: ct));
     }
@@ -478,6 +481,22 @@ public sealed class IndexQueries(IndexDatabase database)
             WHERE s.stage = 'Text' AND s.status IN ('Complete', 'Partial', 'Skipped') AND e.entry_id IN (SELECT value FROM json_each(@ids))
             """,
             new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
+    }
+
+    /// <summary>The title each of these cards shows, and the document it opens (null for a book owned elsewhere).</summary>
+    public async Task<IReadOnlyDictionary<EntryId, (string Title, long? DocumentId)>> GetCardTitlesAsync(IReadOnlyCollection<EntryId> entryIds,
+        CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return new Dictionary<EntryId, (string, long?)>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, long? DocumentId, string? Title)>(new CommandDefinition(
+            """
+            SELECT e.entry_id, e.document_id, coalesce(m.title, e.name, d.display_title)
+            FROM entry_doc e LEFT JOIN entry_meta m ON m.entry_id = e.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE e.entry_id IN (SELECT value FROM json_each(@ids))
+            """,
+            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
+        return rows.ToDictionary(r => new EntryId(r.EntryId), r => (r.Title ?? $"Document {r.EntryId}", r.DocumentId));
     }
 
     /// <summary>

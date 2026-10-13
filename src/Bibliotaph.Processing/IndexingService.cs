@@ -95,7 +95,8 @@ public sealed class IndexingService(
     PackService? packs = null,
     IFileIdentity? identity = null,
     OnlineOnlyReturns? returns = null,
-    PartsService? parts = null) : BackgroundService
+    PartsService? parts = null,
+    FolderCollections? folderCollections = null) : BackgroundService
 {
     /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
     public const string UnexpectedError = "Unexpected error: ";
@@ -153,10 +154,10 @@ public sealed class IndexingService(
     public bool IsScanning { get; private set; }
 
     /// <summary>
-    /// True while folders are due to be looked at for packs, or are being looked at: hashing can finish and every job
-    /// go idle a moment before the pack cards it calls for are made.
+    /// True while folders are due to be looked at for packs and for the collections that follow them, or are being
+    /// looked at: hashing can finish and every job go idle a moment before the pack cards it calls for are made.
     /// </summary>
-    public bool PacksPending => packs is not null && (_packsDue || _packing);
+    public bool PacksPending => (packs is not null || folderCollections is not null) && (_packsDue || _packing);
 
     /// <summary>True when online-only files are waiting because their drive is short of space.</summary>
     public bool WaitingForDiskSpace { get; private set; }
@@ -250,6 +251,18 @@ public sealed class IndexingService(
     public async Task<int> RerunAsync(Stage stage, CancellationToken ct = default)
     {
         var queued = await queue.RerunAsync(stage, ct);
+        _laneSignals[Pipeline.LaneOf(stage)].Set();
+        RaiseChanged();
+        return queued;
+    }
+
+    /// <summary>
+    /// Runs a stage again for one document that has been through it, as "Scan again" does for a whole-book scan.
+    /// A job still waiting runs anyway. Returns whether it was queued again.
+    /// </summary>
+    public async Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default)
+    {
+        var queued = await queue.RerunAsync(stage, documentId, ct);
         _laneSignals[Pipeline.LaneOf(stage)].Set();
         RaiseChanged();
         return queued;
@@ -374,6 +387,12 @@ public sealed class IndexingService(
         {
             var backfilled = await queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued the search for other copies for {Count} documents", backfilled);
+        }
+        // And reading whole books, chapter by chapter, which comes after everything else and waits for AI to be on.
+        if (_stages.ContainsKey(Stage.ChapterScan))
+        {
+            var backfilled = await queue.EnqueueMissingAsync(Stage.ChapterScan, after: Stage.Text, stoppingToken);
+            if (backfilled > 0) _log.LogInformation("Queued whole-book scans for {Count} documents", backfilled);
         }
         WatchGates();
 
@@ -672,22 +691,25 @@ public sealed class IndexingService(
     }
 
     /// <summary>
-    /// Makes folders and ZIPs of many images one card, once what's there has been hashed. A failure is logged and
-    /// tried again next time, so it never stops hashing.
+    /// Makes folders and ZIPs of many images one card, once what's there has been hashed, then adds the books new to a
+    /// folder made into a collection to that collection. A failure is logged and tried again next time, so it never
+    /// stops hashing.
     /// </summary>
     async Task PackAsync(CancellationToken ct)
     {
-        if (packs is null || !_packsDue || IsPaused(Lane.Index)) return;
+        if ((packs is null && folderCollections is null) || !_packsDue || IsPaused(Lane.Index)) return;
         _packing = true;
         _packsDue = false;
         try
         {
-            await packs.PlanAsync(ct);
+            if (packs is not null) await packs.PlanAsync(ct);
+            // After packing, so images that went into a pack don't join as books of their own.
+            if (folderCollections is not null) await folderCollections.FollowAsync(ct);
             RaiseChanged();
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
         {
-            _log.LogError(ex, "Looking for image packs failed");
+            _log.LogError(ex, "Looking for image packs, or for books new to a folder made into a collection, failed");
             _packsDue = true;
         }
         finally

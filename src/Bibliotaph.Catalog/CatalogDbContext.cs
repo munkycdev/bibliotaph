@@ -17,12 +17,15 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<PackDecision> PackDecisions => Set<PackDecision>();
     public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
     public DbSet<PartProposal> PartProposals => Set<PartProposal>();
+    public DbSet<ChapterScan> ChapterScans => Set<ChapterScan>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
     public DbSet<ReadingState> ReadingStates => Set<ReadingState>();
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
+    public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
+    public DbSet<CollectionDecline> CollectionDeclines => Set<CollectionDecline>();
     public DbSet<SmartView> SmartViews => Set<SmartView>();
     public DbSet<Pin> Pins => Set<Pin>();
     public DbSet<Note> Notes => Set<Note>();
@@ -38,6 +41,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<AskTurn> AskTurns => Set<AskTurn>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
     public DbSet<FolderRule> FolderRules => Set<FolderRule>();
+    public DbSet<UserTag> UserTags => Set<UserTag>();
     public DbSet<SyncState> SyncStates => Set<SyncState>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
@@ -101,6 +105,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<PartProposal>(e => e.HasIndex(p => p.ContentHash).IsUnique());
+        modelBuilder.Entity<ChapterScan>(e => e.HasIndex(s => s.ContentHash).IsUnique());
 
         modelBuilder.Entity<PackDecision>(e =>
         {
@@ -160,6 +165,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<SourceRoot>().WithMany().HasForeignKey(r => r.SourceRootId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<UserTag>(e => e.HasIndex(t => t.NormalizedName).IsUnique());
+
         modelBuilder.Entity<PageRef>(e =>
         {
             e.HasIndex(p => p.DocumentId);
@@ -199,6 +206,23 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(i => i.EntryId);
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CollectionFolder>(e =>
+        {
+            e.HasIndex(f => new { f.SourceRootId, f.Folder }).IsUnique();
+            e.HasIndex(f => f.CollectionId).IsUnique();
+            e.HasOne<SourceRoot>().WithMany().HasForeignKey(f => f.SourceRootId).OnDelete(DeleteBehavior.Cascade);
+            // A deleted collection leaves its folder answered, so the folder isn't asked about again.
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(f => f.CollectionId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CollectionDecline>(e =>
+        {
+            e.HasKey(d => new { d.CollectionId, d.EntryId });
+            e.HasIndex(d => d.EntryId);
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(d => d.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(d => d.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SmartView>(e => e.HasIndex(v => v.Name));
