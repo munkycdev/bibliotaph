@@ -10,7 +10,8 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// What a Smart View shows: the Library's search text, filters, scope, order, layout and tab, never a list of books.
-/// Stored as JSON with a version, so a later app can read an older view.
+/// Stored as JSON with a version, so a later app can read an older view; one saved before a filter existed reads with
+/// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",
@@ -32,7 +33,8 @@ public sealed record SmartViewDefinition(
     string? Duration = null,
     int? Players = null,
     string? Store = null,
-    bool HideParts = false)
+    bool HideParts = false,
+    PickedValues? Picked = null)
 {
     public const int CurrentVersion = 1;
 

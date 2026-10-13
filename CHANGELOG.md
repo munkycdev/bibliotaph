@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
+  letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box
+  find books with any of them, boxes narrow together, and saved searches keep them.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 

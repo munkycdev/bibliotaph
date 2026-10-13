@@ -30,6 +30,7 @@ public sealed class MetadataSearchTests : IndexFixture
                 new("edition", "pf2e", "pathfinder-2e"), new("system", "pathfinder", "pathfinder"), new("type", "module", "adventure"),
                 new("style", "dungeon crawl", "dungeon-crawl"), new("style", "caper", "heist"), new("duration", "one shot", "one-shot"),
                 new("store", "dtrpg", "drivethrurpg"), new("store", "drivethrurpg", "drivethrurpg"), new("store", "kickstarter", "kickstarter"),
+                new("setting", "the marches", "the-marches"), new("setting", "marchlands", "the-marches"),
             ], Ct);
         await _store.SetMetadataAsync(
             [
@@ -39,7 +40,8 @@ public sealed class MetadataSearchTests : IndexFixture
                     LevelMin = 10, LevelMax = 14, Levels = LevelState.Known, PlayersMin = 4, PlayersMax = 6, ConfirmedText = "5th edition · 5e",
                     Facets = [new("system", "dnd", "Dungeons & Dragons", true), new("edition", "dnd-5e", "5th edition", true), new("type", "adventure", "Adventure", false), new("theme", "horror", "Horror", false),
                         new("style", "dungeon-crawl", "Dungeon crawl", false), new("duration", "one-shot", "One-shot", true),
-                        new("store", "drivethrurpg", "DriveThruRPG", true), new("store", "kickstarter", "Kickstarter", false)],
+                        new("store", "drivethrurpg", "DriveThruRPG", true), new("store", "kickstarter", "Kickstarter", false),
+                        new("setting", "the-marches", "The Marches", false)],
                 },
                 new EntryMetaRow
                 {
@@ -47,12 +49,13 @@ public sealed class MetadataSearchTests : IndexFixture
                     PlayersMin = 4, PlayersMax = 4,
                     Facets = [new("system", "dnd", "Dungeons & Dragons", false), new("edition", "dnd-5e", "5th edition", false), new("type", "adventure", "Adventure", false),
                         new("style", "heist", "Heist", false), new("duration", "short", "Short (2–3 sessions)", false),
-                        new("store", "kickstarter", "Kickstarter", true)],
+                        new("store", "kickstarter", "Kickstarter", true), new("setting", "sunken-coast", "Sunken Coast", true)],
                 },
                 new EntryMetaRow
                 {
                     EntryId = EntryOf(Bestiary), Publisher = "Kobold Press", SystemLabel = "PF2e", KindLabel = "Bestiary", Levels = LevelState.NotApplicable, Reviews = 1,
-                    Facets = [new("system", "pathfinder", "Pathfinder", false), new("edition", "pathfinder-2e", "Pathfinder 2nd edition", false), new("type", "bestiary", "Bestiary", false)],
+                    Facets = [new("system", "pathfinder", "Pathfinder", false), new("edition", "pathfinder-2e", "Pathfinder 2nd edition", false), new("type", "bestiary", "Bestiary", false),
+                        new("setting", "the-marches", "The Marches", false), new("environment", "swamp", "Swamp", false)],
                 },
                 new EntryMetaRow { EntryId = EntryOf(Map), Facets = [new("type", "map-pack", "Map pack", true)] },
             ], Ct);
@@ -184,6 +187,54 @@ public sealed class MetadataSearchTests : IndexFixture
         var styles = await _library.GetFacetCountsAsync("style", new LibraryFilter(Players: 6), ct: Ct);
         Assert.Equal([("dungeon-crawl", 1L)], styles.Select(c => (c.Value, c.Count)));
     }
+
+    [Fact]
+    public async Task Type_ahead_filters_keep_books_with_any_value_of_a_field_and_every_field_picked()
+    {
+        async Task<IEnumerable<long>> PickedAsync(params (string Field, string[] Values)[] picks) =>
+            (await _library.ListAsync(new LibraryFilter(Picked: Picks(picks)), ct: Ct)).Select(e => e.DocumentId).Order();
+
+        // Any of a field's values.
+        Assert.Equal([Tomb, Bestiary], await PickedAsync(("setting", ["the-marches"])));
+        Assert.Equal([Tomb, Citadel, Bestiary], await PickedAsync(("setting", ["the-marches", "sunken-coast"])));
+        Assert.Equal([Tomb, Bestiary], await PickedAsync(("publisher", ["TSR", "Kobold Press"])));
+        Assert.Equal([Tomb, Citadel, Bestiary], await PickedAsync(("edition", ["dnd-5e", "pathfinder-2e"])));
+
+        // Every field picked.
+        Assert.Equal([Tomb], await PickedAsync(("setting", ["the-marches", "sunken-coast"]), ("theme", ["horror"])));
+        Assert.Equal([Bestiary], await PickedAsync(("setting", ["the-marches"]), ("publisher", ["Kobold Press", "Wizards of the Coast"])));
+        Assert.Equal([Citadel], await PickedAsync(("edition", ["dnd-5e"]), ("publisher", ["Wizards of the Coast"])));
+        Assert.Empty(await PickedAsync(("environment", ["swamp"]), ("edition", ["dnd-5e"])));
+
+        // And with the other filters and a search.
+        Assert.Equal([Tomb], (await _library.ListAsync(new LibraryFilter(Systems: ["dnd"], Picked: Picks(("setting", ["the-marches"]))), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([Bestiary], (await _library.SearchDocumentsAsync(Plan("codex"), new LibraryFilter(Picked: Picks(("setting", ["the-marches"]))), ct: Ct))
+            .Select(e => e.DocumentId));
+    }
+
+    [Fact]
+    public async Task Type_ahead_filters_count_each_value_with_its_other_names()
+    {
+        var editions = await _library.GetValueCountsAsync("edition", new LibraryFilter(), ct: Ct);
+        Assert.Equal([("dnd-5e", "5th edition", 2L), ("pathfinder-2e", "Pathfinder 2nd edition", 1L)], editions.Select(c => (c.Value, c.Label, c.Count)));
+        Assert.Contains("5e", editions[0].Names.Split(" · "));
+
+        var publishers = await _library.GetValueCountsAsync("publisher", new LibraryFilter(), ct: Ct);
+        Assert.Equal([("Kobold Press", 1L), ("TSR", 1L), ("Wizards of the Coast", 1L)], publishers.Select(c => (c.Label, c.Count)));
+
+        // Counted among the books the rest of the filter keeps, and without the field's own picks.
+        var settings = await _library.GetValueCountsAsync("setting", new LibraryFilter(), ct: Ct);
+        Assert.Equal([("the-marches", 2L), ("sunken-coast", 1L)], settings.Select(c => (c.Value, c.Count)));
+        Assert.Equal(["marchlands", "the marches"], settings[0].Names.Split(" · ").Order());
+        var picked = Picks(("setting", ["sunken-coast"]), ("theme", ["horror"]));
+        Assert.Equal([("the-marches", 1L)],
+            (await _library.GetValueCountsAsync("setting", new LibraryFilter(Picked: picked!.Without("setting")), ct: Ct)).Select(c => (c.Value, c.Count)));
+        Assert.Equal([("Kobold Press", 1L)],
+            (await _library.GetValueCountsAsync("publisher", new LibraryFilter(Systems: ["pathfinder"]), ct: Ct)).Select(c => (c.Label, c.Count)));
+    }
+
+    static PickedValues? Picks(params (string Field, string[] Values)[] picks) =>
+        PickedValues.Of(picks.Select(p => KeyValuePair.Create(p.Field, (IReadOnlyList<string>)p.Values)));
 
     [Fact]
     public async Task A12_a_level_filter_leaves_out_unknown_levels_unless_asked()

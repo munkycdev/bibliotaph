@@ -529,6 +529,21 @@ static partial class SmokeTest
         page.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the filters didn't bring back all {books} books.");
 
+        // The edition's type-ahead filter finds the 5th edition by another of its names; picking it makes a chip in the
+        // box and above the results, whose × takes it off.
+        var edition = page.ChipFilters.Single(b => b.Field == MetadataFields.Edition);
+        await WaitUntilAsync(window, () => edition.IsOffered && page.ShowAboutFilters, () => "The Library offers no edition filter to type in.");
+        edition.Text = "5e";
+        await WaitUntilAsync(window, () => edition.Suggestions.Any(s => s.Value == "dnd-5e"), () => "Typing 5e in the edition filter didn't offer the 5th edition.");
+        edition.PickCommand.Execute(edition.Suggestions.First(s => s.Value == "dnd-5e"));
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && edition.Chips.Count == 1 && page.ActiveFilters.Any(c => c.Label == "Edition: 5th edition"),
+            () => $"Picking the 5th edition shows {page.Items.Count} books and the chips {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}.");
+        var editionChip = page.ActiveFilters.First(c => c.Label == "Edition: 5th edition");
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == editionChip.Clear && b.IsVisible), "the 5th edition chip's ×");
+        await WaitUntilAsync(window, () => page.Items.Count == books && edition.Chips.Count == 0 && !page.HasActiveFilters,
+            () => $"The 5th edition chip's × didn't bring back all {books} books.");
+
         await WaitUntilAsync(window, () => page.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
             () => "The book a model read isn't marked, or the filters don't offer the AI choice.");
         page.AiChoice = page.AiChoices.First(c => c.Value == AiFilter.Read);
