@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Ask this book finds pages by meaning with the built-in AI.** Settings > AI offers nomic-embed-text (about 150 MB)
+  to download, so Ask no longer matches words only.
 - **Double-click a book** in the Library to open it; a single click still shows its details.
 - **Remove from library** is on the right-click menu of a book you own elsewhere, as well as in its details.
 - **Lists are in name order**: the filter drop-downs, the search guide's values, collections and sub-collections, the

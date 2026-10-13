@@ -233,7 +233,7 @@ public sealed class BuiltInEngineTests : IDisposable
     }
 
     [Fact]
-    public void The_embedding_model_is_named_and_found_as_the_chat_models_are_and_isnt_offered_until_it_is_pinned()
+    public void The_embedding_model_is_named_found_and_pinned_as_the_chat_models_are()
     {
         var folder = Path.Combine(_folder, "models");
         var embedding = BuiltInModels.Embedding;
@@ -244,6 +244,7 @@ public sealed class BuiltInEngineTests : IDisposable
         Assert.Null(BuiltInModels.FindEmbedding("qwen3-8b"));
         Assert.DoesNotContain(embedding, BuiltInModels.All);
         Assert.Equal(embedding.Sha256.Length == 64 && embedding.Bytes > 0 && embedding.Revision.Length > 0, embedding.IsPinned);
+        Assert.True(embedding.IsPinned);
         Assert.All(BuiltInModels.All, m => Assert.True(m.IsPinned));
 
         var setup = AiSetup.Off with { Enabled = true, BuiltIn = true, BuiltInModel = "qwen3-4b", BuiltInEmbeddingModel = embedding.Id, EmbeddingModel = "server-embed" };
