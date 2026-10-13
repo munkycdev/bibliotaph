@@ -68,7 +68,7 @@ Bibliotaph's reader opens a book where it was left, or at the matching page from
 
 **Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack.
 
-**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model on a model server, by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
+**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model (built in or on a model server), by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
 
 ## Binders
 

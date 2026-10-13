@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Ask this book finds pages by meaning with the built-in AI.** Settings > AI offers nomic-embed-text (about 150 MB)
+  to download, so Ask no longer matches words only.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 
