@@ -20,9 +20,9 @@ static partial class SmokeTest
     /// its embedding model, "Ask this book" in the details opens the smoke PDF with its Ask panel; a question finds the
     /// page with the dragon on it, and the stand-in's streamed answer arrives checked: its citation of that page a
     /// link, its quotation found on the page, and its citation of a page it wasn't sent taken out and the sentence
-    /// marked. The citation opens the page with the quotation marked by Find. Asked again once the book's vectors are
-    /// made, the page is found by meaning too, and the page's own link opens it with the question's word marked.
-    /// The first answer moves up into the conversation; a follow-up is shown as the model rewrote it and answered from
+    /// marked. The citation opens the page with the quotation marked by Find. Opening the book started making its
+    /// vectors; asked again once they are made, the page is found by meaning too, and the page's own link opens it with
+    /// the question's word marked. The first answer moves up into the conversation; a follow-up is shown as the model rewrote it and answered from
     /// the dragon's page. Reopened, the book's panel lists the conversation, and New conversation clears it. Switching
     /// AI off again hides Ask. The Classify lane is paused meanwhile, so the stand-in reads no book, and AI
     /// and the book's place are put back afterwards.
@@ -75,6 +75,8 @@ static partial class SmokeTest
                     && Descendants<TextBox>(window).Any(t => t.Name == "AskBox" && t.IsVisible && t.IsEnabled),
                 () => "Ask this book didn't open the book with its Ask panel.");
             viewer = (ViewerViewModel)shell.CurrentPage!;
+            // Opening the book with an embedding model set starts making its vectors, before anything is asked.
+            await WaitUntilAsync(window, () => ask.FillOf(documentId) is not null, () => "Opening the book didn't start making its vectors.");
 
             Descendants<TextBox>(window).First(t => t.Name == "AskBox").Text = "Where does the dragon sleep?";
             await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "AskButton" && b.IsVisible && b.IsEnabled),
@@ -105,7 +107,7 @@ static partial class SmokeTest
                     && viewer.Highlights.Items.Count > 0 && viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal),
                 () => $"The citation left page {pages.CurrentPageIndex} in view with Find saying “{viewer.FindStatus}” for “{viewer.FindText}”.");
 
-            // The first question made the book's vectors in the background; the next is answered by meaning too.
+            // Opening the book made its vectors in the background; once they are all made, a question is found by meaning too.
             await WaitUntilAsync(window, () => ask.FillOf(documentId) is { Running: false, Problem: null, Done: > 0 } fill && fill.Done == fill.Total,
                 () => $"The book's vectors weren't made: {ask.FillOf(documentId)}.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskButton"), "the panel's Ask, again");

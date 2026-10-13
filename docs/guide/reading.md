@@ -60,7 +60,7 @@ the panel shows "Looked for: …" when it reworded your question to search. Each
 
 Ask finds pages by their words. With a model server and an embedding model, it can also find them by meaning, so
 "who's behind the disappearances" can find a page that never says "disappearances"; see
-[AI](ai.md#set-it-up-a-model-server). The first time you ask a book that way, its pages are prepared in the background,
+[AI](ai.md#set-it-up-a-model-server). A book's pages are prepared for that in the background as soon as you open it,
 and the panel says how far it has got.
 
 ## Windows of their own

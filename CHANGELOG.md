@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Ask this book finds the right pages more consistently:** index and contents pages no longer crowd out the pages
+  that answer, a question's rare words count for more than its common ones when deciding whether the book covers it,
+  the AI answers without "thinking" first, and a book is prepared for finding by meaning as soon as it's opened.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 

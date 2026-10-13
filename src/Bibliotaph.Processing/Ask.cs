@@ -70,10 +70,10 @@ public sealed record AskFill(int Done, int Total, bool Running, string? Problem)
 /// <summary>
 /// Ask this book: finds the pages of one book that answer a question, by its words through the book's search index
 /// and by its meaning against each page's vector, fused by reciprocal rank, with no model asked to write anything.
-/// The first time a book is asked, its pages' vectors are made in the background by the embedding model in
-/// Settings > AI and kept in index.db (page_vec); until they are all there, pages are found by words and the vectors so
-/// far. Pages go only to the endpoint in Settings, only while AI is ready (so a remote one needs its tick), and never
-/// from a folder kept from AI. The log gets counts, never text.
+/// When a book is opened in the reader (or first asked), its pages' vectors are made in the background by the
+/// embedding model in Settings > AI and kept in index.db (page_vec); until they are all there, pages are found by words
+/// and the vectors so far. Pages go only to the endpoint in Settings, only while AI is ready (so a remote one needs its
+/// tick), and never from a folder kept from AI. The log gets counts, never text.
 /// </summary>
 public sealed class AskService(
     AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, EntryStore entries, AskHistoryStore history,
@@ -162,17 +162,24 @@ public sealed class AskService(
             }
         }
 
+        // The texts of every page either signal ranked: the evidence comes from them, and an index or contents page,
+        // which has the question's words without answering it, is told apart by its text and pushed down.
+        var candidates = wordHits.Select(h => h.PageId).Concat(meaning?.Take(_options.RankDepth).Select(m => m.PageId) ?? []).ToHashSet();
+        var rows = (await ask.GetPagesAsync(documentId, candidates, ct)).ToDictionary(r => r.PageId);
+        var lists = rows.Values.Where(r => AskRetrieval.IsListLike(r.Text)).Select(r => r.PageId).ToHashSet();
+
         var outline = await queries.GetOutlineAsync(documentId, ct);
         var headings = AskRetrieval.Headings([.. outline.Select(o => new BookHeading(o.Title, o.PdfPage, o.Depth))], pdfPageOf.Values.Distinct());
         var underMatching = AskRetrieval.UnderMatchingHeadings(words, headings);
         var boosted = pdfPageOf.Where(p => underMatching.Contains(p.Value)).Select(p => p.Key).ToHashSet();
-        var ranked = AskRetrieval.Fuse([.. wordHits.Select(h => h.PageId)], meaning is null ? [] : [.. meaning.Select(m => m.PageId)], boosted, _options);
+        var ranked = AskRetrieval.Fuse([.. wordHits.Select(h => h.PageId)], meaning is null ? [] : [.. meaning.Select(m => m.PageId)], boosted, _options, lists);
 
-        // The texts of the pages that could be evidence, and of the best few by words for the weak-signal guard.
-        var wanted = ranked.Take(_options.RankDepth).Select(r => r.PageId).Concat(wordHits.Take(5).Select(h => h.PageId)).ToHashSet();
-        var rows = (await ask.GetPagesAsync(documentId, wanted, ct)).ToDictionary(r => r.PageId);
-        var bestCoverage = wordHits.Take(5).Select(h => rows.TryGetValue(h.PageId, out var row) ? AskRetrieval.Coverage(words, row.Text) : 0).DefaultIfEmpty(0).Max();
-        var weak = AskRetrieval.IsWeak(words.Count, bestCoverage, meaning?.Select(m => m.Cosine).ToList(), _options);
+        // The weak-signal guard weighs each word by how rare it is in this book, and reads the best few pages by words
+        // that aren't lists: an index has every word of a question and would always pass.
+        var pagesWith = words.Count == 0 ? [] : await ask.CountPagesAsync(documentId, [.. words.Select(AskRetrieval.WordMatch)], ct);
+        var best = wordHits.Where(h => !lists.Contains(h.PageId)).Take(_options.GuardPages).Select(h => rows.TryGetValue(h.PageId, out var row) ? row.Text : "");
+        var wordShare = AskRetrieval.WordShare(words, pagesWith, best);
+        var weak = AskRetrieval.IsWeak(wordShare, meaning?.Select(m => m.Cosine).ToList(), _options);
 
         var labels = await ask.GetLabelsAsync(documentId, ct);
         var chosen = weak ? [] : AskRetrieval.Choose(ranked, rows.ToDictionary(r => r.Key, r => new AskPage(r.Key, r.Value.PdfPage, r.Value.Text)), _options);
@@ -191,8 +198,9 @@ public sealed class AskService(
         var meaningState = model is null || embedder is null ? AskMeaning.Off
             : coverage.WithVectors > 0 && coverage.WithVectors >= coverage.WithText ? AskMeaning.On
             : AskMeaning.Partial;
-        _log.LogInformation("Asked document {DocumentId}: {Words} pages by words, {Meaning} by meaning, {Evidence} chosen{Weak} in {Ms:0} ms",
-            documentId, wordHits.Count, meaning?.Count ?? 0, evidence.Count, weak ? ", signals too weak to answer" : "",
+        _log.LogInformation(
+            "Asked document {DocumentId}: {Words} pages by words, {Meaning} by meaning, {Lists} read as lists, {Evidence} chosen{Weak} in {Ms:0} ms",
+            documentId, wordHits.Count, meaning?.Count ?? 0, lists.Count, evidence.Count, weak ? ", signals too weak to answer" : "",
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return new AskFindings(question, passages, evidence, weak, lookedAt, coverage, meaningState, problem);
     }
@@ -296,10 +304,21 @@ public sealed class AskService(
     }
 
     /// <summary>
+    /// Starts making the book's page vectors as it is opened in the reader, so they are there by the time it is asked
+    /// and the same question asked twice is found by the same signals. Does nothing with AI off, without an embedding
+    /// model, or for a book whose library folder is kept from AI.
+    /// </summary>
+    public async Task PrepareAsync(long documentId, CancellationToken ct = default)
+    {
+        if (!IsOn || !HasEmbeddingModel || await WhyNotAsync(documentId, ct) is not null) return;
+        StartFill(documentId);
+    }
+
+    /// <summary>
     /// Starts making the book's page vectors in the background, unless they are being made already or there is no
     /// embedding model. One book at a time; another waits its turn.
     /// </summary>
-    public void StartFill(long documentId)
+    void StartFill(long documentId)
     {
         if (!HasEmbeddingModel || _stopping.IsCancellationRequested) return;
         if (_fills.TryGetValue(documentId, out var fill) && fill.Running) return;

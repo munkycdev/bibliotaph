@@ -209,6 +209,33 @@ public sealed class AskTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Opening_the_book_makes_its_vectors_before_it_is_asked_unless_ask_cant_use_them()
+    {
+        await SetUpAsync(null);
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+
+        await SetUpAsync("embed-a", skipped: new HashSet<long> { _rootId });
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+
+        await SetUpAsync("embed-a", enabled: false);
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+        Assert.Empty(_server.Embedded);
+
+        await SetUpAsync("embed-a");
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Equal(new AskFill(3, 3, false, null), await FilledAsync());
+        Assert.Equal(3, VectorsBy("embed-a"));
+
+        // The first question is found by meaning on every page.
+        var first = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        Assert.Equal(AskMeaning.On, first.Meaning);
+        Assert.True(first.Passages[0].ByMeaning);
+    }
+
+    [Fact]
     public async Task Choosing_another_embedding_model_drops_the_old_vectors_and_makes_new_ones()
     {
         await SetUpAsync("embed-a");

@@ -95,6 +95,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly NotesService _notes;
     readonly PartsService _parts;
     readonly PagePlaces _places;
+    readonly AskService _ask;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
@@ -151,6 +152,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _notes = services.Notes;
         _parts = services.Parts;
         _places = services.Places;
+        _ask = services.Ask;
         _log = services.Log;
         _windows = windows;
         Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
@@ -703,6 +705,22 @@ public sealed partial class ViewerViewModel : PageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Keeping the page of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>
+    /// Starts making the book's vectors for Ask this book while it is read, when Ask is on with an embedding model and
+    /// the book's folder isn't kept from AI, so a question finds the same pages the first time as the second.
+    /// </summary>
+    async Task PrepareAskAsync(long documentId)
+    {
+        try
+        {
+            await Task.Run(() => _ask.PrepareAsync(documentId));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Starting the Ask vectors of document {DocumentId} failed", documentId);
         }
     }
 
@@ -1393,6 +1411,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             Mode = ViewerMode.Pdf;
             Ask.Attach(source.DocumentId);
             if (request.Ask && Ask.IsOn) AskVisible = true;
+            _ = PrepareAskAsync(source.DocumentId);
             _ = LoadPageNotesAsync();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
