@@ -4,6 +4,7 @@
 
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
 
 ## 1.0.0 · 12 October 2026
 

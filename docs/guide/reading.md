@@ -17,6 +17,9 @@ D&D Beyond, opens in the online reader instead; see [Online libraries](online-li
   outlined, and pages with notes have a badge. Click a thumbnail to go to it.
 - **Links**: links in the PDF work. On an index or contents page without links of its own, the printed page numbers
   become links too ("Go to page 34"). After following one, **Back to page …** takes you back.
+- **Use this page as the cover**: the picture button at the top makes the page in view the book's cover in the Library,
+  for books whose first page is blank or a plain title sheet. To go back, use it on the first page. Reading the file
+  again keeps your choice.
 
 ## Find and copy
 
