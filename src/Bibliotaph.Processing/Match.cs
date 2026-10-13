@@ -13,10 +13,12 @@ namespace Bibliotaph.Processing;
 /// for a book with scanned pages and its hints from names, so it never reads the file. A file with the title of a
 /// book the user owns elsewhere is offered as its file. A new version that is already the one its book opens, as a
 /// file replaced in place is, has its book's session items and page notes looked for in it now that its pages have
-/// fingerprints, and so do the adventures marked in its book's file.
+/// fingerprints, and so do the adventures marked in its book's file. Once matched, its book is checked against the
+/// user's own tags, whose words it can now be searched for.
 /// </summary>
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
-    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, MetadataHints? hints = null, PartsService? parts = null) : IStage
+    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, MetadataHints? hints = null, PartsService? parts = null,
+    UserTagService? tags = null) : IStage
 {
     /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
     internal static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
@@ -26,6 +28,14 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
     public Stage Stage => Stage.Match;
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
+    {
+        var outcome = await MatchAsync(job, ct);
+        // After any join, so the tags go on the card the book ended up on. Its text is all in: OCR has finished.
+        if (tags is not null && outcome is StageOutcome.Done) await tags.CheckDocumentAsync(job.DocumentId, ct);
+        return outcome;
+    }
+
+    async Task<StageOutcome> MatchAsync(JobRecord job, CancellationToken ct)
     {
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
             return new StageOutcome.Later(ClassifyStage.OcrWait, "Waiting for its scanned pages to be read.");

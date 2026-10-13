@@ -622,6 +622,21 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         else await documents.ExecuteUpdateAsync(s => s.SetProperty(d => d.TextForgottenUtc, (DateTime?)null), ct);
     }
 
+    /// <summary>Keeps the page the user chose as the document's cover; the first page, or null, goes back to the default.</summary>
+    public async Task SetCoverPageAsync(long documentId, int? page, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var chosen = page is > 0 ? page : null;
+        await db.Documents.Where(d => d.Id == documentId).ExecuteUpdateAsync(s => s.SetProperty(d => d.CoverPage, chosen), ct);
+    }
+
+    /// <summary>The page the user chose as the document's cover, or 0 when they haven't chosen one.</summary>
+    public async Task<int> GetCoverPageAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Documents.Where(d => d.Id == documentId).Select(d => d.CoverPage).SingleOrDefaultAsync(ct) ?? 0;
+    }
+
     /// <summary>Whether the user chose "Forget its text" for this document, so the pipeline leaves it alone.</summary>
     public async Task<bool> IsTextForgottenAsync(long documentId, CancellationToken ct = default)
     {

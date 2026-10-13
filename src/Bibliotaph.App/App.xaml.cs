@@ -148,12 +148,14 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new MetadataStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new ClassificationStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new CorrectionStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new UserTagStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
 
         // index.db: derived, rebuildable. One writer; reads on their own connections.
         builder.Services.AddSingleton(sp => IndexDatabase.ForFile(paths.IndexDatabase, sp.GetRequiredService<ILogger<IndexDatabase>>()));
         builder.Services.AddSingleton<IndexWriter>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexWriter>());
         builder.Services.AddSingleton<IndexQueries>();
+        builder.Services.AddSingleton<UserTagQueries>();
         builder.Services.AddSingleton<LibraryQueries>();
 
         // PDFium runs only in worker processes; none starts until something asks for a page.
@@ -174,6 +176,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
         builder.Services.AddSingleton<ElsewhereService>();
+        builder.Services.AddSingleton<ChosenCovers>();
         builder.Services.AddSingleton<FavoriteStore>();
         builder.Services.AddSingleton<ReadingStore>();
         builder.Services.AddSingleton<FavoritesService>();
@@ -263,6 +266,7 @@ public partial class App : Application
         builder.Services.AddSingleton<MetadataService>();
         builder.Services.AddSingleton<CorrectionService>();
         builder.Services.AddSingleton<VocabularyService>();
+        builder.Services.AddSingleton<UserTagService>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
         builder.Services.AddSingleton<PlainSearchService>();
@@ -359,6 +363,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
+        builder.Services.AddSingleton<CoverPages>();
         builder.Services.AddSingleton<ViewerServices>();
         builder.Services.AddSingleton<ReaderWindows>();
         return builder.Build();

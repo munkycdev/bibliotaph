@@ -21,6 +21,13 @@ public static class Ui
     public static readonly DependencyProperty CountProperty = DependencyProperty.RegisterAttached(
         "Count", typeof(string), typeof(Ui), new FrameworkPropertyMetadata(""));
 
+    /// <summary>
+    /// Set on the sidebar while it is folded to its icons, and inherited by everything in it: a navigation button then
+    /// shows only its icon, with its label as a tooltip.
+    /// </summary>
+    public static readonly DependencyProperty CompactProperty = DependencyProperty.RegisterAttached(
+        "Compact", typeof(bool), typeof(Ui), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits));
+
     /// <summary>What a box's clear (×) button runs.</summary>
     public static readonly DependencyProperty ClearCommandProperty = DependencyProperty.RegisterAttached(
         "ClearCommand", typeof(ICommand), typeof(Ui), new FrameworkPropertyMetadata(null));
@@ -37,6 +44,9 @@ public static class Ui
 
     public static string GetCount(DependencyObject element) => (string)element.GetValue(CountProperty);
     public static void SetCount(DependencyObject element, string value) => element.SetValue(CountProperty, value);
+
+    public static bool GetCompact(DependencyObject element) => (bool)element.GetValue(CompactProperty);
+    public static void SetCompact(DependencyObject element, bool value) => element.SetValue(CompactProperty, value);
 
     public static ICommand? GetClearCommand(DependencyObject element) => (ICommand?)element.GetValue(ClearCommandProperty);
     public static void SetClearCommand(DependencyObject element, ICommand? value) => element.SetValue(ClearCommandProperty, value);

@@ -23,6 +23,12 @@ public sealed record AppPaths(string Root)
     public string Logs => Path.Combine(Root, "logs");
     public string Cache => Path.Combine(Root, "cache");
 
+    /// <summary>
+    /// Cover images the user chose for books with no file to draw one from. Unlike the cache, nothing could make them
+    /// again, so they're kept with the user's data.
+    /// </summary>
+    public string Covers => Path.Combine(Root, "covers");
+
     /// <summary>Files from inside ZIPs, extracted while they are processed or viewed. Kept to a size limit.</summary>
     public string Extract => Path.Combine(Cache, "extract");
 
