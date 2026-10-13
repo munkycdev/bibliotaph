@@ -359,6 +359,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
+        builder.Services.AddSingleton<CoverPages>();
         builder.Services.AddSingleton<ViewerServices>();
         builder.Services.AddSingleton<ReaderWindows>();
         return builder.Build();

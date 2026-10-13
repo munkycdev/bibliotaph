@@ -42,7 +42,14 @@
       <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
-    <Style x:Key="SectionHead" TargetType="TextBlock" BasedOn="{StaticResource Text.Eyebrow}">
+    <!-- The inspector's section headings: in the text colour and a size up from the eyebrow, so they break up a long drawer. -->
+    <Style x:Key="DrawerHead" TargetType="TextBlock" BasedOn="{StaticResource Text.Eyebrow}">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+    </Style>
+
+    <Style x:Key="SectionHead" TargetType="TextBlock" BasedOn="{StaticResource DrawerHead}">
       <Setter Property="Margin" Value="0,28,0,10" />
     </Style>
 
@@ -881,7 +888,7 @@
                   <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}" />
                 </Button.ContextMenu>
               </Button>
-              <TextBlock Text="COLLECTIONS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+              <TextBlock Text="COLLECTIONS" Style="{StaticResource DrawerHead}" VerticalAlignment="Center" />
             </DockPanel>
             <TextBlock Text="Not in any collection yet." Style="{StaticResource Text.Small}"
                        Visibility="{Binding HasCollections, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
@@ -916,7 +923,7 @@
                 <Button x:Name="SplitPack" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Split into separate images"
                         ToolTip="Give every image its own card again. Bibliotaph won't pack this folder again."
                         Command="{Binding SplitPackCommand}" />
-                <TextBlock Text="{Binding PackImagesHeading}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding PackImagesHeading}" Style="{StaticResource DrawerHead}" VerticalAlignment="Center" />
               </DockPanel>
               <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="Images in the pack"
                             KeyboardNavigation.TabNavigation="Continue">
@@ -989,7 +996,7 @@
             <DockPanel Margin="0,28,0,4">
               <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding MoreFieldsLabel}" Command="{Binding ToggleAllFieldsCommand}"
                       Visibility="{Binding HasHiddenFields, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <TextBlock Text="DETAILS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+              <TextBlock Text="DETAILS" Style="{StaticResource DrawerHead}" VerticalAlignment="Center" />
             </DockPanel>
             <ItemsControl x:Name="DetailFields" ItemsSource="{Binding VisibleFields}" Focusable="False" KeyboardNavigation.TabNavigation="Continue">
               <ItemsControl.ItemTemplate>
