@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bibliotaph.Catalog.Migrations;
 
 [DbContext(typeof(CatalogDbContext))]
-[Migration("20261013120000_CatalogChapterScans")]
+[Migration("20261013200000_CatalogChapterScans")]
 partial class CatalogChapterScans
 {
     /// <inheritdoc />
@@ -386,6 +386,10 @@ partial class CatalogChapterScans
                     .IsRequired()
                     .HasColumnType("TEXT")
                     .HasColumnName("content_hash");
+
+                b.Property<int?>("CoverPage")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("cover_page");
 
                 b.Property<DateTime>("CreatedUtc")
                     .HasColumnType("TEXT")
