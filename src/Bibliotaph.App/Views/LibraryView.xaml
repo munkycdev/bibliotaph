@@ -939,11 +939,20 @@
                         Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
+                <!-- A book with no file has no page to draw a cover from: the user can pick a picture of their own. -->
+                <Button x:Name="ChooseCover" Content="Choose a cover image…" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,8"
+                        ToolTip="Use a picture of your own as this book's cover" Command="{Binding ChooseCoverCommand}"
+                        Visibility="{Binding CanChooseCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <Button x:Name="RemoveCover" Content="Remove the cover" c:Ui.Icon="{StaticResource Icon.X}" Margin="0,0,8,8"
+                        ToolTip="Stop using the picture you chose as this book's cover" Command="{Binding RemoveCoverCommand}"
+                        Visibility="{Binding HasChosenCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <Button x:Name="RemoveFromLibrary" Content="Remove from library" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
                         ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
                         Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </WrapPanel>
             </DockPanel>
+            <TextBlock Text="{Binding CoverProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Visibility="{Binding CoverProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
             <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
               <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />

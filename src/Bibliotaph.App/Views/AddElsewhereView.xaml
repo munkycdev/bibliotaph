@@ -83,6 +83,17 @@
                AutomationProperties.Name="Somewhere else, or a link" ToolTip="Somewhere not in the list, such as another VTT, or the book's page online, which Open then opens. Separate several with commas." />
       <TextBlock Text="Somewhere else, or the book's link online: D&amp;D Beyond https://…" Style="{StaticResource Text.Small}" Margin="0,5,0,0" />
 
+      <StackPanel Visibility="{Binding CanChooseCover, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <TextBlock Text="Cover" Style="{StaticResource FieldLabel}" />
+        <Button x:Name="ChooseCover" Content="Choose a cover image…" c:Ui.Icon="{StaticResource Icon.Image}" HorizontalAlignment="Left"
+                Command="{Binding ChooseCoverCommand}" Visibility="{Binding HasCover, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+        <DockPanel Visibility="{Binding HasCover, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Remove" Command="{Binding ClearCoverCommand}" Padding="12,0,0,0"
+                  AutomationProperties.Name="Remove the cover image" />
+          <TextBlock Text="{Binding CoverName}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        </DockPanel>
+      </StackPanel>
+
       <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,12,0,0"
                  Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
 

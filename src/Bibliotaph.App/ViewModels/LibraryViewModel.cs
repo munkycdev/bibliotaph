@@ -68,6 +68,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
+    readonly ChosenCovers _chosenCovers;
     readonly PartsService _parts;
     readonly FavoritesService _favorites;
     readonly LibraryPages _pages;
@@ -91,9 +92,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ILogger<LibraryViewModel> log)
+        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
+        ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _chosenCovers = chosenCovers;
         _parts = parts;
         _export = export;
         _ask = ask;
@@ -1042,7 +1045,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts, _log, _corrections);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts, _log, _corrections, _chosenCovers);
             inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
             await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
@@ -1352,7 +1355,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere);
+            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere, _chosenCovers);
             dialog.Closed += async (_, entryId) => await AddElsewhereClosedAsync(entryId);
             Inspector = null;
             AddElsewhereDialog = dialog;

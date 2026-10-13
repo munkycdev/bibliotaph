@@ -14,6 +14,7 @@
 - **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Choose a cover image…** gives a book you own elsewhere a cover of your own, from the Add dialog or its details.
 - **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
 - **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
   field, with a count for each.
