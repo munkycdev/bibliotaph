@@ -175,6 +175,70 @@ static partial class SmokeTest
         }
     }
 
+    /// <summary>
+    /// Ask your library: with AI on, on the stand-in model server, a question typed in the top bar in Ask mode and sent
+    /// with Answer from my books finds the dragon's page in the smoke PDF among the books the Library shows, and the
+    /// stand-in's answer arrives checked, its citation naming the book and page; the citation opens the book at that
+    /// page. Ask is closed and AI put back afterwards.
+    /// </summary>
+    static async Task AskLibraryAsync(IServiceProvider services, Window window, long documentId)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var ai = services.GetRequiredService<AiSettings>();
+        var indexing = services.GetRequiredService<IndexingService>();
+        var reading = services.GetRequiredService<ReadingService>();
+        var before = ai.Setup;
+        var kept = await reading.GetPositionAsync(documentId);
+        var wasPaused = indexing.IsPaused(Lane.Classify);
+        indexing.Pause(Lane.Classify);
+        try
+        {
+            await ai.SaveAsync(before with
+            {
+                BuiltIn = false,
+                Endpoint = SmokeModel.Endpoint,
+                Model = SmokeModel.ChatModel,
+                Provider = "openai",
+                Enabled = true,
+                EmbeddingModel = SmokeModel.EmbeddingModel,
+            });
+            shell.NavigateCommand.Execute(Route.Library);
+            await Settle(window);
+            shell.PlainSearch.IsOn = true;
+            shell.SearchText = "Where does the dragon sleep?";
+            await WaitUntilAsync(window, () => Shown(window, "LibraryAskButton"), () => "Ask in the top bar doesn't offer Answer from my books.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "LibraryAskButton"), "Answer from my books");
+            var asked = shell.PlainSearch.Library;
+            await WaitUntilAsync(window, () => !asked.IsAsking && asked.Answered is not null && Visible(window, "LibraryAskAnswer")
+                    && asked.Answer.Any(p => p is { Kind: AnswerPartKind.Citation, PdfPage: 1 } && p.DocumentId == documentId),
+                () => $"Asking the library didn't answer from the dragon's page: {asked.Message ?? string.Join(", ", asked.Passages.Select(p => p.Link))}.");
+            if (asked.Answer.Any(p => p.Text.Contains("999", StringComparison.Ordinal)))
+                throw new InvalidOperationException("The answer kept a citation of a page it wasn't sent.");
+            await AuditAsync(window, "Ask in the top bar with an answer from the library");
+
+            var block = Descendants<TextBlock>(window).FirstOrDefault(t => t.Name == "LibraryAskAnswer" && t.IsVisible)
+                ?? throw new InvalidOperationException("The library's answer isn't showing.");
+            var link = block.Inlines.OfType<Hyperlink>().FirstOrDefault() ?? throw new InvalidOperationException("The answer's citation isn't a link.");
+            if (AutomationProperties.GetName(link) is not { } name || !name.StartsWith("Open ", StringComparison.Ordinal) || !name.EndsWith(", p. 1", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The citation is named “{AutomationProperties.GetName(link)}”.");
+            ((IInvokeProvider)ContentElementAutomationPeer.CreatePeerForElement(link).GetPattern(PatternInterface.Invoke)).Invoke();
+            await WaitUntilAsync(window, () => shell.CurrentPage is ViewerViewModel { IsPdf: true, CurrentPageIndex: 1 } viewer
+                    && viewer.Here()?.DocumentId == documentId,
+                () => "The citation didn't open the book at its page.");
+            shell.PlainSearch.IsOn = false;
+            shell.SearchText = "";
+            shell.GoBackCommand.Execute(null);
+            await Settle(window);
+        }
+        finally
+        {
+            shell.PlainSearch.IsOn = false;
+            await ai.SaveAsync(before);
+            if (!wasPaused) indexing.Resume(Lane.Classify);
+            await reading.SavePositionAsync(documentId, kept);
+        }
+    }
+
     static async Task GoToFirstPageAsync(Window window, ViewerViewModel viewer, Bibliotaph.Viewer.PdfPagesView pages)
     {
         viewer.PageEntry = "i";

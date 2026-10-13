@@ -62,6 +62,12 @@ public sealed record AskRetrievalOptions
 
     /// <summary>A page gives at most this much, so one long page can't take the whole budget.</summary>
     public int PageCharacters { get; init; } = 4_000;
+
+    /// <summary>
+    /// At most this many pages of one book are the evidence, so across a library one book that has the question's words
+    /// on every page doesn't take every place. One book has no limit but <see cref="MaxPages"/>.
+    /// </summary>
+    public int MaxPagesPerBook { get; init; } = int.MaxValue;
 }
 
 /// <summary>
@@ -167,6 +173,33 @@ public static partial class AskRetrieval
                 return new RankedPage(id, wordRank, meaningRank, boost, list ? score * options.ListPenalty : score, list);
             })
             .OrderByDescending(p => p.Score).ThenBy(p => p.PageId)];
+    }
+
+    /// <summary>
+    /// The ranking with at most <paramref name="max"/> pages of each book, in the same order: the rest of a book's pages
+    /// make way for the next books' best. A page whose book isn't known counts as a book of its own.
+    /// </summary>
+    /// <param name="ranked">Pages best first, as <see cref="Fuse"/> ranks them.</param>
+    /// <param name="bookOf">The book (document) of each page.</param>
+    /// <param name="max">How many pages of one book to keep.</param>
+    public static IReadOnlyList<RankedPage> CapPerBook(IReadOnlyList<RankedPage> ranked, IReadOnlyDictionary<long, long> bookOf, int max)
+    {
+        if (max == int.MaxValue) return ranked;
+        var taken = new Dictionary<long, int>();
+        var kept = new List<RankedPage>();
+        foreach (var page in ranked)
+        {
+            if (!bookOf.TryGetValue(page.PageId, out var book))
+            {
+                kept.Add(page);
+                continue;
+            }
+            var count = taken.GetValueOrDefault(book);
+            if (count >= max) continue;
+            taken[book] = count + 1;
+            kept.Add(page);
+        }
+        return kept;
     }
 
     /// <summary>
@@ -398,6 +431,41 @@ public static partial class AskRetrieval
     }
 
     static string Normal(string word) => Tokens(word).FirstOrDefault() ?? "";
+}
+
+/// <summary>
+/// Pages ranked by meaning one at a time, for more pages than are worth holding as vectors at once (a whole library):
+/// it keeps the closest few, best first and ties by page as <see cref="AskRetrieval.RankByMeaning"/> breaks them, and
+/// every page's closeness, which the weak-signal guard compares the best with.
+/// </summary>
+/// <param name="question">The question's vector.</param>
+/// <param name="keep">How many of the closest pages to keep.</param>
+public sealed class MeaningRanking(float[] question, int keep)
+{
+    readonly List<double> _cosines = [];
+
+    /// <summary>The closest kept pages, the least close first, so the next to go is at the front; ties drop the later page.</summary>
+    readonly PriorityQueue<(long PageId, double Cosine), (double Cosine, long Order)> _best = new();
+
+    /// <summary>Every page's closeness to the question, in the order they were added.</summary>
+    public IReadOnlyList<double> Cosines => _cosines;
+
+    /// <summary>How many pages were ranked.</summary>
+    public int Count => _cosines.Count;
+
+    /// <summary>Ranks one more page.</summary>
+    public void Add(long pageId, ReadOnlySpan<float> vector)
+    {
+        var cosine = AskRetrieval.Cosine(question, vector);
+        _cosines.Add(cosine);
+        if (keep <= 0) return;
+        _best.Enqueue((pageId, cosine), (cosine, -pageId));
+        if (_best.Count > keep) _best.Dequeue();
+    }
+
+    /// <summary>The closest pages, closest first.</summary>
+    public IReadOnlyList<(long PageId, double Cosine)> Best() =>
+        [.. _best.UnorderedItems.Select(i => i.Element).OrderByDescending(p => p.Cosine).ThenBy(p => p.PageId)];
 }
 
 /// <summary>

@@ -152,6 +152,8 @@ static partial class SmokeTest
                     () => ReviewPartProposalAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF opened from Ask this book in its details and asked a question: the answer streamed with its citations checked and opening the page with the quotation marked, the page found by meaning on asking again, and Ask hidden with AI off",
                     () => AskBookAsync(services, window, reprocessed.Pdf));
+                await Check("a question to the whole library from Ask in the top bar, answered with a citation naming the book and page that opens the book at that page",
+                    () => AskLibraryAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a binder's next page in another book opened ahead of time with its page drawn, and shown from it by Next",
                     () => ReadAheadAcrossBooksAsync(services, window, reprocessed.Pdf));

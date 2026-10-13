@@ -21,6 +21,9 @@ public static class PageNumbers
     }
 
     /// <summary>What the page box shows for a page: its printed label, or its PDF page number.</summary>
-    public static string Display(int index, IReadOnlyList<string?> labels) =>
-        index < labels.Count && labels[index] is { Length: > 0 } label ? label.Trim() : (index + 1).ToString(CultureInfo.CurrentCulture);
+    public static string Display(int index, IReadOnlyList<string?> labels) => Display(index, index < labels.Count ? labels[index] : null);
+
+    /// <summary>What the page box shows for a page with this printed label (or none): the label, or its PDF page number.</summary>
+    public static string Display(int index, string? label) =>
+        label is { Length: > 0 } ? label.Trim() : (index + 1).ToString(CultureInfo.CurrentCulture);
 }

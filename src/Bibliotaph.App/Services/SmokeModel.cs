@@ -62,7 +62,7 @@ sealed class SmokeModel : IModelClient, IEmbeddingClient
         var at = Array.FindIndex(lines, l => l.StartsWith("[Page ", StringComparison.Ordinal));
         if (at < 0) return AskPrompt.NotAnswered;
         var marker = lines[at][6..^1];
-        var text = lines.Skip(at + 1).FirstOrDefault(l => !l.StartsWith("Heading: ", StringComparison.Ordinal)) ?? "";
+        var text = lines.Skip(at + 1).FirstOrDefault(l => !l.StartsWith("Heading: ", StringComparison.Ordinal) && !l.StartsWith("Book: ", StringComparison.Ordinal)) ?? "";
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var first = AskRetrieval.Words(question).Select(w => Array.FindIndex(words, t => t.StartsWith(w, StringComparison.OrdinalIgnoreCase)))
             .Where(i => i >= 0).DefaultIfEmpty(0).Min();

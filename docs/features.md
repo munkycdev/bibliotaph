@@ -36,6 +36,7 @@ It is made for a game master with a large, mixed collection across several game 
 
 - **First run**: add folders and start browsing at once; books appear as they are read, and Home asks **Fill in the catalog with AI?** Nothing has to be organized first.
 - **Find an adventure**: filter by system, type, level and players, add a word, open the right page, add it to a binder; or **Ask** in plain English.
+- **Look something up**: ask the library a question and get an answer citing the book and page, one click from the page itself.
 - **Find something inside a book**: search a phrase and open the matching page, with the words highlighted.
 - **Add a bundle**: copy it into a library folder; files already owned are recognized. **Check a download** says what's new before anything is copied.
 - **Prepare and run a session**: gather books and page ranges in a binder and step through them at the table.
@@ -61,6 +62,8 @@ Results have two tabs, **Documents** and **Inside documents**. Snippets are alwa
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 
 **Ask** (the sparkle button, with AI set up) turns a request in plain English, such as "something creepy for four level-3 characters", into editable chips with notes on anything it changed and why. Nothing runs until **Search**, which puts the chips in the box as an ordinary search. Ask uses only the search box's own fields and the user's own words: it never adds a system, level or tag that wasn't asked for, and never fills in what isn't known.
+
+**Answer from my books** (Ctrl+Enter in Ask) answers a question from the pages of the whole library, or of the books the Library's filters and the search box's fields leave showing. Bibliotaph finds the best pages across those books by their words and, as the library is read for meaning, by meaning, takes no more than three from any one book, and the AI answers from them only. Each claim cites its book and page as a link that opens the book there; quotations are checked, and when the books don't cover the question it says so and names the closest pages. With an embedding model set, the whole library is read for meaning slowly in the background, pausing while the AI is in use and carrying on after a restart; Settings > AI shows how far it has got and can switch it off.
 
 ## Reading
 

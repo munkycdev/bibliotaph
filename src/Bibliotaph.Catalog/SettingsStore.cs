@@ -50,6 +50,12 @@ public static class SettingKeys
     /// <summary>The built-in AI's embedding model, by its id: "nomic-embed-text-v1.5". Set when it is downloaded.</summary>
     public const string AiBuiltInEmbeddingModel = "ai.built-in.embedding";
 
+    /// <summary>
+    /// "False" stops the library's pages being read for meaning in the background, for questions to the whole library;
+    /// otherwise, with an embedding model set, they are.
+    /// </summary>
+    public const string AiLibraryVectors = "ai.embedding.library";
+
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
 

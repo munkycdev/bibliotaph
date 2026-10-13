@@ -460,6 +460,27 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
+    /// The pages a question to the library may read among the cards the library shows for <paramref name="filter"/> and
+    /// <paramref name="plan"/>: each PDF's pages, or an adventure's own pages in its file. Images, packs and books owned
+    /// elsewhere have no pages to read.
+    /// </summary>
+    public async Task<IReadOnlyList<PageSpan>> GetPageSpansAsync(LibraryFilter filter, SearchPlan plan, CancellationToken ct = default)
+    {
+        var where = new Where(filter, plan, titleAsFilter: true);
+        where.Parameters.Add("spanFormat", SourceFormats.Pdf);
+        var sql = $"""
+            SELECT e.document_id AS DocumentId, e.kind AS Kind, e.first_page AS FirstPage, e.last_page AS LastPage
+            FROM {Entries}
+            WHERE {where.Sql} AND e.document_id IS NOT NULL AND e.kind <> 'Pack' AND d.format = @spanFormat
+            """;
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, string Kind, long? FirstPage, long? LastPage)>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct));
+        return [.. rows.Select(r => r.Kind == nameof(EntryKind.Part) && r.FirstPage is { } first && r.LastPage is { } last
+            ? new PageSpan(r.DocumentId, (int)first, (int)last)
+            : new PageSpan(r.DocumentId))];
+    }
+
+    /// <summary>
     /// Everything the inspector shows from index.db about an entry and the document it shows, or null for an entry
     /// whose document Probe hasn't reached.
     /// </summary>
