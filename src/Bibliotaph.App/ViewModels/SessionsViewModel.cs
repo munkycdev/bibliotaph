@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Sessions: every session pack as a card, the upcoming ones by date, then those kept at hand during games by title,
-/// then those without a date by when they were worked on, then Earlier ones (date passed), folded. A card opens the
-/// pack's page; New session makes one and opens it.
+/// Sessions: every session pack as a card, in groups, each by title: the upcoming ones, then those kept at hand during
+/// games, then those without a date, then Earlier ones (date passed), folded. A card opens the pack's page; New session
+/// makes one and opens it.
 /// </summary>
 public sealed partial class SessionsViewModel(SessionActions actions, SessionPages sessionPages, LibraryPages pages, ILogger<SessionsViewModel> log)
     : PageViewModel
@@ -93,10 +93,10 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
             var cards = (await Actions.Directory.CardsAsync(all)).ToDictionary(c => c.Id);
             if (version != _version) return;
             var dated = all.Where(p => !p.KeepAtHand).ToList();
-            Fill(Upcoming, dated.Where(p => p.Date >= today).OrderBy(p => p.Date).ThenBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
+            Fill(Upcoming, dated.Where(p => p.Date >= today).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
             Fill(AtHand, all.Where(p => p.KeepAtHand).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
-            Fill(Undated, dated.Where(p => p.Date is null).OrderByDescending(p => p.TouchedUtc), cards);
-            Fill(Earlier, dated.Where(p => p.Date < today).OrderByDescending(p => p.Date), cards);
+            Fill(Undated, dated.Where(p => p.Date is null).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
+            Fill(Earlier, dated.Where(p => p.Date < today).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
             IsLoaded = true;
             Version++;
             OnPropertyChanged(nameof(HasSessions));
