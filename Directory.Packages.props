@@ -5,7 +5,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
 
     <!-- The .NET 11 band (runtime, EF Core, Extensions). Move to the GA version in November 2026. -->
-    <DotNetPackagesVersion Condition="'$(DotNetPackagesVersion)' == ''">11.0.0-rc.1.26425.128</DotNetPackagesVersion>
+    <DotNetPackagesVersion Condition="'$(DotNetPackagesVersion)' == ''">11.0.0-rc.2.26504.105</DotNetPackagesVersion>
   </PropertyGroup>
 
   <ItemGroup Label="Microsoft">

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Built on .NET 11 RC2**, the second release candidate.
 - **Ask your library a question:** in Ask mode, **Answer from my books** (or Ctrl+Enter) answers from the pages of
   every book the Library shows, citing each claim's book and page as a link that opens it there, and saying plainly
   when your books don't cover it. With an embedding model, your whole library is read for meaning in the background,
