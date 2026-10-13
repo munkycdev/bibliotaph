@@ -94,7 +94,10 @@ four groups:
   once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
 - **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
-  read it), **Copies** (books in more than one file) and **Adventures inside files**.
+  read it), **Copies** (books in more than one file), **Adventures inside files** and **Collection** (books in a
+  collection, or not in one yet).
+
+Each drop-down lists its choices by name, with how many books each has and **Unknown** last.
 
 While they're folded away, **More filters** says how many of them are on, such as "More filters · 1".
 

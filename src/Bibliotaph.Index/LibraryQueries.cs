@@ -110,6 +110,14 @@ public enum AiFilter
     NotRead,
 }
 
+/// <summary>The Collection choice in the filter panel: books in some collection, or in none yet.</summary>
+public enum CollectionFilter
+{
+    All,
+    InOne,
+    NotInOne,
+}
+
 /// <summary>
 /// What the library shows: the entries in scope (from catalog.db: with a file present in a folder the user hasn't
 /// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is <see
@@ -121,8 +129,9 @@ public enum AiFilter
 /// cref="Durations"/> keep books with any of those terms (unknown is none), and <see cref="Players"/> books written for
 /// that many players; as for levels, books nobody has counted players for don't match. <see cref="Stores"/> keeps books
 /// to get from any of those stores. <see cref="HideParts"/> leaves out the adventures inside files ("Adventures inside
-/// files: Hide"), whose page hits then go with their files. <see cref="Picked"/> holds the values picked in the
-/// type-ahead filters (settings, themes, publishers): books with any of a field's values, in every field with some.
+/// files: Hide"), whose page hits then go with their files. <see cref="Collections"/> keeps books in some collection, or
+/// those in none yet. <see cref="Picked"/> holds the values picked in the type-ahead filters (settings, themes,
+/// publishers): books with any of a field's values, in every field with some.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -142,6 +151,7 @@ public sealed record LibraryFilter(
     int? Players = null,
     IReadOnlyCollection<string>? Stores = null,
     bool HideParts = false,
+    CollectionFilter Collections = CollectionFilter.All,
     PickedValues? Picked = null);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
@@ -291,7 +301,7 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     /// <summary>
     /// How many entries have each value of a vocabulary field (<c>system</c>, <c>type</c>), among those the library
-    /// shows for <paramref name="filter"/> and <paramref name="plan"/>, plus those with none (<see cref="SearchQuery.Unknown"/>).
+    /// shows for <paramref name="filter"/> and <paramref name="plan"/>, in name order, then those with none (<see cref="SearchQuery.Unknown"/>).
     /// To count the choices within a dimension, pass a filter without that dimension's own choices.
     /// </summary>
     public async Task<IReadOnlyList<FacetCount>> GetFacetCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
@@ -305,7 +315,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             FROM {Entries} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
             WHERE {where.Sql}
             GROUP BY f.value
-            ORDER BY count(*) DESC, min(f.label) COLLATE NOCASE
+            ORDER BY min(f.label) COLLATE NOCASE
             """, where.Parameters, cancellationToken: ct))).Select(c => new FacetCount(c.Value, c.Label, c.Count)).ToList();
         var unknown = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"""
@@ -771,6 +781,9 @@ public sealed class LibraryQueries(IndexDatabase database)
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
             if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
 
+            // A collection's whole scope is "collection:<id>"; its own-books scope ("collection-own:") is the same books or fewer.
+            if (filter.Collections != CollectionFilter.All)
+                _sql.Append($" AND e.entry_id {(filter.Collections == CollectionFilter.InOne ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_scope WHERE scope LIKE 'collection:%')");
             if (filter.Ai != AiFilter.All)
                 _sql.Append($" AND e.entry_id {(filter.Ai == AiFilter.Read ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_ai)");
 

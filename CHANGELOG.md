@@ -5,6 +5,9 @@
 - **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
   letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box
   find books with any of them, boxes narrow together, and saved searches keep them.
+- **Lists are in name order**: the filter drop-downs, the search guide's values, collections and sub-collections, the
+  Add to collection menu, and binders within each group. The sidebar's Pinned list keeps the order you dragged it into.
+- **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 
