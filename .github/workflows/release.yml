@@ -1,15 +1,18 @@
 name: Release
 
 # A version tag (vMAJOR.MINOR.PATCH, such as v1.2.130, where PATCH is the commit count on main at the tagged commit)
-# runs every check CI runs, publishes the app self-contained for win-x64, packs it with Velopack, and leaves a DRAFT
-# GitHub Release holding Setup.exe and the update files. Nothing is public until someone presses Publish on the draft.
+# publishes the app self-contained for win-x64, packs it with Velopack, waits for CI to pass on the tagged commit, and
+# leaves a DRAFT GitHub Release holding Setup.exe and the update files. Nothing is public until someone presses Publish
+# on the draft.
 on:
   push:
     tags: ['v*.*.*']
 
-# Only this workflow may write: it creates the draft release. CI keeps contents: read.
+# Only this workflow may write: it creates the draft release. CI keeps contents: read. checks: read lets it see CI's
+# result on the tagged commit.
 permissions:
   contents: write
+  checks: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -60,14 +63,15 @@ jobs:
           }
           "number=$($Matches[1]).$($Matches[2]).$($Matches[3])" >> $env:GITHUB_OUTPUT
 
-      # Everything CI checks, smoke test included, on this exact commit.
-      - name: Verify
+      # What publishing needs: packages, the built-in AI's engine (copied in by the app build) and the Release build of
+      # the licence tool. The tests and smoke test are CI's, which the draft waits for below.
+      - name: Restore, engine and Release build
         shell: pwsh
-        run: ./build/verify.ps1
+        run: ./build/verify.ps1 -Step Restore, Engine, Release
 
       # The app starts its workers from pdfworker\ beside Bibliotaph.exe (WorkerOptions.DefaultWorkerPath), so the
       # worker is published there too, self-contained like the app: neither needs .NET installed.
-      # The built-in AI's engine comes with the app, in aiworker\ (build/fetch-engine.ps1, run by Verify).
+      # The built-in AI's engine comes with the app, in aiworker\ (build/fetch-engine.ps1, run by the Engine step above).
       - name: Publish (self-contained win-x64)
         shell: pwsh
         env:
@@ -131,10 +135,32 @@ jobs:
             --runtime win-x64 --channel win --noPortable --outputDir releases
           if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed.' }
 
+      # CI runs on every push to main, so the tagged commit has its own "Build and test (Windows)": the draft waits for
+      # it to pass rather than running the same build, tests and smoke test again here.
+      - name: Wait for CI on this commit
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $checks = "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?check_name=Build%20and%20test%20(Windows)"
+          $deadline = (Get-Date).AddMinutes(40)
+          while ($true) {
+            $runs = @(gh api $checks --jq '.check_runs[] | {status, conclusion}' | ConvertFrom-Json)
+            if ($LASTEXITCODE -ne 0) { throw "Reading the checks on $env:GITHUB_SHA failed." }
+            if ($runs | Where-Object { $_.conclusion -eq 'success' }) { Write-Host 'CI passed on this commit.'; break }
+            if (-not ($runs | Where-Object { $_.status -ne 'completed' })) {
+              $found = if ($runs) { @($runs.conclusion) -join ', ' } else { 'it never ran' }
+              throw "CI hasn't passed on $env:GITHUB_SHA ($found). Re-run it, or tag a commit where it passed."
+            }
+            if ((Get-Date) -gt $deadline) { throw "CI on $env:GITHUB_SHA hasn't finished after 40 minutes." }
+            Start-Sleep 30
+          }
+
       # This build's entries in the feed vpk wrote (the full package, and a delta when there was a release before),
       # their files, Setup.exe, and a feed of just those entries, which is what vpk upload github would send: the
       # feed vpk wrote also lists the downloaded package, which belongs to the earlier release. The notes are this
-      # MAJOR.MINOR's section of CHANGELOG.md, followed by GitHub's list of merged pull requests.
+      # MAJOR.MINOR's section of CHANGELOG.md, followed by GitHub's list of the pull requests merged since the last
+      # published release.
       - name: Draft the GitHub Release
         shell: pwsh
         env:
@@ -157,8 +183,12 @@ jobs:
           if ($end -lt 0) { $end = $lines.Count }
           ($lines[($start + 1)..($end - 1)] -join "`n").Trim() | Set-Content notes.md -Encoding utf8NoBOM
 
+          # GitHub's list starts from the last published release, not from an earlier tag whose release never happened.
+          $since = @()
+          $published = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>$null
+          if ($LASTEXITCODE -eq 0 -and $published) { $since = '--notes-start-tag', $published }
           gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" `
-            --notes-file notes.md --generate-notes
+            --notes-file notes.md --generate-notes @since
           if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed.' }
 
       - name: Upload test results
