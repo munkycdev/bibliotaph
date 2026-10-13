@@ -41,6 +41,9 @@
   chapters at a time, when it has nothing else to do. A book's details show what it found under **Found inside the
   book**, the reader's contents show it beside each chapter, and `setting:`, `environment:`, `theme:` and the new
   `creature:` search find books by their chapters. The book's own details are never changed.
+- **Adventures stay inside their book** while you browse the Library: the anthology's card says how many it holds and
+  its details list them. A search still finds each adventure, shown with its book's cover and an **Adventure** ribbon,
+  in place of the book when both match. **Adventures inside files** in More filters shows them as cards again.
 
 ## 1.0.0 · 12 October 2026
 

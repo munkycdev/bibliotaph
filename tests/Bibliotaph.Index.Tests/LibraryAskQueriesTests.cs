@@ -124,5 +124,14 @@ public sealed class LibraryAskQueriesTests : IndexFixture
         Assert.True(parts.Contains(1, 2));
         Assert.False(parts.Contains(1, 0));
         Assert.False(parts.Contains(2, 0));
+
+        // A search that finds the file and its adventure: as cards both are read, inside their book only the adventure.
+        var search = SearchPlan.From(SearchQuery.Parse("title:invented"));
+        var cards = PageScope.Of(await library.GetPageSpansAsync(new LibraryFilter(), search, Ct));
+        Assert.True(cards.Contains(1, 0));
+        var inBooks = PageScope.Of(await library.GetPageSpansAsync(new LibraryFilter(PartsInBooks: true), search, Ct));
+        Assert.True(inBooks.Contains(1, 2));
+        Assert.False(inBooks.Contains(1, 0));
+        Assert.True(inBooks.Contains(2, 0));
     }
 }

@@ -468,7 +468,7 @@
                   <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PartsChoices}" SelectedItem="{Binding PartsChoice}"
                             AutomationProperties.Name="Adventures inside files" MinWidth="150"
-                            ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
+                            ToolTip="Adventures marked inside a compilation: inside their book, where a search still finds them; as cards of their own; or hidden" />
                 </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCollectionChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Collection" Style="{StaticResource FieldLabel}" />

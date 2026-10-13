@@ -11,7 +11,9 @@ namespace Bibliotaph.App.Services;
 /// <summary>
 /// What a Smart View shows: the Library's search text, filters, scope, order, layout and tab, never a list of books.
 /// Stored as JSON with a version, so a later app can read an older view; one saved before a filter existed reads with
-/// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips.
+/// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips. <see cref="Adventures"/> says where the
+/// adventures inside files show; <see cref="HideParts"/> is how a view from before there was a choice of three said
+/// so, and is read only from those.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",
@@ -35,9 +37,11 @@ public sealed record SmartViewDefinition(
     string? Store = null,
     bool HideParts = false,
     CollectionFilter Collections = CollectionFilter.All,
-    PickedValues? Picked = null)
+    PickedValues? Picked = null,
+    AdventureCards Adventures = AdventureCards.InBooks)
 {
-    public const int CurrentVersion = 1;
+    /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
+    public const int CurrentVersion = 2;
 
     public int Version { get; init; } = CurrentVersion;
 
@@ -54,7 +58,11 @@ public sealed record SmartViewDefinition(
     {
         try
         {
-            return JsonSerializer.Deserialize<SmartViewDefinition>(json, Json) ?? new();
+            var view = JsonSerializer.Deserialize<SmartViewDefinition>(json, Json) ?? new();
+            // An older view that hid adventures keeps hiding them. Every other one stored "show" only because that was
+            // the default then, so it takes today's default and keeps them inside their books.
+            return view.Version >= 2 ? view
+                : view with { Adventures = view.HideParts ? AdventureCards.Hidden : AdventureCards.InBooks, HideParts = false, Version = CurrentVersion };
         }
         catch (JsonException)
         {
