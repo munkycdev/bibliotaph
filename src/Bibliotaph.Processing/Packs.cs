@@ -10,8 +10,9 @@ namespace Bibliotaph.Processing;
 public sealed record PackTogetherResult(PackTogether Together, FieldSnapshot? Title);
 
 /// <summary>
-/// Image packs: makes folders and ZIPs of many images one card after hashing, proposes smaller and mixed ones in
-/// Needs review, and splits packs again on request; Pack together makes and merges packs by hand. Each change stores
+/// Packs: makes folders and ZIPs of many images one card after hashing, proposes smaller and mixed ones in Needs
+/// review, and splits packs again on request; Pack together makes and merges packs by hand, of images and PDFs alike,
+/// such as a party's character sheets. Each change stores
 /// the packs' hints from their folder names and projects the cards that changed, so the library shows them.
 /// </summary>
 public sealed class PackService(PackStore packs, MetadataProjector projector, MetadataHints hints, ILogger<PackService>? log = null,
@@ -29,7 +30,7 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
     }
 
     /// <summary>
-    /// "Split into separate images": every image gets its card back. Returns the images, which
+    /// "Split into separate images" (or files): every file gets its card back. Returns the files, which
     /// <see cref="RepackAsync"/> puts back, or null for an entry that isn't a pack.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>?> SplitAsync(EntryId packId, CancellationToken ct = default)
@@ -39,9 +40,9 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
         return [.. changed.Skip(1)];
     }
 
-    /// <summary>Undoes a split: the pack is one card again, with its folders' images and <paramref name="images"/>.</summary>
-    public async Task RepackAsync(EntryId packId, IReadOnlyCollection<EntryId> images, CancellationToken ct = default) =>
-        await ProjectAsync(await packs.RepackAsync(packId, images, ct), ct);
+    /// <summary>Undoes a split: the pack is one card again, with its folders' images and <paramref name="files"/>.</summary>
+    public async Task RepackAsync(EntryId packId, IReadOnlyCollection<EntryId> files, CancellationToken ct = default) =>
+        await ProjectAsync(await packs.RepackAsync(packId, files, ct), ct);
 
     /// <summary>
     /// Pack together: the cards become one pack named <paramref name="name"/>. The name is set as the pack's title,
@@ -75,7 +76,7 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
         await ProjectAsync(changed, ct);
     }
 
-    /// <summary>The folders and ZIPs a pack's images are in, for its details.</summary>
+    /// <summary>The folders and ZIPs a pack's files are in, for its details.</summary>
     public Task<IReadOnlyList<PackFolder>> GetFoldersAsync(EntryId packId, CancellationToken ct = default) => packs.GetFoldersAsync(packId, ct);
 
     /// <summary>

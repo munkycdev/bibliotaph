@@ -59,7 +59,8 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, ILogger<ViewerViewModel> Log);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
+    ILogger<ViewerViewModel> Log);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -94,6 +95,11 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly SessionsService _sessions;
     readonly NotesService _notes;
     readonly PartsService _parts;
+    readonly CoverPages _covers;
+    readonly LibraryActivity _activity;
+
+    /// <summary>The page the open file's card shows as its cover.</summary>
+    int _coverPage;
     readonly PagePlaces _places;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
@@ -150,6 +156,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         Sessions = services.SessionActions();
         _notes = services.Notes;
         _parts = services.Parts;
+        _covers = services.Covers;
+        _activity = services.Activity;
         _places = services.Places;
         _log = services.Log;
         _windows = windows;
@@ -215,6 +223,10 @@ public sealed partial class ViewerViewModel : PageViewModel
         ShowPart();
         OnPropertyChanged(nameof(IsInPack));
         OnPropertyChanged(nameof(PackPosition));
+        OnPropertyChanged(nameof(PreviousStepName));
+        OnPropertyChanged(nameof(NextStepName));
+        OnPropertyChanged(nameof(PreviousStepTip));
+        OnPropertyChanged(nameof(NextStepTip));
         PreviousImageCommand.NotifyCanExecuteChanged();
         NextImageCommand.NotifyCanExecuteChanged();
         await LoadAsync();
@@ -297,34 +309,57 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>The book's title; for an adventure inside a file, its own and the file's.</summary>
     public override string Title => _request is { Part: { } part } request ? $"{request.Title} · in {part.FileTitle}" : _request?.Title ?? "Reader";
 
-    /// <summary>True for an image opened from a pack: Previous and Next step through its images.</summary>
+    /// <summary>
+    /// True for a file opened from a pack: Previous and Next step through its files, images opening as images and
+    /// PDFs as PDFs.
+    /// </summary>
     public bool IsInPack => _request?.Pack is { Count: > 0 };
 
     int PackIndex => _request?.Pack is { } pack ? pack.ToList().FindIndex(p => p.DocumentId == _request.DocumentId) : -1;
 
-    /// <summary>"12 of 120", for an image in a pack.</summary>
+    /// <summary>What a pack's steps are: images, or files once a PDF is among them.</summary>
+    string PackNoun => _request?.Pack is { } pack && pack.Any(p => !p.IsImage) ? "file" : "image";
+
+    public string PreviousStepName => $"Previous {PackNoun}";
+
+    public string NextStepName => $"Next {PackNoun}";
+
+    /// <summary>The arrow keys step only from an image: on a PDF they move about its pages.</summary>
+    public string PreviousStepTip => PackNoun == "image" ? "Previous image (Left arrow)" : "Previous file in the pack";
+
+    public string NextStepTip => PackNoun == "image" ? "Next image (Right arrow)" : "Next file in the pack";
+
+    /// <summary>"12 of 120", for a file in a pack.</summary>
     public string PackPosition => _request?.Pack is { } pack
         ? $"{(PackIndex + 1).ToString("N0", CultureInfo.CurrentCulture)} of {pack.Count.ToString("N0", CultureInfo.CurrentCulture)}"
         : "";
 
-    /// <summary>The previous image in the pack (Left arrow).</summary>
+    /// <summary>The previous file in the pack (Left arrow, from an image).</summary>
     [RelayCommand(CanExecute = nameof(CanGoToPreviousImage))]
     Task PreviousImage() => StepAsync(-1);
 
     bool CanGoToPreviousImage() => IsInPack && PackIndex > 0;
 
-    /// <summary>The next image in the pack (Right arrow).</summary>
+    /// <summary>The next file in the pack (Right arrow, from an image).</summary>
     [RelayCommand(CanExecute = nameof(CanGoToNextImage))]
     Task NextImage() => StepAsync(1);
 
     bool CanGoToNextImage() => _request?.Pack is { } pack && PackIndex >= 0 && PackIndex < pack.Count - 1;
 
-    /// <summary>Shows the image <paramref name="by"/> places on in the pack, at the same zoom.</summary>
+    /// <summary>
+    /// Shows the file <paramref name="by"/> places on in the pack: an image at the same zoom, a PDF at its first page.
+    /// A PDF being read is closed first; an image stays in view until the next file is ready.
+    /// </summary>
     async Task StepAsync(int by)
     {
         if (_request?.Pack is not { } pack) return;
         var next = PackIndex + by;
         if (next < 0 || next >= pack.Count) return;
+        if (Mode != ViewerMode.Image)
+        {
+            CloseBook();
+            _resume = null;
+        }
         _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0, SessionItem = null, PageNote = null };
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(PackPosition));
@@ -344,7 +379,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible), nameof(StripVisible))]
-    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -478,6 +513,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     {
         PageEntry = PageNumbers.Display(value, _labels);
         OnPropertyChanged(nameof(PartPosition));
+        UseAsCoverCommand.NotifyCanExecuteChanged();
         Strip.SetCurrent(value);
         if (Mode == ViewerMode.Pdf && KeepsPlace)
         {
@@ -513,6 +549,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             }
             Subtitle = DescribeSource(_source, null);
             _ = PrioritizeAsync(request.DocumentId);
+            _coverPage = await _covers.GetAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
             else await OpenPdfAsync(_source, request, version);
             // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
@@ -1188,6 +1225,26 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     bool CanMarkPages() => Mode == ViewerMode.Pdf;
 
+    /// <summary>An adventure's cover is its first page, so only a whole file can have another.</summary>
+    bool CanUseAsCover() => Mode == ViewerMode.Pdf && !IsPart && CurrentPageIndex != _coverPage;
+
+    /// <summary>
+    /// "Use this page as the cover", for a file whose first page is blank or a plain title sheet. The first page does
+    /// the same in reverse.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseAsCover))]
+    async Task UseAsCover()
+    {
+        if (_request is not { } request) return;
+        var page = CurrentPageIndex;
+        var drawn = await Task.Run(() => _covers.UseAsync(request.DocumentId, page));
+        _coverPage = page;
+        UseAsCoverCommand.NotifyCanExecuteChanged();
+        _activity.Invalidate();
+        ShowNotice(!drawn ? "The cover will change when the file is next read."
+            : page == 0 ? "The first page is the cover again." : "This page is the cover now.");
+    }
+
     /// <summary>Mark as adventure: the page in view to start with, widened in the editor.</summary>
     [RelayCommand(CanExecute = nameof(CanMarkPages))]
     void MarkPages()
@@ -1368,7 +1425,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             PageCount = doc.PageCount;
             ShowPart();
             CanCopy = doc.CanCopy;
-            Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
+            var pdfLine = $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}";
+            Subtitle = DescribeSource(source, request.PackTitle is { } packTitle ? $"{pdfLine} in {packTitle}" : pdfLine);
 
             // An ordinary open goes back to the page the book was left at; Back, to the page as it was.
             var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;

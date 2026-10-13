@@ -56,7 +56,7 @@ The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with field
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
-**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
 
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 
@@ -66,9 +66,9 @@ Results have two tabs, **Documents** and **Inside documents**. Snippets are alwa
 
 Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably.
 
-**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack.
+**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack; **Previous** and **Next** step through a pack with PDFs in it.
 
-**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model on a model server, by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
+**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model (built in or on a model server), by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
 
 ## Binders
 
@@ -116,7 +116,7 @@ A card shows the current value, the suggestion and its evidence. Every decision 
 
 Files with the same text on every page, such as copies stamped for different buyers, become one book; **Make current** chooses which opens and **Not the same book** splits one off. A file sharing most of its pages, or its title and publisher, with a book is asked about as a new version: nothing is joined without asking unless the text is identical. **Same book** joins cards by hand.
 
-A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand.
+A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand. Packs made by hand can hold PDFs too, such as character sheets and pregens: the card reads "Pack · 6 files", opening it steps through its files (PDFs open as PDFs), their pages are found under the pack, and **Split into separate files** gives each its card back. Only images are ever packed automatically.
 
 ### Adventures inside a file
 
