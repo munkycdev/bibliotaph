@@ -5,6 +5,9 @@
 - **Your tags can find themselves.** In **Settings > Vocabulary > Your tags**, give a tag the words that signal it
   ("Undead": undead, zombie, lich) and every book whose pages use them often enough gets it as a suggestion, without
   reading any file again. New books are checked as they're read, and a tag you reject on a book stays rejected.
+- **Lists are in name order**: the filter drop-downs, the search guide's values, collections and sub-collections, the
+  Add to collection menu, and binders within each group. The sidebar's Pinned list keeps the order you dragged it into.
+- **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 
