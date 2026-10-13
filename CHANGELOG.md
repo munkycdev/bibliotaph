@@ -4,6 +4,7 @@
 
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Choose a cover image…** gives a book you own elsewhere a cover of your own, from the Add dialog or its details.
 
 ## 1.0.0 · 12 October 2026
 

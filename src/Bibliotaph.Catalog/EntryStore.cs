@@ -63,7 +63,7 @@ public sealed record BookJoin(EntryId EntryId, IReadOnlyList<EntryId> Joined, lo
 /// </summary>
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
     bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null, string? Note = null,
-    int? PinPosition = null);
+    int? PinPosition = null, Guid? SyncId = null);
 
 /// <summary>
 /// Entries in catalog.db: which document each library card shows, and which card a document belongs to. Processing
@@ -221,7 +221,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     public async Task<EntryId> RestoreElsewhereAsync(RemovedEntry removed, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
+        // The same sync id, so its cover comes back with it and the other PC sees the same book again.
         var entry = new Entry { Kind = EntryKind.Elsewhere, CreatedUtc = removed.CreatedUtc };
+        if (removed.SyncId is { } syncId) entry.SyncId = syncId;
         await RestoreIntoAsync(db, entry, removed, ct);
         return new EntryId(entry.Id);
     }
@@ -237,7 +239,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
                 .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc) { Link = i.Link })],
             await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct),
-            await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct));
+            await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct), entry.SyncId);
     }
 
     /// <summary>

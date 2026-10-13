@@ -174,6 +174,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
         builder.Services.AddSingleton<ElsewhereService>();
+        builder.Services.AddSingleton<ChosenCovers>();
         builder.Services.AddSingleton<FavoriteStore>();
         builder.Services.AddSingleton<ReadingStore>();
         builder.Services.AddSingleton<FavoritesService>();
