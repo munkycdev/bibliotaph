@@ -3,6 +3,13 @@
 ## Unreleased
 
 - **Built on .NET 11 RC2**, the second release candidate.
+- **Ask your library a question:** in Ask mode, **Answer from my books** (or Ctrl+Enter) answers from the pages of
+  every book the Library shows, citing each claim's book and page as a link that opens it there, and saying plainly
+  when your books don't cover it. With an embedding model, your whole library is read for meaning in the background,
+  pausing while you use the AI; **Settings > AI** shows how far it has got and can switch it off.
+- **Ask this book finds the right pages more consistently:** index and contents pages no longer crowd out the pages
+  that answer, a question's rare words count for more than its common ones when deciding whether the book covers it,
+  the AI answers without "thinking" first, and a book is prepared for finding by meaning as soon as it's opened.
 - **Your tags can find themselves.** In **Settings > Vocabulary > Your tags**, give a tag the words that signal it
   ("Undead": undead, zombie, lich) and every book whose pages use them often enough gets it as a suggestion, without
   reading any file again. New books are checked as they're read, and a tag you reject on a book stays rejected.
@@ -27,6 +34,17 @@
 - **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
 - **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
   field, with a count for each.
+- **Collections from folders**: Needs review offers to make a folder of three or more books a collection, nested as
+  the folders are. Books that land in the folder later join it, until you change its books by hand.
+- **Books for collections**: Needs review suggests books that share a series, or a setting and game system, with most
+  of a collection's books.
+- **Scan whole books** in Settings > AI (on by default) has the AI read every page of each catalogued book, a few
+  chapters at a time, when it has nothing else to do. A book's details show what it found under **Found inside the
+  book**, the reader's contents show it beside each chapter, and `setting:`, `environment:`, `theme:` and the new
+  `creature:` search find books by their chapters. The book's own details are never changed.
+- **Adventures stay inside their book** while you browse the Library: the anthology's card says how many it holds and
+  its details list them. A search still finds each adventure, shown with its book's cover and an **Adventure** ribbon,
+  in place of the book when both match. **Adventures inside files** in More filters shows them as cards again.
 
 ## 1.0.0 · 12 October 2026
 

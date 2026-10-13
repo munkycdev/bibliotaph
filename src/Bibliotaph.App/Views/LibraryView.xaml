@@ -468,7 +468,7 @@
                   <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding PartsChoices}" SelectedItem="{Binding PartsChoice}"
                             AutomationProperties.Name="Adventures inside files" MinWidth="150"
-                            ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
+                            ToolTip="Adventures marked inside a compilation: inside their book, where a search still finds them; as cards of their own; or hidden" />
                 </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCollectionChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Collection" Style="{StaticResource FieldLabel}" />
@@ -1344,6 +1344,46 @@
               <TextBlock x:Name="PartMessage" Text="{Binding PartMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
                          AutomationProperties.LiveSetting="Polite" />
             </DockPanel>
+
+            <!--
+              What the AI found reading the whole book, chapter by chapter: kept apart from the book's own details, which it
+              never changes, and marked as found inside the book.
+            -->
+            <StackPanel x:Name="FoundInside" Visibility="{Binding HasChapters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <DockPanel>
+                <Button x:Name="ScanAgain" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Scan again" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
+                        VerticalAlignment="Bottom" Margin="0,0,0,10" Command="{Binding ScanAgainCommand}"
+                        ToolTip="Forget what the AI found in this book and read it again" AutomationProperties.Name="Scan this book again" />
+                <TextBlock Text="FOUND INSIDE THE BOOK" Style="{StaticResource SectionHead}" />
+              </DockPanel>
+              <TextBlock Text="Found by the AI reading each chapter. These describe parts of the book, not the whole book, and don't change its details."
+                         Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8" />
+              <ItemsControl x:Name="ChapterList" ItemsSource="{Binding Chapters}" Focusable="False" AutomationProperties.Name="Found inside the book">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:InspectorChapter}">
+                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleName}">
+                      <StackPanel>
+                        <DockPanel>
+                          <TextBlock DockPanel.Dock="Right" Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="10,0,0,0" />
+                          <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Lines}" Focusable="False" Margin="0,4,0,0">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource Text.Small}" Margin="0,2,0,0"
+                                   Visibility="{Binding HasNote, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <TextBlock Text="{Binding ChaptersMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
+                       Visibility="{Binding ChaptersMessage, Converter={StaticResource Bt.VisibleWhenSet}}" AutomationProperties.LiveSetting="Polite" />
 
             <TextBlock Text="{Binding FactsHeading}" Style="{StaticResource SectionHead}" />
             <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Grid.IsSharedSizeScope="True">

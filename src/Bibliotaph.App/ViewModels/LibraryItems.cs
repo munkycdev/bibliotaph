@@ -114,6 +114,12 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>An adventure inside a file: its card opens the file at its first page.</summary>
     public bool IsPart => Entry.IsPart;
 
+    /// <summary>
+    /// An adventure a search found while adventures stay inside their books: its cover is its file's, with an
+    /// Adventure ribbon, so it reads as that book's.
+    /// </summary>
+    public bool IsFoundInBook => Entry.FoundInBook;
+
     /// <summary>"5 adventures", for a file with adventures marked in it; empty otherwise.</summary>
     public string PartsLabel => Entry.Parts > 0 ? Adventures(Entry.Parts) : "";
 
@@ -355,6 +361,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(CanForgetText));
         OnPropertyChanged(nameof(CanReadAgain));
         OnPropertyChanged(nameof(PartsLabel));
+        OnPropertyChanged(nameof(IsFoundInBook));
         OnPropertyChanged(nameof(OnlineLink));
         OnPropertyChanged(nameof(HasOnlineLink));
         OnPropertyChanged(nameof(OnlineLabel));

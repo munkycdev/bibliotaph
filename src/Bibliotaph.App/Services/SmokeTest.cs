@@ -104,6 +104,7 @@ static partial class SmokeTest
                 await Check($"Settings worked through with a library in {preference}", () => ShowSettingsAsync(services, window));
                 await Check($"the About popup in {preference}", () => ShowAboutAsync(services, window));
                 await Check($"Settings > AI, built in and with no model server, in {preference}", () => ShowAiSettingsAsync(services, window));
+                await Check($"Settings > AI's Scan whole books switch in {preference}", () => ToggleScanWholeBooksAsync(services, window));
                 await Check($"the AI reading page during a stand-in reading in {preference}", () => ShowAiReadingAsync(services, window));
                 if (real is not { } files) continue;
                 await Check($"a PDF read in {preference}", () => ReadBookAsync(services, window, files.Pdf));
@@ -125,6 +126,8 @@ static partial class SmokeTest
                 () => AddElsewhereAsync(services, window, books));
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
+            await Check("a folder of three books proposed as a collection in Needs review, made with Accept and undone",
+                () => MakeFolderCollectionAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
             await Check("a book read online in the online reader, its note kept, popped out and brought back", () => ReadOnlineBookAsync(services, window));
@@ -153,6 +156,8 @@ static partial class SmokeTest
                     () => ReviewPartProposalAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF opened from Ask this book in its details and asked a question: the answer streamed with its citations checked and opening the page with the quotation marked, the page found by meaning on asking again, and Ask hidden with AI off",
                     () => AskBookAsync(services, window, reprocessed.Pdf));
+                await Check("a question to the whole library from Ask in the top bar, answered with a citation naming the book and page that opens the book at that page",
+                    () => AskLibraryAsync(services, window, reprocessed.Pdf));
                 await Check("a PDF inside a ZIP indexed, read and shown in the inspector", () => ReadZippedBookAsync(services, window, smokeFiles!));
                 await Check("a binder's next page in another book opened ahead of time with its page drawn, and shown from it by Next",
                     () => ReadAheadAcrossBooksAsync(services, window, reprocessed.Pdf));
@@ -3072,6 +3077,38 @@ static partial class SmokeTest
         finally
         {
             returns.SettingChanged -= OnSaved;
+        }
+    }
+
+    /// <summary>
+    /// Settings > AI's "Scan whole books": shown and ticked to start with, saved off when it is unticked and on again when
+    /// it is ticked. AI is off in the smoke library, so nothing is read either way.
+    /// </summary>
+    static async Task ToggleScanWholeBooksAsync(IServiceProvider services, Window window)
+    {
+        var page = (AiSettingsViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Ai)).Selected;
+        var ai = services.GetRequiredService<AiSettings>();
+        var saved = 0;
+        void OnSaved(object? sender, EventArgs e) => Interlocked.Increment(ref saved);
+        ai.ScanWholeBooksChanged += OnSaved;
+        try
+        {
+            CheckBox? Box() => Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "ScanWholeBooks");
+            await WaitUntilAsync(window, () => Box() is { IsVisible: true, IsEnabled: true, IsChecked: true } && page.ScanWholeBooks && ai.ScanWholeBooks,
+                () => "Settings > AI doesn't show Scan whole books, ticked.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 1 && !page.ScanWholeBooks && !ai.ScanWholeBooks && Box()?.IsChecked == false,
+                () => "Unticking Scan whole books wasn't saved.");
+
+            ((IToggleProvider)new CheckBoxAutomationPeer(Box()!).GetPattern(PatternInterface.Toggle)).Toggle();
+            await WaitUntilAsync(window, () => Volatile.Read(ref saved) == 2 && page.ScanWholeBooks && ai.ScanWholeBooks && Box()?.IsChecked == true,
+                () => "Ticking Scan whole books again wasn't saved.");
+            await AuditAsync(window, "Settings > AI with Scan whole books");
+        }
+        finally
+        {
+            ai.ScanWholeBooksChanged -= OnSaved;
         }
     }
 

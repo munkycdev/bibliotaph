@@ -71,7 +71,7 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
             // The server took the book and failed on it. If it still answers a question with nothing of the book in it,
             // the failure is this book's, and the caller can move on to the next; if not, this throws the server's
             // problem and the caller waits for it.
-            await CheckAsync(request.ContextTokens, ct);
+            await CheckAsync(client, Model, request.ContextTokens, ct);
             throw new ClassifierAnswerException($"The model couldn't read this book. {ex.Message}", ex);
         }
     }
@@ -81,8 +81,8 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
     /// book was, so Ollama doesn't load the model again to answer it.
     /// </summary>
     /// <exception cref="ModelEndpointException">The server can't answer even that.</exception>
-    Task<string> CheckAsync(int contextTokens, CancellationToken ct) =>
-        client.CompleteAsync(new ModelRequest(Model, CheckSystem, CheckUser, CheckSchemaJson, contextTokens, MaxTokens: 32), ct);
+    internal static Task<string> CheckAsync(IModelClient client, string model, int contextTokens, CancellationToken ct) =>
+        client.CompleteAsync(new ModelRequest(model, CheckSystem, CheckUser, CheckSchemaJson, contextTokens, MaxTokens: 32), ct);
 
     const string CheckSystem = "You check that a model server is working. Answer only with the JSON asked for.";
 

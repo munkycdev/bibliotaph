@@ -28,6 +28,22 @@ public enum ResultsTab
     Pages,
 }
 
+/// <summary>Where the Library shows the adventures marked inside files.</summary>
+public enum AdventureCards
+{
+    /// <summary>
+    /// Inside their books: their files' cards and details list them, and a search shows those it finds on their file's
+    /// cover, in place of the file.
+    /// </summary>
+    InBooks,
+
+    /// <summary>Cards of their own beside their files, whether browsing or searching.</summary>
+    Cards,
+
+    /// <summary>Not shown at all: only their files show, and their pages are found under the files.</summary>
+    Hidden,
+}
+
 /// <summary>
 /// The Library: every book in a cover grid or detail list, with format and folder filters and a sort; and, while
 /// the top bar has a search, its results in two tabs (Documents: titles and file details; Inside documents: page
@@ -81,6 +97,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly NotesService _notes;
     readonly ExportService _export;
     readonly AskService _ask;
+    readonly LibraryAskScope _askScope;
     readonly CorrectionService _corrections;
     int _version;
     bool _loaded;
@@ -93,10 +110,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
         ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
-        ILogger<LibraryViewModel> log)
+        LibraryAskScope askScope, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _chosenCovers = chosenCovers;
+        _askScope = askScope;
         _parts = parts;
         _export = export;
         _ask = ask;
@@ -336,18 +354,19 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>
-    /// Adventures inside files: shown as cards of their own, or hidden so only their files show. Offered once there
-    /// are some, or while Hide is chosen.
+    /// Adventures inside files: inside their books (only a search shows them as cards), shown as cards of their own, or
+    /// hidden so only their files show. Offered once there are some, or while another than the first is chosen.
     /// </summary>
-    public IReadOnlyList<Choice<bool>> PartsChoices { get; } = [new(false, "Show"), new(true, "Hide")];
+    public IReadOnlyList<Choice<AdventureCards>> PartsChoices { get; } =
+        [new(AdventureCards.InBooks, "Inside their book"), new(AdventureCards.Cards, "Show as cards"), new(AdventureCards.Hidden, "Hide")];
 
     [ObservableProperty]
-    public partial Choice<bool> PartsChoice { get; set; }
+    public partial Choice<AdventureCards> PartsChoice { get; set; }
 
     [ObservableProperty]
     public partial bool ShowPartsChoice { get; private set; }
 
-    partial void OnPartsChoiceChanged(Choice<bool> value)
+    partial void OnPartsChoiceChanged(Choice<AdventureCards> value)
     {
         if (value is null) PartsChoice = PartsChoices[0];
         else Refresh();
@@ -732,8 +751,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var away = await _library.GetUnavailableAsync();
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
-                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice), HideParts: PartsChoice.Value,
-                Collections: CollectionChoice.Value, Picked: ChipPicks());
+                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice),
+                HideParts: PartsChoice.Value == AdventureCards.Hidden, Collections: CollectionChoice.Value, Picked: ChipPicks(),
+                PartsInBooks: PartsChoice.Value == AdventureCards.InBooks);
+            // A question to the library is about the books shown here.
+            _askScope.Set(filter, IsSearching ? Search.Query : SearchQuery.Parse(""), ActiveFilters.Select(c => c.Label));
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             var parts = await Task.Run(() => _queries.CountPartsAsync());
@@ -741,7 +763,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             {
                 ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
                 ShowCopiesChoice = withCopies > 0 || CopiesChoice.Value;
-                ShowPartsChoice = parts > 0 || PartsChoice.Value;
+                ShowPartsChoice = parts > 0 || PartsChoice.Value != AdventureCards.InBooks;
                 ShowCollectionChoice = Collections.Directory.ChildrenOf(null).Count > 0 || CollectionChoice.Value != CollectionFilter.All;
             }
             if (!IsSearching)
@@ -844,8 +866,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
             || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
-            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null || PartsChoice.Value
-            || CollectionChoice.Value != CollectionFilter.All || ChipFilters.Any(b => b.Picks.Count > 0);
+            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null
+            || PartsChoice.Value != AdventureCards.InBooks || CollectionChoice.Value != CollectionFilter.All || ChipFilters.Any(b => b.Picks.Count > 0);
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -993,7 +1015,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Add(KindChoice.Value != KindFilter.All, KindChoice.Label, "kind", () => KindChoice = KindChoices[0], folded: true);
         Add(AiChoice.Value != AiFilter.All, AiChoice.Label, "AI", () => AiChoice = AiChoices[0], folded: true);
         Add(CopiesChoice.Value, CopiesChoice.Label, "copies", () => CopiesChoice = CopiesChoices[0], folded: true);
-        Add(PartsChoice.Value, "Adventures inside files hidden", "adventures inside files", () => PartsChoice = PartsChoices[0], folded: true);
+        Add(PartsChoice.Value != AdventureCards.InBooks, PartsChoice.Value == AdventureCards.Hidden ? "Adventures inside files hidden" : "Adventures as cards",
+            "adventures inside files", () => PartsChoice = PartsChoices[0], folded: true);
         Add(CollectionChoice.Value != CollectionFilter.All, CollectionChoice.Label, "collection", () => CollectionChoice = CollectionChoices[0], folded: true);
 
         _moreFiltersOn = more;
@@ -2210,8 +2233,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>What the Library shows now, as a Smart View would keep it.</summary>
     public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
         SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
-        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value, PartsChoice.Value,
-        CollectionChoice.Value, ChipPicks());
+        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value,
+        Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value);
 
     void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
     {
@@ -2264,7 +2287,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             KindChoice = KindChoices.FirstOrDefault(c => c.Value == view.Kind) ?? KindChoices[0];
             AiChoice = AiChoices.FirstOrDefault(c => c.Value == view.Ai) ?? AiChoices[0];
             CopiesChoice = CopiesChoices.FirstOrDefault(c => c.Value == view.Copies) ?? CopiesChoices[0];
-            PartsChoice = PartsChoices.FirstOrDefault(c => c.Value == view.HideParts) ?? PartsChoices[0];
+            PartsChoice = PartsChoices.FirstOrDefault(c => c.Value == view.Adventures) ?? PartsChoices[0];
             CollectionChoice = CollectionChoices.FirstOrDefault(c => c.Value == view.Collections) ?? CollectionChoices[0];
             SystemChoice = Pick(SystemChoices, AllSystems, view.System);
             TypeChoice = Pick(TypeChoices, AllTypes, view.Type);

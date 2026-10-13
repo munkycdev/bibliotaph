@@ -70,10 +70,12 @@ public class SearchGuideTests
     [Fact]
     public void Closed_fields_are_the_vocabulary_ones_and_format()
     {
-        Assert.Equal(["system", "edition", "type", "duration", "setting", "style", "theme", "environment", "own", "store", "format"], SearchFields.All.Where(f => f.ListsValues).Select(f => f.Name));
+        Assert.Equal(["system", "edition", "type", "duration", "setting", "style", "theme", "environment", "creature", "own", "store", "format"], SearchFields.All.Where(f => f.ListsValues).Select(f => f.Name));
         // A Term field's values are its catalog field's vocabulary, which is also its entry_facet field (Get it from's too: its store).
-        Assert.All(SearchFields.All.Where(f => f.Kind == SearchFieldKind.Term),
+        // Creatures are no catalog field: their values are the names the AI found in chapters.
+        Assert.All(SearchFields.All.Where(f => f.Kind == SearchFieldKind.Term && f.Field != SearchField.Creature),
             f => Assert.True(f.Metadata is { Kind: FieldKind.Term or FieldKind.Store, Vocabulary: not null } m && m.Vocabulary == m.Key, f.Name));
+        Assert.Null(SearchFields.Creature.Metadata);
     }
 
     // ---- At the cursor -------------------------------------------------------------------------------------------

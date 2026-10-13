@@ -123,6 +123,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         var term = new VocabularyTerm { Vocabulary = "system", Key = "test-system", Label = "Test System", Origin = TermOrigin.User, State = TermState.Active, CreatedUtc = now };
         db.VocabularyTerms.Add(term);
         db.ClassificationRuns.Add(new ClassificationRun { Id = "run-1", EntryId = entry.Id, ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, SchemaVersion = 1, StartedUtc = now, Outcome = "complete" });
+        db.ChapterScans.Add(new ChapterScan { ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, ChaptersJson = "[]", StartedUtc = now, FinishedUtc = now });
         db.IgnoredFolderLabels.Add(new IgnoredFolderLabel { Folder = "adventures", Vocabulary = "type", TermKey = "adventure", CreatedUtc = now });
         db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entry.Id, CreatedUtc = now });
         db.FolderRules.Add(new FolderRule { SourceRootId = root.Id, Folder = "Fey Court", Field = "system", Value = "pathfinder", State = FolderRuleState.On, Books = 3, CreatedUtc = now, DecidedUtc = now });
@@ -131,6 +132,8 @@ public sealed class CatalogExportTests : IAsyncLifetime
         await db.SaveChangesAsync(Ct);
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });
+        db.CollectionDeclines.Add(new CollectionDecline { CollectionId = collection.Id, EntryId = joined.Id, CreatedUtc = now });
+        db.CollectionFolders.Add(new CollectionFolder { SourceRootId = root.Id, Folder = "Winter campaign", State = FolderCollectionState.Linked, CollectionId = collection.Id, DecidedUtc = now });
         // A new catalog has Favorites pinned already.
         db.Pins.Add(new Pin { Kind = PinKind.Collection, Position = 1, CollectionId = collection.Id });
         db.Notes.AddRange(

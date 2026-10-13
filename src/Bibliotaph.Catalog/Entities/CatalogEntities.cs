@@ -218,6 +218,25 @@ public sealed class PartProposal
 }
 
 /// <summary>
+/// What the AI found reading a file chapter by chapter, kept by the file's content hash so it outlives index.db and
+/// is never asked for again while the file stays the same. Written after every batch of chapters, so a scan
+/// interrupted by closing the app carries on where it stopped; <see cref="FinishedUtc"/> is set once every chapter
+/// has been read.
+/// </summary>
+public sealed class ChapterScan
+{
+    public long Id { get; set; }
+    public required string ContentHash { get; set; }
+    public required string Provider { get; set; }
+    public required string Model { get; set; }
+    public int PromptVersion { get; set; }
+    /// <summary>The chapters, in page order, as JSON: title, first and last PDF page, whether read, and the values found with their evidence.</summary>
+    public required string ChaptersJson { get; set; }
+    public DateTime StartedUtc { get; set; }
+    public DateTime? FinishedUtc { get; set; }
+}
+
+/// <summary>
 /// The user's answer about a pair of files, by content hash, so Match never asks or joins again: "Not the same book"
 /// keeps them on separate cards.
 /// </summary>
@@ -527,6 +546,35 @@ public sealed class CollectionItem
     public long CollectionId { get; set; }
     public long EntryId { get; set; }
     public DateTime AddedUtc { get; set; }
+}
+
+/// <summary>
+/// A book the user said Never to adding to a collection, from Needs review's suggestions: it isn't suggested for that
+/// collection again. It stays on this PC.
+/// </summary>
+public sealed class CollectionDecline
+{
+    public long CollectionId { get; set; }
+    public long EntryId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// A folder Needs review asked about making a collection from, and the answer. A linked collection gains the books
+/// that land in the folder later. The folder is named by its library folder and its path under it, so a drive letter
+/// that changes doesn't lose it; the row stays on this PC, while the collection itself travels in the library sync
+/// file as any other does.
+/// </summary>
+public sealed class CollectionFolder
+{
+    public long Id { get; set; }
+    public long SourceRootId { get; set; }
+    /// <summary>The folder's path under the library folder, as the file locations spell it.</summary>
+    public required string Folder { get; set; }
+    public FolderCollectionState State { get; set; }
+    /// <summary>The collection made from it; null when declined, or when the user has deleted that collection since.</summary>
+    public long? CollectionId { get; set; }
+    public DateTime DecidedUtc { get; set; }
 }
 
 /// <summary>A book marked with a heart.</summary>

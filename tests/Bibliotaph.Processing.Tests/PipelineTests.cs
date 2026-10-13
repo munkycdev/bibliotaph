@@ -66,7 +66,15 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     PartProposalService _proposals = null!;
     CorrectionStore _correctionStore = null!;
     FolderRules _folderRules = null!;
+    ChapterScanStore _chapterScans = null!;
+    ChapterProjection _chapterProjection = null!;
+    ChapterScanService _chapterService = null!;
     UserTagService _userTags = null!;
+    FolderCollectionStore _folderCollectionStore = null!;
+    CollectionsService _collectionsService = null!;
+    FolderCollections _folderCollections = null!;
+    /// <summary>A short quiet period, so a whole-book scan goes on soon after the AI was last used for something else.</summary>
+    readonly ModelActivity _activity = new(quiet: TimeSpan.FromMilliseconds(300));
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -125,21 +133,32 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var elsewhere = new ElsewhereStore(contexts, entries);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
-        _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
+        _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model, activity: _activity);
         await _ai.LoadAsync(Ct);
+        // Scanning whole books is off but for its own tests, so the model sees only what the other tests ask.
+        await _ai.SetScanWholeBooksAsync(false, Ct);
+        _chapterScans = new ChapterScanStore(contexts);
+        _chapterProjection = new ChapterProjection(_chapterScans, index, new ChapterQueries(_index), library);
+        var chapters = new ChapterScanStage(_ai, library, _queries, _chapterScans, _chapterProjection, vocabulary);
         _userTags = new UserTagService(new UserTagStore(contexts), _metadataStore, new UserTagQueries(_index), projector);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading, parts: _parts, proposals: _proposals);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
+        _packs = new PackService(packStore, projector, hints);
+        _folderCollectionStore = new FolderCollectionStore(contexts);
+        _collectionsService = new CollectionsService(_collections, projector, _folderCollectionStore);
+        _folderCollections = new FolderCollections(_folderCollectionStore, library, _collections, _collectionsService, vocabulary, _packs);
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints, parts: _parts,
                     tags: _userTags), _matchGate),
+                chapters,
             ],
             new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
-            packs: _packs = new PackService(packStore, projector, hints), identity: _identity, returns: _returns, parts: _parts);
+            packs: _packs, identity: _identity, returns: _returns, parts: _parts, folderCollections: _folderCollections);
+        _chapterService = new ChapterScanService(_ai, _service, _chapterScans, _chapterProjection, new ChapterQueries(_index));
     }
 
     public async ValueTask DisposeAsync()
@@ -148,6 +167,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _service.Dispose();
         _elsewhere.Dispose();
         _userTags.Dispose();
+        _activity.Dispose();
         await _writer.StopAsync(CancellationToken.None);
         _writer.Dispose();
         await _workers.DisposeAsync();

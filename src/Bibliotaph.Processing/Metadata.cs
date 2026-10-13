@@ -434,8 +434,12 @@ public sealed record MetadataProblem(MetadataField Field, string Message);
 /// catalog.db as an assertion state or a rejection, then the entry is projected again. A value the user sets may
 /// make a folder rule worth proposing, which <paramref name="rules"/> looks into.
 /// </summary>
-public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector, FolderRules? rules = null)
+public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector, FolderRules? rules = null,
+    ChapterScanService? chapters = null)
 {
+    /// <summary>What the AI found reading the book chapter by chapter, shown apart from its own details; null where there is none (tests).</summary>
+    public ChapterScanService? Chapters => chapters;
+
     public async Task<(EffectiveMetadata Metadata, Vocabulary Vocabulary)> GetAsync(EntryId entryId, CancellationToken ct = default) =>
         ((await metadata.GetAsync(entryId, ct)).Compute(), await vocabularies.GetAsync(ct));
 

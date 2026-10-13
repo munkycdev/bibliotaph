@@ -133,13 +133,14 @@ public sealed class AskTests : IAsyncLifetime
         await store.SetPageTextAsync(_book, [.. texts.Select((t, i) => new PageTextRow(i, t, "pdf", 1, t.Length == 0))], Ct);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        // Asking checks for missing vectors in the background; on Windows its open index.db would stop the delete.
+        if (_ask.FillOf(_book) is { Running: true }) await FilledAsync();
         _ask.Dispose();
         _writer.Dispose();
         SqliteConnection.ClearAllPools();
         Directory.Delete(_dir, recursive: true);
-        return ValueTask.CompletedTask;
     }
 
     Task SetUpAsync(string? embeddingModel, bool enabled = true, IReadOnlySet<long>? skipped = null) =>
@@ -206,6 +207,33 @@ public sealed class AskTests : IAsyncLifetime
         Assert.Equal(3, best.PdfPage);
         Assert.True(best.ByWords && best.ByMeaning);
         Assert.Null(second.MeaningProblem);
+    }
+
+    [Fact]
+    public async Task Opening_the_book_makes_its_vectors_before_it_is_asked_unless_ask_cant_use_them()
+    {
+        await SetUpAsync(null);
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+
+        await SetUpAsync("embed-a", skipped: new HashSet<long> { _rootId });
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+
+        await SetUpAsync("embed-a", enabled: false);
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+        Assert.Empty(_server.Embedded);
+
+        await SetUpAsync("embed-a");
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Equal(new AskFill(3, 3, false, null), await FilledAsync());
+        Assert.Equal(3, VectorsBy("embed-a"));
+
+        // The first question is found by meaning on every page.
+        var first = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        Assert.Equal(AskMeaning.On, first.Meaning);
+        Assert.True(first.Passages[0].ByMeaning);
     }
 
     [Fact]

@@ -84,9 +84,13 @@ usable while its card waits. It has two lists:
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
+- **Collection?** "Make a collection “Ashen Vale” from these 12 books?" for a folder with three or more books in it
+  (see [Collections from folders](organizing.md#collections-from-folders)): **Accept**, **Not now** or **Never**.
+- **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
+  share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
 When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
-elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
 waiting.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
@@ -138,8 +142,16 @@ When a file's bookmarks and first pages show it holds several adventures, Needs 
 holds 4 adventures." with a list you can tick, and **Edit**, **Accept** and **Not split**. With AI turned on, the AI
 helps find them too, and reads each adventure on its own pages to fill in its details.
 
-The file's card says how many adventures it holds. **Adventures inside files** in the filters shows or hides their
-cards. Search results group page hits under the adventure they fall in.
+While you browse, adventures stay inside their book: the file's card says how many it holds ("3 adventures"), and
+its details list them under **Adventures in this file**, where clicking one shows its own details. A search finds
+them on their own: an adventure that matches shows as a card with its book's cover, an **Adventure** ribbon and the
+adventure's title. Click it for its details, or **Open** it to go straight to its first page. If both the book and
+one of its adventures match, only the adventure shows, since that's what you were looking for. Page hits are grouped
+under the adventure they fall in.
+
+To see every adventure as a card of its own, even while browsing, set **Adventures inside files** in the Library's
+**More filters** to **Show as cards**. **Hide** leaves them out altogether, searches included, so only their files
+show. A search you saved with adventures hidden keeps them hidden.
 
 **Remove adventure** in an adventure's details takes its card away; its pages are only the file's again, and the file
 itself is never changed. To remove several at once, tick their cards in **Select** mode and click
