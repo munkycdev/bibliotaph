@@ -70,6 +70,24 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
             (await rejections.Select(r => new { r.EntryId, r.Field, r.NormalizedValue }).ToListAsync(ct)).ToLookup(r => r.EntryId, r => (r.Field, r.NormalizedValue)));
     }
 
+    /// <summary>
+    /// The cards with a suggested or confirmed value of <paramref name="field"/> among <paramref name="normalized"/>
+    /// (comparison forms): a rough cut, since another value may win, for the caller to check against what each card
+    /// shows. Cards joined into another and images in a pack aren't among them.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> FindAsync(MetadataField field, IReadOnlyCollection<string> normalized, CancellationToken ct = default)
+    {
+        if (normalized.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var values = normalized.ToList();
+        var ids = await db.Assertions.AsNoTracking()
+            .Where(a => a.Field == field.Key && values.Contains(a.NormalizedValue)
+                && (a.State == AssertionState.Provisional || a.State == AssertionState.Confirmed)
+                && a.Entry.MergedIntoEntryId == null && (a.Entry.ParentEntryId == null || a.Entry.Kind == EntryKind.Part))
+            .Select(a => a.EntryId).Distinct().ToListAsync(ct);
+        return [.. ids.Select(id => new EntryId(id))];
+    }
+
     /// <summary>The entries with any value the user confirmed or set, whose books can show the user's conventions.</summary>
     public async Task<IReadOnlyList<EntryId>> GetDecidedEntryIdsAsync(CancellationToken ct = default)
     {
@@ -252,6 +270,87 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 
         if (changed) await db.SaveChangesAsync(ct);
         return changed;
+    }
+
+    /// <summary>
+    /// Sets the guesses of one of the user's tags (<paramref name="tag"/>, by name) across the whole library to exactly
+    /// <paramref name="guesses"/>: the books whose pages use its words often enough now. Returns the entries whose
+    /// tags changed, to project.
+    /// </summary>
+    public Task<IReadOnlyList<EntryId>> ReplaceTagGuessesAsync(string tag, IReadOnlyList<TagGuess> guesses, CancellationToken ct = default)
+    {
+        var normalized = MetadataValues.Normalize(MetadataFields.Tags, tag);
+        return ReplaceTagGuessesAsync(rows => rows.Where(a => a.NormalizedValue == normalized), g => g.Normalized == normalized, guesses, ct);
+    }
+
+    /// <summary>
+    /// Sets every tag guess on <paramref name="entryIds"/> to exactly <paramref name="guesses"/>, for books whose text
+    /// has just been read, or forgotten. Returns the entries whose tags changed, to project.
+    /// </summary>
+    public Task<IReadOnlyList<EntryId>> ReplaceTagGuessesAsync(IReadOnlyCollection<EntryId> entryIds, IReadOnlyList<TagGuess> guesses, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return Task.FromResult<IReadOnlyList<EntryId>>([]);
+        var ids = Raw(entryIds);
+        return ReplaceTagGuessesAsync(rows => rows.Where(a => ids.Contains(a.EntryId)), g => ids.Contains(g.EntryId.Value), guesses, ct);
+    }
+
+    /// <summary>
+    /// The tag guesses <paramref name="scope"/> covers become <paramref name="guesses"/>, as rule hints are replaced: a
+    /// guess made again keeps its row and its age, with fresh evidence, so nothing looks new; one not made again goes.
+    /// What the user decided about a guess (kept, rejected) stays as it is, and a value the user rejected for a book is
+    /// never guessed for it again. A card that joined another as a copy gets no guesses.
+    /// </summary>
+    async Task<IReadOnlyList<EntryId>> ReplaceTagGuessesAsync(Func<IQueryable<Assertion>, IQueryable<Assertion>> scope, Func<TagGuess, bool> inScope,
+        IReadOnlyList<TagGuess> guesses, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var field = MetadataFields.Tags.Key;
+        var rows = await scope(db.Assertions.Where(a => a.Origin == AssertionOrigin.UserTag && a.Field == field)).ToListAsync(ct);
+        var wanted = guesses.Where(g => g.Normalized.Length > 0 && inScope(g)).DistinctBy(g => (g.EntryId, g.Normalized)).ToList();
+        var ids = wanted.Select(g => g.EntryId.Value).Distinct().ToList();
+        var live = (await db.Entries.Where(e => ids.Contains(e.Id) && e.MergedIntoEntryId == null).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+        var rejected = (await db.Rejections.Where(r => ids.Contains(r.EntryId) && r.Field == field).Select(r => new { r.EntryId, r.NormalizedValue }).ToListAsync(ct))
+            .Select(r => (r.EntryId, r.NormalizedValue)).ToHashSet();
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var changed = new HashSet<long>();
+        var kept = new HashSet<long>();
+        var dirty = false;
+
+        foreach (var guess in wanted)
+        {
+            var id = guess.EntryId.Value;
+            if (!live.Contains(id) || rejected.Contains((id, guess.Normalized))) continue;
+            var same = rows.Where(r => r.EntryId == id && r.NormalizedValue == guess.Normalized).ToList();
+            kept.UnionWith(same.Select(r => r.Id));
+            // Decided by the user already: their word stands.
+            if (same.Any(r => r.State != AssertionState.Provisional)) continue;
+            var proposal = new MetadataProposal(MetadataFields.Tags, guess.Tag, AssertionOrigin.UserTag, guess.Quote, guess.Pages);
+            if (same.FirstOrDefault() is not { } row)
+            {
+                db.Assertions.Add(NewAssertion(guess.EntryId, guess.ContentHash, proposal, AssertionState.Provisional, now));
+                changed.Add(id);
+                continue;
+            }
+            var pages = Pages(proposal);
+            var value = JsonSerializer.Serialize(guess.Tag);
+            if (row.ValueJson == value && row.EvidenceQuote == proposal.Quote && row.EvidencePagesJson == pages && row.ContentHash == guess.ContentHash) continue;
+            // The tag's name as it reads now: a rename that only changed its capitals keeps the guess, and changes how it reads.
+            if (row.ValueJson != value) changed.Add(id);
+            row.ValueJson = value;
+            row.EvidenceQuote = proposal.Quote;
+            row.EvidencePagesJson = pages;
+            row.ContentHash = guess.ContentHash;
+            dirty = true;
+        }
+
+        foreach (var row in rows.Where(r => r.State == AssertionState.Provisional && !kept.Contains(r.Id)))
+        {
+            db.Assertions.Remove(row);
+            changed.Add(row.EntryId);
+        }
+
+        if (changed.Count > 0 || dirty) await db.SaveChangesAsync(ct);
+        return [.. changed.Select(id => new EntryId(id))];
     }
 
     static string? Pages(MetadataProposal proposal) => proposal.Pages is { Count: > 0 } pages ? JsonSerializer.Serialize(pages) : null;
@@ -708,6 +807,15 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         }
         return changed;
     }
+}
+
+/// <summary>
+/// One of the user's tags guessed for a book, because its pages use the tag's words often enough: the words, as the
+/// evidence quote, and the PDF pages (zero-based) of <paramref name="ContentHash"/>'s copy that use them.
+/// </summary>
+public sealed record TagGuess(EntryId EntryId, string Tag, string? ContentHash, string Quote, IReadOnlyList<int> Pages)
+{
+    public string Normalized => MetadataValues.Normalize(MetadataFields.Tags, Tag);
 }
 
 /// <summary>What a bulk edit does to a field on every selected entry.</summary>

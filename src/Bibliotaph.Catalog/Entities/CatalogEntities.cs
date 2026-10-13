@@ -406,6 +406,24 @@ public sealed class FolderRule
     public DateTime? DecidedUtc { get; set; }
 }
 
+/// <summary>
+/// One of the user's own tags, defined in Settings > Vocabulary with the words that signal it ("Undead": undead,
+/// zombie, lich). Books whose pages use the words often enough get the tag as a guess on Your tags
+/// (<see cref="Core.AssertionOrigin.UserTag"/>), which stays a guess until the user keeps it.
+/// </summary>
+public sealed class UserTag
+{
+    public long Id { get; set; }
+    /// <summary>The tag as it reads, and as its guesses store it.</summary>
+    public required string Name { get; set; }
+    /// <summary>The name in comparison form, which no other tag may share.</summary>
+    public required string NormalizedName { get; set; }
+    /// <summary>The words and phrases that signal it, as typed, as a JSON array.</summary>
+    public required string WordsJson { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+}
+
 /// <summary>A folder label the user switched off in Settings > Library: that folder name no longer suggests that term.</summary>
 public sealed class IgnoredFolderLabel
 {
@@ -528,6 +546,35 @@ public sealed class CollectionItem
     public long CollectionId { get; set; }
     public long EntryId { get; set; }
     public DateTime AddedUtc { get; set; }
+}
+
+/// <summary>
+/// A book the user said Never to adding to a collection, from Needs review's suggestions: it isn't suggested for that
+/// collection again. It stays on this PC.
+/// </summary>
+public sealed class CollectionDecline
+{
+    public long CollectionId { get; set; }
+    public long EntryId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// A folder Needs review asked about making a collection from, and the answer. A linked collection gains the books
+/// that land in the folder later. The folder is named by its library folder and its path under it, so a drive letter
+/// that changes doesn't lose it; the row stays on this PC, while the collection itself travels in the library sync
+/// file as any other does.
+/// </summary>
+public sealed class CollectionFolder
+{
+    public long Id { get; set; }
+    public long SourceRootId { get; set; }
+    /// <summary>The folder's path under the library folder, as the file locations spell it.</summary>
+    public required string Folder { get; set; }
+    public FolderCollectionState State { get; set; }
+    /// <summary>The collection made from it; null when declined, or when the user has deleted that collection since.</summary>
+    public long? CollectionId { get; set; }
+    public DateTime DecidedUtc { get; set; }
 }
 
 /// <summary>A book marked with a heart.</summary>

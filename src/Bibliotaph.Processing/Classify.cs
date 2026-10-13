@@ -36,11 +36,12 @@ public sealed class NoApiKeys : IApiKeyStore
 /// this computer, and the library folders never sent. <see cref="IsReady"/> says whether the Classify lane may send
 /// anything. With <see cref="BuiltIn"/>, Bibliotaph runs <see cref="BuiltInModel"/> itself, and the model server's
 /// endpoint and model are kept for a switch back. <see cref="EmbeddingModel"/> and
-/// <see cref="BuiltInEmbeddingModel"/> are what Ask this book finds pages by meaning with, on the server or built in;
-/// without one, it finds them by their words.
+/// <see cref="BuiltInEmbeddingModel"/> are what Ask finds pages by meaning with, on the server or built in; without
+/// one, it finds them by their words. <see cref="LibraryVectors"/> says whether the whole library's pages are read for
+/// meaning in the background, for questions to the library.
 /// </summary>
 public sealed record AiSetup(string? Endpoint, string? Model, string Provider, bool Enabled, bool RemoteAllowed, IReadOnlySet<long> SkippedRoots,
-    bool BuiltIn = false, string? BuiltInModel = null, string? EmbeddingModel = null, string? BuiltInEmbeddingModel = null)
+    bool BuiltIn = false, string? BuiltInModel = null, string? EmbeddingModel = null, string? BuiltInEmbeddingModel = null, bool LibraryVectors = true)
 {
     /// <summary>The provider runs of the built-in AI are recorded under.</summary>
     public const string BuiltInProvider = "built-in";
@@ -176,7 +177,8 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiBuiltIn, ct) == bool.TrueString,
             await settings.GetAsync(SettingKeys.AiBuiltInModel, ct),
             await settings.GetAsync(SettingKeys.AiEmbeddingModel, ct),
-            await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct)));
+            await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct),
+            await settings.GetAsync(SettingKeys.AiLibraryVectors, ct) != bool.FalseString));
         _scanWholeBooks = await settings.GetAsync(SettingKeys.AiScanWholeBooks, ct) != bool.FalseString;
     }
 
@@ -192,6 +194,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
         await settings.SetAsync(SettingKeys.AiBuiltInModel, setup.BuiltInModel ?? "", ct);
         await settings.SetAsync(SettingKeys.AiEmbeddingModel, setup.EmbeddingModel ?? "", ct);
         await settings.SetAsync(SettingKeys.AiBuiltInEmbeddingModel, setup.BuiltInEmbeddingModel ?? "", ct);
+        await settings.SetAsync(SettingKeys.AiLibraryVectors, setup.LibraryVectors.ToString(), ct);
         Apply(setup);
     }
 

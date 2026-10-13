@@ -84,9 +84,13 @@ usable while its card waits. It has two lists:
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
+- **Collection?** "Make a collection “Ashen Vale” from these 12 books?" for a folder with three or more books in it
+  (see [Collections from folders](organizing.md#collections-from-folders)): **Accept**, **Not now** or **Never**.
+- **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
+  share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
 When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
-elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
 waiting.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
@@ -110,14 +114,23 @@ version instead. Nothing is ever joined without asking unless the text is identi
 
 To join cards yourself, tick them in **Select** mode and click **Same book**. You choose which file opens.
 
-## Image packs
+## Packs
 
 A folder (or ZIP) of 20 or more images and no PDFs, such as a map pack or a set of handouts, becomes one card: an
 image pack, named after the folder. A smaller set is offered in Needs review instead. **Split into separate images**
 gives each image its own card again, and Bibliotaph remembers that. To make a pack by hand, tick images or packs in
 **Select** mode and click **Pack together**.
 
-A search for an image's file name finds its pack.
+Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
+portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
+**Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
+and its cover is still a mosaic of the first four. Opening the pack steps through its files with **Previous** and
+**Next**: PDFs open as PDFs and images as images. Its details list every file, PDFs shown by their first page, and
+**Split into separate files** gives each one its own card back, with everything you had set on it. A PDF with
+adventures marked in it can't go in a pack, since their cards name it.
+
+A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
+the pack's card.
 
 ## Adventures inside a file
 
@@ -163,6 +176,24 @@ or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the 
 **Settings > Vocabulary** lists the game systems, types, themes and other terms your books are filed under, with the
 other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and add or remove other names. Folder names,
 searches and what you type all go through these names.
+
+### Your tags
+
+Your tags are your own labels, and the **Your tags** tab of **Settings > Vocabulary** can find them for you. Give a tag
+a name and the words that signal it, separated by commas: **Undead** with "undead, zombie, lich", say. Bibliotaph looks
+for the words in the pages it has already read, so nothing is read again, and a book whose pages use them often enough
+gets the tag, marked **Suggested** like any other guess. Open the mark to see the words and the pages they're on.
+
+- **Often enough** means the words are on at least 3 of the book's pages, and on at least one page in 20. A passing
+  mention, or a few pages in a thick rulebook, doesn't count.
+- A word also finds words that start with it, as in search: "zombie" finds "zombies". Several words together, such as
+  "old mill", are found only together. To see what a word would find first, search for it on the **Inside documents**
+  tab.
+- **Keep this** makes the tag yours on that book. **Not right** takes it off, and it never comes back to that book,
+  even if you change the tag's words or make the tag again.
+- Changing a tag's name or words looks through your books again. **Delete tag** takes its suggestions away; books
+  where you kept it keep it.
+- New books are checked once their text has been read, scanned pages included.
 
 ## Reading a book again
 

@@ -25,6 +25,8 @@ year, setting, themes and environments.
   [Searching](searching.md#ask-in-plain-english).
 - **It answers questions about a book** from the book's own pages, citing and checking each one. See
   [Reading](reading.md#ask-this-book).
+- **It answers questions from your whole library**, citing the book and page of each claim. See
+  [Searching](searching.md#ask-your-library-a-question).
 - **Book text can't give it orders.** Text in a PDF is treated as text to read, never as instructions, and an answer
   can only fill in suggestions.
 
@@ -36,8 +38,8 @@ Nothing leaves your PC unless you set it up that way.
 - **A model server**: a program such as Ollama or LM Studio that you install and run yourself. Bibliotaph sends each
   book's excerpt (a few thousand words of its text) to that server. If the server is on another computer outside your
   network, Settings says so, and you have to tick **Send excerpts to this server** first. **Ask** sends it what you
-  typed, and **Ask this book** sends your question with the few pages that answer it (and, with an embedding model,
-  each page's text once, to find pages by meaning).
+  typed, **Ask this book** and **Answer from my books** send your question with the few pages that answer it, and,
+  with an embedding model, each page's text is sent once to find pages by meaning.
 
 Bibliotaph never switches to a cloud service by itself.
 
@@ -100,6 +102,17 @@ themes and creatures in each chapter, with the pages they're on.
 - **Library folders sent to AI**: untick a folder to keep its books away from the model. They still get suggestions
   from their names, and you can fill them in yourself.
 - If the model isn't answering, AI waits and tries again every minute. Nothing else stops.
+
+## Reading your library for meaning
+
+With an embedding model set, Bibliotaph slowly reads every book in your library for meaning in the background, so
+[a question to your library](searching.md#ask-your-library-a-question) can find a page by what it means, not only by
+its words. For a large library this takes hours. It goes last: it waits while you're using the AI (asking a question,
+say) and for a little after, gives way to a book you've just opened, and carries on where it was after you restart
+Bibliotaph. Books in folders kept from AI are left out.
+
+**Settings > AI > Read the whole library for meaning** shows how many pages are read so far. Untick **Read the library
+for meaning in the background** to stop it; questions to your library then find the remaining pages by their words.
 - Changing the model never re-reads your books on its own. **Settings > AI** counts the books an earlier model read and
   offers **Reclassify**, with the number, to read them again.
 - **Files needing attention** in Needs review lists books the AI couldn't read, with **Try all again**.

@@ -54,6 +54,8 @@ public sealed class ForgetText(
         // What the AI found in each chapter quotes the book too; index.db's copy went with the pages.
         if (chapterScans is not null) await chapterScans.ForgetAsync(hashes, ct);
         await metadata.ForgetAiAsync(entryId, hashes, ct);
+        // Tags guessed from its pages go too; one the user kept stays.
+        await metadata.ReplaceTagGuessesAsync([entryId], [], ct);
         // Ask this book's conversation quotes the book, so it goes with the text.
         await askHistory.ClearAsync(entryId, ct);
         await projector.ProjectAsync([entryId], ct);

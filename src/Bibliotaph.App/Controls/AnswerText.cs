@@ -39,7 +39,10 @@ public static class AnswerText
                 case AnswerPartKind.Citation:
                     var link = new Hyperlink(new Run(part.Text)) { Command = command, CommandParameter = part, ToolTip = "Open this page" };
                     link.SetResourceReference(TextElement.ForegroundProperty, "Bt.Accent");
-                    AutomationProperties.SetName(link, $"Go to page {part.Text.Trim('[', ']').Replace("p. ", "", StringComparison.Ordinal)}");
+                    // A citation from the library names its book: "Open The Sunken Keep, p. 112".
+                    AutomationProperties.SetName(link, part.DocumentId is null
+                        ? $"Go to page {part.Text.Trim('[', ']').Replace("p. ", "", StringComparison.Ordinal)}"
+                        : $"Open {part.Text.Trim('[', ']')}");
                     block.Inlines.Add(link);
                     break;
                 case AnswerPartKind.Paraphrase:

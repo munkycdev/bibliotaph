@@ -251,6 +251,67 @@ partial class CatalogChapterScans
                 b.ToTable("classification_run");
             });
 
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionDecline", b =>
+            {
+                b.Property<long>("CollectionId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("collection_id");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.HasKey("CollectionId", "EntryId");
+
+                b.HasIndex("EntryId");
+
+                b.ToTable("collection_decline");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionFolder", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<long?>("CollectionId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("collection_id");
+
+                b.Property<DateTime>("DecidedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("decided_utc");
+
+                b.Property<string>("Folder")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("folder");
+
+                b.Property<long>("SourceRootId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("source_root_id");
+
+                b.Property<string>("State")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("state");
+
+                b.HasKey("Id");
+
+                b.HasIndex("CollectionId")
+                    .IsUnique();
+
+                b.HasIndex("SourceRootId", "Folder")
+                    .IsUnique();
+
+                b.ToTable("collection_folder");
+            });
+
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionItem", b =>
             {
                 b.Property<long>("CollectionId")
@@ -1351,6 +1412,44 @@ partial class CatalogChapterScans
                 b.ToTable("sync_state");
             });
 
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.UserTag", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("name");
+
+                b.Property<string>("NormalizedName")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("normalized_name");
+
+                b.Property<DateTime>("UpdatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("updated_utc");
+
+                b.Property<string>("WordsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("words_json");
+
+                b.HasKey("Id");
+
+                b.HasIndex("NormalizedName")
+                    .IsUnique();
+
+                b.ToTable("user_tag");
+            });
+
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VersionProposal", b =>
             {
                 b.Property<long>("Id")
@@ -1503,6 +1602,35 @@ partial class CatalogChapterScans
                     .IsRequired();
 
                 b.Navigation("Entry");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionDecline", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.CollectionNode", null)
+                    .WithMany()
+                    .HasForeignKey("CollectionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionFolder", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.CollectionNode", null)
+                    .WithMany()
+                    .HasForeignKey("CollectionId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                b.HasOne("Bibliotaph.Catalog.Entities.SourceRoot", null)
+                    .WithMany()
+                    .HasForeignKey("SourceRootId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionItem", b =>

@@ -45,7 +45,7 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
     /// <summary>A pack's name, from its folder or ZIP.</summary>
     public string? Name { get; init; }
 
-    /// <summary>A pack's images, in file name order.</summary>
+    /// <summary>A pack's files, in file name order.</summary>
     public IReadOnlyList<EntryMemberRow> Members { get; init; } = [];
 
     /// <summary>For an adventure inside a file, the file's entry.</summary>
@@ -61,7 +61,7 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
     public string? Cover { get; init; }
 }
 
-/// <summary>An image in a pack: the document it shows, its own entry and its file name.</summary>
+/// <summary>A file in a pack, an image or a PDF: the document it shows, its own entry and its file name.</summary>
 public sealed record EntryMemberRow(long DocumentId, EntryId MemberEntryId, string Name);
 
 /// <summary>One value of a vocabulary field: a term key and its label, and its web link when it has one (own, store).</summary>
@@ -315,7 +315,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
 
     /// <summary>
     /// Records which document each of these entries shows, and refreshes their entry_fts rows, which take the
-    /// document's file name, PDF information and folders. A pack's images and their names (member_fts) are replaced.
+    /// document's file name, PDF information and folders. A pack's files and their names (member_fts) are replaced.
     /// </summary>
     public Task SetEntriesAsync(IReadOnlyList<EntryDocRow> entries, CancellationToken ct = default) =>
         entries.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
@@ -505,7 +505,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             }
         }, ct);
 
-    /// <summary>Takes a pack's images, and their names in search, off it.</summary>
+    /// <summary>Takes a pack's files, and their names in search, off it.</summary>
     static void RemoveMembers(SqliteConnection c, SqliteTransaction t, long entryId) =>
         c.Execute(
             """
