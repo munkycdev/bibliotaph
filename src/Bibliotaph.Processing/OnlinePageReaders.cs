@@ -93,8 +93,9 @@ public sealed partial class DemiplaneReader : IOnlineLibraryReader
         foreach (var card in cards)
         {
             if (!card.Contains("source-card-details-unlocked-btn", StringComparison.Ordinal)) continue;
-            if (PageMarkup.First(card, Link()) is not { } link || (PageMarkup.First(card, ProductName()) ?? PageMarkup.First(card, Heading())) is not { } title)
+            if (PageMarkup.First(card, Link()) is not { } path || (PageMarkup.First(card, ProductName()) ?? PageMarkup.First(card, Heading())) is not { } title)
                 continue;
+            var link = new Uri(LibraryPage, path).AbsoluteUri;
             if (books.Any(b => b.Link == link)) continue;
             books.Add(new OnlineBook(title, link) { CoverUrl = PageMarkup.Image(Cover().Match(card) is { Success: true } cover ? cover.Groups[1].Value : null) });
         }
@@ -112,7 +113,8 @@ public sealed partial class DemiplaneReader : IOnlineLibraryReader
     [GeneratedRegex("""<h3[^>]*>(.*?)</h3>""", RegexOptions.CultureInvariant | RegexOptions.Singleline)]
     private static partial Regex Heading();
 
-    [GeneratedRegex("""href="(https://app\.demiplane\.com/nexus/[^/"]+/sources/[^"/?#]+)""", RegexOptions.CultureInvariant)]
+    // The live page links cards relative to the site; a page a browser saved may have them absolute.
+    [GeneratedRegex("""href="((?:https://app\.demiplane\.com)?/nexus/[^/"]+/sources/[^"/?#]+)""", RegexOptions.CultureInvariant)]
     private static partial Regex Link();
 
     [GeneratedRegex("""<img[^>]*?\ssrc="([^"]+)""", RegexOptions.CultureInvariant)]
