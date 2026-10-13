@@ -25,6 +25,7 @@
     <KeyBinding Key="OemQuestion" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
     <KeyBinding Key="Divide" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
     <KeyBinding Gesture="Alt+Left" Command="{Binding GoBackCommand}" />
+    <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
     <KeyBinding Key="BrowserBack" Command="{Binding GoBackCommand}" />
   </Window.InputBindings>
 
@@ -34,8 +35,21 @@
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
-    <!-- .bt-sidebar -->
-    <Border Width="210" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0" Padding="13,27,13,18">
+    <!-- .bt-sidebar; folded (Ctrl+B), it keeps only the icons, each with its name as a tooltip. -->
+    <Border x:Name="Sidebar" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0"
+            c:Ui.Compact="{Binding IsSidebarCollapsed}">
+      <Border.Style>
+        <Style TargetType="Border">
+          <Setter Property="Width" Value="210" />
+          <Setter Property="Padding" Value="13,27,13,18" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSidebarCollapsed}" Value="True">
+              <Setter Property="Width" Value="64" />
+              <Setter Property="Padding" Value="8,27,8,18" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
       <!-- The brand and the foot stay put, and so does the navigation between them; the pins scroll on a short window. -->
       <Grid>
         <Grid.RowDefinitions>
@@ -43,23 +57,29 @@
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <!-- .bt-brand -->
-        <Button Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
-                AutomationProperties.Name="Bibliotaph home" Cursor="Hand" Margin="0,0,0,26"
-                FocusVisualStyle="{StaticResource Bt.FocusVisual}">
-          <Button.Template>
-            <ControlTemplate TargetType="Button">
-              <StackPanel Orientation="Horizontal" Background="Transparent" Margin="4,0">
-                <Border Width="30" Height="34" CornerRadius="3,9,3,3" Background="{DynamicResource Bt.Text}">
-                  <TextBlock Text="b." FontFamily="{StaticResource Font.Display}" FontSize="31" Foreground="{DynamicResource Bt.Bg}"
-                             HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,3" />
-                </Border>
-                <TextBlock Text="Bibliotaph" FontFamily="{StaticResource Font.Display}" FontSize="23" Margin="10,0,0,0"
-                           VerticalAlignment="Center" Foreground="{DynamicResource Bt.Text}" />
-              </StackPanel>
-            </ControlTemplate>
-          </Button.Template>
-        </Button>
+        <!-- .bt-brand; folded, the unfold button takes its place, so folding adds no height to a short window. -->
+        <Grid Margin="0,0,0,26">
+          <Button Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
+                  AutomationProperties.Name="Bibliotaph home" Cursor="Hand" HorizontalAlignment="Left"
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+                  Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <Button.Template>
+              <ControlTemplate TargetType="Button">
+                <StackPanel Orientation="Horizontal" Background="Transparent" Margin="4,0">
+                  <Border Width="30" Height="34" CornerRadius="3,9,3,3" Background="{DynamicResource Bt.Text}">
+                    <TextBlock Text="b." FontFamily="{StaticResource Font.Display}" FontSize="31" Foreground="{DynamicResource Bt.Bg}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,3" />
+                  </Border>
+                  <TextBlock Text="Bibliotaph" FontFamily="{StaticResource Font.Display}" FontSize="23" Margin="10,0,0,0"
+                             VerticalAlignment="Center" Foreground="{DynamicResource Bt.Text}" />
+                </StackPanel>
+              </ControlTemplate>
+            </Button.Template>
+          </Button>
+          <Button x:Name="ToggleSidebar" Style="{StaticResource Bt.IconButton}" HorizontalAlignment="Center" Command="{Binding ToggleSidebarCommand}"
+                  ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}" c:Ui.Icon="{StaticResource Icon.PanelLeft}"
+                  Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        </Grid>
 
         <!-- The main navigation stays put; the Pinned group below it scrolls on its own (Pinned Views plan, choice 10). -->
         <Grid Grid.Row="1">
@@ -86,7 +106,8 @@
             is dragged to a new place, with a line where it will land, or moved with Alt+Up and Alt+Down or its menu.
           -->
           <DockPanel Grid.Row="1" Margin="0,22,0,0">
-            <TextBlock DockPanel.Dock="Top" Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
+            <TextBlock DockPanel.Dock="Top" Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6"
+                       Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
             <TextBlock x:Name="NoPins" DockPanel.Dock="Top" Text="Right-click a book, collection or binder and choose Pin." FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource Bt.Muted}" Margin="10,0,10,0">
               <TextBlock.Style>
@@ -95,6 +116,9 @@
                   <Style.Triggers>
                     <DataTrigger Binding="{Binding Pinned.Count}" Value="0">
                       <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSidebarCollapsed}" Value="True">
+                      <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
                   </Style.Triggers>
                 </Style>
@@ -182,7 +206,7 @@
             <!-- A DockPanel, not a StackPanel, so the line wraps in the sidebar's width. -->
             <DockPanel>
               <Ellipse DockPanel.Dock="Left" Width="6" Height="6" VerticalAlignment="Top" Margin="0,5,0,0" Fill="{DynamicResource Bt.Accent}" />
-              <StackPanel Margin="8,0,0,0">
+              <StackPanel Margin="8,0,0,0" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
                 <TextBlock Text="Update ready: restart to update" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding Updates.ReadyText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0" />
               </StackPanel>
@@ -220,7 +244,7 @@
                   </Style>
                 </Ellipse.Style>
               </Ellipse>
-              <StackPanel Margin="8,0,0,0">
+              <StackPanel Margin="8,0,0,0" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
                 <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" />
                 <!-- Folders that can't be reached (4g): their books stay, dimmed and marked Offline. -->
                 <TextBlock x:Name="OfflineFolders" Text="{Binding Activity.OfflineText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
@@ -228,10 +252,16 @@
               </StackPanel>
             </StackPanel>
           </Button>
-          <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
-                  c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}"
-                  Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                  CommandParameter="{Binding Route}" />
+          <!-- Open, the fold button sits beside Settings; folded, it moves up to where the brand was. -->
+          <DockPanel>
+            <Button x:Name="FoldSidebar" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" Margin="4,0,0,0"
+                    Command="{Binding ToggleSidebarCommand}" ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}"
+                    c:Ui.Icon="{StaticResource Icon.PanelLeft}" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+            <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
+                    c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}"
+                    Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding Route}" />
+          </DockPanel>
         </StackPanel>
       </Grid>
     </Border>

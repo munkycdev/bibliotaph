@@ -87,6 +87,9 @@ public static class SettingKeys
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home.</summary>
     public const string StartPage = "start-page";
 
+    /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
+    public const string SidebarCollapsed = "sidebar-collapsed";
+
     /// <summary>The folder library sync writes this PC's sync file to and reads the other PCs' from; empty or missing while sync is off.</summary>
     public const string SyncFolder = "sync.folder";
 

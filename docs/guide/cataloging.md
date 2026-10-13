@@ -26,7 +26,7 @@ Under the cover is a row of buttons for what you can do with the book:
   [Online libraries](online-libraries.md).
 - **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
 - **Open in another app**, for a protected book Bibliotaph can't read.
-- **Remove from library**, for a book you own elsewhere.
+- **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
 The **Details** tab shows:
@@ -85,6 +85,10 @@ usable while its card waits. It has two lists:
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
 
+When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
+elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+waiting.
+
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
 Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
 protected ones **Open in another app**, and **Try again** and **Try all again** give the others another go. When
@@ -106,14 +110,23 @@ version instead. Nothing is ever joined without asking unless the text is identi
 
 To join cards yourself, tick them in **Select** mode and click **Same book**. You choose which file opens.
 
-## Image packs
+## Packs
 
 A folder (or ZIP) of 20 or more images and no PDFs, such as a map pack or a set of handouts, becomes one card: an
 image pack, named after the folder. A smaller set is offered in Needs review instead. **Split into separate images**
 gives each image its own card again, and Bibliotaph remembers that. To make a pack by hand, tick images or packs in
 **Select** mode and click **Pack together**.
 
-A search for an image's file name finds its pack.
+Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
+portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
+**Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
+and its cover is still a mosaic of the first four. Opening the pack steps through its files with **Previous** and
+**Next**: PDFs open as PDFs and images as images. Its details list every file, PDFs shown by their first page, and
+**Split into separate files** gives each one its own card back, with everything you had set on it. A PDF with
+adventures marked in it can't go in a pack, since their cards name it.
+
+A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
+the pack's card.
 
 ## Adventures inside a file
 
@@ -140,6 +153,11 @@ badge on its cover saying where it is. **Also own** records where (print, a VTT,
 can take the book's page online, such as "D&D Beyond https://…", which **Open** then opens. If a file with that title
 turns up later, Needs review asks whether it's that book's file.
 
+With no file there's no page to make a cover from. **Choose a cover image…**, in the Add dialog or the book's details,
+uses a JPG, PNG or WebP picture of your own: Bibliotaph keeps a cover-sized copy, so the picture itself can move or go.
+**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't part
+of the library sync file.
+
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
 with **Import from an online library…** on the same menu. See [Online libraries](online-libraries.md).
 
@@ -154,6 +172,24 @@ or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the 
 **Settings > Vocabulary** lists the game systems, types, themes and other terms your books are filed under, with the
 other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and add or remove other names. Folder names,
 searches and what you type all go through these names.
+
+### Your tags
+
+Your tags are your own labels, and the **Your tags** tab of **Settings > Vocabulary** can find them for you. Give a tag
+a name and the words that signal it, separated by commas: **Undead** with "undead, zombie, lich", say. Bibliotaph looks
+for the words in the pages it has already read, so nothing is read again, and a book whose pages use them often enough
+gets the tag, marked **Suggested** like any other guess. Open the mark to see the words and the pages they're on.
+
+- **Often enough** means the words are on at least 3 of the book's pages, and on at least one page in 20. A passing
+  mention, or a few pages in a thick rulebook, doesn't count.
+- A word also finds words that start with it, as in search: "zombie" finds "zombies". Several words together, such as
+  "old mill", are found only together. To see what a word would find first, search for it on the **Inside documents**
+  tab.
+- **Keep this** makes the tag yours on that book. **Not right** takes it off, and it never comes back to that book,
+  even if you change the tag's words or make the tag again.
+- Changing a tag's name or words looks through your books again. **Delete tag** takes its suggestions away; books
+  where you kept it keep it.
+- New books are checked once their text has been read, scanned pages included.
 
 ## Reading a book again
 

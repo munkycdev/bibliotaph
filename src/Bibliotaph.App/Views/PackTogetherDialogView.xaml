@@ -22,7 +22,7 @@
         <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
                 ToolTip="Close (Esc)" AutomationProperties.Name="Close without packing" Command="{Binding CancelCommand}" />
         <StackPanel>
-          <TextBlock Text="IMAGE PACK" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+          <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
           <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.H2}" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,6,0,0" />
         </StackPanel>

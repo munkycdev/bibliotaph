@@ -80,6 +80,9 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
     {
         if (string.IsNullOrWhiteSpace(title)) return new PartChange(null, "Give the adventure a title.");
         if (await GetFileAsync(documentId, ct) is not { } fileId) return new PartChange(null, "Adventures can only be marked in a book's own file.");
+        // An adventure's card names its file, which a pack hides; the pack would have to be split to show it.
+        if (await entries.GetCardAsync(documentId, ct) != fileId)
+            return new PartChange(null, "This file is in a pack. Split the pack in its details to mark adventures in it.");
         if (await CheckAsync(documentId, pages, null, ct) is { } problem) return new PartChange(null, problem);
         var contentHash = suggestions.Count == 0 ? null : (await entries.GetEntryAsync(documentId, ct))?.ContentHash;
         if (await parts.AddAsync(fileId, await MarkAsync(documentId, pages, ct), title, suggestions, contentHash, ct) is not { } partId)

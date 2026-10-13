@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.IO;
 using Bibliotaph.App.Services;
 using Bibliotaph.Index;
 using Bibliotaph.Catalog;
@@ -208,18 +207,13 @@ public static class SessionPackRows
 
     /// <summary>
     /// What opens an item: its pages in the file it resolved to, keeping no reading position; a whole pack at its
-    /// first image. Null when it can't open.
+    /// first file. Null when it can't open.
     /// </summary>
     public static async Task<ViewerRequest?> RequestAsync(SessionItemRow row, string packTitle, LibraryQueries queries)
     {
         if (!row.CanOpen || row.Target.DocumentId is not { } documentId) return null;
         if (row.Cover is { IsPack: true } pack && row.Item.Range is null)
-        {
-            var images = await Task.Run(() => queries.GetPackImagesAsync(pack.EntryId));
-            if (images.Count == 0) return null;
-            var steps = images.Select(i => new PackStep(i.DocumentId, Path.GetFileNameWithoutExtension(i.Name))).ToList();
-            return new ViewerRequest(steps[0].DocumentId, steps[0].Title) { Pack = steps, PackTitle = pack.Title };
-        }
+            return ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(pack.EntryId)), pack.Title);
         return new ViewerRequest(documentId, row.Heading, row.Target.FirstPage)
         {
             SessionItem = new SessionItemOpen(row.Id, packTitle, row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage)

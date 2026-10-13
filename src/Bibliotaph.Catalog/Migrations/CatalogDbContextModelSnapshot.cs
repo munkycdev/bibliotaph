@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011210526_CatalogBinderLinks";
+    public override string LastMigrationId => "20261013170000_CatalogUserTags";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -341,6 +341,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasColumnType("TEXT")
                     .HasColumnName("content_hash");
+
+                b.Property<int?>("CoverPage")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("cover_page");
 
                 b.Property<DateTime>("CreatedUtc")
                     .HasColumnType("TEXT")
@@ -1300,6 +1304,44 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Key");
 
                 b.ToTable("sync_state");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.UserTag", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("name");
+
+                b.Property<string>("NormalizedName")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("normalized_name");
+
+                b.Property<DateTime>("UpdatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("updated_utc");
+
+                b.Property<string>("WordsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("words_json");
+
+                b.HasKey("Id");
+
+                b.HasIndex("NormalizedName")
+                    .IsUnique();
+
+                b.ToTable("user_tag");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VersionProposal", b =>
