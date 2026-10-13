@@ -1376,6 +1376,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (item is not null) await OpenDetails(item);
     }
 
+    /// <summary>Remove from library, from a card's menu: as from its details, for a book owned elsewhere only.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveFromLibrary))]
+    async Task RemoveFromLibrary(LibraryItemViewModel item)
+    {
+        if (await Task.Run(() => _elsewhere.RemoveAsync(item.EntryId)) is { } removed) await ShowRemovedAsync(item, removed);
+    }
+
+    static bool CanRemoveFromLibrary(LibraryItemViewModel? item) => item is { IsElsewhere: true };
+
     /// <summary>After "Remove from library": the library without it, and Undo beside a note saying so.</summary>
     async Task ShowRemovedAsync(LibraryItemViewModel item, RemovedEntry removed)
     {
@@ -1515,6 +1524,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (Selection.IsActive) Selection.Toggle(item);
         else await OpenDetails(item);
     }
+
+    /// <summary>A double-click on a book opens it, as Open does, with its details closed behind it. Select mode leaves it to tick.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenFromCard))]
+    async Task OpenFromCard(LibraryItemViewModel item)
+    {
+        Inspector = null;
+        await OpenBook(item);
+    }
+
+    bool CanOpenFromCard(LibraryItemViewModel? item) => !Selection.IsActive && CanOpenCard(item);
 
     /// <summary>Shift+click in Select mode: ticks every book from the last one clicked to this one.</summary>
     [RelayCommand(CanExecute = nameof(IsSelecting))]

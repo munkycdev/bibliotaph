@@ -2,8 +2,9 @@
 
 [Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Reading
 
-Bibliotaph has its own reader, so you don't need to switch to another PDF app. A book opened from the Library or Home
-opens where you left it; one opened from a search result opens at the matching page. A book you own online, such as on
+Bibliotaph has its own reader, so you don't need to switch to another PDF app. Double-click a book in the Library to
+open it, or click it once for its details and click **Open**. A book opened from the Library or Home opens where you
+left it; one opened from a search result opens at the matching page. A book you own online, such as on
 D&D Beyond, opens in the online reader instead; see [Online libraries](online-libraries.md#read-a-book-you-own-online).
 
 ## Getting around a book
