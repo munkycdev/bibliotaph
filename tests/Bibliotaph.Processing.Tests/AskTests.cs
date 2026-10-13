@@ -133,13 +133,14 @@ public sealed class AskTests : IAsyncLifetime
         await store.SetPageTextAsync(_book, [.. texts.Select((t, i) => new PageTextRow(i, t, "pdf", 1, t.Length == 0))], Ct);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        // Asking checks for missing vectors in the background; on Windows its open index.db would stop the delete.
+        if (_ask.FillOf(_book) is { Running: true }) await FilledAsync();
         _ask.Dispose();
         _writer.Dispose();
         SqliteConnection.ClearAllPools();
         Directory.Delete(_dir, recursive: true);
-        return ValueTask.CompletedTask;
     }
 
     Task SetUpAsync(string? embeddingModel, bool enabled = true, IReadOnlySet<long>? skipped = null) =>
