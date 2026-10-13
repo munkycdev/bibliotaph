@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Your tags can find themselves.** In **Settings > Vocabulary > Your tags**, give a tag the words that signal it
+  ("Undead": undead, zombie, lich) and every book whose pages use them often enough gets it as a suggestion, without
+  reading any file again. New books are checked as they're read, and a tag you reject on a book stays rejected.
 - **Collapse the sidebar** to its icons with the button beside Settings or **Ctrl+B**. It stays the way you left it.
 - **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
   letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box

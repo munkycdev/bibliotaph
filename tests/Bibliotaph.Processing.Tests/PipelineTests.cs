@@ -66,6 +66,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     PartProposalService _proposals = null!;
     CorrectionStore _correctionStore = null!;
     FolderRules _folderRules = null!;
+    UserTagService _userTags = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -126,13 +127,15 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model);
         await _ai.LoadAsync(Ct);
+        _userTags = new UserTagService(new UserTagStore(contexts), _metadataStore, new UserTagQueries(_index), projector);
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading, parts: _parts, proposals: _proposals);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
-                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints, parts: _parts), _matchGate),
+                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints, parts: _parts,
+                    tags: _userTags), _matchGate),
             ],
             new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
@@ -144,6 +147,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await _service.StopAsync(CancellationToken.None);
         _service.Dispose();
         _elsewhere.Dispose();
+        _userTags.Dispose();
         await _writer.StopAsync(CancellationToken.None);
         _writer.Dispose();
         await _workers.DisposeAsync();

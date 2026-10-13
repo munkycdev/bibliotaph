@@ -291,7 +291,7 @@ public sealed class SyntheticPdfs : IDisposable
     static readonly (string Title, int Page)[] QuietCompilationOutline = [("Credits", 0), ("The Bell Tower", 1), ("Fog Market", 3), ("Appendix: Fog Beasts", 5)];
 
     /// <summary>A page per entry, each line drawn as real text, with top-level bookmarks if any.</summary>
-    static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
+    public static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
     {
         using var document = new PdfDocument();
         var font = new XFont(EmbeddedFontResolver.Family, 12);
