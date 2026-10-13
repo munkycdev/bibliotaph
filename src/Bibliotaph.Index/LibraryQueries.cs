@@ -68,6 +68,12 @@ public sealed record LibraryEntry(
     /// <summary>The place <see cref="OnlineLink"/> is on: "D&amp;D Beyond".</summary>
     public string? OnlineLabel { get; init; }
 
+    /// <summary>
+    /// An adventure a search found while adventures stay inside their books: its card shows its file's cover (<see
+    /// cref="Cover"/>) with an Adventure ribbon, and stands in for its file's card.
+    /// </summary>
+    public bool FoundInBook { get; init; }
+
     /// <summary>"in The Big Compilation · pp. 34–52", for an adventure's card; null for any other.</summary>
     public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
@@ -121,7 +127,9 @@ public enum AiFilter
 /// cref="Durations"/> keep books with any of those terms (unknown is none), and <see cref="Players"/> books written for
 /// that many players; as for levels, books nobody has counted players for don't match. <see cref="Stores"/> keeps books
 /// to get from any of those stores. <see cref="HideParts"/> leaves out the adventures inside files ("Adventures inside
-/// files: Hide"), whose page hits then go with their files.
+/// files: Hide"), whose page hits then go with their files. <see cref="PartsInBooks"/> keeps them inside their books
+/// instead: the library without a search leaves them out, as their files' cards and details list them, while a search
+/// shows those it finds, each on its file's cover and in place of its file's card when both are found.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -140,7 +148,8 @@ public sealed record LibraryFilter(
     IReadOnlyCollection<string>? Durations = null,
     int? Players = null,
     IReadOnlyCollection<string>? Stores = null,
-    bool HideParts = false);
+    bool HideParts = false,
+    bool PartsInBooks = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -210,7 +219,8 @@ public sealed class LibraryQueries(IndexDatabase database)
             LEFT JOIN entry_meta pm ON pm.entry_id = pe.entry_id LEFT JOIN doc pd ON pd.document_id = pe.document_id
             WHERE pe.entry_id = e.parent_id) END AS ParentTitle,
         CASE WHEN e.kind = 'Part' THEN (SELECT fp.label FROM page fp WHERE fp.document_id = e.document_id AND fp.pdf_page = e.first_page) END AS FirstLabel,
-        CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel
+        CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel,
+        CASE WHEN e.kind = 'Part' THEN d.cover END AS FileCover
         """;
 
     /// <summary>
@@ -233,17 +243,13 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> ListAsync(LibraryFilter filter, SearchPlan? plan = null, int? limit = null, CancellationToken ct = default)
     {
-        var where = new Where(filter, plan ?? new SearchPlan(), titleAsFilter: true);
+        plan ??= new SearchPlan();
+        var where = new Where(filter, plan, titleAsFilter: true);
         if (limit is { } count) where.Parameters.Add("limit", count);
-        var sql = $"""
-            SELECT {EntryColumns}
-            FROM {Entries} {EntryJoin}
-            WHERE {where.Sql}
-            ORDER BY {Order(filter.Sort, relevance: null)}
-            {(limit is null ? "" : "LIMIT @limit")}
-            """;
+        var sql = Found(null, EntryColumns, $"{Entries} {EntryJoin}", where.Sql, Order(filter.Sort, relevance: null), limit is not null,
+            filesGiveWay: filter.PartsInBooks && !plan.IsEmpty);
         await using var connection = database.OpenRead();
-        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
+        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)), filter.PartsInBooks);
     }
 
     /// <summary>
@@ -266,19 +272,20 @@ public sealed class LibraryQueries(IndexDatabase database)
             """ : "";
         // One row per card, its best hit: SQLite takes the bare columns from the row min() picks. The hits are
         // materialized, since bm25() can't run once flattened into the grouping.
-        var sql = $"""
-            WITH hit AS MATERIALIZED (
+        var sql = Found(
+            $"""
+            hit AS MATERIALIZED (
                 SELECT rowid AS entry_id, {DocRank} AS rank, NULL AS member, NULL AS member_document FROM entry_fts WHERE entry_fts MATCH @match
                 {members})
-            SELECT {EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId
-            FROM (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
+            """,
+            $"{EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId",
+            $"""
+            (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
             JOIN entry_doc e ON e.entry_id = h.entry_id LEFT JOIN doc d ON d.document_id = e.document_id {EntryJoin}
-            WHERE {where.Sql}
-            ORDER BY {Order(filter.Sort, relevance: "h.rank")}
-            LIMIT @limit
-            """;
+            """,
+            where.Sql, Order(filter.Sort, relevance: "h.rank"), limit: true, filesGiveWay: filter.PartsInBooks);
         await using var connection = database.OpenRead();
-        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
+        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)), filter.PartsInBooks);
     }
 
     /// <summary>
@@ -447,7 +454,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             },
             cancellationToken: ct))).ToDictionary(h => h.PageId);
 
-        var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct)).ToDictionary(e => e.EntryId.Value);
+        var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct, filter.PartsInBooks)).ToDictionary(e => e.EntryId.Value);
         var found = shown
             .Where(b => entries.ContainsKey(b.Entry))
             .Select(b => new EntryHits(
@@ -544,14 +551,47 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await GetEntriesAsync(connection, entryIds.Select(e => e.Value), ct);
     }
 
-    static async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, IEnumerable<long> entryIds, CancellationToken ct) =>
+    static async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, IEnumerable<long> entryIds, CancellationToken ct,
+        bool partsInBooks = false) =>
         ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(
             $"""
             SELECT {EntryColumns}
             FROM {Entries} {EntryJoin}
             WHERE e.entry_id IN (SELECT value FROM json_each(@ids))
             """,
-            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct)));
+            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct)), partsInBooks);
+
+    /// <summary>
+    /// The query for the cards <paramref name="where"/> keeps, after any common table expressions <paramref
+    /// name="with"/> needs, in <paramref name="order"/> and at most @limit of them when <paramref name="limit"/> is set.
+    /// With <paramref name="filesGiveWay"/>, a file one of whose adventures is found too is left out: the adventure is
+    /// what was looked for, and its card shows the file's cover.
+    /// </summary>
+    static string Found(string? with, string columns, string from, string where, string order, bool limit, bool filesGiveWay)
+    {
+        var top = limit ? "LIMIT @limit" : "";
+        if (!filesGiveWay)
+            return $"""
+                {(with is null ? "" : "WITH " + with)}
+                SELECT {columns}
+                FROM {from}
+                WHERE {where}
+                ORDER BY {order}
+                {top}
+                """;
+        // The order is kept as a number, since the files are left out of what was found, sorted, before the limit.
+        return $"""
+            WITH {(with is null ? "" : with + ",")}
+            found AS MATERIALIZED (
+                SELECT {columns}, row_number() OVER (ORDER BY {order}) AS FoundOrder
+                FROM {from}
+                WHERE {where})
+            SELECT * FROM found f
+            WHERE NOT EXISTS (SELECT 1 FROM found c WHERE c.EntryKind = 'Part' AND c.ParentId = f.EntryId)
+            ORDER BY f.FoundOrder
+            {top}
+            """;
+    }
 
     static string Order(LibrarySort sort, string? relevance) => sort switch
     {
@@ -562,8 +602,13 @@ public sealed class LibraryQueries(IndexDatabase database)
         _ => "coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
     };
 
-    static List<LibraryEntry> ToEntries(IEnumerable<EntryRow> rows) =>
-        [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
+    /// <summary>
+    /// The cards of these rows. With <paramref name="partsInBooks"/>, an adventure found shows its file's cover rather
+    /// than its own first page, so it reads as part of that book.
+    /// </summary>
+    static List<LibraryEntry> ToEntries(IEnumerable<EntryRow> rows, bool partsInBooks = false) =>
+        [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount,
+            partsInBooks && r.EntryKind == nameof(EntryKind.Part) ? r.FileCover ?? r.Cover : r.Cover, r.FolderHint,
             r.AddedUtc.Length == 0 ? DateTime.MinValue : Utc(r.AddedUtc),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
@@ -578,6 +623,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             Parts = (int)r.Parts,
             OnlineLink = r.OnlineLink,
             OnlineLabel = r.OnlineLabel,
+            FoundInBook = partsInBooks && r.EntryKind == nameof(EntryKind.Part),
         })];
 
     /// <summary>
@@ -653,6 +699,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? ParentTitle { get; init; }
         public string? FirstLabel { get; init; }
         public string? LastLabel { get; init; }
+        public string? FileCover { get; init; }
     }
 
     sealed class HitRow
@@ -724,6 +771,8 @@ public sealed class LibraryQueries(IndexDatabase database)
 
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
             if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
+            // Kept inside their books, adventures show only when a search finds them; browsing lists them in their files.
+            else if (filter.PartsInBooks && plan.IsEmpty) _sql.Append(" AND e.kind <> 'Part'");
 
             if (filter.Ai != AiFilter.All)
                 _sql.Append($" AND e.entry_id {(filter.Ai == AiFilter.Read ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_ai)");

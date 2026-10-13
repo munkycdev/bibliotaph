@@ -12,8 +12,10 @@ namespace Bibliotaph.App.Services;
 static partial class SmokeTest
 {
     /// <summary>
-    /// The smoke PDF's Chapter One bookmark indexed as its own adventure from the reader's Contents panel: its card
-    /// says which file and page it is on and the file's card counts it; a page in it is found under it, and one outside
+    /// The smoke PDF's Chapter One bookmark indexed as its own adventure from the reader's Contents panel. Kept inside
+    /// its book, as the Library starts, it has no card while browsing and the file's card counts it; a search for it
+    /// shows it on the file's cover with the Adventure ribbon, and its card opens its details. Shown as cards, its
+    /// card says which file and page it is on and the file's card counts it; a page in it is found under it, and one outside
     /// it under the file. Opened from that hit, the reader names both, shades its bookmark, says where in it the page
     /// is, and Find looks in it unless Whole file is ticked. Its details remove it and Undo brings it back. Then, with
     /// a second adventure, Select mode's Remove adventures takes both away, Undo brings them back, and they are removed
@@ -49,9 +51,27 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
 
-        // Its card, beside its file's, and the file's card counting it.
+        // Inside its book: no card of its own while browsing, the file's card counting it; found by a search, on the
+        // file's cover with the ribbon, and its card opens its details.
         library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
-        await WaitUntilAsync(window, () => Part() is { Title: Title } && File() is { PartsLabel: "1 adventure" },
+        if (library.PartsChoice.Value != AdventureCards.InBooks) throw new InvalidOperationException($"The Library starts with adventures “{library.PartsChoice.Label}”.");
+        await WaitUntilAsync(window, () => Part() is null && File() is { PartsLabel: "1 adventure" },
+            () => "Browsing the Library shows the adventure's card, or its file doesn't count it.");
+        search.Search("mill wheel");
+        await WaitUntilAsync(window, () => Part() is { Title: Title, IsFoundInBook: true }
+                && Descendants<FrameworkElement>(window).Any(e => e.Name == "AdventureRibbon" && e.IsVisible),
+            () => "Searching for the adventure didn't show it on its file's cover with the Adventure ribbon.");
+        await AuditAsync(window, "an adventure found inside its book");
+        await library.OpenDetailsCommand.ExecuteAsync(Part()!);
+        await WaitUntilAsync(window, () => library.Inspector is { IsPart: true } && library.Inspector.Item.Title == Title,
+            () => "The adventure's card didn't open its own details.");
+        library.CloseDetailsCommand.Execute(null);
+        search.Search("");
+
+        // Shown as cards: its card, beside its file's, and the file's card counting it.
+        void ShowAsCards() => library.PartsChoice = library.PartsChoices.First(c => c.Value == AdventureCards.Cards);
+        ShowAsCards();
+        await WaitUntilAsync(window, () => Part() is { Title: Title, IsFoundInBook: false } && File() is { PartsLabel: "1 adventure" },
             () => "The Library doesn't show the adventure's card and its file counting it.");
         var file = File()!;
         if (Part()!.Meta != $"in {file.Title} · p. 1" || !file.Meta.Contains("1 adventure", StringComparison.Ordinal))
@@ -91,6 +111,7 @@ static partial class SmokeTest
 
         // Its details: Remove adventure shows its file's, with Undo, which brings it back.
         library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
+        ShowAsCards();
         await WaitUntilAsync(window, () => Part() is not null, () => "The Library doesn't show the adventure after the reader.");
         await library.OpenDetailsCommand.ExecuteAsync(Part()!);
         await WaitUntilAsync(window, () => library.Inspector is { IsPart: true } && Shown(window, "RemoveThisPart"), () => "The adventure's details don't offer Remove adventure.");
@@ -137,6 +158,7 @@ static partial class SmokeTest
         await library.RemoveSelectedPartsCommand.ExecuteAsync(null);
         library.StopSelectingCommand.Execute(null);
         await WaitUntilAsync(window, () => Parts().Length == 0 && File() is { PartsLabel: "" }, () => "Removing the adventures left their cards.");
+        library.PartsChoice = library.PartsChoices[0];
     }
 
     /// <summary>

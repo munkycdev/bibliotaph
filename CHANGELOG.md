@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Adventures stay inside their book** while you browse the Library: the anthology's card says how many it holds and
+  its details list them. A search still finds each adventure, shown with its book's cover and an **Adventure** ribbon,
+  in place of the book when both match. **Adventures inside files** in More filters shows them as cards again.
+
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 

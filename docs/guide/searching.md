@@ -9,7 +9,9 @@ results update as you type, in the Library.
 
 Every search has two tabs:
 
-- **Documents**: the books, maps and handouts that match, by their title, details, notes or text.
+- **Documents**: the books, maps and handouts that match, by their title, details, notes or text. An adventure inside
+  an anthology that matches shows with its book's cover and an **Adventure** ribbon, in place of the book. See
+  [Adventures inside a file](cataloging.md#adventures-inside-a-file).
 - **Inside documents**: the pages that match, grouped by book, each with a snippet of the page around your words.
   Click **Open page** and the book opens at that page, with your words highlighted. The **+** on a page adds it to
   your current binder.
@@ -92,7 +94,8 @@ three groups:
 - **The adventure**: **Style** and **Duration**, once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
 - **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
-  read it), **Copies** (books in more than one file) and **Adventures inside files**.
+  read it), **Copies** (books in more than one file) and **Adventures inside files** (inside their book, shown as
+  cards of their own, or hidden).
 
 While they're folded away, **More filters** says how many of them are on, such as "More filters · 1".
 
