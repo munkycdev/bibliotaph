@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bibliotaph.Catalog.Migrations;
 
 [DbContext(typeof(CatalogDbContext))]
-[Migration("20261013120000_CatalogUserTags")]
+[Migration("20261013170000_CatalogUserTags")]
 partial class CatalogUserTags
 {
     /// <inheritdoc />
