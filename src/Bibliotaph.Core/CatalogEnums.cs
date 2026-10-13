@@ -172,6 +172,22 @@ public enum FolderRuleState
     Off,
 }
 
+/// <summary>
+/// What became of a folder Needs review asked about making a collection from. A folder with any answer isn't asked
+/// about again.
+/// </summary>
+public enum FolderCollectionState
+{
+    /// <summary>Made into a collection that follows the folder: books that land in the folder later join it.</summary>
+    Linked,
+
+    /// <summary>Made into a collection that the user has since changed by hand, so it no longer follows the folder.</summary>
+    Unlinked,
+
+    /// <summary>Never: no collection, and the folder isn't asked about again.</summary>
+    Declined,
+}
+
 /// <summary>The user's answer to "You own X elsewhere. Is this its file?" in Needs review.</summary>
 public enum ElsewhereAnswer
 {

@@ -124,6 +124,8 @@ static partial class SmokeTest
                 () => AddElsewhereAsync(services, window, books));
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
+            await Check("a folder of three books proposed as a collection in Needs review, made with Accept and undone",
+                () => MakeFolderCollectionAsync(services, window, books));
             await Check("a download checked against the library, file by file, without adding it", () => CheckDownloadAsync(services, window, books, smokeFiles));
             await Check("an online library's saved page previewed, imported with its links and covers, and undone", () => ImportOnlineLibraryAsync(services, window, books));
             await Check("a book read online in the online reader, its note kept, popped out and brought back", () => ReadOnlineBookAsync(services, window));

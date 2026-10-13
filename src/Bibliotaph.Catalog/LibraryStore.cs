@@ -730,6 +730,24 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         return [.. rows.Where(r => FolderKey.Of(folder.RootId, r.RelativePath) == folder).Select(r => new EntryId(r.EntryId)).Distinct()];
     }
 
+    /// <summary>
+    /// The books from every folder at once, as <see cref="GetEntriesInFolderAsync"/> finds them for one, with the path of
+    /// the library folder each is in. Files inside ZIPs don't count: a ZIP isn't a folder.
+    /// </summary>
+    public async Task<IReadOnlyList<(FolderKey Folder, string RootPath, IReadOnlyList<EntryId> Books)>> GetBooksByFolderAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId != null && f.ContainerId == null && f.State != FileLocationState.Missing
+                && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .SelectMany(f => f.Document!.Sources.Where(s => s.FirstPdfPage == null && s.Entry.Kind == EntryKind.Whole && s.Entry.ParentEntryId == null
+                && s.Entry.MergedIntoEntryId == null), (f, s) => new { f.SourceRootId, RootPath = f.SourceRoot.Path, f.RelativePath, s.EntryId })
+            .ToListAsync(ct);
+        return [.. rows
+            .GroupBy(r => FolderKey.Of(r.SourceRootId, r.RelativePath))
+            .Select(g => (g.Key, g.First().RootPath, (IReadOnlyList<EntryId>)[.. g.Select(r => new EntryId(r.EntryId)).Distinct()]))];
+    }
+
     /// <summary>The relative path of every file the library shows, with its document, for the folder label list.</summary>
     public async Task<IReadOnlyList<(long DocumentId, string RelativePath)>> GetRelativePathsAsync(CancellationToken ct = default)
     {

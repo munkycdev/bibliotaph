@@ -65,6 +65,9 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     PartProposalService _proposals = null!;
     CorrectionStore _correctionStore = null!;
     FolderRules _folderRules = null!;
+    FolderCollectionStore _folderCollectionStore = null!;
+    CollectionsService _collectionsService = null!;
+    FolderCollections _folderCollections = null!;
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -128,6 +131,10 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading, parts: _parts, proposals: _proposals);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
+        _packs = new PackService(packStore, projector, hints);
+        _folderCollectionStore = new FolderCollectionStore(contexts);
+        _collectionsService = new CollectionsService(_collections, projector, _folderCollectionStore);
+        _folderCollections = new FolderCollections(_folderCollectionStore, library, _collections, _collectionsService, vocabulary, _packs);
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
@@ -135,7 +142,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             ],
             new FileHasher(reader), _disk, archives,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
-            packs: _packs = new PackService(packStore, projector, hints), identity: _identity, returns: _returns, parts: _parts);
+            packs: _packs, identity: _identity, returns: _returns, parts: _parts, folderCollections: _folderCollections);
     }
 
     public async ValueTask DisposeAsync()

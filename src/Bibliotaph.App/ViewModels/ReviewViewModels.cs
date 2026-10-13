@@ -30,6 +30,7 @@ public interface IReviewActions
     Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item);
     void FixCorrection(CorrectionItem item);
     Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use);
+    Task<Func<Task>> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -642,6 +643,41 @@ public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabul
 
     [RelayCommand]
     Task NoRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, false), $"No rule for “{FolderName}”. Bibliotaph won't suggest this one again.");
+
+    [RelayCommand]
+    void ShowFolder() => Actions.ShowFolder(Path);
+}
+
+/// <summary>
+/// A folder that could be a collection: "Make a collection “X” from these 12 books?". Accept makes it, and books that
+/// land in the folder later join it until the user adds or removes one by hand; Not now puts the card away until the
+/// list is made again; Never isn't asked again.
+/// </summary>
+public sealed partial class FolderCollectionCardViewModel(FolderCollectionProposal proposal, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public FolderCollectionProposal Proposal { get; } = proposal;
+
+    public string Title => Proposal.Name;
+
+    string Books => Proposal.Books.Count.ToString("N0", CultureInfo.CurrentCulture);
+
+    public string Heading => $"Make a collection “{Proposal.Name}” from these {Books} books?";
+
+    public string Detail => "Books that land in this folder later join it too, until you add or remove a book by hand."
+        + (Proposal.ParentName is { } parent ? $" It goes inside “{parent}”, made from the folder above." : "");
+
+    public string Path => Proposal.FullPath;
+
+    [RelayCommand]
+    Task Accept() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Accept), $"Made the collection “{Proposal.Name}” with {Books} books.");
+
+    [RelayCommand]
+    Task NotNow() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.NotNow),
+        $"“{Proposal.Name}” can wait. It's asked about again the next time this list is made.");
+
+    [RelayCommand]
+    Task Never() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Never),
+        $"No collection from “{Proposal.Name}”. Bibliotaph won't ask about this folder again.");
 
     [RelayCommand]
     void ShowFolder() => Actions.ShowFolder(Path);

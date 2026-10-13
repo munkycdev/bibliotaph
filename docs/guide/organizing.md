@@ -28,6 +28,23 @@ A collection gathers books around a campaign, a setting or an idea, such as "Win
 
 Every change shows **Undo** for a moment.
 
+### Collections from folders
+
+If you already keep books together in folders, Needs review offers to make those folders collections: "Make a
+collection “Ashen Vale” from these 12 books?" for each folder with three or more books directly in it.
+
+- **Accept** makes the collection, named after the folder, with its books. Books that land in the folder later join it
+  by themselves, until you add or remove a book by hand; after that it's an ordinary collection. **Undo** takes it away
+  again.
+- A folder inside another that you made a collection from becomes a collection inside that one.
+- **Not now** puts the card away until Needs review makes its list again (when you click **Show the new list**, or the
+  next time you start Bibliotaph). **Never** means that folder isn't asked about again.
+- Folders named only after what the books are, such as "D&D 5e", "Pathfinder" or "Adventures", aren't offered: those
+  are already filters. Neither is a folder whose books are all in one collection already.
+- Bibliotaph remembers your answers by the folder's place inside your library folder, so they still hold when a drive
+  letter changes. The collections travel to your other PCs with library sync like any other; whether one follows its
+  folder is kept on each PC.
+
 ## Pins
 
 Pin anything you go back to often, and it shows in the sidebar's **Pinned** group and on Home. You can pin a book,

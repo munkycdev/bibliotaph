@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011210526_CatalogBinderLinks";
+    public override string LastMigrationId => "20261013180000_CatalogFolderCollections";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -204,6 +204,46 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("ContentHash", "Model", "PromptVersion");
 
                 b.ToTable("classification_run");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionFolder", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<long?>("CollectionId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("collection_id");
+
+                b.Property<DateTime>("DecidedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("decided_utc");
+
+                b.Property<string>("Folder")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("folder");
+
+                b.Property<long>("SourceRootId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("source_root_id");
+
+                b.Property<string>("State")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("state");
+
+                b.HasKey("Id");
+
+                b.HasIndex("CollectionId")
+                    .IsUnique();
+
+                b.HasIndex("SourceRootId", "Folder")
+                    .IsUnique();
+
+                b.ToTable("collection_folder");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionItem", b =>
@@ -1454,6 +1494,20 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsRequired();
 
                 b.Navigation("Entry");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionFolder", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.CollectionNode", null)
+                    .WithMany()
+                    .HasForeignKey("CollectionId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                b.HasOne("Bibliotaph.Catalog.Entities.SourceRoot", null)
+                    .WithMany()
+                    .HasForeignKey("SourceRootId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CollectionItem", b =>

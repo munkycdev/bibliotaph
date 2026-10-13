@@ -506,6 +506,24 @@ public sealed class CollectionItem
     public DateTime AddedUtc { get; set; }
 }
 
+/// <summary>
+/// A folder Needs review asked about making a collection from, and the answer. A linked collection gains the books
+/// that land in the folder later. The folder is named by its library folder and its path under it, so a drive letter
+/// that changes doesn't lose it; the row stays on this PC, while the collection itself travels in the library sync
+/// file as any other does.
+/// </summary>
+public sealed class CollectionFolder
+{
+    public long Id { get; set; }
+    public long SourceRootId { get; set; }
+    /// <summary>The folder's path under the library folder, as the file locations spell it.</summary>
+    public required string Folder { get; set; }
+    public FolderCollectionState State { get; set; }
+    /// <summary>The collection made from it; null when declined, or when the user has deleted that collection since.</summary>
+    public long? CollectionId { get; set; }
+    public DateTime DecidedUtc { get; set; }
+}
+
 /// <summary>A book marked with a heart.</summary>
 public sealed class Favorite
 {

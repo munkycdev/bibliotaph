@@ -385,6 +385,35 @@
       </Border>
     </DataTemplate>
 
+    <!-- A folder that could be a collection: Accept, Not now and Never. -->
+    <DataTemplate DataType="{x:Type vm:FolderCollectionCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="Collection?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding ShowFolderCommand}" ToolTip="Show in File Explorer"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Show {0} in File Explorer'}" />
+            </DockPanel>
+            <TextBlock x:Name="FolderCollectionHeading" Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" />
+            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <WrapPanel Margin="0,16,0,0">
+              <Button x:Name="AcceptFolderCollection" Style="{StaticResource Bt.Button.Primary}" Content="Accept" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding AcceptCommand}" Margin="0,0,8,8" ToolTip="Make the collection, with this folder's books" />
+              <Button Content="Not now" Command="{Binding NotNowCommand}" Margin="0,0,8,8" ToolTip="Ask again the next time this list is made" />
+              <Button Content="Never" Command="{Binding NeverCommand}" Margin="0,0,8,8" ToolTip="No collection. Bibliotaph won't ask about this folder again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- A file that looks like a compilation (slice 5b): its adventures, ticked, with Accept, Edit and Not split. -->
     <DataTemplate DataType="{x:Type vm:PartProposalCardViewModel}">
       <Border Style="{StaticResource Card}">

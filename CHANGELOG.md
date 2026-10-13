@@ -6,6 +6,8 @@
   with one Undo for them all.
 - **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
   field, with a count for each.
+- **Collections from folders**: Needs review offers to make a folder of three or more books a collection, nested as
+  the folders are. Books that land in the folder later join it, until you change its books by hand.
 
 ## 1.0.0 · 12 October 2026
 
