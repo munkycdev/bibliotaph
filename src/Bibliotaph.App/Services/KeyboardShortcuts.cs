@@ -20,6 +20,7 @@ public static class KeyboardShortcuts
             new("Ctrl+K", "Search the library"),
             new("Ctrl+/", "Show these keyboard shortcuts"),
             new("Alt+Left, or the mouse's back button", "Go back"),
+            new("Ctrl+B", "Collapse or expand the sidebar"),
             new("Alt+Space", "The window menu, with About Bibliotaph"),
         ]),
         new("Search box",
