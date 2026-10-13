@@ -111,8 +111,9 @@ public interface IEmbeddingClient
 /// <summary>
 /// One adapter over HttpClient and System.Text.Json, with no SDK. It asks Ollama's own version call first; an endpoint
 /// that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
-/// OpenAI-compatible chat completions with a JSON-schema response format. It sends only what it is given: no tools, no
-/// functions, nothing from any other file. Embeddings go to Ollama's own embed call, or the OpenAI-compatible one.
+/// OpenAI-compatible chat completions with a JSON-schema response format. Either way it asks the model not to think
+/// before it answers. It sends only what it is given: no tools, no functions, nothing from any other file. Embeddings
+/// go to Ollama's own embed call, or the OpenAI-compatible one.
 /// </summary>
 public sealed class LocalModelClient : IModelClient, IEmbeddingClient
 {
@@ -120,6 +121,9 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
     readonly Func<string?> _apiKey;
     readonly JsonObject? _extras;
     EndpointKind? _kind;
+
+    /// <summary>The server refused the switch that turns a model's thinking off, so this client no longer sends it.</summary>
+    bool _thinkingRefused;
 
     /// <param name="http">Shared; its timeout has to allow for a model loading and reading a long excerpt.</param>
     /// <param name="endpoint">As the user typed it: "http://localhost:11434", or ".../v1".</param>
@@ -256,11 +260,15 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             };
             if (schema is not null) body["format"] = schema;
             if (request.MaxTokens is { } ollamaMax) body["options"]!["num_predict"] = ollamaMax;
-            if (stream) return await StreamAsync(new Uri(Root, "api/chat"), body, request.Progress!, ollama: true, ct);
-            using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), body, ct);
-            var json = await ReadJsonAsync(response, ct);
-            return json?["message"]?["content"]?.GetValue<string>()
-                ?? throw new ClassifierAnswerException("The model's answer was empty.");
+            if (!_thinkingRefused) body[OllamaThink] = false;
+            return await ThinkingOffAsync(body, OllamaThink, async chat =>
+            {
+                if (stream) return await StreamAsync(new Uri(Root, "api/chat"), chat, request.Progress!, ollama: true, ct);
+                using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), chat, ct);
+                var json = await ReadJsonAsync(response, ct);
+                return json?["message"]?["content"]?.GetValue<string>()
+                    ?? throw new ClassifierAnswerException("The model's answer was empty.");
+            });
         }
 
         var request1 = new JsonObject
@@ -279,40 +287,101 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             };
         }
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;
+        // The caller's own fields win: the built-in AI already sends the switch, so it isn't sent twice or retried.
+        var ownSwitch = _extras?.ContainsKey(TemplateKwargs) != true && !_thinkingRefused;
+        if (ownSwitch) request1[TemplateKwargs] = new JsonObject { ["enable_thinking"] = false };
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
-        if (stream)
+        return await ThinkingOffAsync(request1, ownSwitch ? TemplateKwargs : null, async chat =>
         {
+            if (stream)
+            {
+                try
+                {
+                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), chat, request.Progress!, ollama: false, ct);
+                }
+                catch (ModelEndpointException ex) when (schema is not null && Refused(ex) is not null && !NamesThinkingSwitch(ex))
+                {
+                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), request.Progress!, ollama: false, ct);
+                }
+            }
+            HttpResponseMessage completion;
             try
             {
-                return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
+                completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), chat, ct);
             }
-            catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+            catch (ModelEndpointException ex) when (schema is not null && Refused(ex) is not null && !NamesThinkingSwitch(ex))
             {
-                request1 = (JsonObject)request1.DeepClone();
-                request1["response_format"] = new JsonObject { ["type"] = "json_object" };
-                return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
+                // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
+                // check doesn't care which.
+                completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), ct);
             }
-        }
-        HttpResponseMessage completion;
+            using (completion)
+            {
+                var json = await ReadJsonAsync(completion, ct);
+                return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
+                    ?? throw new ClassifierAnswerException("The model's answer was empty.");
+            }
+        });
+    }
+
+    /// <summary>Ollama's own switch for a model's thinking.</summary>
+    const string OllamaThink = "think";
+
+    /// <summary>
+    /// The OpenAI-compatible way to reach a chat template's own settings. Qwen3-style templates read
+    /// <c>enable_thinking</c> from it; servers and templates without such a setting ignore it.
+    /// </summary>
+    const string TemplateKwargs = "chat_template_kwargs";
+
+    static JsonObject JsonMode(JsonObject chat)
+    {
+        var copy = (JsonObject)chat.DeepClone();
+        copy["response_format"] = new JsonObject { ["type"] = "json_object" };
+        return copy;
+    }
+
+    /// <summary>
+    /// Sends a chat request that asks the model not to think first. A model that thinks spends its answer's tokens and
+    /// the reader's time on reasoning nobody sees, and answers the same question differently from one try to the next.
+    /// When the server refuses the switch (an older Ollama, a model without one, or a strict OpenAI-compatible server
+    /// that won't take fields it doesn't know), the request goes again once without it, and this client stops sending
+    /// it. An OpenAI-compatible server that refuses without saying why is tried without it too, but only forgets it
+    /// when that works. A refusal for some other reason, such as a context that is too long, isn't the switch's fault
+    /// and is left to the caller.
+    /// </summary>
+    /// <param name="body">The request.</param>
+    /// <param name="field">The field the switch is in, or null when the request hasn't this client's switch.</param>
+    /// <param name="send">Sends a request and reads its answer.</param>
+    async Task<string> ThinkingOffAsync(JsonObject body, string? field, Func<JsonObject, Task<string>> send)
+    {
+        if (field is null || !body.ContainsKey(field)) return await send(body);
         try
         {
-            completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), request1, ct);
+            return await send(body);
         }
-        catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+        catch (ModelEndpointException ex) when (NamesThinkingSwitch(ex) || (field == TemplateKwargs && Refused(ex) is ""))
         {
-            // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
-            // check doesn't care which.
-            request1 = (JsonObject)request1.DeepClone();
-            request1["response_format"] = new JsonObject { ["type"] = "json_object" };
-            completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), request1, ct);
-        }
-        using (completion)
-        {
-            var json = await ReadJsonAsync(completion, ct);
-            return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
-                ?? throw new ClassifierAnswerException("The model's answer was empty.");
+            if (NamesThinkingSwitch(ex)) _thinkingRefused = true;
+            var without = (JsonObject)body.DeepClone();
+            without.Remove(field);
+            var answer = await send(without);
+            _thinkingRefused = true;
+            return answer;
         }
     }
+
+    /// <summary>The server's reason for refusing the request as malformed (400), "" when it gave none, or null for any other failure.</summary>
+    static string? Refused(ModelEndpointException ex) =>
+        ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest } inner ? inner.Message : null;
+
+    /// <summary>
+    /// A 400 whose reason is the thinking switch: Ollama says the model "does not support thinking", and a strict
+    /// OpenAI-compatible server names the field it doesn't know ("Unrecognized request argument supplied:
+    /// chat_template_kwargs").
+    /// </summary>
+    static bool NamesThinkingSwitch(ModelEndpointException ex) =>
+        Refused(ex) is { Length: > 0 } reason
+        && (reason.Contains("think", StringComparison.OrdinalIgnoreCase) || reason.Contains(TemplateKwargs, StringComparison.OrdinalIgnoreCase));
 
     public async Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default)
     {
@@ -435,7 +504,8 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
         {
             var detail = await ErrorDetailAsync(response, ct);
             var status = (int)response.StatusCode;
-            var inner = new HttpRequestException(detail, null, response.StatusCode);
+            // The reason, "" when the server gave none, so a refusal can be told apart by what it is about.
+            var inner = new HttpRequestException(detail ?? "", null, response.StatusCode);
             if (status >= 500)
             {
                 var failed = $"The model server failed while answering ({status}).";

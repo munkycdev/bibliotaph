@@ -80,6 +80,12 @@ public enum AssertionOrigin
     /// Ranked above the AI, since the user made it, but still only a suggestion.
     /// </summary>
     FolderRule,
+    /// <summary>
+    /// One of the user's own tags, defined in Settings > Vocabulary with the words that signal it, guessed for a book
+    /// whose pages use those words often enough (<see cref="Metadata.UserTagRule"/>). The user made the rule, so it
+    /// ranks with a folder rule, but it stays a guess until the user keeps it.
+    /// </summary>
+    UserTag,
 }
 
 public enum AssertionState

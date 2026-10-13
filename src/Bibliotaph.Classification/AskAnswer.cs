@@ -22,8 +22,11 @@ public enum AnswerPartKind
     Unsupported,
 }
 
-/// <summary>A piece of a checked answer: its kind, its text, and for a citation the PDF page it opens and the words to mark there.</summary>
-public sealed record AnswerPart(AnswerPartKind Kind, string Text, int? PdfPage = null, string? Phrase = null);
+/// <summary>
+/// A piece of a checked answer: its kind, its text, and for a citation the PDF page it opens and the words to mark
+/// there, and, in an answer from the whole library, the book (document) that page is in.
+/// </summary>
+public sealed record AnswerPart(AnswerPartKind Kind, string Text, int? PdfPage = null, string? Phrase = null, long? DocumentId = null);
 
 /// <summary>
 /// An answer after the citation and quote checks: its pieces in order, whether the model said the pages don't answer

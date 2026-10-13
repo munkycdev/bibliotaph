@@ -229,5 +229,5 @@ public sealed record SearchPlan
     }
 
     /// <summary>An FTS5 string: double quotes with any inside doubled. The tokenizer splits it into words.</summary>
-    static string Quote(string text) => "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+    internal static string Quote(string text) => "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 }

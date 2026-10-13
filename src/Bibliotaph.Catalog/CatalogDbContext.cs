@@ -40,6 +40,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<AskTurn> AskTurns => Set<AskTurn>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
     public DbSet<FolderRule> FolderRules => Set<FolderRule>();
+    public DbSet<UserTag> UserTags => Set<UserTag>();
     public DbSet<SyncState> SyncStates => Set<SyncState>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
@@ -161,6 +162,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(r => new { r.SourceRootId, r.Folder, r.Field, r.Value }).IsUnique();
             e.HasOne<SourceRoot>().WithMany().HasForeignKey(r => r.SourceRootId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<UserTag>(e => e.HasIndex(t => t.NormalizedName).IsUnique());
 
         modelBuilder.Entity<PageRef>(e =>
         {

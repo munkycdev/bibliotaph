@@ -1344,6 +1344,44 @@ partial class CatalogFolderCollections
                 b.ToTable("sync_state");
             });
 
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.UserTag", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("name");
+
+                b.Property<string>("NormalizedName")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("normalized_name");
+
+                b.Property<DateTime>("UpdatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("updated_utc");
+
+                b.Property<string>("WordsJson")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("words_json");
+
+                b.HasKey("Id");
+
+                b.HasIndex("NormalizedName")
+                    .IsUnique();
+
+                b.ToTable("user_tag");
+            });
+
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VersionProposal", b =>
             {
                 b.Property<long>("Id")

@@ -42,12 +42,6 @@ public sealed class PinOpener(LibraryPages library, SessionPages binders, Reader
         }
     }
 
-    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel book)
-    {
-        if (!book.IsPack) return book.BookRequest();
-        var images = await Task.Run(() => queries.GetPackImagesAsync(book.EntryId));
-        if (images.Count == 0) return null;
-        var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
-        return new ViewerRequest(pack[0].DocumentId, pack[0].Title) { Pack = pack, PackTitle = book.Title };
-    }
+    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel book) =>
+        book.IsPack ? ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(book.EntryId)), book.Title) : book.BookRequest();
 }

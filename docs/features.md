@@ -36,6 +36,7 @@ It is made for a game master with a large, mixed collection across several game 
 
 - **First run**: add folders and start browsing at once; books appear as they are read, and Home asks **Fill in the catalog with AI?** Nothing has to be organized first.
 - **Find an adventure**: filter by system, type, level and players, add a word, open the right page, add it to a binder; or **Ask** in plain English.
+- **Look something up**: ask the library a question and get an answer citing the book and page, one click from the page itself.
 - **Find something inside a book**: search a phrase and open the matching page, with the words highlighted.
 - **Add a bundle**: copy it into a library folder; files already owned are recognized. **Check a download** says what's new before anything is copied.
 - **Prepare and run a session**: gather books and page ranges in a binder and step through them at the table.
@@ -62,11 +63,13 @@ Results have two tabs, **Documents** and **Inside documents**. Snippets are alwa
 
 **Ask** (the sparkle button, with AI set up) turns a request in plain English, such as "something creepy for four level-3 characters", into editable chips with notes on anything it changed and why. Nothing runs until **Search**, which puts the chips in the box as an ordinary search. Ask uses only the search box's own fields and the user's own words: it never adds a system, level or tag that wasn't asked for, and never fills in what isn't known.
 
+**Answer from my books** (Ctrl+Enter in Ask) answers a question from the pages of the whole library, or of the books the Library's filters and the search box's fields leave showing. Bibliotaph finds the best pages across those books by their words and, as the library is read for meaning, by meaning, takes no more than three from any one book, and the AI answers from them only. Each claim cites its book and page as a link that opens the book there; quotations are checked, and when the books don't cover the question it says so and names the closest pages. With an embedding model set, the whole library is read for meaning slowly in the background, pausing while the AI is in use and carrying on after a restart; Settings > AI shows how far it has got and can switch it off.
+
 ## Reading
 
 Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably.
 
-**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack.
+**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack; **Previous** and **Next** step through a pack with PDFs in it.
 
 **Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model (built in or on a model server), by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
 
@@ -92,7 +95,7 @@ A binder marked **Keep at hand during games** holds rules and references; from a
 | Duration | One-shot, short (2–3 sessions), long (4 or more) or campaign, only when stated |
 | Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation… |
 | Themes, environments, setting | Tone and subject; where it happens; named settings |
-| Your tags | The user's own labels, never filled by AI |
+| Your tags | The user's own labels, never filled by AI; a tag defined with its words is suggested for books whose pages use them |
 | Also own | Where else it's owned: print, a virtual tabletop, an online library, with an optional link |
 | Get it from | Where to get it again: a store, with an optional link, shared by every copy |
 
@@ -100,11 +103,13 @@ File facts (format, pages, files, copies) are shown, not edited. Unknown stays u
 
 ### Where values come from
 
-Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
+Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, the words of the user's own tags, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
 
 **Cataloged wrong…** shows every field with each guess marked **Guessed** and its evidence open. After a fix, Bibliotaph offers to fix the same guess on look-alike books in that folder; after the same value is set on three books in a folder, it offers a folder rule.
 
 **Settings > Vocabulary** holds the terms books are filed under, each with other names ("5e" for an edition, say), which folder names, searches, AI and typing all go through.
+
+**Your tags** there are the user's own, each with the words that signal it ("Undead": undead, zombie, lich). Saving one looks for the words in the pages already indexed, without reading any file again, and suggests the tag for each book whose pages use them on at least 3 pages and at least one page in 20, so a passing mention or a few pages of a thick rulebook don't count. New books are checked once their text is in. Changing a tag looks again, deleting one takes its suggestions away, and the user's own decisions win: a kept tag stays, and a rejected one never comes back to that book.
 
 ### Needs review
 
@@ -116,7 +121,7 @@ A card shows the current value, the suggestion and its evidence. Every decision 
 
 Files with the same text on every page, such as copies stamped for different buyers, become one book; **Make current** chooses which opens and **Not the same book** splits one off. A file sharing most of its pages, or its title and publisher, with a book is asked about as a new version: nothing is joined without asking unless the text is identical. **Same book** joins cards by hand.
 
-A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand.
+A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand. Packs made by hand can hold PDFs too, such as character sheets and pregens: the card reads "Pack · 6 files", opening it steps through its files (PDFs open as PDFs), their pages are found under the pack, and **Split into separate files** gives each its card back. Only images are ever packed automatically.
 
 ### Adventures inside a file
 

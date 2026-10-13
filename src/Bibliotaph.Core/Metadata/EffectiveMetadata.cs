@@ -87,7 +87,7 @@ public sealed class EffectiveMetadata
     public static int Priority(AssertionOrigin origin) => origin switch
     {
         AssertionOrigin.User => 100,
-        AssertionOrigin.FolderRule => 60,
+        AssertionOrigin.FolderRule or AssertionOrigin.UserTag => 60,
         AssertionOrigin.Ai => 50,
         AssertionOrigin.Rule => 30,
         AssertionOrigin.Embedded => 20,

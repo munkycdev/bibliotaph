@@ -25,6 +25,7 @@
     <KeyBinding Key="OemQuestion" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
     <KeyBinding Key="Divide" Modifiers="Control" Command="{x:Static c:ShellCommands.ShowShortcuts}" />
     <KeyBinding Gesture="Alt+Left" Command="{Binding GoBackCommand}" />
+    <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
     <KeyBinding Key="BrowserBack" Command="{Binding GoBackCommand}" />
   </Window.InputBindings>
 
@@ -34,8 +35,21 @@
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
-    <!-- .bt-sidebar -->
-    <Border Width="210" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0" Padding="13,27,13,18">
+    <!-- .bt-sidebar; folded (Ctrl+B), it keeps only the icons, each with its name as a tooltip. -->
+    <Border x:Name="Sidebar" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0"
+            c:Ui.Compact="{Binding IsSidebarCollapsed}">
+      <Border.Style>
+        <Style TargetType="Border">
+          <Setter Property="Width" Value="210" />
+          <Setter Property="Padding" Value="13,27,13,18" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSidebarCollapsed}" Value="True">
+              <Setter Property="Width" Value="64" />
+              <Setter Property="Padding" Value="8,27,8,18" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
       <!-- The brand and the foot stay put, and so does the navigation between them; the pins scroll on a short window. -->
       <Grid>
         <Grid.RowDefinitions>
@@ -43,23 +57,29 @@
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <!-- .bt-brand -->
-        <Button Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
-                AutomationProperties.Name="Bibliotaph home" Cursor="Hand" Margin="0,0,0,26"
-                FocusVisualStyle="{StaticResource Bt.FocusVisual}">
-          <Button.Template>
-            <ControlTemplate TargetType="Button">
-              <StackPanel Orientation="Horizontal" Background="Transparent" Margin="4,0">
-                <Border Width="30" Height="34" CornerRadius="3,9,3,3" Background="{DynamicResource Bt.Text}">
-                  <TextBlock Text="b." FontFamily="{StaticResource Font.Display}" FontSize="31" Foreground="{DynamicResource Bt.Bg}"
-                             HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,3" />
-                </Border>
-                <TextBlock Text="Bibliotaph" FontFamily="{StaticResource Font.Display}" FontSize="23" Margin="10,0,0,0"
-                           VerticalAlignment="Center" Foreground="{DynamicResource Bt.Text}" />
-              </StackPanel>
-            </ControlTemplate>
-          </Button.Template>
-        </Button>
+        <!-- .bt-brand; folded, the unfold button takes its place, so folding adds no height to a short window. -->
+        <Grid Margin="0,0,0,26">
+          <Button Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
+                  AutomationProperties.Name="Bibliotaph home" Cursor="Hand" HorizontalAlignment="Left"
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+                  Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <Button.Template>
+              <ControlTemplate TargetType="Button">
+                <StackPanel Orientation="Horizontal" Background="Transparent" Margin="4,0">
+                  <Border Width="30" Height="34" CornerRadius="3,9,3,3" Background="{DynamicResource Bt.Text}">
+                    <TextBlock Text="b." FontFamily="{StaticResource Font.Display}" FontSize="31" Foreground="{DynamicResource Bt.Bg}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,3" />
+                  </Border>
+                  <TextBlock Text="Bibliotaph" FontFamily="{StaticResource Font.Display}" FontSize="23" Margin="10,0,0,0"
+                             VerticalAlignment="Center" Foreground="{DynamicResource Bt.Text}" />
+                </StackPanel>
+              </ControlTemplate>
+            </Button.Template>
+          </Button>
+          <Button x:Name="ToggleSidebar" Style="{StaticResource Bt.IconButton}" HorizontalAlignment="Center" Command="{Binding ToggleSidebarCommand}"
+                  ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}" c:Ui.Icon="{StaticResource Icon.PanelLeft}"
+                  Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        </Grid>
 
         <!-- The main navigation stays put; the Pinned group below it scrolls on its own (Pinned Views plan, choice 10). -->
         <Grid Grid.Row="1">
@@ -86,7 +106,8 @@
             is dragged to a new place, with a line where it will land, or moved with Alt+Up and Alt+Down or its menu.
           -->
           <DockPanel Grid.Row="1" Margin="0,22,0,0">
-            <TextBlock DockPanel.Dock="Top" Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6" />
+            <TextBlock DockPanel.Dock="Top" Text="PINNED" Style="{StaticResource Text.Eyebrow}" Margin="10,0,0,6"
+                       Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
             <TextBlock x:Name="NoPins" DockPanel.Dock="Top" Text="Right-click a book, collection or binder and choose Pin." FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource Bt.Muted}" Margin="10,0,10,0">
               <TextBlock.Style>
@@ -95,6 +116,9 @@
                   <Style.Triggers>
                     <DataTrigger Binding="{Binding Pinned.Count}" Value="0">
                       <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSidebarCollapsed}" Value="True">
+                      <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
                   </Style.Triggers>
                 </Style>
@@ -182,7 +206,7 @@
             <!-- A DockPanel, not a StackPanel, so the line wraps in the sidebar's width. -->
             <DockPanel>
               <Ellipse DockPanel.Dock="Left" Width="6" Height="6" VerticalAlignment="Top" Margin="0,5,0,0" Fill="{DynamicResource Bt.Accent}" />
-              <StackPanel Margin="8,0,0,0">
+              <StackPanel Margin="8,0,0,0" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
                 <TextBlock Text="Update ready: restart to update" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding Updates.ReadyText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0" />
               </StackPanel>
@@ -220,7 +244,7 @@
                   </Style>
                 </Ellipse.Style>
               </Ellipse>
-              <StackPanel Margin="8,0,0,0">
+              <StackPanel Margin="8,0,0,0" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
                 <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" />
                 <!-- Folders that can't be reached (4g): their books stay, dimmed and marked Offline. -->
                 <TextBlock x:Name="OfflineFolders" Text="{Binding Activity.OfflineText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
@@ -228,10 +252,16 @@
               </StackPanel>
             </StackPanel>
           </Button>
-          <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
-                  c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}"
-                  Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                  CommandParameter="{Binding Route}" />
+          <!-- Open, the fold button sits beside Settings; folded, it moves up to where the brand was. -->
+          <DockPanel>
+            <Button x:Name="FoldSidebar" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" Margin="4,0,0,0"
+                    Command="{Binding ToggleSidebarCommand}" ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}"
+                    c:Ui.Icon="{StaticResource Icon.PanelLeft}" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+            <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
+                    c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}"
+                    Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding Route}" />
+          </DockPanel>
         </StackPanel>
       </Grid>
     </Border>
@@ -298,7 +328,9 @@
       <!--
         Ask's panel, under the top bar while Ask is on: what to do, a reading in progress, or the request read as chips
         (field and an editable value, or words to find) with notes on anything changed or left out, and Search, which
-        puts the chips in the box as query text and runs it. Without AI it says Ask needs it, with a link to Settings > AI.
+        puts the chips in the box as query text and runs it. Or, with Answer from my books (Ctrl+Enter), the request as a
+        question answered from the pages of the books the Library shows, each citation opening its book at its page.
+        Without AI it says Ask needs it, with a link to Settings > AI.
       -->
       <Border x:Name="PlainSearchPanel" Grid.Row="1" DataContext="{Binding PlainSearch}" Background="{DynamicResource Bt.Panel}"
               BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="24,12,18,12"
@@ -341,6 +373,51 @@
             <Button x:Name="PlainSearchSetUpAi" Style="{StaticResource Bt.Link}" Content="Set AI up in Settings" c:Ui.Icon="{StaticResource Icon.Settings2}"
                     Margin="0,6,0,0" Command="{Binding OpenAiSettingsCommand}"
                     Visibility="{Binding NeedsAi, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+            <Button x:Name="LibraryAskButton" Style="{StaticResource Bt.Link}" Content="Answer from my books" c:Ui.Icon="{StaticResource Icon.BookOpen}"
+                    Margin="0,6,0,0" Command="{Binding AnswerCommand}"
+                    CommandParameter="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                    ToolTip="Answer this question from the pages of the books the Library shows (Ctrl+Enter)" AutomationProperties.Name="Answer from my books"
+                    Visibility="{Binding NeedsAi, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+            <!-- The answer from the library: the question, the answer with citations to book and page, and the pages it was read from. -->
+            <ScrollViewer x:Name="LibraryAskAnswerArea" DataContext="{Binding Library}" MaxHeight="440" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Focusable="False" Visibility="{Binding IsShown, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding Asked}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                <DockPanel Margin="0,4,0,0" Visibility="{Binding Step, Converter={StaticResource Bt.VisibleWhenSet}}">
+                  <Button x:Name="LibraryAskStop" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Stop" Command="{Binding StopCommand}"
+                          ToolTip="Stop the answer here" AutomationProperties.Name="Stop answering"
+                          Visibility="{Binding IsAnswering, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <TextBlock x:Name="LibraryAskStep" Text="{Binding Step}" Style="{StaticResource Text.Small}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" />
+                </DockPanel>
+                <!-- Each citation names its book and page, and opens that book there; a quotation not on its page is in italics, without its marks. -->
+                <TextBlock x:Name="LibraryAskAnswer" c:AnswerText.Parts="{Binding Answer}" c:AnswerText.Command="{Binding OpenCitationCommand}" FontSize="13"
+                           Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" LineHeight="19" Margin="0,8,0,0" AutomationProperties.Name="The answer"
+                           Visibility="{Binding HasAnswer, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="LibraryAskMessage" Text="{Binding Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Visibility="{Binding Message, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                <TextBlock x:Name="LibraryAskPassagesHeading" Text="{Binding PassagesHeading}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Muted}"
+                           TextWrapping="Wrap" Margin="0,14,0,6" Visibility="{Binding HasPassages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <ItemsControl x:Name="LibraryAskPassages" ItemsSource="{Binding Passages}" Focusable="False" AutomationProperties.Name="Pages that look like they answer it"
+                              KeyboardNavigation.TabNavigation="Continue">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:LibraryAskPassageRow}">
+                      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                        <StackPanel>
+                          <Button Style="{StaticResource Bt.Link}" Content="{Binding Link}" HorizontalAlignment="Left"
+                                  ToolTip="Open this book at this page, with the matching word marked" AutomationProperties.Name="{Binding AccessibleName}"
+                                  Command="{Binding DataContext.GoToCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                          <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                          <TextBlock Text="{Binding Found}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="LibraryAskCoverage" Text="{Binding CoverageText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Visibility="{Binding CoverageText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              </StackPanel>
+            </ScrollViewer>
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Visibility="{Binding IsReading, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <ProgressBar Style="{StaticResource Bt.ProgressBar}" IsIndeterminate="True" Width="160" VerticalAlignment="Center"
                            AutomationProperties.Name="Reading your question" />

@@ -101,6 +101,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>The page the open file's card shows as its cover.</summary>
     int _coverPage;
     readonly PagePlaces _places;
+    readonly AskService _ask;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly DispatcherTimer _noticeTimer;
@@ -159,6 +160,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         _covers = services.Covers;
         _activity = services.Activity;
         _places = services.Places;
+        _ask = services.Ask;
         _log = services.Log;
         _windows = windows;
         Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
@@ -223,6 +225,10 @@ public sealed partial class ViewerViewModel : PageViewModel
         ShowPart();
         OnPropertyChanged(nameof(IsInPack));
         OnPropertyChanged(nameof(PackPosition));
+        OnPropertyChanged(nameof(PreviousStepName));
+        OnPropertyChanged(nameof(NextStepName));
+        OnPropertyChanged(nameof(PreviousStepTip));
+        OnPropertyChanged(nameof(NextStepTip));
         PreviousImageCommand.NotifyCanExecuteChanged();
         NextImageCommand.NotifyCanExecuteChanged();
         await LoadAsync();
@@ -305,34 +311,57 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>The book's title; for an adventure inside a file, its own and the file's.</summary>
     public override string Title => _request is { Part: { } part } request ? $"{request.Title} · in {part.FileTitle}" : _request?.Title ?? "Reader";
 
-    /// <summary>True for an image opened from a pack: Previous and Next step through its images.</summary>
+    /// <summary>
+    /// True for a file opened from a pack: Previous and Next step through its files, images opening as images and
+    /// PDFs as PDFs.
+    /// </summary>
     public bool IsInPack => _request?.Pack is { Count: > 0 };
 
     int PackIndex => _request?.Pack is { } pack ? pack.ToList().FindIndex(p => p.DocumentId == _request.DocumentId) : -1;
 
-    /// <summary>"12 of 120", for an image in a pack.</summary>
+    /// <summary>What a pack's steps are: images, or files once a PDF is among them.</summary>
+    string PackNoun => _request?.Pack is { } pack && pack.Any(p => !p.IsImage) ? "file" : "image";
+
+    public string PreviousStepName => $"Previous {PackNoun}";
+
+    public string NextStepName => $"Next {PackNoun}";
+
+    /// <summary>The arrow keys step only from an image: on a PDF they move about its pages.</summary>
+    public string PreviousStepTip => PackNoun == "image" ? "Previous image (Left arrow)" : "Previous file in the pack";
+
+    public string NextStepTip => PackNoun == "image" ? "Next image (Right arrow)" : "Next file in the pack";
+
+    /// <summary>"12 of 120", for a file in a pack.</summary>
     public string PackPosition => _request?.Pack is { } pack
         ? $"{(PackIndex + 1).ToString("N0", CultureInfo.CurrentCulture)} of {pack.Count.ToString("N0", CultureInfo.CurrentCulture)}"
         : "";
 
-    /// <summary>The previous image in the pack (Left arrow).</summary>
+    /// <summary>The previous file in the pack (Left arrow, from an image).</summary>
     [RelayCommand(CanExecute = nameof(CanGoToPreviousImage))]
     Task PreviousImage() => StepAsync(-1);
 
     bool CanGoToPreviousImage() => IsInPack && PackIndex > 0;
 
-    /// <summary>The next image in the pack (Right arrow).</summary>
+    /// <summary>The next file in the pack (Right arrow, from an image).</summary>
     [RelayCommand(CanExecute = nameof(CanGoToNextImage))]
     Task NextImage() => StepAsync(1);
 
     bool CanGoToNextImage() => _request?.Pack is { } pack && PackIndex >= 0 && PackIndex < pack.Count - 1;
 
-    /// <summary>Shows the image <paramref name="by"/> places on in the pack, at the same zoom.</summary>
+    /// <summary>
+    /// Shows the file <paramref name="by"/> places on in the pack: an image at the same zoom, a PDF at its first page.
+    /// A PDF being read is closed first; an image stays in view until the next file is ready.
+    /// </summary>
     async Task StepAsync(int by)
     {
         if (_request?.Pack is not { } pack) return;
         var next = PackIndex + by;
         if (next < 0 || next >= pack.Count) return;
+        if (Mode != ViewerMode.Image)
+        {
+            CloseBook();
+            _resume = null;
+        }
         _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0, SessionItem = null, PageNote = null };
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(PackPosition));
@@ -713,6 +742,22 @@ public sealed partial class ViewerViewModel : PageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Keeping the page of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>
+    /// Starts making the book's vectors for Ask this book while it is read, when Ask is on with an embedding model and
+    /// the book's folder isn't kept from AI, so a question finds the same pages the first time as the second.
+    /// </summary>
+    async Task PrepareAskAsync(long documentId)
+    {
+        try
+        {
+            await Task.Run(() => _ask.PrepareAsync(documentId));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Starting the Ask vectors of document {DocumentId} failed", documentId);
         }
     }
 
@@ -1398,7 +1443,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             PageCount = doc.PageCount;
             ShowPart();
             CanCopy = doc.CanCopy;
-            Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
+            var pdfLine = $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}";
+            Subtitle = DescribeSource(source, request.PackTitle is { } packTitle ? $"{pdfLine} in {packTitle}" : pdfLine);
 
             // An ordinary open goes back to the page the book was left at; Back, to the page as it was.
             var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;
@@ -1423,6 +1469,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             Mode = ViewerMode.Pdf;
             Ask.Attach(source.DocumentId);
             if (request.Ask && Ask.IsOn) AskVisible = true;
+            _ = PrepareAskAsync(source.DocumentId);
             _ = LoadPageNotesAsync();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");

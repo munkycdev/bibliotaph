@@ -1034,15 +1034,15 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- A pack's images (F4): click one to open it, then step through the rest; or split the pack. -->
+            <!-- A pack's files, images and PDFs: click one to open it, then step through the rest; or split the pack. -->
             <StackPanel Visibility="{Binding IsPack, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <DockPanel Margin="0,28,0,10">
-                <Button x:Name="SplitPack" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Split into separate images"
-                        ToolTip="Give every image its own card again. Bibliotaph won't pack this folder again."
+                <Button x:Name="SplitPack" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding SplitPackLabel}"
+                        ToolTip="{Binding SplitPackTip}"
                         Command="{Binding SplitPackCommand}" />
                 <TextBlock Text="{Binding PackImagesHeading}" Style="{StaticResource DrawerHead}" VerticalAlignment="Center" />
               </DockPanel>
-              <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="Images in the pack"
+              <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="{Binding PackImagesName}"
                             KeyboardNavigation.TabNavigation="Continue">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -1060,7 +1060,15 @@
                           <StackPanel Background="Transparent">
                             <Border x:Name="Thumb" Height="88" CornerRadius="4" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}"
                                     BorderThickness="1" ClipToBounds="True">
-                              <Image Source="{Binding Tile.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                              <Grid>
+                                <Image Source="{Binding Tile.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                                <!-- A PDF in the pack shows its first page, marked as a PDF; it opens in the reader. -->
+                                <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                        Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+                                        Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                  <TextBlock Text="PDF" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+                                </Border>
+                              </Grid>
                             </Border>
                             <TextBlock Text="{Binding Name}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                           </StackPanel>
