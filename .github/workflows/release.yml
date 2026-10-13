@@ -100,7 +100,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installing vpk failed.' }
 
       # The latest published release's full package, so vpk pack can make a delta from it. Anonymous, as the app
-      # checks, so drafts and pre-releases are never the base. With no release yet, vpk says so and exits 0.
+      # checks, so drafts and pre-releases are never the base. With no release yet, vpk says so and exits 0. A delta
+      # only saves download size, so a release whose full package can't be fetched (1.0.0 was published without
+      # one) just gets none.
       - name: Download the latest release
         shell: pwsh
         env:
@@ -109,7 +111,10 @@ jobs:
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           ./.tools/vpk download github --repoUrl $env:REPO_URL --channel win --outputDir releases
-          if ($LASTEXITCODE -ne 0) { throw 'Downloading the latest release failed.' }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'The latest release has no full package to download, so this release has no delta.'
+            Remove-Item releases -Recurse -Force -ErrorAction SilentlyContinue
+          }
 
       # Installs per user into %LOCALAPPDATA%\BibliotaphApp, apart from the library in %LOCALAPPDATA%\Bibliotaph
       # (AppPaths.PackId; a test fails if the two ever meet). Unsigned for now (choice 5).
@@ -124,23 +129,34 @@ jobs:
             --runtime win-x64 --channel win --noPortable --outputDir releases
           if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed.' }
 
-      # This build's files as vpk listed them (Setup.exe, the full package, a delta when there was a release before),
-      # and a feed of just those, which is what vpk upload github would send: the feed vpk wrote also lists the
-      # downloaded package, which belongs to the earlier release.
+      # This build's entries in the feed vpk wrote (the full package, and a delta when there was a release before),
+      # their files, Setup.exe, and a feed of just those entries, which is what vpk upload github would send: the
+      # feed vpk wrote also lists the downloaded package, which belongs to the earlier release. The notes are this
+      # MAJOR.MINOR's section of CHANGELOG.md, followed by GitHub's list of merged pull requests.
       - name: Draft the GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.number }}
         run: |
-          $built = @(Get-Content releases/assets.win.json -Raw | ConvertFrom-Json | ForEach-Object { $_.RelativeFileName })
-          if ($built.Count -eq 0) { throw 'vpk listed no files.' }
           $feed = Get-Content releases/releases.win.json -Raw | ConvertFrom-Json
-          $feed.Assets = @($feed.Assets | Where-Object { $_.FileName -in $built })
+          $feed.Assets = @($feed.Assets | Where-Object { $_.Version -eq $env:VERSION })
+          if (-not ($feed.Assets | Where-Object { $_.Type -eq 'Full' })) { throw "vpk made no full package for $env:VERSION." }
           New-Item -ItemType Directory feed | Out-Null
           $feed | ConvertTo-Json -Depth 10 -Compress | Set-Content feed/releases.win.json -Encoding utf8NoBOM
-          $files = @($built | ForEach-Object { Join-Path releases $_ }) + 'feed/releases.win.json'
-          gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" --generate-notes
+          $files = @($feed.Assets | ForEach-Object { Join-Path releases $_.FileName }) + 'releases/BibliotaphApp-win-Setup.exe' + 'feed/releases.win.json'
+          foreach ($file in $files) { if (-not (Test-Path $file)) { throw "$file is missing." } }
+
+          $minor = $env:VERSION -replace '\.\d+$', ''
+          $lines = Get-Content CHANGELOG.md
+          $start = [array]::FindIndex($lines, [Predicate[string]] { param($l) $l -match "^## $([regex]::Escape($minor))( |$)" })
+          if ($start -lt 0) { throw "CHANGELOG.md has no '## $minor' section." }
+          $end = [array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($l) $l.StartsWith('## ') })
+          if ($end -lt 0) { $end = $lines.Count }
+          ($lines[($start + 1)..($end - 1)] -join "`n").Trim() | Set-Content notes.md -Encoding utf8NoBOM
+
+          gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" `
+            --notes-file notes.md --generate-notes
           if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed.' }
 
       - name: Upload test results
