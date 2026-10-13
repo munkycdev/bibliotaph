@@ -11,7 +11,8 @@ it into the smoke test's files.
 
 `demiplane-sources.html` is a Demiplane game's Sources page (a Nexus's Source Library): three source cards, two
 unlocked (with the View button) and one only for sale. Their covers are saved files named as Edge names them
-(`cover.jpg`, `cover(1).jpg`), as every Demiplane cover is called `cover.jpg`.
+(`cover.jpg`, `cover(1).jpg`), as every Demiplane cover is called `cover.jpg`. The live page links each card relative to the site
+(`/nexus/…`), as the second card does; a page saved by a browser may have them absolute, as the first card does.
 
 `humble-library.html` is Humble Bundle's library with eBook chosen under Platform: two products, each with its icon,
 name and publisher, and no link of its own.
