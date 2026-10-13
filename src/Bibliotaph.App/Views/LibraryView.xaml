@@ -551,6 +551,7 @@
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
+               c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource CoverItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemsPanel>
@@ -598,6 +599,7 @@
       <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
+               c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemTemplate>

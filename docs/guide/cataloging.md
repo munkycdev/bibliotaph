@@ -26,7 +26,7 @@ Under the cover is a row of buttons for what you can do with the book:
   [Online libraries](online-libraries.md).
 - **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
 - **Open in another app**, for a protected book Bibliotaph can't read.
-- **Remove from library**, for a book you own elsewhere.
+- **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
 The **Details** tab shows:
