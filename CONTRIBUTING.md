@@ -23,7 +23,7 @@ dotnet run --project src\Bibliotaph.App
 
 Until .NET 11's general release (due November 2026), Bibliotaph builds on the release candidate: `global.json` asks
 for the RC SDK, `DotNetPackagesVersion` in `Directory.Packages.props` names the RC packages, and the workflows install
-the SDK with `dotnet-quality: preview`. At GA all three move to the GA versions.
+that exact SDK version. At GA all three move to the GA versions.
 
 The app keeps its databases and logs in `%LOCALAPPDATA%\Bibliotaph`. To try it against a throwaway folder instead:
 

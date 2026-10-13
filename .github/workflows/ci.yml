@@ -26,11 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # .NET 11 is in release candidate until November 2026; switch dotnet-quality to ga then.
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with
+      # dotnet-quality ga then.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '11.0.x'
-          dotnet-quality: preview
+          dotnet-version: '11.0.100-rc.2.26504.105'
 
       - uses: actions/cache@v4
         with:
