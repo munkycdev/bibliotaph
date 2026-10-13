@@ -90,7 +90,8 @@ static partial class SmokeTest
                 || !answer.Any(p => p.Kind == AnswerPartKind.Quote) || !answer.Any(p => p.Kind == AnswerPartKind.Unsupported)
                 || answer.Any(p => p.Text.Contains("999", StringComparison.Ordinal)))
                 throw new InvalidOperationException($"The answer wasn't checked as it should be: {string.Join(" | ", answer.Select(p => $"{p.Kind}:{p.Text}"))}");
-            if (viewer.Ask.PassagesHeading != "Read from page 1") throw new InvalidOperationException($"The pages are headed “{viewer.Ask.PassagesHeading}”.");
+            // The vectors may already be made by now, so a page found only by meaning can join the dragon's page.
+            if (viewer.Ask.PassagesHeading is not ("Read from page 1" or "Read from pages 1 and i" or "Read from pages i and 1")) throw new InvalidOperationException($"The pages are headed “{viewer.Ask.PassagesHeading}”.");
             if (viewer.Ask.CoverageText?.Contains("pages have text", StringComparison.Ordinal) != true)
                 throw new InvalidOperationException($"The panel says “{viewer.Ask.CoverageText}” about the book's text.");
             await AuditAsync(window, "the reader's Ask panel with an answer");
