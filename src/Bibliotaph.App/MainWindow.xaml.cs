@@ -46,6 +46,13 @@ public partial class MainWindow : Window
         HookUpSearchGuide();
     }
 
+    // Ask's answer scrolls within half the window, so a short window keeps the panel whole above the page.
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        if (sizeInfo.HeightChanged) LibraryAskAnswerArea.MaxHeight = Math.Clamp(sizeInfo.NewSize.Height / 2, 120, 440);
+    }
+
     void FocusSearch()
     {
         Search.Focus();
