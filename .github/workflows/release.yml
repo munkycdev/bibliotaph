@@ -115,6 +115,8 @@ jobs:
             Write-Warning 'The latest release has no full package to download, so this release has no delta.'
             Remove-Item releases -Recurse -Force -ErrorAction SilentlyContinue
           }
+          # The runner fails a pwsh step on the last native exit code, even one handled above.
+          exit 0
 
       # Installs per user into %LOCALAPPDATA%\BibliotaphApp, apart from the library in %LOCALAPPDATA%\Bibliotaph
       # (AppPaths.PackId; a test fails if the two ever meet). Unsigned for now (choice 5).
