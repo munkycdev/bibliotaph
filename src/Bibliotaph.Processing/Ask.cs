@@ -77,7 +77,7 @@ public sealed record AskFill(int Done, int Total, bool Running, string? Problem)
 /// </summary>
 public sealed class AskService(
     AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, EntryStore entries, AskHistoryStore history,
-    ILogger<AskService>? log = null, AskRetrievalOptions? options = null) : IDisposable
+    ILogger<AskService>? log = null, AskRetrievalOptions? options = null, AiUse? use = null) : IDisposable
 {
     /// <summary>A turn's checked pieces as kept: kinds by name, so catalog.db reads sensibly in any SQLite tool.</summary>
     static readonly JsonSerializerOptions PartsJson = new() { Converters = { new JsonStringEnumConverter() } };
@@ -89,6 +89,9 @@ public sealed class AskService(
     readonly AskRetrievalOptions _options = options ?? new AskRetrievalOptions();
     readonly ConcurrentDictionary<long, AskFill> _fills = new();
     readonly SemaphoreSlim _fillGate = new(1, 1);
+
+    /// <summary>Books opened or asked whose vectors wait for the gate: the library's background reading gives way to them.</summary>
+    int _waitingFills;
     readonly CancellationTokenSource _stopping = new();
 
     /// <summary>Whether a book can be asked at all: AI is set up and on. With AI off, the panel is hidden.</summary>
@@ -130,6 +133,7 @@ public sealed class AskService(
     public async Task<AskFindings> FindAsync(long documentId, string question, CancellationToken ct = default)
     {
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
+        using var busy = use?.Begin();
         var started = Stopwatch.GetTimestamp();
         var setup = ai.Setup;
         var embedder = ai.Embedder;
@@ -226,6 +230,7 @@ public sealed class AskService(
         var model = ai.Setup.ModelName;
         if (client is null || model is null) throw new AskUnavailableException("Ask this book uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
+        using var busy = use?.Begin();
         var pages = PromptPages(findings);
         var user = AskPrompt.UserMessage(findings.Question, pages, earlier);
         var started = Stopwatch.GetTimestamp();
@@ -251,6 +256,7 @@ public sealed class AskService(
         if (earlier.Count == 0) return (followUp, false);
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
         if (ai.Chat is not { } client || ai.Setup.ModelName is not { } model) return (followUp, false);
+        using var busy = use?.Begin();
         try
         {
             var reply = await client.CompleteAsync(new ModelRequest(model, AskPrompt.RewriteSystemMessage, AskPrompt.RewriteUserMessage(earlier, followUp), null,
@@ -324,14 +330,31 @@ public sealed class AskService(
         if (_fills.TryGetValue(documentId, out var fill) && fill.Running) return;
         _fills[documentId] = new AskFill(fill?.Done ?? 0, fill?.Total ?? 0, true, null);
         FillChanged?.Invoke(this, documentId);
-        _ = Task.Run(() => FillAsync(documentId, _stopping.Token));
+        Interlocked.Increment(ref _waitingFills);
+        _ = Task.Run(() => FillAsync(documentId, null, waiting: true, _stopping.Token));
+    }
+
+    /// <summary>
+    /// Makes the vectors of a book the library's background reading has reached, as a book opened in the reader has
+    /// them made, one book at a time with those. Between batches it gives way when <paramref name="giveWay"/> says so,
+    /// or a book being opened or asked is waiting, and stops, keeping what it made; the next call carries on from
+    /// there. Returns how far the book got, or null when it couldn't start (the app is closing, or the book is already
+    /// being done).
+    /// </summary>
+    public async Task<AskFill?> FillInBackgroundAsync(long documentId, Func<bool> giveWay, CancellationToken ct = default)
+    {
+        if (!HasEmbeddingModel || _stopping.IsCancellationRequested) return null;
+        if (_fills.TryGetValue(documentId, out var fill) && fill.Running) return null;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct, _stopping.Token);
+        return await FillAsync(documentId, () => Volatile.Read(ref _waitingFills) > 0 || giveWay(), waiting: false, stop.Token);
     }
 
     /// <summary>
     /// Makes vectors for the book's pages that have text and none from the current model, a few pages at a time, and
-    /// first drops those another model made. Stops at the first failure, saying why; asking again carries on.
+    /// first drops those another model made. Stops at the first failure, saying why; asking again carries on. With
+    /// <paramref name="giveWay"/>, also stops quietly between batches when it says so. Null when it never started.
     /// </summary>
-    async Task FillAsync(long documentId, CancellationToken ct)
+    async Task<AskFill?> FillAsync(long documentId, Func<bool>? giveWay, bool waiting, CancellationToken ct)
     {
         var made = 0;
         var started = Stopwatch.GetTimestamp();
@@ -343,8 +366,10 @@ public sealed class AskService(
         }
         catch (OperationCanceledException)
         {
-            return;
+            if (waiting) Interlocked.Decrement(ref _waitingFills);
+            return null;
         }
+        if (waiting) Interlocked.Decrement(ref _waitingFills);
         try
         {
             IReadOnlyDictionary<int, HeadingPath>? headings = null;
@@ -360,6 +385,7 @@ public sealed class AskService(
                 }
                 var coverage = await ask.GetCoverageAsync(documentId, model, EmbeddingText.Version, ct);
                 Report(documentId, new AskFill(coverage.WithVectors, coverage.WithText, true, null));
+                if (giveWay?.Invoke() == true) break;
                 var batch = await ask.GetPagesWithoutVectorsAsync(documentId, model, EmbeddingText.Version, FillBatch, ct);
                 if (batch.Count == 0) break;
                 if (headings is null)
@@ -381,7 +407,9 @@ public sealed class AskService(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return;
+            // Closing, or the library's reading stopped: what was made is kept, and the book shows as not being done.
+            if (_fills.TryGetValue(documentId, out var stopped)) _fills[documentId] = stopped with { Running = false };
+            return null;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -396,7 +424,9 @@ public sealed class AskService(
             _log.LogInformation("Made {Pages} page vectors for document {DocumentId} with {Model} in {Seconds:0.0} s",
                 made, documentId, model, Stopwatch.GetElapsedTime(started).TotalSeconds);
         var final = model is null ? null : await ask.GetCoverageAsync(documentId, model, EmbeddingText.Version, CancellationToken.None);
-        Report(documentId, new AskFill(final?.WithVectors ?? 0, final?.WithText ?? 0, false, problem));
+        var done = new AskFill(final?.WithVectors ?? 0, final?.WithText ?? 0, false, problem);
+        Report(documentId, done);
+        return done;
     }
 
     void Report(long documentId, AskFill fill)

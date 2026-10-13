@@ -46,6 +46,13 @@ public partial class MainWindow : Window
         HookUpSearchGuide();
     }
 
+    // Ask's answer scrolls within half the window, so a short window keeps the panel whole above the page.
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        if (sizeInfo.HeightChanged) LibraryAskAnswerArea.MaxHeight = Math.Clamp(sizeInfo.NewSize.Height / 2, 120, 440);
+    }
+
     void FocusSearch()
     {
         Search.Focus();
@@ -62,13 +69,19 @@ public partial class MainWindow : Window
     }
 
     // Enter searches at once; Esc clears the search and leaves the box. With the field guide open, the arrow keys
-    // move its highlight, Enter or Tab picks it, and Esc closes the guide first. In Ask mode, Enter reads the request
-    // and Esc leaves Ask, keeping the text.
+    // move its highlight, Enter or Tab picks it, and Esc closes the guide first. In Ask mode, Enter reads the request,
+    // Ctrl+Enter answers it from the library's pages, and Esc leaves Ask, keeping the text.
     void Search_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (DataContext is not ShellViewModel shell) return;
         if (shell.PlainSearch.IsOn)
         {
+            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                _ = shell.PlainSearch.AnswerAsync(shell.SearchText);
+                e.Handled = true;
+                return;
+            }
             if (Keyboard.Modifiers != ModifierKeys.None) return;
             if (e.Key == Key.Enter)
             {

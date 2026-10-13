@@ -234,7 +234,10 @@ public partial class App : Application
             smokeTest ? SmokeModel.ClientsFor(sp.GetRequiredService<IApiKeyStore>()) : null,
             sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey)));
         builder.Services.AddSingleton<AskQueries>();
+        builder.Services.AddSingleton(sp => new AiUse(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<AskService>();
+        builder.Services.AddSingleton<LibraryAskQueries>();
+        builder.Services.AddSingleton<LibraryAskService>();
         builder.Services.AddSingleton<ExampleFinder>();
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
@@ -278,6 +281,9 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
+        // Reading the whole library for meaning, slowly and last of all.
+        builder.Services.AddSingleton<LibraryVectors>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryVectors>());
         // Library sync: after indexing, so it stops first and writes this PC's file one last time.
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
@@ -293,6 +299,7 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryFolders>();
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
+        builder.Services.AddSingleton<LibraryAskScope>();
         builder.Services.AddSingleton<CoverImages>();
         // Site icons for books owned online, fetched once per site; the smoke test has a stand-in for the web.
         builder.Services.AddSingleton(sp => new SiteIcons(sp.GetRequiredService<AppPaths>(),
@@ -360,6 +367,7 @@ public partial class App : Application
         // One Settings > Online libraries, so a preview is still there after a look at the Library.
         builder.Services.AddSingleton<OnlineLibrariesViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
+        builder.Services.AddSingleton<LibraryAskViewModel>();
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.

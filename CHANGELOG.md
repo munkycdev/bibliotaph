@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Ask your library a question:** in Ask mode, **Answer from my books** (or Ctrl+Enter) answers from the pages of
+  every book the Library shows, citing each claim's book and page as a link that opens it there, and saying plainly
+  when your books don't cover it. With an embedding model, your whole library is read for meaning in the background,
+  pausing while you use the AI; **Settings > AI** shows how far it has got and can switch it off.
 - **Ask this book finds the right pages more consistently:** index and contents pages no longer crowd out the pages
   that answer, a question's rare words count for more than its common ones when deciding whether the book covers it,
   the AI answers without "thinking" first, and a book is prepared for finding by meaning as soon as it's opened.

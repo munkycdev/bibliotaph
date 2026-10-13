@@ -81,6 +81,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly NotesService _notes;
     readonly ExportService _export;
     readonly AskService _ask;
+    readonly LibraryAskScope _askScope;
     readonly CorrectionService _corrections;
     int _version;
     bool _loaded;
@@ -93,10 +94,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
         ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
-        ILogger<LibraryViewModel> log)
+        LibraryAskScope askScope, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _chosenCovers = chosenCovers;
+        _askScope = askScope;
         _parts = parts;
         _export = export;
         _ask = ask;
@@ -734,6 +736,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
                 Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice), HideParts: PartsChoice.Value,
                 Collections: CollectionChoice.Value, Picked: ChipPicks());
+            // A question to the library is about the books shown here.
+            _askScope.Set(filter, IsSearching ? Search.Query : SearchQuery.Parse(""), ActiveFilters.Select(c => c.Label));
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             var parts = await Task.Run(() => _queries.CountPartsAsync());
