@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Double-click a book** in the Library to open it; a single click still shows its details.
+- **Remove from library** is on the right-click menu of a book you own elsewhere, as well as in its details.
+- **Lists are in name order**: the filter drop-downs, the search guide's values, collections and sub-collections, the
+  Add to collection menu, and binders within each group. The sidebar's Pinned list keeps the order you dragged it into.
+- **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 - **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.

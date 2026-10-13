@@ -359,6 +359,12 @@
                             AutomationProperties.Name="Adventures inside files" MinWidth="150"
                             ToolTip="Adventures marked inside a compilation, as cards of their own; hidden, only their files show" />
                 </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding ShowCollectionChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Collection" Style="{StaticResource FieldLabel}" />
+                  <ComboBox x:Name="CollectionsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding CollectionChoices}"
+                            SelectedItem="{Binding CollectionChoice}" AutomationProperties.Name="Collection" MinWidth="150"
+                            ToolTip="Books you've put in a collection, or those in none yet" />
+                </StackPanel>
               </WrapPanel>
             </StackPanel>
           </StackPanel>
@@ -545,6 +551,7 @@
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
+               c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource CoverItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemsPanel>
@@ -592,6 +599,7 @@
       <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding SelectRangeCommand}"
+               c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
                Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <ListBox.ItemTemplate>
