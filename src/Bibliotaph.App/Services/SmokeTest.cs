@@ -159,6 +159,8 @@ static partial class SmokeTest
                 await Check("a smaller ZIP of images proposed in Needs review, packed, undone and kept separate", () => ProposePackAsync(services, window));
                 await Check("two images kept separate made a pack with Pack together, a third added, the pack merged into the tokens' pack, and Undo",
                     () => PackTogetherAsync(services, window));
+                await Check("a PDF and an image made a pack of files with Pack together, the PDF's page found under the pack, and split into separate files",
+                    () => PackFilesTogetherAsync(services, window));
                 await Check("a locked PDF and one with DRM marked on their cards, in their details and in Needs review; the protected one opened in another app; the locked one unlocked without Remember, Copy off, and searchable",
                     () => UseProtectedBooksAsync(services, window));
                 await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
@@ -1436,13 +1438,13 @@ static partial class SmokeTest
             if (page.BulkMessage != message) throw new InvalidOperationException($"Pack together says “{page.BulkMessage}”, not “{message}”.");
         }
 
-        // A book can't go in a pack, and a pack isn't a copy of a book.
+        // A PDF can go in a pack with images, but a pack isn't a copy of a book.
         var innId = DocumentOf("Haunted Inn.pdf");
         var inn = page.Items.Single(i => i.DocumentId == innId);
         page.StartSelectingCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(Handout(1));
         await page.ActivateCommand.ExecuteAsync(inn);
-        if (page.CanPackSelected) throw new InvalidOperationException("Pack together is offered for a book.");
+        if (!page.CanPackSelected) throw new InvalidOperationException("Pack together isn't offered for a PDF and an image.");
         await page.ActivateCommand.ExecuteAsync(inn);
         await page.ActivateCommand.ExecuteAsync(Card("Smoke Tokens"));
         if (page.CanJoinSelected) throw new InvalidOperationException("Same book is offered for a pack.");

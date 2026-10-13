@@ -35,7 +35,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
     [
         ("tables", "Each key under \"tables\" is a table of catalog.db with its rows; each row is its columns by name. Every table of the catalog is here."),
         ("ids", "Ids are stable: other rows refer to a row by its id (entry_id, document_id, page_ref_id, ...), and a backup restored keeps them."),
-        ("books", "An entry is a library card. Its documents are in entry_source, one of them current; a pack's images are entries whose parent_entry_id is the pack; a book owned elsewhere has no document."),
+        ("books", "An entry is a library card. Its documents are in entry_source, one of them current; a pack's files (images, and PDFs packed by hand) are entries whose parent_entry_id is the pack; a book owned elsewhere has no document."),
         ("files", "A document is one file's content, identified by content_hash: the SHA-256 of the file's bytes as 64 lowercase hex characters. file_location.relative_path is under its source_root.path; a file inside a ZIP has the ZIP's path and its own name there, entry_path, and container_id points at the ZIP's own row."),
         ("metadata", "assertion holds every value claimed for a field of an entry, with its origin (User, Ai, Folder, ...), state and evidence; the value a card shows is worked out from them, the user's own and confirmed values first. rejection holds values the user said are wrong, which never come back."),
         ("pages", "PDF pages are zero-based page indexes into the file: page_ref.first_pdf_page 0 is the file's first page. first_label and last_label are the pages' printed numbers when the book has its own."),

@@ -8,8 +8,8 @@ namespace Bibliotaph.Catalog;
 
 /// <summary>
 /// An entry and the document its card shows: the current source, which opens and supplies cover and pages, and how
-/// many copies (whole-document sources) the entry has. A pack shows its first image, and has a
-/// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> in file name order. A book owned elsewhere
+/// many copies (whole-document sources) the entry has. A pack shows its first file, and has a
+/// <see cref="Name"/> from its folder or ZIP and its <see cref="Members"/> (images and PDFs) in file name order. A book owned elsewhere
 /// has no document and no copies. An adventure inside a file shows its pages of the copy its file shows.
 /// </summary>
 public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind Kind, int Copies = 1)
@@ -34,7 +34,7 @@ public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind 
     public Guid? SyncId { get; init; }
 }
 
-/// <summary>An image in a pack: its own entry, the document it shows, and its file name.</summary>
+/// <summary>A file in a pack, an image or a PDF: its own entry, the document it shows, and its file name.</summary>
 public sealed record PackMember(EntryId EntryId, long DocumentId, string Name);
 
 /// <summary>A document, its content hash, and the whole-document entry it backs.</summary>
@@ -78,7 +78,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         (await GetEntriesAsync([documentId], ct)).TryGetValue(documentId, out var entry) ? entry : null;
 
     /// <summary>
-    /// The library card a document shows under: its whole-document entry, or for an image in a pack, the pack. Null
+    /// The library card a document shows under: its whole-document entry, or for a file in a pack, the pack. Null
     /// for a document the catalog doesn't know.
     /// </summary>
     public async Task<EntryId?> GetCardAsync(long documentId, CancellationToken ct = default)
@@ -105,7 +105,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// The entries <paramref name="documentId"/> is a copy of, with the document each one's card shows. An image in a
+    /// The entries <paramref name="documentId"/> is a copy of, with the document each one's card shows. A file in a
     /// pack shows on the pack's card instead.
     /// </summary>
     public async Task<IReadOnlyList<EntryDocument>> GetShownByAsync(long documentId, CancellationToken ct = default)
@@ -142,8 +142,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// <summary>
     /// The document each entry's card shows, for <paramref name="entryIds"/> or, when it is null, every entry with
     /// one. That is the current copy, unless none of its files is left and another copy's is: then the newest copy with
-    /// a file. An entry with no file (owned elsewhere, or joined to another) isn't listed, nor is an image in a pack:
-    /// the pack is, showing its first image that has a file, with all of them as its members. A book owned elsewhere is
+    /// a file. An entry with no file (owned elsewhere, or joined to another) isn't listed, nor is a file in a pack
+    /// (an image, or a PDF packed by hand): the pack is, showing its first file that has one, with all of them as its
+    /// members. The pages of a PDF in a pack stay searchable through the pack's members. A book owned elsewhere is
     /// listed with no document.
     /// </summary>
     public async Task<IReadOnlyList<EntryDocument>> GetCurrentAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
@@ -343,7 +344,7 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return new EntryId(join.JoinedEntryId);
     }
 
-    /// <summary>Each pack with an image that has a file: its first image, its name, and its images in file name order.</summary>
+    /// <summary>Each pack with a member that has a file: its first file, its name, and its files in file name order.</summary>
     static async Task<IEnumerable<EntryDocument>> GetPacksAsync(CatalogDbContext db, List<long> packIds, CancellationToken ct)
     {
         var rows = await Sources(db.EntrySources.AsNoTracking().Where(s => s.Entry.ParentEntryId != null && packIds.Contains(s.Entry.ParentEntryId.Value)))

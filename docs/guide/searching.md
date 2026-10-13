@@ -93,7 +93,7 @@ four groups:
 - **About the book**: **Setting**, **Themes**, **Environments**, **Publisher** and **Edition**, each a box you type in,
   once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
-- **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
+- **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
   read it), **Copies** (books in more than one file), **Adventures inside files** and **Collection** (books in a
   collection, or not in one yet).
 
