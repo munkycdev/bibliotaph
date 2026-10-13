@@ -4,6 +4,8 @@
 
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
+  field, with a count for each.
 
 ## 1.0.0 · 12 October 2026
 

@@ -319,8 +319,8 @@ static partial class SmokeTest
 
     /// <summary>
     /// Needs review's cards, the sidebar count, and Settings > Vocabulary. With <paramref name="decide"/>, it also
-    /// accepts and undoes a conflict, rejects, undoes and adds a new term, types a title, and splits One-shot out of
-    /// Adventure; otherwise it only draws them (the decisions are made by then).
+    /// accepts and undoes a conflict, rejects, undoes and adds a new term, types a title, narrows the page with Show, and
+    /// splits One-shot out of Adventure; otherwise it only draws them (the decisions are made by then).
     /// </summary>
     static async Task ReviewAsync(IServiceProvider services, Window window, bool decide)
     {
@@ -384,6 +384,17 @@ static partial class SmokeTest
             await WaitUntilAsync(window, () => version.IsDone, () => "Make it current didn't decide the new version card.");
             await version.UndoCommand.ExecuteAsync(null);
             if (version.IsDone) throw new InvalidOperationException("Undo didn't bring the new version card back.");
+
+            // Show narrows the page to one kind of card, decided ones included so their Undo stays, and Everything brings the rest back.
+            var newTerms = page.ShowChoices.FirstOrDefault(c => c.Name == "New terms") ?? throw new InvalidOperationException("Needs review's Show menu has no New terms.");
+            page.Show = newTerms;
+            await Settle(window);
+            if (!page.Cards.Contains(term) || !page.Cards.All(c => c is TermCardViewModel))
+                throw new InvalidOperationException($"Show New terms shows {string.Join(", ", page.Cards.Select(c => c.GetType().Name).Distinct())}.");
+            await AuditAsync(window, "Needs review showing new terms");
+            page.Show = page.ShowChoices[0];
+            await Settle(window);
+            if (!page.Cards.Contains(version) || !page.Cards.Contains(conflict)) throw new InvalidOperationException("Show Everything didn't bring every card back.");
         }
         page.IsFilesTab = true;
         await Settle(window);
