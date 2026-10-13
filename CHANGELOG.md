@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased
+## 1.2 · 13 October 2026
+
+Released as 1.2.N, where N counts the commits on main at the release.
 
 - **Built on .NET 11 RC2**, the second release candidate.
 - **Ask your library a question:** in Ask mode, **Answer from my books** (or Ctrl+Enter) answers from the pages of
@@ -45,6 +47,10 @@
 - **Adventures stay inside their book** while you browse the Library: the anthology's card says how many it holds and
   its details list them. A search still finds each adventure, shown with its book's cover and an **Adventure** ribbon,
   in place of the book when both match. **Adventures inside files** in More filters shows them as cards again.
+- **Fixed:** importing from Demiplane found no books, because its Sources page now links each book relative to the
+  site. Both kinds of link are read.
+- **Fixed:** a pop-out window opened from a drawer or menu could stay behind the main window; it now comes to the
+  front. The online reader's header matches the PDF reader's, and the details drawer's headings are easier to read.
 
 ## 1.0.0 · 12 October 2026
 

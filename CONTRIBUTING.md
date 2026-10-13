@@ -106,10 +106,22 @@ python tools\AppIcon\make_icon.py
 
 ## Releases
 
-A version tag `vMAJOR.MINOR.PATCH` (such as `v1.0.0`) runs `.github/workflows/release.yml`: every CI check,
+A version tag `vMAJOR.MINOR.PATCH` runs `.github/workflows/release.yml`: every CI check,
 a self-contained win-x64 publish, Velopack's pack, and a draft GitHub Release holding `BibliotaphApp-win-Setup.exe`
 and the update files. The draft stays private until it's published, and installed copies update from published
 releases only. See "Installer", "Releases" and "Updates" in [docs/architecture.md](docs/architecture.md).
+
+PATCH is the build number: the count of commits on main at the tagged commit. The workflow refuses a tag whose PATCH
+doesn't match. To tag the head of main:
+
+```powershell
+git fetch origin
+$n = git rev-list --count origin/main
+git tag "v1.2.$n" origin/main
+git push origin "v1.2.$n"
+```
+
+`Directory.Build.props` keeps `MAJOR.MINOR.0` for local builds.
 
 ## README screenshots
 
