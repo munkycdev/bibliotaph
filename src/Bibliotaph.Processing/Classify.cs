@@ -94,6 +94,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     volatile IClassifier? _classifier;
     volatile IPlainSearchInterpreter? _interpreter;
     volatile IEmbeddingClient? _embedder;
+    volatile IEmbeddingClient? _backgroundEmbedder;
     volatile IModelClient? _chat;
     volatile IModelClient? _background;
     volatile bool _scanWholeBooks = true;
@@ -131,6 +132,12 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     /// set for it, or the built-in embedding engine. Null while AI isn't ready or there is no embedding model.
     /// </summary>
     public IEmbeddingClient? Embedder => _embedder;
+
+    /// <summary>
+    /// The same embedder for vectors made in the background, whose requests don't count as the user's: they give way
+    /// on their own, and counting them would hold a whole-book scan off for as long as they run.
+    /// </summary>
+    public IEmbeddingClient? BackgroundEmbedder => _backgroundEmbedder;
 
     /// <summary>
     /// The client Ask this book's answers come from: the model server, or the built-in AI, as the classifier uses.
@@ -228,6 +235,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
                     || BuiltInModels.PathFor(setup.BuiltInEmbeddingModel, builtInEmbedding.Options.ModelsFolder) is not { } path || !File.Exists(path) ? null
                     : new BuiltInEmbeddingClient(builtInEmbedding, Http.Value, path)
             : setup.EmbeddingModel is null ? null : _clients(setup.Endpoint!) as IEmbeddingClient;
+        _backgroundEmbedder = _embedder;
         if (_embedder is { } embedder) _embedder = Activity.Track(embedder);
         Changed?.Invoke(this, EventArgs.Empty);
     }
