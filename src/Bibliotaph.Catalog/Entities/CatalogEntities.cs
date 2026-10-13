@@ -79,6 +79,11 @@ public sealed class Document
     /// decision and must survive index.db being rebuilt.
     /// </summary>
     public DateTime? TextForgottenUtc { get; set; }
+    /// <summary>
+    /// The page the user chose as the cover ("Use this page as the cover"), or null for the first page. The user's
+    /// decision, so it's kept here and survives index.db being rebuilt.
+    /// </summary>
+    public int? CoverPage { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<FileLocation> Locations { get; set; } = [];
     public List<EntrySource> Sources { get; set; } = [];

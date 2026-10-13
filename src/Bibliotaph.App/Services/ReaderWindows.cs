@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
@@ -77,6 +78,13 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
         _windows.Add(window);
         WatchMainWindow();
         window.Show();
+        // Whatever opened it can hand the focus back to the main window once the pop-out is showing: a drawer or menu
+        // closing restores the focus it had, and the main window going Back focuses its page. Activating once that
+        // has settled keeps the new window in front.
+        _ = window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            if (window.IsVisible) window.Activate();
+        });
         _ = LoadAsync(model);
     }
 

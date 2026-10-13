@@ -174,6 +174,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
         builder.Services.AddSingleton<ElsewhereService>();
+        builder.Services.AddSingleton<ChosenCovers>();
         builder.Services.AddSingleton<FavoriteStore>();
         builder.Services.AddSingleton<ReadingStore>();
         builder.Services.AddSingleton<FavoritesService>();
@@ -362,6 +363,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
+        builder.Services.AddSingleton<CoverPages>();
         builder.Services.AddSingleton<ViewerServices>();
         builder.Services.AddSingleton<ReaderWindows>();
         return builder.Build();

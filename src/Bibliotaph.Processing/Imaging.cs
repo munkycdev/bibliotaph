@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing;
@@ -21,7 +22,8 @@ public interface IImageCodec
 
 /// <summary>
 /// Covers in %LOCALAPPDATA%\Bibliotaph\cache\covers, named by content hash. Derived and disposable:
-/// deleting the folder only means covers are made again.
+/// deleting the folder only means covers are made again. The covers the user chose for books owned elsewhere are the
+/// exception: they're kept in <see cref="AppPaths.Covers"/>, and their names say so.
 /// </summary>
 public sealed class CoverCache(AppPaths paths)
 {
@@ -35,7 +37,13 @@ public sealed class CoverCache(AppPaths paths)
     /// <summary>What a cover drawn from one page of a book is kept under: an adventure's first page.</summary>
     public static string PageKey(string contentHash, int pdfPage) => string.Create(CultureInfo.InvariantCulture, $"{contentHash}-p{pdfPage}");
 
-    public string PathFor(string fileName) => Path.Combine(Folder, fileName);
+    /// <summary>Where the covers the user chose are kept.</summary>
+    public string ChosenFolder { get; } = paths.Covers;
+
+    const string ChosenPrefix = "chosen-";
+
+    public string PathFor(string fileName) =>
+        Path.Combine(fileName.StartsWith(ChosenPrefix, StringComparison.Ordinal) ? ChosenFolder : Folder, fileName);
 
     /// <summary>
     /// What a book owned elsewhere's cover is kept under: its entry's sync id, which stays the same however its card
@@ -43,19 +51,53 @@ public sealed class CoverCache(AppPaths paths)
     /// </summary>
     public static string ElsewhereKey(Guid syncId) => string.Create(CultureInfo.InvariantCulture, $"elsewhere-{syncId:N}");
 
-    /// <summary>The cover kept for a book owned elsewhere, as a name for the card, or null when it has none.</summary>
-    public string? FindElsewhere(Guid syncId) => FileName(ElsewhereKey(syncId)) is var name && File.Exists(PathFor(name)) ? name : null;
+    /// <summary>
+    /// The cover for a book owned elsewhere, as a name for the card, or null when it has none: one the user chose, else
+    /// the one from its online library.
+    /// </summary>
+    public string? FindElsewhere(Guid syncId) =>
+        FindChosen(syncId) ?? (FileName(ElsewhereKey(syncId)) is var name && File.Exists(PathFor(name)) ? name : null);
 
-    /// <summary>Writes a cover through a temporary file, so a reader never sees half of one.</summary>
+    /// <summary>The cover the user chose for a book owned elsewhere, or null when they haven't.</summary>
+    public string? FindChosen(Guid syncId) =>
+        Directory.Exists(ChosenFolder) ? Directory.EnumerateFiles(ChosenFolder, ChosenPattern(syncId)).Select(Path.GetFileName).FirstOrDefault() : null;
+
+    /// <summary>
+    /// Keeps a cover the user chose, in place of any they chose before. Its name changes with the image, so a card
+    /// showing the old one loads the new one.
+    /// </summary>
+    public string KeepChosen(Guid syncId, byte[] jpeg)
+    {
+        var name = string.Create(CultureInfo.InvariantCulture, $"{ChosenPrefix}{syncId:N}-{Convert.ToHexStringLower(SHA256.HashData(jpeg))[..12]}.jpg");
+        WriteTo(ChosenFolder, name, jpeg);
+        foreach (var old in Directory.EnumerateFiles(ChosenFolder, ChosenPattern(syncId)).Where(f => Path.GetFileName(f) != name).ToList()) File.Delete(old);
+        return name;
+    }
+
+    /// <summary>Forgets the cover the user chose, so the book shows its online library's again, or none.</summary>
+    public void DeleteChosen(Guid syncId)
+    {
+        if (!Directory.Exists(ChosenFolder)) return;
+        foreach (var file in Directory.EnumerateFiles(ChosenFolder, ChosenPattern(syncId)).ToList()) File.Delete(file);
+    }
+
+    static string ChosenPattern(Guid syncId) => string.Create(CultureInfo.InvariantCulture, $"{ChosenPrefix}{syncId:N}-*.jpg");
+
     public string Write(string contentHash, byte[] jpeg)
     {
-        Directory.CreateDirectory(Folder);
         var name = FileName(contentHash);
-        var target = PathFor(name);
+        WriteTo(Folder, name, jpeg);
+        return name;
+    }
+
+    /// <summary>Writes a cover through a temporary file, so a reader never sees half of one.</summary>
+    static void WriteTo(string folder, string name, byte[] jpeg)
+    {
+        Directory.CreateDirectory(folder);
+        var target = Path.Combine(folder, name);
         var temp = target + ".tmp";
         File.WriteAllBytes(temp, jpeg);
         File.Move(temp, target, overwrite: true);
-        return name;
     }
 
     /// <summary>

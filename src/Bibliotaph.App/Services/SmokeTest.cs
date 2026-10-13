@@ -120,7 +120,7 @@ static partial class SmokeTest
             await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
                 () => UseSmartViewsAsync(services, window, books));
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
-            await Check("a book owned elsewhere added, found by where it is owned, given a D&D Beyond link it opens with its site's icon on its badge, removed and brought back, and one offered a file already in the library",
+            await Check("a book owned elsewhere added, found by where it is owned, given a D&D Beyond link it opens with its site's icon on its badge, given a cover of its own, removed and brought back with it, the cover removed, and one offered a file already in the library",
                 () => AddElsewhereAsync(services, window, books));
             await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
@@ -541,6 +541,21 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by D&D shows {page.Items.Count} books, not 1.");
         page.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the filters didn't bring back all {books} books.");
+
+        // The edition's type-ahead filter finds the 5th edition by another of its names; picking it makes a chip in the
+        // box and above the results, whose × takes it off.
+        var edition = page.ChipFilters.Single(b => b.Field == MetadataFields.Edition);
+        await WaitUntilAsync(window, () => edition.IsOffered && page.ShowAboutFilters, () => "The Library offers no edition filter to type in.");
+        edition.Text = "5e";
+        await WaitUntilAsync(window, () => edition.Suggestions.Any(s => s.Value == "dnd-5e"), () => "Typing 5e in the edition filter didn't offer the 5th edition.");
+        edition.PickCommand.Execute(edition.Suggestions.First(s => s.Value == "dnd-5e"));
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && edition.Chips.Count == 1 && page.ActiveFilters.Any(c => c.Label == "Edition: 5th edition"),
+            () => $"Picking the 5th edition shows {page.Items.Count} books and the chips {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}.");
+        var editionChip = page.ActiveFilters.First(c => c.Label == "Edition: 5th edition");
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == editionChip.Clear && b.IsVisible), "the 5th edition chip's ×");
+        await WaitUntilAsync(window, () => page.Items.Count == books && edition.Chips.Count == 0 && !page.HasActiveFilters,
+            () => $"The 5th edition chip's × didn't bring back all {books} books.");
 
         await WaitUntilAsync(window, () => page.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
             () => "The book a model read isn't marked, or the filters don't offer the AI choice.");
@@ -2377,6 +2392,12 @@ static partial class SmokeTest
 
         await UseOnlineLinkAsync(services, window, page, card, books);
 
+        // A picture of the user's own as its cover. It's picked in a file dialog, so it's kept here as the dialog would.
+        if (await services.GetRequiredService<ChosenCovers>().KeepAsync(card.EntryId, Picture()) is { } coverProblem)
+            throw new InvalidOperationException($"Choosing a cover said: {coverProblem}");
+        await page.RefreshAsync();
+        await WaitUntilAsync(window, () => IsChosen(card) && card.HasCover, () => $"The card doesn't show the chosen cover ({card.Entry.Cover}).");
+
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveFromLibrary"), "Remove from library");
@@ -2385,6 +2406,14 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == Title && i.IsElsewhere), () => "Undo didn't bring the book back.");
 
         var back = page.Items.Single(i => i.Title == Title);
+        if (!IsChosen(back)) throw new InvalidOperationException($"Undo brought the book back without its chosen cover ({back.Entry.Cover}).");
+        await page.OpenDetailsCommand.ExecuteAsync(back);
+        await WaitUntilAsync(window, () => page.Inspector is { HasChosenCover: true }, () => "The details don't offer Remove the cover.");
+        await Settle(window);
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveCover"), "Remove the cover");
+        await WaitUntilAsync(window, () => back.Entry.Cover is null, () => $"Remove the cover left {back.Entry.Cover} on the card.");
+        page.CloseDetailsCommand.Execute(null);
+
         var elsewhere = services.GetRequiredService<ElsewhereService>();
         if (await elsewhere.RemoveAsync(back.EntryId) is null)
             throw new InvalidOperationException("The book owned elsewhere couldn't be removed again.");
@@ -2425,6 +2454,22 @@ static partial class SmokeTest
         page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open again.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => page.Items.Count == books, () => "The library didn't go back to how it was after the second book.");
+    }
+
+    static bool IsChosen(LibraryItemViewModel item) => item.Entry.Cover?.StartsWith("chosen-", StringComparison.Ordinal) == true;
+
+    /// <summary>A small JPEG to choose as a cover.</summary>
+    static byte[] Picture()
+    {
+        const int Width = 60, Height = 80;
+        var pixels = new byte[Width * Height * 4];
+        for (var i = 0; i < pixels.Length; i += 4) (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = ((byte)0x40, (byte)0x80, (byte)0xC0, (byte)0xFF);
+        var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(
+            System.Windows.Media.Imaging.BitmapSource.Create(Width, Height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, Width * 4)));
+        using var stream = new System.IO.MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
     }
 
     /// <summary>
