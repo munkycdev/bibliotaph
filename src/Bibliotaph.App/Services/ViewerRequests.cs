@@ -1,4 +1,6 @@
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
+using Bibliotaph.Index;
 
 namespace Bibliotaph.App.Services;
 
@@ -12,11 +14,23 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// <summary>The zoom to open at, as the reader's Zoom; null fits the width.</summary>
     public double? Zoom { get; init; }
 
-    /// <summary>For an image in a pack, every image in it in order, for Previous and Next.</summary>
+    /// <summary>For a file in a pack, every file in it in order, for Previous and Next.</summary>
     public IReadOnlyList<PackStep>? Pack { get; init; }
 
-    /// <summary>The pack's title, under the image's.</summary>
+    /// <summary>The pack's title, under the file's.</summary>
     public string? PackTitle { get; init; }
+
+    /// <summary>
+    /// A pack opened at one of its files, <paramref name="at"/> when it is one of them and the first otherwise, with
+    /// every file to step through: images open as images and PDFs as PDFs. Null for a pack with no file to show.
+    /// </summary>
+    public static ViewerRequest? ForPack(IReadOnlyList<PackImage> files, string packTitle, long? at = null)
+    {
+        if (files.Count == 0) return null;
+        List<PackStep> steps = [.. files.Select(f => new PackStep(f.DocumentId, System.IO.Path.GetFileNameWithoutExtension(f.Name), f.Format))];
+        var index = at is { } id ? Math.Max(0, steps.FindIndex(p => p.DocumentId == id)) : 0;
+        return new ViewerRequest(steps[index].DocumentId, steps[index].Title) { Pack = steps, PackTitle = packTitle };
+    }
 
     /// <summary>
     /// An ordinary open, from the Library or Home: the book opens at the page it was left at last time, and the page it
@@ -70,8 +84,11 @@ public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.P
 /// </summary>
 public sealed record PageNoteOpen(long NoteId, Bibliotaph.Processing.PagePlaceState State, string? Reason, int FirstPage, int LastPage);
 
-/// <summary>An image of a pack the viewer can step to.</summary>
-public sealed record PackStep(long DocumentId, string Title);
+/// <summary>A file of a pack the viewer can step to: an image, or a PDF packed with them.</summary>
+public sealed record PackStep(long DocumentId, string Title, string Format = "")
+{
+    public bool IsImage => SourceFormats.IsImage(Format);
+}
 
 /// <summary>
 /// Passwords that opened a book in this sitting, by content hash, so the same book opening in another window (or

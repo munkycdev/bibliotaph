@@ -207,15 +207,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     static bool CanReadTextAgain(LibraryItemViewModel? item) => item is { CanReadAgain: true };
 
-    /// <summary>A book at the page it was left at; a pack at its first image, with the rest to step through.</summary>
-    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item)
-    {
-        if (!item.IsPack) return item.BookRequest();
-        var images = await Task.Run(() => queries.GetPackImagesAsync(item.EntryId));
-        if (images.Count == 0) return null;
-        var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
-        return new ViewerRequest(pack[0].DocumentId, pack[0].Title) { Pack = pack, PackTitle = item.Title };
-    }
+    /// <summary>A book at the page it was left at; a pack at its first file, with the rest to step through.</summary>
+    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item) =>
+        item.IsPack ? ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)), item.Title) : item.BookRequest();
 
     /// <summary>The heart on a cover or in its menu.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]

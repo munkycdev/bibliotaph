@@ -219,10 +219,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
 
     /// <summary>
-    /// Books, single images, image packs, everything with a file on this PC or books owned elsewhere.
+    /// Books, single images, packs, everything with a file on this PC or books owned elsewhere.
     /// </summary>
     public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
-        [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs"),
+        [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Packs"),
             new(KindFilter.Here, "On this PC"), new(KindFilter.Elsewhere, "Owned elsewhere")];
 
     /// <summary>
@@ -1121,18 +1121,23 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// when the book is popped out, so a hit never jumps to another window.
     /// </summary>
     [RelayCommand]
-    void OpenPage(PageHitViewModel page) => _readers.OpenInMainWindow(PageRequest(page));
+    async Task OpenPage(PageHitViewModel page) => _readers.OpenInMainWindow(await PageRequestAsync(page));
 
     /// <summary>Opens a page that matched in a window of its own (its button, Shift+Enter or middle-click).</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
-    Task OpenPageInNewWindow(PageHitViewModel page) => _readers.OpenInNewWindowAsync(PageRequest(page));
+    async Task OpenPageInNewWindow(PageHitViewModel page) => await _readers.OpenInNewWindowAsync(await PageRequestAsync(page));
 
-    ViewerRequest PageRequest(PageHitViewModel page)
+    async Task<ViewerRequest> PageRequestAsync(PageHitViewModel page)
     {
         var title = _known.TryGetValue(page.Hit.EntryId, out var item) ? item.Title : "";
         // A page in an adventure inside a file opens as the adventure, its pages shaded.
         if (item?.Entry is { IsPart: true, Pages: { } pages } part && part.DocumentId == page.Hit.DocumentId)
             return PartOpen.Open(page.Hit.DocumentId, title, part.EntryId, part.ParentTitle, pages) with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
+        // A page of a PDF in a pack opens in the pack, so Previous and Next step through its other files.
+        if (item is { IsPack: true }
+            && ViewerRequest.ForPack(await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), title, page.Hit.DocumentId) is { } inPack
+            && inPack.DocumentId == page.Hit.DocumentId)
+            return inPack with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
     }
 
@@ -1243,7 +1248,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (await RequestAsync(item) is { } request) await _readers.OpenInNewWindowAsync(request);
     }
 
-    /// <summary>Opens one of a pack's images, from its inspector's grid; the viewer steps through the rest.</summary>
+    /// <summary>Opens one of a pack's files, from its inspector's grid; the viewer steps through the rest.</summary>
     [RelayCommand]
     async Task OpenPackImage(PackImageViewModel image)
     {
@@ -1251,18 +1256,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>
-    /// What opens a card: its document, or for a pack one of its images with all of them to step through. The image is
+    /// What opens a card: its document, or for a pack one of its files with all of them to step through. The file is
     /// <paramref name="documentId"/>, else the one a search found the pack by, else the first.
     /// </summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
     {
         if (!item.Entry.IsPack) return item.BookRequest();
-        documentId ??= item.Entry.MatchedDocumentId;
-        var images = await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId));
-        if (images.Count == 0) return null;
-        var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
-        var at = documentId is { } id ? Math.Max(0, pack.FindIndex(p => p.DocumentId == id)) : 0;
-        return new ViewerRequest(pack[at].DocumentId, pack[at].Title) { Pack = pack, PackTitle = item.Title };
+        return ViewerRequest.ForPack(await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), item.Title, documentId ?? item.Entry.MatchedDocumentId);
     }
 
     /// <summary>
@@ -1352,17 +1352,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
-    /// <summary>After "Split into separate images": the library with the images back, and Undo beside a note saying so.</summary>
-    async Task ShowPackSplitAsync(LibraryItemViewModel pack, IReadOnlyList<EntryId> images)
+    /// <summary>After "Split into separate images" (or files): the library with them back, and Undo beside a note saying so.</summary>
+    async Task ShowPackSplitAsync(LibraryItemViewModel pack, IReadOnlyList<EntryId> files)
     {
         Inspector = null;
         ClearUndos();
-        SplitUndo = (pack.EntryId, images);
-        BulkMessage = $"Split {pack.Title} into {images.Count.ToString("N0", CultureInfo.CurrentCulture)} {(images.Count == 1 ? "image" : "images")}.";
+        SplitUndo = (pack.EntryId, files);
+        BulkMessage = $"Split {pack.Title} into {(pack.HasPdfMembers ? LibraryItemViewModel.Files(files.Count) : LibraryItemViewModel.Images(files.Count))}.";
         await RefreshAsync();
     }
 
-    /// <summary>The pack the last split took apart, and its images, until the next edit or until the Library is left.</summary>
+    /// <summary>The pack the last split took apart, and its files, until the next edit or until the Library is left.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSplitUndo))]
     [NotifyCanExecuteChangedFor(nameof(UndoSplitCommand))]
@@ -1556,7 +1556,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>
     /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them.
-    /// Packs aren't offered: a pack is many images, not a copy of a book.
+    /// Packs aren't offered: a pack is many files, not a copy of a book.
     /// </summary>
     public bool CanJoinSelected => SameBookDialog is null && Selection.Count >= 2 && Selection.Items is var cards
         && !cards.Any(c => c.IsPack) && cards.Count(c => c.IsElsewhere) <= 1;
@@ -1630,10 +1630,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial PackTogetherDialogViewModel? PackDialog { get; private set; }
 
     /// <summary>
-    /// Pack together fits two or more cards for single images or packs: no books, PDFs or books owned elsewhere.
+    /// Pack together fits two or more cards for single files, images or PDFs (a party's character sheets), or packs:
+    /// no books owned elsewhere, no adventures inside files, and no file with adventures marked in it, whose cards
+    /// name it.
     /// </summary>
     public bool CanPackSelected => PackDialog is null && Selection.Count >= 2
-        && Selection.Items.All(c => c.IsPack || !c.IsElsewhere && SourceFormats.IsImage(c.Entry.Format));
+        && Selection.Items.All(c => c.IsPack || c is { IsElsewhere: false, IsPart: false, Entry.Parts: 0 }
+            && (SourceFormats.IsImage(c.Entry.Format) || c.Entry.Format == SourceFormats.Pdf));
 
     /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
     [RelayCommand(CanExecute = nameof(CanPackSelected))]
@@ -1675,7 +1678,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public bool HasPackUndo => PackUndo is not null;
 
-    /// <summary>Puts the cards back as they were: merged packs come back, and images have their own cards again.</summary>
+    /// <summary>Puts the cards back as they were: merged packs come back, and files have their own cards again.</summary>
     [RelayCommand(CanExecute = nameof(HasPackUndo))]
     async Task UndoPack()
     {
@@ -1690,14 +1693,14 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Undoing Pack together on pack {EntryId} failed", result.Together.PackId);
-            BulkMessage = "The pack couldn't be put back as it was. Use Split into separate images in its details.";
+            BulkMessage = "The pack couldn't be put back as it was. Use Split in its details.";
         }
         await RefreshAsync();
     }
 
     // Remove adventures: the ticked adventures' cards go at once, as each one's own Remove adventure would.
 
-    /// <summary>Remove adventures fits ticked cards that are all adventures inside files, as Pack together fits only images.</summary>
+    /// <summary>Remove adventures fits ticked cards that are all adventures inside files.</summary>
     public bool CanRemoveSelectedParts => !IsRemovingParts && Selection.HasAny && Selection.Items.All(c => c.IsPart);
 
     bool IsRemovingParts { get; set; }

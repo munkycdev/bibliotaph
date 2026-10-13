@@ -91,7 +91,7 @@ three groups:
 
 - **The adventure**: **Style** and **Duration**, once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
-- **Housekeeping**: **Kind** (books, images, image packs, on this PC, or owned elsewhere), **AI** (whether a model has
+- **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
   read it), **Copies** (books in more than one file) and **Adventures inside files**.
 
 While they're folded away, **More filters** says how many of them are on, such as "More filters · 1".

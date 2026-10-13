@@ -14,9 +14,9 @@ namespace Bibliotaph.Index;
 /// cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/> ("Levels 1–5") read as
 /// cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/> is the model that
 /// last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack (<see cref="EntryKind"/>)
-/// shows its first image, counts its <see cref="Members"/>, and has the covers of its first four images for its mosaic
-/// (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that image (<see
-/// cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned elsewhere (<see
+/// shows its first file, counts its <see cref="Members"/> (and <see cref="PdfMembers"/>, the PDFs among them), and has
+/// the covers of its first four files for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its files'
+/// names carries that file (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned elsewhere (<see
 /// cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/> empty, and <see
 /// cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/> is a heart
 /// on it, and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/> says when its
@@ -36,7 +36,13 @@ public sealed record LibraryEntry(
     /// <summary>A book owned elsewhere, with no file in the library: nothing to open.</summary>
     public bool IsElsewhere => EntryKind == EntryKind.Elsewhere;
 
-    /// <summary>The cover file names of a pack's first four images that have one.</summary>
+    /// <summary>
+    /// How many of a pack's files are PDFs, packed by hand with its images: a pack with none is an image pack ("120
+    /// images"), one with some a pack of files ("6 files").
+    /// </summary>
+    public int PdfMembers { get; init; }
+
+    /// <summary>The cover file names of a pack's first four files that have one.</summary>
     public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
 
     /// <summary>An adventure inside a file: a card of its own for some of the file's pages.</summary>
@@ -72,7 +78,10 @@ public sealed record LibraryEntry(
     public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
 
-/// <summary>An image in a pack, in file name order: the document it shows, its own entry, its name and its cover.</summary>
+/// <summary>
+/// A file in a pack, an image or a PDF, in file name order: the document it shows, its own entry, its name, its format
+/// and its cover.
+/// </summary>
 public sealed record PackImage(long DocumentId, EntryId MemberEntryId, string Name, string Format, string? Cover);
 
 public enum LibrarySort
@@ -181,7 +190,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// <summary>Column weights for entry_fts, in schema order: title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional.</summary>
     const string DocRank = "bm25(entry_fts, 10.0, 5.0, 2.0, 3.0, 2.0, 3.0, 1.0, 4.0, 1.0)";
 
-    /// <summary>An image's name in a pack weighs as a title does: you look for "kraken", not for the pack's name.</summary>
+    /// <summary>A file's name in a pack weighs as a title does: you look for "kraken", not for the pack's name.</summary>
     const string MemberRank = "bm25(member_fts, 10.0)";
 
     const string EntryColumns = """
@@ -200,6 +209,9 @@ public sealed class LibraryQueries(IndexDatabase database)
             SELECT json_group_array(cover) FROM (
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
+        CASE WHEN e.kind = 'Pack' THEN (
+            SELECT count(*) FROM entry_member em JOIN doc md ON md.document_id = em.document_id
+            WHERE em.entry_id = e.entry_id AND md.format = 'pdf') ELSE 0 END AS PdfMembers,
         (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn,
         (SELECT ol.link FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLink,
         (SELECT ol.label FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLabel,
@@ -247,7 +259,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The Documents tab: titles and metadata, and the names of the images in packs. A pack found by an image's name
+    /// The Documents tab: titles and metadata, and the names of the files in packs. A pack found by a file's name
     /// says which (the best match). With no words or title: to find, this is the filtered library.
     /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> SearchDocumentsAsync(SearchPlan plan, LibraryFilter filter, int limit = 1000, CancellationToken ct = default)
@@ -290,7 +302,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     {
         plan ??= new SearchPlan();
         var where = new Where(filter, plan, titleAsFilter: true);
-        // As the Documents tab finds them: packs by their images' names too.
+        // As the Documents tab finds them: packs by their files' names too.
         if (plan.TextMatch is { } match)
             where.Also("""
                 e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
@@ -381,7 +393,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most <paramref
     /// name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other copies of a
     /// book don't repeat its hits. A page inside an adventure marked in a file goes with the adventure, and with the
-    /// file only when the adventure is filtered out. Snippets are made only for the pages returned. Exclusions alone
+    /// file only when the adventure is filtered out. A page of a PDF in a pack goes with the pack, its card. Snippets are made only for the pages returned. Exclusions alone
     /// find no pages, so a query like <c>-maps</c> returns nothing here.
     /// </summary>
     public async Task<PageResults> SearchPagesAsync(
@@ -398,13 +410,24 @@ public sealed class LibraryQueries(IndexDatabase database)
                 FROM page_fts JOIN page p ON p.id = page_fts.rowid
                 WHERE page_fts MATCH @match
             ),
-            claimed AS (
-                SELECT e.entry_id AS entry, m.page_id, m.score,
-                       row_number() OVER (PARTITION BY m.page_id ORDER BY e.kind <> 'Part', e.entry_id) AS k
+            owned AS (
+                SELECT e.entry_id AS entry, e.kind AS kind, m.page_id, m.score
                 FROM matched m
-                JOIN entry_doc e ON e.document_id = m.doc AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
+                JOIN entry_doc e ON e.document_id = m.doc AND e.kind <> 'Pack' AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
                 JOIN doc d ON d.document_id = e.document_id
                 WHERE {where.Sql}
+                UNION ALL
+                SELECT e.entry_id, e.kind, m.page_id, m.score
+                FROM matched m
+                JOIN entry_member em ON em.document_id = m.doc
+                JOIN entry_doc e ON e.entry_id = em.entry_id
+                JOIN doc d ON d.document_id = e.document_id
+                WHERE {where.Sql}
+            ),
+            claimed AS (
+                SELECT entry, page_id, score,
+                       row_number() OVER (PARTITION BY page_id ORDER BY kind <> 'Part', entry) AS k
+                FROM owned
             ),
             ranked AS (
                 SELECT entry, page_id,
@@ -523,7 +546,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal), Searchable: true));
     }
 
-    /// <summary>A pack's images in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
+    /// <summary>A pack's files in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
     public async Task<IReadOnlyList<PackImage>> GetPackImagesAsync(EntryId packId, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
@@ -568,8 +591,10 @@ public sealed class LibraryQueries(IndexDatabase database)
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
             r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn, r.Favorite != 0, r.OpenedUtc is { Length: > 0 } opened ? Utc(opened) : null,
-            Access(r))
+            // A pack shows its first file, whose lock or protection is that file's, not the pack's.
+            r.EntryKind == nameof(Core.EntryKind.Pack) ? TextAccess.Readable : Access(r))
         {
+            PdfMembers = (int)r.PdfMembers,
             ParentEntryId = r.ParentId is { } parent ? new EntryId(parent) : null,
             ParentTitle = r.ParentTitle,
             Pages = r.FirstPage is { } first && r.LastPage is { } last ? new PartPages((int)first, (int)last) : null,
@@ -639,6 +664,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string EntryKind { get; init; } = nameof(Core.EntryKind.Whole);
         public long Members { get; init; }
         public string? MemberCovers { get; init; }
+        public long PdfMembers { get; init; }
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }
         public string? AlsoOwn { get; init; }

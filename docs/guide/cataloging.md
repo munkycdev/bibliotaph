@@ -106,14 +106,23 @@ version instead. Nothing is ever joined without asking unless the text is identi
 
 To join cards yourself, tick them in **Select** mode and click **Same book**. You choose which file opens.
 
-## Image packs
+## Packs
 
 A folder (or ZIP) of 20 or more images and no PDFs, such as a map pack or a set of handouts, becomes one card: an
 image pack, named after the folder. A smaller set is offered in Needs review instead. **Split into separate images**
 gives each image its own card again, and Bibliotaph remembers that. To make a pack by hand, tick images or packs in
 **Select** mode and click **Pack together**.
 
-A search for an image's file name finds its pack.
+Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
+portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
+**Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
+and its cover is still a mosaic of the first four. Opening the pack steps through its files with **Previous** and
+**Next**: PDFs open as PDFs and images as images. Its details list every file, PDFs shown by their first page, and
+**Split into separate files** gives each one its own card back, with everything you had set on it. A PDF with
+adventures marked in it can't go in a pack, since their cards name it.
+
+A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
+the pack's card.
 
 ## Adventures inside a file
 

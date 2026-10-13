@@ -82,23 +82,36 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         ShowProcessing(details?.Entry ?? item.Entry, details);
     }
 
-    /// <summary>A pack's images, for its grid; empty for anything else.</summary>
+    /// <summary>A pack's files, images and PDFs, for its grid; empty for anything else.</summary>
     public IReadOnlyList<PackImageViewModel> PackImages { get; }
 
     public bool IsPack => Item.IsPack;
 
-    public string PackImagesHeading => $"IMAGES ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    /// <summary>A pack with PDFs among its images: it speaks of files, not images.</summary>
+    bool HasPdfs => Item.HasPdfMembers || PackImages.Any(i => i.IsPdf);
 
-    /// <summary>Raised after "Split into separate images", with the images that got their cards back.</summary>
+    public string PackImagesHeading => $"{(HasPdfs ? "FILES" : "IMAGES")} ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    /// <summary>The grid's name for screen readers.</summary>
+    public string PackImagesName => HasPdfs ? "Files in the pack" : "Images in the pack";
+
+    public string SplitPackLabel => HasPdfs ? "Split into separate files" : "Split into separate images";
+
+    public string SplitPackTip => HasPdfs
+        ? "Give every file its own card again. Bibliotaph won't pack this folder again."
+        : "Give every image its own card again. Bibliotaph won't pack this folder again.";
+
+    /// <summary>Raised after "Split into separate images" (or files), with the files that got their cards back.</summary>
     public event EventHandler<IReadOnlyList<EntryId>>? PackSplit;
 
     /// <summary>
-    /// "Split into separate images": every image gets its card back, and the folder isn't packed again.
+    /// "Split into separate images", or "files" when PDFs are in the pack: every file gets its card back, and the
+    /// folder isn't packed again.
     /// </summary>
     [RelayCommand]
     async Task SplitPack()
     {
-        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } images) PackSplit?.Invoke(this, images);
+        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } files) PackSplit?.Invoke(this, files);
     }
 
     /// <summary>
@@ -358,7 +371,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
+    public string Eyebrow => Item.IsPack ? HasPdfs ? "PACK" : "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
         : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
@@ -424,14 +437,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (item.IsElsewhere) locations = [];
         else if (item.IsPack)
         {
-            // A pack is where its folder or ZIP is; its images are listed below, each with its own file. Images added by
+            // A pack is where its folder or ZIP is; its files are listed below, each with its own file. Files added by
             // hand, or a pack made by hand, name the other folders they are in.
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
+            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+            var noun = item.HasPdfMembers || images.Any(i => i.IsPdf) ? "files" : "images";
             locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
-                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Images.ToString("N0", CultureInfo.CurrentCulture)} of its images {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
-            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Files.ToString("N0", CultureInfo.CurrentCulture)} of its {noun} {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
         }
         else
         {
@@ -543,6 +557,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         };
         if (!string.IsNullOrEmpty(entry.FolderHint)) facts.Add(new("Folders", entry.FolderHint));
         if (details is null) return facts;
+        // A pack's card shows its first file: what that file says of itself isn't the pack's.
+        if (entry.IsPack)
+        {
+            facts.Add(new("Search", entry.PdfMembers > 0 ? "Found by its files' names, and by the text of its PDFs" : "Found by its name"));
+            return facts;
+        }
 
         facts.Add(new("Search", SearchText(entry, details)));
         // From how its stages stopped, not the file's encryption flag: that is set on any PDF with a security handler,

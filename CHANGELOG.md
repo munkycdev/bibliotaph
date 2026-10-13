@@ -4,6 +4,10 @@
 
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
+- **Packs hold PDFs too.** Tick PDFs, such as character sheets or pregens, with images or packs in Select mode and
+  **Pack together** makes them one card, "Pack · 6 files". Opening it steps through its files, PDFs opening as PDFs;
+  their pages are found under the pack; **Split into separate files** gives each its card back. Folders are still
+  packed automatically only for their images.
 
 ## 1.0.0 · 12 October 2026
 
