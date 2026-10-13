@@ -6,7 +6,7 @@ using System.Windows.Media;
 namespace Bibliotaph.App.Controls;
 
 /// <summary>
-/// What a screen shows when it has nothing yet: what is missing, and one relevant action (spec §11), with a quieter
+/// What a screen shows when it has nothing yet: what is missing, and one relevant action, with a quieter
 /// second one beside it when a problem has two ways out. Its look is the implicit style in Themes/Controls.xaml, after
 /// the mockup's .bt-empty.
 /// </summary>

@@ -8,7 +8,7 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// PDF passwords the reader chose to remember, by content hash: listed, and forgotten one by one or all together, in
-/// Settings, Passwords (slice 4i plan, choice 2). An interface so the smoke test never touches Credential Manager.
+/// Settings, Passwords. An interface so the smoke test never touches Credential Manager.
 /// </summary>
 public interface IPasswordVault
 {
@@ -115,8 +115,8 @@ public sealed class MemoryPasswordVault : IPasswordVault
 }
 
 /// <summary>
-/// The passwords indexing may open a book with (slice 4i plan, choice 1): one entered this sitting with "Make its text
-/// searchable" ticked, which is held in memory only, or else a remembered one.
+/// The passwords indexing may open a book with: one entered this sitting with "Make its text searchable" ticked, which
+/// is held in memory only, or else a remembered one.
 /// </summary>
 public sealed class IndexPasswords(UnlockedPasswords unlocked, IPasswordVault vault) : IPasswordStore
 {

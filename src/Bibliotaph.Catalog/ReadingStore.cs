@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Catalog;
 
 /// <summary>
-/// When each book was last opened and where its reader left it (slice 3 plan, choice 6), for Home's Recently opened,
-/// the Library's Recently opened order, and opening a book where it was left.
+/// When each book was last opened and where its reader left it, for Home's Recently opened, the Library's Recently
+/// opened order, and opening a book where it was left.
 /// </summary>
 public sealed class ReadingStore(IDbContextFactory<CatalogDbContext> contexts, EntryStore entries, TimeProvider? clock = null)
 {
@@ -14,8 +14,8 @@ public sealed class ReadingStore(IDbContextFactory<CatalogDbContext> contexts, E
 
     /// <summary>
     /// Records that a document was opened, on the card it shows under. The saved page stays while the same document
-    /// is read; another copy takes <paramref name="carriedPage"/>, the page that matches where the last one was left
-    /// (slice 4h plan, choice 5). Returns the card, or null for a document the catalog doesn't know.
+    /// is read; another copy takes <paramref name="carriedPage"/>, the page that matches where the last one was left.
+    /// Returns the card, or null for a document the catalog doesn't know.
     /// </summary>
     public async Task<EntryId?> RecordOpenAsync(long documentId, int carriedPage = 0, CancellationToken ct = default)
     {
@@ -60,7 +60,7 @@ public sealed class ReadingStore(IDbContextFactory<CatalogDbContext> contexts, E
 
     /// <summary>
     /// Moves where a book was left from one copy to the matching page of another, as when a new version of it becomes
-    /// the one it opens (slice 4h plan, choice 5). Nothing changes when the book was last read in another copy.
+    /// the one it opens. Nothing changes when the book was last read in another copy.
     /// </summary>
     public async Task<bool> MoveAsync(long fromDocumentId, long toDocumentId, int pageIndex, CancellationToken ct = default)
     {

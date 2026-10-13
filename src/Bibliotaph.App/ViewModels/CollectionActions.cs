@@ -10,10 +10,10 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// What a page does with collections (slice 3 plan, choices 8 to 10): adding books to one, new or picked, taking them
-/// out, and making, renaming, moving, pinning and deleting collections. Each change says what it did in a note with
-/// Undo, until the next change or until the page is left. One per page; the page shows <see cref="Dialog"/> over
-/// itself and refreshes on <see cref="Done"/>.
+/// What a page does with collections: adding books to one, new or picked, taking them out, and making, renaming,
+/// moving, pinning and deleting collections. Each change says what it did in a note with Undo, until the next change
+/// or until the page is left. One per page; the page shows <see cref="Dialog"/> over itself and refreshes on
+/// <see cref="Done"/>.
 /// </summary>
 public sealed partial class CollectionActions(CollectionsService collections, CollectionDirectory directory, ILogger<CollectionActions> log) : ObservableObject
 {

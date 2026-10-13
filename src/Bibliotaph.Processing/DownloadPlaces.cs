@@ -1,8 +1,8 @@
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Where a store's download goes (online libraries plan, O5, choice 15): a downloads folder that is a library folder or
-/// inside one, so the library picks the file up, under a name that leaves every file already there alone.
+/// Where a store's download goes: a downloads folder that is a library folder or inside one, so the library picks the
+/// file up, under a name that leaves every file already there alone.
 /// </summary>
 public static class DownloadPlaces
 {

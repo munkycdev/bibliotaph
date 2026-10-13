@@ -230,7 +230,7 @@ public class EffectiveMetadataTests
         Assert.False(metadata.NeedsReview);
     }
 
-    /// <summary>The user agreed to a folder rule (scenario review, row 8), so it outranks the AI, but it stays a suggestion.</summary>
+    /// <summary>The user agreed to a folder rule, so it outranks the AI, but it stays a suggestion.</summary>
     [Fact]
     public void A_folder_rule_outranks_the_ai_and_the_folder_name_but_not_the_user()
     {

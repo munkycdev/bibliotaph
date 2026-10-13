@@ -14,32 +14,31 @@ public sealed record ClassifierField(MetadataField Field, string Definition, int
 }
 
 /// <summary>
-/// One of the user's own books sent with a classification as a worked example (scenario review, row 8): the values the
-/// user confirmed, by field key in <see cref="ClassifierPrompt.Fields"/> order, as the model would answer them. Never
-/// any of its text.
+/// One of the user's own books sent with a classification as a worked example: the values the user confirmed, by field
+/// key in <see cref="ClassifierPrompt.Fields"/> order, as the model would answer them. Never any of its text.
 /// </summary>
 public sealed record WorkedExample(IReadOnlyList<(string Field, string Value)> Values);
 
 /// <summary>
-/// What the model is asked and the shape it must answer in. The fields are a list, so adding one adds it to the
-/// schema, the prompt and the evidence check together. Changing the wording or the fields bumps <see cref="Version"/>
-/// or <see cref="SchemaVersion"/>; neither reclassifies anything by itself (choice 10). Worked examples are the
-/// library's own data, as the vocabulary's names are, so which books are sent doesn't bump it.
+/// What the model is asked and the shape it must answer in. The fields are a list, so adding one adds it to the schema,
+/// the prompt and the evidence check together. Changing the wording or the fields bumps <see cref="Version"/> or <see
+/// cref="SchemaVersion"/>; neither reclassifies anything by itself. Worked examples are the library's own data, as the
+/// vocabulary's names are, so which books are sent doesn't bump it.
 /// </summary>
 public static partial class ClassifierPrompt
 {
-    /// <summary>2: players, duration and style, and the back cover in the excerpt (scenario review, row 6).</summary>
+    /// <summary>2: players, duration and style, and the back cover in the excerpt.</summary>
     public const int Version = 2;
 
     public const int SchemaVersion = 2;
 
-    /// <summary>Opens and closes the book's text, which is data and never instructions (A16).</summary>
+    /// <summary>Opens and closes the book's text, which is data and never instructions.</summary>
     public const string ExcerptTag = "book-excerpt";
 
     /// <summary>Tokens kept free for the answer.</summary>
     const int AnswerTokens = 1_500;
 
-    /// <summary>Worked examples sent with one book at most (scenario review, row 8).</summary>
+    /// <summary>Worked examples sent with one book at most.</summary>
     public const int MaxExamples = 3;
 
     /// <summary>
@@ -52,8 +51,8 @@ public static partial class ClassifierPrompt
     const int ExampleValueCharacters = 100;
 
     /// <summary>
-    /// The fields slice 2 asks for (choice 2), then players, duration and style. Your tags are yours alone, so the model
-    /// never fills them, and neither does it fill where else you own a book.
+    /// The fields the model fills. Your tags are yours alone, so the model never fills them, and neither does it fill
+    /// where else you own a book.
     /// </summary>
     public static IReadOnlyList<ClassifierField> Fields { get; } =
     [
@@ -238,7 +237,7 @@ public static partial class ClassifierPrompt
 
     /// <summary>
     /// The context window the request needs: the prompt at about 3.5 characters a token, plus room for the answer,
-    /// rounded up to a whole kilotoken. Ollama's default window is smaller and silently cuts the excerpt off (choice 8).
+    /// rounded up to a whole kilotoken. Ollama's default window is smaller and silently cuts the excerpt off.
     /// </summary>
     public static int ContextTokens(string system, string user)
     {

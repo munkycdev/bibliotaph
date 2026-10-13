@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 4g: books moved in Explorer keep their cards (A06), and folders that can't be read are offline, never emptied (A07).</summary>
+/// <summary>Books moved in Explorer keep their cards, and folders that can't be read are offline, never emptied.</summary>
 public sealed partial class PipelineTests
 {
     /// <summary>

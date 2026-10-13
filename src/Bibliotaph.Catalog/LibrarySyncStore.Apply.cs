@@ -19,11 +19,11 @@ public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Chang
 public sealed partial class LibrarySyncStore
 {
     /// <summary>
-    /// Makes the catalog agree with merged records (library sync plan, choice 6): terms first, then collections, saved
-    /// searches and binders, then cards, then what points at them (binder items, page notes, pins); deletions the other
-    /// way round. A record whose book, file or binder isn't in this catalog is left for later and named in the result;
-    /// a card is found with <paramref name="findCard"/>, which knows other PCs' names for it. Each record is its own
-    /// save, so one that can't be applied doesn't stop the rest. Writes made here don't count as the user's
+    /// Makes the catalog agree with merged records: terms first, then collections, saved searches and binders, then
+    /// cards, then what points at them (binder items, page notes, pins); deletions the other way round. A record whose
+    /// book, file or binder isn't in this catalog is left for later and named in the result; a card is found with
+    /// <paramref name="findCard"/>, which knows other PCs' names for it. Each record is its own save, so one that can't
+    /// be applied doesn't stop the rest. Writes made here don't count as the user's
     /// (<see cref="CatalogWrites.Quiet"/>).
     /// </summary>
     public async Task<SyncApplyResult> ApplyAsync(IReadOnlyList<SyncChange> changes, Func<string, long?> findCard, CancellationToken ct = default)

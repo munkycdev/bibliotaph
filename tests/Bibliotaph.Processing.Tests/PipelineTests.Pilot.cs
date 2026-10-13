@@ -4,7 +4,7 @@ using Dapper;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>The model pilot (slice 2d) over a real library, with fake models in place of the server.</summary>
+/// <summary>The model pilot over a real library, with fake models in place of the server.</summary>
 public sealed partial class PipelineTests
 {
     async Task<PilotService> PilotOverLanternAsync()

@@ -62,15 +62,14 @@ public enum SearchField
     /// <summary><c>players:</c> 4, 3-5 or unknown. A number matches books written for it; a range, books whose range overlaps it.</summary>
     Players,
 
-    /// <summary><c>favorite:</c> yes or no: the books marked with a heart (slice 3 plan, choice 5).</summary>
+    /// <summary><c>favorite:</c> yes or no: the books marked with a heart.</summary>
     Favorite,
 
-    /// <summary><c>collection:</c> a collection's name: its books and its sub-collections' books (slice 3 plan, choice 10).</summary>
+    /// <summary><c>collection:</c> a collection's name: its books and its sub-collections' books.</summary>
     Collection,
 
     /// <summary>
-    /// <c>where:</c> here for the books with a file on this PC, elsewhere for those owned only somewhere else (online
-    /// libraries, O1).
+    /// <c>where:</c> here for the books with a file on this PC, elsewhere for those owned only somewhere else.
     /// </summary>
     Where,
 }

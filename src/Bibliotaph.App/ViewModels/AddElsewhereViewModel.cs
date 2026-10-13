@@ -18,8 +18,8 @@ public sealed partial class OwnOption(Term term) : ObservableObject
 }
 
 /// <summary>
-/// "Add a book I own elsewhere" (F5 plan, choice 1): a title, and optionally a game system, a type, a publisher and
-/// where it is owned. Save makes the card; the inspector then opens on it for everything else.
+/// "Add a book I own elsewhere": a title, and optionally a game system, a type, a publisher and where it is owned.
+/// Save makes the card; the inspector then opens on it for everything else.
 /// </summary>
 public sealed partial class AddElsewhereViewModel : ObservableObject
 {
@@ -76,7 +76,7 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
 
     /// <summary>
     /// Somewhere not in the list, typed: "Owlbear Rodeo", which becomes a term of the user's own; or the book's page
-    /// online, which opens it (online libraries, O1): "D&amp;D Beyond https://…", or the link alone.
+    /// online, which opens it: "D&amp;D Beyond https://…", or the link alone.
     /// </summary>
     [ObservableProperty]
     public partial string OtherOwn { get; set; } = "";

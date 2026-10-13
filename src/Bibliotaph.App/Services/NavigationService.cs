@@ -17,7 +17,7 @@ public interface INavigationService
 
 /// <summary>
 /// Keeps a back stack of page view models, not just routes, so going back restores a page as it was left
-/// (search, filters, selection and scroll position, once those exist; spec §5.4).
+/// (search, filters, selection and scroll position, once those exist).
 /// </summary>
 public sealed class NavigationService(Func<Route, PageViewModel> createPage) : INavigationService
 {

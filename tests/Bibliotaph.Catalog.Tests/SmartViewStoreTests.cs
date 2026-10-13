@@ -1,7 +1,7 @@
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 3e: saved searches (Smart Views in the code), each a name and a definition the app writes.</summary>
+/// <summary>Saved searches (Smart Views in the code), each a name and a definition the app writes.</summary>
 public sealed class SmartViewStoreTests : IAsyncLifetime
 {
     static readonly DateTimeOffset Monday = new(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);

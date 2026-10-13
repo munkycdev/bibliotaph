@@ -17,8 +17,8 @@ public sealed record PilotRun(string Model, long DocumentId, double Seconds, str
 public sealed record PilotProposal(string Model, long DocumentId, string Field, string Value, int? PdfPage, string? Quote, bool Kept, string? Reason = null);
 
 /// <summary>
-/// The pilot's own database, pilot.db in the pilot folder (slice 2d, choice P4): the book list, every model's
-/// proposals and the user's answers. Nothing here reaches catalog.db unless the user's answers are saved there too.
+/// The pilot's own database, pilot.db in the pilot folder: the book list, every model's proposals and the user's
+/// answers. Nothing here reaches catalog.db unless the user's answers are saved there too.
 /// </summary>
 public sealed class PilotStore
 {

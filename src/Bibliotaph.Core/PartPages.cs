@@ -4,8 +4,8 @@ using Bibliotaph.Core.Reading;
 namespace Bibliotaph.Core;
 
 /// <summary>
-/// The pages of an adventure inside a file (slice 5 plan, choice 3): one continuous run of zero-based PDF pages,
-/// inclusive. The file never changes; a part only borrows its pages.
+/// The pages of an adventure inside a file: one continuous run of zero-based PDF pages, inclusive. The file never
+/// changes; a part only borrows its pages.
 /// </summary>
 public readonly record struct PartPages(int First, int Last)
 {
@@ -26,8 +26,8 @@ public readonly record struct PartPages(int First, int Last)
 }
 
 /// <summary>
-/// The rules for the pages of the adventures in one file (slice 5 plan, choice 3): one continuous range each, inside
-/// the file, never sharing a page with another adventure in it; gaps between them are fine, and nothing nests.
+/// The rules for the pages of the adventures in one file: one continuous range each, inside the file, never sharing a
+/// page with another adventure in it; gaps between them are fine, and nothing nests.
 /// </summary>
 public static class PartRanges
 {
@@ -45,8 +45,8 @@ public static class PartRanges
     }
 
     /// <summary>
-    /// The pages a bookmark covers when it is indexed as its own adventure (choice 4): from its page to the page before
-    /// the next bookmark at the same depth or above that starts on a later page, or to the end of the file.
+    /// The pages a bookmark covers when it is indexed as its own adventure: from its page to the page before the next
+    /// bookmark at the same depth or above that starts on a later page, or to the end of the file.
     /// </summary>
     public static PartPages FromBookmark(IReadOnlyList<(int Page, int Depth)> outline, int index, int pageCount)
     {

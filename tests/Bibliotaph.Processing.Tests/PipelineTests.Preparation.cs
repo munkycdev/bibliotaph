@@ -5,7 +5,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 3a to 3f: hearts, opens, collections, session packs and notes reach the Library through index.db, and come back after it is rebuilt.</summary>
+/// <summary>Hearts, opens, collections, session packs and notes reach the Library through index.db, and come back after it is rebuilt.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]

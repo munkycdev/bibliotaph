@@ -8,9 +8,9 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Classification;
 
 /// <summary>
-/// What a model reads to find the adventures in a compilation (slice 5 plan, choice 6): the file's bookmarks, its
-/// contents pages, the candidates (the bookmarks that could each start an adventure, with the pages up to the next)
-/// and each candidate's first page; and every page's text, for the evidence check.
+/// What a model reads to find the adventures in a compilation: the file's bookmarks, its contents pages, the candidates
+/// (the bookmarks that could each start an adventure, with the pages up to the next) and each candidate's first page;
+/// and every page's text, for the evidence check.
 /// </summary>
 public sealed record PartFinderInput(string FileName, int PageCount, IReadOnlyList<BookHeading> Headings, IReadOnlyList<ProposedPart> Candidates,
     IReadOnlyList<ExcerptPage> Pages, Func<int, string?> PageText)
@@ -21,7 +21,7 @@ public sealed record PartFinderInput(string FileName, int PageCount, IReadOnlyLi
     /// <summary>A model is asked about at most this many candidates, so a long list can't crowd out their pages.</summary>
     public const int MaxCandidates = 40;
 
-    /// <summary>About as much book text as the classifier's excerpt (slice 2 plan, choice 9).</summary>
+    /// <summary>About as much book text as the classifier's excerpt.</summary>
     const int Budget = 24_000;
 
     /// <summary>A candidate's first page gives at most this much: its title and blurb are at the top.</summary>
@@ -79,7 +79,7 @@ public sealed record DroppedPart(PartClaim Claim, string Reason);
 /// <summary>The adventures that passed the check, in page order, and those that didn't.</summary>
 public sealed record PartFinderResult(IReadOnlyList<ProposedPart> Accepted, IReadOnlyList<DroppedPart> Dropped);
 
-/// <summary>Asks a model which of a compilation's candidates are adventures (slice 5 plan, choice 6).</summary>
+/// <summary>Asks a model which of a compilation's candidates are adventures.</summary>
 public interface IPartFinder
 {
     /// <summary>The adventures the model found among <paramref name="input"/>'s candidates whose evidence checks out; none when fewer than two do.</summary>
@@ -90,7 +90,7 @@ public interface IPartFinder
 
 /// <summary>
 /// What a model is asked to find a compilation's adventures, and the shape it must answer in. Guarded as the
-/// classifier's prompt is (A16): the book's text, bookmark titles included, goes only into the user message inside the
+/// classifier's prompt is: the book's text, bookmark titles included, goes only into the user message inside the
 /// excerpt tags, anything in it that looks like a tag or a page marker is defused, and the answer can only name
 /// candidates, each with a quote the check looks for on the page it cites.
 /// </summary>
@@ -218,11 +218,10 @@ public static class PartFinderPrompt
 }
 
 /// <summary>
-/// The evidence check for adventures a model found (slice 5 plan, choice 6), as for the classifier's values: an
-/// adventure stands only if it is one of the candidates, given once, and its quote is on a page of that candidate that
-/// the check can read. Its title is the model's when that is printed on the page or is the bookmark's, else the
-/// bookmark's; its levels are kept only when the quote gives their numbers. Fewer than two adventures aren't a
-/// compilation, and none are kept.
+/// The evidence check for adventures a model found, as for the classifier's values: an adventure stands only if it is
+/// one of the candidates, given once, and its quote is on a page of that candidate that the check can read. Its title
+/// is the model's when that is printed on the page or is the bookmark's, else the bookmark's; its levels are kept only
+/// when the quote gives their numbers. Fewer than two adventures aren't a compilation, and none are kept.
 /// </summary>
 public static class PartCheck
 {

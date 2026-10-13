@@ -12,11 +12,11 @@ using Microsoft.Web.WebView2.Core;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Downloads from stores (online libraries plan, O5, choice 15): when the user presses a store's own Download button in
-/// Bibliotaph's browser or the online reader, the file goes to the downloads folder they chose, a library folder or one
-/// inside it, and the library reads it like any new file. One file per click, started by the user; the browser writes
-/// it, under a name no file there has, so Bibliotaph's own code still writes nothing into library folders. With no
-/// downloads folder, the browser saves to the user's Downloads folder as any browser does.
+/// Downloads from stores: when the user presses a store's own Download button in Bibliotaph's browser or the online
+/// reader, the file goes to the downloads folder they chose, a library folder or one inside it, and the library reads
+/// it like any new file. One file per click, started by the user; the browser writes it, under a name no file there
+/// has, so Bibliotaph's own code still writes nothing into library folders. With no downloads folder, the browser
+/// saves to the user's Downloads folder as any browser does.
 /// </summary>
 public sealed class OnlineDownloads(SettingsStore settings, SourceRootStore roots, IndexingService indexing, ILogger<OnlineDownloads> log)
 {

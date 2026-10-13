@@ -9,8 +9,8 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// What a Smart View shows (slice 3 plan, choice 17): the Library's search text, filters, scope, order, layout and
-/// tab, never a list of books. Stored as JSON with a version, so a later app can read an older view.
+/// What a Smart View shows: the Library's search text, filters, scope, order, layout and tab, never a list of books.
+/// Stored as JSON with a version, so a later app can read an older view.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",

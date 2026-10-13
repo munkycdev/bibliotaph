@@ -1,6 +1,6 @@
 namespace Bibliotaph.App.Views;
 
-/// <summary>Pack together, over the Library (multi-select plan). The Library moves keyboard focus in and out of it.</summary>
+/// <summary>Pack together, over the Library. The Library moves keyboard focus in and out of it.</summary>
 public partial class PackTogetherDialogView
 {
     public PackTogetherDialogView() => InitializeComponent();

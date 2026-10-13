@@ -14,10 +14,10 @@ using Serilog;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Slice 4k: accessibility audits of what the smoke test shows, page by page and dialog by dialog. Each audit checks
-/// that every interactive control has a name a screen reader can read; then, with the window at its minimum size (what
-/// a small screen at 200% scaling leaves), that no primary control is cut off and that Tab reaches every one and comes
-/// back round. Misses are gathered rather than thrown, so the checks around them still run, and one check at the end
+/// Accessibility audits of what the smoke test shows, page by page and dialog by dialog. Each audit checks that every
+/// interactive control has a name a screen reader can read; then, with the window at its minimum size (what a small
+/// screen at 200% scaling leaves), that no primary control is cut off and that Tab reaches every one and comes back
+/// round. Misses are gathered rather than thrown, so the checks around them still run, and one check at the end
 /// reports them all.
 /// </summary>
 /// <remarks>

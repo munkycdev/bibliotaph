@@ -11,9 +11,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Every collection, kept in memory for the pages and menus (slice 3 plan, choices 8 to 10): their tree, their names
-/// as paths ("Campaign › Maps"), the scope each opens the Library with, and the recent ones a book's menu offers. It
-/// reloads after any collection changes, on the UI thread.
+/// Every collection, kept in memory for the pages and menus: their tree, their names as paths ("Campaign › Maps"),
+/// the scope each opens the Library with, and the recent ones a book's menu offers. It reloads after any collection
+/// changes, on the UI thread.
 /// </summary>
 public sealed class CollectionDirectory
 {
@@ -75,7 +75,7 @@ public sealed class CollectionDirectory
 
     /// <summary>
     /// The collections inside <paramref name="parentId"/>, or at the top: pinned first, in the sidebar's order, then by
-    /// name (choice 9; Pinned Views plan, choice 5).
+    /// name.
     /// </summary>
     public IReadOnlyList<CollectionInfo> ChildrenOf(long? parentId) =>
         [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.PinPosition ?? int.MaxValue).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
@@ -118,8 +118,8 @@ public sealed class CollectionDirectory
     };
 
     /// <summary>
-    /// The cards for these collections (choice 9): each with how many books it holds, sub-collections included, and
-    /// the covers of the two added last. Only books in the library's shown folders count.
+    /// The cards for these collections: each with how many books it holds, sub-collections included, and the covers of
+    /// the two added last. Only books in the library's shown folders count.
     /// </summary>
     public async Task<IReadOnlyList<CollectionCardViewModel>> CardsAsync(IReadOnlyList<CollectionInfo> collections)
     {

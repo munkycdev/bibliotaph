@@ -5,8 +5,8 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Reading a library page's markup, for services whose page holds no data to read instead (online libraries, O4): the
-/// page cut into one piece per book at a marker each book's markup starts with, and the attributes and text in it.
+/// Reading a library page's markup, for services whose page holds no data to read instead: the page cut into one
+/// piece per book at a marker each book's markup starts with, and the attributes and text in it.
 /// </summary>
 static partial class PageMarkup
 {
@@ -71,10 +71,10 @@ static partial class PageMarkup
 }
 
 /// <summary>
-/// A game's Source Library on Demiplane (online libraries, O4): each game has its own Nexus, whose Sources page shows its
-/// books as cards, those the user has unlocked with a View button. The cards are read, as the page's script data holds
-/// the page the user first opened, not this one. One game's library is not the whole of Demiplane, so no book is ever
-/// listed as missing from it.
+/// A game's Source Library on Demiplane: each game has its own Nexus, whose Sources page shows its books as cards,
+/// those the user has unlocked with a View button. The cards are read, as the page's script data holds the page the
+/// user first opened, not this one. One game's library is not the whole of Demiplane, so no book is ever listed as
+/// missing from it.
 /// </summary>
 public sealed partial class DemiplaneReader : IOnlineLibraryReader
 {
@@ -120,10 +120,10 @@ public sealed partial class DemiplaneReader : IOnlineLibraryReader
 }
 
 /// <summary>
-/// Humble Bundle's library (online libraries, O4): every product the user has from Humble Bundle, books and games alike,
-/// each with its name, its publisher and its icon, but no page of its own. So the page is read only with eBook chosen
-/// under Platform, and each book's link is the library with the book's name after a #, which opens the library and is
-/// the book's key for importing again. Books bought there are files to download, so they go in Get it from.
+/// Humble Bundle's library: every product the user has from Humble Bundle, books and games alike, each with its name,
+/// its publisher and its icon, but no page of its own. So the page is read only with eBook chosen under Platform, and
+/// each book's link is the library with the book's name after a #, which opens the library and is the book's key for
+/// importing again. Books bought there are files to download, so they go in Get it from.
 /// </summary>
 public sealed partial class HumbleBundleReader : IOnlineLibraryReader
 {
@@ -186,10 +186,10 @@ public sealed partial class HumbleBundleReader : IOnlineLibraryReader
 }
 
 /// <summary>
-/// DriveThruRPG's library (online libraries, O4), which is DMs Guild's too: one site and one library for both stores. A
-/// page of title cards, each with the product's page, its publisher and its thumbnail, thirty to a page. Each page read
-/// adds its books (choice 1), and only a library that fits on one page is the whole library. Books bought there are
-/// files to download, so they go in Get it from.
+/// DriveThruRPG's library, which is DMs Guild's too: one site and one library for both stores. A page of title cards,
+/// each with the product's page, its publisher and its thumbnail, thirty to a page. Each page read adds its books,
+/// and only a library that fits on one page is the whole library. Books bought there are files to download, so they
+/// go in Get it from.
 /// </summary>
 public sealed partial class DriveThruRpgReader : IOnlineLibraryReader
 {

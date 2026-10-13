@@ -29,7 +29,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         _shortcuts = shortcuts;
         _log = log;
         SettingsSectionViewModel[] sections = [processing, library, online, appearance, review, vocabulary, ai, passwords, backup];
-        // Start over only with --dev (slice 4l plan, choice 7).
+        // Start over only with --dev.
         Sections = dev.IsOn ? [.. sections, startOver] : sections;
         Selected = processing;
         MarkSelected();

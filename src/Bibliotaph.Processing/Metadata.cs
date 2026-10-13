@@ -73,8 +73,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
-    /// After collections changed (slice 3b): their names, and the marks of <paramref name="entryIds"/>, the entries
-    /// whose collections changed. Raises <see cref="Projected"/> even when no entry changed, as after a rename.
+    /// After collections changed: their names, and the marks of <paramref name="entryIds"/>, the entries whose
+    /// collections changed. Raises <see cref="Projected"/> even when no entry changed, as after a rename.
     /// </summary>
     public async Task ProjectCollectionsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -133,8 +133,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
-    /// Projects these entries and the adventures marked in their files (slice 5), whose cards show their file's title
-    /// and take its game system, publisher and the rest. Returns every entry projected.
+    /// Projects these entries and the adventures marked in their files, whose cards show their file's title and take
+    /// its game system, publisher and the rest. Returns every entry projected.
     /// </summary>
     async Task<IReadOnlyCollection<EntryId>> WriteAsync(IReadOnlyCollection<EntryId> requested, CancellationToken ct)
     {
@@ -209,7 +209,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         return [.. all.Keys];
     }
 
-    /// <summary>Whether every suggestion goes to Needs review, not only those a person has to look at (choice 4).</summary>
+    /// <summary>Whether every suggestion goes to Needs review, not only those a person has to look at.</summary>
     async Task<bool> ReviewAllAsync(CancellationToken ct) =>
         settings is not null && await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
 
@@ -288,16 +288,15 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
 /// <summary>
 /// Rule hints for documents: reads where the file is and what the PDF says about itself, stores the suggestions in
 /// catalog.db on the document's entry and projects the result. Packs get theirs from their folder's names. Also lists
-/// and switches the folder labels Settings shows, and gives files the folder rules switched on where they are
-/// (scenario review, row 8).
+/// and switches the folder labels Settings shows, and gives files the folder rules switched on where they are.
 /// </summary>
 public sealed class MetadataHints(LibraryStore library, EntryStore entries, IndexQueries queries, MetadataStore metadata, VocabularyStore vocabularies,
     MetadataProjector projector, PackStore packs, CorrectionStore? rules = null)
 {
     /// <summary>
-    /// Stores packs' hints from their folder's names (F4 plan, choice 9): every folder down to the pack's own, or its
-    /// ZIP, counts through the vocabulary as it does for a file, and the pack's name is its title. Every pack's, or
-    /// only those among <paramref name="entryIds"/>. Returns the packs whose hints were stored, to project.
+    /// Stores packs' hints from their folder's names: every folder down to the pack's own, or its ZIP, counts through
+    /// the vocabulary as it does for a file, and the pack's name is its title. Every pack's, or only those among
+    /// <paramref name="entryIds"/>. Returns the packs whose hints were stored, to project.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> StorePacksAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
@@ -328,8 +327,8 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
     }
 
     /// <summary>
-    /// Reads a document's hints again once its text is in, for the store its watermark names (scenario review, row 7),
-    /// and projects its entry only when that changed something.
+    /// Reads a document's hints again once its text is in, for the store its watermark names, and projects its entry
+    /// only when that changed something.
     /// </summary>
     public async Task RefreshAsync(long documentId, CancellationToken ct = default)
     {
@@ -418,7 +417,7 @@ public sealed class RuleHintsStage(MetadataHints hints, PartProposalService? pro
 {
     public Stage Stage => Stage.RuleHints;
 
-    /// <summary>Reads hints from the file's names, then whether its bookmarks and blurbs say it holds several adventures (slice 5b).</summary>
+    /// <summary>Reads hints from the file's names, then whether its bookmarks and blurbs say it holds several adventures.</summary>
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         if (!await hints.ApplyAsync(job.DocumentId, ct)) return new StageOutcome.Done(StageStatus.Skipped, [], "The file has gone, so there are no names to read.");
@@ -433,7 +432,7 @@ public sealed record MetadataProblem(MetadataField Field, string Message);
 /// <summary>
 /// The inspector's metadata: what an entry's fields show and why, and the user's edits. Every change goes to
 /// catalog.db as an assertion state or a rejection, then the entry is projected again. A value the user sets may
-/// make a folder rule worth proposing (scenario review, row 8), which <paramref name="rules"/> looks into.
+/// make a folder rule worth proposing, which <paramref name="rules"/> looks into.
 /// </summary>
 public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector, FolderRules? rules = null)
 {
@@ -564,7 +563,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
     }
 
     /// <summary>
-    /// A bulk edit (slice 4e): every change on every entry, in one transaction, by the inspector's rules
+    /// A bulk edit: every change on every entry, in one transaction, by the inspector's rules
     /// (<see cref="MetadataStore.ApplyBulkAsync"/>). A Set or Add value is a term's key, or what was typed, which is
     /// read as <see cref="SetAsync"/> reads it: a name the vocabulary doesn't know becomes the user's own term. Remove
     /// values are stored ones, as the field shows them. Every value is checked before anything is saved. Then the

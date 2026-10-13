@@ -29,9 +29,9 @@ public sealed record AiReadingBook(long DocumentId, string Title, string Model, 
     double? Read, IReadOnlyList<PartialField> Fields, ClassifierResult? Result = null, string? Problem = null, TimeSpan? Took = null);
 
 /// <summary>
-/// The live view of the Classify lane (Built-in AI plan, choices 12 and 13): the book being read now and the last
-/// <see cref="Keep"/> read. <see cref="Changed"/> is raised on the lane's thread, often while an answer streams, so a
-/// page should look at <see cref="Current"/> on a timer rather than redraw for each event.
+/// The live view of the Classify lane: the book being read now and the last <see cref="Keep"/> read.
+/// <see cref="Changed"/> is raised on the lane's thread, often while an answer streams, so a page should look at
+/// <see cref="Current"/> on a timer rather than redraw for each event.
 /// </summary>
 public sealed class AiReadingFeed(TimeProvider? clock = null)
 {

@@ -8,7 +8,7 @@ namespace Bibliotaph.Classification;
 /// What the Hints from names stage reads for one document: where its file is under its source folder, the PDF's own
 /// document information (null for images, and for PDFs that don't fill it in), and its watermark lines once its text
 /// has been read (<see cref="Watermarks.Find"/>). Watermark lines name the buyer, so only the store they name is kept.
-/// <see cref="Rules"/> are the folder rules switched on in its library folder (scenario review, row 8).
+/// <see cref="Rules"/> are the folder rules switched on in its library folder.
 /// </summary>
 public sealed record HintSource(
     string RelativePath,
@@ -21,8 +21,8 @@ public sealed record HintSource(
     IReadOnlyList<FolderRuleHint>? Rules = null);
 
 /// <summary>
-/// A folder rule the user switched on (scenario review, row 8): files in <see cref="Folder"/> (a path under their
-/// library folder, "" for all of it) and its subfolders get <see cref="Value"/>, in stored form, as a suggestion.
+/// A folder rule the user switched on: files in <see cref="Folder"/> (a path under their library folder, "" for all of
+/// it) and its subfolders get <see cref="Value"/>, in stored form, as a suggestion.
 /// </summary>
 public sealed record FolderRuleHint(string Folder, MetadataField Field, string Value);
 
@@ -40,9 +40,9 @@ public sealed record FolderLabel(string Folder, Term Term);
 /// ("Microsoft Word - draft3.docx", "Administrator"). Its keywords count only through the vocabulary.</item>
 /// <item>The file name gives a title, and level ranges and party sizes written out in a PDF's name, title or subject
 /// ("Levels 1-4", "3rd-level", "for 4-6 players") become rule suggestions.</item>
-/// <item>Where to get it (scenario review, row 7) comes from a store named in a folder name, the file name, the PDF's
-/// producer or a watermark line. Only the store is kept: the quote is the store's name as matched, never the line it
-/// was in, which holds the buyer's name and order number.</item>
+/// <item>Where to get it comes from a store named in a folder name, the file name, the PDF's producer or a watermark
+/// line. Only the store is kept: the quote is the store's name as matched, never the line it was in, which holds the
+/// buyer's name and order number.</item>
 /// <item>A folder rule the user switched on gives its value to every file in its folder and below; for a field with one
 /// value, the deepest folder's rule wins. Its quote is the folder's name.</item>
 /// </list>

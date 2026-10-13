@@ -7,8 +7,8 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// Slice 5c: with AI on, the model proposes a compilation's adventures when the rules can't, and each adventure is
-/// classified on its own pages.
+/// With AI on, the model proposes a compilation's adventures when the rules can't, and each adventure is classified
+/// on its own pages.
 /// </summary>
 public sealed partial class PipelineTests
 {

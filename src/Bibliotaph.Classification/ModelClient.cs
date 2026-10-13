@@ -9,13 +9,13 @@ namespace Bibliotaph.Classification;
 /// <summary>What kind of server an endpoint turned out to be.</summary>
 public enum EndpointKind
 {
-    /// <summary>Ollama, talked to through its own chat call so the context window can be set per request (choice 8).</summary>
+    /// <summary>Ollama, talked to through its own chat call so the context window can be set per request.</summary>
     Ollama,
 
     /// <summary>Anything that speaks the OpenAI chat completions API: LM Studio, llama.cpp's server, vLLM and the rest.</summary>
     OpenAiCompatible,
 
-    /// <summary>The built-in AI: llama.cpp's server, which Bibliotaph runs itself (Built-in AI plan).</summary>
+    /// <summary>The built-in AI: llama.cpp's server, which Bibliotaph runs itself.</summary>
     BuiltIn,
 }
 
@@ -32,9 +32,9 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
 
 /// <summary>
 /// One request: the model, the two messages, the answer's schema and the context it needs, and at most how many tokens
-/// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is (Ask plan,
-/// choice 6). With <paramref name="Progress"/>, the answer is streamed and reported as it comes (Built-in AI plan,
-/// choice 12). <paramref name="SchemaName"/> names the schema for servers that want a name with it.
+/// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is. With
+/// <paramref name="Progress"/>, the answer is streamed and reported as it comes. <paramref name="SchemaName"/> names
+/// the schema for servers that want a name with it.
 /// </summary>
 public sealed record ModelRequest(string Model, string System, string User, string? SchemaJson, int ContextTokens, int? MaxTokens = null,
     IProgress<ModelProgress>? Progress = null, string SchemaName = "book_metadata");
@@ -97,8 +97,8 @@ public interface IModelClient
 }
 
 /// <summary>
-/// A server that turns text into vectors (Ask this book, choice 3), so pages can be found by what they mean as well as by
-/// their words. The same endpoint as the chat model, with an embedding model of its own.
+/// A server that turns text into vectors, so pages can be found by what they mean as well as by their words. The same
+/// endpoint as the chat model, with an embedding model of its own.
 /// </summary>
 public interface IEmbeddingClient
 {
@@ -109,10 +109,10 @@ public interface IEmbeddingClient
 }
 
 /// <summary>
-/// One adapter over HttpClient and System.Text.Json, with no SDK (choice 8). It asks Ollama's own version call first;
-/// an endpoint that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
-/// OpenAI-compatible chat completions with a JSON-schema response format. It sends only what it is given: no tools,
-/// no functions, nothing from any other file. Embeddings go to Ollama's own embed call, or the OpenAI-compatible one.
+/// One adapter over HttpClient and System.Text.Json, with no SDK. It asks Ollama's own version call first; an endpoint
+/// that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
+/// OpenAI-compatible chat completions with a JSON-schema response format. It sends only what it is given: no tools, no
+/// functions, nothing from any other file. Embeddings go to Ollama's own embed call, or the OpenAI-compatible one.
 /// </summary>
 public sealed class LocalModelClient : IModelClient, IEmbeddingClient
 {

@@ -17,17 +17,15 @@ public sealed record PartView(EntryId EntryId, string Title, PartPages? Pages);
 public sealed record PartChange(EntryId? EntryId, string? Problem = null, Func<Task>? Undo = null);
 
 /// <summary>
-/// "This adventure's pages weren't found" (slice 5 plan, choice 12): an adventure whose pages weren't found in the copy
-/// or new version its file opens now. <see cref="WasPages"/> are its pages in the copy it was marked in, a guess for
-/// Set its pages.
+/// "This adventure's pages weren't found": an adventure whose pages weren't found in the copy or new version its
+/// file opens now. <see cref="WasPages"/> are its pages in the copy it was marked in, a guess for Set its pages.
 /// </summary>
 public sealed record UnplacedPart(EntryId EntryId, EntryId FileEntryId, string Title, string FileTitle, long DocumentId, PartPages? WasPages);
 
 /// <summary>
-/// The adventures inside compilation files (slice 5): marking them by hand, changing their pages, removing them, and
-/// following them into the file's other copies and new versions by the fingerprints of their first and last pages
-/// (choice 12). Every change is projected at once, so the library shows the adventure's card, and its first page is
-/// drawn as its cover.
+/// The adventures inside compilation files: marking them by hand, changing their pages, removing them, and following
+/// them into the file's other copies and new versions by the fingerprints of their first and last pages. Every change
+/// is projected at once, so the library shows the adventure's card, and its first page is drawn as its cover.
 /// </summary>
 public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueries queries, MetadataProjector projector, StageServices? stages = null,
     ILogger<PartsService>? log = null)
@@ -68,8 +66,8 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
         await entries.GetEntryAsync(documentId, ct) is { } entry && await entries.GetKindAsync(entry.EntryId, ct) == EntryKind.Whole ? entry.EntryId : null;
 
     /// <summary>
-    /// "Index as its own adventure" and "Mark pages as an adventure" (choice 4): pages of a copy of a file become an
-    /// adventure with a card of its own, found in the file's other copies too. Returns it, or why it can't be.
+    /// "Index as its own adventure" and "Mark pages as an adventure": pages of a copy of a file become an adventure
+    /// with a card of its own, found in the file's other copies too. Returns it, or why it can't be.
     /// </summary>
     public Task<PartChange> AddAsync(long documentId, PartPages pages, string title, CancellationToken ct = default) =>
         AddAsync(documentId, pages, title, [], ct);
@@ -144,13 +142,13 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
     }
 
     /// <summary>
-    /// Finds each adventure marked in a file in every copy of it (choice 12): a copy that joined, or a new version the
-    /// file opens now. An adventure's first page is found by its fingerprint, the one nearest where it was when a page
-    /// repeats, and its last page by its own, else at the same distance. Pages in a document that isn't a copy of the
-    /// file any more are let go, and the pages in the copy the file opens become current. An adventure whose pages
-    /// aren't found in a copy, or would overlap another there, isn't in that copy; when that copy is the one the file
-    /// shows, Needs review asks for its pages. <paramref name="fingerprinted"/> is a copy whose fingerprints Match has
-    /// just written, before its stage is done. Returns the adventures that changed, projected.
+    /// Finds each adventure marked in a file in every copy of it: a copy that joined, or a new version the file opens
+    /// now. An adventure's first page is found by its fingerprint, the one nearest where it was when a page repeats,
+    /// and its last page by its own, else at the same distance. Pages in a document that isn't a copy of the file any
+    /// more are let go, and the pages in the copy the file opens become current. An adventure whose pages aren't
+    /// found in a copy, or would overlap another there, isn't in that copy; when that copy is the one the file shows,
+    /// Needs review asks for its pages. <paramref name="fingerprinted"/> is a copy whose fingerprints Match has just
+    /// written, before its stage is done. Returns the adventures that changed, projected.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> FollowAsync(EntryId fileId, long? fingerprinted = null, CancellationToken ct = default)
     {

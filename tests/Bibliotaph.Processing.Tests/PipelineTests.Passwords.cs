@@ -7,7 +7,7 @@ using Dapper;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 4i: locked and protected files, and forgetting a book's text.</summary>
+/// <summary>Locked and protected files, and forgetting a book's text.</summary>
 public sealed partial class PipelineTests
 {
     /// <summary>Passwords indexing may use, as the app lends it one entered this sitting or remembered.</summary>

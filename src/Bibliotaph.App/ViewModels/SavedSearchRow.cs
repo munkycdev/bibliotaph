@@ -4,8 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A saved search in the Library's Saved searches list (Pinned Views plan, choice 11): it opens, pins or unpins,
-/// renames and deletes through the page it is listed on.
+/// A saved search in the Library's Saved searches list: it opens, pins or unpins, renames and deletes through the
+/// page it is listed on.
 /// </summary>
 public sealed partial class SavedSearchRow(SmartViewInfo view, bool isPinned, LibraryViewModel page) : ObservableObject
 {

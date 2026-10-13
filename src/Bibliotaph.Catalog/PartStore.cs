@@ -8,12 +8,13 @@ namespace Bibliotaph.Catalog;
 
 /// <summary>
 /// An adventure's pages in one copy of the file it is in, with the fingerprints of its first and last pages there, so
-/// they can be found in another copy or a new version (slice 5 plan, choice 12). The current one is in the copy the
-/// file opens.
+/// they can be found in another copy or a new version. The current one is in the copy the file opens.
 /// </summary>
 public sealed record PartSource(long DocumentId, PartPages Pages, string? FirstFingerprint = null, string? LastFingerprint = null, bool IsCurrent = false);
 
-/// <summary>An adventure inside a file (slice 5): its own entry, the file's entry, and its pages in each copy of the file that has them.</summary>
+/// <summary>
+/// An adventure inside a file: its own entry, the file's entry, and its pages in each copy of the file that has them.
+/// </summary>
 public sealed record PartEntry(EntryId EntryId, EntryId ParentEntryId, IReadOnlyList<PartSource> Sources)
 {
     /// <summary>Its pages in <paramref name="documentId"/>, or null when they weren't found in that copy.</summary>
@@ -24,16 +25,16 @@ public sealed record PartEntry(EntryId EntryId, EntryId ParentEntryId, IReadOnly
 public sealed record RemovedPart(RemovedEntry Entry, EntryId ParentEntryId, IReadOnlyList<PartSource> Sources);
 
 /// <summary>
-/// The adventures inside compilation files (slice 5 plan, choices 1 to 3 and 12; catalog entry design, choice 9). A
-/// part is an entry of kind <see cref="EntryKind.Part"/> pointing at the file's entry, with one source per copy of the
-/// file: that copy's first and last PDF page. The file never changes. Parts in one copy never share a page.
+/// The adventures inside compilation files. A part is an entry of kind <see cref="EntryKind.Part"/> pointing at the
+/// file's entry, with one source per copy of the file: that copy's first and last PDF page. The file never changes.
+/// Parts in one copy never share a page.
 /// </summary>
 public sealed class PartStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
-    /// <summary>The type a part is when it is marked (choice 4: "Index as its own adventure").</summary>
+    /// <summary>The type a part is when it is marked ("Index as its own adventure").</summary>
     public const string AdventureType = "adventure";
 
-    /// <summary>The type suggested for a file once adventures are marked in it (choice 8).</summary>
+    /// <summary>The type suggested for a file once adventures are marked in it.</summary>
     public const string AnthologyType = "anthology";
 
     /// <summary>The quote on the Anthology suggestion: where it came from.</summary>
@@ -76,18 +77,18 @@ public sealed class PartStore(IDbContextFactory<CatalogDbContext> contexts, Time
     }
 
     /// <summary>
-    /// Marks pages of a copy of a file as an adventure of its own (choice 4): a new entry with the user's title,
-    /// typed Adventure, with these pages as its current source. The file is suggested as an Anthology (choice 8).
-    /// Null when the file's entry can't hold parts (it isn't a file's own card, or the copy isn't one of its copies),
-    /// or the pages overlap an adventure already marked in that copy.
+    /// Marks pages of a copy of a file as an adventure of its own: a new entry with the user's title, typed Adventure,
+    /// with these pages as its current source. The file is suggested as an Anthology. Null when the file's entry can't
+    /// hold parts (it isn't a file's own card, or the copy isn't one of its copies), or the pages overlap an adventure
+    /// already marked in that copy.
     /// </summary>
     public Task<EntryId?> AddAsync(EntryId parentId, PartSource source, string title, CancellationToken ct = default) =>
         AddAsync(parentId, source, title, [], null, ct);
 
     /// <summary>
     /// <see cref="AddAsync(EntryId, PartSource, string, CancellationToken)"/>, with values a proposal read for the
-    /// adventure, such as the levels its blurb gives (slice 5 plan, choice 5): suggestions of their own origin, read
-    /// from the copy with <paramref name="contentHash"/>, which the user can keep or reject.
+    /// adventure, such as the levels its blurb gives: suggestions of their own origin, read from the copy with
+    /// <paramref name="contentHash"/>, which the user can keep or reject.
     /// </summary>
     public async Task<EntryId?> AddAsync(EntryId parentId, PartSource source, string title, IReadOnlyList<MetadataProposal> suggestions, string? contentHash,
         CancellationToken ct = default)
@@ -202,12 +203,12 @@ public sealed class PartStore(IDbContextFactory<CatalogDbContext> contexts, Time
         await db.EntrySources.AnyAsync(s => s.EntryId == parentId.Value && s.DocumentId == documentId && s.FirstPdfPage == null
             && s.Entry.Kind == EntryKind.Whole && s.Entry.ParentEntryId == null && s.Entry.MergedIntoEntryId == null, ct);
 
-    /// <summary>Whether <paramref name="source"/>'s pages share one with another adventure's in that copy (choice 3).</summary>
+    /// <summary>Whether <paramref name="source"/>'s pages share one with another adventure's in that copy.</summary>
     static async Task<bool> OverlapsAsync(CatalogDbContext db, PartSource source, long? except, CancellationToken ct) =>
         await db.EntrySources.AnyAsync(s => s.DocumentId == source.DocumentId && s.FirstPdfPage != null && s.EntryId != except
             && s.FirstPdfPage <= source.Pages.Last && source.Pages.First <= s.LastPdfPage, ct);
 
-    /// <summary>Suggests Anthology as the file's type (choice 8), unless any source already has, or the user said no.</summary>
+    /// <summary>Suggests Anthology as the file's type, unless any source already has, or the user said no.</summary>
     static async Task SuggestAnthologyAsync(CatalogDbContext db, EntryId parentId, DateTime now, CancellationToken ct)
     {
         var id = parentId.Value;

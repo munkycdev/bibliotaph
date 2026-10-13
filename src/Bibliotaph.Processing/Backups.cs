@@ -12,9 +12,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// What a backup says about itself (slice 4j plan, choice 1), as manifest.json beside catalog.db in the ZIP: which
-/// Bibliotaph and schema made it, when, and each library folder's id, path and disk, so a restore can say which are
-/// found and remap the rest.
+/// What a backup says about itself, as manifest.json beside catalog.db in the ZIP: which Bibliotaph and schema made
+/// it, when, and each library folder's id, path and disk, so a restore can say which are found and remap the rest.
 /// </summary>
 public sealed record BackupManifest
 {
@@ -51,7 +50,7 @@ public sealed record BackupManifest
 /// <summary>A backup on disk.</summary>
 public sealed record BackupFile(string Path, DateTime CreatedUtc, long SizeBytes);
 
-/// <summary>A library folder of a backup being restored, and whether it is where the backup says (slice 4j plan, choice 4).</summary>
+/// <summary>A library folder of a backup being restored, and whether it is where the backup says.</summary>
 public sealed record RestoreFolder(long Id, string Path, bool Found, int Files);
 
 /// <summary>
@@ -69,13 +68,12 @@ public sealed record RestorePreview(string BackupPath, BackupManifest? Manifest,
 }
 
 /// <summary>
-/// Backups of the user's work (slice 4j, A15). A backup is a ZIP of a consistent copy of catalog.db, taken with VACUUM
-/// INTO while the app runs, and a manifest; index.db goes in too only when the user asks, since it can be rebuilt from
-/// the files. Passwords and AI keys stay in Windows Credential Manager and are never in one (choice 3). Once a week the
-/// first start makes one in the backups folder, keeping the last four of those (choice 2). Restoring reads a backup
-/// into a staging folder, upgrades it as startup would (choice 5), points its folders at their places on this
-/// computer, and leaves it for <see cref="PendingRestore"/> to swap in at the next start, before anything opens the
-/// databases (choice 4).
+/// Backups of the user's work. A backup is a ZIP of a consistent copy of catalog.db, taken with VACUUM INTO while the
+/// app runs, and a manifest; index.db goes in too only when the user asks, since it can be rebuilt from the files.
+/// Passwords and AI keys stay in Windows Credential Manager and are never in one. Once a week the first start makes
+/// one in the backups folder, keeping the last four of those. Restoring reads a backup into a staging folder,
+/// upgrades it as startup would, points its folders at their places on this computer, and leaves it for
+/// <see cref="PendingRestore"/> to swap in at the next start, before anything opens the databases.
 /// </summary>
 public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, IndexDatabase index, SettingsStore settings,
     TimeProvider? clock = null, ILogger<BackupService>? log = null) : IDisposable
@@ -83,7 +81,7 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
     /// <summary>Automatic backups are named for this, then their UTC time: only these are ever deleted, and only by the weekly backup.</summary>
     public const string AutomaticPrefix = "automatic-backup-";
 
-    /// <summary>How many automatic backups are kept (choice 2).</summary>
+    /// <summary>How many automatic backups are kept.</summary>
     public const int KeptAutomatic = 4;
 
     const string StampFormat = "yyyyMMdd-HHmmss";
@@ -110,7 +108,7 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
     public Task SetIncludeIndexAsync(bool include, CancellationToken ct = default) =>
         settings.SetAsync(SettingKeys.BackupIncludeIndex, include.ToString(), ct);
 
-    /// <summary>Back up now (choice 2): a backup saved where the user chose, which nothing ever deletes.</summary>
+    /// <summary>Back up now: a backup saved where the user chose, which nothing ever deletes.</summary>
     public async Task<BackupFile> BackUpAsync(string target, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
@@ -141,9 +139,9 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
     }
 
     /// <summary>
-    /// The weekly backup (choice 2), at the first start of each week (weeks start on Monday, in local time): made unless
-    /// one was already made this week, or there is nothing to keep yet. Then only the last four automatic backups stay;
-    /// a backup made before a migration, or saved with Back up now, is never deleted. Null when none was due.
+    /// The weekly backup, at the first start of each week (weeks start on Monday, in local time): made unless one was
+    /// already made this week, or there is nothing to keep yet. Then only the last four automatic backups stay; a
+    /// backup made before a migration, or saved with Back up now, is never deleted. Null when none was due.
     /// </summary>
     public async Task<BackupFile?> BackUpWeeklyIfDueAsync(CancellationToken ct = default)
     {
@@ -237,9 +235,9 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
     }
 
     /// <summary>
-    /// Reads a backup for restoring (choice 4): unpacks it into the staging folder, checks its catalog is whole and
-    /// isn't from a newer Bibliotaph (choice 5, "Update Bibliotaph first"), upgrades it as startup would, and lists its
-    /// library folders with whether each is where it was. Any earlier preview is discarded first.
+    /// Reads a backup for restoring: unpacks it into the staging folder, checks its catalog is whole and isn't from a
+    /// newer Bibliotaph ("Update Bibliotaph first"), upgrades it as startup would, and lists its library folders with
+    /// whether each is where it was. Any earlier preview is discarded first.
     /// </summary>
     public async Task<RestorePreview> PreviewRestoreAsync(string backup, CancellationToken ct = default)
     {
@@ -314,9 +312,9 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
     }
 
     /// <summary>
-    /// Readies the previewed backup to replace catalog.db at the next start (choice 4): each folder pointed somewhere
-    /// takes that place, one not found and not pointed anywhere stays offline to be fixed later, and the swap is left
-    /// for <see cref="PendingRestore"/>. The caller then restarts the app. Returns why not, or null when it is ready.
+    /// Readies the previewed backup to replace catalog.db at the next start: each folder pointed somewhere takes that
+    /// place, one not found and not pointed anywhere stays offline to be fixed later, and the swap is left for
+    /// <see cref="PendingRestore"/>. The caller then restarts the app. Returns why not, or null when it is ready.
     /// </summary>
     public async Task<string?> StageRestoreAsync(RestorePreview preview, IReadOnlyDictionary<long, string?> places, CancellationToken ct = default)
     {

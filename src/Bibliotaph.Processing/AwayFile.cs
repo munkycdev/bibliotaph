@@ -6,7 +6,7 @@ namespace Bibliotaph.Processing;
 /// <summary>Why a book's file can't be opened right now.</summary>
 public enum AwayReason
 {
-    /// <summary>Its library folder can't be reached: its drive is unplugged, or its network share is away (slice 4g).</summary>
+    /// <summary>Its library folder can't be reached: its drive is unplugged, or its network share is away.</summary>
     Offline,
 
     /// <summary>Its file isn't where it was, in a folder that can be reached, and hasn't turned up anywhere else.</summary>

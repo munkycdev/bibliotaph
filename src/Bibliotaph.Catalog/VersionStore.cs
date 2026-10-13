@@ -28,9 +28,9 @@ public sealed record PendingVersion(
 public sealed record VersionDecision(PendingVersion Version, VersionAnswer Answer, long? PreviousCurrent);
 
 /// <summary>
-/// The "new version?" cards (F2 plan, choice 4): Match proposes a file that shares most of its pages with a book, or
-/// has its title and publisher, as a new version of it; the user makes it current, keeps it as another copy, or says
-/// it is a separate book, which is remembered for that pair of files. Each file gets one card, for its best match.
+/// The "new version?" cards: Match proposes a file that shares most of its pages with a book, or has its title and
+/// publisher, as a new version of it; the user makes it current, keeps it as another copy, or says it is a separate
+/// book, which is remembered for that pair of files. Each file gets one card, for its best match.
 /// </summary>
 public sealed class VersionStore(IDbContextFactory<CatalogDbContext> contexts, EntryStore entries, TimeProvider? clock = null)
 {

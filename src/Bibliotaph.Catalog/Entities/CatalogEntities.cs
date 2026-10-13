@@ -2,10 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Entities;
 
-// Persistence shapes for catalog.db. Slice 0 created the core tables; slice 2 adds vocabulary, rejections and
-// classification runs; the foundation slice adds entries, which user work keys on; slice 3 adds favourites and reading
-// positions, then collections, smart views, session packs and notes, each by its own migration; pins come with Pinned Views.
-// Domain behaviour lives in Core (Bibliotaph.Core.Metadata for metadata).
+// Persistence shapes for catalog.db. Domain behaviour lives in Core (Bibliotaph.Core.Metadata for metadata).
 
 /// <summary>A folder the user added. Its files are never marked missing while it is offline.</summary>
 public sealed class SourceRoot
@@ -35,15 +32,16 @@ public sealed class FileLocation
     public Document? Document { get; set; }
     /// <summary>
     /// The document this path held before its content changed, until the new content is hashed. New content at the
-    /// same path is a new version of the same book (A08), so it joins that document's entry.
+    /// same path is a new version of the same book, so it joins that document's entry.
     /// </summary>
     public long? PreviousDocumentId { get; set; }
     public DateTime LastSeenUtc { get; set; }
     public FileLocationState State { get; set; }
 
     /// <summary>
-    /// For a file inside a ZIP, the ZIP's own location (F3). Its <see cref="RelativePath"/> is then the ZIP's path and
-    /// the entry's, as File Explorer shows it, and its state follows the ZIP's. A ZIP's own location has a hash but no document.
+    /// For a file inside a ZIP, the ZIP's own location. Its <see cref="RelativePath"/> is then the ZIP's path and the
+    /// entry's, as File Explorer shows it, and its state follows the ZIP's. A ZIP's own location has a hash but no
+    /// document.
     /// </summary>
     public long? ContainerId { get; set; }
     public FileLocation? Container { get; set; }
@@ -59,7 +57,7 @@ public sealed class FileLocation
 
     /// <summary>
     /// The file was online-only when Bibliotaph read it, so reading it downloaded it: once nothing left needs its
-    /// content, it goes back to online-only (Dale's review, row 2). Cleared when it has gone back, or when it changes.
+    /// content, it goes back to online-only. Cleared when it has gone back, or when it changes.
     /// </summary>
     public bool ReturnToOnlineOnly { get; set; }
 }
@@ -76,9 +74,9 @@ public sealed class Document
     public string? CapabilitiesJson { get; set; }
     public ProtectionType Protection { get; set; }
     /// <summary>
-    /// When the user chose "Forget its text" (slice 4i plan, choice 6): its pages, search text, cover and AI results
-    /// were removed, and the pipeline leaves it alone until "Read it again" clears this. Kept here, not in index.db,
-    /// because it is the user's decision and must survive index.db being rebuilt.
+    /// When the user chose "Forget its text": its pages, search text, cover and AI results were removed, and the
+    /// pipeline leaves it alone until "Read it again" clears this. Kept here, not in index.db, because it is the user's
+    /// decision and must survive index.db being rebuilt.
     /// </summary>
     public DateTime? TextForgottenUtc { get; set; }
     public DateTime CreatedUtc { get; set; }
@@ -88,9 +86,9 @@ public sealed class Document
 }
 
 /// <summary>
-/// A library card (catalog entry design, choice 1). What the user decides about a book (metadata, rejections, review,
-/// collections) is about its entry, not about whichever copy of the file they found it in. The documents behind it
-/// are its <see cref="Sources"/>; an entry owned elsewhere has none.
+/// A library card. What the user decides about a book (metadata, rejections, review, collections) is about its entry,
+/// not about whichever copy of the file they found it in. The documents behind it are its <see cref="Sources"/>; an
+/// entry owned elsewhere has none.
 /// </summary>
 public sealed class Entry
 {
@@ -98,7 +96,7 @@ public sealed class Entry
     public EntryKind Kind { get; set; }
     /// <summary>
     /// For a part, the compilation's entry. For an image in a pack, the pack: the image keeps its own entry, with its
-    /// sources and anything set on it, but shows only inside the pack until the pack is split (F4 plan, choice 5).
+    /// sources and anything set on it, but shows only inside the pack until the pack is split.
     /// </summary>
     public long? ParentEntryId { get; set; }
     public Entry? ParentEntry { get; set; }
@@ -109,8 +107,8 @@ public sealed class Entry
     public long? MergedIntoEntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
     /// <summary>
-    /// Names a book owned elsewhere in the library sync file (library sync plan, choice 4), which has no content hash to
-    /// be named by; a book with files is named by its files' hashes instead. Made once, and the same on every PC it reaches.
+    /// Names a book owned elsewhere in the library sync file, which has no content hash to be named by; a book with
+    /// files is named by its files' hashes instead. Made once, and the same on every PC it reaches.
     /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
     public List<EntrySource> Sources { get; set; } = [];
@@ -134,8 +132,8 @@ public sealed class EntrySource
     public int? LastPdfPage { get; set; }
     /// <summary>
     /// A part's first and last page-text fingerprints (<see cref="Core.PageFingerprints"/>) in this document, so its
-    /// pages can be found in another copy or a new version of the file (slice 5 plan, choice 12); null for the whole
-    /// document, or for a page with too little text.
+    /// pages can be found in another copy or a new version of the file; null for the whole document, or for a page
+    /// with too little text.
     /// </summary>
     public string? FirstFingerprint { get; set; }
     public string? LastFingerprint { get; set; }
@@ -143,9 +141,9 @@ public sealed class EntrySource
 }
 
 /// <summary>
-/// A copy that joined an entry because its text matched another copy page for page (catalog entry design, choice 5),
-/// or because the user said so with Same book, with what moved across, so "Not the same book" can put everything back.
-/// A pack merged into another by Pack together (multi-select plan, choice 9) is recorded the same way, with no files.
+/// A copy that joined an entry because its text matched another copy page for page, or because the user said so with
+/// Same book, with what moved across, so "Not the same book" can put everything back. A pack merged into another by
+/// Pack together is recorded the same way, with no files.
 /// </summary>
 public sealed class EntryJoin
 {
@@ -164,9 +162,9 @@ public sealed class EntryJoin
 }
 
 /// <summary>
-/// A folder or ZIP whose images were made one pack card, or split again (F4 plan, choices 2 to 5). A ZIP counts as a
-/// whole, subfolders included; a folder only for the images directly in it. Remembered by path, so a rescan neither
-/// packs a split folder again nor loses the pack's card.
+/// A folder or ZIP whose images were made one pack card, or split again. A ZIP counts as a whole, subfolders included;
+/// a folder only for the images directly in it. Remembered by path, so a rescan neither packs a split folder again nor
+/// loses the pack's card.
 /// </summary>
 public sealed class PackDecision
 {
@@ -182,9 +180,9 @@ public sealed class PackDecision
 }
 
 /// <summary>
-/// A file whose title and publisher match a book the user owns elsewhere (F5 plan, choice 6): a Needs review card,
-/// "You own X elsewhere. Is this its file?", while <see cref="Answer"/> is null. "Same book" joins the file to the book
-/// and the row goes; "Separate book" stays, so the pair is never asked about again.
+/// A file whose title and publisher match a book the user owns elsewhere: a Needs review card, "You own X elsewhere.
+/// Is this its file?", while <see cref="Answer"/> is null. "Same book" joins the file to the book and the row goes;
+/// "Separate book" stays, so the pair is never asked about again.
 /// </summary>
 public sealed class ElsewhereMatch
 {
@@ -198,9 +196,9 @@ public sealed class ElsewhereMatch
 }
 
 /// <summary>
-/// The adventures a file seems to hold (slice 5 plan, choices 5 to 7), proposed from the copy with this content hash:
-/// one Needs review card for the file while <see cref="Answer"/> is null. The answer is remembered by the hash, so the
-/// same file is never proposed again, whatever reads it later.
+/// The adventures a file seems to hold, proposed from the copy with this content hash: one Needs review card for the
+/// file while <see cref="Answer"/> is null. The answer is remembered by the hash, so the same file is never proposed
+/// again, whatever reads it later.
 /// </summary>
 public sealed class PartProposal
 {
@@ -230,8 +228,8 @@ public sealed class CopyDecision
 }
 
 /// <summary>
-/// A "new version?" card in Needs review (F2 plan, choice 4): a file that looks like a revision of a book already
-/// in the library, but isn't the same text page for page. One per file, for its best match; it goes once answered.
+/// A "new version?" card in Needs review: a file that looks like a revision of a book already in the library, but
+/// isn't the same text page for page. One per file, for its best match; it goes once answered.
 /// </summary>
 public sealed class VersionProposal
 {
@@ -285,7 +283,7 @@ public sealed class Assertion
 
 /// <summary>
 /// A value the user said is wrong for an entry. It suppresses that value from every source, including any later
-/// model, so a rejected suggestion never comes back (A04).
+/// model, so a rejected suggestion never comes back.
 /// </summary>
 public sealed class Rejection
 {
@@ -331,7 +329,7 @@ public sealed class VocabularyAlias
 /// <summary>
 /// One classifier run over one copy of an entry: which model, which prompt and schema, and which pages of that copy
 /// it read. Kept in catalog.db with the assertions it produced, so an index.db rebuild neither loses their provenance
-/// nor re-runs the model (slice 2 plan, choice 5).
+/// nor re-runs the model.
 /// </summary>
 public sealed class ClassificationRun
 {
@@ -353,8 +351,8 @@ public sealed class ClassificationRun
 }
 
 /// <summary>
-/// "You said this book was cataloged wrong" (scenario review, row 8): the user opened the editor with Cataloged wrong…
-/// and closed it without changing or confirming anything, so Needs review keeps a card that opens it again.
+/// "You said this book was cataloged wrong": the user opened the editor with Cataloged wrong… and closed it without
+/// changing or confirming anything, so Needs review keeps a card that opens it again.
 /// </summary>
 public sealed class CorrectionRequest
 {
@@ -364,9 +362,9 @@ public sealed class CorrectionRequest
 }
 
 /// <summary>
-/// A folder rule (scenario review, row 8): files in one folder of a library folder, and its subfolders, get a field's
-/// value as a suggestion. Proposed after the user set that value on several books from the folder; each answer is
-/// kept, so a declined rule isn't proposed again.
+/// A folder rule: files in one folder of a library folder, and its subfolders, get a field's value as a suggestion.
+/// Proposed after the user set that value on several books from the folder; each answer is kept, so a declined rule
+/// isn't proposed again.
 /// </summary>
 public sealed class FolderRule
 {
@@ -396,9 +394,9 @@ public sealed class IgnoredFolderLabel
 }
 
 /// <summary>
-/// A page or page range that user work points at (session pack items; page notes in 3f), in one document. The printed
-/// labels and the page-text fingerprints of its first and last pages are kept from when it was made, so it can be
-/// found again in another copy or version of the book, and checked when the book changes (slice 3 plan, choice 14).
+/// A page or page range that user work points at (session pack items; page notes), in one document. The printed labels
+/// and the page-text fingerprints of its first and last pages are kept from when it was made, so it can be found again
+/// in another copy or version of the book, and checked when the book changes.
 /// </summary>
 public sealed class PageRef
 {
@@ -417,7 +415,7 @@ public sealed class PageRef
 
     /// <summary>
     /// What was found when the pages were looked for in <see cref="CheckDocumentId"/>, the version of the book that opens
-    /// instead of <see cref="DocumentId"/> (slice 4h plan, choice 4); null until they have been looked for.
+    /// instead of <see cref="DocumentId"/>; null until they have been looked for.
     /// </summary>
     public PageCheck? Check { get; set; }
     public long? CheckDocumentId { get; set; }
@@ -427,8 +425,8 @@ public sealed class PageRef
 }
 
 /// <summary>
-/// A collection (slice 3 plan, choice 8): a named group of entries, inside another collection or at the top. A book can
-/// be in any number of collections; deleting one removes only the grouping.
+/// A collection: a named group of entries, inside another collection or at the top. A book can be in any number of
+/// collections; deleting one removes only the grouping.
 /// </summary>
 public sealed class CollectionNode
 {
@@ -440,13 +438,15 @@ public sealed class CollectionNode
     public DateTime CreatedUtc { get; set; }
     /// <summary>When a book was last added to it or it was made: the menu's recent collections.</summary>
     public DateTime UsedUtc { get; set; }
-    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    /// <summary>
+    /// Names it in the library sync file: made once, on the PC that made it, and the same on every PC it reaches.
+    /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
-/// A saved Smart View (slice 3 plan, choice 17): a name and what the Library showed, as JSON (version, search text,
-/// filters, scope, order, layout and tab). Never a list of books: opening it runs the search again.
+/// A saved Smart View: a name and what the Library showed, as JSON (version, search text, filters, scope, order, layout
+/// and tab). Never a list of books: opening it runs the search again.
 /// </summary>
 public sealed class SmartView
 {
@@ -455,13 +455,15 @@ public sealed class SmartView
     public required string Definition { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
-    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    /// <summary>
+    /// Names it in the library sync file: made once, on the PC that made it, and the same on every PC it reaches.
+    /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
-/// A pin in the sidebar's Pinned group (Pinned Views plan, choice 3), in the order the user put them. Each kind but
-/// Favorites points at its target through its own column, so deleting the target deletes the pin.
+/// A pin in the sidebar's Pinned group, in the order the user put them. Each kind but Favorites points at its target
+/// through its own column, so deleting the target deletes the pin.
 /// </summary>
 public sealed class Pin
 {
@@ -477,8 +479,8 @@ public sealed class Pin
 }
 
 /// <summary>
-/// A note (slice 3 plan, choice 18): plain text on an entry, or with a page reference, on pages of one of its
-/// documents. An entry has at most one note of its own; page notes are any number.
+/// A note: plain text on an entry, or with a page reference, on pages of one of its documents. An entry has at most
+/// one note of its own; page notes are any number.
 /// </summary>
 public sealed class Note
 {
@@ -490,11 +492,13 @@ public sealed class Note
     public required string Text { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
-    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    /// <summary>
+    /// Names it in the library sync file: made once, on the PC that made it, and the same on every PC it reaches.
+    /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
-/// <summary>An entry added to a collection (choice 10).</summary>
+/// <summary>An entry added to a collection.</summary>
 public sealed class CollectionItem
 {
     public long CollectionId { get; set; }
@@ -502,7 +506,7 @@ public sealed class CollectionItem
     public DateTime AddedUtc { get; set; }
 }
 
-/// <summary>A book marked with a heart (slice 3 plan, choice 5).</summary>
+/// <summary>A book marked with a heart.</summary>
 public sealed class Favorite
 {
     public long EntryId { get; set; }
@@ -510,8 +514,8 @@ public sealed class Favorite
 }
 
 /// <summary>
-/// When a book was last opened, and where its reader left it (choice 6). The page belongs to the document that was
-/// read, so a book whose current copy changed opens that copy at its start.
+/// When a book was last opened, and where its reader left it. The page belongs to the document that was read, so a
+/// book whose current copy changed opens that copy at its start.
 /// </summary>
 public sealed class ReadingState
 {
@@ -523,8 +527,8 @@ public sealed class ReadingState
 }
 
 /// <summary>
-/// A session pack (slice 3 plan, choice 11): what a game master gathers for one session, in their order, with notes.
-/// The pack touched last is the current one, which Add to session adds to.
+/// A session pack: what a game master gathers for one session, in their order, with notes. The pack touched last is
+/// the current one, which Add to session adds to.
 /// </summary>
 public sealed class SessionPack
 {
@@ -536,11 +540,13 @@ public sealed class SessionPack
     public DateTime CreatedUtc { get; set; }
     /// <summary>When it was last opened or changed.</summary>
     public DateTime TouchedUtc { get; set; }
-    /// <summary>A binder of rules and references to look up mid-game (Binders plan, choice 9): At hand offers its pages.</summary>
+    /// <summary>A binder of rules and references to look up mid-game: At hand offers its pages.</summary>
     public bool KeepAtHand { get; set; }
     /// <summary>The game system its references are for, as a system vocabulary key; null for any system.</summary>
     public string? GameSystem { get; set; }
-    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    /// <summary>
+    /// Names it in the library sync file: made once, on the PC that made it, and the same on every PC it reaches.
+    /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
@@ -551,14 +557,16 @@ public sealed class SessionSection
     public long PackId { get; set; }
     public required string Name { get; set; }
     public int Position { get; set; }
-    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    /// <summary>
+    /// Names it in the library sync file: made once, on the PC that made it, and the same on every PC it reaches.
+    /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
 /// One item in a pack: a whole book, or with <see cref="PageRefId"/> a page range of it, with the game master's own
 /// label and a one-line note. The same book can be in a pack any number of times. With <see cref="Link"/> it is a page
-/// of a book owned online instead (online libraries plan, O2b): the address that page was at.
+/// of a book owned online instead: the address that page was at.
 /// </summary>
 public sealed class SessionItem
 {
@@ -577,15 +585,17 @@ public sealed class SessionItem
     public string? Label { get; set; }
     public string? Note { get; set; }
     public DateTime AddedUtc { get; set; }
-    /// <summary>Names it in the library sync file (library sync plan, choice 4): made once, on the PC that made it, and the same on every PC it reaches.</summary>
+    /// <summary>
+    /// Names it in the library sync file: made once, on the PC that made it, and the same on every PC it reaches.
+    /// </summary>
     public Guid SyncId { get; set; } = Guid.NewGuid();
 }
 
 /// <summary>
-/// What this PC knows of one record of the library sync file (library sync plan, choice 3): each field's value as it
-/// was last seen or merged and when it changed, a tombstone if it was deleted, and whether it came from another PC but
-/// can't be used here yet (its book isn't in this library, say). The catalog's own tables stay as they are; comparing
-/// them with these rows is how a change made on this PC is noticed and timed, whichever page made it.
+/// What this PC knows of one record of the library sync file: each field's value as it was last seen or merged and
+/// when it changed, a tombstone if it was deleted, and whether it came from another PC but can't be used here yet (its
+/// book isn't in this library, say). The catalog's own tables stay as they are; comparing them with these rows is how
+/// a change made on this PC is noticed and timed, whichever page made it.
 /// </summary>
 public sealed class SyncState
 {
@@ -611,8 +621,8 @@ public sealed class Setting
 }
 
 /// <summary>
-/// A question asked of a book and its answer (Ask plan, choice 10): one conversation per book, kept on its entry. The
-/// answer is kept as the reader saw it, checked, in <see cref="Parts"/> (JSON), so its citations stay links.
+/// A question asked of a book and its answer: one conversation per book, kept on its entry. The answer is kept as the
+/// reader saw it, checked, in <see cref="Parts"/> (JSON), so its citations stay links.
 /// </summary>
 public sealed class AskTurn
 {

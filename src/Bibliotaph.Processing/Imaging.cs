@@ -32,14 +32,14 @@ public sealed class CoverCache(AppPaths paths)
 
     public static string FileName(string contentHash) => contentHash + ".jpg";
 
-    /// <summary>What a cover drawn from one page of a book is kept under: an adventure's first page (slice 5).</summary>
+    /// <summary>What a cover drawn from one page of a book is kept under: an adventure's first page.</summary>
     public static string PageKey(string contentHash, int pdfPage) => string.Create(CultureInfo.InvariantCulture, $"{contentHash}-p{pdfPage}");
 
     public string PathFor(string fileName) => Path.Combine(Folder, fileName);
 
     /// <summary>
-    /// What a book owned elsewhere's cover is kept under (online libraries plan, choice 9): its entry's sync id, which
-    /// stays the same however its card changes. The cover comes from its online library, so importing again remakes it.
+    /// What a book owned elsewhere's cover is kept under: its entry's sync id, which stays the same however its card
+    /// changes. The cover comes from its online library, so importing again remakes it.
     /// </summary>
     public static string ElsewhereKey(Guid syncId) => string.Create(CultureInfo.InvariantCulture, $"elsewhere-{syncId:N}");
 

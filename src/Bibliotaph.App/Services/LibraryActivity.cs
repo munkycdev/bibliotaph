@@ -129,7 +129,7 @@ public sealed partial class LibraryActivity : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusName))]
     public partial string Summary { get; private set; } = "Nothing to process";
 
-    /// <summary>"1 folder offline", under the status in the sidebar (slice 4g plan, choice 5); empty while every folder can be reached.</summary>
+    /// <summary>"1 folder offline", under the status in the sidebar; empty while every folder can be reached.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasOfflineFolders), nameof(StatusName))]
     public partial string OfflineText { get; private set; } = "";

@@ -86,7 +86,7 @@ public sealed class CatalogDatabase(string path, string backupsDirectory, TimePr
 
     /// <summary>
     /// Writes a consistent copy of catalog.db to <paramref name="target"/>, a file that doesn't exist yet. VACUUM INTO
-    /// reads in one transaction, so the copy is whole even while the app goes on writing (slice 4j plan, choice 1).
+    /// reads in one transaction, so the copy is whole even while the app goes on writing.
     /// </summary>
     public async Task CopyToAsync(string target, CancellationToken ct = default)
     {

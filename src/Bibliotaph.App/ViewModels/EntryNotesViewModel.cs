@@ -9,9 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A page note as the reader, a binder's reader and the details list it: which pages, and the text, and where it opens in the
-/// book as it is now (slice 4h plan, choice 2), with why when that isn't simply its pages. The pages shown are where it is
-/// in the copy the list is about: the version the book opens, in the details, or the copy open in a reader.
+/// A page note as the reader, a binder's reader and the details list it: which pages, and the text, and where it
+/// opens in the book as it is now, with why when that isn't simply its pages. The pages shown are where it is in the
+/// copy the list is about: the version the book opens, in the details, or the copy open in a reader.
 /// </summary>
 public sealed class PageNoteRow(PageNoteInfo note, PageNotePages? shown = null)
 {
@@ -55,8 +55,8 @@ public sealed class PageNoteRow(PageNoteInfo note, PageNotePages? shown = null)
 }
 
 /// <summary>
-/// The Notes tab of the details (slice 3 plan, choice 18): the book's own note, saved as it is typed and found by
-/// search, and the notes on its pages, added in the reader, each opening the book at its pages.
+/// The Notes tab of the details: the book's own note, saved as it is typed and found by search, and the notes on its
+/// pages, added in the reader, each opening the book at its pages.
 /// </summary>
 public sealed partial class EntryNotesViewModel : ObservableObject
 {

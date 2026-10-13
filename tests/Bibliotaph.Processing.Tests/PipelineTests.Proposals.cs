@@ -4,7 +4,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 5b: a compilation's adventures proposed from its bookmarks and blurbs, settled in Needs review.</summary>
+/// <summary>A compilation's adventures proposed from its bookmarks and blurbs, settled in Needs review.</summary>
 public sealed partial class PipelineTests
 {
     ReviewService Review() => new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,

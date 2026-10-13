@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Slice 4i: passwords, DRM and forgetting a book's text, on two hand-made PDFs (<see cref="SmokePdfs"/>).</summary>
+/// <summary>Passwords, DRM and forgetting a book's text, on two hand-made PDFs (<see cref="SmokePdfs"/>).</summary>
 static partial class SmokeTest
 {
     const string LockedTitle = "Smoke Locked Book";

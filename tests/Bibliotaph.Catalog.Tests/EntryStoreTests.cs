@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Copies (F2): joining two cards of one book, Undo, which copy opens, and new versions at the same path.</summary>
+/// <summary>Copies: joining two cards of one book, Undo, which copy opens, and new versions at the same path.</summary>
 public sealed class EntryStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);
@@ -219,7 +219,7 @@ public sealed class EntryStoreTests : IAsyncLifetime
         Assert.Equal(first, await _entries.GetCurrentDocumentAsync(entry, Ct));
     }
 
-    // ---- Owned elsewhere (F5a) -------------------------------------------------------------------------------------
+    // ---- Owned elsewhere -------------------------------------------------------------------------------------------
 
     [Fact]
     public async Task A_book_owned_elsewhere_is_a_card_with_no_file_that_shows_whatever_folders_are_online()

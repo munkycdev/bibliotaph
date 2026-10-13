@@ -16,8 +16,8 @@ public enum Route
     PilotReview,
     Viewer,
     DownloadCheck,
-    /// <summary>What the AI is reading now, and the last books it read (Built-in AI plan, choice 13).</summary>
+    /// <summary>What the AI is reading now, and the last books it read.</summary>
     AiReading,
-    /// <summary>A book owned online, read on its service's page (online libraries, O2b); by route alone, the Library.</summary>
+    /// <summary>A book owned online, read on its service's page; by route alone, the Library.</summary>
     OnlineReader,
 }

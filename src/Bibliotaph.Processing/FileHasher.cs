@@ -3,7 +3,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>SHA-256 of a source file's bytes: the document's identity (A03).</summary>
+/// <summary>SHA-256 of a source file's bytes: the document's identity.</summary>
 public sealed class FileHasher(ISourceFileReader reader)
 {
     public async Task<ContentHash> HashAsync(string path, CancellationToken ct = default)

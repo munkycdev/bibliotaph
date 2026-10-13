@@ -25,11 +25,11 @@ public sealed class LocalFile(string path, Action? release) : IAsyncDisposable, 
 public sealed class SourceChangedException(string message) : IOException(message);
 
 /// <summary>
-/// Gives stages and the viewer a file they can open by path (F3 plan, choice 6). A loose file is itself; a file inside a
-/// ZIP is extracted to the extract cache, named by its content hash, checked against that hash, and reused by every
-/// reader after. Files in use are kept; once the cache passes its limit, the least recently used go. It also knows which
-/// library files are open through it, a book in the reader or a ZIP being extracted, so none goes back to online-only
-/// while it is in use (<see cref="OnlineOnlyReturns"/>).
+/// Gives stages and the viewer a file they can open by path. A loose file is itself; a file inside a ZIP is extracted
+/// to the extract cache, named by its content hash, checked against that hash, and reused by every reader after. Files
+/// in use are kept; once the cache passes its limit, the least recently used go. It also knows which library files are
+/// open through it, a book in the reader or a ZIP being extracted, so none goes back to online-only while it is in use
+/// (<see cref="OnlineOnlyReturns"/>).
 /// </summary>
 public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpace disk, IndexingOptions? options = null, long limitBytes = SourceFiles.DefaultLimitBytes)
 {

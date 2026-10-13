@@ -9,8 +9,8 @@ using Bibliotaph.App.ViewModels;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// A session pack's page (slice 3c). Items are dragged by their grip and dropped on another item, which they take the
-/// place of, or on a section's heading; the keyboard stays on an item that Move up or Move down moved.
+/// A session pack's page. Items are dragged by their grip and dropped on another item, which they take the place of, or
+/// on a section's heading; the keyboard stays on an item that Move up or Move down moved.
 /// </summary>
 public partial class SessionPackView
 {

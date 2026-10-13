@@ -13,11 +13,10 @@ using Microsoft.Win32;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Settings &gt; Online libraries (online libraries plan, choice 1): the services a library page can be read from, the
-/// preview of what importing it does (choice 6), the import with Undo, and the books from earlier imports the page no
-/// longer lists (choice 7). With them, how books owned online show and open (choices 12 and 19), which were in Settings
-/// &gt; Library, so everything about online libraries is in one place. One section for the whole app, so a preview is
-/// still here after a look at the Library.
+/// Settings &gt; Online libraries: the services a library page can be read from, the preview of what importing it
+/// does, the import with Undo, and the books from earlier imports the page no longer lists. With them, how books owned
+/// online show and open, which were in Settings &gt; Library, so everything about online libraries is in one place. One
+/// section for the whole app, so a preview is still here after a look at the Library.
 /// </summary>
 public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
     INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders,
@@ -25,7 +24,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
 {
     OnlinePage? _page;
 
-    /// <summary>The service whose browser read the page shown, so its next page adds to it (choice 1).</summary>
+    /// <summary>The service whose browser read the page shown, so its next page adds to it.</summary>
     string? _fromBrowser;
     Func<string, CancellationToken, Task<byte[]?>>? _covers;
     Func<Task>? _undo;
@@ -165,7 +164,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         return $"Read {books}. Bibliotaph shows what importing them does; nothing is imported until you press Import there.";
     }
 
-    /// <summary>The folder store downloads go to (O5), or null for the browser's own Downloads folder.</summary>
+    /// <summary>The folder store downloads go to, or null for the browser's own Downloads folder.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DownloadsLine), nameof(HasDownloadsFolder))]
     public partial string? DownloadsFolder { get; private set; }
@@ -207,15 +206,15 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     bool _loadingSettings;
 
     /// <summary>
-    /// Show site icons (online libraries plan, choice 12): a book owned online shows its site's icon in its badge,
-    /// fetched once from the site. Off, it shows a plain cloud and nothing is fetched.
+    /// Show site icons: a book owned online shows its site's icon in its badge, fetched once from the site. Off, it
+    /// shows a plain cloud and nothing is fetched.
     /// </summary>
     [ObservableProperty]
     public partial bool ShowSiteIcons { get; set; } = true;
 
     /// <summary>
-    /// Read books owned online in Bibliotaph (online libraries plan, choice 19): Open shows the service's page in the
-    /// online reader. Off, it opens in the everyday browser.
+    /// Read books owned online in Bibliotaph: Open shows the service's page in the online reader. Off, it opens in the
+    /// everyday browser.
     /// </summary>
     [ObservableProperty]
     public partial bool ReadOnlineInApp { get; set; } = true;
@@ -283,7 +282,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         }
     }
 
-    /// <summary>Sign out of all services (choice 2): the browser forgets every sign-in it kept.</summary>
+    /// <summary>Sign out of all services: the browser forgets every sign-in it kept.</summary>
     [RelayCommand]
     async Task SignOutAsync()
     {
@@ -386,7 +385,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
 
     bool CanRunUndo() => !IsBusy;
 
-    /// <summary>Removes a book the library page no longer lists, with Undo (choice 7: never on its own).</summary>
+    /// <summary>Removes a book the library page no longer lists, with Undo (never on its own).</summary>
     internal async Task RemoveAsync(MissingBookViewModel book)
     {
         if (await elsewhere.RemoveAsync(book.Book.EntryId) is not { } removed) return;

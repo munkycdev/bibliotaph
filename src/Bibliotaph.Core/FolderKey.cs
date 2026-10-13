@@ -3,7 +3,7 @@ namespace Bibliotaph.Core;
 /// <summary>
 /// One folder in a library folder: the library folder's id and the path of the folder under it ("D&amp;D 5e\Adventures",
 /// or "" for the library folder itself). Folders compare as Windows compares paths, ignoring case and which slash
-/// separates them, so the books "from this folder" are the files directly in it (scenario review, row 8).
+/// separates them, so the books "from this folder" are the files directly in it.
 /// </summary>
 public readonly record struct FolderKey(long RootId, string Folder)
 {

@@ -4,8 +4,8 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Hearts on books (slice 3 plan, choice 5): each change goes to catalog.db, then the marks are projected, so the
-/// Library's Favourites and <c>favorite:yes</c> follow at once.
+/// Hearts on books: each change goes to catalog.db, then the marks are projected, so the Library's Favourites and
+/// <c>favorite:yes</c> follow at once.
 /// </summary>
 public sealed class FavoritesService(FavoriteStore favorites, EntryStore entries, MetadataProjector projector)
 {
@@ -24,9 +24,9 @@ public sealed class FavoritesService(FavoriteStore favorites, EntryStore entries
 }
 
 /// <summary>
-/// What the reader leaves behind (choice 6): when each book was opened, for Home and the Recently opened order, and
-/// the page it was left at after an ordinary open, where it opens next time. Left in one copy, the book opens another
-/// at the matching page (slice 4h plan, choice 5).
+/// What the reader leaves behind: when each book was opened, for Home and the Recently opened order, and the page
+/// it was left at after an ordinary open, where it opens next time. Left in one copy, the book opens another at the
+/// matching page.
 /// </summary>
 public sealed class ReadingService(ReadingStore reading, MetadataProjector projector, PagePlaces places)
 {
@@ -54,8 +54,8 @@ public sealed class ReadingService(ReadingStore reading, MetadataProjector proje
 }
 
 /// <summary>
-/// Collections (slice 3 plan, choices 8 to 10): each change goes to catalog.db, then the collections' names and the
-/// changed entries' marks are projected, so a scoped Library and <c>collection:"name"</c> follow at once.
+/// Collections: each change goes to catalog.db, then the collections' names and the changed entries' marks are
+/// projected, so a scoped Library and <c>collection:"name"</c> follow at once.
 /// </summary>
 public sealed class CollectionsService(CollectionStore collections, MetadataProjector projector)
 {

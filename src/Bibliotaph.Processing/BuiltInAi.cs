@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>Where the built-in AI's engine is and how it is run (Built-in AI plan, choices 1 to 3 and 8 to 10).</summary>
+/// <summary>Where the built-in AI's engine is and how it is run.</summary>
 public sealed record BuiltInEngineOptions
 {
     /// <summary>llama.cpp's server, which the build puts in aiworker\ beside Bibliotaph.exe (build/fetch-engine.ps1).</summary>
@@ -45,8 +45,8 @@ public sealed record BuiltInEngineOptions
     public int MaxAnswerTokens { get; init; } = 2_048;
 
     /// <summary>
-    /// The engine turns text into vectors instead of answering (Ask this book, choice 3): llama-server's embedding mode,
-    /// run as a second, small engine beside the chat one, so finding pages by meaning never unloads the chat model.
+    /// The engine turns text into vectors instead of answering: llama-server's embedding mode, run as a second, small
+    /// engine beside the chat one, so finding pages by meaning never unloads the chat model.
     /// </summary>
     public bool Embedding { get; init; }
 }
@@ -149,9 +149,9 @@ public sealed class EngineProcess : IEngineProcess
 }
 
 /// <summary>
-/// The built-in AI's engine (Built-in AI plan): llama.cpp's server, started on the model when there is something to
-/// read, and stopped after a few idle minutes, when AI is paused or switched off, and with the app. It listens on this
-/// computer only, on a free port, with a key made for each start, so no other program can use it.
+/// The built-in AI's engine: llama.cpp's server, started on the model when there is something to read, and stopped
+/// after a few idle minutes, when AI is paused or switched off, and with the app. It listens on this computer only,
+/// on a free port, with a key made for each start, so no other program can use it.
 /// </summary>
 public sealed class BuiltInEngine : IAsyncDisposable
 {
@@ -436,8 +436,8 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
 }
 
 /// <summary>
-/// Ask this book's vectors from the built-in AI (choice 3): the embedding engine's OpenAI-compatible embeddings call.
-/// The server has one model loaded, so the model's name in the request doesn't matter.
+/// Ask this book's vectors from the built-in AI: the embedding engine's OpenAI-compatible embeddings call. The server
+/// has one model loaded, so the model's name in the request doesn't matter.
 /// </summary>
 public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http, string modelPath) : IEmbeddingClient
 {
@@ -449,8 +449,8 @@ public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http
 }
 
 /// <summary>
-/// A model the built-in AI can download (Built-in AI plan, choice 4): pinned to one revision of one file on Hugging
-/// Face, with its size and SHA-256, so what is downloaded is exactly what was tested.
+/// A model the built-in AI can download: pinned to one revision of one file on Hugging Face, with its size and
+/// SHA-256, so what is downloaded is exactly what was tested.
 /// </summary>
 /// <param name="Id">What settings store: "qwen3-8b".</param>
 /// <param name="Name">What people see, and with " (built in)" what runs are recorded under: "Qwen3 8B".</param>
@@ -493,8 +493,8 @@ public static class BuiltInModels
     public static IReadOnlyList<BuiltInModel> All { get; } = [Qwen8B, Qwen4B];
 
     /// <summary>
-    /// nomic-embed-text v1.5 (Apache-2.0), which finds a book's pages by meaning for Ask this book (choice 3), run by a
-    /// second engine in embedding mode. Its file isn't pinned yet: the build that added it couldn't reach Hugging Face to
+    /// nomic-embed-text v1.5 (Apache-2.0), which finds a book's pages by meaning for Ask this book, run by a second
+    /// engine in embedding mode. Its file isn't pinned yet: the build that added it couldn't reach Hugging Face to
     /// check the file, and a hash nobody checked is no check. Until <see cref="BuiltInModel.IsPinned"/>, the built-in AI
     /// asks books by their words alone. To pin it, fill in the repository's commit, the file's size and its SHA-256
     /// (from the file's LFS pointer on Hugging Face).
@@ -508,8 +508,8 @@ public static class BuiltInModels
     public static BuiltInModel? FindEmbedding(string? id) => Embedding.Id == id ? Embedding : null;
 
     /// <summary>
-    /// The model to suggest for a computer with <paramref name="graphicsBytes"/> of graphics memory (choice 5): the
-    /// largest that fits, or the smallest when the memory isn't known or nothing fits.
+    /// The model to suggest for a computer with <paramref name="graphicsBytes"/> of graphics memory: the largest that
+    /// fits, or the smallest when the memory isn't known or nothing fits.
     /// </summary>
     public static BuiltInModel Suggest(long? graphicsBytes) =>
         All.FirstOrDefault(m => graphicsBytes >= m.GraphicsBytes) ?? All[^1];

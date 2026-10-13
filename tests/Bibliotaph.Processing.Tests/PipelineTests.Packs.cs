@@ -4,7 +4,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Image packs (F4): a folder of many images is one card once it has been read, and splits back into images.</summary>
+/// <summary>Image packs: a folder of many images is one card once it has been read, and splits back into images.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]

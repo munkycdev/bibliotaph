@@ -189,7 +189,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         modelBuilder.Entity<CollectionNode>(e =>
         {
             e.HasIndex(c => c.ParentId);
-            // Deleting a collection moves its sub-collections up a level first (choice 8); this only guards the rest.
+            // Deleting a collection moves its sub-collections up a level first; this only guards the rest.
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(c => c.ParentId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -251,7 +251,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(i => i.PackId);
             e.HasIndex(i => i.EntryId);
             e.HasOne<SessionPack>().WithMany().HasForeignKey(i => i.PackId).OnDelete(DeleteBehavior.Cascade);
-            // Deleting a section moves its items to the one above first (choice 11); this only guards the rest.
+            // Deleting a section moves its items to the one above first; this only guards the rest.
             e.HasOne<SessionSection>().WithMany().HasForeignKey(i => i.SectionId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
             // An item's page reference is its own: the store deletes it with the item.
@@ -260,13 +260,13 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));
 
-        // Ask this book's conversations (Ask plan, choice 10): a book's turns go with its entry.
+        // Ask this book's conversations: a book's turns go with its entry.
         modelBuilder.Entity<AskTurn>(e =>
         {
             e.HasIndex(t => t.EntryId);
             e.HasOne<Entry>().WithMany().HasForeignKey(t => t.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
-        // Library sync (library sync plan, choice 4): each sync id names one row on every PC.
+        // Library sync: each sync id names one row on every PC.
         modelBuilder.Entity<Entry>().HasIndex(x => x.SyncId).IsUnique();
         modelBuilder.Entity<CollectionNode>().HasIndex(x => x.SyncId).IsUnique();
         modelBuilder.Entity<SmartView>().HasIndex(x => x.SyncId).IsUnique();

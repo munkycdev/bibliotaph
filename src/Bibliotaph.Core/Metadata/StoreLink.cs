@@ -3,10 +3,10 @@ using System.Text;
 namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
-/// A value of a linked field: Get it from (scenario review, row 7), a store's key and the book's page there, or Also
-/// own (online libraries, O1), where the user owns it and the book's page on that service. It is stored as the key, or
-/// the key and the link after a space: "drivethrurpg https://www.drivethrurpg.com/…". Only absolute http and https
-/// links are kept, so a link is always one a browser can open.
+/// A value of a linked field: Get it from, a store's key and the book's page there, or Also own, where the user owns it
+/// and the book's page on that service. It is stored as the key, or the key and the link after a space: "drivethrurpg
+/// https://www.drivethrurpg.com/…". Only absolute http and https links are kept, so a link is always one a browser can
+/// open.
 /// </summary>
 public readonly record struct StoreLink(string Store, string? Url)
 {

@@ -4,7 +4,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 4h: a PDF replaced in place by a revised edition (A08), and the places in it that follow.</summary>
+/// <summary>A PDF replaced in place by a revised edition, and the places in it that follow.</summary>
 public sealed partial class PipelineTests
 {
     /// <summary>
@@ -75,8 +75,8 @@ public sealed partial class PipelineTests
             await _entries.GetCurrentDocumentAsync(book.EntryId, Ct) is { } current && current != book.DocumentId
             && await _queries.GetStageStatusAsync(revised = current, Stage.Text, Ct) == StageStatus.Complete);
 
-        // It is the book's current version at once, but nothing is judged before its fingerprints exist (choice 1). The
-        // held Match job is waiting, or picked up for the moment it takes to be put back.
+        // It is the book's current version at once, but nothing is judged before its fingerprints exist. The held
+        // Match job is waiting, or picked up for the moment it takes to be put back.
         Assert.Contains(await _queries.GetStageStatusAsync(revised, Stage.Match, Ct), new StageStatus?[] { StageStatus.Pending, StageStatus.Running });
         var items = await ItemsAsync();
         Assert.Equal(new SessionItemTarget(revised, 4, 4, SessionItemState.Pending, PagePlaces.PendingReason), items[appendix]);
@@ -120,7 +120,7 @@ public sealed partial class PipelineTests
             card.Places.Select(p => (p.Place.Kind, p.Place.OwnerId)));
         Assert.Equal(1, await _places.CountRevisionsAsync(Ct));
 
-        // Where the book was left moved to the bell tower's page in the new version (choice 5).
+        // Where the book was left moved to the bell tower's page in the new version.
         Assert.Equal((revised, 3), await _reading.GetPlaceAsync(revised, Ct));
         Assert.Equal(3, await reading.GetPositionAsync(revised, Ct));
 
@@ -204,8 +204,8 @@ public sealed partial class PipelineTests
         var kept = Assert.Single(await FileLocationsAsync());
         Assert.Equal((first.DocumentId, first.ContentHash), (kept.DocumentId, kept.ContentHash));
 
-        // Another file saved over it, with the same size and date but a new ID, is new content on a local drive
-        // (choice 6). On a network share known files' IDs aren't read on every scan, so it goes unseen there.
+        // Another file saved over it, with the same size and date but a new ID, is new content on a local drive. On a
+        // network share known files' IDs aren't read on every scan, so it goes unseen there.
         _identity.Renew(path);
         if (network)
         {

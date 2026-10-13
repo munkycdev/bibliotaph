@@ -13,7 +13,7 @@ namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
 /// AI cataloguing through the real pipeline, with a fake model in place of the server: the Classify lane, the evidence
-/// check, stored suggestions and the user's decisions (A04, A14, A16).
+/// check, stored suggestions and the user's decisions.
 /// </summary>
 public sealed partial class PipelineTests
 {

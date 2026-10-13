@@ -46,7 +46,7 @@ public sealed record PageTarget(int PageIndex, double? PdfTop);
 
 /// <summary>
 /// A bookmark in the book's outline, with the page it goes to as the reader would name it. <see cref="InPart"/> marks
-/// one inside the adventure being read (slice 5 plan, choice 11), which the Contents panel shades.
+/// one inside the adventure being read, which the Contents panel shades.
 /// </summary>
 public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string Page)
 {
@@ -186,8 +186,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     public bool ShowsReturn => IsPoppedOut && !InBinder;
 
     /// <summary>
-    /// Shows another book or another place in this one, as a binder does going from item to item (slice 3 plan, choice
-    /// 16). The PDF already open stays open, so the next item in the same book shows at once.
+    /// Shows another book or another place in this one, as a binder does going from item to item. The PDF already open
+    /// stays open, so the next item in the same book shows at once.
     /// </summary>
     public async Task ShowAsync(ViewerRequest request)
     {
@@ -250,9 +250,9 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>
-    /// Why the book can't be opened, and what to do (slice 4g's known limit): an offline folder is named, with its
-    /// drive, and Try again looks at it again and opens the book if it's back; a missing file says where it was last,
-    /// with Find it, which looks through every library folder, and Show last folder.
+    /// Why the book can't be opened, and what to do: an offline folder is named, with its drive, and Try again looks at
+    /// it again and opens the book if it's back; a missing file says where it was last, with Find it, which looks
+    /// through every library folder, and Show last folder.
     /// </summary>
     void ShowAwayPrompt(AwayFile away, Func<Task> retry)
     {
@@ -294,7 +294,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     public override Route Route => Route.Viewer;
 
-    /// <summary>The book's title; for an adventure inside a file, its own and the file's (slice 5 plan, choice 11).</summary>
+    /// <summary>The book's title; for an adventure inside a file, its own and the file's.</summary>
     public override string Title => _request is { Part: { } part } request ? $"{request.Title} · in {part.FileTitle}" : _request?.Title ?? "Reader";
 
     /// <summary>True for an image opened from a pack: Previous and Next step through its images.</summary>
@@ -685,7 +685,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             KeepsPlace = KeepsPlace,
         };
 
-    /// <summary>True for an ordinary read, whose page is kept for next time (slice 3 plan, choice 6).</summary>
+    /// <summary>True for an ordinary read, whose page is kept for next time.</summary>
     bool KeepsPlace => _request is { Resume: true } or { KeepsPlace: true };
 
     /// <summary>Keeps the page an ordinary read is left at, so the book opens there next time.</summary>
@@ -726,7 +726,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>The card the open book shows under in the Library: its own, or its pack's.</summary>
     EntryId? _card;
 
-    /// <summary>The book is marked with a heart (slice 3 plan, choice 5).</summary>
+    /// <summary>The book is marked with a heart.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FavoriteAction))]
     public partial bool IsFavorite { get; private set; }
@@ -754,7 +754,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     bool CanToggleFavorite() => _card is not null;
 
-    /// <summary>The book, or the pack an image is in, is pinned in the sidebar (Pinned Views plan, choice 7).</summary>
+    /// <summary>The book, or the pack an image is in, is pinned in the sidebar.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PinAction))]
     public partial bool IsPinned { get; private set; }
@@ -782,8 +782,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     public SessionActions Sessions { get; }
 
     /// <summary>
-    /// Add page (slice 3 plan, choice 13): the page in view, or the whole image, to the current session pack; before
-    /// there is one, it asks for one first.
+    /// Add page: the page in view, or the whole image, to the current session pack; before there is one, it asks for
+    /// one first.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddPage))]
     void AddPage() => AddPageTo(null);
@@ -802,8 +802,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     bool CanAddPage() => Mode is ViewerMode.Pdf or ViewerMode.Image;
 
     /// <summary>
-    /// Add pages… (choice 13): From and To start at the page with selected text on it, or the page in view, and are
-    /// typed as the book numbers its pages.
+    /// Add pages…: From and To start at the page with selected text on it, or the page in view, and are typed as the
+    /// book numbers its pages.
     /// </summary>
     [RelayCommand]
     async Task AddPages(int? selectionPage)
@@ -823,8 +823,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>
-    /// Opened from a session pack's item or a page note whose pages weren't where they were (choice 14; slice 4h plan,
-    /// choices 1 and 2): why, over the pages. For a page that changed, Use this page points it at the page in view.
+    /// Opened from a session pack's item or a page note whose pages weren't where they were: why, over the pages. For a
+    /// page that changed, Use this page points it at the page in view.
     /// </summary>
     [ObservableProperty]
     public partial string? SessionBanner { get; private set; }
@@ -891,9 +891,9 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>
-    /// The binder item open here was moved, as by Use this page on a Needs review card or its Undo (slice 4h's known
-    /// limit): while it is still in the open file, the banner and Use this page follow it and the reader stays on its
-    /// page; in another file, it opens there.
+    /// The binder item open here was moved, as by Use this page on a Needs review card or its Undo: while it is still
+    /// in the open file, the banner and Use this page follow it and the reader stays on its page; in another file, it
+    /// opens there.
     /// </summary>
     public async Task FollowAsync(ViewerRequest moved)
     {
@@ -951,7 +951,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     [RelayCommand]
     void DismissSessionMessage() => Sessions.Close();
 
-    // Page notes (slice 3f).
+    // Page notes.
 
     EntryId? _notesEntry;
 
@@ -991,7 +991,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         if (value) AskVisible = false;
     }
 
-    // Ask this book (Ask plan, Q1).
+    // Ask this book.
 
     /// <summary>The Ask panel: a question about the open book and the pages that answer it.</summary>
     public AskPanelViewModel Ask { get; }
@@ -1009,7 +1009,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     void ToggleAsk() => AskVisible = !AskVisible;
 
     /// <summary>
-    /// Opens a page the Ask panel found, with <paramref name="phrase"/> marked by Find (choice 7): the first match on
+    /// Opens a page the Ask panel found, with <paramref name="phrase"/> marked by Find: the first match on
     /// that page, else the next one after it. Without a phrase, or when Find can't see it, the page alone.
     /// </summary>
     async Task ShowPhraseAsync(int pageIndex, string? phrase)
@@ -1095,9 +1095,9 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>
-    /// A note in the panel: the reader goes to its first page, where it was found in this copy (slice 4h plan, choice
-    /// 2). One whose page changed says so, with Use this page. A note made in another copy goes to the page found for it
-    /// here by fingerprint or printed page number; one not found goes to the same page, saying it may differ.
+    /// A note in the panel: the reader goes to its first page, where it was found in this copy. One whose page changed
+    /// says so, with Use this page. A note made in another copy goes to the page found for it here by fingerprint or
+    /// printed page number; one not found goes to the same page, saying it may differ.
     /// </summary>
     [RelayCommand]
     void GoToNote(PageNoteRow row)
@@ -1140,12 +1140,12 @@ public sealed partial class ViewerViewModel : PageViewModel
         NoteUndo = null;
     }
 
-    // Adventures inside the file (slice 5).
+    // Adventures inside the file.
 
     /// <summary>The open file was opened from an adventure's card, so its pages stand out and Find looks in them.</summary>
     public bool IsPart => _request?.Part is not null;
 
-    /// <summary>"page 3 of 19 of this adventure", or that the page in view is outside it (slice 5 plan, choice 11).</summary>
+    /// <summary>"page 3 of 19 of this adventure", or that the page in view is outside it.</summary>
     public string PartPosition
     {
         get
@@ -1188,7 +1188,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     bool CanMarkPages() => Mode == ViewerMode.Pdf;
 
-    /// <summary>Mark as adventure (slice 5 plan, choice 4): the page in view to start with, widened in the editor.</summary>
+    /// <summary>Mark as adventure: the page in view to start with, widened in the editor.</summary>
     [RelayCommand(CanExecute = nameof(CanMarkPages))]
     void MarkPages()
     {
@@ -1197,8 +1197,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>
-    /// A bookmark's Index as its own adventure (slice 5 plan, choice 4): its pages run to the next bookmark at the same
-    /// depth, or the end of the file, and its title is the bookmark's, all of which the editor can change.
+    /// A bookmark's Index as its own adventure: its pages run to the next bookmark at the same depth, or the end of the
+    /// file, and its title is the bookmark's, all of which the editor can change.
     /// </summary>
     [RelayCommand]
     void IndexBookmark(OutlineEntry? entry)
@@ -1347,7 +1347,7 @@ public sealed partial class ViewerViewModel : PageViewModel
                 return;
             }
             // Kept in memory for this sitting, so the book moving to another window isn't asked for again. With "Make its
-            // text searchable" ticked, indexing may use it too until the app closes (slice 4i plan, choice 1).
+            // text searchable" ticked, indexing may use it too until the app closes.
             if (password is not null) _unlocked.Add(source.ContentHash, password, forIndexing: entered?.Searchable == true);
             if (entered is { Remember: true } && password is not null && !_vault.Remember(source.ContentHash, password))
                 ShowNotice("Windows didn't store the password, so Bibliotaph will ask for it next time.");
@@ -1370,7 +1370,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             CanCopy = doc.CanCopy;
             Subtitle = DescribeSource(source, $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}");
 
-            // An ordinary open goes back to the page the book was left at (choice 6); Back, to the page as it was.
+            // An ordinary open goes back to the page the book was left at; Back, to the page as it was.
             var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;
             if (version != _version) return;
             var start = Math.Clamp(_resume?.PageIndex ?? (kept > 0 ? kept : request.PageIndex), 0, Math.Max(0, doc.PageCount - 1));
@@ -1450,7 +1450,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             }
             catch (PdfOpenException ex) when (ex.Kind == ErrorKind.Security)
             {
-                // DRM: no password helps, and nor does trying again (slice 4i plan, choice 4).
+                // DRM: no password helps, and nor does trying again.
                 Problem("Can't be read here.", "This PDF uses a protection scheme Bibliotaph can't open. Its details stay editable, " +
                     "and your default PDF app may be able to open it.", "Open in another app", OpenElsewhereCommand);
                 return (null, null, null);
@@ -1598,7 +1598,7 @@ public sealed partial class ViewerViewModel : PageViewModel
         try
         {
             hits = await renderer.FindAsync(text, -1, MaxFindHits);
-            // Reading an adventure inside a file, Find looks in its pages unless told otherwise (slice 5 plan, choice 11).
+            // Reading an adventure inside a file, Find looks in its pages unless told otherwise.
             if (FindScope is { } scope) hits = [.. hits.Where(h => scope.Contains(h.PageIndex))];
         }
         catch (Exception ex) when (ex is WorkerException or InvalidOperationException)

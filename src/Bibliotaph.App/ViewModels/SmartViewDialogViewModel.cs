@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>Naming a Smart View (slice 3 plan, choice 17): Save view, Save as new and Rename.</summary>
+/// <summary>Naming a Smart View: Save view, Save as new and Rename.</summary>
 public sealed partial class SmartViewDialogViewModel(string heading, string actionText, string name = "") : ObservableObject
 {
     /// <summary>Raised when the dialog closes: with the name, or null when it was cancelled.</summary>

@@ -13,9 +13,8 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record InspectorPart(EntryId EntryId, string Title, PartPages? Pages, string PagesText);
 
 /// <summary>
-/// The details' adventures (slice 5 plan, choice 4): a file lists the adventures marked in it, with Add, Edit range
-/// and Remove; an adventure says which file it is in, with Edit range and Remove adventure. Pages are typed as the
-/// file numbers them.
+/// The details' adventures: a file lists the adventures marked in it, with Add, Edit range and Remove; an adventure
+/// says which file it is in, with Edit range and Remove adventure. Pages are typed as the file numbers them.
 /// </summary>
 public sealed partial class InspectorViewModel
 {

@@ -225,7 +225,7 @@ public partial class LibraryView
         }
     }
 
-    /// <summary>The Saved searches list takes the keyboard on its first search as it opens (Pinned Views plan, choice 11).</summary>
+    /// <summary>The Saved searches list takes the keyboard on its first search as it opens.</summary>
     void SavedSearchesPopup_Opened(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => FindButton(SavedSearchList, "OpenSavedSearch")?.Focus());
 

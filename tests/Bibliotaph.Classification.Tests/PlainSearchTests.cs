@@ -3,7 +3,7 @@ using Bibliotaph.Core.Search;
 
 namespace Bibliotaph.Classification.Tests;
 
-/// <summary>Ask (scenario review, row 5): its prompt and schema, the check of every reading, and a request read end to end.</summary>
+/// <summary>Ask: its prompt and schema, the check of every reading, and a request read end to end.</summary>
 public class PlainSearchTests
 {
     static readonly Vocabulary Vocabulary = new(

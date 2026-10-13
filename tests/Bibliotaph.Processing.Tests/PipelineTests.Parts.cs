@@ -6,7 +6,7 @@ using Dapper;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 5: adventures inside a file, marked by hand, as cards of their own that follow the file's copies.</summary>
+/// <summary>Adventures inside a file, marked by hand, as cards of their own that follow the file's copies.</summary>
 public sealed partial class PipelineTests
 {
     static SearchPlan Plan(string query) => SearchPlan.From(SearchQuery.Parse(query));

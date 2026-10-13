@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Easier corrections (scenario review, row 8): Cataloged wrong… and a correction offered to look-alikes.</summary>
+/// <summary>Easier corrections: Cataloged wrong… and a correction offered to look-alikes.</summary>
 static partial class SmokeTest
 {
     /// <summary>

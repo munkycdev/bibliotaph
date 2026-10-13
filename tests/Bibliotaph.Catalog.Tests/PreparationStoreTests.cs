@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 3a: hearts on books, and when each book was opened and where its reader left it.</summary>
+/// <summary>Hearts on books, and when each book was opened and where its reader left it.</summary>
 public sealed class PreparationStoreTests : IAsyncLifetime
 {
     static readonly DateTimeOffset Monday = new(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);

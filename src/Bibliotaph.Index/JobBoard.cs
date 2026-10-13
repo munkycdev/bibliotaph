@@ -8,10 +8,10 @@ namespace Bibliotaph.Index;
 public sealed record JobRecord(long Id, long DocumentId, string ContentHash, Stage Stage, int StageVersion, int Attempts);
 
 /// <summary>
-/// The durable job queue in index.db. One job per document, stage and stage version; leases mark a job
-/// as running, and leases left behind by a closed or crashed app go back to pending at startup (A11).
-/// Every write goes through the <see cref="IndexWriter"/>, so leasing is atomic without extra locking.
-/// Each job change also updates <c>stage_status</c>, which is what the UI reads.
+/// The durable job queue in index.db. One job per document, stage and stage version; leases mark a job as running, and
+/// leases left behind by a closed or crashed app go back to pending at startup. Every write goes through the <see
+/// cref="IndexWriter"/>, so leasing is atomic without extra locking. Each job change also updates <c>stage_status</c>,
+/// which is what the UI reads.
 /// </summary>
 public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimeProvider? clock = null)
 {
@@ -70,7 +70,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
     /// <summary>
     /// Queues <paramref name="stage"/> for each of <paramref name="documents"/> that has no job at all: a catalog whose
     /// index.db is new, as after a restore without the index or index.db being deleted, has every book read again from
-    /// its file (slice 4j plan, choice 6). Returns the number queued.
+    /// its file. Returns the number queued.
     /// </summary>
     public Task<int> EnqueueUnqueuedAsync(IReadOnlyCollection<(long DocumentId, string ContentHash)> documents, Stage stage, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
@@ -193,7 +193,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             """,
             new { finished.DocumentId, finished.Id }, t);
 
-    /// <summary>Returns every leased job to pending. Run once at startup, before any lane leases work (A11).</summary>
+    /// <summary>Returns every leased job to pending. Run once at startup, before any lane leases work.</summary>
     public Task<int> RecoverLeasesAsync(CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
         {

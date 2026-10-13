@@ -3,7 +3,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Classification.Tests;
 
-/// <summary>Slice 5c: a model asked which of a compilation's bookmarks are adventures, and the check on its answer.</summary>
+/// <summary>A model asked which of a compilation's bookmarks are adventures, and the check on its answer.</summary>
 public class PartFinderTests
 {
     /// <summary>A made-up compilation: a contents page, credits, two adventures, a chapter of rules and an appendix.</summary>

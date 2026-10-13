@@ -29,9 +29,9 @@ public sealed partial class LibrarySync
     DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     /// <summary>
-    /// One pass (library sync plan, choice 3): what changed here is stamped with the time it was noticed; with
-    /// <paramref name="merge"/>, the other PCs' files are merged in and the catalog made to agree, and what couldn't be
-    /// used yet is kept for later; then this PC's file is written if it is behind.
+    /// One pass: what changed here is stamped with the time it was noticed; with <paramref name="merge"/>, the other
+    /// PCs' files are merged in and the catalog made to agree, and what couldn't be used yet is kept for later; then
+    /// this PC's file is written if it is behind.
     /// </summary>
     async Task<SyncPass> PassAsync(bool merge, CancellationToken ct)
     {

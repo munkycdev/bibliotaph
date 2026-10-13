@@ -214,7 +214,7 @@ public partial class MainWindow : Window
         });
     }
 
-    // ---- Pins: dragging to a new place, and the keyboard staying on a pin that moved (Pinned Views plan, choice 8) ----
+    // ---- Pins: dragging to a new place, and the keyboard staying on a pin that moved ----
 
     void FocusPin(PinTarget target) =>
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>

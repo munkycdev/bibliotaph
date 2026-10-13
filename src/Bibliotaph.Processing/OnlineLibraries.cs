@@ -7,10 +7,10 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// A book read from the user's library on an online service (online libraries plan, choice 16): what becomes a book owned
-/// elsewhere, as the user would type it in the inspector. <see cref="Link"/> is the book's page on the service, its key
-/// for importing again (choice 7); <see cref="CoverUrl"/> is the cover the page showed, which is only looked up among
-/// the images the page already has, never fetched (choice 9).
+/// A book read from the user's library on an online service: what becomes a book owned elsewhere, as the user would
+/// type it in the inspector. <see cref="Link"/> is the book's page on the service, its key for importing again;
+/// <see cref="CoverUrl"/> is the cover the page showed, which is only looked up among the images the page already
+/// has, never fetched.
 /// </summary>
 public sealed record OnlineBook(string Title, string Link)
 {
@@ -30,14 +30,14 @@ public sealed record OnlineBook(string Title, string Link)
 }
 
 /// <summary>
-/// What one page of an online library holds: the books the user owns, how many shared with them were left out (choice
-/// 8), and whether it is the whole library, so books from earlier imports missing from it can be listed (choice 7).
+/// What one page of an online library holds: the books the user owns, how many shared with them were left out, and
+/// whether it is the whole library, so books from earlier imports missing from it can be listed.
 /// </summary>
 public sealed record OnlinePage(IReadOnlyList<OnlineBook> Books, int Shared, bool Complete)
 {
     /// <summary>
-    /// This page with the books of another page of the same library (choice 1: a library spread over pages builds up as
-    /// each is read), each book once by its link.
+    /// This page with the books of another page of the same library (a library spread over pages builds up as each is
+    /// read), each book once by its link.
     /// </summary>
     public OnlinePage With(OnlinePage more)
     {
@@ -47,8 +47,8 @@ public sealed record OnlinePage(IReadOnlyList<OnlineBook> Books, int Shared, boo
 }
 
 /// <summary>
-/// Reads one service's library page (choice 16): the page the in-app browser shows when the user presses Read this page,
-/// or a page they saved with Save as. It reads only the page it is given and fetches nothing. A page it doesn't recognise
+/// Reads one service's library page: the page the in-app browser shows when the user presses Read this page, or a
+/// page they saved with Save as. It reads only the page it is given and fetches nothing. A page it doesn't recognise
 /// gives null, so the user is told plainly rather than importing nothing.
 /// </summary>
 public interface IOnlineLibraryReader
@@ -69,8 +69,8 @@ public interface IOnlineLibraryReader
     IReadOnlyList<string> SignInSites => [];
 
     /// <summary>
-    /// Where a book's link goes (choice 5): Also own for a service whose books are read there, as D&amp;D Beyond's are;
-    /// Get it from for a store whose books are files still to download (Humble Bundle, DriveThruRPG).
+    /// Where a book's link goes: Also own for a service whose books are read there, as D&amp;D Beyond's are; Get it
+    /// from for a store whose books are files still to download (Humble Bundle, DriveThruRPG).
     /// </summary>
     MetadataField LinkField => MetadataFields.AlsoOwn;
 
@@ -87,8 +87,8 @@ public interface IOnlineLibraryReader
     IReadOnlyList<string> TitleTail => [];
 
     /// <summary>
-    /// Reading mode's stylesheet for the service's pages in the online reader (choice 24): it hides what isn't the book,
-    /// such as menus, ads and footers, and leaves the page's own contents. Null for a service without one.
+    /// Reading mode's stylesheet for the service's pages in the online reader: it hides what isn't the book, such as
+    /// menus, ads and footers, and leaves the page's own contents. Null for a service without one.
     /// </summary>
     string? ReadingStyle => null;
 }
@@ -148,7 +148,7 @@ public static class OnlinePages
 }
 
 /// <summary>
-/// D&amp;D Beyond's library page (online libraries, O2). The page is drawn by Next.js, whose data travels in the page as
+/// D&amp;D Beyond's library page. The page is drawn by Next.js, whose data travels in the page as
 /// <c>self.__next_f.push([1,"…"])</c> scripts; joined together, they hold the whole D&amp;D Beyond catalogue as
 /// "sources" objects, each marked isOwned and isSharedWithMe for the user. That data is read rather than the page's
 /// markup, whose class names change with every release, and it holds every owned book whichever tab is showing, so one

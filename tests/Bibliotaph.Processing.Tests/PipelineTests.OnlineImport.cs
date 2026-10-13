@@ -5,7 +5,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Importing an online library's books as books owned elsewhere (online libraries, O2).</summary>
+/// <summary>Importing an online library's books as books owned elsewhere.</summary>
 public sealed partial class PipelineTests
 {
     OnlineImports OnlineImports() => new(_metadataStore, _metadata, _entries, _projector, _queries, new SourceFileReader(), new FakeCodec(),

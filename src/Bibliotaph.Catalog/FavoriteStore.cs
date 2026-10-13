@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog;
 
-/// <summary>The books marked with a heart (slice 3 plan, choice 5), on cards, in the inspector and in the reader.</summary>
+/// <summary>The books marked with a heart, on cards, in the inspector and in the reader.</summary>
 public sealed class FavoriteStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;

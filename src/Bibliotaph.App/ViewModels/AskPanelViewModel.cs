@@ -45,11 +45,10 @@ public sealed class AskTurnRow(AskTurnView turn)
 
 /// <summary>
 /// The reader's Ask panel (Ask this book): a question about the open book, the answer streamed from the model with each
-/// [p. N] a link into the book (Q2), and the pages it was read from, each opening its page with the matching word
-/// marked by Find (Q1), with how much of the book has text and whether pages were found by meaning as well as by
-/// words. Each question and answer is kept as the book's conversation (Q3): a follow-up is rewritten by the model to
-/// stand on its own before its pages are found, and is answered with the last few turns. Shown only while AI is on
-/// (choice 12).
+/// [p. N] a link into the book, and the pages it was read from, each opening its page with the matching word marked
+/// by Find, with how much of the book has text and whether pages were found by meaning as well as by words. Each
+/// question and answer is kept as the book's conversation: a follow-up is rewritten by the model to stand on its own
+/// before its pages are found, and is answered with the last few turns. Shown only while AI is on.
 /// </summary>
 public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 {
@@ -438,8 +437,8 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     Task GoTo(AskPassageRow row) => _show(row.Passage.PdfPage, row.Passage.Phrase);
 
     /// <summary>
-    /// Opens the page a citation in the answer names (choice 7), marking the quotation it follows when that was on the
-    /// page, else the word the page was found by.
+    /// Opens the page a citation in the answer names, marking the quotation it follows when that was on the page, else
+    /// the word the page was found by.
     /// </summary>
     [RelayCommand]
     Task OpenCitation(AnswerPart part)

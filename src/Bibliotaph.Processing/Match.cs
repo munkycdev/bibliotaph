@@ -8,13 +8,12 @@ namespace Bibliotaph.Processing;
 
 /// <summary>
 /// Fingerprints a document's pages from the text already in index.db and, when another document holds the same book
-/// page for page, joins the two as copies on one card (foundation slice F2, choices 1 to 3 of the F2 plan). Otherwise
-/// a file that shares most of its pages with a book, or has its title and publisher, is proposed in Needs review as a
-/// new version of it (choice 4). Runs after Text, and after OCR for a book with scanned pages and its hints from
-/// names, so it never reads the file. A file with the title of a book the user owns elsewhere is offered as its file
-/// (F5 plan, choice 6). A new version that is already the one its book opens, as a file replaced in place is, has its
-/// book's session items and page notes looked for in it now that its pages have fingerprints (slice 4h plan, choice 1),
-/// and so do the adventures marked in its book's file (slice 5 plan, choice 12).
+/// page for page, joins the two as copies on one card. Otherwise a file that shares most of its pages with a book, or
+/// has its title and publisher, is proposed in Needs review as a new version of it. Runs after Text, and after OCR
+/// for a book with scanned pages and its hints from names, so it never reads the file. A file with the title of a
+/// book the user owns elsewhere is offered as its file. A new version that is already the one its book opens, as a
+/// file replaced in place is, has its book's session items and page notes looked for in it now that its pages have
+/// fingerprints, and so do the adventures marked in its book's file.
 /// </summary>
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
     ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, MetadataHints? hints = null, PartsService? parts = null) : IStage
@@ -36,7 +35,7 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
 
         var texts = await queries.GetAllPageTextsAsync(job.DocumentId, ct);
         // Hints from names usually run before the text is in, so they are read again now for the store a watermark
-        // names (scenario review, row 7). Nothing is projected unless that changed them.
+        // names. Nothing is projected unless that changed them.
         if (hints is not null) await hints.RefreshAsync(job.DocumentId, ct);
         var fingerprints = PageFingerprints.Compute(texts);
         await index.SetFingerprintsAsync(job.DocumentId, fingerprints, ct);
@@ -112,11 +111,10 @@ public sealed record CopyDetails(EntryCopy Copy, IReadOnlyList<DocumentLocation>
 public sealed record VersionItem(PendingVersion Version, string Title, string? Path, string BookTitle, string? BookPath);
 
 /// <summary>
-/// The inspector's Copies list (F2 plan, choices 6, 8 and 10): which files hold an entry's book, which one opens, and
-/// "Not the same book"; and Needs review's "new version?" cards (choice 4). Every change is projected at once so the
-/// library shows it. The copy a card opens from now on has the book's session items and page notes looked for in it,
-/// and where the book was left moves to its matching page (slice 4h plan, choices 4 and 5). The adventures marked in
-/// the book's file follow it into its copies (slice 5 plan, choice 12).
+/// The inspector's Copies list: which files hold an entry's book, which one opens, and "Not the same book"; and
+/// Needs review's "new version?" cards. Every change is projected at once so the library shows it. The copy a card
+/// opens from now on has the book's session items and page notes looked for in it, and where the book was left
+/// moves to its matching page. The adventures marked in the book's file follow it into its copies.
 /// </summary>
 public sealed class CopiesService(EntryStore entries, VersionStore versions, LibraryStore library, IndexQueries queries, MetadataProjector projector,
     PagePlaces? places = null, PartsService? parts = null)
@@ -158,8 +156,8 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
     }
 
     /// <summary>
-    /// Same book (multi-select plan, choices 2 to 7): the ticked cards become one book that opens
-    /// <paramref name="opensDocumentId"/>. Returns what undoes it, or null when they can't be joined.
+    /// Same book: the ticked cards become one book that opens <paramref name="opensDocumentId"/>. Returns what undoes
+    /// it, or null when they can't be joined.
     /// </summary>
     public async Task<BookJoin?> JoinAsOneBookAsync(IReadOnlyCollection<EntryId> entryIds, long opensDocumentId, CancellationToken ct = default)
     {

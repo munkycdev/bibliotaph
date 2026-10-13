@@ -21,12 +21,12 @@ public sealed record PlainSearchField(SearchFieldInfo Field, string Definition)
 public sealed record PlainSearchClaim(string Field, string Value, bool Exclude);
 
 /// <summary>
-/// Ask's prompt (scenario review, row 5): the second prompt beside <see cref="ClassifierPrompt"/>, which turns a
-/// request in plain English ("Mothership, level 4, jungle world with terraforming") into the search box's own fields
-/// and words. It is guarded as the classifier's is (A16): the system message holds the rules, the fields and the
-/// vocabulary's names; the user's words go only in the user message, inside <see cref="RequestTag"/> tags; and the
-/// answer can only fill <see cref="SchemaJson"/>. <see cref="PlainSearchCheck"/> then checks every field and value before
-/// anything is shown. Changing the wording or the fields bumps <see cref="Version"/>.
+/// Ask's prompt: the second prompt beside <see cref="ClassifierPrompt"/>, which turns a request in plain English
+/// ("Mothership, level 4, jungle world with terraforming") into the search box's own fields and words. It is guarded as
+/// the classifier's is: the system message holds the rules, the fields and the vocabulary's names; the user's words go
+/// only in the user message, inside <see cref="RequestTag"/> tags; and the answer can only fill <see
+/// cref="SchemaJson"/>. <see cref="PlainSearchCheck"/> then checks every field and value before anything is shown.
+/// Changing the wording or the fields bumps <see cref="Version"/>.
 /// </summary>
 public static partial class PlainSearchPrompt
 {

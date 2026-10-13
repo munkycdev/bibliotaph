@@ -3,9 +3,9 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Core.Search;
 
 /// <summary>
-/// Writes one piece of a search in the search box's own syntax, so something built outside the box (Ask's chips,
-/// scenario review row 5) runs as ordinary query text the user can see and change: <c>system:Mothership</c>,
-/// <c>style:"dungeon crawl"</c>, <c>-theme:horror</c>, <c>terraform</c>, <c>"chase through a city"</c>.
+/// Writes one piece of a search in the search box's own syntax, so something built outside the box (Ask's chips) runs
+/// as ordinary query text the user can see and change: <c>system:Mothership</c>, <c>style:"dungeon crawl"</c>,
+/// <c>-theme:horror</c>, <c>terraform</c>, <c>"chase through a city"</c>.
 /// </summary>
 public static class QueryClause
 {

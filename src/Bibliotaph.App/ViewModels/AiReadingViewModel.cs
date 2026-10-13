@@ -26,10 +26,10 @@ public sealed class AiReadingDoneItem(string title, string summary, string? prob
 }
 
 /// <summary>
-/// AI reading (Built-in AI plan, choices 12 and 13): the book the Classify lane is reading now, its step (waiting for
-/// the model, reading the excerpt with a progress bar when the server says how far it has got, writing), the answer's
-/// fields as the model writes them, and the last 20 books with what the evidence check kept and dropped. The page looks
-/// at the feed four times a second, since an answer streams faster than it is worth redrawing.
+/// AI reading: the book the Classify lane is reading now, its step (waiting for the model, reading the excerpt with a
+/// progress bar when the server says how far it has got, writing), the answer's fields as the model writes them, and
+/// the last 20 books with what the evidence check kept and dropped. The page looks at the feed four times a second,
+/// since an answer streams faster than it is worth redrawing.
 /// </summary>
 public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai, LibraryActivity activity, SettingsLinks links) : PageViewModel
 {

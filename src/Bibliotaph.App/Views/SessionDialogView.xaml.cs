@@ -5,8 +5,8 @@ using System.Windows.Threading;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// Naming a session pack or a section, picking a pack, or Add pages…, over a page (slice 3c). Keyboard focus goes into
-/// it as it opens, on its first box, and back to where it was when it closes.
+/// Naming a session pack or a section, picking a pack, or Add pages…, over a page. Keyboard focus goes into it as it
+/// opens, on its first box, and back to where it was when it closes.
 /// </summary>
 public partial class SessionDialogView
 {

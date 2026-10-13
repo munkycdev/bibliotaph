@@ -17,7 +17,7 @@ namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
 /// A file Bibliotaph couldn't fully process, and why, in words the user can act on. Trying again can't help a locked
-/// file or one with DRM (slice 4i plan, choices 3 and 4), so those offer opening it to unlock, or in another app.
+/// file or one with DRM, so those offer opening it to unlock, or in another app.
 /// </summary>
 public sealed record AttentionRow(long? DocumentId, string Title, string Detail, TextAccess Access = TextAccess.Readable, string? Error = null)
 {
@@ -80,9 +80,9 @@ public sealed partial class AttentionGroup(IReadOnlyList<AttentionRow> rows) : O
 }
 
 /// <summary>
-/// Needs review (spec 5.5): Metadata suggestions and Files needing attention, on two tabs. The suggestions are loaded
-/// when the page first opens and stay put while the user works through them, so a decided card can still be undone;
-/// when the library's count moves away from what the page shows, a link offers the new list.
+/// Needs review: Metadata suggestions and Files needing attention, on two tabs. The suggestions are loaded when the
+/// page first opens and stay put while the user works through them, so a decided card can still be undone; when the
+/// library's count moves away from what the page shows, a link offers the new list.
 /// </summary>
 public sealed partial class NeedsReviewViewModel(
     ReviewService review,

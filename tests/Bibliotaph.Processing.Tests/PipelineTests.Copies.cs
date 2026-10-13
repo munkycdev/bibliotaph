@@ -6,7 +6,7 @@ using Dapper;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Copies (F2): two files of one book, watermarked for different buyers, become one card with two copies.</summary>
+/// <summary>Copies: two files of one book, watermarked for different buyers, become one card with two copies.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]
@@ -70,7 +70,7 @@ public sealed partial class PipelineTests
         var search = new LibraryQueries(_index);
         Assert.Equal(2, Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Copies);
 
-        // As a library from before F2 looks: no Match jobs, no fingerprints, a card per file.
+        // As a library from before copies were matched looks: no Match jobs, no fingerprints, a card per file.
         await _service.StopAsync(Ct);
         await _writer.WriteAsync((c, t) => c.Execute(
             "DELETE FROM job WHERE stage = 'Match'; DELETE FROM stage_status WHERE stage = 'Match'; UPDATE page SET fingerprint = NULL;", transaction: t), Ct);

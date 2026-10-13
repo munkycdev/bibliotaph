@@ -5,7 +5,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Owned elsewhere (F5a): a book with no file, and its file arriving later.</summary>
+/// <summary>Owned elsewhere: a book with no file, and its file arriving later.</summary>
 public sealed partial class PipelineTests
 {
     [Fact]

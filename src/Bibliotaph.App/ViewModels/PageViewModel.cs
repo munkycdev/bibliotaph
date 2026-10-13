@@ -22,8 +22,8 @@ public abstract class PageViewModel : ObservableObject
     public virtual Route NavRoute => Route;
 
     /// <summary>
-    /// The key of the sidebar pin that opens what the page shows (Pinned Views plan), which marks that pin: a saved
-    /// search, a collection, Favorites or a binder. Raises PropertyChanged when it changes.
+    /// The key of the sidebar pin that opens what the page shows, which marks that pin: a saved search, a collection,
+    /// Favorites or a binder. Raises PropertyChanged when it changes.
     /// </summary>
     public virtual string? PinKey => null;
 

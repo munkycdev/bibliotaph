@@ -6,9 +6,9 @@ namespace Bibliotaph.Catalog;
 
 /// <summary>
 /// Notices writes to the tables that hold the user's work, whichever store or page made them, so library sync can write
-/// this PC's sync file a few seconds later (library sync plan, choice 2). It looks at the SQL EF Core runs against
-/// catalog.db: an INSERT, UPDATE or DELETE on one of <see cref="Tables"/> raises <see cref="Written"/>. Writes made
-/// inside <see cref="Quiet"/> don't: library sync's own merging doesn't need another look.
+/// this PC's sync file a few seconds later. It looks at the SQL EF Core runs against catalog.db: an INSERT, UPDATE or
+/// DELETE on one of <see cref="Tables"/> raises <see cref="Written"/>. Writes made inside <see cref="Quiet"/> don't:
+/// library sync's own merging doesn't need another look.
 /// </summary>
 public sealed partial class CatalogWrites : DbCommandInterceptor
 {

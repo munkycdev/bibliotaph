@@ -5,18 +5,18 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Core;
 
 /// <summary>
-/// An adventure a rule or a model thinks a file holds (slice 5 plan, choices 5 and 6): a title, its pages, the level
-/// range its blurb gives, and the words that said so.
+/// An adventure a rule or a model thinks a file holds: a title, its pages, the level range its blurb gives, and the
+/// words that said so.
 /// </summary>
 public sealed record ProposedPart(string Title, PartPages Pages, string? Levels = null, string? Quote = null);
 
 /// <summary>
-/// The rule that proposes the adventures in a compilation (slice 5 plan, choice 5). The candidates are the top-level
-/// bookmarks, or the level under a single top-level bookmark, leaving out front and back matter (credits, an
-/// introduction, appendices, an index, the licence). A candidate starts an adventure when its first two pages carry an
-/// adventure's blurb ("for four characters of 3rd level", "levels 1-3", "an adventure for"); it runs to the next
-/// candidate. Two or more starts make a proposal. A file with no bookmarks is read page by page, and the blurb alone
-/// decides, the first line of the page being the title. The blurb gives the level range.
+/// The rule that proposes the adventures in a compilation. The candidates are the top-level bookmarks, or the level
+/// under a single top-level bookmark, leaving out front and back matter (credits, an introduction, appendices, an
+/// index, the licence). A candidate starts an adventure when its first two pages carry an adventure's blurb ("for four
+/// characters of 3rd level", "levels 1-3", "an adventure for"); it runs to the next candidate. Two or more starts make
+/// a proposal. A file with no bookmarks is read page by page, and the blurb alone decides, the first line of the page
+/// being the title. The blurb gives the level range.
 /// </summary>
 public static partial class PartRules
 {
@@ -42,9 +42,9 @@ public static partial class PartRules
         outline.Any(o => o.Page >= 0 && o.Page < pageCount && !string.IsNullOrWhiteSpace(o.Title));
 
     /// <summary>
-    /// The bookmarks that could each start an adventure, with the pages up to the next: the top-level bookmarks, or
-    /// the level under a single top-level one, leaving out front and back matter. A model is asked about these too
-    /// (choice 6). Empty for a file without bookmarks.
+    /// The bookmarks that could each start an adventure, with the pages up to the next: the top-level bookmarks, or the
+    /// level under a single top-level one, leaving out front and back matter. A model is asked about these too. Empty
+    /// for a file without bookmarks.
     /// </summary>
     public static IReadOnlyList<ProposedPart> Candidates(IReadOnlyList<(string Title, int Page, int Depth)> outline, int pageCount)
     {

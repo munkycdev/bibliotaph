@@ -5,7 +5,7 @@ namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// A password typed by the reader, whether to remember it, and whether indexing may use it this sitting to make the
-/// book's text searchable (slice 4i plan, choice 1). A remembered password always does.
+/// book's text searchable. A remembered password always does.
 /// </summary>
 public sealed record EnteredPassword(string Password, bool Remember, bool Searchable = true);
 

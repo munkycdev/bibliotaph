@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 3c: session packs, with sections and ordered items, each a book or a page range of one.</summary>
+/// <summary>Session packs, with sections and ordered items, each a book or a page range of one.</summary>
 public sealed class SessionStoreTests : IAsyncLifetime
 {
     static readonly DateTimeOffset Monday = new(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);

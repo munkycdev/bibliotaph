@@ -5,8 +5,8 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// How a session item will open, worked out each time its pack is shown (slice 3 plan, choices 14 and 15) from what
-/// was found when a new version was read (slice 4h plan, choice 4).
+/// How a session item will open, worked out each time its pack is shown from what was found when a new version was
+/// read.
 /// </summary>
 public enum SessionItemState
 {
@@ -23,8 +23,8 @@ public enum SessionItemState
     Changed,
 
     /// <summary>
-    /// A new version of the book is still being read (slice 4h plan, choice 1): its pages haven't been looked for yet,
-    /// so nothing is judged changed. It opens at the same printed page meanwhile.
+    /// A new version of the book is still being read: its pages haven't been looked for yet, so nothing is judged
+    /// changed. It opens at the same printed page meanwhile.
     /// </summary>
     Pending,
 
@@ -34,7 +34,7 @@ public enum SessionItemState
     /// <summary>A book owned elsewhere, with no file at all.</summary>
     NoFile,
 
-    /// <summary>A page of a book owned online (online libraries plan, O2b): it opens in the online reader, at its address.</summary>
+    /// <summary>A page of a book owned online: it opens in the online reader, at its address.</summary>
     Online,
 }
 
@@ -49,9 +49,9 @@ public sealed record SessionItemTarget(long? DocumentId, int FirstPage, int Last
 }
 
 /// <summary>
-/// Session packs (slice 3 plan, choices 11 to 15): each change goes to catalog.db, then the books' marks are projected,
-/// so a pack's books show as a group in index.db. Page ranges get their labels and fingerprints from index.db when
-/// they are made, and are looked for in a new version of the book once it has been read (<see cref="PagePlaces"/>).
+/// Session packs: each change goes to catalog.db, then the books' marks are projected, so a pack's books show as a
+/// group in index.db. Page ranges get their labels and fingerprints from index.db when they are made, and are looked
+/// for in a new version of the book once it has been read (<see cref="PagePlaces"/>).
 /// </summary>
 public sealed class SessionsService(SessionStore sessions, EntryStore entries, LibraryStore library, IndexQueries index, MetadataProjector projector,
     PagePlaces places)
@@ -136,8 +136,8 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
     }
 
     /// <summary>
-    /// Add page and Add pages… (choice 13): pages of the document the reader has open, as an item of the card it shows
-    /// under. Without a label, the item is called after the bookmark the first page sits under. Returns the new item's id.
+    /// Add page and Add pages…: pages of the document the reader has open, as an item of the card it shows under.
+    /// Without a label, the item is called after the bookmark the first page sits under. Returns the new item's id.
     /// </summary>
     public async Task<long?> AddPagesAsync(long packId, long documentId, int firstPage, int lastPage, string? label = null, long? sectionId = null,
         CancellationToken ct = default)
@@ -209,19 +209,19 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
         if (await sessions.DeleteSectionAsync(sectionId, ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>"Use this page" (choice 14): the item points at these pages of the document the reader has open from now on, checked.</summary>
+    /// <summary>"Use this page": the item points at these pages of the document the reader has open from now on, checked.</summary>
     public async Task RepointAsync(long itemId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         if (await sessions.RepointAsync(itemId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct)) _changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Where each item opens now (choice 14; slice 4h plan, choices 1 and 2). A page range opens in its entry's current
-    /// copy: in the same file as it was added, as it is; in another copy or version, at the pages whose fingerprints
-    /// match; failing that, in the file it was added from if that is still there; otherwise at the same printed page of
-    /// the current copy, marked <see cref="SessionItemState.Changed"/>. A new version still being read isn't judged
-    /// yet. It never jumps somewhere else silently. An item with no file to open says why (choice 15). A page of a book
-    /// owned online opens in the online reader.
+    /// Where each item opens now. A page range opens in its entry's current copy: in the same file as it was added, as
+    /// it is; in another copy or version, at the pages whose fingerprints match; failing that, in the file it was added
+    /// from if that is still there; otherwise at the same printed page of the current copy, marked
+    /// <see cref="SessionItemState.Changed"/>. A new version still being read isn't judged yet. It never jumps
+    /// somewhere else silently. An item with no file to open says why. A page of a book owned online opens in the
+    /// online reader.
     /// </summary>
     public async Task<IReadOnlyDictionary<long, SessionItemTarget>> ResolveAsync(IReadOnlyList<SessionItemInfo> items, CancellationToken ct = default)
     {

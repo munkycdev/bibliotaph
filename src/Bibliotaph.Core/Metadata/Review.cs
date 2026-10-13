@@ -9,8 +9,8 @@ public enum ReviewKind
     Conflict,
 
     /// <summary>
-    /// Two cards joined as copies of one book had different values the user set for a field with one value (F2): the
-    /// card offers the other copy's.
+    /// Two cards joined as copies of one book had different values the user set for a field with one value: the card
+    /// offers the other copy's.
     /// </summary>
     CopiesDisagree,
 
@@ -41,16 +41,16 @@ public sealed record ReviewIssue(MetadataField Field, ReviewKind Kind, IReadOnly
 
     /// <summary>
     /// Cards with the same key propose the same values for the same field, so "Accept all" can take them together
-    /// (spec 5.5: bulk actions only over genuinely comparable cases).
+    /// (bulk actions only over genuinely comparable cases).
     /// </summary>
     public string GroupKey => $"{Field.Key}|{Kind}|{string.Join('|', Proposed.Select(p => p.Normalized).Order(StringComparer.Ordinal))}";
 }
 
 /// <summary>
-/// What goes to Needs review (slice 2 plan, choice 4). By default only what a person has to look at: sources that
-/// disagree about a closed field, values the user set on two copies of a book that disagree, and a document without
-/// a usable title. New vocabulary terms are reviewed once per
-/// term, not per document, so they aren't here. With <c>reviewAll</c>, every value nobody has confirmed is too.
+/// What goes to Needs review. By default only what a person has to look at: sources that disagree about a closed field,
+/// values the user set on two copies of a book that disagree, and a document without a usable title. New vocabulary
+/// terms are reviewed once per term, not per document, so they aren't here. With <c>reviewAll</c>, every value nobody
+/// has confirmed is too.
 /// </summary>
 public static class MetadataReview
 {
@@ -63,7 +63,7 @@ public static class MetadataReview
             else if (field.Disputed.Count > 0) issues.Add(new ReviewIssue(field.Field, ReviewKind.CopiesDisagree, field.Values, [field.Disputed[0]]));
             else if (field.Field == MetadataFields.Title && !field.HasConfirmed && !(field.First is { } title && TitleQuality.IsUsable(title.Value)))
                 issues.Add(new ReviewIssue(field.Field, ReviewKind.MissingTitle, field.Values, field.Values));
-            // A value an adventure shows only because its file has it (slice 5) is reviewed on the file's card.
+            // A value an adventure shows only because its file has it is reviewed on the file's card.
             else if (reviewAll && field.Values.Any(v => !v.Confirmed && !PartMetadata.IsInherited(v.Source)))
                 issues.Add(new ReviewIssue(field.Field, ReviewKind.Suggestion, [.. field.Values.Where(v => v.Confirmed)], field.Values));
         }

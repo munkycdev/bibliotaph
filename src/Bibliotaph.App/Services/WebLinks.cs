@@ -5,8 +5,8 @@ using System.Windows;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Opening a web address in the browser, and only once the user says yes: a PDF's web links (PR #48) and a book's Get
-/// it from links (scenario review, row 7) ask the same question.
+/// Opening a web address in the browser, and only once the user says yes: a PDF's web links and a book's Get it from
+/// links ask the same question.
 /// </summary>
 public static class WebLinks
 {

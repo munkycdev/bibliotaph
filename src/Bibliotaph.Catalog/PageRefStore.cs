@@ -12,16 +12,16 @@ public enum PlaceKind
 }
 
 /// <summary>
-/// A place in a book that user work points at (slice 4h): a session item's pages or a page note's, with the book it
-/// belongs to. <see cref="Text"/> is the item's label (null shows the book's title) or the note's text, and
+/// A place in a book that user work points at: a session item's pages or a page note's, with the book it belongs to.
+/// <see cref="Text"/> is the item's label (null shows the book's title) or the note's text, and
 /// <see cref="PackTitle"/> the item's session.
 /// </summary>
 public sealed record PlacedPages(PlaceKind Kind, long OwnerId, EntryId EntryId, PageRange Range, string? Text, string? PackTitle = null);
 
 /// <summary>
-/// Page references as places in books (slice 4h plan, choices 2 and 4): session items' and page notes' pages alike,
-/// with what was found when they were looked for in a new version of their book, kept so a session or a note shows it
-/// without looking again and Needs review can list the places that need a look.
+/// Page references as places in books: session items' and page notes' pages alike, with what was found when they were
+/// looked for in a new version of their book, kept so a session or a note shows it without looking again and Needs
+/// review can list the places that need a look.
 /// </summary>
 public sealed class PageRefStore(IDbContextFactory<CatalogDbContext> contexts)
 {
@@ -91,8 +91,8 @@ public sealed class PageRefStore(IDbContextFactory<CatalogDbContext> contexts)
     }
 
     /// <summary>
-    /// "Use this page" from Needs review (slice 4h plan, choice 3): the place points at these pages from now on,
-    /// checked. Returns the pages as they were, for Undo, or null when the place is gone.
+    /// "Use this page" from Needs review: the place points at these pages from now on, checked. Returns the pages as
+    /// they were, for Undo, or null when the place is gone.
     /// </summary>
     public async Task<PageRange?> UseAsync(long refId, PageRange range, CancellationToken ct = default)
     {

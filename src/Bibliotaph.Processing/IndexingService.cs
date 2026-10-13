@@ -14,7 +14,7 @@ public sealed record IndexingOptions
     /// <summary>Files hashed between checks for pause and new scans.</summary>
     public int HashBatch { get; init; } = 32;
 
-    /// <summary>Online-only files stop downloading when their drive would have less than this free (spec §OneDrive).</summary>
+    /// <summary>Online-only files stop downloading when their drive would have less than this free.</summary>
     public long OnlineOnlyReserveBytes { get; init; } = 2L * 1024 * 1024 * 1024;
 
     /// <summary>How long a job may run before its lease would count as abandoned. Leases only matter across restarts.</summary>
@@ -32,8 +32,8 @@ public sealed record IndexingOptions
     public TimeSpan UnavailableRetry { get; init; } = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    /// How often offline folders are looked at again (slice 4g plan, choice 4), for a network share coming back, which
-    /// Windows doesn't announce as it does a disk being plugged in.
+    /// How often offline folders are looked at again, for a network share coming back, which Windows doesn't announce
+    /// as it does a disk being plugged in.
     /// </summary>
     public TimeSpan OfflineRecheck { get; init; } = TimeSpan.FromMinutes(5);
 
@@ -44,7 +44,7 @@ public sealed record IndexingOptions
     public TimeSpan SpaceSettle { get; init; } = TimeSpan.FromSeconds(15);
 }
 
-/// <summary>Why a library folder reads as offline (slice 4g plan, choice 3). Its files are never marked missing for it.</summary>
+/// <summary>Why a library folder reads as offline. Its files are never marked missing for it.</summary>
 public enum OfflineReason
 {
     /// <summary>The folder, or its drive or share, can't be opened.</summary>
@@ -59,7 +59,7 @@ public enum OfflineReason
 public sealed record RootScan(long RootId, string Path, bool Reachable, ScanSummary? Summary, ReconcileResult? Changes, DateTime ScannedUtc,
     OfflineReason? Offline = null);
 
-/// <summary>What "Point to its new place" did with a folder (slice 4g plan, choice 6).</summary>
+/// <summary>What "Point to its new place" did with a folder.</summary>
 public enum RootRelocation
 {
     Relocated,
@@ -78,7 +78,7 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
 /// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
 /// pausable on its own. Classify works only while AI is ready, and waits with a notice while its endpoint can't be used.
-/// Leases left by a previous run go back to pending before anything else starts (A11). Online-only files that reading
+/// Leases left by a previous run go back to pending before anything else starts. Online-only files that reading
 /// downloaded go back to online-only once their stages are done with them (<see cref="OnlineOnlyReturns"/>).
 /// </summary>
 public sealed class IndexingService(
@@ -115,7 +115,7 @@ public sealed class IndexingService(
     readonly Dictionary<Lane, Signal> _laneSignals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
     readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
-    /// <summary>Set when files may have arrived, moved or been hashed, so folders are looked at for packs (F4) after hashing.</summary>
+    /// <summary>Set when files may have arrived, moved or been hashed, so folders are looked at for packs after hashing.</summary>
     volatile bool _packsDue = true;
     volatile bool _packing;
     HashSet<long>? _pendingScans; // null: every root
@@ -268,8 +268,8 @@ public sealed class IndexingService(
     }
 
     /// <summary>
-    /// Stops the stages running for these documents now, as "Forget its text" does before it removes what they made
-    /// (slice 4i plan, choice 6). Each goes back to the queue as a paused job does; the lanes carry on with other work.
+    /// Stops the stages running for these documents now, as "Forget its text" does before it removes what they made.
+    /// Each goes back to the queue as a paused job does; the lanes carry on with other work.
     /// </summary>
     public void Interrupt(IReadOnlyCollection<long> documentIds)
     {
@@ -289,8 +289,8 @@ public sealed class IndexingService(
 
     /// <summary>
     /// Looks again at every library folder that is offline, and at those on <paramref name="drives"/> (drive letters),
-    /// as when a disk is plugged in or taken out (slice 4g plan, choice 4). One that can be reached again comes back
-    /// with its books without Look for changes; one whose disk went reads as offline at once.
+    /// as when a disk is plugged in or taken out. One that can be reached again comes back with its books without
+    /// Look for changes; one whose disk went reads as offline at once.
     /// </summary>
     public async Task RescanOfflineAsync(IReadOnlyCollection<char>? drives = null, CancellationToken ct = default)
     {
@@ -302,11 +302,11 @@ public sealed class IndexingService(
         Path.GetPathRoot(path) is { Length: >= 2 } root && root[1] == ':' && char.ToUpperInvariant(root[0]) == char.ToUpperInvariant(drive);
 
     /// <summary>
-    /// "Point to its new place" (slice 4g plan, choice 6), for a library folder that moved for good, as to a new disk:
-    /// checked as a folder to add would be (it exists, and isn't another library folder, inside one or holding one),
-    /// then the folder takes the new path and is scanned there. Its files are matched by their paths under it, so
-    /// every book keeps its hash, card and everything done with it, and nothing is read again unless it changed. Slice
-    /// 4j's restore points folders at their new places through this too.
+    /// "Point to its new place", for a library folder that moved for good, as to a new disk: checked as a folder to
+    /// add would be (it exists, and isn't another library folder, inside one or holding one), then the folder takes
+    /// the new path and is scanned there. Its files are matched by their paths under it, so every book keeps its hash,
+    /// card and everything done with it, and nothing is read again unless it changed. Restore points folders at their
+    /// new places through this too.
     /// </summary>
     public async Task<RootRelocation> RelocateRootAsync(long rootId, string path, CancellationToken ct = default)
     {
@@ -368,7 +368,8 @@ public sealed class IndexingService(
             var backfilled = await queue.EnqueueMissingAsync(Stage.Classify, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued classification for {Count} documents", backfilled);
         }
-        // And looking for other copies, for books read before F2: from the text already stored, so no file is read again.
+        // And looking for other copies, for books read before that stage existed: from the text already stored, so no
+        // file is read again.
         if (_stages.ContainsKey(Stage.Match))
         {
             var backfilled = await queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
@@ -411,8 +412,8 @@ public sealed class IndexingService(
     static readonly TimeSpan PartsRecheck = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    /// An adventure marked in a document is classified on its own pages (slice 5 plan, choice 6): the document's
-    /// Classify job runs again, and passes over what this model has read already. While AI is off it waits with the rest.
+    /// An adventure marked in a document is classified on its own pages: the document's Classify job runs again, and
+    /// passes over what this model has read already. While AI is off it waits with the rest.
     /// </summary>
     async Task ClassifyPartsAsync(long documentId)
     {
@@ -544,9 +545,9 @@ public sealed class IndexingService(
     }
 
     /// <summary>
-    /// Scans a root, unless it reads as offline (A07, slice 4g plan, choice 3): it can't be listed, its drive holds
-    /// another disk than at its first scan, or it lists as empty though the catalog has files in it. Then nothing is
-    /// marked missing. File IDs are read only where its disk keeps them, so a moved file is followed rather than read.
+    /// Scans a root, unless it reads as offline: it can't be listed, its drive holds another disk than at its first
+    /// scan, or it lists as empty though the catalog has files in it. Then nothing is marked missing. File IDs are
+    /// read only where its disk keeps them, so a moved file is followed rather than read.
     /// </summary>
     /// <returns>The other folders a file new here may have moved from (<see cref="ReconcileResult.MovedFrom"/>).</returns>
     async Task<IReadOnlyList<long>> ScanRootAsync(SourceRoot root, IReadOnlyList<SourceRoot> all, CancellationToken ct)
@@ -574,7 +575,7 @@ public sealed class IndexingService(
 
         Func<string, string?>? fileId = volume is { HasFileIds: true } ? relative => _identity.FileId(Path.Combine(root.Path, relative)) : null;
         // On a local drive every file's ID is read again, so a file saved over another with the same size and date is
-        // seen (slice 4h plan, choice 6); on a network share each read is a round trip, so only new and changed files are asked.
+        // seen; on a network share each read is a round trip, so only new and changed files are asked.
         var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, fileId, volume?.Serial,
             readKnownIds: volume is { IsLocal: true }, ct: ct);
         _log.LogInformation("Scanned library folder {RootId}: {Files} files, {Changes}", root.Id, result.Files.Count, changes);
@@ -671,8 +672,8 @@ public sealed class IndexingService(
     }
 
     /// <summary>
-    /// Makes folders and ZIPs of many images one card (F4 plan, choice 2), once what's there has been hashed. A failure
-    /// is logged and tried again next time, so it never stops hashing.
+    /// Makes folders and ZIPs of many images one card, once what's there has been hashed. A failure is logged and
+    /// tried again next time, so it never stops hashing.
     /// </summary>
     async Task PackAsync(CancellationToken ct)
     {
@@ -780,9 +781,9 @@ public sealed class IndexingService(
     }
 
     /// <summary>
-    /// Reads a ZIP (F3 plan, choice 3): its own hash, then the list of what it holds, then each new or changed PDF and
-    /// image hashed as it decompresses. The ZIP counts as read only once every member is, so a pause part way picks up
-    /// with the members still to do.
+    /// Reads a ZIP: its own hash, then the list of what it holds, then each new or changed PDF and image hashed as it
+    /// decompresses. The ZIP counts as read only once every member is, so a pause part way picks up with the members
+    /// still to do.
     /// </summary>
     async Task HashArchiveAsync(UnhashedFile archive, CancellationToken ct)
     {
@@ -850,10 +851,10 @@ public sealed class IndexingService(
     // ---- Returning files to online-only ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Gives files that reading downloaded back to online-only once their stages are done with them (Dale's review,
-    /// row 2). While online-only files wait for space, a paused lane's waiting stages don't keep their files: those go
-    /// back too, and download again when the lane resumes, so the space a paused lane would hold lets hashing go on.
-    /// Space freed wakes the hasher, now and again once the sync app has had time to let the files go.
+    /// Gives files that reading downloaded back to online-only once their stages are done with them. While online-only
+    /// files wait for space, a paused lane's waiting stages don't keep their files: those go back too, and download
+    /// again when the lane resumes, so the space a paused lane would hold lets hashing go on. Space freed wakes the
+    /// hasher, now and again once the sync app has had time to let the files go.
     /// </summary>
     async Task ReturnLoopAsync(OnlineOnlyReturns returning, CancellationToken ct)
     {
@@ -941,8 +942,8 @@ public sealed class IndexingService(
         StageOutcome outcome;
         try
         {
-            // A book whose text the user chose to forget isn't read again until "Read it again" (slice 4i plan, choice 6),
-            // whatever queued the job.
+            // A book whose text the user chose to forget isn't read again until "Read it again", whatever queued the
+            // job.
             outcome = await library.IsTextForgottenAsync(job.DocumentId, ct)
                 ? new StageOutcome.Done(StageStatus.Skipped, [], TextAccessReasons.Forgotten)
                 : await _stages[job.Stage].RunAsync(job, ct);

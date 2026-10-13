@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore.Metadata;
 namespace Bibliotaph.Catalog;
 
 /// <summary>
-/// What export reads from catalog.db (slice 4j plan, choice 7): every table of the user's work for the JSON export,
-/// and the collections and file paths the CSV's rows show. It writes to a stream it is given; the file is the caller's.
+/// What export reads from catalog.db: every table of the user's work for the JSON export, and the collections and
+/// file paths the CSV's rows show. It writes to a stream it is given; the file is the caller's.
 /// </summary>
 public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
 {
@@ -28,7 +28,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
     };
 
     /// <summary>
-    /// How to read the export, written into it so the file explains itself (spec §Portability: documented JSON with
+    /// How to read the export, written into it so the file explains itself (documented JSON with
     /// stable IDs, paths, hashes, provenance, collection memberships and page-reference conventions).
     /// </summary>
     static readonly (string Name, string Text)[] Conventions =

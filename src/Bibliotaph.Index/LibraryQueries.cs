@@ -9,19 +9,20 @@ using Dapper;
 namespace Bibliotaph.Index;
 
 /// <summary>
-/// A library card as the grid and search results show it: an entry, through the document it shows
-/// (<see cref="DocumentId"/>, which opens). <see cref="Title"/> is its effective title, or the one from its file name. <see cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/>
-/// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/>
-/// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack
-/// (<see cref="EntryKind"/>) shows its first image, counts its <see cref="Members"/>, and has the covers of its first
-/// four images for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that
-/// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned
-/// elsewhere (<see cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/>
-/// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/>
-/// is a heart on it (slice 3), and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/>
-/// says when its text won't be read by itself: it is locked, protected or forgotten (slice 4i). An adventure inside a
-/// file (<see cref="IsPart"/>, slice 5) opens its file's document at its first page; its cover is that page and its
-/// page count its own pages.
+/// A library card as the grid and search results show it: an entry, through the document it shows (<see
+/// cref="DocumentId"/>, which opens). <see cref="Title"/> is its effective title, or the one from its file name. <see
+/// cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/> ("Levels 1–5") read as
+/// cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/> is the model that
+/// last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack (<see cref="EntryKind"/>)
+/// shows its first image, counts its <see cref="Members"/>, and has the covers of its first four images for its mosaic
+/// (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that image (<see
+/// cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned elsewhere (<see
+/// cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/> empty, and <see
+/// cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/> is a heart
+/// on it, and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/> says when its
+/// text won't be read by itself: it is locked, protected or forgotten. An adventure inside a file (<see
+/// cref="IsPart"/>) opens its file's document at its first page; its cover is that page and its page count its own
+/// pages.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
@@ -38,7 +39,7 @@ public sealed record LibraryEntry(
     /// <summary>The cover file names of a pack's first four images that have one.</summary>
     public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
 
-    /// <summary>An adventure inside a file (slice 5): a card of its own for some of the file's pages.</summary>
+    /// <summary>An adventure inside a file: a card of its own for some of the file's pages.</summary>
     public bool IsPart => EntryKind == EntryKind.Part;
 
     /// <summary>For an adventure inside a file, the file's entry.</summary>
@@ -55,12 +56,12 @@ public sealed record LibraryEntry(
 
     public string? LastLabel { get; init; }
 
-    /// <summary>For a file, how many adventures are marked in it: "5 adventures" (slice 5 plan, choice 9).</summary>
+    /// <summary>For a file, how many adventures are marked in it: "5 adventures".</summary>
     public int Parts { get; init; }
 
     /// <summary>
-    /// The book's page where the user owns it online, from its first Also own place with a link ("D&amp;D Beyond",
-    /// online libraries, O1): a card owned elsewhere opens it, and any card offers "Open on D&amp;D Beyond".
+    /// The book's page where the user owns it online, from its first Also own place with a link ("D&amp;D Beyond"): a
+    /// card owned elsewhere opens it, and any card offers "Open on D&amp;D Beyond".
     /// </summary>
     public string? OnlineLink { get; init; }
 
@@ -82,11 +83,11 @@ public enum LibrarySort
     Title,
     /// <summary>By publisher, documents without one last, then by title.</summary>
     Publisher,
-    /// <summary>The last opened first, then those never opened, newest first (slice 3 plan, choice 6).</summary>
+    /// <summary>The last opened first, then those never opened, newest first.</summary>
     RecentlyOpened,
 }
 
-/// <summary>Kind choices in the filter panel (F4 plan, choice 10). The format: field gives finer control.</summary>
+/// <summary>Kind choices in the filter panel. The format: field gives finer control.</summary>
 public enum KindFilter
 {
     All,
@@ -95,9 +96,9 @@ public enum KindFilter
     /// <summary>Single images, not those in packs.</summary>
     Images,
     Packs,
-    /// <summary>Books owned elsewhere, with no file (F5 plan, choice 8).</summary>
+    /// <summary>Books owned elsewhere, with no file.</summary>
     Elsewhere,
-    /// <summary>Everything with a file on this PC: books, images and packs, but no book owned only elsewhere (online libraries, O1).</summary>
+    /// <summary>Everything with a file on this PC: books, images and packs, but no book owned only elsewhere.</summary>
     Here,
 }
 
@@ -111,17 +112,16 @@ public enum AiFilter
 
 /// <summary>
 /// What the library shows: the entries in scope (from catalog.db: with a file present in a folder the user hasn't
-/// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is
-/// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
-/// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12). <see cref="Ai"/> keeps books a model
-/// has or hasn't read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in
-/// any of those places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of
-/// entry_scope, such as the favourites (slice 3), and <see cref="OnlyOpened"/> those that have been opened.
-/// <see cref="Styles"/> and <see cref="Durations"/> keep books with any of those terms (unknown is none), and
-/// <see cref="Players"/> books written for that many players; as for levels, books nobody has counted players for don't
-/// match. <see cref="Stores"/> keeps books to get from any of those stores (scenario review, row 7).
-/// <see cref="HideParts"/> leaves out the adventures inside files (slice 5 plan, choice 9: "Adventures inside files:
-/// Hide"), whose page hits then go with their files.
+/// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is <see
+/// cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books with
+/// unknown levels match only with <see cref="IncludeUnknownLevel"/>. <see cref="Ai"/> keeps books a model has or hasn't
+/// read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in any of those
+/// places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of entry_scope,
+/// such as the favourites, and <see cref="OnlyOpened"/> those that have been opened. <see cref="Styles"/> and <see
+/// cref="Durations"/> keep books with any of those terms (unknown is none), and <see cref="Players"/> books written for
+/// that many players; as for levels, books nobody has counted players for don't match. <see cref="Stores"/> keeps books
+/// to get from any of those stores. <see cref="HideParts"/> leaves out the adventures inside files ("Adventures inside
+/// files: Hide"), whose page hits then go with their files.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -368,7 +368,9 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE copies > 1", cancellationToken: ct));
     }
 
-    /// <summary>How many adventures inside files there are (slice 5), so the Library offers to hide them once there are some.</summary>
+    /// <summary>
+    /// How many adventures inside files there are, so the Library offers to hide them once there are some.
+    /// </summary>
     public async Task<long> CountPartsAsync(CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
@@ -376,12 +378,11 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most
-    /// <paramref name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other
-    /// copies of a book don't repeat its hits. A page inside an adventure marked in a file goes with the adventure, and
-    /// with the file only when the adventure is filtered out (slice 5 plan, choice 10). Snippets are made only for the
-    /// pages returned.
-    /// Exclusions alone find no pages, so a query like <c>-maps</c> returns nothing here.
+    /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most <paramref
+    /// name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other copies of a
+    /// book don't repeat its hits. A page inside an adventure marked in a file goes with the adventure, and with the
+    /// file only when the adventure is filtered out. Snippets are made only for the pages returned. Exclusions alone
+    /// find no pages, so a query like <c>-maps</c> returns nothing here.
     /// </summary>
     public async Task<PageResults> SearchPagesAsync(
         SearchPlan plan, LibraryFilter filter, int maxDocuments = 100, int pagesPerDocument = 3, CancellationToken ct = default)
@@ -508,7 +509,7 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     /// <summary>
     /// Documents as cards of their own, by id: for a session item whose book has no card in the Library, such as an
-    /// image hidden in a pack, which still shows and opens in the pack (slice 3 plan, choice 19).
+    /// image hidden in a pack, which still shows and opens in the pack.
     /// </summary>
     public async Task<IReadOnlyDictionary<long, LibraryEntry>> GetDocumentCardsAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
     {

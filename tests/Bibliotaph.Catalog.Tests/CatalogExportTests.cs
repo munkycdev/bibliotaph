@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 4j: the JSON export holds every table of the user's work, whatever tables are added later.</summary>
+/// <summary>The JSON export holds every table of the user's work, whatever tables are added later.</summary>
 public sealed class CatalogExportTests : IAsyncLifetime
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-export-").FullName;

@@ -14,9 +14,9 @@ using Microsoft.Win32;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Check a download (F5 plan, choices 9 to 13): a folder or ZIP checked against the library, file by file, with the
-/// results grouped by verdict, New first. One page for the whole app, so a check keeps running while you go back to the
-/// library, and its results are still here when you come back.
+/// Check a download: a folder or ZIP checked against the library, file by file, with the results grouped by verdict,
+/// New first. One page for the whole app, so a check keeps running while you go back to the library, and its results
+/// are still here when you come back.
 /// </summary>
 public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWindows readers, ILogger<DownloadCheckViewModel> log) : PageViewModel
 {
@@ -156,7 +156,7 @@ public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWi
         group.Add(new CheckResultViewModel(result, this));
     }
 
-    /// <summary>The results as text, one file a line, tab-separated so they paste into a spreadsheet (choice 12).</summary>
+    /// <summary>The results as text, one file a line, tab-separated so they paste into a spreadsheet.</summary>
     [RelayCommand(CanExecute = nameof(HasResults))]
     void CopyList()
     {

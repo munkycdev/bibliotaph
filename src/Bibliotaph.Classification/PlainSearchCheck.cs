@@ -31,13 +31,13 @@ public sealed record Interpretation(IReadOnlyList<InterpretedPart> Parts, IReadO
 public sealed record PlainSearchContext(Vocabulary Vocabulary, IReadOnlyCollection<(string Field, string Key)> WithoutLevels);
 
 /// <summary>
-/// The check every reading of a request goes through before it is shown (scenario review, row 5). A field the search
-/// box doesn't have is dropped. A vocabulary field's value must be one of its terms by some name: one that isn't
-/// becomes words to find when the user typed those words, and is dropped otherwise. Words to find, and the values of
-/// free-text fields, must be words of the request (or the start of one: "terraform" for "terraforming"), so a model
-/// can't add searches nobody asked for. Levels and players must read as numbers or ranges, and a level asked of a game
-/// system whose books have no levels is ignored. Every change is said in a note, and each chip is parsed by the search
-/// box's own parser before it is kept. Explicit filters are never loosened, and nothing unknown is filled in.
+/// The check every reading of a request goes through before it is shown. A field the search box doesn't have is
+/// dropped. A vocabulary field's value must be one of its terms by some name: one that isn't becomes words to find when
+/// the user typed those words, and is dropped otherwise. Words to find, and the values of free-text fields, must be
+/// words of the request (or the start of one: "terraform" for "terraforming"), so a model can't add searches nobody
+/// asked for. Levels and players must read as numbers or ranges, and a level asked of a game system whose books have no
+/// levels is ignored. Every change is said in a note, and each chip is parsed by the search box's own parser before it
+/// is kept. Explicit filters are never loosened, and nothing unknown is filled in.
 /// </summary>
 public static class PlainSearchCheck
 {

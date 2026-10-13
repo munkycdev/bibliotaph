@@ -36,8 +36,8 @@ public abstract record StageOutcome
 }
 
 /// <summary>
-/// PDF passwords the index may open files with, by content hash: those remembered in Windows Credential Manager (slice
-/// 1c), and those entered this sitting to make a book searchable (slice 4i plan, choice 1), which live only in memory.
+/// PDF passwords the index may open files with, by content hash: those remembered in Windows Credential Manager, and
+/// those entered this sitting to make a book searchable, which live only in memory.
 /// </summary>
 public interface IPasswordStore
 {
@@ -199,8 +199,8 @@ static class StageHelpers
     }
 
     /// <summary>
-    /// The covers of adventures inside a file (slice 5 plan, choice 9): each of <paramref name="pages"/> drawn and kept
-    /// as that page's cover. The first page is the file's own cover, which they share.
+    /// The covers of adventures inside a file: each of <paramref name="pages"/> drawn and kept as that page's cover.
+    /// The first page is the file's own cover, which they share.
     /// </summary>
     public static async Task DrawPartCoversAsync(StageServices s, PdfSession session, long documentId, string contentHash, IReadOnlyCollection<int> pages,
         CancellationToken ct)
@@ -296,8 +296,8 @@ public sealed class ProbeStage(StageServices s) : IStage
 
     /// <summary>
     /// A document new to the index whose files can't be read now, as when index.db is rebuilt after a restore while a
-    /// library folder is offline (slice 4j plan, choice 4): recorded by its file name, so its card stays in the library,
-    /// marked offline, until its folder is back and it is read.
+    /// library folder is offline: recorded by its file name, so its card stays in the library, marked offline, until
+    /// its folder is back and it is read.
     /// </summary>
     async Task RecordUnreachableAsync(JobRecord job, CancellationToken ct)
     {
@@ -315,7 +315,7 @@ public sealed class ProbeStage(StageServices s) : IStage
 
     /// <summary>
     /// Why an image couldn't be read. Windows reads WebP only with Microsoft's free WebP Image Extensions, which most
-    /// installs have; without them every WebP lands here, so the reason says what to install (F4 plan, choice 11).
+    /// installs have; without them every WebP lands here, so the reason says what to install.
     /// </summary>
     internal static string Unreadable(string format) => format == SourceFormats.Webp
         ? "Windows couldn't read this WebP image. If Microsoft's free WebP Image Extensions aren't installed, get them from the Microsoft Store, then retry."
@@ -324,7 +324,7 @@ public sealed class ProbeStage(StageServices s) : IStage
 
 /// <summary>
 /// Text: every page's text in runs of 32 pages, scored for quality. Low-quality pages are flagged for OCR but stay
-/// searchable with what they have. A page that crashes the PDF engine is recorded and skipped, not retried forever (A18).
+/// searchable with what they have. A page that crashes the PDF engine is recorded and skipped, not retried forever.
 /// </summary>
 public sealed class TextStage(StageServices s) : IStage
 {
@@ -432,7 +432,7 @@ public sealed class CoversStage(StageServices s) : IStage
             {
                 if (session.Doc.PageCount == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "The PDF has no pages.");
                 jpeg = await StageHelpers.DrawCoverAsync(s, session, 0, ct);
-                // The adventures marked in the file have their first pages as covers (slice 5 plan, choice 9).
+                // The adventures marked in the file have their first pages as covers.
                 if (s.Parts is not null)
                     await StageHelpers.DrawPartCoversAsync(s, session, job.DocumentId, job.ContentHash,
                         [.. (await s.Parts.GetPagesInAsync(job.DocumentId, ct)).Select(p => p.Pages.First)], ct);
@@ -448,7 +448,7 @@ public sealed class CoversStage(StageServices s) : IStage
 /// <summary>
 /// OCR: each flagged page (those Text scored too poor to trust, or every page when the user asked for that on
 /// Reprocess), rendered at 300 dpi and read by the worker's OCR engine. Progress is saved page by
-/// page, so a paused or interrupted job carries on where it stopped. Page numbering never changes (A05).
+/// page, so a paused or interrupted job carries on where it stopped. Page numbering never changes.
 /// </summary>
 public sealed class OcrStage(StageServices s) : IStage
 {

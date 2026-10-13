@@ -16,7 +16,7 @@ public enum CollectionMenuKind
     Choose,
 }
 
-/// <summary>One of the Add to collection items in a menu (slice 3 plan, choice 10).</summary>
+/// <summary>One of the Add to collection items in a menu.</summary>
 public sealed record CollectionMenuChoice(CollectionMenuKind Kind, long? CollectionId, string Label, string? Path);
 
 /// <summary>What an Add to collection item runs with: the menu's context (a book, the details, the page) and the item.</summary>

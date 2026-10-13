@@ -7,8 +7,8 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record PageNoteDialogResult(int FirstPage, int LastPage, string Text);
 
 /// <summary>
-/// A note on pages, in the reader (slice 3 plan, choice 18): From and To as the reader names pages (printed labels or
-/// PDF page numbers), To left blank for one page, and the note.
+/// A note on pages, in the reader: From and To as the reader names pages (printed labels or PDF page numbers), To
+/// left blank for one page, and the note.
 /// </summary>
 public sealed partial class PageNoteDialogViewModel(string heading, string actionText, string from, string to, string text, Func<string, int?> findPage)
     : ObservableObject

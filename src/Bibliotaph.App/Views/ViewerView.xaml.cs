@@ -176,7 +176,7 @@ public partial class ViewerView
             FindBox.SelectAll();
             e.Handled = true;
         }
-        // In a pack, the arrow keys step through its images (F4 plan, choice 7), ahead of the image's scroll bars.
+        // In a pack, the arrow keys step through its images, ahead of the image's scroll bars.
         else if (e.Key is Key.Left or Key.Right && Keyboard.Modifiers == ModifierKeys.None && _model is { IsImage: true, IsInPack: true }
             && e.OriginalSource is not System.Windows.Controls.Primitives.TextBoxBase)
         {
@@ -214,6 +214,6 @@ public partial class ViewerView
     /// <summary>Note: on the page with selected text, if there is a selection, else the page in view.</summary>
     void AddNote_Click(object sender, RoutedEventArgs e) => _model?.AddNoteCommand.Execute(PagesView.SelectionPageIndex);
 
-    /// <summary>A bookmark's Index as its own adventure (slice 5): the menu's row is the bookmark.</summary>
+    /// <summary>A bookmark's Index as its own adventure: the menu's row is the bookmark.</summary>
     void IndexBookmark_Click(object sender, RoutedEventArgs e) => _model?.IndexBookmarkCommand.Execute((sender as FrameworkElement)?.DataContext as OutlineEntry);
 }

@@ -10,8 +10,8 @@ public sealed record SmartViewInfo(long Id, string Name, string Definition, Date
 public sealed record SmartViewDeletion(SmartViewInfo View, int? PinPosition);
 
 /// <summary>
-/// Saved Smart Views (slice 3 plan, choice 17), listed by name; the app calls them saved searches. The definition is
-/// kept as the caller wrote it; the app reads and writes it. A new one is pinned (Pinned Views plan).
+/// Saved Smart Views, listed by name; the app calls them saved searches. The definition is kept as the caller wrote
+/// it; the app reads and writes it. A new one is pinned.
 /// </summary>
 public sealed class SmartViewStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {

@@ -4,7 +4,7 @@ namespace Bibliotaph.Classification;
 
 /// <summary>
 /// A book as the classifier sees it: the excerpt it reads, every page's text for the evidence check, and the user's
-/// books sent as worked examples (scenario review, row 8), which the evidence check never reads.
+/// books sent as worked examples, which the evidence check never reads.
 /// </summary>
 public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int, string?> PageText, Vocabulary Vocabulary,
     IReadOnlyList<WorkedExample>? Examples = null);
@@ -32,9 +32,9 @@ public interface IClassifier
 
 /// <summary>
 /// The classifier over a model server: the prompt and schema from <see cref="ClassifierPrompt"/>, the answer through
-/// <see cref="EvidenceCheck"/>; and the same model finding a compilation's adventures, through
-/// <see cref="PartFinderPrompt"/> and <see cref="PartCheck"/>. The book's text goes only into the user message, inside
-/// the excerpt tags (A16).
+/// <see cref="EvidenceCheck"/>; and the same model finding a compilation's adventures, through <see
+/// cref="PartFinderPrompt"/> and <see cref="PartCheck"/>. The book's text goes only into the user message, inside the
+/// excerpt tags.
 /// </summary>
 public sealed class ModelClassifier(IModelClient client, string provider, string model) : IClassifier, IPartFinder
 {

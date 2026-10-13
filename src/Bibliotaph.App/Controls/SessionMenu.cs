@@ -16,7 +16,7 @@ public enum SessionMenuKind
     Choose,
 }
 
-/// <summary>One of the Add to session items in a menu (slice 3 plan, choice 13).</summary>
+/// <summary>One of the Add to session items in a menu.</summary>
 public sealed record SessionMenuChoice(SessionMenuKind Kind, long? PackId, string Label);
 
 /// <summary>What an Add to session item runs with: the menu's context (a book, the details, the page) and the item.</summary>

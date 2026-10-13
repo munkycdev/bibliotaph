@@ -9,17 +9,17 @@ using Microsoft.Web.WebView2.Core;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// The in-app browser (online libraries plan, choices 1 to 3): one window per service, showing the service's own pages
-/// in WebView2 with a profile of its own under <see cref="AppPaths.Browser"/>, so its sign-ins last between imports and
-/// stay apart from the user's everyday browser. It never navigates on its own: it opens the library page once, and
-/// from there the user browses. Read this page hands the page in view to the service's reader.
+/// The in-app browser: one window per service, showing the service's own pages in WebView2 with a profile of its own
+/// under <see cref="AppPaths.Browser"/>, so its sign-ins last between imports and stay apart from the user's everyday
+/// browser. It never navigates on its own: it opens the library page once, and from there the user browses. Read this
+/// page hands the page in view to the service's reader.
 /// </summary>
 public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImages iconImages, OnlineDownloads downloads, ILoggerFactory logs)
 {
     readonly Dictionary<string, OnlineBrowserWindow> _open = [];
     Task<CoreWebView2Environment>? _environment;
 
-    /// <summary>Store downloads from every window (O5).</summary>
+    /// <summary>Store downloads from every window.</summary>
     public OnlineDownloads Downloads => downloads;
 
     /// <summary>The smoke test's switch: browsers open only files, so no real site is read.</summary>
@@ -81,8 +81,8 @@ public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImag
     }
 
     /// <summary>
-    /// Keeps the icon the browser shows for a site, for the badge on that site's books (choice 12), unless site icons are
-    /// off in Settings.
+    /// Keeps the icon the browser shows for a site, for the badge on that site's books, unless site icons are off in
+    /// Settings.
     /// </summary>
     internal async Task KeepIconAsync(string url, byte[] png)
     {
@@ -91,8 +91,8 @@ public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImag
     }
 
     /// <summary>
-    /// Sign out of all services (choice 2): the browser's windows close and its profile forgets every sign-in, cookie
-    /// and cached page. The browser clears them itself; Bibliotaph deletes no file.
+    /// Sign out of all services: the browser's windows close and its profile forgets every sign-in, cookie and cached
+    /// page. The browser clears them itself; Bibliotaph deletes no file.
     /// </summary>
     public async Task SignOutAsync()
     {

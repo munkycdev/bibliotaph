@@ -119,7 +119,7 @@ public sealed class SyntheticPdfs : IDisposable
     public string Scanned { get; }
 
     /// <summary>
-    /// A small adventure whose second page is a prompt injection (A16): instructions to the model, a fake end of the
+    /// A small adventure whose second page is a prompt injection: instructions to the model, a fake end of the
     /// excerpt and a fake page marker. Its other pages carry a real title, level, author and copyright line.
     /// </summary>
     public string Injected { get; }
@@ -148,7 +148,7 @@ public sealed class SyntheticPdfs : IDisposable
 
     /// <summary>
     /// <see cref="BookPages"/> as a store watermarks it: every page names <see cref="WatermarkBuyer"/>, their order
-    /// <see cref="WatermarkOrder"/> and the store, Bundle of Holding (scenario review, row 7).
+    /// <see cref="WatermarkOrder"/> and the store, Bundle of Holding.
     /// </summary>
     public string WatermarkedByStore { get; }
 
@@ -255,7 +255,7 @@ public sealed class SyntheticPdfs : IDisposable
     }
 
     /// <summary>
-    /// A made-up compilation of two adventures (slice 5b): credits, each adventure with its blurb on its first page,
+    /// A made-up compilation of two adventures: credits, each adventure with its blurb on its first page,
     /// and an appendix, with a top-level bookmark for each.
     /// </summary>
     public string Compilation { get; }

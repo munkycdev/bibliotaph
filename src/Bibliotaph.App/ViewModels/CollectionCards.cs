@@ -4,8 +4,8 @@ using Bibliotaph.Catalog;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A collection's card (slice 3 plan, choice 9): a mosaic of the covers of the two books added last, its name, and how
-/// many books and sub-collections it holds. A click opens the Library scoped to it.
+/// A collection's card: a mosaic of the covers of the two books added last, its name, and how many books and
+/// sub-collections it holds. A click opens the Library scoped to it.
 /// </summary>
 public sealed class CollectionCardViewModel(CollectionInfo collection, string countLabel, IReadOnlyList<LibraryItemViewModel> covers)
 {

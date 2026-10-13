@@ -152,7 +152,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     public override Route NavRoute => IsCollection && ActiveView is null ? Route.Collections : Route;
 
-    /// <summary>The part of the library shown, such as Favorites, or null for all of it (slice 3 plan, choice 3).</summary>
+    /// <summary>The part of the library shown, such as Favorites, or null for all of it.</summary>
     public LibraryScope? Scope { get; private set; }
 
     public bool HasScope => Scope is not null;
@@ -219,16 +219,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
 
     /// <summary>
-    /// Books, single images, image packs (F4 plan, choice 10), everything with a file on this PC (online libraries, O1)
-    /// or books owned elsewhere (F5 plan, choice 8).
+    /// Books, single images, image packs, everything with a file on this PC or books owned elsewhere.
     /// </summary>
     public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
         [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Image packs"),
             new(KindFilter.Here, "On this PC"), new(KindFilter.Elsewhere, "Owned elsewhere")];
 
     /// <summary>
-    /// Where else books are owned (F5 plan, choice 8): "Also own: any", then Print, Foundry VTT and so on with how many
-    /// books each has. Shown once some book has a value, or while one is chosen.
+    /// Where else books are owned: "Also own: any", then Print, Foundry VTT and so on with how many books each has.
+    /// Shown once some book has a value, or while one is chosen.
     /// </summary>
     public ObservableCollection<Choice<string?>> OwnChoices { get; } = [AnyOwn];
 
@@ -239,8 +238,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial bool ShowOwnChoice { get; private set; }
 
     /// <summary>
-    /// The kind of adventure (heist, dungeon crawl) with how many books each has, and how long they take to play
-    /// (scenario review, row 6). Each is shown once some book has a value, or while one is chosen.
+    /// The kind of adventure (heist, dungeon crawl) with how many books each has, and how long they take to play.
+    /// Each is shown once some book has a value, or while one is chosen.
     /// </summary>
     public ObservableCollection<Choice<string?>> StyleChoices { get; } = [AnyStyle];
 
@@ -260,7 +259,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
     public partial bool ShowDurationChoice { get; private set; }
 
-    /// <summary>Where to get it (scenario review, row 7), with how many books each store has; shown once some book has one.</summary>
+    /// <summary>Where to get it, with how many books each store has; shown once some book has one.</summary>
     public ObservableCollection<Choice<string?>> StoreChoices { get; } = [AnyStore];
 
     [ObservableProperty]
@@ -276,7 +275,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [ObservableProperty]
     public partial Choice<int?> PlayersChoice { get; set; }
 
-    /// <summary>Books a model has read (2c): shown once there are some, or while a choice is made.</summary>
+    /// <summary>Books a model has read: shown once there are some, or while a choice is made.</summary>
     public IReadOnlyList<Choice<AiFilter>> AiChoices { get; } =
         [new(AiFilter.All, "All books"), new(AiFilter.Read, "Read by AI"), new(AiFilter.NotRead, "Not read by AI")];
 
@@ -287,7 +286,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial bool ShowAiChoice { get; private set; }
 
     /// <summary>
-    /// Books in more than one file (F2), so the copies Bibliotaph joined can be checked: shown once there are some, or
+    /// Books in more than one file, so the copies Bibliotaph joined can be checked: shown once there are some, or
     /// while it is chosen.
     /// </summary>
     public IReadOnlyList<Choice<bool>> CopiesChoices { get; } = [new(false, "All books"), new(true, "Books with copies")];
@@ -299,8 +298,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial bool ShowCopiesChoice { get; private set; }
 
     /// <summary>
-    /// Adventures inside files (slice 5 plan, choice 9): shown as cards of their own, or hidden so only their files
-    /// show. Offered once there are some, or while Hide is chosen.
+    /// Adventures inside files: shown as cards of their own, or hidden so only their files show. Offered once there
+    /// are some, or while Hide is chosen.
     /// </summary>
     public IReadOnlyList<Choice<bool>> PartsChoices { get; } = [new(false, "Show"), new(true, "Hide")];
 
@@ -345,7 +344,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [NotifyPropertyChangedFor(nameof(HasLevelChoice))]
     public partial Choice<int?> LevelChoice { get; set; }
 
-    /// <summary>Whether a level filter also keeps books whose levels nobody knows yet (A12).</summary>
+    /// <summary>Whether a level filter also keeps books whose levels nobody knows yet.</summary>
     [ObservableProperty]
     public partial bool IncludeUnknownLevels { get; set; }
 
@@ -420,7 +419,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [ObservableProperty]
     public partial string CountLabel { get; set; } = "";
 
-    /// <summary>"Searching text in 70 of 84 documents", while some are still being read (A02).</summary>
+    /// <summary>"Searching text in 70 of 84 documents", while some are still being read.</summary>
     [ObservableProperty]
     public partial string? Coverage { get; set; }
 
@@ -514,7 +513,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             if (Search.Text.Length > 0) Search.Search("");
         }
         _staleTimer.Stop();
-        // A bulk edit can be undone until the Library is left (plan choice 7), and a split likewise.
+        // A bulk edit can be undone until the Library is left, and a split likewise.
         ClearUndos();
         BulkMessage = null;
         AddElsewhereDialog = null;
@@ -1035,8 +1034,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>
-    /// Cataloged wrong… (scenario review, row 8), from a card's menu: the book's details, open to correct it, with
-    /// the values Bibliotaph guessed marked.
+    /// Cataloged wrong…, from a card's menu: the book's details, open to correct it, with the values Bibliotaph
+    /// guessed marked.
     /// </summary>
     [RelayCommand]
     async Task CatalogedWrong(LibraryItemViewModel item)
@@ -1089,7 +1088,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>
     /// A page note in the details' Notes tab: the book opens at its pages, in the copy it opens now where they were
-    /// found there (slice 4h plan, choice 2), else in the copy the note was made in.
+    /// found there, else in the copy the note was made in.
     /// </summary>
     [RelayCommand]
     void OpenPageNote(PageNoteRow note)
@@ -1131,7 +1130,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     ViewerRequest PageRequest(PageHitViewModel page)
     {
         var title = _known.TryGetValue(page.Hit.EntryId, out var item) ? item.Title : "";
-        // A page in an adventure inside a file opens as the adventure, its pages shaded (slice 5 plan, choice 10).
+        // A page in an adventure inside a file opens as the adventure, its pages shaded.
         if (item?.Entry is { IsPart: true, Pages: { } pages } part && part.DocumentId == page.Hit.DocumentId)
             return PartOpen.Open(page.Hit.DocumentId, title, part.EntryId, part.ParentTitle, pages) with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
@@ -1139,7 +1138,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>
     /// Opens a book at its first page, or a pack at its first image, from the inspector or a card's menu; a book owned
-    /// only online opens its page in the browser (online libraries, O1).
+    /// only online opens its page in the browser.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
@@ -1161,8 +1160,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     static bool CanOpenCard(LibraryItemViewModel? item) => item is { CanOpen: true } or { OpensOnline: true };
 
     /// <summary>
-    /// The heart on a cover, in a card's menu or in the details (slice 3 plan, choice 5): marks the book as a favorite,
-    /// or unmarks it. The heart changes at once; in Favorites an unmarked book leaves with the next refresh.
+    /// The heart on a cover, in a card's menu or in the details: marks the book as a favorite, or unmarks it.
+    /// The heart changes at once; in Favorites an unmarked book leaves with the next refresh.
     /// </summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task ToggleFavorite(LibraryItemViewModel item)
@@ -1183,8 +1182,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>
-    /// How much of the library a text search covers. Locked, protected and forgotten files aren't read by themselves
-    /// (slice 4i plan, choices 3, 4 and 6), so they are counted apart from those still being read.
+    /// How much of the library a text search covers. Locked, protected and forgotten files aren't read by themselves,
+    /// so they are counted apart from those still being read.
     /// </summary>
     static string CoverageText(IndexProgress progress)
     {
@@ -1201,15 +1200,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
 
     /// <summary>
-    /// Open in another app (slice 4i plan, choice 4), from a card's menu or the details of a PDF whose protection
-    /// Bibliotaph can't open: the user's default PDF app.
+    /// Open in another app, from a card's menu or the details of a PDF whose protection Bibliotaph can't open: the
+    /// user's default PDF app.
     /// </summary>
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenElsewhere))]
     Task OpenElsewhere(LibraryItemViewModel item) => _text.OpenElsewhereAsync(item.DocumentId);
 
     static bool CanOpenElsewhere(LibraryItemViewModel? item) => BookTextActions.HasFile(item);
 
-    /// <summary>Forget its text (slice 4i plan, choice 6), from a card's menu: its pages, cover and AI results go.</summary>
+    /// <summary>Forget its text, from a card's menu: its pages, cover and AI results go.</summary>
     [RelayCommand(CanExecute = nameof(CanForgetText))]
     async Task ForgetText(LibraryItemViewModel item)
     {
@@ -1231,7 +1230,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     static bool CanReadTextAgain(LibraryItemViewModel? item) => item is { CanReadAgain: true };
 
-    /// <summary>"Ask this book", from a card's menu or the details: opens the PDF with its Ask panel showing (Ask plan, choice 11).</summary>
+    /// <summary>"Ask this book", from a card's menu or the details: opens the PDF with its Ask panel showing.</summary>
     [RelayCommand(CanExecute = nameof(CanAskBook))]
     void AskBook(LibraryItemViewModel item) => _readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title) { Resume = true, Ask = true });
 
@@ -1244,7 +1243,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (await RequestAsync(item) is { } request) await _readers.OpenInNewWindowAsync(request);
     }
 
-    /// <summary>Opens one of a pack's images, from its inspector's grid; the viewer steps through the rest (choice 7).</summary>
+    /// <summary>Opens one of a pack's images, from its inspector's grid; the viewer steps through the rest.</summary>
     [RelayCommand]
     async Task OpenPackImage(PackImageViewModel image)
     {
@@ -1266,18 +1265,20 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         return new ViewerRequest(pack[at].DocumentId, pack[at].Title) { Pack = pack, PackTitle = item.Title };
     }
 
-    /// <summary>Check a download (F5b): which files in a folder or ZIP the library already has, on a page of its own.</summary>
+    /// <summary>
+    /// Check a download: which files in a folder or ZIP the library already has, on a page of its own.
+    /// </summary>
     [RelayCommand]
     void CheckDownload() => _navigation.NavigateTo(Route.DownloadCheck);
 
     /// <summary>
-    /// Online libraries (O2): books owned on online services, imported from their library pages. A section of Settings,
+    /// Online libraries: books owned on online services, imported from their library pages. A section of Settings,
     /// with how books owned online show and open, rather than a page of its own.
     /// </summary>
     [RelayCommand]
     void OpenOnlineLibraries() => _settings.Open(SettingsSection.OnlineLibraries);
 
-    // Books owned elsewhere (F5a).
+    // Books owned elsewhere.
 
     /// <summary>The "Add a book I own elsewhere" dialog, while it is open over the Library.</summary>
     [ObservableProperty]
@@ -1286,7 +1287,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     bool CanAddElsewhere => AddElsewhereDialog is null;
 
-    /// <summary>"Add a book I own elsewhere" (choice 1): a dialog for its title and the few fields most books need.</summary>
+    /// <summary>"Add a book I own elsewhere": a dialog for its title and the few fields most books need.</summary>
     [RelayCommand(CanExecute = nameof(CanAddElsewhere))]
     async Task AddElsewhere()
     {
@@ -1399,7 +1400,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>Raised after a refresh that followed coming Back, when the view can restore its scroll position.</summary>
     public event EventHandler? RestoreScroll;
 
-    // Select mode and bulk metadata editing (slice 4e).
+    // Select mode and bulk metadata editing.
 
     /// <summary>The books ticked in Select mode, kept while the search and filters change.</summary>
     public BookSelection Selection { get; } = new();
@@ -1489,7 +1490,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         }
     }
 
-    /// <summary>Export these (slice 4j plan, choice 7): the ticked books as CSV, the rows Settings > Backup's Export CSV writes.</summary>
+    /// <summary>Export these: the ticked books as CSV, the rows Settings > Backup's Export CSV writes.</summary>
     [RelayCommand(CanExecute = nameof(CanClearSelection))]
     async Task ExportSelected()
     {
@@ -1546,7 +1547,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
-    // Same book (multi-select plan, M1).
+    // Same book.
 
     /// <summary>The Same book dialog, while it is open over the Library.</summary>
     [ObservableProperty]
@@ -1554,8 +1555,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public partial SameBookDialogViewModel? SameBookDialog { get; private set; }
 
     /// <summary>
-    /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them
-    /// (choice 3). Packs aren't offered: a pack is many images, not a copy of a book.
+    /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them.
+    /// Packs aren't offered: a pack is many images, not a copy of a book.
     /// </summary>
     public bool CanJoinSelected => SameBookDialog is null && Selection.Count >= 2 && Selection.Items is var cards
         && !cards.Any(c => c.IsPack) && cards.Count(c => c.IsElsewhere) <= 1;
@@ -1593,7 +1594,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
-    /// <summary>What undoes the last Same book, until the next edit or until the Library is left (choice 7).</summary>
+    /// <summary>What undoes the last Same book, until the next edit or until the Library is left.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasJoinUndo))]
     [NotifyCanExecuteChangedFor(nameof(UndoJoinCommand))]
@@ -1621,14 +1622,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
-    // Pack together (multi-select plan, M2).
+    // Pack together.
 
     /// <summary>The Pack together dialog, while it is open over the Library.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PackSelectedCommand))]
     public partial PackTogetherDialogViewModel? PackDialog { get; private set; }
 
-    /// <summary>Pack together fits two or more cards for single images or packs (choice 8): no books, PDFs or books owned elsewhere.</summary>
+    /// <summary>
+    /// Pack together fits two or more cards for single images or packs: no books, PDFs or books owned elsewhere.
+    /// </summary>
     public bool CanPackSelected => PackDialog is null && Selection.Count >= 2
         && Selection.Items.All(c => c.IsPack || !c.IsElsewhere && SourceFormats.IsImage(c.Entry.Format));
 
@@ -1664,7 +1667,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         await RefreshAsync();
     }
 
-    /// <summary>What undoes the last Pack together, until the next edit or until the Library is left (choice 11).</summary>
+    /// <summary>What undoes the last Pack together, until the next edit or until the Library is left.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPackUndo))]
     [NotifyCanExecuteChangedFor(nameof(UndoPackCommand))]
@@ -1783,7 +1786,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         else Selection.Stop();
     }
 
-    // Collections (slice 3b).
+    // Collections.
 
     /// <summary>Adding books to collections and changing the collection shown, with the dialog and the note they show.</summary>
     public CollectionActions Collections { get; }
@@ -1805,7 +1808,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>The group the books shown are in: the scope's, or for "Only books added here" the collection's own.</summary>
     string? Group => Scope is { CollectionId: { } id } && OnlyAddedHere ? ScopeKeys.CollectionOwn(id) : Scope?.Key;
 
-    /// <summary>"Only books added here" (choice 9): leaves out the books that are only in its sub-collections.</summary>
+    /// <summary>"Only books added here": leaves out the books that are only in its sub-collections.</summary>
     [ObservableProperty]
     public partial bool OnlyAddedHere { get; set; }
 
@@ -1817,7 +1820,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [ObservableProperty]
     public partial bool HasSubCollections { get; private set; }
 
-    // Pins (Pinned Views plan, choice 7): the page's Pin button pins the saved search, collection or Favorites shown.
+    // Pins: the page's Pin button pins the saved search, collection or Favorites shown.
 
     public PinDirectory Pins { get; }
 
@@ -1843,7 +1846,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         ShowSavedSearchRows();
     }
 
-    // The Saved searches list (Pinned Views plan, choice 11): every saved search, pinned or not, from the toolbar.
+    // The Saved searches list: every saved search, pinned or not, from the toolbar.
 
     public ObservableCollection<SavedSearchRow> SavedSearches { get; } = [];
 
@@ -1996,8 +1999,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     }
 
     /// <summary>
-    /// Deletes the collection shown, never its books (choice 8), and goes to Collections, where a note says so with
-    /// Undo.
+    /// Deletes the collection shown, never its books, and goes to Collections, where a note says so with Undo.
     /// </summary>
     [RelayCommand]
     async Task DeleteCollection()
@@ -2042,7 +2044,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (Inspector is { } inspector) await Collections.RemoveAsync([inspector.Item.EntryId], inspector.Item.Title, chip.Id);
     }
 
-    // Session packs (slice 3c).
+    // Session packs.
 
     /// <summary>Adding books and pages to session packs, with the dialog and the note they show.</summary>
     public SessionActions Sessions { get; }
@@ -2064,13 +2066,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     void AddSelectedToSession(SessionRequest request) =>
         Sessions.Add(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), request.Choice);
 
-    /// <summary>A matching page's Add: that page to the current session pack (slice 3 plan, choice 13).</summary>
+    /// <summary>A matching page's Add: that page to the current session pack.</summary>
     [RelayCommand]
     void AddPageToSession(PageHitViewModel page) =>
         Sessions.AddPage(page.Hit.DocumentId, page.Hit.PdfPage,
             $"page {(string.IsNullOrWhiteSpace(page.Hit.Label) ? (page.Hit.PdfPage + 1).ToString(CultureInfo.CurrentCulture) : page.Hit.Label)}");
 
-    // Smart Views (slice 3e), called saved searches in the app.
+    // Smart Views, called saved searches in the app.
 
     SmartViewDefinition? _viewOnLoad;
     SmartViewDefinition? _viewSaved;

@@ -3,7 +3,7 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Bulk metadata edits (slice 4e) and their undo in a real catalog.db.</summary>
+/// <summary>Bulk metadata edits and their undo in a real catalog.db.</summary>
 public sealed class BulkEditStoreTests : IAsyncLifetime
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-bulk-").FullName;
@@ -188,7 +188,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
             Assert.Equal(Describe(effective[i].Compute()), Describe(restored[i].Compute()));
     }
 
-    /// <summary>A look-alike's correction (scenario review, row 8) can repeat a rejected guess on a field with one value.</summary>
+    /// <summary>A look-alike's correction can repeat a rejected guess on a field with one value.</summary>
     [Fact]
     public async Task Removing_a_guess_from_a_one_value_field_rejects_it_so_the_next_suggestion_shows_and_undo_brings_it_back()
     {
