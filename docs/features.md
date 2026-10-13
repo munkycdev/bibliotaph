@@ -43,11 +43,11 @@ It is made for a game master with a large, mixed collection across several game 
 
 ## Screens
 
-The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), the **Pinned** group and **Settings**. The search box is always at the top (**Ctrl+K**).
+The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), the **Pinned** group and **Settings**. Its button beside Settings, or **Ctrl+B**, folds it to its icons, and it stays as it was left. The search box is always at the top (**Ctrl+K**).
 
 **Home** shows **Continue preparing** (the next binder), **Recently opened**, **Recently added** and the pins. **Settings > Library > Start on** can open the Library instead.
 
-**Library** shows every book, map and handout as covers or a list, with a details panel on the right. A cover shows its title and only the status that matters: a heart, a spark once AI has read it, a count of adventures inside, a badge saying where a book owned elsewhere lives. **Select** mode edits, groups, joins or exports many books at once; bulk editing shows mixed values as mixed and previews before saving. Almost every change in the app has **Undo**.
+**Library** shows every book, map and handout as covers or a list. A click shows a book's details on the right, and a double-click opens it. A cover shows its title and only the status that matters: a heart, a spark once AI has read it, a count of adventures inside, a badge saying where a book owned elsewhere lives. Lists are in name order: filter choices, collections, binders within each group and the **Add to collection** menu, while the sidebar's pins keep the order they were dragged into. **Select** mode edits, groups, joins or exports many books at once; bulk editing shows mixed values as mixed and previews before saving. Almost every change in the app has **Undo**.
 
 **Collections** gathers books around a campaign, setting or idea. Collections nest, a book in an inner one counts in the outer one (**Only books added here** hides those), and a collection opens in the Library, ready to search and filter. Deleting one never removes a book. Needs review offers to make a folder of three or more books a collection; one made that way gains the books that land in its folder later, until the user adds or removes a book by hand. It also suggests books for a collection that share its series, or its setting and system, with most of its books (at least three, and 60%).
 
@@ -57,7 +57,7 @@ The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with field
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
-**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. **Collection** shows the books in a collection, or those in none yet. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
 
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 
@@ -67,7 +67,7 @@ Results have two tabs, **Documents** and **Inside documents**. Snippets are alwa
 
 ## Reading
 
-Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably.
+Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably. **Use this page as the cover** makes the page in view the book's cover in the Library, and reading the file again keeps it.
 
 **Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack; **Previous** and **Next** step through a pack with PDFs in it.
 
@@ -115,7 +115,7 @@ Suggestions come from folder and file names that match a vocabulary term, the PD
 
 Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer, proposed adventures, folders that could be collections and books that could join one. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
 
-A card shows the current value, the suggestion and its evidence. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
+A card shows the current value, the suggestion and its evidence. **Show** narrows the list to one kind of card, or to the suggestions for one field, with a count for each. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
 
 ### Copies, versions and packs
 
@@ -133,7 +133,7 @@ An adventure opens its file at its first page, says "page 3 of 19 of this advent
 
 ### Books owned elsewhere
 
-**Add a book I own elsewhere…** makes a card with no file, for a book in print or on a virtual tabletop, so it turns up in searches, collections and binders. When a file with its title arrives, Needs review asks "Is this its file?".
+**Add a book I own elsewhere…** makes a card with no file, for a book in print or on a virtual tabletop, so it turns up in searches, collections and binders. **Choose a cover image…** gives it a cover from a picture of the user's own, kept as a copy on this PC. **Remove from library** is in its details and on its right-click menu. When a file with its title arrives, Needs review asks "Is this its file?".
 
 ## Online libraries
 
@@ -166,7 +166,7 @@ Bibliotaph never guesses passwords, removes DRM or bypasses permissions. Passwor
 
 ## AI and privacy
 
-AI is optional. With it, a model reads a bounded excerpt of each book (opening pages, contents, introduction, back cover and a sample of the rest) and suggests every field except tags, Also own and Get it from. The model runs either **Built in**, downloaded once and run on the PC with nothing sent anywhere, or on a **model server** the user runs, such as Ollama or LM Studio. A server off this computer's network needs **Send excerpts to this server** ticked, and Bibliotaph never switches to a cloud service by itself.
+AI is optional. With it, a model reads a bounded excerpt of each book (opening pages, contents, introduction, back cover and a sample of the rest) and suggests every field except tags, Also own and Get it from. The model runs either **Built in**, downloaded once and run on the PC with nothing sent anywhere, or on a **model server** the user runs, such as Ollama or LM Studio. Built in, **Download the embedding model** (nomic-embed-text, about 150 MB) lets Ask find pages by meaning; on a server, any embedding model it has does the same. A server off this computer's network needs **Send excerpts to this server** ticked, and Bibliotaph never switches to a cloud service by itself.
 
 Every AI value quotes the page it came from, and a quote that isn't on that page throws the value away. Book text is data, never instructions: it can't change a setting or a decision, and an answer can only fill in suggestions. The model sees a few books the user has already sorted out as examples, never watermark lines, and logs hold counts, never book text.
 

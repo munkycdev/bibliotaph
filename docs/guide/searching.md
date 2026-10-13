@@ -33,9 +33,9 @@ While Bibliotaph is still reading your library, the results say how much is cove
 ### The search guide
 
 When the box is empty, clicking it opens the search guide: every field with what it means and an example. Start
-typing a field's name and the guide narrows to it; after the colon, it lists that field's values with how many books
-have each. Pick one with the mouse, or with the arrow keys and **Enter**. **Ctrl+Space** opens the guide at any time,
-and **Esc** closes it (press **Esc** again to clear the search).
+typing a field's name and the guide narrows to it; after the colon, it lists that field's values in name order, with
+how many books have each. Pick one with the mouse, or with the arrow keys and **Enter**. **Ctrl+Space** opens the
+guide at any time, and **Esc** closes it (press **Esc** again to clear the search).
 
 ### Fields
 
@@ -117,8 +117,9 @@ four groups:
   once some book has one.
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
 - **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
-  read it), **Copies** (books in more than one file), **Adventures inside files** (inside their book, shown as cards
-  of their own, or hidden) and **Collection** (books in a collection, or not in one yet).
+  read it), **Copies** (books in more than one file), **Adventures inside files** (**Inside their book**,
+  **Show as cards** or **Hide**; see [Adventures inside a file](cataloging.md#adventures-inside-a-file)) and
+  **Collection** (**In a collection**, or **Not in a collection** for the books you haven't put in one yet).
 
 Each drop-down lists its choices by name, with how many books each has and **Unknown** last.
 
@@ -140,7 +141,8 @@ The toolbar also has the order (**Best match**, **Recently added**, **Recently o
 ## Saved searches
 
 When you've got a search, filter or order you'll want again, click **Save search** and give it a name. It keeps the
-search and every filter, the **About the book** chips too, not the results, so new books that match show up in it. It's pinned to the sidebar straight away.
+search and every filter, the **About the book** chips too, not the results, so new books that match show up in it.
+It's pinned to the sidebar straight away.
 
 Open a saved search and change something, and the Library says "You've changed this saved search." with
 **Update saved search** and **Save as new**. The **Saved searches** button in the Library lists every one, pinned or
