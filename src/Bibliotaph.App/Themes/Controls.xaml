@@ -993,5 +993,9 @@
               Visibility="{Binding CanForgetText, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="Read it again" Command="{x:Static c:BookCommands.ReadTextAgain}" CommandParameter="{Binding}"
               Visibility="{Binding CanReadAgain, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
+    <!-- A book you added yourself, owned elsewhere: shown only where it can run, the Library. -->
+    <MenuItem Header="Remove from library" Command="{x:Static c:BookCommands.RemoveFromLibrary}" CommandParameter="{Binding}"
+              ToolTip="Takes the book you added out of your library. Undo brings it back."
+              Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
   </ContextMenu>
 </ResourceDictionary>
