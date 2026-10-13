@@ -79,6 +79,25 @@ public sealed partial class AttentionGroup(IReadOnlyList<AttentionRow> rows) : O
     public bool SameAs(AttentionGroup other) => Rows.SequenceEqual(other.Rows);
 }
 
+/// <summary>An entry in Needs review's Show menu: everything, a kind of card, or the field suggestions are for.</summary>
+public sealed partial class ReviewShowChoice(string key, string name) : ObservableObject
+{
+    public const string Everything = "";
+
+    public string Key { get; } = key;
+
+    public string Name { get; } = name;
+
+    /// <summary>Cards of this kind still waiting, which goes down as they're decided.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Label))]
+    public partial int Count { get; set; }
+
+    public string Label => $"{Name} · {Count:N0}";
+
+    public override string ToString() => Label;
+}
+
 /// <summary>
 /// Needs review: Metadata suggestions and Files needing attention, on two tabs. The suggestions are loaded when the
 /// page first opens and stay put while the user works through them, so a decided card can still be undone; when the
@@ -103,7 +122,23 @@ public sealed partial class NeedsReviewViewModel(
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
     const int PageSize = 60;
 
+    /// <summary>The Show menu's kinds of card, in the order the page lists them; field suggestions follow, by field.</summary>
+    static readonly (string Key, string Name)[] Kinds =
+    [
+        ("terms", "New terms"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"),
+        ("revisions", "Places to check"), ("parts", "Adventures"), ("corrections", "Corrections"), ("rules", "Folder rules"),
+    ];
+
+    /// <summary>Every card that isn't a field suggestion, made once per load so a decided one keeps its Undo whatever is shown.</summary>
+    List<DecidedCardViewModel> _cards = [];
+
+    /// <summary>Field suggestions, with their cards made as they're first shown and kept for the same reason.</summary>
     List<ReviewItem> _items = [];
+    readonly Dictionary<ReviewItem, ReviewCardViewModel> _fieldCards = [with(ReferenceEqualityComparer.Instance)];
+
+    /// <summary>How many of the field suggestions <see cref="Show"/> picks are on the page.</summary>
+    int _shown;
+    bool _choosing;
     Vocabulary _vocabulary = Vocabulary.Empty;
     IReadOnlyList<FieldSnapshot>? _bulkUndo;
     bool _loaded;
@@ -164,6 +199,20 @@ public sealed partial class NeedsReviewViewModel(
 
     public bool HasCards => Cards.Count > 0;
 
+    /// <summary>Everything, each kind of card there is, and each field with suggestions, with how many are waiting.</summary>
+    public ObservableCollection<ReviewShowChoice> ShowChoices { get; } = [];
+
+    /// <summary>Only worth offering when there's more than one kind to choose between.</summary>
+    public bool HasShowChoices => ShowChoices.Count > 2;
+
+    [ObservableProperty]
+    public partial ReviewShowChoice? Show { get; set; }
+
+    partial void OnShowChanged(ReviewShowChoice? value)
+    {
+        if (!_choosing && value is not null) ShowCards();
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MoreLabel), nameof(HasHidden))]
     public partial int Hidden { get; private set; }
@@ -219,19 +268,21 @@ public sealed partial class NeedsReviewViewModel(
             _vocabulary = list.Vocabulary;
             _bulkUndo = null;
             BulkMessage = null;
-            Cards.Clear();
-            foreach (var term in list.Terms) Cards.Add(new TermCardViewModel(term, _vocabulary, this));
-            foreach (var version in list.Versions) Cards.Add(new VersionCardViewModel(version, this));
-            foreach (var proposal in list.Packs) Cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
-            foreach (var match in list.Elsewhere ?? []) Cards.Add(new ElsewhereCardViewModel(match, this));
-            foreach (var revision in list.Revisions ?? []) Cards.Add(new RevisionCardViewModel(revision, this));
-            foreach (var proposal in list.Proposals ?? []) Cards.Add(new PartProposalCardViewModel(proposal, await GetPageLabelsAsync(proposal.DocumentId), this));
-            foreach (var part in list.Parts ?? []) Cards.Add(new UnplacedPartCardViewModel(part, await GetPageLabelsAsync(part.DocumentId), this));
-            foreach (var correction in list.Corrections ?? []) Cards.Add(new CorrectionCardViewModel(correction, this));
-            foreach (var rule in list.Rules ?? []) Cards.Add(new FolderRuleCardViewModel(rule, _vocabulary, this));
-            Hidden = _items.Count;
-            ShowMore();
+            _fieldCards.Clear();
+            List<DecidedCardViewModel> cards = [];
+            foreach (var term in list.Terms) cards.Add(new TermCardViewModel(term, _vocabulary, this));
+            foreach (var version in list.Versions) cards.Add(new VersionCardViewModel(version, this));
+            foreach (var proposal in list.Packs) cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
+            foreach (var match in list.Elsewhere ?? []) cards.Add(new ElsewhereCardViewModel(match, this));
+            foreach (var revision in list.Revisions ?? []) cards.Add(new RevisionCardViewModel(revision, this));
+            foreach (var proposal in list.Proposals ?? []) cards.Add(new PartProposalCardViewModel(proposal, await GetPageLabelsAsync(proposal.DocumentId), this));
+            foreach (var part in list.Parts ?? []) cards.Add(new UnplacedPartCardViewModel(part, await GetPageLabelsAsync(part.DocumentId), this));
+            foreach (var correction in list.Corrections ?? []) cards.Add(new CorrectionCardViewModel(correction, this));
+            foreach (var rule in list.Rules ?? []) cards.Add(new FolderRuleCardViewModel(rule, _vocabulary, this));
+            _cards = cards;
             Remaining = list.Count;
+            ListChoices();
+            ShowCards();
             _loaded = true;
             HasUpdates = false;
         }
@@ -248,11 +299,79 @@ public sealed partial class NeedsReviewViewModel(
     [RelayCommand]
     void ShowMore()
     {
-        var shown = _items.Count - Hidden;
-        foreach (var item in _items.Skip(shown).Take(PageSize)) Cards.Add(new ReviewCardViewModel(item, _vocabulary, this));
-        Hidden = Math.Max(0, Hidden - PageSize);
+        var matching = _items.Where(i => IsShown(FieldKey(i))).ToList();
+        foreach (var item in matching.Skip(_shown).Take(PageSize)) Cards.Add(CardFor(item));
+        _shown = Math.Min(matching.Count, _shown + PageSize);
+        Hidden = matching.Count - _shown;
         OnPropertyChanged(nameof(HasCards));
         OnPropertyChanged(nameof(ShowEmpty));
+    }
+
+    /// <summary>The cards <see cref="Show"/> picks, with the first page of its field suggestions.</summary>
+    void ShowCards()
+    {
+        Cards.Clear();
+        foreach (var card in _cards.Where(c => IsShown(KindOf(c)))) Cards.Add(card);
+        _shown = 0;
+        ShowMore();
+    }
+
+    ReviewCardViewModel CardFor(ReviewItem item)
+    {
+        if (!_fieldCards.TryGetValue(item, out var card)) _fieldCards[item] = card = new ReviewCardViewModel(item, _vocabulary, this);
+        return card;
+    }
+
+    bool IsShown(string kind) => Show is not { } show || show.Key == ReviewShowChoice.Everything || show.Key == kind;
+
+    static string KindOf(DecidedCardViewModel card) => card switch
+    {
+        TermCardViewModel => "terms",
+        VersionCardViewModel => "versions",
+        PackCardViewModel => "packs",
+        ElsewhereCardViewModel => "elsewhere",
+        RevisionCardViewModel => "revisions",
+        PartProposalCardViewModel or UnplacedPartCardViewModel => "parts",
+        CorrectionCardViewModel => "corrections",
+        FolderRuleCardViewModel => "rules",
+        ReviewCardViewModel field => FieldKey(field.Item),
+        _ => "",
+    };
+
+    static string FieldKey(ReviewItem item) => "field:" + item.Issue.Field.Key;
+
+    /// <summary>The Show menu for what was loaded, keeping what was picked when it's still there.</summary>
+    void ListChoices()
+    {
+        var picked = Show?.Key ?? ReviewShowChoice.Everything;
+        _choosing = true;
+        try
+        {
+            ShowChoices.Clear();
+            ShowChoices.Add(new ReviewShowChoice(ReviewShowChoice.Everything, "Everything"));
+            var kinds = _cards.Select(KindOf).ToHashSet();
+            foreach (var (key, name) in Kinds.Where(k => kinds.Contains(k.Key))) ShowChoices.Add(new ReviewShowChoice(key, name));
+            foreach (var item in _items.DistinctBy(i => i.Issue.Field.Key).OrderBy(i => i.Issue.Field.Label, StringComparer.CurrentCultureIgnoreCase))
+                ShowChoices.Add(new ReviewShowChoice(FieldKey(item), item.Issue.Field.Label));
+            Show = ShowChoices.FirstOrDefault(c => c.Key == picked) ?? ShowChoices[0];
+        }
+        finally
+        {
+            _choosing = false;
+        }
+        CountChoices();
+        OnPropertyChanged(nameof(HasShowChoices));
+    }
+
+    /// <summary>Cards still waiting for a decision, per entry in the Show menu.</summary>
+    void CountChoices()
+    {
+        var waiting = _cards.Where(c => !c.IsDone).Select(KindOf)
+            .Concat(_items.Where(i => !(_fieldCards.TryGetValue(i, out var card) && card.IsDone)).Select(FieldKey))
+            .CountBy(k => k)
+            .ToDictionary();
+        foreach (var choice in ShowChoices)
+            choice.Count = choice.Key == ReviewShowChoice.Everything ? waiting.Values.Sum() : waiting.GetValueOrDefault(choice.Key);
     }
 
     void RefreshFiles()
@@ -398,6 +517,7 @@ public sealed partial class NeedsReviewViewModel(
     public void Decided(int change)
     {
         Remaining = Math.Max(0, Remaining + change);
+        CountChoices();
         activity.Invalidate();
     }
 
@@ -414,20 +534,22 @@ public sealed partial class NeedsReviewViewModel(
     public async Task AcceptAllAsync(ReviewItem item)
     {
         var key = item.Issue.GroupKey;
-        var cards = Cards.OfType<ReviewCardViewModel>().Where(c => !c.IsDone && c.Item.Issue.GroupKey == key).ToList();
-        var unshown = _items.Skip(_items.Count - Hidden).Where(i => i.Issue.GroupKey == key).ToList();
+        var cards = _fieldCards.Values.Where(c => !c.IsDone && c.Item.Issue.GroupKey == key).ToList();
+        var unshown = _items.Where(i => i.Issue.GroupKey == key && !_fieldCards.ContainsKey(i)).ToList();
         var group = cards.Select(c => c.Item).Concat(unshown).ToList();
         var undo = await review.AcceptAllAsync(group);
 
         // Cards not shown yet are decided, so they won't be shown.
-        _items = [.. _items.Where(i => !unshown.Contains(i))];
-        Hidden -= unshown.Count;
+        var decided = unshown.ToHashSet(ReferenceEqualityComparer.Instance);
+        _items = [.. _items.Where(i => !decided.Contains(i))];
+        Hidden = _items.Count(i => IsShown(FieldKey(i))) - _shown;
         Remaining = Math.Max(0, Remaining - unshown.Count);
         for (var i = 0; i < cards.Count; i++)
         {
             var snapshot = undo[i];
             cards[i].MarkDone($"{cards[i].FieldLabel} is now {cards[i].SuggestedText}.", () => review.UndoAsync([snapshot]));
         }
+        CountChoices();
         _bulkUndo = undo;
         BulkMessage = group.Count == 1 ? "Accepted one suggestion." : $"Accepted {group.Count:N0} suggestions.";
         activity.Invalidate();

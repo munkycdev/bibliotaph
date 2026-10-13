@@ -46,6 +46,9 @@ public static class BookCommands
     /// </summary>
     public static RoutedUICommand CatalogedWrong { get; } = new("Cataloged wrong…", nameof(CatalogedWrong), typeof(BookCommands));
 
+    /// <summary>Remove from library, for a book owned elsewhere: the Library page only, with Undo.</summary>
+    public static RoutedUICommand RemoveFromLibrary { get; } = new("Remove from library", nameof(RemoveFromLibrary), typeof(BookCommands));
+
     /// <summary>Add to binder, with a <see cref="SessionRequest"/>: its target is the card's book, or the details.</summary>
     public static RoutedUICommand AddToSession { get; } = new("Add to binder", nameof(AddToSession), typeof(BookCommands));
 }

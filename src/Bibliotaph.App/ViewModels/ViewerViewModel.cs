@@ -67,8 +67,8 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, ILogger<ViewerViewModel> Log,
-    ChapterScanService? Chapters = null);
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
+    ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -104,6 +104,11 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly NotesService _notes;
     readonly PartsService _parts;
     readonly ChapterScanService? _chapters;
+    readonly CoverPages _covers;
+    readonly LibraryActivity _activity;
+
+    /// <summary>The page the open file's card shows as its cover.</summary>
+    int _coverPage;
     readonly PagePlaces _places;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
@@ -160,6 +165,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         Sessions = services.SessionActions();
         _notes = services.Notes;
         _parts = services.Parts;
+        _covers = services.Covers;
+        _activity = services.Activity;
         _places = services.Places;
         _chapters = services.Chapters;
         _log = services.Log;
@@ -355,7 +362,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible), nameof(StripVisible))]
-    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -489,6 +496,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     {
         PageEntry = PageNumbers.Display(value, _labels);
         OnPropertyChanged(nameof(PartPosition));
+        UseAsCoverCommand.NotifyCanExecuteChanged();
         Strip.SetCurrent(value);
         if (Mode == ViewerMode.Pdf && KeepsPlace)
         {
@@ -524,6 +532,7 @@ public sealed partial class ViewerViewModel : PageViewModel
             }
             Subtitle = DescribeSource(_source, null);
             _ = PrioritizeAsync(request.DocumentId);
+            _coverPage = await _covers.GetAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
             else await OpenPdfAsync(_source, request, version);
             // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
@@ -1198,6 +1207,26 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     bool CanMarkPages() => Mode == ViewerMode.Pdf;
+
+    /// <summary>An adventure's cover is its first page, so only a whole file can have another.</summary>
+    bool CanUseAsCover() => Mode == ViewerMode.Pdf && !IsPart && CurrentPageIndex != _coverPage;
+
+    /// <summary>
+    /// "Use this page as the cover", for a file whose first page is blank or a plain title sheet. The first page does
+    /// the same in reverse.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseAsCover))]
+    async Task UseAsCover()
+    {
+        if (_request is not { } request) return;
+        var page = CurrentPageIndex;
+        var drawn = await Task.Run(() => _covers.UseAsync(request.DocumentId, page));
+        _coverPage = page;
+        UseAsCoverCommand.NotifyCanExecuteChanged();
+        _activity.Invalidate();
+        ShowNotice(!drawn ? "The cover will change when the file is next read."
+            : page == 0 ? "The first page is the cover again." : "This page is the cover now.");
+    }
 
     /// <summary>Mark as adventure: the page in view to start with, widened in the editor.</summary>
     [RelayCommand(CanExecute = nameof(CanMarkPages))]

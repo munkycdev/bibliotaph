@@ -6,6 +6,7 @@ using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
@@ -67,6 +68,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
+    readonly ChosenCovers _chosenCovers;
     readonly PartsService _parts;
     readonly FavoritesService _favorites;
     readonly LibraryPages _pages;
@@ -90,9 +92,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ILogger<LibraryViewModel> log)
+        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
+        ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _chosenCovers = chosenCovers;
         _parts = parts;
         _export = export;
         _ask = ask;
@@ -135,6 +139,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         DurationChoice = AnyDuration;
         PlayersChoice = AnyPlayers;
         StoreChoice = AnyStore;
+        foreach (var box in ChipFilters) box.Changed += (_, _) => Refresh();
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
         _staleTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RefreshIfStaleAsync(),
             Dispatcher.CurrentDispatcher);
@@ -268,6 +273,22 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     [ObservableProperty]
     public partial bool ShowStoreChoice { get; private set; }
+
+    /// <summary>
+    /// The type-ahead filters for fields with too many values for a menu: setting, themes, environments, publisher and
+    /// edition. Each box's chips widen it; the boxes narrow together, and with every other filter.
+    /// </summary>
+    public IReadOnlyList<ChipFilterViewModel> ChipFilters { get; } =
+    [
+        new(MetadataFields.Settings, "Type a setting: a world, a region, a city"),
+        new(MetadataFields.Themes, "Type a theme: horror, intrigue, fey"),
+        new(MetadataFields.Environments, "Type an environment: a swamp, the underdark, a city"),
+        new(MetadataFields.Publisher, "Type a publisher"),
+        new(MetadataFields.Edition, "Type an edition: 5e, 2nd edition"),
+    ];
+
+    /// <summary>Their group shows once one of them has something to offer.</summary>
+    public bool ShowAboutFilters => ChipFilters.Any(b => b.IsOffered);
 
     /// <summary>How many players: books whose stated party size includes the number chosen.</summary>
     public IReadOnlyList<Choice<int?>> PlayersChoices { get; } =
@@ -712,7 +733,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
                 IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
                 Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice), HideParts: PartsChoice.Value,
-                Collections: CollectionChoice.Value);
+                Collections: CollectionChoice.Value, Picked: ChipPicks());
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             var parts = await Task.Run(() => _queries.CountPartsAsync());
@@ -756,23 +777,30 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     static string[]? Selected(Choice<string?> choice) => choice.Value is { } value ? [value] : null;
 
+    /// <summary>The values picked in the type-ahead filters, or null with none.</summary>
+    PickedValues? ChipPicks() => PickedValues.Of(ChipFilters.Select(b => KeyValuePair.Create(b.Field.Key, b.Values)));
+
     /// <summary>The counted choices of the filter panel's menus.</summary>
     sealed record FacetMenus(
         IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns, IReadOnlyList<FacetCount> Styles,
-        IReadOnlyList<FacetCount> Durations, IReadOnlyList<FacetCount> Stores);
+        IReadOnlyList<FacetCount> Durations, IReadOnlyList<FacetCount> Stores, IReadOnlyList<IReadOnlyList<ValueCount>> Chips);
 
     /// <summary>
     /// How many books each system, type and the rest would show. Each menu is counted without its own choice, so
     /// picking a system still shows how many books the other systems have.
     /// </summary>
-    Task<FacetMenus> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan) =>
-        Task.Run(async () => new FacetMenus(
+    Task<FacetMenus> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan)
+    {
+        var chips = ChipFilters.Select(b => b.Field.Key).ToList();
+        return Task.Run(async () => new FacetMenus(
             await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
             await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan),
             await _queries.GetFacetCountsAsync("own", filter with { Owns = null }, plan),
             await _queries.GetFacetCountsAsync("style", filter with { Styles = null }, plan),
             await _queries.GetFacetCountsAsync("duration", filter with { Durations = null }, plan),
-            await _queries.GetFacetCountsAsync("store", filter with { Stores = null }, plan)));
+            await _queries.GetFacetCountsAsync("store", filter with { Stores = null }, plan),
+            await Task.WhenAll(chips.Select(key => _queries.GetValueCountsAsync(key, filter with { Picked = filter.Picked?.Without(key) }, plan)))));
+    }
 
     void ShowFacets(FacetMenus facets)
     {
@@ -787,7 +815,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         ShowDurationChoice = facets.Durations.Any(c => c.Value != SearchQuery.Unknown) || DurationChoice.Value is not null;
         StoreChoice = ShowChoices(StoreChoices, AnyStore, facets.Stores, StoreChoice);
         ShowStoreChoice = facets.Stores.Any(c => c.Value != SearchQuery.Unknown) || StoreChoice.Value is not null;
+        for (var i = 0; i < ChipFilters.Count; i++) ChipFilters[i].ShowCounts(facets.Chips[i]);
+        OnPropertyChanged(nameof(ShowAboutFilters));
         _holdRefresh = false;
+        // A chip put back from a saved search shows its value's name once the counts have it.
+        ShowActiveFilters();
     }
 
     /// <summary>
@@ -813,7 +845,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
             || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
             || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null || PartsChoice.Value
-            || CollectionChoice.Value != CollectionFilter.All;
+            || CollectionChoice.Value != CollectionFilter.All || ChipFilters.Any(b => b.Picks.Count > 0);
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
@@ -948,6 +980,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         Add(PlayersChoice.Value is not null, PlayersChoice.Label, "players", () => PlayersChoice = AnyPlayers);
         Add(StyleChoice.Value is not null, Uncounted(StyleChoice.Label), "style", () => StyleChoice = AnyStyle, folded: true);
         Add(DurationChoice.Value is not null, Uncounted(DurationChoice.Label), "duration", () => DurationChoice = AnyDuration, folded: true);
+        foreach (var box in ChipFilters)
+            foreach (var pick in box.Picks)
+            {
+                var label = $"{box.Label}: {pick.Label}";
+                chips.Add(new FilterChip(label, $"Remove {label}", new RelayCommand(() => box.Remove(pick.Value))));
+                more++;
+            }
         Add(FolderChoice.Value is not null, $"Folder: {FolderChoice.Label}", "source folder", () => FolderChoice = AllFolders, folded: true);
         Add(OwnChoice.Value is not null, $"Also own: {Uncounted(OwnChoice.Label)}", "also own", () => OwnChoice = AnyOwn, folded: true);
         Add(StoreChoice.Value is not null, $"Get it from: {Uncounted(StoreChoice.Label)}", "get it from", () => StoreChoice = AnyStore, folded: true);
@@ -985,6 +1024,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         DurationChoice = AnyDuration;
         PlayersChoice = AnyPlayers;
         StoreChoice = AnyStore;
+        foreach (var box in ChipFilters) box.Clear();
         IncludeUnknownLevels = false;
         _holdRefresh = false;
         Refresh();
@@ -1005,7 +1045,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts, _log, _corrections);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts, _log, _corrections, _chosenCovers);
             inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
             await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
@@ -1315,7 +1355,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere);
+            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere, _chosenCovers);
             dialog.Closed += async (_, entryId) => await AddElsewhereClosedAsync(entryId);
             Inspector = null;
             AddElsewhereDialog = dialog;
@@ -1335,6 +1375,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         var item = _known.GetValueOrDefault(added) ?? (await Task.Run(() => _queries.GetEntriesAsync([added]))).Select(Item).FirstOrDefault();
         if (item is not null) await OpenDetails(item);
     }
+
+    /// <summary>Remove from library, from a card's menu: as from its details, for a book owned elsewhere only.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveFromLibrary))]
+    async Task RemoveFromLibrary(LibraryItemViewModel item)
+    {
+        if (await Task.Run(() => _elsewhere.RemoveAsync(item.EntryId)) is { } removed) await ShowRemovedAsync(item, removed);
+    }
+
+    static bool CanRemoveFromLibrary(LibraryItemViewModel? item) => item is { IsElsewhere: true };
 
     /// <summary>After "Remove from library": the library without it, and Undo beside a note saying so.</summary>
     async Task ShowRemovedAsync(LibraryItemViewModel item, RemovedEntry removed)
@@ -1475,6 +1524,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         if (Selection.IsActive) Selection.Toggle(item);
         else await OpenDetails(item);
     }
+
+    /// <summary>A double-click on a book opens it, as Open does, with its details closed behind it. Select mode leaves it to tick.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenFromCard))]
+    async Task OpenFromCard(LibraryItemViewModel item)
+    {
+        Inspector = null;
+        await OpenBook(item);
+    }
+
+    bool CanOpenFromCard(LibraryItemViewModel? item) => !Selection.IsActive && CanOpenCard(item);
 
     /// <summary>Shift+click in Select mode: ticks every book from the last one clicked to this one.</summary>
     [RelayCommand(CanExecute = nameof(IsSelecting))]
@@ -2149,7 +2208,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
         SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
         OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value, PartsChoice.Value,
-        CollectionChoice.Value);
+        CollectionChoice.Value, ChipPicks());
 
     void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
     {
@@ -2210,6 +2269,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
             StyleChoice = Pick(StyleChoices, AnyStyle, view.Style);
             StoreChoice = Pick(StoreChoices, AnyStore, view.Store);
             DurationChoice = Pick(DurationChoices, AnyDuration, view.Duration);
+            foreach (var box in ChipFilters) box.Restore(view.Picked?[box.Field.Key] ?? []);
             PlayersChoice = PlayersChoices.FirstOrDefault(c => c.Value == view.Players) ?? AnyPlayers;
             LevelChoice = LevelChoices.FirstOrDefault(c => c.Value == view.Level) ?? AnyLevel;
             IncludeUnknownLevels = view.IncludeUnknownLevels;

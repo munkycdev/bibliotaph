@@ -54,8 +54,8 @@ Bibliotaph never switches to a cloud service by itself.
 threw away and why. **Delete model** frees the space.
 
 The built-in AI uses your graphics card when it can and falls back to the processor, which is much slower. It only
-runs while it has books to read. With it, **Ask this book** finds pages by their words only; finding them by meaning
-needs a model server with an embedding model.
+runs while it has books to read. **Download the embedding model** (nomic-embed-text, about 150 MB) lets **Ask this
+book** find pages by what they mean as well as by their words; without it, Ask finds pages by their words only.
 
 ## Set it up: a model server
 
