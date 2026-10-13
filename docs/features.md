@@ -56,7 +56,7 @@ The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with field
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
-**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
 
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 
@@ -68,7 +68,7 @@ Bibliotaph's reader opens a book where it was left, or at the matching page from
 
 **Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack; **Previous** and **Next** step through a pack with PDFs in it.
 
-**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model on a model server, by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
+**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model (built in or on a model server), by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
 
 ## Binders
 

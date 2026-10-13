@@ -57,6 +57,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
     readonly CorrectionService? _corrections;
+    readonly ChosenCovers? _chosen;
     /// <summary>The metadata as last shown, so a correction can be compared with what the field held before it.</summary>
     EffectiveMetadata _shown = EffectiveMetadata.Empty;
     /// <summary>The user changed or kept a value since Cataloged wrong… opened the editor.</summary>
@@ -66,9 +67,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
-        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections)
+        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections, ChosenCovers? chosen)
     {
         _elsewhere = elsewhere;
+        _chosen = chosen;
         _corrections = corrections;
         Item = item;
         _metadata = metadata;
@@ -133,6 +135,40 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     async Task RemoveFromLibrary()
     {
         if (await Task.Run(() => _elsewhere.RemoveAsync(Item.EntryId)) is { } removed) Removed?.Invoke(this, removed);
+    }
+
+    /// <summary>A book owned elsewhere can have a picture of the user's own as its cover.</summary>
+    public bool CanChooseCover => IsElsewhere && _chosen is not null;
+
+    /// <summary>The book shows a cover the user chose, which Remove the cover takes away.</summary>
+    [ObservableProperty]
+    public partial bool HasChosenCover { get; private set; }
+
+    /// <summary>Why the picture picked can't be the cover.</summary>
+    [ObservableProperty]
+    public partial string? CoverProblem { get; private set; }
+
+    /// <summary>"Choose a cover image…": a picture from anywhere, shrunk to cover size and kept by Bibliotaph.</summary>
+    [RelayCommand]
+    async Task ChooseCover()
+    {
+        if (_chosen is null) return;
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = $"Choose a cover for {Item.Title}", Filter = ChosenCovers.FileFilter };
+        if (dialog.ShowDialog() != true) return;
+        CoverProblem = await Task.Run(() => _chosen.ChooseAsync(Item.EntryId, dialog.FileName));
+        if (CoverProblem is not null) return;
+        HasChosenCover = true;
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    async Task RemoveCover()
+    {
+        if (_chosen is null) return;
+        await Task.Run(() => _chosen.RemoveAsync(Item.EntryId));
+        CoverProblem = null;
+        HasChosenCover = false;
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
@@ -428,7 +464,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
-        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null)
+        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null, ChosenCovers? chosen = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -455,7 +491,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections, chosen);
+        if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts, log);
         return inspector;

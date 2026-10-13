@@ -139,7 +139,8 @@ public enum CollectionFilter
 /// that many players; as for levels, books nobody has counted players for don't match. <see cref="Stores"/> keeps books
 /// to get from any of those stores. <see cref="HideParts"/> leaves out the adventures inside files ("Adventures inside
 /// files: Hide"), whose page hits then go with their files. <see cref="Collections"/> keeps books in some collection, or
-/// those in none yet.
+/// those in none yet. <see cref="Picked"/> holds the values picked in the type-ahead filters (settings, themes,
+/// publishers): books with any of a field's values, in every field with some.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -159,10 +160,17 @@ public sealed record LibraryFilter(
     int? Players = null,
     IReadOnlyCollection<string>? Stores = null,
     bool HideParts = false,
-    CollectionFilter Collections = CollectionFilter.All);
+    CollectionFilter Collections = CollectionFilter.All,
+    PickedValues? Picked = null);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
+
+/// <summary>
+/// A value a type-ahead filter offers, with how many entries have it, and every other name it goes by in comparison
+/// form, joined with " · " (a term's aliases), so typing "5e" finds the 5th edition.
+/// </summary>
+public sealed record ValueCount(string Value, string Label, long Count, string Names);
 
 /// <summary>A page that matched, with its indexed text quoted around the hits. Hits sit between <see cref="LibraryQueries.HitStart"/> and <see cref="LibraryQueries.HitEnd"/>.</summary>
 public sealed record PageHit(EntryId EntryId, long DocumentId, int PdfPage, string? Label, string Snippet, bool FromOcr);
@@ -310,14 +318,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// </summary>
     public async Task<IReadOnlyList<FacetCount>> GetFacetCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
     {
-        plan ??= new SearchPlan();
-        var where = new Where(filter, plan, titleAsFilter: true);
-        // As the Documents tab finds them: packs by their files' names too.
-        if (plan.TextMatch is { } match)
-            where.Also("""
-                e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
-                    UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
-                """, "countMatch", match);
+        var where = CountWhere(filter, plan);
         where.Parameters.Add("countField", field);
         await using var connection = database.OpenRead();
         var counts = (await connection.QueryAsync<(string Value, string Label, long Count)>(new CommandDefinition(
@@ -335,6 +336,51 @@ public sealed class LibraryQueries(IndexDatabase database)
             """, where.Parameters, cancellationToken: ct));
         if (unknown > 0) counts.Add(new FacetCount(SearchQuery.Unknown, "Unknown", unknown));
         return counts;
+    }
+
+    /// <summary>
+    /// The values of a field the Library filters by typing (setting, theme, environment, edition, publisher), each with
+    /// how many of the entries shown for <paramref name="filter"/> and <paramref name="plan"/> have it, most first: what
+    /// its box offers. Terms come with their other names to type; publishers are free text, counted by name. To count
+    /// a box's values beside its own picks, pass a filter without them.
+    /// </summary>
+    public async Task<IReadOnlyList<ValueCount>> GetValueCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
+    {
+        var where = CountWhere(filter, plan);
+        where.Parameters.Add("countField", field);
+        where.Parameters.Add("countVocabulary", MetadataFields.Find(field)?.Vocabulary ?? field);
+        var sql = field == MetadataFields.Publisher.Key
+            ? $"""
+                SELECT m.publisher, m.publisher, count(*), ''
+                FROM {Entries} JOIN entry_meta m ON m.entry_id = e.entry_id
+                WHERE {where.Sql} AND m.publisher IS NOT NULL
+                GROUP BY m.publisher
+                ORDER BY count(*) DESC, m.publisher COLLATE NOCASE
+                """
+            : $"""
+                SELECT f.value, min(f.label), count(*),
+                       coalesce((SELECT group_concat(a.alias, ' · ') FROM term_alias a WHERE a.vocabulary = @countVocabulary AND a.value = f.value), '')
+                FROM {Entries} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
+                WHERE {where.Sql}
+                GROUP BY f.value
+                ORDER BY count(*) DESC, min(f.label) COLLATE NOCASE
+                """;
+        await using var connection = database.OpenRead();
+        var counts = await connection.QueryAsync<(string Value, string Label, long Count, string Names)>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct));
+        return [.. counts.Select(c => new ValueCount(c.Value, c.Label, c.Count, c.Names))];
+    }
+
+    /// <summary>The entries a count covers: those the library shows, found as the Documents tab finds them, packs by their images' names too.</summary>
+    static Where CountWhere(LibraryFilter filter, SearchPlan? plan)
+    {
+        plan ??= new SearchPlan();
+        var where = new Where(filter, plan, titleAsFilter: true);
+        if (plan.TextMatch is { } match)
+            where.Also("""
+                e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
+                    UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
+                """, "countMatch", match);
+        return where;
     }
 
     /// <summary>
@@ -794,6 +840,11 @@ public sealed class LibraryQueries(IndexDatabase database)
             if (filter.Styles is { Count: > 0 } styles) AddChoice("style", styles, "styles");
             if (filter.Durations is { Count: > 0 } durations) AddChoice("duration", durations, "durations");
             if (filter.Stores is { Count: > 0 } stores) AddChoice("store", stores, "stores");
+            if (filter.Picked is { } picked)
+            {
+                var i = 0;
+                foreach (var field in picked.Fields) AddPicked(field, picked[field], i++);
+            }
             if (filter.Players is { } players)
                 Add("EXISTS (SELECT 1 FROM entry_meta pm WHERE pm.entry_id = e.entry_id AND pm.players_min <= @players AND pm.players_max >= @players)",
                     "players", players);
@@ -817,6 +868,21 @@ public sealed class LibraryQueries(IndexDatabase database)
                 clauses.Add($"e.entry_id NOT IN (SELECT entry_id FROM entry_facet WHERE field = @{name}Field)");
             Add("(" + string.Join(" OR ", clauses) + ")", name + "Field", field);
             Parameters.Add(name, JsonSerializer.Serialize(known));
+        }
+
+        /// <summary>
+        /// Entries with any of the values picked in a field's type-ahead filter: a publisher by its name, anything else as
+        /// a term.
+        /// </summary>
+        void AddPicked(string field, IReadOnlyList<string> values, int i)
+        {
+            if (field != MetadataFields.Publisher.Key)
+            {
+                AddChoice(field, values, $"picked{i}");
+                return;
+            }
+            Add($"e.entry_id IN (SELECT entry_id FROM entry_meta WHERE publisher IN (SELECT value FROM json_each(@picked{i})))",
+                $"picked{i}", JsonSerializer.Serialize(values));
         }
 
         /// <summary>

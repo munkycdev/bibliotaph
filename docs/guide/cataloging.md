@@ -26,7 +26,7 @@ Under the cover is a row of buttons for what you can do with the book:
   [Online libraries](online-libraries.md).
 - **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
 - **Open in another app**, for a protected book Bibliotaph can't read.
-- **Remove from library**, for a book you own elsewhere.
+- **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
 The **Details** tab shows:
@@ -84,6 +84,10 @@ usable while its card waits. It has two lists:
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
+
+When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
+elsewhere, Adventures and so on, or the suggestions for one field such as Setting or Type. Each entry says how many are
+waiting.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
 Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
@@ -148,6 +152,11 @@ Own a book in print or on a virtual tabletop? In the Library, click **Owned else
 badge on its cover saying where it is. **Also own** records where (print, a VTT, or your own words) on any card, and
 can take the book's page online, such as "D&D Beyond https://…", which **Open** then opens. If a file with that title
 turns up later, Needs review asks whether it's that book's file.
+
+With no file there's no page to make a cover from. **Choose a cover image…**, in the Add dialog or the book's details,
+uses a JPG, PNG or WebP picture of your own: Bibliotaph keeps a cover-sized copy, so the picture itself can move or go.
+**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't part
+of the library sync file.
 
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
 with **Import from an online library…** on the same menu. See [Online libraries](online-libraries.md).

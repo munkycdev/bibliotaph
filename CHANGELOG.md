@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** filters under **More filters**: type a few
+  letters, pick from the values in your library with their book counts, and each pick becomes a chip. Chips in one box
+  find books with any of them, boxes narrow together, and saved searches keep them.
+- **Ask this book finds pages by meaning with the built-in AI.** Settings > AI offers nomic-embed-text (about 150 MB)
+  to download, so Ask no longer matches words only.
+- **Double-click a book** in the Library to open it; a single click still shows its details.
+- **Remove from library** is on the right-click menu of a book you own elsewhere, as well as in its details.
 - **Lists are in name order**: the filter drop-downs, the search guide's values, collections and sub-collections, the
   Add to collection menu, and binders within each group. The sidebar's Pinned list keeps the order you dragged it into.
 - **Collection** under More filters shows the books that aren't in any collection yet, or those that are.
@@ -11,6 +18,10 @@
   **Pack together** makes them one card, "Pack · 6 files". Opening it steps through its files, PDFs opening as PDFs;
   their pages are found under the pack; **Split into separate files** gives each its card back. Folders are still
   packed automatically only for their images.
+- **Choose a cover image…** gives a book you own elsewhere a cover of your own, from the Add dialog or its details.
+- **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
+- **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
+  field, with a count for each.
 
 ## 1.0.0 · 12 October 2026
 
