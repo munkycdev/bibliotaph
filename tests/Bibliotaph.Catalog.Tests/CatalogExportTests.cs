@@ -16,7 +16,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _db = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _db.MigrateAsync(Ct);
+        await _db.MigrateFromTemplateAsync(Ct);
     }
 
     public ValueTask DisposeAsync()

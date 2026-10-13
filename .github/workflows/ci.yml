@@ -24,6 +24,12 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
 
     steps:
+      # Real-time scanning inspects every file restore, build and the tests write, which costs minutes on a hosted
+      # runner. The runner is thrown away after the job.
+      - name: Turn off Defender real-time scanning
+        shell: pwsh
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       - uses: actions/checkout@v4
 
       # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with

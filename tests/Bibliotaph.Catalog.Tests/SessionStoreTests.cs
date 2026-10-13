@@ -21,7 +21,7 @@ public sealed class SessionStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _contexts = new Factory(_database);
         _library = new LibraryStore(_contexts);
         _entries = new EntryStore(_contexts);

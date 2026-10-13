@@ -11,7 +11,7 @@ public sealed class StoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _contexts = new Factory(_database);
     }
 

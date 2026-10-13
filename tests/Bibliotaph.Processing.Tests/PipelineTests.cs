@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Bibliotaph.Catalog;
+using Bibliotaph.Catalog.Tests;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
@@ -15,9 +16,9 @@ namespace Bibliotaph.Processing.Tests;
 /// A library folder of synthetic files through the real pipeline: scan, hash, Probe, Text, Covers and OCR, with
 /// the real PDF worker, catalog.db and index.db on disk. Only image encoding is faked.
 /// </summary>
-[Collection(SqlitePools.Name)]
-public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
+public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLifetime
 {
+    readonly SyntheticPdfs _pdfs = synthetic;
     static readonly TimeSpan Patience = TimeSpan.FromSeconds(90);
 
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-pipeline-").FullName;
@@ -85,7 +86,7 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         _library = Path.Combine(_dir, "RPG Library");
 
         _catalog = new CatalogDatabase(_paths.CatalogDatabase, _paths.Backups);
-        await _catalog.MigrateAsync(Ct);
+        await _catalog.MigrateFromTemplateAsync(Ct);
         var contexts = new Factory(_catalog);
         _index = IndexDatabase.ForFile(_paths.IndexDatabase);
         await _index.InitializeAsync(Ct);
@@ -171,8 +172,11 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
         await _writer.StopAsync(CancellationToken.None);
         _writer.Dispose();
         await _workers.DisposeAsync();
-        SqliteConnection.ClearAllPools();
+        // Only this test's own files: clearing every pool would break other classes' connections running alongside.
+        _catalog.ClearPool();
+        _index.ClearPools();
         Directory.Delete(_dir, recursive: true);
+        GC.SuppressFinalize(this);
     }
 
     void Copy(string source, string relative)
@@ -204,379 +208,6 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
     static string? StatusOf(SqliteConnection c, string title, Stage stage) => c.ExecuteScalar<string?>(
         "SELECT s.status FROM stage_status s JOIN doc d ON d.document_id = s.document_id WHERE d.display_title = @title AND s.stage = @stage",
         new { title, stage = stage.ToString() });
-
-    [Fact]
-    public async Task A_new_library_folder_becomes_searchable()
-    {
-        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
-        Copy(pdfs.KnownText, "Backup/known text copy.pdf");
-        Copy(pdfs.Scanned, "Scans/Goblin Scan.pdf");
-        Copy(pdfs.PasswordProtected, "Locked Book.pdf");
-        Copy(pdfs.Truncated, "Damaged Download.pdf");
-        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
-        File.WriteAllText(Path.Combine(_library, "notes.txt"), "not indexed");
-        await _roots.AddAsync(_library, Ct);
-
-        await _service.StartAsync(Ct);
-        var progress = await SettleAsync();
-
-        // Five distinct contents; the copy is the same document.
-        Assert.Equal(5, (await _queries.GetProgressAsync(Ct)).Documents);
-        await using var c = _index.OpenRead();
-
-        // Text: the phrase is found on its page, and the title comes from the file name.
-        var (title, page) = c.QuerySingle<(string Title, long Page)>(
-            "SELECT d.display_title, p.pdf_page FROM page_fts JOIN page p ON p.id = page_fts.rowid JOIN doc d ON d.document_id = p.document_id WHERE page_fts MATCH @q",
-            new { q = "\"owlbear waits\"" });
-        Assert.Equal(SyntheticPdfs.KnownPhrasePage, page);
-        Assert.Contains(title, new[] { "Known Text", "Known Text Copy" });
-        Assert.Equal(2, c.ExecuteScalar<long>("SELECT count(*) FROM outline JOIN doc USING (document_id) WHERE display_title = @title", new { title }));
-
-        // The Library's own search finds it too, over the documents catalog.db says are visible.
-        var search = new LibraryQueries(_index);
-        var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
-        var hits = await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse("owlbear")), filter, ct: Ct);
-        var hit = Assert.Single(Assert.Single(hits.Entries).Pages);
-        Assert.Equal(SyntheticPdfs.KnownPhrasePage, hit.PdfPage);
-        Assert.Contains($"{LibraryQueries.HitStart}owlbear{LibraryQueries.HitEnd}", hit.Snippet, StringComparison.Ordinal);
-        Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("format:png")), filter, ct: Ct),
-            e => e.Title == "Handout Map");
-
-        // The image-only page of the known text is flagged for OCR along with the scan.
-        Assert.Equal("Complete", StatusOf(c, title, Stage.Text));
-        Assert.Equal("Complete", StatusOf(c, title, Stage.Covers));
-        Assert.True(File.Exists(Path.Combine(_paths.Cache, "covers", c.ExecuteScalar<string>("SELECT cover FROM doc WHERE display_title = @t", new { t = title })!)));
-
-        // OCR: read where Windows OCR has a language; blocked with a reason everywhere else.
-        var ocr = StatusOf(c, "Goblin Scan", Stage.Ocr);
-        if (ocr == "Complete")
-            Assert.Contains("goblin", c.ExecuteScalar<string>("SELECT p.text FROM page p JOIN doc d USING (document_id) WHERE d.display_title = 'Goblin Scan'"), StringComparison.OrdinalIgnoreCase);
-        else
-            Assert.Equal("Blocked", ocr);
-
-        // The image: probed for its size, no text stage, a cover from the image itself.
-        Assert.Equal((640L, 480L), c.QuerySingle<(long, long)>("SELECT width_px, height_px FROM doc WHERE display_title = 'Handout Map'"));
-        Assert.Equal("Skipped", StatusOf(c, "Handout Map", Stage.Text));
-        Assert.Equal("Complete", StatusOf(c, "Handout Map", Stage.Covers));
-
-        // Files needing attention: the password and the damaged file, each with a reason a person can act on.
-        var attention = await _queries.GetAttentionAsync(Ct);
-        var locked = attention.Single(a => a.Stage == Stage.Probe && a.Status == StageStatus.Blocked);
-        Assert.Contains("Password", locked.Reason, StringComparison.Ordinal);
-        Assert.Contains(attention, a => a.Stage == Stage.Probe && a.Status == StageStatus.Failed);
-        Assert.Equal(progress.NeedAttention, attention.Select(a => a.DocumentId).Distinct().Count());
-    }
-
-    [Fact]
-    public async Task A_paused_lane_does_nothing_until_it_resumes()
-    {
-        Copy(pdfs.KnownText, "Known Text.pdf");
-        await _roots.AddAsync(_library, Ct);
-        _service.Pause(Lane.Index);
-
-        await _service.StartAsync(Ct);
-        await Task.Delay(TimeSpan.FromSeconds(2), Ct);
-        Assert.Equal(0, (await _queries.GetProgressAsync(Ct)).Documents);
-
-        _service.Resume(Lane.Index);
-        var progress = await SettleAsync();
-
-        Assert.Equal(1, progress.Searchable);
-    }
-
-    [Fact]
-    public async Task A_document_finished_before_a_restart_is_not_processed_again()
-    {
-        Copy(pdfs.KnownText, "Known Text.pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-        await _service.StopAsync(Ct);
-        var before = await JobsAsync();
-
-        await _service.StartAsync(Ct);
-        await Task.Delay(TimeSpan.FromSeconds(1), Ct);
-        await SettleAsync();
-
-        Assert.Equal(before, await JobsAsync());
-    }
-
-    [Fact]
-    public async Task Stages_blocked_while_a_file_could_not_be_read_run_once_it_can_be()
-    {
-        Copy(pdfs.KnownText, "Known Text.pdf");
-        File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-
-        // As if Covers had run while the folder was briefly unreadable; then the map goes for good.
-        await _writer.WriteAsync((c, t) =>
-        {
-            c.Execute("UPDATE job SET status = 'blocked', last_error = @reason WHERE stage = 'Covers'", new { reason = StageOutcome.Blocked.Unreachable }, t);
-            c.Execute("UPDATE stage_status SET status = 'Blocked' WHERE stage = 'Covers'", transaction: t);
-        }, Ct);
-        File.Delete(Path.Combine(_library, "Handout Map.png"));
-        _service.RequestScan();
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
-        timeout.CancelAfter(Patience);
-        await using var read = _index.OpenRead();
-        while (StatusOf(read, "Known Text", Stage.Covers) != "Complete") await Task.Delay(200, timeout.Token);
-        Assert.Equal("Blocked", StatusOf(read, "Handout Map", Stage.Covers));
-    }
-
-    [Fact]
-    public async Task Hints_from_names_reach_the_library_and_the_users_correction_survives_the_index_being_rebuilt()
-    {
-        Copy(pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-
-        var search = new LibraryQueries(_index);
-        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        Assert.Equal(("D&D 5e", "Adventure", "Levels 1–3"), (entry.System, entry.Kind, entry.Levels));
-        Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("system:5e type:adventure level:2")), new LibraryFilter(), ct: Ct),
-            e => e.EntryId == entry.EntryId);
-        var metadata = (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute();
-        Assert.Equal(AssertionOrigin.Folder, metadata[Core.Metadata.MetadataFields.Edition].First!.Origin);
-
-        // The user says it is a bestiary, not an adventure.
-        Assert.Null(await _metadata.SetAsync(entry.EntryId, Core.Metadata.MetadataFields.Types, "Bestiary", Ct));
-        Assert.Equal("Bestiary", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
-
-        // index.db loses its metadata and hint jobs, as a rebuild would; the hints run again on the next start.
-        await _service.StopAsync(Ct);
-        await _writer.WriteAsync((c, t) => c.Execute(
-            "DELETE FROM entry_meta; DELETE FROM entry_facet; DELETE FROM job WHERE stage = 'RuleHints'; DELETE FROM stage_status WHERE stage = 'RuleHints';", transaction: t), Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-
-        entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        Assert.Equal(("D&D 5e", "Bestiary"), (entry.System, entry.Kind));
-    }
-
-    [Fact]
-    public async Task Party_size_style_and_duration_from_names_are_searchable_and_the_users_party_size_wins()
-    {
-        Copy(pdfs.KnownText, "Heists/One-shots/Vault Job (for 4-6 players).pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-
-        var search = new LibraryQueries(_index);
-        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        async Task<bool> FindsAsync(string query) =>
-            (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Any(e => e.EntryId == entry.EntryId);
-        Assert.True(await FindsAsync("players:5 style:heist duration:one-shot"));
-        Assert.True(await FindsAsync("style:caper duration:\"one shot\""));
-        Assert.False(await FindsAsync("theme:heist"));
-        Assert.Single(await search.ListAsync(new LibraryFilter(Players: 6, Styles: ["heist"], Durations: ["one-shot"]), ct: Ct));
-
-        // The user says it is for three players.
-        Assert.Null(await _metadata.SetAsync(entry.EntryId, Core.Metadata.MetadataFields.Players, "3 players", Ct));
-        Assert.False(await FindsAsync("players:5"));
-        Assert.True(await FindsAsync("players:3"));
-        Assert.Equal("3", (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[Core.Metadata.MetadataFields.Players].First!.Value);
-    }
-
-    [Fact]
-    public async Task Where_to_get_it_takes_a_store_and_its_link_and_is_searched_filtered_and_exported_by_store()
-    {
-        Copy(pdfs.KnownText, Path.Combine("Kickstarter", "Vault Job.pdf"));
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-
-        var search = new LibraryQueries(_index);
-        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        async Task<bool> FindsAsync(string query) =>
-            (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Any(e => e.EntryId == entry.EntryId);
-        var field = Core.Metadata.MetadataFields.GetItFrom;
-        async Task<IEnumerable<string>> StoresAsync() => (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[field].Values.Select(v => v.Value);
-
-        // The folder says Kickstarter.
-        Assert.Equal(["kickstarter"], await StoresAsync());
-        Assert.True(await FindsAsync("store:kickstarter"));
-
-        // The user adds where they can get it again: a store by another name with its link, and a link on its own.
-        Assert.Null(await _metadata.SetAsync(entry.EntryId, field,
-            "Kickstarter, DTRPG https://www.drivethrurpg.com/en/product/1/vault-job, https://lanternworks.example/shop/vault?a=1,2", Ct));
-        Assert.Equal(["drivethrurpg https://www.drivethrurpg.com/en/product/1/vault-job", "kickstarter", "other-store https://lanternworks.example/shop/vault?a=1,2"],
-            (await StoresAsync()).Order(StringComparer.Ordinal));
-        Assert.True(await FindsAsync("store:drivethrurpg store:other*"));
-        Assert.Single(await search.ListAsync(new LibraryFilter(Stores: ["drivethrurpg"]), ct: Ct));
-        Assert.Equal(3, (await search.GetFacetCountsAsync("store", new LibraryFilter(), ct: Ct)).Count(c => c.Value != SearchQuery.Unknown));
-
-        // A store the vocabulary doesn't know becomes the user's own; a link that isn't a web address is refused.
-        Assert.Null(await _metadata.SetAsync(entry.EntryId, field, "Lantern Works shop https://lanternworks.example/shop", Ct));
-        Assert.Equal(["lantern-works-shop https://lanternworks.example/shop"], await StoresAsync());
-        Assert.NotNull(await _metadata.SetAsync(entry.EntryId, field, "Kickstarter file:///C:/Books/vault.pdf", Ct));
-
-        // The CSV says where to get it, with the link.
-        var export = new ExportService(_libraryStore, _entries, _metadataStore, _vocabulary, new PackStore(new Factory(_catalog)), new CatalogExport(new Factory(_catalog)));
-        var row = Assert.Single(await export.GetCsvRowsAsync(ct: Ct));
-        Assert.Equal("Lantern Works shop (https://lanternworks.example/shop)", row[ExportService.CsvHeader.ToList().IndexOf("Get it from")]);
-    }
-
-    [Fact]
-    public async Task Reprocessing_reads_the_file_again_keeps_the_book_searchable_and_keeps_what_the_user_said()
-    {
-        Copy(pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-        var search = new LibraryQueries(_index);
-        var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        var (id, entryId) = (book.DocumentId, book.EntryId);
-
-        // The user keeps the folder's edition, says it isn't an adventure, and adds a tag of their own. (Notes are user
-        // data in catalog.db like these.)
-        await _metadata.ConfirmAsync(entryId, Core.Metadata.MetadataFields.Edition, Ct);
-        await _metadata.RejectAsync(entryId, Core.Metadata.MetadataFields.Types, "adventure", Ct);
-        Assert.Null(await _metadata.SetAsync(entryId, Core.Metadata.MetadataFields.Tags, "Friday game", Ct));
-        // The phrase's page comes out garbled, as a bad text layer or an old pipeline bug would leave it.
-        await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = 'xq zv garbled' WHERE pdf_page = @page", new { page = SyntheticPdfs.KnownPhrasePage }, t), Ct);
-        var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
-        async Task<bool> FoundAsync(string words) =>
-            (await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter, ct: Ct)).Entries.Any(d => d.Entry.EntryId == entryId);
-        Assert.False(await FoundAsync("owlbear"));
-
-        Assert.True(await _service.ReprocessAsync(id, ct: Ct));
-
-        // Found by its contents page the whole time it is being read again.
-        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct))
-        {
-            timeout.CancelAfter(Patience);
-            while (!(await _queries.GetQueueSummaryAsync(timeout.Token)).IsIdle)
-            {
-                Assert.True(await FoundAsync("credits"), "The book dropped out of search while it was reprocessed.");
-                await Task.Delay(20, timeout.Token);
-            }
-        }
-        await SettleAsync();
-
-        Assert.True(await FoundAsync("owlbear"));
-        Assert.True(await FoundAsync("credits"));
-        await using (var c = _index.OpenRead())
-        {
-            foreach (var stage in new[] { Stage.Probe, Stage.Text, Stage.Covers, Stage.RuleHints })
-                Assert.Equal("Complete", c.ExecuteScalar<string>("SELECT status FROM stage_status WHERE document_id = @id AND stage = @stage", new { id, stage = stage.ToString() }));
-        }
-
-        var metadata = (await _metadataStore.GetAsync(entryId, Ct)).Compute();
-        Assert.True(metadata[Core.Metadata.MetadataFields.Edition].First?.Confirmed);
-        Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Values, v => v.Normalized == "adventure");
-        Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Alternatives, v => v.Normalized == "adventure");
-        Assert.Equal(["Friday game"], metadata[Core.Metadata.MetadataFields.Tags].Values.Select(v => v.Value));
-        var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
-        Assert.Equal("D&D 5e", entry.System);
-        Assert.NotEqual("Adventure", entry.Kind);
-    }
-
-    [Fact]
-    public async Task A_type_split_out_in_the_vocabulary_reaches_books_through_their_folder_names()
-    {
-        Copy(pdfs.KnownText, "One Shots/Known Text.pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-        var search = new LibraryQueries(_index);
-        Assert.Equal("Adventure", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
-
-        // Settings > Vocabulary: One-shot becomes a type of its own, taking "one shot" and "one shots" from Adventure.
-        var vocabulary = new VocabularyService(_vocabulary, _projector, _service, _hints);
-        var added = await vocabulary.AddTermAsync("type", "One-shot", Ct);
-        Assert.Null((await vocabulary.AddAliasAsync(added.TermId!.Value, "one shots", Ct)).Problem);
-        await vocabulary.RefreshAsync(Ct);
-        await SettleAsync();
-
-        Assert.Equal("One-shot", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
-    }
-
-    [Fact]
-    public async Task Needs_review_counts_cards_and_a_decision_can_be_undone()
-    {
-        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-        var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-            new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs);
-        Assert.Equal(0, await review.CountAsync(Ct));
-
-        // Reviewing everything: the title and the type nobody has confirmed are cards now.
-        await review.SetReviewAllAsync(true, Ct);
-        var cards = (await review.GetQueueAsync(Ct)).Items;
-        Assert.Equal(cards.Count, await review.CountAsync(Ct));
-        var type = Assert.Single(cards, c => c.Issue.Field == Core.Metadata.MetadataFields.Types);
-        Assert.Equal(Core.Metadata.ReviewKind.Suggestion, type.Issue.Kind);
-
-        var undo = await review.AcceptAsync(type, Ct);
-        Assert.Equal(cards.Count - 1, await review.CountAsync(Ct));
-        Assert.DoesNotContain((await review.GetQueueAsync(Ct)).Items, c => c.Issue.Field == Core.Metadata.MetadataFields.Types);
-
-        await review.UndoAsync([undo], Ct);
-        Assert.Equal(cards.Count, await review.CountAsync(Ct));
-
-        await review.SetReviewAllAsync(false, Ct);
-        Assert.Equal(0, await review.CountAsync(Ct));
-    }
-
-    [Fact]
-    public async Task A_bulk_edit_reaches_search_on_every_book_survives_the_hints_and_undo_takes_it_back()
-    {
-        Copy(pdfs.KnownText, "Adventures/Known Text.pdf");
-        Copy(pdfs.Scanned, "Adventures/Goblin Scan.pdf");
-        await _roots.AddAsync(_library, Ct);
-        await _service.StartAsync(Ct);
-        await SettleAsync();
-        var search = new LibraryQueries(_index);
-        var ids = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.EntryId).OrderBy(e => e.Value).ToList();
-        Assert.Equal(2, ids.Count);
-        async Task<List<EntryId>> FindAsync(string words) =>
-            [.. (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(words)), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId).OrderBy(e => e.Value)];
-        Assert.Equal(ids, await FindAsync("type:adventure"));
-
-        // A value that can't be stored stops the whole edit before anything is saved.
-        var (problem, none) = await _metadata.EditManyAsync(ids,
-            [new BulkChange(Core.Metadata.MetadataFields.Tags, BulkAction.Add, "Friday game"), new BulkChange(Core.Metadata.MetadataFields.Year, BulkAction.Set, "soon")], ct: Ct);
-        Assert.NotNull(problem);
-        Assert.Null(none);
-        Assert.Empty(await FindAsync("tag:friday"));
-
-        var progress = new Reports();
-        var (ok, undo) = await _metadata.EditManyAsync(ids,
-        [
-            new BulkChange(Core.Metadata.MetadataFields.Tags, BulkAction.Add, "Friday game"),
-            new BulkChange(Core.Metadata.MetadataFields.Types, BulkAction.Remove, "adventure"),
-            new BulkChange(Core.Metadata.MetadataFields.Types, BulkAction.Add, "Heist kit"),
-            new BulkChange(Core.Metadata.MetadataFields.System, BulkAction.Set, "Pathfinder"),
-        ], progress, Ct);
-        Assert.Null(ok);
-        Assert.Equal(ids, await FindAsync("tag:friday"));
-        Assert.Empty(await FindAsync("type:adventure"));
-        Assert.Equal((2, 2), progress.Last);
-        var heist = (await _vocabulary.GetAsync(Ct)).Resolve("type", "heist kit");
-        Assert.Equal("Heist kit", heist?.Label);
-        foreach (var id in ids)
-        {
-            var metadata = (await _metadataStore.GetAsync(id, Ct)).Compute();
-            Assert.Equal([heist!.Key], metadata[Core.Metadata.MetadataFields.Types].Values.Select(v => v.Value));
-            Assert.True(metadata[Core.Metadata.MetadataFields.System].First?.Confirmed);
-        }
-
-        // The hints from names run again, as after a vocabulary change: the Adventures folder doesn't bring it back.
-        await _service.RerunAsync(Stage.RuleHints, Ct);
-        await SettleAsync();
-        Assert.Empty(await FindAsync("type:adventure"));
-
-        await _metadata.UndoManyAsync(undo!, ct: Ct);
-        Assert.Empty(await FindAsync("tag:friday"));
-        Assert.Equal(ids, await FindAsync("type:adventure"));
-        Assert.All(await search.ListAsync(new LibraryFilter(), ct: Ct), e => Assert.Equal("Adventure", e.Kind));
-    }
 
     /// <summary>Keeps the last progress report, synchronously, where <see cref="Progress{T}"/> would post it.</summary>
     sealed class Reports : IProgress<(int Done, int Total)>
@@ -620,6 +251,383 @@ public sealed partial class PipelineTests(SyntheticPdfs pdfs) : IAsyncLifetime
             BinaryPrimitives.WriteInt32BigEndian(png.AsSpan(16), width);
             BinaryPrimitives.WriteInt32BigEndian(png.AsSpan(20), height);
             return png;
+        }
+    }
+
+    /// <summary>The pipeline end to end: scanning, the lanes, restarts, names and the user's own edits.</summary>
+    public sealed class BasicsTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
+    {
+        [Fact]
+        public async Task A_new_library_folder_becomes_searchable()
+        {
+            Copy(_pdfs.KnownText, "Adventures/Known Text.pdf");
+            Copy(_pdfs.KnownText, "Backup/known text copy.pdf");
+            Copy(_pdfs.Scanned, "Scans/Goblin Scan.pdf");
+            Copy(_pdfs.PasswordProtected, "Locked Book.pdf");
+            Copy(_pdfs.Truncated, "Damaged Download.pdf");
+            File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+            File.WriteAllText(Path.Combine(_library, "notes.txt"), "not indexed");
+            await _roots.AddAsync(_library, Ct);
+
+            await _service.StartAsync(Ct);
+            var progress = await SettleAsync();
+
+            // Five distinct contents; the copy is the same document.
+            Assert.Equal(5, (await _queries.GetProgressAsync(Ct)).Documents);
+            await using var c = _index.OpenRead();
+
+            // Text: the phrase is found on its page, and the title comes from the file name.
+            var (title, page) = c.QuerySingle<(string Title, long Page)>(
+                "SELECT d.display_title, p.pdf_page FROM page_fts JOIN page p ON p.id = page_fts.rowid JOIN doc d ON d.document_id = p.document_id WHERE page_fts MATCH @q",
+                new { q = "\"owlbear waits\"" });
+            Assert.Equal(SyntheticPdfs.KnownPhrasePage, page);
+            Assert.Contains(title, new[] { "Known Text", "Known Text Copy" });
+            Assert.Equal(2, c.ExecuteScalar<long>("SELECT count(*) FROM outline JOIN doc USING (document_id) WHERE display_title = @title", new { title }));
+
+            // The Library's own search finds it too, over the documents catalog.db says are visible.
+            var search = new LibraryQueries(_index);
+            var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
+            var hits = await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse("owlbear")), filter, ct: Ct);
+            var hit = Assert.Single(Assert.Single(hits.Entries).Pages);
+            Assert.Equal(SyntheticPdfs.KnownPhrasePage, hit.PdfPage);
+            Assert.Contains($"{LibraryQueries.HitStart}owlbear{LibraryQueries.HitEnd}", hit.Snippet, StringComparison.Ordinal);
+            Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("format:png")), filter, ct: Ct),
+                e => e.Title == "Handout Map");
+
+            // The image-only page of the known text is flagged for OCR along with the scan.
+            Assert.Equal("Complete", StatusOf(c, title, Stage.Text));
+            Assert.Equal("Complete", StatusOf(c, title, Stage.Covers));
+            Assert.True(File.Exists(Path.Combine(_paths.Cache, "covers", c.ExecuteScalar<string>("SELECT cover FROM doc WHERE display_title = @t", new { t = title })!)));
+
+            // OCR: read where Windows OCR has a language; blocked with a reason everywhere else.
+            var ocr = StatusOf(c, "Goblin Scan", Stage.Ocr);
+            if (ocr == "Complete")
+                Assert.Contains("goblin", c.ExecuteScalar<string>("SELECT p.text FROM page p JOIN doc d USING (document_id) WHERE d.display_title = 'Goblin Scan'"), StringComparison.OrdinalIgnoreCase);
+            else
+                Assert.Equal("Blocked", ocr);
+
+            // The image: probed for its size, no text stage, a cover from the image itself.
+            Assert.Equal((640L, 480L), c.QuerySingle<(long, long)>("SELECT width_px, height_px FROM doc WHERE display_title = 'Handout Map'"));
+            Assert.Equal("Skipped", StatusOf(c, "Handout Map", Stage.Text));
+            Assert.Equal("Complete", StatusOf(c, "Handout Map", Stage.Covers));
+
+            // Files needing attention: the password and the damaged file, each with a reason a person can act on.
+            var attention = await _queries.GetAttentionAsync(Ct);
+            var locked = attention.Single(a => a.Stage == Stage.Probe && a.Status == StageStatus.Blocked);
+            Assert.Contains("Password", locked.Reason, StringComparison.Ordinal);
+            Assert.Contains(attention, a => a.Stage == Stage.Probe && a.Status == StageStatus.Failed);
+            Assert.Equal(progress.NeedAttention, attention.Select(a => a.DocumentId).Distinct().Count());
+        }
+
+        [Fact]
+        public async Task A_paused_lane_does_nothing_until_it_resumes()
+        {
+            Copy(_pdfs.KnownText, "Known Text.pdf");
+            await _roots.AddAsync(_library, Ct);
+            _service.Pause(Lane.Index);
+
+            await _service.StartAsync(Ct);
+            await Task.Delay(TimeSpan.FromSeconds(2), Ct);
+            Assert.Equal(0, (await _queries.GetProgressAsync(Ct)).Documents);
+
+            _service.Resume(Lane.Index);
+            var progress = await SettleAsync();
+
+            Assert.Equal(1, progress.Searchable);
+        }
+
+        [Fact]
+        public async Task A_document_finished_before_a_restart_is_not_processed_again()
+        {
+            Copy(_pdfs.KnownText, "Known Text.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            await _service.StopAsync(Ct);
+            var before = await JobsAsync();
+
+            await _service.StartAsync(Ct);
+            await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+            await SettleAsync();
+
+            Assert.Equal(before, await JobsAsync());
+        }
+
+        [Fact]
+        public async Task Stages_blocked_while_a_file_could_not_be_read_run_once_it_can_be()
+        {
+            Copy(_pdfs.KnownText, "Known Text.pdf");
+            File.WriteAllBytes(Path.Combine(_library, "Handout Map.png"), FakeCodec.Png(640, 480));
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            // As if Covers had run while the folder was briefly unreadable; then the map goes for good.
+            await _writer.WriteAsync((c, t) =>
+            {
+                c.Execute("UPDATE job SET status = 'blocked', last_error = @reason WHERE stage = 'Covers'", new { reason = StageOutcome.Blocked.Unreachable }, t);
+                c.Execute("UPDATE stage_status SET status = 'Blocked' WHERE stage = 'Covers'", transaction: t);
+            }, Ct);
+            File.Delete(Path.Combine(_library, "Handout Map.png"));
+            _service.RequestScan();
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+            timeout.CancelAfter(Patience);
+            await using var read = _index.OpenRead();
+            while (StatusOf(read, "Known Text", Stage.Covers) != "Complete") await Task.Delay(200, timeout.Token);
+            Assert.Equal("Blocked", StatusOf(read, "Handout Map", Stage.Covers));
+        }
+
+        [Fact]
+        public async Task Hints_from_names_reach_the_library_and_the_users_correction_survives_the_index_being_rebuilt()
+        {
+            Copy(_pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            var search = new LibraryQueries(_index);
+            var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+            Assert.Equal(("D&D 5e", "Adventure", "Levels 1–3"), (entry.System, entry.Kind, entry.Levels));
+            Assert.Contains(await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("system:5e type:adventure level:2")), new LibraryFilter(), ct: Ct),
+                e => e.EntryId == entry.EntryId);
+            var metadata = (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute();
+            Assert.Equal(AssertionOrigin.Folder, metadata[Core.Metadata.MetadataFields.Edition].First!.Origin);
+
+            // The user says it is a bestiary, not an adventure.
+            Assert.Null(await _metadata.SetAsync(entry.EntryId, Core.Metadata.MetadataFields.Types, "Bestiary", Ct));
+            Assert.Equal("Bestiary", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
+
+            // index.db loses its metadata and hint jobs, as a rebuild would; the hints run again on the next start.
+            await _service.StopAsync(Ct);
+            await _writer.WriteAsync((c, t) => c.Execute(
+                "DELETE FROM entry_meta; DELETE FROM entry_facet; DELETE FROM job WHERE stage = 'RuleHints'; DELETE FROM stage_status WHERE stage = 'RuleHints';", transaction: t), Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+            Assert.Equal(("D&D 5e", "Bestiary"), (entry.System, entry.Kind));
+        }
+
+        [Fact]
+        public async Task Party_size_style_and_duration_from_names_are_searchable_and_the_users_party_size_wins()
+        {
+            Copy(_pdfs.KnownText, "Heists/One-shots/Vault Job (for 4-6 players).pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            var search = new LibraryQueries(_index);
+            var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+            async Task<bool> FindsAsync(string query) =>
+                (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Any(e => e.EntryId == entry.EntryId);
+            Assert.True(await FindsAsync("players:5 style:heist duration:one-shot"));
+            Assert.True(await FindsAsync("style:caper duration:\"one shot\""));
+            Assert.False(await FindsAsync("theme:heist"));
+            Assert.Single(await search.ListAsync(new LibraryFilter(Players: 6, Styles: ["heist"], Durations: ["one-shot"]), ct: Ct));
+
+            // The user says it is for three players.
+            Assert.Null(await _metadata.SetAsync(entry.EntryId, Core.Metadata.MetadataFields.Players, "3 players", Ct));
+            Assert.False(await FindsAsync("players:5"));
+            Assert.True(await FindsAsync("players:3"));
+            Assert.Equal("3", (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[Core.Metadata.MetadataFields.Players].First!.Value);
+        }
+
+        [Fact]
+        public async Task Where_to_get_it_takes_a_store_and_its_link_and_is_searched_filtered_and_exported_by_store()
+        {
+            Copy(_pdfs.KnownText, Path.Combine("Kickstarter", "Vault Job.pdf"));
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            var search = new LibraryQueries(_index);
+            var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+            async Task<bool> FindsAsync(string query) =>
+                (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(query)), new LibraryFilter(), ct: Ct)).Any(e => e.EntryId == entry.EntryId);
+            var field = Core.Metadata.MetadataFields.GetItFrom;
+            async Task<IEnumerable<string>> StoresAsync() => (await _metadataStore.GetAsync(entry.EntryId, Ct)).Compute()[field].Values.Select(v => v.Value);
+
+            // The folder says Kickstarter.
+            Assert.Equal(["kickstarter"], await StoresAsync());
+            Assert.True(await FindsAsync("store:kickstarter"));
+
+            // The user adds where they can get it again: a store by another name with its link, and a link on its own.
+            Assert.Null(await _metadata.SetAsync(entry.EntryId, field,
+                "Kickstarter, DTRPG https://www.drivethrurpg.com/en/product/1/vault-job, https://lanternworks.example/shop/vault?a=1,2", Ct));
+            Assert.Equal(["drivethrurpg https://www.drivethrurpg.com/en/product/1/vault-job", "kickstarter", "other-store https://lanternworks.example/shop/vault?a=1,2"],
+                (await StoresAsync()).Order(StringComparer.Ordinal));
+            Assert.True(await FindsAsync("store:drivethrurpg store:other*"));
+            Assert.Single(await search.ListAsync(new LibraryFilter(Stores: ["drivethrurpg"]), ct: Ct));
+            Assert.Equal(3, (await search.GetFacetCountsAsync("store", new LibraryFilter(), ct: Ct)).Count(c => c.Value != SearchQuery.Unknown));
+
+            // A store the vocabulary doesn't know becomes the user's own; a link that isn't a web address is refused.
+            Assert.Null(await _metadata.SetAsync(entry.EntryId, field, "Lantern Works shop https://lanternworks.example/shop", Ct));
+            Assert.Equal(["lantern-works-shop https://lanternworks.example/shop"], await StoresAsync());
+            Assert.NotNull(await _metadata.SetAsync(entry.EntryId, field, "Kickstarter file:///C:/Books/vault.pdf", Ct));
+
+            // The CSV says where to get it, with the link.
+            var export = new ExportService(_libraryStore, _entries, _metadataStore, _vocabulary, new PackStore(new Factory(_catalog)), new CatalogExport(new Factory(_catalog)));
+            var row = Assert.Single(await export.GetCsvRowsAsync(ct: Ct));
+            Assert.Equal("Lantern Works shop (https://lanternworks.example/shop)", row[ExportService.CsvHeader.ToList().IndexOf("Get it from")]);
+        }
+
+        [Fact]
+        public async Task Reprocessing_reads_the_file_again_keeps_the_book_searchable_and_keeps_what_the_user_said()
+        {
+            Copy(_pdfs.KnownText, "D&D 5e/Adventures/Known Text (Levels 1-3).pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var search = new LibraryQueries(_index);
+            var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+            var (id, entryId) = (book.DocumentId, book.EntryId);
+
+            // The user keeps the folder's edition, says it isn't an adventure, and adds a tag of their own. (Notes are user
+            // data in catalog.db like these.)
+            await _metadata.ConfirmAsync(entryId, Core.Metadata.MetadataFields.Edition, Ct);
+            await _metadata.RejectAsync(entryId, Core.Metadata.MetadataFields.Types, "adventure", Ct);
+            Assert.Null(await _metadata.SetAsync(entryId, Core.Metadata.MetadataFields.Tags, "Friday game", Ct));
+            // The phrase's page comes out garbled, as a bad text layer or an old pipeline bug would leave it.
+            await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = 'xq zv garbled' WHERE pdf_page = @page", new { page = SyntheticPdfs.KnownPhrasePage }, t), Ct);
+            var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
+            async Task<bool> FoundAsync(string words) =>
+                (await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse(words)), filter, ct: Ct)).Entries.Any(d => d.Entry.EntryId == entryId);
+            Assert.False(await FoundAsync("owlbear"));
+
+            Assert.True(await _service.ReprocessAsync(id, ct: Ct));
+
+            // Found by its contents page the whole time it is being read again.
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+            {
+                timeout.CancelAfter(Patience);
+                while (!(await _queries.GetQueueSummaryAsync(timeout.Token)).IsIdle)
+                {
+                    Assert.True(await FoundAsync("credits"), "The book dropped out of search while it was reprocessed.");
+                    await Task.Delay(20, timeout.Token);
+                }
+            }
+            await SettleAsync();
+
+            Assert.True(await FoundAsync("owlbear"));
+            Assert.True(await FoundAsync("credits"));
+            await using (var c = _index.OpenRead())
+            {
+                foreach (var stage in new[] { Stage.Probe, Stage.Text, Stage.Covers, Stage.RuleHints })
+                    Assert.Equal("Complete", c.ExecuteScalar<string>("SELECT status FROM stage_status WHERE document_id = @id AND stage = @stage", new { id, stage = stage.ToString() }));
+            }
+
+            var metadata = (await _metadataStore.GetAsync(entryId, Ct)).Compute();
+            Assert.True(metadata[Core.Metadata.MetadataFields.Edition].First?.Confirmed);
+            Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Values, v => v.Normalized == "adventure");
+            Assert.DoesNotContain(metadata[Core.Metadata.MetadataFields.Types].Alternatives, v => v.Normalized == "adventure");
+            Assert.Equal(["Friday game"], metadata[Core.Metadata.MetadataFields.Tags].Values.Select(v => v.Value));
+            var entry = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+            Assert.Equal("D&D 5e", entry.System);
+            Assert.NotEqual("Adventure", entry.Kind);
+        }
+
+        [Fact]
+        public async Task A_type_split_out_in_the_vocabulary_reaches_books_through_their_folder_names()
+        {
+            Copy(_pdfs.KnownText, "One Shots/Known Text.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var search = new LibraryQueries(_index);
+            Assert.Equal("Adventure", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
+
+            // Settings > Vocabulary: One-shot becomes a type of its own, taking "one shot" and "one shots" from Adventure.
+            var vocabulary = new VocabularyService(_vocabulary, _projector, _service, _hints);
+            var added = await vocabulary.AddTermAsync("type", "One-shot", Ct);
+            Assert.Null((await vocabulary.AddAliasAsync(added.TermId!.Value, "one shots", Ct)).Problem);
+            await vocabulary.RefreshAsync(Ct);
+            await SettleAsync();
+
+            Assert.Equal("One-shot", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
+        }
+
+        [Fact]
+        public async Task Needs_review_counts_cards_and_a_decision_can_be_undone()
+        {
+            Copy(_pdfs.KnownText, "Adventures/Known Text.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
+                new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs);
+            Assert.Equal(0, await review.CountAsync(Ct));
+
+            // Reviewing everything: the title and the type nobody has confirmed are cards now.
+            await review.SetReviewAllAsync(true, Ct);
+            var cards = (await review.GetQueueAsync(Ct)).Items;
+            Assert.Equal(cards.Count, await review.CountAsync(Ct));
+            var type = Assert.Single(cards, c => c.Issue.Field == Core.Metadata.MetadataFields.Types);
+            Assert.Equal(Core.Metadata.ReviewKind.Suggestion, type.Issue.Kind);
+
+            var undo = await review.AcceptAsync(type, Ct);
+            Assert.Equal(cards.Count - 1, await review.CountAsync(Ct));
+            Assert.DoesNotContain((await review.GetQueueAsync(Ct)).Items, c => c.Issue.Field == Core.Metadata.MetadataFields.Types);
+
+            await review.UndoAsync([undo], Ct);
+            Assert.Equal(cards.Count, await review.CountAsync(Ct));
+
+            await review.SetReviewAllAsync(false, Ct);
+            Assert.Equal(0, await review.CountAsync(Ct));
+        }
+
+        [Fact]
+        public async Task A_bulk_edit_reaches_search_on_every_book_survives_the_hints_and_undo_takes_it_back()
+        {
+            Copy(_pdfs.KnownText, "Adventures/Known Text.pdf");
+            Copy(_pdfs.Scanned, "Adventures/Goblin Scan.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var search = new LibraryQueries(_index);
+            var ids = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.EntryId).OrderBy(e => e.Value).ToList();
+            Assert.Equal(2, ids.Count);
+            async Task<List<EntryId>> FindAsync(string words) =>
+                [.. (await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse(words)), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId).OrderBy(e => e.Value)];
+            Assert.Equal(ids, await FindAsync("type:adventure"));
+
+            // A value that can't be stored stops the whole edit before anything is saved.
+            var (problem, none) = await _metadata.EditManyAsync(ids,
+                [new BulkChange(Core.Metadata.MetadataFields.Tags, BulkAction.Add, "Friday game"), new BulkChange(Core.Metadata.MetadataFields.Year, BulkAction.Set, "soon")], ct: Ct);
+            Assert.NotNull(problem);
+            Assert.Null(none);
+            Assert.Empty(await FindAsync("tag:friday"));
+
+            var progress = new Reports();
+            var (ok, undo) = await _metadata.EditManyAsync(ids,
+            [
+                new BulkChange(Core.Metadata.MetadataFields.Tags, BulkAction.Add, "Friday game"),
+                new BulkChange(Core.Metadata.MetadataFields.Types, BulkAction.Remove, "adventure"),
+                new BulkChange(Core.Metadata.MetadataFields.Types, BulkAction.Add, "Heist kit"),
+                new BulkChange(Core.Metadata.MetadataFields.System, BulkAction.Set, "Pathfinder"),
+            ], progress, Ct);
+            Assert.Null(ok);
+            Assert.Equal(ids, await FindAsync("tag:friday"));
+            Assert.Empty(await FindAsync("type:adventure"));
+            Assert.Equal((2, 2), progress.Last);
+            var heist = (await _vocabulary.GetAsync(Ct)).Resolve("type", "heist kit");
+            Assert.Equal("Heist kit", heist?.Label);
+            foreach (var id in ids)
+            {
+                var metadata = (await _metadataStore.GetAsync(id, Ct)).Compute();
+                Assert.Equal([heist!.Key], metadata[Core.Metadata.MetadataFields.Types].Values.Select(v => v.Value));
+                Assert.True(metadata[Core.Metadata.MetadataFields.System].First?.Confirmed);
+            }
+
+            // The hints from names run again, as after a vocabulary change: the Adventures folder doesn't bring it back.
+            await _service.RerunAsync(Stage.RuleHints, Ct);
+            await SettleAsync();
+            Assert.Empty(await FindAsync("type:adventure"));
+
+            await _metadata.UndoManyAsync(undo!, ct: Ct);
+            Assert.Empty(await FindAsync("tag:friday"));
+            Assert.Equal(ids, await FindAsync("type:adventure"));
+            Assert.All(await search.ListAsync(new LibraryFilter(), ct: Ct), e => Assert.Equal("Adventure", e.Kind));
         }
     }
 }
