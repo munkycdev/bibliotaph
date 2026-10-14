@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: Undo after removing an adventure sent it to the AI again.** It now comes back still read by the AI. Undo
+  after removing a book owned elsewhere also brings back its page notes, Ask conversation and reading place, which
+  it could have kept from a time when a file was joined to it.
 - **Fixed: a reader could stay blank.** Closing or switching a book at the moment a page was being drawn could stop
   the reader drawing pages until it was closed. A page that can't be drawn now says why and the rest carry on.
 - **Fixed: Ask this book failed on some pages.** A page whose PDF text holds a broken character made the question

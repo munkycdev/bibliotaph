@@ -1,3 +1,4 @@
+using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Microsoft.EntityFrameworkCore;
@@ -157,6 +158,104 @@ public sealed class PartStoreTests : IAsyncLifetime
         Assert.Equal("Run it on Friday", await new NoteStore(_contexts).GetEntryNoteAsync(back, Ct));
         Assert.Equal("anthology", (await _metadata.GetAsync(file, Ct)).Compute()[MetadataFields.Types].First!.Value);
     }
+
+    [Fact]
+    public async Task Undo_after_removing_an_adventure_brings_back_its_page_notes()
+    {
+        var (document, heist) = await AddHeistAsync();
+        var notes = new NoteStore(_contexts);
+        var range = new PageRange(document, 12, 13, "13", "14", "fp12", "fp13") { Check = new PageRefCheck(PageCheck.Checked, document, 12, 13) };
+        var note = (await notes.AddPageNoteAsync(heist, range, "The vault key is under the third barrel", Ct))!;
+
+        var removed = await _parts.RemoveAsync(heist, Ct);
+
+        // Nothing is left pointing at the pages: the note's page reference went with it.
+        Assert.Equal(0, await CountAsync(db => db.PageRefs));
+        var back = (await _parts.RestoreAsync(removed!, Ct))!.Value;
+
+        var restored = Assert.Single(await notes.GetPageNotesAsync(back, Ct));
+        Assert.Equal((note.Text, note.CreatedUtc, note.UpdatedUtc), (restored.Text, restored.CreatedUtc, restored.UpdatedUtc));
+        Assert.Equal(range, restored.Range with { RefId = 0 });
+    }
+
+    [Fact]
+    public async Task Undo_after_removing_an_adventure_brings_back_where_it_was_left()
+    {
+        var (document, heist) = await AddHeistAsync();
+        await using (var db = _database.CreateContext())
+        {
+            db.ReadingStates.Add(new ReadingState { EntryId = heist.Value, DocumentId = document, PageIndex = 15, OpenedUtc = Monday });
+            await db.SaveChangesAsync(Ct);
+        }
+
+        var back = (await _parts.RestoreAsync((await _parts.RemoveAsync(heist, Ct))!, Ct))!.Value;
+
+        await using var check = _database.CreateContext();
+        var reading = await check.ReadingStates.SingleAsync(Ct);
+        Assert.Equal((back.Value, document, 15, Monday), (reading.EntryId, reading.DocumentId, reading.PageIndex, reading.OpenedUtc));
+    }
+
+    [Fact]
+    public async Task Undo_after_removing_an_adventure_brings_back_the_pages_of_its_session_items()
+    {
+        var (document, heist) = await AddHeistAsync();
+        var sessions = new SessionStore(_contexts);
+        var pack = await sessions.CreateAsync("Friday game", ct: Ct);
+        var range = new PageRange(document, 14, 15, "15", "16", "fp14", "fp15");
+        await sessions.AddItemsAsync(pack.Id, [new NewSessionItem(heist, range, "Vault door", "Read the trap aloud")], ct: Ct);
+
+        var removed = await _parts.RemoveAsync(heist, Ct);
+
+        Assert.Equal(0, await CountAsync(db => db.PageRefs));
+        var back = (await _parts.RestoreAsync(removed!, Ct))!.Value;
+
+        var item = Assert.Single((await sessions.GetAsync(pack.Id, Ct))!.Items);
+        Assert.Equal((back, "Vault door", "Read the trap aloud"), (item.EntryId, item.Label, item.Note));
+        Assert.Equal(range, item.Range! with { RefId = 0 });
+    }
+
+    [Fact]
+    public async Task Undo_after_removing_an_adventure_brings_back_its_ask_conversation()
+    {
+        var (_, heist) = await AddHeistAsync();
+        var history = new AskHistoryStore(_contexts);
+        await history.AddAsync(heist, "Who guards the vault?", null, "Two hired thugs [p. 13].", "[]", [12], "model-a", false, Ct);
+        await history.AddAsync(heist, "And at night?", "Who guards the vault at night?", "The pages don't say.", "[]", [], "model-a", true, Ct);
+        var before = await TurnsAsync(history, heist);
+
+        var back = (await _parts.RestoreAsync((await _parts.RemoveAsync(heist, Ct))!, Ct))!.Value;
+
+        Assert.Equal(before, await TurnsAsync(history, back));
+    }
+
+    [Fact]
+    public async Task Undo_after_removing_an_adventure_keeps_it_read_by_the_model()
+    {
+        var (_, heist) = await AddHeistAsync();
+        var runs = new ClassificationStore(_contexts);
+        await runs.RecordAsync(new RunRecord(heist, Hex('a'), "ollama", "model-a", 3, 1, [10, 11], Monday, ClassificationStore.Complete), Ct);
+
+        var back = (await _parts.RestoreAsync((await _parts.RemoveAsync(heist, Ct))!, Ct))!.Value;
+
+        Assert.True(await runs.HasRunOnAsync(back, "model-a", 3, Ct));
+        Assert.Equal("model-a", (await runs.GetReadByAsync([back], Ct))[back]);
+    }
+
+    /// <summary>A file with the adventure "Warehouse heist" marked on pages 10 to 19 of its only copy.</summary>
+    async Task<(long Document, EntryId Heist)> AddHeistAsync()
+    {
+        var (document, file) = await AddBookAsync("big compilation.pdf", 'a');
+        return (document, (await _parts.AddAsync(file, new PartSource(document, new PartPages(10, 19)), "Warehouse heist", Ct))!.Value);
+    }
+
+    async Task<int> CountAsync<T>(Func<CatalogDbContext, IQueryable<T>> rows)
+    {
+        await using var db = _database.CreateContext();
+        return await rows(db).CountAsync(Ct);
+    }
+
+    static async Task<List<string>> TurnsAsync(AskHistoryStore history, EntryId entryId) =>
+        [.. (await history.GetAsync(entryId, Ct)).Select(t => $"{t.AskedUtc:O} {t.Question} / {t.Rewritten} / {t.Answer} {t.Parts} [{string.Join(',', t.CitedPages)}] {t.Model} {t.NotAnswered}")];
 
     [Fact]
     public async Task A_kept_anthology_stays_when_the_last_adventure_goes()

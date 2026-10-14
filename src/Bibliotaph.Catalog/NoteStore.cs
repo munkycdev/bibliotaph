@@ -157,7 +157,7 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
         return Info(note);
     }
 
-    static PageNoteInfo Info(Note n) => new(n.Id, new EntryId(n.EntryId), PageRefStore.ToRange(n.PageRef!), n.Text, n.CreatedUtc, n.UpdatedUtc);
+    internal static PageNoteInfo Info(Note n) => new(n.Id, new EntryId(n.EntryId), PageRefStore.ToRange(n.PageRef!), n.Text, n.CreatedUtc, n.UpdatedUtc);
 
     static PageRef ToPageRef(PageRange range) => PageRefStore.ToPageRef(range);
 

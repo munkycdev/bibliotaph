@@ -56,7 +56,6 @@ public sealed class EntryAttachmentTests : IAsyncLifetime
         ["ElsewhereMatch.EntryId"] = "Names a book owned elsewhere, which is always the card kept in a join, never one that joins.",
         ["CorrectionRequest.EntryId"] = "Stays behind on the card that joined, and is there again when Not the same book brings it back.",
         ["CollectionDecline.EntryId"] = "Stays behind on the card that joined, and is there again when Not the same book brings it back.",
-        ["AskTurn.EntryId"] = "Stays behind on the card that joined, and is there again when Not the same book brings it back.",
     };
 
     [Fact]
