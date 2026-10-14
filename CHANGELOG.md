@@ -2,6 +2,19 @@
 
 ## 1.2 · 13 October 2026
 
+New in 1.2.487 (14 October 2026):
+
+- **Choose from more built-in AI models.** **Settings > AI > Built in** now has one list, with the models that fit
+  your graphics card first: Qwen3 4B and 8B, Phi-4 mini, **Llama 3.1 8B** and Granite 3.3 8B for most cards, and
+  Qwen3 14B, Mistral Small 3.2 24B and Qwen3 30B-A3B for bigger ones. Each shows its download size, the graphics
+  memory it needs and its licence, and every download is checked against a pinned hash. **Use a model file…** runs a
+  `.gguf` model already on your PC, such as one LM Studio downloaded, where it is.
+- **Fixed: AI stopped with "request exceeds the available context size".** Pages dense with stat blocks or tables
+  could make a whole-book scan ask more of the built-in AI than it has room for, and the AI then waited on those
+  chapters for ever. They're now cut to fit and read, and if even that fails only those chapters are skipped.
+
+In 1.2:
+
 - **Built on .NET 11 RC2**, the second release candidate.
 - **Ask your library a question:** in Ask mode, **Answer from my books** (or Ctrl+Enter) answers from the pages of
   every book the Library shows, citing each claim's book and page as a link that opens it there, and saying plainly
