@@ -71,12 +71,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly INavigationService _navigation;
     readonly SettingsLinks _settings;
     readonly ReaderWindows _readers;
-    readonly IJobControl _indexing;
-    readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
     readonly ChosenCovers _chosenCovers;
-    readonly PartsService _parts;
     readonly FavoritesService _favorites;
     readonly LibraryPages _pages;
     readonly ILogger<LibraryViewModel> _log;
@@ -85,14 +82,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>The books whose files are offline or missing as of the last refresh, so their covers are marked.</summary>
     IReadOnlyDictionary<EntryId, EntryAvailability> _away = new Dictionary<EntryId, EntryAvailability>();
     readonly UiTimer _staleTimer;
-    readonly TimeProvider _time;
-    readonly NotesService _notes;
     readonly AskService _ask;
     readonly LibraryAskScope _askScope;
     readonly CorrectionService _corrections;
     readonly IFilePicker _files;
-    readonly IUserPrompts _prompts;
-    readonly IDesktopShell _shell;
+    readonly InspectorFactory _inspectors;
     int _version;
     bool _loaded;
     bool _stale;
@@ -100,30 +94,24 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
-        IJobControl indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
-        CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
-        ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
-        LibraryAskScope askScope, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, TimeProvider time, ILogger<LibraryViewModel> log)
+        PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
+        SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
+        ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
+        TimeProvider time, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
-        _time = time;
         _files = files;
-        _prompts = prompts;
-        _shell = shell;
+        _inspectors = inspectors;
         _chosenCovers = chosenCovers;
         _askScope = askScope;
-        _parts = parts;
         _ask = ask;
         _corrections = corrections;
         Pins = pins;
-        _notes = notes;
         Collections = collections;
         Sessions = sessions;
         _pages = pages;
         _favorites = favorites;
         _elsewhere = elsewhere;
-        _indexing = indexing;
-        _copies = copies;
         _packs = packs;
         _roots = roots;
         _library = library;
@@ -137,7 +125,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _readers = readers;
         _log = log;
         _text = text;
-        Selection = new LibrarySelectionViewModel(this, metadata, copies, packs, library, parts, export, files, log);
+        Selection = selection.Create(this);
         SmartViews = new SmartViewsViewModel(views, this, log);
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         Filters.Changed += (_, _) => Refresh();
@@ -622,10 +610,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts,
-                _files, _prompts, _shell, _log, _corrections, _chosenCovers);
-            inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _time, _log);
-            await inspector.Notes.LoadAsync();
+            var inspector = await _inspectors.LoadAsync(item);
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
             inspector.CopiesChanged += async (_, entryId) => await ShowCopiesChangedAsync(entryId);
