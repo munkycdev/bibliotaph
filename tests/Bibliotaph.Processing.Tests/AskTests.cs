@@ -315,6 +315,26 @@ public sealed class AskTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Work_that_took_the_setup_keeps_its_model_and_clients_together_when_the_setup_changes()
+    {
+        await SetUpAsync("embed-a");
+        var before = _ai.Current;
+
+        await _ai.SaveAsync(new AiSetup(Endpoint, "chat-14b", "ollama", true, false, new HashSet<long>(), EmbeddingModel: "embed-b"), Ct);
+        var after = _ai.Current;
+
+        Assert.Equal(("chat-8b", "chat-8b", "chat-8b", "embed-a"),
+            (before.Setup.ModelName, before.Classifier?.Model, before.Interpreter?.Model, before.Setup.EmbeddingName));
+        Assert.Equal(("chat-14b", "chat-14b", "chat-14b", "embed-b"),
+            (after.Setup.ModelName, after.Classifier?.Model, after.Interpreter?.Model, after.Setup.EmbeddingName));
+        Assert.NotNull(after.Chat);
+        Assert.NotNull(after.Embedder);
+
+        await _ai.SaveAsync(new AiSetup(Endpoint, "chat-14b", "ollama", false, false, new HashSet<long>()), Ct);
+        Assert.Equal(AiState.Off with { Setup = _ai.Setup }, _ai.Current);
+    }
+
+    [Fact]
     public async Task A_remote_server_without_its_tick_is_not_sent_pages()
     {
         await _ai.SaveAsync(new AiSetup("https://models.example.com", "chat-8b", "openai", true, false, new HashSet<long>(), EmbeddingModel: "embed-a"), Ct);

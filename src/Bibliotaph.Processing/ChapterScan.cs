@@ -103,10 +103,12 @@ public sealed class ChapterScanStage : IStage, IDisposable
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
-        if (!_ai.Setup.IsReady || _ai.Background is not { } client || _ai.Setup.ModelName is not { } model)
+        var ai = _ai.Current;
+        if (!ai.Setup.IsReady || ai.Background is not { } client || ai.Setup.ModelName is not { } model)
             return new StageOutcome.Unavailable("AI is switched off.");
         if (!_ai.ScanWholeBooks) return new StageOutcome.Done(StageStatus.Skipped, [], Off);
-        if (_ai.Setup.SkippedRoots.Count > 0 && (await _library.GetRootIdsAsync(job.DocumentId, ct)).Any(_ai.Setup.SkippedRoots.Contains))
+        var provider = ai.Setup.RunProvider;
+        if (ai.Setup.SkippedRoots.Count > 0 && (await _library.GetRootIdsAsync(job.DocumentId, ct)).Any(ai.Setup.SkippedRoots.Contains))
             return new StageOutcome.Done(StageStatus.Skipped, [], "Its library folder isn't sent to AI.");
 
         var scan = await _store.GetAsync(job.ContentHash, ct);
@@ -132,7 +134,7 @@ public sealed class ChapterScanStage : IStage, IDisposable
         var clean = texts.Select((t, i) => new BookPage(t.PdfPage, unmarked[i])).ToDictionary(p => p.PdfPage);
         var raw = texts.ToDictionary(t => t.PdfPage, t => t.Text);
         var batches = BookChapters.Batches(chapters, page => clean.TryGetValue(page, out var p) ? p.Text.Length : 0);
-        if (batches.Count == 0) return await FinishAsync(job, model, chapters, started);
+        if (batches.Count == 0) return await FinishAsync(job, provider, model, chapters, started);
 
         var batch = batches[0];
         var reading = batch.Select(i => chapters[i]).ToList();
@@ -165,8 +167,8 @@ public sealed class ChapterScanStage : IStage, IDisposable
                 batch[0] + 1, batch[^1] + 1, job.DocumentId, model, ex.Message);
         }
 
-        if (batches.Count == 1) return await FinishAsync(job, model, chapters, started);
-        await _store.SaveAsync(job.ContentHash, _ai.Setup.RunProvider, model, ChapterPrompt.Version, chapters, started, finished: false, CancellationToken.None);
+        if (batches.Count == 1) return await FinishAsync(job, provider, model, chapters, started);
+        await _store.SaveAsync(job.ContentHash, provider, model, ChapterPrompt.Version, chapters, started, finished: false, CancellationToken.None);
         await _projection.ProjectAsync(job.DocumentId, chapters, CancellationToken.None);
         // Back to the queue between batches, so a book waiting to be catalogued, or the user, goes first.
         var done = chapters.Count(c => c.Reading != ChapterReading.Waiting);
@@ -174,9 +176,9 @@ public sealed class ChapterScanStage : IStage, IDisposable
     }
 
     /// <summary>Saves the scan as finished: it isn't read again while the file stays the same.</summary>
-    async Task<StageOutcome> FinishAsync(JobRecord job, string model, List<ScannedChapter> chapters, DateTime started)
+    async Task<StageOutcome> FinishAsync(JobRecord job, string provider, string model, List<ScannedChapter> chapters, DateTime started)
     {
-        await _store.SaveAsync(job.ContentHash, _ai.Setup.RunProvider, model, ChapterPrompt.Version, chapters, started, finished: true, CancellationToken.None);
+        await _store.SaveAsync(job.ContentHash, provider, model, ChapterPrompt.Version, chapters, started, finished: true, CancellationToken.None);
         await _projection.ProjectAsync(job.DocumentId, chapters, CancellationToken.None);
         var failed = chapters.Count(c => c.Reading == ChapterReading.Failed);
         return failed == 0

@@ -71,7 +71,7 @@ public sealed class LibraryAskService(
     public bool IsOn => ai.Setup.IsReady;
 
     /// <summary>Whether a question can be answered, as well as its pages found: AI is ready with a chat model.</summary>
-    public bool CanAnswer => ai.Chat is not null && ai.Setup.ModelName is not null;
+    public bool CanAnswer => ai.Current is { Chat: not null, Setup.ModelName: not null };
 
     /// <summary>The pages a question reads: those every filter allows, without the books in folders kept from AI.</summary>
     public async Task<PageScope> ScopeAsync(IReadOnlyList<AskFilter> filters, CancellationToken ct = default)
@@ -108,11 +108,12 @@ public sealed class LibraryAskService(
     /// <exception cref="AskUnavailableException">AI is off.</exception>
     public async Task<LibraryAskFindings> FindAsync(string question, IReadOnlyList<AskFilter> filters, CancellationToken ct = default)
     {
-        if (!ai.Setup.IsReady) throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
+        var state = ai.Current;
+        if (!state.Setup.IsReady) throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
         using var busy = use?.Begin();
         var started = Stopwatch.GetTimestamp();
-        var embedder = ai.Embedder;
-        var model = ai.Setup.EmbeddingName;
+        var embedder = state.Embedder;
+        var model = state.Setup.EmbeddingName;
         var scope = await ScopeAsync(filters, ct);
 
         var words = AskRetrieval.Words(question);
@@ -239,9 +240,10 @@ public sealed class LibraryAskService(
     /// <exception cref="ModelEndpointException">The model server couldn't be reached, refused, or failed while answering.</exception>
     public async Task<LibraryAskAnswer> AnswerAsync(LibraryAskFindings findings, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
     {
-        var client = ai.Chat;
-        var model = ai.Setup.ModelName;
-        if (!ai.Setup.IsReady || client is null || model is null)
+        var state = ai.Current;
+        var client = state.Chat;
+        var model = state.Setup.ModelName;
+        if (!state.Setup.IsReady || client is null || model is null)
             throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
         using var busy = use?.Begin();
