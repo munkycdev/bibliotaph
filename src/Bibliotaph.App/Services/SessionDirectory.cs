@@ -16,7 +16,7 @@ namespace Bibliotaph.App.Services;
 /// adds to, and the cards the Sessions page and Home show. It reloads after any pack changes, on the UI thread, with
 /// the game systems in the library that a binder kept at hand can be for.
 /// </summary>
-public sealed class SessionDirectory
+public sealed class SessionDirectory : ISessionChoices
 {
     readonly SessionsService _sessions;
     readonly LibraryQueries _queries;
@@ -46,6 +46,9 @@ public sealed class SessionDirectory
     /// <summary>The binder worked on last that's for a game rather than kept at hand: Home's Continue preparing.</summary>
     public SessionPackInfo? Preparing => All.FirstOrDefault(p => !p.KeepAtHand);
 
+    /// <summary>A menu's Add to session items, as of the last reload.</summary>
+    public IReadOnlyList<SessionMenuChoice> MenuChoices { get; private set; } = [];
+
     /// <summary>The game systems the library's books are for, by name, with their keys.</summary>
     public IReadOnlyList<FacetCount> Systems { get; private set; } = [];
 
@@ -60,12 +63,7 @@ public sealed class SessionDirectory
         {
             All = await Task.Run(() => _sessions.ListAsync());
             Systems = await LoadSystemsAsync();
-            SessionMenu.Choices =
-            [
-                .. Current is { } current ? [new SessionMenuChoice(SessionMenuKind.Session, current.Id, $"Add to {current.Title}")] : Array.Empty<SessionMenuChoice>(),
-                .. All.Count > 1 ? [new SessionMenuChoice(SessionMenuKind.Choose, null, "Add to another binder…")] : Array.Empty<SessionMenuChoice>(),
-                new(SessionMenuKind.New, null, "Add to a new binder…"),
-            ];
+            MenuChoices = MenuChoicesFor(All);
             Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -73,6 +71,14 @@ public sealed class SessionDirectory
             _log.LogError(ex, "Loading the session packs failed");
         }
     }
+
+    /// <summary>The Add to session items for these packs, the current one first: it, then Choose when there are others, then New.</summary>
+    public static IReadOnlyList<SessionMenuChoice> MenuChoicesFor(IReadOnlyList<SessionPackInfo> all) =>
+    [
+        .. all is [var current, ..] ? [new SessionMenuChoice(SessionMenuKind.Session, current.Id, $"Add to {current.Title}")] : Array.Empty<SessionMenuChoice>(),
+        .. all.Count > 1 ? [new SessionMenuChoice(SessionMenuKind.Choose, null, "Add to another binder…")] : Array.Empty<SessionMenuChoice>(),
+        new(SessionMenuKind.New, null, "Add to a new binder…"),
+    ];
 
     async Task<IReadOnlyList<FacetCount>> LoadSystemsAsync()
     {

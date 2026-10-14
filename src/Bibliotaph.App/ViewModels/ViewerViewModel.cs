@@ -77,7 +77,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
 /// main window and in a pop-out window; it is given its request when it's made. A binder has it open the next item's
 /// book ahead of time when that's another book (<see cref="PrepareAsync"/>), so moving to it is as quick as a page turn.
 /// </summary>
-public sealed partial class ViewerViewModel : PageViewModel
+public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
 {
     const long ImageMaxPixels = 40_000_000;  // about 160 MB decoded; a bigger map is shrunk to fit
     const int MaxFindHits = 2000;
@@ -849,6 +849,8 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     /// <summary>Add page, Add pages… and Use this page, with their note and Undo, and the dialog over the reader.</summary>
     public SessionActions Sessions { get; }
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
 
     /// <summary>
     /// Add page: the page in view, or the whole image, to the current session pack; before there is one, it asks for

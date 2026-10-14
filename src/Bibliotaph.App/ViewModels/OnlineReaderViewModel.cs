@@ -15,7 +15,7 @@ namespace Bibliotaph.App.ViewModels;
 /// else opens in the everyday browser.
 /// </summary>
 public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, OnlineReaders readers, IOnlineLibraryReader? service)
-    : PageViewModel
+    : PageViewModel, ISessionChoices
 {
     readonly string? _site = OnlineReaders.SiteOf(request.Link);
     string? _savedNote;
@@ -25,6 +25,8 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     /// <summary>Add this page and its binder menu, with the note of what it did and Undo.</summary>
     public SessionActions Sessions { get; } = readers.NewSessionActions();
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
 
     /// <summary>The title of the page in view, which labels it in a binder.</summary>
     [ObservableProperty]

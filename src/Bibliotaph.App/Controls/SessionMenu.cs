@@ -22,17 +22,21 @@ public sealed record SessionMenuChoice(SessionMenuKind Kind, long? PackId, strin
 /// <summary>What an Add to session item runs with: the menu's context (a book, the details, the page) and the item.</summary>
 public sealed record SessionRequest(object? Target, SessionMenuChoice Choice);
 
+/// <summary>The Add to session items a menu shows, in order: the session directory's, through the page.</summary>
+public interface ISessionChoices
+{
+    IReadOnlyList<SessionMenuChoice> MenuChoices { get; }
+}
+
 /// <summary>
 /// Puts the Add to session items in a menu each time it opens, before any Add to collection items: the current
 /// session, then another and a new one. Set <c>SessionMenu.Command</c> on a ContextMenu; each item runs it with a
-/// <see cref="SessionRequest"/> carrying the menu's DataContext.
+/// <see cref="SessionRequest"/> carrying the menu's DataContext. The items come from the nearest
+/// <see cref="ISessionChoices"/> (see <see cref="MenuContext"/>), the page's view model.
 /// </summary>
 public static class SessionMenu
 {
     static readonly MenuGroup Group = new(Order: 1);
-
-    /// <summary>The items every menu shows, kept current by the session directory on the UI thread.</summary>
-    public static IReadOnlyList<SessionMenuChoice> Choices { get; set; } = [];
 
     public static readonly DependencyProperty CommandProperty = DependencyProperty.RegisterAttached("Command", typeof(ICommand), typeof(SessionMenu),
         new PropertyMetadata(null, OnCommandChanged));
@@ -52,7 +56,8 @@ public static class SessionMenu
     {
         var menu = (ContextMenu)sender;
         var command = GetCommand(menu);
-        Group.Refill(menu, command is null ? [] : Choices.Select(choice => new MenuItem
+        var choices = command is null ? null : MenuContext.Find<ISessionChoices>(menu);
+        Group.Refill(menu, choices is null ? [] : choices.MenuChoices.Select(choice => new MenuItem
         {
             Header = choice.Label,
             Command = command,

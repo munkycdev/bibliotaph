@@ -48,7 +48,7 @@ public sealed partial class PinnedItemViewModel(PinTarget target, string label, 
 /// as an item with its target's current name. It reloads after pins change, and after the collections, binders, saved
 /// searches or books they point at do, on the UI thread.
 /// </summary>
-public sealed class PinDirectory
+public sealed class PinDirectory : IPinState
 {
     readonly PinsService _pins;
     readonly CollectionDirectory _collections;
@@ -79,7 +79,6 @@ public sealed class PinDirectory
         binders.Changed += async (_, _) => await LoadAsync();
         views.Changed += async (_, _) => await LoadAsync();
         activity.Refreshed += async (_, _) => await LoadAsync();
-        PinMenu.IsPinned = target => target is LibraryItemViewModel item && IsPinned(PinTarget.Entry(item.EntryId));
     }
 
     /// <summary>Raised on the UI thread after the pins were reloaded.</summary>
@@ -91,6 +90,9 @@ public sealed class PinDirectory
     public bool Any => Items.Count > 0;
 
     public bool IsPinned(PinTarget target) => _pinned.Contains(target);
+
+    /// <summary>Whether a book menu's card is pinned.</summary>
+    bool IPinState.IsPinned(object? context) => context is LibraryItemViewModel item && IsPinned(PinTarget.Entry(item.EntryId));
 
     public string PinLabel(PinTarget target) => IsPinned(target) ? "Unpin" : "Pin";
 
