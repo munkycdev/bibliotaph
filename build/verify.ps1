@@ -8,13 +8,13 @@
       Engine     downloads the built-in AI's engine and the engine test's model (fetch-engine.ps1; Windows only)
       Build      Debug build; warnings are errors
       Licenses   writes licenses\packages beside the Debug build; fails on a licence that isn't GPL-3.0-compatible
-      Test       every test project
+      Test       every test project; off Windows, all but the app's
       Smoke      the app's --smoke-test on the real window (Windows only)
       BannedApi  proves that a write API in Core fails the build with RS0030
       Release    Release build, which leaves out the worker's fault-injection requests
 
-    With no -Step, every step runs. Off Windows, Engine and Smoke are skipped with a warning, and the engine test
-    skips itself.
+    With no -Step, every step runs. Off Windows, Engine, Smoke and the app's tests are skipped with a warning, and the
+    engine test skips itself.
 
 .EXAMPLE
     ./build/verify.ps1
@@ -168,8 +168,16 @@ try {
             'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
             'Licenses' { Invoke-Licenses }
             'Test' {
-                Invoke-Dotnet test --solution $solution --configuration Debug --no-build --report-xunit-trx `
-                    --results-directory (Join-Path $root 'TestResults')
+                $options = '--configuration', 'Debug', '--no-build', '--report-xunit-trx', '--results-directory', (Join-Path $root 'TestResults')
+                if ($IsWindows) { Invoke-Dotnet test --solution $solution @options }
+                else {
+                    # The app's tests need WPF, which runs only on Windows; the Build step still compiled them.
+                    Write-Warning 'App tests skipped: they need Windows. CI still runs them.'
+                    $skipped.Add('App tests')
+                    $projects = ([xml](Get-Content $solution)).Solution.Folder.Project.Path |
+                        Where-Object { $_ -like 'tests/*.Tests.csproj' -and $_ -notlike '*/Bibliotaph.App.Tests.csproj' }
+                    foreach ($project in $projects) { Invoke-Dotnet test --project (Join-Path $root $project) @options }
+                }
             }
             'Smoke' { Invoke-Smoke }
             'BannedApi' { Invoke-BannedApi }
