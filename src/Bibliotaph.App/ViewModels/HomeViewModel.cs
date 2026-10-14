@@ -19,7 +19,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
     PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, ILogger<HomeViewModel> log)
-    : LibraryAwarePageViewModel(roots, activity)
+    : LibraryAwarePageViewModel(roots, activity), ICollectionChoices, ISessionChoices, IPinState
 {
     /// <summary>How many covers each row shows.</summary>
     public const int RowLength = 8;
@@ -44,6 +44,12 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     /// <summary>The sidebar's pins, in its order.</summary>
     public PinDirectory Pins { get; } = pins;
+
+    IReadOnlyList<CollectionMenuChoice> ICollectionChoices.MenuChoices => Collections.Directory.MenuChoices;
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
+
+    bool IPinState.IsPinned(object? context) => ((IPinState)Pins).IsPinned(context);
 
     /// <summary>The first-run "AI now or later" step: folders added, no endpoint, and not yet answered.</summary>
     [ObservableProperty]

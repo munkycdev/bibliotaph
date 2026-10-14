@@ -15,7 +15,7 @@ namespace Bibliotaph.App.Services;
 /// the scope each opens the Library with, and the recent ones a book's menu offers. It reloads after any collection
 /// changes, on the UI thread.
 /// </summary>
-public sealed class CollectionDirectory
+public sealed class CollectionDirectory : ICollectionChoices
 {
     /// <summary>How many recent collections a book's menu offers before New collection… and Choose….</summary>
     const int RecentCount = 4;
@@ -47,19 +47,16 @@ public sealed class CollectionDirectory
 
     public bool Any => _byId.Count > 0;
 
+    /// <summary>A book menu's Add to collection items, as of the last reload.</summary>
+    public IReadOnlyList<CollectionMenuChoice> MenuChoices { get; private set; } = [];
+
     public async Task LoadAsync()
     {
         try
         {
             var all = await Task.Run(() => _collections.ListAsync());
             _byId = all.ToDictionary(c => c.Id);
-            CollectionMenu.Choices =
-            [
-                .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount).OrderBy(c => PathOf(c.Id), StringComparer.CurrentCultureIgnoreCase)
-                    .Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, $"Add to {c.Name}", PathOf(c.Id))),
-                new(CollectionMenuKind.New, null, "Add to a new collection…", null),
-                .. all.Count > RecentCount ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, "Add to another collection…", null)] : Array.Empty<CollectionMenuChoice>(),
-            ];
+            MenuChoices = MenuChoicesFor(all, PathOf);
             Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -67,6 +64,18 @@ public sealed class CollectionDirectory
             _log.LogError(ex, "Loading the collections failed");
         }
     }
+
+    /// <summary>
+    /// The Add to collection items for these collections: the ones used last, by path, then New, then Choose when
+    /// there are more than those. <paramref name="pathOf"/> names each.
+    /// </summary>
+    public static IReadOnlyList<CollectionMenuChoice> MenuChoicesFor(IReadOnlyList<CollectionInfo> all, Func<long, string> pathOf) =>
+    [
+        .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount).OrderBy(c => pathOf(c.Id), StringComparer.CurrentCultureIgnoreCase)
+            .Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, $"Add to {c.Name}", pathOf(c.Id))),
+        new(CollectionMenuKind.New, null, "Add to a new collection…", null),
+        .. all.Count > RecentCount ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, "Add to another collection…", null)] : Array.Empty<CollectionMenuChoice>(),
+    ];
 
     public CollectionInfo? Find(long collectionId) => _byId.GetValueOrDefault(collectionId);
 

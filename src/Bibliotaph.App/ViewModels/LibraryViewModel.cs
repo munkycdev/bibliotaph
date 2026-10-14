@@ -49,7 +49,7 @@ public enum AdventureCards
 /// the top bar has a search, its results in two tabs (Documents: titles and file details; Inside documents: page
 /// text). Results update as indexing finds more, without losing the scroll position.
 /// </summary>
-public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
+public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, ICollectionChoices, ISessionChoices, IPinState
 {
     /// <summary>More changes than this between refreshes replace the list instead of editing it in place.</summary>
     const int InPlaceLimit = 50;
@@ -1898,6 +1898,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     /// <summary>Adding books to collections and changing the collection shown, with the dialog and the note they show.</summary>
     public CollectionActions Collections { get; }
 
+    IReadOnlyList<CollectionMenuChoice> ICollectionChoices.MenuChoices => Collections.Directory.MenuChoices;
+
     /// <summary>The Library scoped to a collection: its sub-collections above the books, and its actions in the header.</summary>
     public bool IsCollection => Scope?.CollectionId is not null;
 
@@ -1930,6 +1932,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     // Pins: the page's Pin button pins the saved search, collection or Favorites shown.
 
     public PinDirectory Pins { get; }
+
+    bool IPinState.IsPinned(object? context) => ((IPinState)Pins).IsPinned(context);
 
     PinTarget? PageTarget => ActiveView is { } view ? PinTarget.SavedSearch(view.Id)
         : Scope?.CollectionId is { } id ? PinTarget.Collection(id)
@@ -2155,6 +2159,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
 
     /// <summary>Adding books and pages to session packs, with the dialog and the note they show.</summary>
     public SessionActions Sessions { get; }
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
 
     /// <summary>A card's menu or the details' Add to session: the book they are for.</summary>
     public void AddToSession(SessionRequest request)

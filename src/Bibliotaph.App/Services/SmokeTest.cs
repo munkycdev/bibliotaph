@@ -1847,14 +1847,14 @@ static partial class SmokeTest
         Click(addSelected, "Select mode's Add to collection");
         await WaitUntilAsync(window, () => addSelected!.ContextMenu is { IsOpen: true, Items.Count: >= 2 }, () => "Add to collection didn't open its menu of collections.");
         addSelected!.ContextMenu!.IsOpen = false;
-        var toMaps = CollectionMenu.Choices.Single(c => c.CollectionId == mapsId);
+        var toMaps = ((ICollectionChoices)campaign).MenuChoices.Single(c => c.CollectionId == mapsId);
         campaign.AddSelectedToCollectionCommand.Execute(new CollectionRequest(campaign, toMaps));
         await WaitUntilAsync(window, () => campaign.Collections.Message == "Added 2 books to Maps.", () => $"Adding the selection said “{campaign.Collections.Message}”.");
         campaign.StopSelectingCommand.Execute(null);
 
         // A card's menu: a third book into the campaign itself, undone and done again.
         var third = campaign.Items[2];
-        var toCampaign = CollectionMenu.Choices.Single(c => c.CollectionId == campaignId);
+        var toCampaign = ((ICollectionChoices)campaign).MenuChoices.Single(c => c.CollectionId == campaignId);
         BookCommands.AddToCollection.Execute(new CollectionRequest(third, toCampaign), FindChild<Views.LibraryView>(window));
         // The selection's "Added 2 books to Maps." is still shown with its Undo, so wait for this add's own note.
         await WaitUntilAsync(window, () => campaign.Collections is { HasUndo: true, Message: { } note } && note.StartsWith("Added ", StringComparison.Ordinal)
