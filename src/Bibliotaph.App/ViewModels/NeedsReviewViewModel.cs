@@ -105,7 +105,8 @@ public sealed partial class NeedsReviewViewModel(
     ReviewService review,
     IndexQueries queries,
     LibraryStore library,
-    IndexingService indexing,
+    IIndexingStatus indexing,
+    IJobControl jobs,
     LibraryActivity activity,
     INavigationService navigation,
     SettingsLinks links,
@@ -458,7 +459,7 @@ public sealed partial class NeedsReviewViewModel(
 
     async Task RetryAsync(IReadOnlyCollection<long> documentIds)
     {
-        await indexing.RetryAsync(documentIds);
+        await jobs.RetryAsync(documentIds);
         activity.Invalidate();
         await RefreshFilesAsync();
     }

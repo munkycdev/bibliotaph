@@ -65,7 +65,7 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, IPasswordVault Vault,
-    UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
+    UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IJobControl Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
     IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
@@ -94,7 +94,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
     readonly IDesktopShell _shell;
     readonly UnlockedPasswords _unlocked;
     readonly IPasswordPrompt _prompt;
-    readonly IndexingService _indexing;
+    readonly IJobControl _indexing;
     readonly JobBoard _jobs;
     readonly ISourceFileReader _files;
     readonly SourceFiles _sources;

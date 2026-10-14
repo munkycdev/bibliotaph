@@ -17,7 +17,7 @@ public abstract partial class PipelineTests
         await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = text || ' ' || @filler", new { filler = string.Join(' ', Enumerable.Repeat("More of the adventure.", 12)) }, t), Ct);
         // Set up but switched off, so only the pilot sends anything.
         await _ai.SaveAsync(new AiSetup(Endpoint, "fake-8b", "ollama", Enabled: false, RemoteAllowed: false, new HashSet<long>()), Ct);
-        return new PilotService(new PilotStore(_paths.Pilot), _ai, _service, _queries, _libraryStore, _entries, Inputs(),
+        return new PilotService(new PilotStore(_paths.Pilot), _ai, _service, _service, _queries, _libraryStore, _entries, Inputs(),
             _metadata, _vocabulary);
     }
 

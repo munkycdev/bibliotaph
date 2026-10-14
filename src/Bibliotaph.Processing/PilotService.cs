@@ -39,8 +39,8 @@ public sealed record PilotAnswer(string Typed, bool NotInBook);
 /// of a book; the catalog's values for a book are its entry's.
 /// </summary>
 public sealed class PilotService(
-    PilotStore store, AiSettings ai, IndexingService indexing, IndexQueries queries, LibraryStore library, EntryStore entries, ClassifierInputs inputs,
-    MetadataService metadata, VocabularyStore vocabularies, TimeProvider? clock = null, ILogger<PilotService>? log = null)
+    PilotStore store, AiSettings ai, IJobControl jobs, IIndexingStatus indexing, IndexQueries queries, LibraryStore library, EntryStore entries,
+    ClassifierInputs inputs, MetadataService metadata, VocabularyStore vocabularies, TimeProvider? clock = null, ILogger<PilotService>? log = null)
 {
     /// <summary>The models tried by default; Settings lets the user change the list.</summary>
     public const string DefaultModels = "qwen3:8b, llama3.1:8b, gemma3:12b";
@@ -152,7 +152,7 @@ public sealed class PilotService(
         if (books.Count == 0) return new PilotRunEnd(false, "Pick the books first.");
 
         var pausedHere = !indexing.IsPaused(Lane.Classify);
-        if (pausedHere) indexing.Pause(Lane.Classify);
+        if (pausedHere) jobs.Pause(Lane.Classify);
         try
         {
             var client = ai.ClientFor(endpoint);
@@ -187,7 +187,7 @@ public sealed class PilotService(
         }
         finally
         {
-            if (pausedHere) indexing.Resume(Lane.Classify);
+            if (pausedHere) jobs.Resume(Lane.Classify);
         }
     }
 
