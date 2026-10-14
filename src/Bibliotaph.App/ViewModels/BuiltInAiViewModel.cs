@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Data;
 using Bibliotaph.App.Services;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,17 +11,47 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>A model in Settings > AI's built-in list: its size, whether it suits this computer, and whether it's here yet.</summary>
-public sealed partial class BuiltInModelItem(BuiltInModel model, bool suggested) : ObservableObject
+/// <summary>
+/// A model in Settings > AI's built-in list: one of <see cref="BuiltInModels"/>, with its size, whether it suits this
+/// computer and whether it's here yet; or a model file of the user's own, kept where it is.
+/// </summary>
+public sealed partial class BuiltInModelItem : ObservableObject
 {
-    public BuiltInModel Model { get; } = model;
+    public const string FitsGroup = "Fits your graphics card";
+    public const string BiggerGroup = "Needs more graphics memory";
+    public const string FileGroup = "Your own model file";
 
-    public string Name => Model.Name;
+    BuiltInModelItem(BuiltInModel? model, string? file, bool suggested, bool fits)
+    {
+        (Model, File, IsSuggested, Fits) = (model, file, suggested, fits);
+    }
 
-    public bool IsSuggested { get; } = suggested;
+    public static BuiltInModelItem For(BuiltInModel model, bool suggested, bool fits) => new(model, null, suggested, fits);
 
-    /// <summary>"4.7 GB download, for graphics cards with 7 GB or more."</summary>
-    public string Detail => $"{BuiltInModelDownloads.Gb(Model.Bytes)} download, for graphics cards with {Model.GraphicsBytes >> 30} GB or more.";
+    public static BuiltInModelItem ForFile(string path) => new(null, path, false, true);
+
+    /// <summary>The listed model, or null for a file of the user's own.</summary>
+    public BuiltInModel? Model { get; }
+
+    /// <summary>The path of a model file of the user's own, or null for a listed model.</summary>
+    public string? File { get; }
+
+    /// <summary>What settings store: the listed model's id, or the file's path.</summary>
+    public string Id => Model?.Id ?? File!;
+
+    public string Name => Model?.Name ?? System.IO.Path.GetFileNameWithoutExtension(File!);
+
+    public bool IsSuggested { get; }
+
+    public bool Fits { get; }
+
+    /// <summary>The heading it is listed under.</summary>
+    public string Group => File is not null ? FileGroup : Fits ? FitsGroup : BiggerGroup;
+
+    /// <summary>"4.7 GB download, for graphics cards with 7 GB or more. Apache-2.0."</summary>
+    public string Detail => Model is { } model
+        ? $"{BuiltInModelDownloads.Gb(model.Bytes)} download, for graphics cards with {model.GraphicsBytes >> 30} GB or more. {model.Licence}.{(model.Note is { } note ? $" {note}" : "")}"
+        : File!;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StateText))]
@@ -28,12 +60,16 @@ public sealed partial class BuiltInModelItem(BuiltInModel model, bool suggested)
     [ObservableProperty]
     public partial bool IsChosen { get; set; }
 
-    public string StateText => State switch
+    public string StateText => (File, State) switch
     {
-        BuiltInModelState.Downloaded => "Downloaded",
-        BuiltInModelState.Partial => "Part downloaded",
+        (not null, BuiltInModelState.Downloaded) => "On this computer",
+        (not null, _) => "File not found",
+        (_, BuiltInModelState.Downloaded) => "Downloaded",
+        (_, BuiltInModelState.Partial) => "Part downloaded",
         _ => IsSuggested ? "Suggested" : "",
     };
+
+    public override string ToString() => Name;
 }
 
 /// <summary>
@@ -117,8 +153,18 @@ public sealed partial class BuiltInAiViewModel(
 
     public ObservableCollection<BuiltInModelItem> Models { get; } = [];
 
+    /// <summary>The models as the list shows them, under their headings: those that fit this computer's graphics card first.</summary>
+    public ICollectionView ModelList => field ??= Grouped(Models);
+
+    static ListCollectionView Grouped(ObservableCollection<BuiltInModelItem> models)
+    {
+        var view = new ListCollectionView(models);
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BuiltInModelItem.Group)));
+        return view;
+    }
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(LicenceText), nameof(DownloadLabel))]
+    [NotifyPropertyChangedFor(nameof(LicenceText), nameof(DownloadLabel), nameof(IsListedChosen), nameof(FileText))]
     [NotifyCanExecuteChangedFor(nameof(DownloadCommand), nameof(CancelCommand), nameof(DeleteCommand), nameof(TestCommand))]
     public partial BuiltInModelItem? Chosen { get; set; }
 
@@ -135,11 +181,21 @@ public sealed partial class BuiltInAiViewModel(
         ? $"This computer's graphics card has {Math.Round(bytes / (double)(1L << 30))} GB."
         : "Bibliotaph couldn't tell how much memory this computer's graphics card has, so the smaller model is suggested.";
 
-    public string LicenceText => Chosen is { } item ? $"{item.Name} is shared by its makers under the {item.Model.Licence} licence." : "";
+    public string LicenceText => Chosen is { Model: { } model } item ? $"{item.Name} is shared by its makers under the {model.Licence} licence." : "";
 
-    public string DownloadLabel => Chosen is { } item && item.State == BuiltInModelState.Partial
-        ? $"Carry on downloading ({BuiltInModelDownloads.Gb(downloads.PartialBytes(item.Model))} of {BuiltInModelDownloads.Gb(item.Model.Bytes)})"
-        : $"Download{(Chosen is { } chosen ? $" ({BuiltInModelDownloads.Gb(chosen.Model.Bytes)})" : "")}";
+    /// <summary>A listed model is chosen, so it has a licence to read and a Download button.</summary>
+    public bool IsListedChosen => Chosen is { Model: not null };
+
+    /// <summary>A file of the user's own is chosen: what Bibliotaph does and doesn't know about it.</summary>
+    public string FileText => Chosen is { File: not null } item
+        ? item.State == BuiltInModelState.Downloaded
+            ? "Bibliotaph uses this file where it is and never changes or deletes it. Its licence is whatever its makers set."
+            : "This file isn't there any more. Choose it again, or choose another model."
+        : "";
+
+    public string DownloadLabel => Chosen is { Model: { } model, State: BuiltInModelState.Partial }
+        ? $"Carry on downloading ({BuiltInModelDownloads.Gb(downloads.PartialBytes(model))} of {BuiltInModelDownloads.Gb(model.Bytes)})"
+        : $"Download{(Chosen is { Model: { } chosen } ? $" ({BuiltInModelDownloads.Gb(chosen.Bytes)})" : "")}";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DownloadCommand), nameof(PauseCommand), nameof(CancelCommand), nameof(DeleteCommand))]
@@ -172,9 +228,11 @@ public sealed partial class BuiltInAiViewModel(
     {
         var suggested = BuiltInModels.Suggest(graphics.Bytes);
         Models.Clear();
-        foreach (var model in BuiltInModels.All) Models.Add(new BuiltInModelItem(model, model == suggested));
-        Chosen = Models.FirstOrDefault(m => m.Model.Id == ai.Setup.BuiltInModel)
-            ?? Models.FirstOrDefault(m => m.Model == downloads.Current?.Model)
+        foreach (var model in BuiltInModels.Offered)
+            Models.Add(BuiltInModelItem.For(model, model == suggested, BuiltInModels.Fits(model, graphics.Bytes)));
+        if (ai.Setup.BuiltInModel is { } file && BuiltInModels.IsFile(file)) Models.Add(BuiltInModelItem.ForFile(file));
+        Chosen = Models.FirstOrDefault(m => m.Id == ai.Setup.BuiltInModel)
+            ?? Models.FirstOrDefault(m => m.Model is not null && m.Model == downloads.Current?.Model)
             ?? Models.First(m => m.IsSuggested);
         downloads.Changed -= OnDownloadsChanged;
         downloads.Changed += OnDownloadsChanged;
@@ -193,7 +251,10 @@ public sealed partial class BuiltInAiViewModel(
 
     void Refresh()
     {
-        foreach (var item in Models) item.State = downloads.StateOf(item.Model);
+        foreach (var item in Models)
+            item.State = item.Model is { } model ? downloads.StateOf(model)
+                : System.IO.File.Exists(item.File) ? BuiltInModelState.Downloaded : BuiltInModelState.None;
+        OnPropertyChanged(nameof(FileText));
         EmbeddingState = downloads.StateOf(BuiltInModels.Embedding);
         var current = downloads.Current;
         IsDownloading = current is not null;
@@ -220,30 +281,47 @@ public sealed partial class BuiltInAiViewModel(
         ShowCancel = CanCancel();
         Problem = null;
         Note = null;
-        if (value is not null && IsShown && value.State == BuiltInModelState.Downloaded && ai.Setup.BuiltInModel != value.Model.Id)
-            _ = UseAsync(value.Model);
+        if (value is not null && IsShown && value.State == BuiltInModelState.Downloaded && ai.Setup.BuiltInModel != value.Id)
+            _ = UseAsync(value);
     }
 
+    /// <summary>Uses a .gguf model file already on this computer, such as one LM Studio downloaded, where it is.</summary>
     [RelayCommand]
-    void Choose(BuiltInModelItem item) => Chosen = item;
+    void ChooseFile()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Use a model file on this computer", Filter = "Model files (*.gguf)|*.gguf" };
+        if (dialog.ShowDialog(Application.Current.MainWindow) != true) return;
+        ChooseFile(dialog.FileName);
+    }
+
+    /// <summary>Lists <paramref name="path"/> as the user's own model, in place of any chosen before, and chooses it.</summary>
+    public void ChooseFile(string path)
+    {
+        if (Models.FirstOrDefault(m => m.File is not null) is { } before) Models.Remove(before);
+        var item = BuiltInModelItem.ForFile(path);
+        Models.Add(item);
+        Refresh();
+        Chosen = item;
+    }
 
     /// <summary>The page switched to Built in: uses the chosen model if it's here, or the one set before if that still is.</summary>
     public Task ShowAsync()
     {
         IsShown = true;
-        var model = Chosen is { State: BuiltInModelState.Downloaded } chosen ? chosen.Model.Id
+        var model = Chosen is { State: BuiltInModelState.Downloaded } chosen ? chosen.Id
             : ai.Setup.BuiltInModel is { } before && BuiltInModels.Find(before) is { } known && downloads.StateOf(known) == BuiltInModelState.Downloaded ? before
+            : ai.Setup.BuiltInModel is { } file && BuiltInModels.IsFile(file) && System.IO.File.Exists(file) ? file
             : null;
         return SaveAsync(model);
     }
 
-    async Task UseAsync(BuiltInModel model)
+    async Task UseAsync(BuiltInModelItem item)
     {
         var before = ai.Setup.BuiltInModel;
-        await SaveAsync(model.Id);
-        Note = before is not null && before != model.Id
-            ? $"Now using {model.Name}. Books already classified keep their values; Reclassify reads them again with it."
-            : downloads.StateOf(model) == BuiltInModelState.Downloaded ? $"Using {model.Name}." : null;
+        await SaveAsync(item.Id);
+        Note = before is not null && before != item.Id
+            ? $"Now using {item.Name}. Books already classified keep their values; Reclassify reads them again with it."
+            : item.State == BuiltInModelState.Downloaded ? $"Using {item.Name}." : null;
     }
 
     async Task SaveAsync(string? model)
@@ -256,17 +334,17 @@ public sealed partial class BuiltInAiViewModel(
     }
 
     // The model can download while the engine still is: the lane waits for both.
-    bool CanDownload() => !IsDownloading && Chosen is { State: not BuiltInModelState.Downloaded };
+    bool CanDownload() => !IsDownloading && Chosen is { Model: not null, State: not BuiltInModelState.Downloaded };
 
     /// <summary>Sets the built-in AI to the chosen model and downloads it in the background.</summary>
     [RelayCommand(CanExecute = nameof(CanDownload))]
     async Task DownloadAsync()
     {
-        if (Chosen is not { } item) return;
+        if (Chosen is not { Model: { } model } item) return;
         Problem = null;
         Note = "Books are read as soon as the download finishes, even if Settings is closed by then.";
-        await UseAsync(item.Model);
-        _ = downloads.DownloadAsync(item.Model);
+        await UseAsync(item);
+        _ = downloads.DownloadAsync(model);
     }
 
     bool CanPause() => IsDownloading;
@@ -278,7 +356,7 @@ public sealed partial class BuiltInAiViewModel(
         Note = "Paused. Download carries on from where it got to, after a restart too.";
     }
 
-    bool CanCancel() => IsDownloading || Chosen is { State: BuiltInModelState.Partial };
+    bool CanCancel() => IsDownloading || Chosen is { Model: not null, State: BuiltInModelState.Partial };
 
     [RelayCommand(CanExecute = nameof(CanCancel))]
     void Cancel()
@@ -288,21 +366,22 @@ public sealed partial class BuiltInAiViewModel(
         Note = "Cancelled. What had arrived was deleted.";
     }
 
-    bool CanDelete() => Chosen is { State: BuiltInModelState.Downloaded } item && downloads.Current?.Model != item.Model;
+    // A file of the user's own is never deleted: Bibliotaph didn't put it there.
+    bool CanDelete() => Chosen is { Model: { } model, State: BuiltInModelState.Downloaded } && downloads.Current?.Model != model;
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     async Task DeleteAsync()
     {
-        if (Chosen is not { } item) return;
+        if (Chosen is not { Model: { } model } item) return;
         if (MessageBox.Show(Application.Current.MainWindow,
-                $"{item.Name} ({BuiltInModelDownloads.Gb(item.Model.Bytes)}) will be deleted from this computer. The built-in AI can't read books until a model is downloaded again.",
+                $"{item.Name} ({BuiltInModelDownloads.Gb(model.Bytes)}) will be deleted from this computer. The built-in AI can't read books until a model is downloaded again.",
                 "Delete this model?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
-        var inUse = ai.Setup.BuiltInModel == item.Model.Id;
+        var inUse = ai.Setup.BuiltInModel == model.Id;
         // The engine holds the file open while it runs.
         await engine.StopAsync();
         try
         {
-            downloads.Delete(item.Model);
+            downloads.Delete(model);
         }
         catch (System.IO.IOException ex)
         {
@@ -320,12 +399,12 @@ public sealed partial class BuiltInAiViewModel(
     [RelayCommand(CanExecute = nameof(CanTest))]
     void Test()
     {
-        if (Chosen is { } item) tester.ShowBuiltIn(item.Model.Id);
+        if (Chosen is { } item) tester.ShowBuiltIn(item.Id);
     }
 
     [RelayCommand]
     void OpenLicence()
     {
-        if (Chosen is { } item) Process.Start(new ProcessStartInfo(item.Model.LicenceUrl.ToString()) { UseShellExecute = true })?.Dispose();
+        if (Chosen is { Model: { } model }) Process.Start(new ProcessStartInfo(model.LicenceUrl.ToString()) { UseShellExecute = true })?.Dispose();
     }
 }

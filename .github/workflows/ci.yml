@@ -14,22 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  model-pins:
-    name: Model pins (temporary)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - shell: bash
-        run: |
-          for repo in Qwen/Qwen3-14B-GGUF Qwen/Qwen3-30B-A3B-GGUF unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF \
-              bartowski/Meta-Llama-3.1-8B-Instruct-GGUF ibm-granite/granite-3.3-8b-instruct-GGUF bartowski/ibm-granite_granite-3.3-8b-instruct-GGUF \
-              bartowski/microsoft_Phi-4-mini-instruct-GGUF unsloth/Phi-4-mini-instruct-GGUF \
-              bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF; do
-            json=$(curl -fsSL "https://huggingface.co/api/models/$repo/revision/main?blobs=true") || { echo "::warning title=$repo::not found"; continue; }
-            echo "$json" | jq -r --arg repo "$repo" '. as $m | ($m.cardData.license // "?") as $lic | $m.siblings[]
-              | select(.rfilename | test("Q4_K_M\\.gguf$")) | "::notice title=\($repo)::\($m.sha) \(.rfilename) \(.lfs.size // .size) \(.lfs.sha256 // "?") \($lic)"'
-          done
-
   build-and-test:
     name: Build and test (Windows)
     runs-on: windows-latest
