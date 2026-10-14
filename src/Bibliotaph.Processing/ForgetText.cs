@@ -17,7 +17,7 @@ public sealed class ForgetText(
     EntryStore entries,
     LibraryStore library,
     IndexStore index,
-    IndexingService indexing,
+    IJobControl indexing,
     CoverCache covers,
     PageThumbnailCache pageThumbnails,
     ClassificationStore classifications,

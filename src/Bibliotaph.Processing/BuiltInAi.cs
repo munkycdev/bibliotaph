@@ -581,7 +581,7 @@ public static class BuiltInEngineWatch
     /// Stops the engine as soon as the Classify lane is paused, or AI is switched off or moved to a model server, so the
     /// graphics memory goes back at once rather than after the idle minutes.
     /// </summary>
-    public static void StopWhenNotNeeded(this BuiltInEngine engine, AiSettings ai, IndexingService indexing)
+    public static void StopWhenNotNeeded(this BuiltInEngine engine, AiSettings ai, IIndexingStatus indexing)
     {
         void Check(object? sender, EventArgs e)
         {

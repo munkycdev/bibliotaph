@@ -33,12 +33,13 @@ static partial class SmokeTest
         var navigation = services.GetRequiredService<INavigationService>();
         var ai = services.GetRequiredService<AiSettings>();
         var ask = services.GetRequiredService<AskService>();
-        var indexing = services.GetRequiredService<IndexingService>();
+        var indexing = services.GetRequiredService<IIndexingStatus>();
+        var jobs = services.GetRequiredService<IJobControl>();
         var reading = services.GetRequiredService<ReadingService>();
         var before = ai.Setup;
         var kept = await reading.GetPositionAsync(documentId);
         var wasPaused = indexing.IsPaused(Lane.Classify);
-        indexing.Pause(Lane.Classify);
+        jobs.Pause(Lane.Classify);
         try
         {
             shell.NavigateCommand.Execute(Route.Library);
@@ -171,7 +172,7 @@ static partial class SmokeTest
         {
             await ask.ClearHistoryAsync(documentId);
             await ai.SaveAsync(before);
-            if (!wasPaused) indexing.Resume(Lane.Classify);
+            if (!wasPaused) jobs.Resume(Lane.Classify);
             await reading.SavePositionAsync(documentId, kept);
         }
     }
@@ -186,12 +187,13 @@ static partial class SmokeTest
     {
         var shell = services.GetRequiredService<ShellViewModel>();
         var ai = services.GetRequiredService<AiSettings>();
-        var indexing = services.GetRequiredService<IndexingService>();
+        var indexing = services.GetRequiredService<IIndexingStatus>();
+        var jobs = services.GetRequiredService<IJobControl>();
         var reading = services.GetRequiredService<ReadingService>();
         var before = ai.Setup;
         var kept = await reading.GetPositionAsync(documentId);
         var wasPaused = indexing.IsPaused(Lane.Classify);
-        indexing.Pause(Lane.Classify);
+        jobs.Pause(Lane.Classify);
         try
         {
             await ai.SaveAsync(before with
@@ -248,7 +250,7 @@ static partial class SmokeTest
         {
             shell.PlainSearch.IsOn = false;
             await ai.SaveAsync(before);
-            if (!wasPaused) indexing.Resume(Lane.Classify);
+            if (!wasPaused) jobs.Resume(Lane.Classify);
             await reading.SavePositionAsync(documentId, kept);
         }
     }

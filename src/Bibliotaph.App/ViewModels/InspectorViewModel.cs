@@ -51,7 +51,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     readonly MetadataService _metadata;
     readonly LibraryQueries _queries;
-    readonly IndexingService _indexing;
+    readonly IJobControl _indexing;
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
@@ -68,7 +68,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     bool _refreshAgain;
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
-        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
+        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IJobControl indexing, CopiesService copiesService,
         PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, CorrectionService? corrections,
         ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log)
     {
@@ -468,7 +468,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
+        IJobControl indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
         IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null,
         ChosenCovers? chosen = null)
     {

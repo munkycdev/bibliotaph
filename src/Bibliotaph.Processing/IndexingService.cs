@@ -82,6 +82,107 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 public sealed record IndexingFiles(FileHasher Hasher, ArchiveReader Archives, IDiskSpace Disk, IFileIdentity Identity, OnlineOnlyReturns Returns);
 
 /// <summary>
+/// What indexing is doing, for those that show it or wait on it: whether folders are being looked through, the file
+/// being read, the job each lane is running, which lanes are paused or waiting and why, and the files that couldn't
+/// be read. <see cref="Changed"/> says when any of it may have moved.
+/// </summary>
+public interface IIndexingStatus
+{
+    /// <summary>Something changed that a progress display would show. Raised on a background thread, often; throttle.</summary>
+    event EventHandler? Changed;
+
+    /// <summary>Whether a lane may work: every gated stage in it is ready. A lane with no gated stage always may.</summary>
+    bool IsOpen(Lane lane);
+
+    /// <summary>Why a lane is waiting even though it has work, such as a model endpoint that isn't answering; null otherwise.</summary>
+    string? Unavailable(Lane lane);
+
+    /// <summary>True while library folders are being looked through for new, changed and missing files.</summary>
+    bool IsScanning { get; }
+
+    /// <summary>True when online-only files are waiting because their drive is short of space.</summary>
+    bool WaitingForDiskSpace { get; }
+
+    /// <summary>The last scan of each library folder: what it holds, what changed, or why it couldn't be reached.</summary>
+    IReadOnlyList<RootScan> Scans { get; }
+
+    /// <summary>Files that couldn't be read for hashing, each with why. Each is tried again after the next scan of its folder.</summary>
+    IReadOnlyList<UnreadableFile> Unreadable { get; }
+
+    /// <summary>The file being read for hashing, if any.</summary>
+    string? Hashing { get; }
+
+    /// <summary>The job a lane is running, if any.</summary>
+    JobRecord? Running(Lane lane);
+
+    /// <summary>Whether a lane is paused.</summary>
+    bool IsPaused(Lane lane);
+}
+
+/// <summary>
+/// What can be asked of indexing: pause and resume a lane, look through folders again, run stages again, give failed
+/// ones another go, stop work on a book, read a book again from the start, and point a moved folder to its new place.
+/// </summary>
+public interface IJobControl
+{
+    /// <summary>Pauses a lane. Its running job stops at the next page and goes back to the queue without using an attempt.</summary>
+    void Pause(Lane lane);
+
+    /// <summary>Lets a paused lane work again.</summary>
+#pragma warning disable CA1716 // A keyword in Visual Basic only; nothing outside this C# app implements it.
+    void Resume(Lane lane);
+#pragma warning restore CA1716
+
+    /// <summary>Scans one root, or every root when <paramref name="rootId"/> is null, as soon as the scanner is free.</summary>
+    void RequestScan(long? rootId = null);
+
+    /// <summary>
+    /// Scans these roots, or every root when <paramref name="rootIds"/> is null, and returns once that scan has
+    /// finished. Nothing waits for files to be read.
+    /// </summary>
+    Task ScanNowAsync(IReadOnlyCollection<long>? rootIds = null, CancellationToken ct = default);
+
+    /// <summary>Runs a stage again for every document that has been through it, as after a vocabulary edit.</summary>
+    Task<int> RerunAsync(Stage stage, CancellationToken ct = default);
+
+    /// <summary>
+    /// Runs a stage again for one document that has been through it, as "Scan again" does for a whole-book scan.
+    /// A job still waiting runs anyway. Returns whether it was queued again.
+    /// </summary>
+    Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default);
+
+    /// <summary>Gives a document's failed and blocked stages another go, as from Files needing attention.</summary>
+    Task RetryAsync(long documentId, CancellationToken ct = default);
+
+    /// <summary>Gives these documents' failed and blocked stages another go, as Files needing attention's Try all again does.</summary>
+    Task RetryAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stops the stages running for these documents now, as "Forget its text" does before it removes what they made.
+    /// Each goes back to the queue as a paused job does; the lanes carry on with other work.
+    /// </summary>
+    void Interrupt(IReadOnlyCollection<long> documentIds);
+
+    /// <summary>
+    /// Looks again at every library folder that is offline, and at those on <paramref name="drives"/> (drive letters),
+    /// as when a disk is plugged in or taken out.
+    /// </summary>
+    Task RescanOfflineAsync(IReadOnlyCollection<char>? drives = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// "Point to its new place", for a library folder that moved for good: the folder takes the new path and is scanned
+    /// there, keeping every book and everything done with it. The result says why not when the new place won't do.
+    /// </summary>
+    Task<RootRelocation> RelocateRootAsync(long rootId, string path, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reprocess, from the inspector: reads a document's file again from the start, ahead of other work, keeping
+    /// everything the user added. False while one of its stages is running.
+    /// </summary>
+    Task<bool> ReprocessAsync(long documentId, bool ocrEveryPage = false, CancellationToken ct = default);
+}
+
+/// <summary>
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
 /// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
 /// pausable on its own. Classify works only while AI is ready, and waits with a notice while its endpoint can't be used.
@@ -99,7 +200,7 @@ public sealed class IndexingService(
     FolderCollections folderCollections,
     IndexingOptions? options = null,
     ILogger<IndexingService>? log = null,
-    TimeProvider? clock = null) : BackgroundService
+    TimeProvider? clock = null) : BackgroundService, IJobControl, IIndexingStatus
 {
     /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
     public const string UnexpectedError = "Unexpected error: ";

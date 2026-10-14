@@ -18,7 +18,7 @@ public partial class MainWindow : Window
 {
     readonly SearchGuideViewModel _guide;
     readonly AboutBox _about;
-    readonly IndexingService _indexing;
+    readonly IJobControl _indexing;
     readonly ILogger<MainWindow> _log;
 
     /// <summary>Set while a pick rewrites the box, so the box's own change events don't steer the guide halfway through.</summary>
@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     /// <summary>Where the mouse went down on a pin, until it moves far enough to drag it or comes up.</summary>
     Point? _pinDragStart;
 
-    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, ShortcutsBox shortcuts, IndexingService indexing,
+    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, ShortcutsBox shortcuts, IJobControl indexing,
         ILogger<MainWindow> log)
     {
         InitializeComponent();

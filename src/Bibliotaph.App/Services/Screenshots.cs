@@ -36,7 +36,7 @@ static class Screenshots
             window.Height = Height;
 
             var roots = services.GetRequiredService<SourceRootStore>();
-            var indexing = services.GetRequiredService<IndexingService>();
+            var indexing = services.GetRequiredService<IJobControl>();
             if ((await roots.ListAsync()).Count == 0)
             {
                 if (files is null) throw new InvalidOperationException("The library is empty: give --screenshot-files.");

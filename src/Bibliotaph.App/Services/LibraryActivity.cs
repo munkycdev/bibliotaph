@@ -87,7 +87,8 @@ public sealed partial class LibraryActivity : ObservableObject
 {
     static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(750);
 
-    readonly IndexingService _indexing;
+    readonly IIndexingStatus _indexing;
+    readonly IJobControl _jobs;
     readonly IndexQueries _queries;
     readonly LibraryStore _library;
     readonly ReviewService _review;
@@ -103,10 +104,11 @@ public sealed partial class LibraryActivity : ObservableObject
     int _dirty = 1;
     bool _refreshing;
 
-    public LibraryActivity(IndexingService indexing, IndexQueries queries, LibraryStore library, MetadataProjector metadata, ReviewService review,
-        TimeProvider time, ILogger<LibraryActivity> log)
+    public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IndexQueries queries, LibraryStore library, MetadataProjector metadata,
+        ReviewService review, TimeProvider time, ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
+        _jobs = jobs;
         _queries = queries;
         _library = library;
         _review = review;
@@ -227,8 +229,8 @@ public sealed partial class LibraryActivity : ObservableObject
 
     public void SetPaused(Lane lane, bool paused)
     {
-        if (paused) _indexing.Pause(lane);
-        else _indexing.Resume(lane);
+        if (paused) _jobs.Pause(lane);
+        else _jobs.Resume(lane);
         Invalidate();
     }
 

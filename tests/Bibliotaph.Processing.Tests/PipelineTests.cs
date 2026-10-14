@@ -155,7 +155,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
             ],
             new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns), _packs, _parts, _folderCollections,
             new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
-        _chapterService = new ChapterScanService(_ai, _service, _chapterScans, _chapterProjection, new ChapterQueries(_index));
+        _chapterService = new ChapterScanService(_ai, _service, _service, _chapterScans, _chapterProjection, new ChapterQueries(_index));
         _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules, _chapterService);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
     }

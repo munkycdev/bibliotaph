@@ -293,6 +293,10 @@ public partial class App : Application
         builder.Services.AddSingleton(new IndexingOptions());
         builder.Services.AddSingleton<IndexingFiles>();
         builder.Services.AddSingleton<IndexingService>();
+        // Both forward to the one service the host runs; registered with their own implementation type, each would get a
+        // second IndexingService that never starts.
+        builder.Services.AddSingleton<IJobControl>(sp => sp.GetRequiredService<IndexingService>());
+        builder.Services.AddSingleton<IIndexingStatus>(sp => sp.GetRequiredService<IndexingService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
         // Reading the whole library for meaning, slowly and last of all.
         builder.Services.AddSingleton<LibraryVectors>();
@@ -425,7 +429,7 @@ public partial class App : Application
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
-        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
+        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IIndexingStatus>());
         services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
         services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
         services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);

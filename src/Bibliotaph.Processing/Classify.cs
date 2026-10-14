@@ -569,7 +569,7 @@ public sealed record AiTestProgress(AiTestStep Step, string? Title);
 /// "Reclassify N documents". Nothing here reclassifies by itself.
 /// </summary>
 public sealed class AiService(
-    AiSettings settings, IApiKeyStore keys, IndexingService indexing, ClassificationStore runs, ClassifierInputs inputs, IndexQueries queries,
+    AiSettings settings, IApiKeyStore keys, IJobControl indexing, ClassificationStore runs, ClassifierInputs inputs, IndexQueries queries,
     LibraryStore library, VocabularyStore vocabularies, TimeProvider? clock = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;

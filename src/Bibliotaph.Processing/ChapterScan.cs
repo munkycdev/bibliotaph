@@ -201,7 +201,8 @@ public sealed class ChapterScanStage : IStage, IDisposable
 /// What Settings > AI, the inspector and the reader do with whole-book scans: switch them on or off, read a book's
 /// chapters as found, and scan a book again.
 /// </summary>
-public sealed class ChapterScanService(AiSettings ai, IndexingService indexing, ChapterScanStore store, ChapterProjection projection, ChapterQueries chapters)
+public sealed class ChapterScanService(
+    AiSettings ai, IJobControl jobs, IIndexingStatus indexing, ChapterScanStore store, ChapterProjection projection, ChapterQueries chapters)
 {
     /// <summary>Whether books are read whole once they are catalogued.</summary>
     public bool IsOn => ai.ScanWholeBooks;
@@ -214,7 +215,7 @@ public sealed class ChapterScanService(AiSettings ai, IndexingService indexing, 
     {
         var was = ai.ScanWholeBooks;
         await ai.SetScanWholeBooksAsync(on, ct);
-        if (on && !was) await indexing.RerunAsync(Stage.ChapterScan, ct);
+        if (on && !was) await jobs.RerunAsync(Stage.ChapterScan, ct);
     }
 
     /// <summary>
@@ -234,9 +235,9 @@ public sealed class ChapterScanService(AiSettings ai, IndexingService indexing, 
     /// </summary>
     public async Task RescanAsync(long documentId, CancellationToken ct = default)
     {
-        if (indexing.Running(Lane.Classify) is { Stage: Stage.ChapterScan } running && running.DocumentId == documentId) indexing.Interrupt([documentId]);
+        if (indexing.Running(Lane.Classify) is { Stage: Stage.ChapterScan } running && running.DocumentId == documentId) jobs.Interrupt([documentId]);
         await store.ForgetDocumentAsync(documentId, ct);
         await projection.ClearAsync(documentId, ct);
-        await indexing.RerunAsync(Stage.ChapterScan, documentId, ct);
+        await jobs.RerunAsync(Stage.ChapterScan, documentId, ct);
     }
 }

@@ -222,7 +222,7 @@ static partial class SmokeTest
     /// </summary>
     static async Task SeedLibraryAsync(IServiceProvider services)
     {
-        var indexing = services.GetRequiredService<IndexingService>();
+        var indexing = services.GetRequiredService<IJobControl>();
         indexing.Pause(Lane.Index);
         indexing.Pause(Lane.Ocr);
         var root = await services.GetRequiredService<SourceRootStore>()
@@ -987,7 +987,7 @@ static partial class SmokeTest
         if (!inspector.ReprocessCommand.CanExecute(null) || !inspector.CanOcrEveryPage || inspector.ReprocessLabel != "Reprocess")
             throw new InvalidOperationException($"Reprocess isn't offered (it says {inspector.ReprocessLabel}).");
 
-        var indexing = services.GetRequiredService<IndexingService>();
+        var indexing = services.GetRequiredService<IJobControl>();
         indexing.Resume(Lane.Index);
         indexing.Resume(Lane.Ocr);
         await inspector.ReprocessCommand.ExecuteAsync(null);
@@ -1037,7 +1037,7 @@ static partial class SmokeTest
             await member.WriteAsync("\n% a zipped copy\n"u8.ToArray());
         }
         var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
-        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+        services.GetRequiredService<IJobControl>().RequestScan(root.Id);
 
         var queries = services.GetRequiredService<LibraryQueries>();
         var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
@@ -1091,7 +1091,7 @@ static partial class SmokeTest
             await member.WriteAsync(SmokePdfs.Indexed());
         }
         var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
-        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+        services.GetRequiredService<IJobControl>().RequestScan(root.Id);
 
         var queries = services.GetRequiredService<LibraryQueries>();
         var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
@@ -1150,7 +1150,7 @@ static partial class SmokeTest
                 await member.WriteAsync(TokenPng(i));
             }
         var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
-        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+        services.GetRequiredService<IJobControl>().RequestScan(root.Id);
 
         var queries = services.GetRequiredService<LibraryQueries>();
         var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
@@ -1328,7 +1328,7 @@ static partial class SmokeTest
             .Single(r => System.IO.Path.GetFileName(r.Path) == "smoke-library");
         var inFolder = (await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync(smoke.Id)).ToHashSet();
         var activity = services.GetRequiredService<LibraryActivity>();
-        services.GetRequiredService<IndexingService>().RequestScan(smoke.Id);
+        services.GetRequiredService<IJobControl>().RequestScan(smoke.Id);
         await WaitUntilAsync(window, () => activity.OfflineText == "1 folder offline" && window.FindName("OfflineFolders") is TextBlock { IsVisible: true },
             () => $"The sidebar says \"{activity.OfflineText}\", not that one folder is offline.");
 
@@ -1385,7 +1385,7 @@ static partial class SmokeTest
                 await member.WriteAsync(TokenPng(PackStore.AutomaticMinimum + i));
             }
         var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
-        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+        services.GetRequiredService<IJobControl>().RequestScan(root.Id);
 
         var packs = services.GetRequiredService<PackService>();
         var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;

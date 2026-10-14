@@ -243,7 +243,7 @@ public sealed class ReviewService(
 /// names, labels, and the hints from folder and file names, which match through the vocabulary) follows in the
 /// background, once a run of edits pauses.
 /// </summary>
-public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IndexingService indexing, MetadataHints hints,
+public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IJobControl indexing, MetadataHints hints,
     ILogger<VocabularyService>? log = null, TimeSpan? settle = null)
 {
     readonly ILogger _log = log ?? NullLogger<VocabularyService>.Instance;
