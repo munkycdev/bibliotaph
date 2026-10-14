@@ -5,6 +5,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -125,7 +126,7 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     /// <summary>Saves what was typed now, as when the details close before the pause in typing.</summary>
     public void Flush()
     {
-        if (_dirty) _ = SaveAsync();
+        if (_dirty) SaveAsync().FireAndForget();
     }
 
     async Task SaveAsync()

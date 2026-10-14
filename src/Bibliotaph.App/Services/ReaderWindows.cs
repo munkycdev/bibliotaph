@@ -85,7 +85,7 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
         {
             if (window.IsVisible) window.Activate();
         });
-        _ = LoadAsync(model);
+        LoadAsync(model).FireAndForget();
     }
 
     /// <summary>The pop-out showing a page that matches, if one is open.</summary>
@@ -174,7 +174,7 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
     {
         _windows.Remove(window);
         if (ReferenceEquals(_lastActive, window)) _lastActive = null;
-        if (!_closingAll && window.Placement is { } placement) _ = SaveAsync(placement);
+        if (!_closingAll && window.Placement is { } placement) SaveAsync(placement).FireAndForget();
         try
         {
             // Closes the book, then gives the window's viewer worker back, which stops it if no other window uses it.

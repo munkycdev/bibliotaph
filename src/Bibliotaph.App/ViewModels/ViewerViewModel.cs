@@ -560,7 +560,7 @@ public sealed partial class ViewerViewModel : PageViewModel
                 return;
             }
             Subtitle = DescribeSource(_source, null);
-            _ = PrioritizeAsync(request.DocumentId);
+            PrioritizeAsync(request.DocumentId).FireAndForget();
             _coverPage = await _covers.GetAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
             else await OpenPdfAsync(_source, request, version);
@@ -740,7 +740,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     /// <summary>Keeps the page an ordinary read is left at, so the book opens there next time.</summary>
     void KeepPlace(int pageIndex)
     {
-        if (KeepsPlace && _request is { } request) _ = KeepPlaceAsync(request.DocumentId, pageIndex);
+        if (KeepsPlace && _request is { } request) KeepPlaceAsync(request.DocumentId, pageIndex).FireAndForget();
     }
 
     async Task KeepPlaceAsync(long documentId, int pageIndex)
@@ -1387,7 +1387,7 @@ public sealed partial class ViewerViewModel : PageViewModel
     void OnPageNotesChanged(object? sender, EntryId entryId)
     {
         if (entryId != _notesEntry) return;
-        if (_dispatcher.CheckAccess()) _ = LoadPageNotesAsync();
+        if (_dispatcher.CheckAccess()) LoadPageNotesAsync().FireAndForget();
         else _dispatcher.InvokeAsync(LoadPageNotesAsync);
     }
 
@@ -1452,7 +1452,7 @@ public sealed partial class ViewerViewModel : PageViewModel
                 })];
             PageCount = doc.PageCount;
             ShowPart();
-            _ = ShowChaptersAsync(source.DocumentId, doc.PageCount, doc.PageLabels, version);
+            ShowChaptersAsync(source.DocumentId, doc.PageCount, doc.PageLabels, version).FireAndForget();
             CanCopy = doc.CanCopy;
             var pdfLine = $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}";
             Subtitle = DescribeSource(source, request.PackTitle is { } packTitle ? $"{pdfLine} in {packTitle}" : pdfLine);
@@ -1480,8 +1480,8 @@ public sealed partial class ViewerViewModel : PageViewModel
             Mode = ViewerMode.Pdf;
             Ask.Attach(source.DocumentId);
             if (request.Ask && Ask.IsOn) AskVisible = true;
-            _ = PrepareAskAsync(source.DocumentId);
-            _ = LoadPageNotesAsync();
+            PrepareAskAsync(source.DocumentId).FireAndForget();
+            LoadPageNotesAsync().FireAndForget();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
             await RecordOpenAsync(source.DocumentId);

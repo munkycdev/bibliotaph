@@ -105,7 +105,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         OnPropertyChanged(nameof(Selected));
         if (!_showing) return;
         if (!ReferenceEquals(previous, section)) previous.Unload();
-        _ = LoadSectionAsync(section);
+        LoadSectionAsync(section).FireAndForget();
     }
 
     async Task LoadSectionAsync(SettingsSectionViewModel section)

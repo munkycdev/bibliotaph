@@ -140,7 +140,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
     {
         Sessions.Close();
         readers.Pins.Changed -= OnPinsChanged;
-        _ = SaveNoteAsync();
+        SaveNoteAsync().FireAndForget();
     }
 
     void OnPinsChanged(object? sender, EventArgs e) => ShowPinned();

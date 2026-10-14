@@ -5,6 +5,7 @@ using Bibliotaph.Index;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -186,7 +187,7 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
                 {
                     Suggestions = [];
                     IsOpen = true;
-                    _ = LoadValuesAsync(field);
+                    LoadValuesAsync(field).FireAndForget();
                 }
                 break;
             default:

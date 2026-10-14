@@ -5,6 +5,8 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Sync;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Catalog;
 
@@ -39,9 +41,10 @@ public sealed record SyncSnapshot(
 /// documents, roots, pack decisions, runs or settings: those belong to this PC.
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
-    TimeProvider? clock = null)
+    TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
+    readonly ILogger _log = log ?? NullLogger<LibrarySyncStore>.Instance;
 
     DateTime Now => _clock.GetUtcNow().UtcDateTime;
 

@@ -381,7 +381,7 @@ public sealed partial class NeedsReviewViewModel(
 
     void RefreshFiles()
     {
-        _ = RefreshFilesAsync();
+        RefreshFilesAsync().FireAndForget();
     }
 
     async Task RefreshFilesAsync()

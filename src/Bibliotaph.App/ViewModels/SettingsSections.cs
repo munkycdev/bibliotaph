@@ -112,19 +112,19 @@ public sealed class AppearanceSectionViewModel(ThemeService theme) : SettingsSec
     public bool UseSystem
     {
         get => theme.Preference == ThemePreference.System;
-        set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.System); }
+        set { if (value) theme.SetPreferenceAsync(ThemePreference.System).FireAndForget(); }
     }
 
     public bool UseLight
     {
         get => theme.Preference == ThemePreference.Light;
-        set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.Light); }
+        set { if (value) theme.SetPreferenceAsync(ThemePreference.Light).FireAndForget(); }
     }
 
     public bool UseDark
     {
         get => theme.Preference == ThemePreference.Dark;
-        set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.Dark); }
+        set { if (value) theme.SetPreferenceAsync(ThemePreference.Dark).FireAndForget(); }
     }
 
     /// <summary>While a Windows contrast theme is on, the system's colours show whatever is chosen here.</summary>
@@ -162,14 +162,14 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
     public bool ReviewWhenUnsure
     {
         get => !_reviewAll;
-        set { if (value) _ = SetReviewAllAsync(false); }
+        set { if (value) SetReviewAllAsync(false).FireAndForget(); }
     }
 
     /// <summary>Needs review gets every suggestion nobody has confirmed.</summary>
     public bool ReviewEverything
     {
         get => _reviewAll;
-        set { if (value) _ = SetReviewAllAsync(true); }
+        set { if (value) SetReviewAllAsync(true).FireAndForget(); }
     }
 
     /// <summary>"Counting…" while every book's cards are counted again.</summary>

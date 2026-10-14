@@ -78,14 +78,14 @@ public partial class MainWindow : Window
         {
             if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
             {
-                _ = shell.PlainSearch.AnswerAsync(shell.SearchText);
+                shell.PlainSearch.AnswerAsync(shell.SearchText).FireAndForget();
                 e.Handled = true;
                 return;
             }
             if (Keyboard.Modifiers != ModifierKeys.None) return;
             if (e.Key == Key.Enter)
             {
-                _ = shell.PlainSearch.InterpretAsync(shell.SearchText);
+                shell.PlainSearch.InterpretAsync(shell.SearchText).FireAndForget();
                 e.Handled = true;
             }
             else if (e.Key == Key.Escape)

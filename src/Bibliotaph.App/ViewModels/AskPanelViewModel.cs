@@ -6,6 +6,7 @@ using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -165,7 +166,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         History.Clear();
         ShowHistory();
         AskCommand.NotifyCanExecuteChanged();
-        _ = LoadHistoryAsync(documentId);
+        LoadHistoryAsync(documentId).FireAndForget();
     }
 
     /// <summary>Lists the book's conversation so far, kept in catalog.db.</summary>

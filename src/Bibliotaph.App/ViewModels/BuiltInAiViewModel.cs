@@ -122,7 +122,7 @@ public sealed partial class BuiltInAiViewModel(
         Problem = null;
         await ai.SaveAsync(ai.Setup with { BuiltInEmbeddingModel = model.Id });
         Note = "Ask this book finds passages by meaning as soon as the download finishes.";
-        _ = downloads.DownloadAsync(model);
+        downloads.DownloadAsync(model).FireAndForget();
     }
 
     bool CanDeleteEmbedding() => EmbeddingState == BuiltInModelState.Downloaded && downloads.Current?.Model != BuiltInModels.Embedding;
@@ -282,7 +282,7 @@ public sealed partial class BuiltInAiViewModel(
         Problem = null;
         Note = null;
         if (value is not null && IsShown && value.State == BuiltInModelState.Downloaded && ai.Setup.BuiltInModel != value.Id)
-            _ = UseAsync(value);
+            UseAsync(value).FireAndForget();
     }
 
     /// <summary>Uses a .gguf model file already on this computer, such as one LM Studio downloaded, where it is.</summary>
@@ -344,7 +344,7 @@ public sealed partial class BuiltInAiViewModel(
         Problem = null;
         Note = "Books are read as soon as the download finishes, even if Settings is closed by then.";
         await UseAsync(item);
-        _ = downloads.DownloadAsync(model);
+        downloads.DownloadAsync(model).FireAndForget();
     }
 
     bool CanPause() => IsDownloading;

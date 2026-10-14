@@ -47,7 +47,7 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         switch (choice.Kind)
         {
             case CollectionMenuKind.Collection when choice.CollectionId is { } id:
-                _ = AddToAsync(books, what, id);
+                AddToAsync(books, what, id).FireAndForget();
                 break;
             case CollectionMenuKind.New:
                 Open(CollectionDialogViewModel.Naming("Add to a new collection", "Create and add"), async result =>
