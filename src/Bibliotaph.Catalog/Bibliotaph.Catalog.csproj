@@ -7,6 +7,9 @@
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Bibliotaph.Catalog.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Seeded into catalog.db by VocabularyStore; see the comment at the top of the file. -->
     <EmbeddedResource Include="Vocabulary\starter-vocabulary.json" LogicalName="Bibliotaph.Catalog.starter-vocabulary.json" />
   </ItemGroup>

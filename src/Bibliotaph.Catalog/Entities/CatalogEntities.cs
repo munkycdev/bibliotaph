@@ -161,7 +161,7 @@ public sealed class EntryJoin
     public long? DocumentId { get; set; }
     /// <summary>The copy it matched; null for a pack that merged into another.</summary>
     public long? MatchedDocumentId { get; set; }
-    /// <summary>The ids of the assertions, rejections and runs that moved, and of the values set aside, as JSON.</summary>
+    /// <summary>What moved across, so it can be put back: a <see cref="MovedRows"/>, as JSON.</summary>
     public required string MovedJson { get; set; }
     public DateTime CreatedUtc { get; set; }
 }

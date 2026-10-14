@@ -324,15 +324,13 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         List<EntryId> changed = [new(pack.Id), .. files.Select(i => new EntryId(i.Id))];
         foreach (var other in packs.Skip(1))
         {
-            var members = await db.Entries.Where(e => e.ParentEntryId == other.Id).ToListAsync(ct);
-            foreach (var member in members) member.ParentEntryId = pack.Id;
+            // Its files move with everything else it brings.
             var moved = await _entries.MoveAsync(db, other.Id, pack.Id, ct);
-            moved.Members.AddRange(members.Select(m => m.Id));
             _entries.AddJoin(db, pack.Id, other.Id, null, null, moved);
             // Saved each time, so the next pack's values are compared with this one's too.
             await db.SaveChangesAsync(ct);
             changed.Add(new EntryId(other.Id));
-            changed.AddRange(members.Select(m => new EntryId(m.Id)));
+            changed.AddRange(moved.Members.Select(id => new EntryId(id)));
         }
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
