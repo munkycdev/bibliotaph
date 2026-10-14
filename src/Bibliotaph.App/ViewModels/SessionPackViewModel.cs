@@ -35,13 +35,14 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly INavigationService _navigation;
     readonly IDesktopShell _shell;
     readonly ILogger<SessionPackViewModel> _log;
-    readonly DispatcherTimer _notesTimer;
+    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly UiTimer _notesTimer;
     int _version;
     int _ownWrites;
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell,
+        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, TimeProvider time,
         ILogger<SessionPackViewModel> log)
     {
         _online = online;
@@ -56,8 +57,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         _navigation = navigation;
         _log = log;
         // Notes are saved as they are typed, once typing pauses.
-        _notesTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveNotesAsync(), Dispatcher.CurrentDispatcher);
-        _notesTimer.Stop();
+        _notesTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
     }
 
     public long PackId { get; set; }
@@ -104,7 +104,6 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (!IsLoaded) return;
         _notesDirty = true;
-        _notesTimer.Stop();
         _notesTimer.Start();
     }
 
@@ -139,7 +138,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     void OnSessionsChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _ownWrites) > 0) return;
-        _notesTimer.Dispatcher.InvokeAsync(async () =>
+        _dispatcher.InvokeAsync(async () =>
         {
             if (IsLoaded || IsMissing) await RefreshAsync();
         });

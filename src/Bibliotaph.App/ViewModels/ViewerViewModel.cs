@@ -68,7 +68,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
-    IUserPrompts UserPrompts, IDesktopShell Shell, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
+    IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -115,8 +115,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
     readonly AskService _ask;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
-    readonly DispatcherTimer _noticeTimer;
-    readonly DispatcherTimer _placeTimer;
+    readonly UiTimer _noticeTimer;
+    readonly UiTimer _placeTimer;
     readonly ReaderWindows _windows;
 
     DocumentSource? _source;
@@ -183,15 +183,12 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         Zoom = request?.Zoom ?? PdfPagesView.FitWidth;
         _dispatcher = Dispatcher.CurrentDispatcher;
         Ask = new AskPanelViewModel(services.Ask, _dispatcher, services.Log, ShowPhraseAsync);
-        _noticeTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => Notice = null, _dispatcher);
-        _noticeTimer.Stop();
+        _noticeTimer = new UiTimer(services.Time, TimeSpan.FromSeconds(5), repeat: false, () => Notice = null);
         // The page is kept once reading settles on it, so it survives the app closing with the book open.
-        _placeTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) =>
+        _placeTimer = new UiTimer(services.Time, TimeSpan.FromSeconds(2), repeat: false, () =>
         {
-            _placeTimer!.Stop();
             if (Mode == ViewerMode.Pdf) KeepPlace(CurrentPageIndex);
-        }, _dispatcher);
-        _placeTimer.Stop();
+        });
     }
 
     /// <summary>True in a pop-out window, false in the main window's Reading route.</summary>
@@ -531,11 +528,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         OnPropertyChanged(nameof(PartPosition));
         UseAsCoverCommand.NotifyCanExecuteChanged();
         Strip.SetCurrent(value);
-        if (Mode == ViewerMode.Pdf && KeepsPlace)
-        {
-            _placeTimer.Stop();
-            _placeTimer.Start();
-        }
+        if (Mode == ViewerMode.Pdf && KeepsPlace) _placeTimer.Start();
     }
 
     public override async Task LoadAsync()
@@ -1829,7 +1822,6 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
     public void ShowNotice(string text)
     {
         Notice = text;
-        _noticeTimer.Stop();
         _noticeTimer.Start();
     }
 

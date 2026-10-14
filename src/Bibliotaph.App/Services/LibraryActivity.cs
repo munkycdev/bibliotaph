@@ -1,4 +1,3 @@
-using System.Windows.Threading;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Progress;
@@ -93,7 +92,8 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly LibraryStore _library;
     readonly ReviewService _review;
     readonly ILogger<LibraryActivity> _log;
-    readonly DispatcherTimer _timer;
+    readonly TimeProvider _time;
+    readonly UiTimer _timer;
     readonly PhaseProgress _finding = new("Finding files", "Listing your folders");
     readonly PhaseProgress _reading = new("Reading files", "Checking each file; online-only files download");
     readonly PhaseProgress _making = new("Making searchable", "Text and covers");
@@ -104,14 +104,15 @@ public sealed partial class LibraryActivity : ObservableObject
     bool _refreshing;
 
     public LibraryActivity(IndexingService indexing, IndexQueries queries, LibraryStore library, MetadataProjector metadata, ReviewService review,
-        ILogger<LibraryActivity> log)
+        TimeProvider time, ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
         _queries = queries;
         _library = library;
         _review = review;
         _log = log;
-        _timer = new DispatcherTimer(Tick, DispatcherPriority.Background, async (_, _) => await OnTickAsync(), Dispatcher.CurrentDispatcher);
+        _time = time;
+        _timer = new UiTimer(time, Tick, repeat: true, OnTickAsync);
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         // Metadata edits and projections change what the library shows without any indexing.
         metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);
@@ -237,7 +238,7 @@ public sealed partial class LibraryActivity : ObservableObject
         if (Interlocked.Exchange(ref _dirty, 0) == 0)
         {
             // No news, but while there is work the clock still moves, so a stall shows in the time left.
-            if (HasIndexWork || HasOcrWork || HasAiWork) UpdatePhases(DateTimeOffset.UtcNow);
+            if (HasIndexWork || HasOcrWork || HasAiWork) UpdatePhases(_time.GetUtcNow());
             return;
         }
         _refreshing = true;
@@ -259,7 +260,7 @@ public sealed partial class LibraryActivity : ObservableObject
             HasAiWork = AiOn && (Progress.ToClassify > 0 || Progress.ToScanWhole > 0);
             Summary = Describe();
             OfflineText = Counts.OfflineFolders == 0 ? "" : $"{Counts.OfflineFolders:N0} {Plural(Counts.OfflineFolders, "folder", "folders")} offline";
-            UpdatePhases(DateTimeOffset.UtcNow);
+            UpdatePhases(_time.GetUtcNow());
             var lines = await DescribeNowAsync();
             if (!lines.SequenceEqual(Now)) Now = lines;
             Refreshed?.Invoke(this, EventArgs.Empty);

@@ -27,14 +27,14 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly SettingsStore _store;
     readonly LibrarySync _sync;
     readonly ILogger<ShellViewModel> _log;
-    readonly DispatcherTimer _searchDelay;
+    readonly UiTimer _searchDelay;
 
     /// <summary>The pin just moved, which gets the keyboard back once the sidebar shows it in its new place.</summary>
     PinTarget? _focusAfterMove;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
-        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, ILogger<ShellViewModel> log)
+        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, TimeProvider time, ILogger<ShellViewModel> log)
     {
         _sync = sync;
         PlainSearch = plainSearch;
@@ -62,8 +62,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _settings = settings;
         _log = log;
         // Search as you type, once typing pauses.
-        _searchDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Input, (_, _) => SubmitSearch(), Dispatcher.CurrentDispatcher);
-        _searchDelay.Stop();
+        _searchDelay = new UiTimer(time, TimeSpan.FromMilliseconds(300), repeat: false, SubmitSearch, DispatcherPriority.Input);
         _search.PropertyChanged += OnSearchChanged;
 
         NavItems =
@@ -118,9 +117,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value)
     {
-        _searchDelay.Stop();
         // In Ask mode the box holds a request, which is read on Enter rather than searched as it is typed.
-        if (!PlainSearch.IsOn) _searchDelay.Start();
+        if (PlainSearch.IsOn) _searchDelay.Stop();
+        else _searchDelay.Start();
     }
 
     /// <summary>Ask beside the search box: a request in plain English read as a search.</summary>
