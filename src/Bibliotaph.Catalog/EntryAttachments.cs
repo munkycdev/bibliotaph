@@ -25,7 +25,10 @@ internal interface IEntryAttachment
     /// <summary>Puts back on the card that joined what <see cref="EntryMoveBack.Moved"/> says moved, as those rows are now. Doesn't save, but may in between.</summary>
     Task MoveBackAsync(EntryMoveBack back, CancellationToken ct);
 
-    /// <summary>Adds to <paramref name="removed"/> what of this kind is on <paramref name="entry"/>, before the entry is deleted.</summary>
+    /// <summary>
+    /// Adds to <paramref name="removed"/> what of this kind is on <paramref name="entry"/>, before the entry is deleted,
+    /// and marks deleted what of its own the entry's deletion would leave behind. Doesn't save.
+    /// </summary>
     Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct);
 
     /// <summary>Puts back on the entry, saved again under a new id, what <see cref="CaptureAsync"/> kept. Doesn't save.</summary>
@@ -114,8 +117,18 @@ internal static class EntryAttachments
     public static IReadOnlyList<IEntryAttachment> All { get; } =
     [
         new SourceRows(), new AssertionRows(), new RejectionRows(), new RunRows(), new FavoriteRow(), new ReadingRow(), new PinRow(),
-        new CollectionRows(), new SessionItemRows(), new OwnNote(), new PageNotes(), new PackMembers(), new Parts(),
+        new CollectionRows(), new SessionItemRows(), new OwnNote(), new PageNotes(), new PackMembers(), new Parts(), new AskTurns(),
     ];
+
+    /// <summary>
+    /// Marks deleted the page references of a removed entry's page notes or session items. Each is its row's own, and
+    /// nothing points at the entry from them, so deleting the entry would leave them behind.
+    /// </summary>
+    static async Task ForgetPagesAsync(CatalogDbContext db, IReadOnlyCollection<long> refIds, CancellationToken ct)
+    {
+        if (refIds.Count == 0) return;
+        db.PageRefs.RemoveRange(await db.PageRefs.Where(r => refIds.Contains(r.Id)).ToListAsync(ct));
+    }
 
     /// <summary>
     /// The copies: all of them move, without changing which is current; Undo puts back which was. A removed entry has
@@ -258,7 +271,10 @@ internal static class EntryAttachments
         static Rejection Detached(Rejection r) => new() { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc };
     }
 
-    /// <summary>The model runs that read the card's copies: all of them move. A removed entry's aren't kept.</summary>
+    /// <summary>
+    /// The model runs that read the card's copies, or an adventure's pages: all of them move. A removed entry's are kept
+    /// with their ids, which its values point at, so Undo doesn't send it to the model again.
+    /// </summary>
     sealed class RunRows : IEntryAttachment
     {
         public Type Rows => typeof(ClassificationRun);
@@ -279,9 +295,32 @@ internal static class EntryAttachments
                 run.EntryId = back.Card;
         }
 
-        public Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) => Task.FromResult(removed);
+        public async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) =>
+            removed with { Runs = await db.ClassificationRuns.AsNoTracking().Where(r => r.EntryId == entry.Id).ToListAsync(ct) };
 
-        public Task RestoreIntoAsync(EntryReturn back, CancellationToken ct) => Task.CompletedTask;
+        public async Task RestoreIntoAsync(EntryReturn back, CancellationToken ct)
+        {
+            if (back.Removed.Runs is not { Count: > 0 } runs) return;
+            var ids = runs.Select(r => r.Id).ToList();
+            // An Undo pressed twice finds the first one's runs there already.
+            var taken = await back.Db.ClassificationRuns.Where(r => ids.Contains(r.Id)).Select(r => r.Id).ToListAsync(ct);
+            back.Db.ClassificationRuns.AddRange(runs.Where(r => !taken.Contains(r.Id)).Select(r => Detached(r, back.Entry.Id)));
+        }
+
+        static ClassificationRun Detached(ClassificationRun r, long entryId) => new()
+        {
+            Id = r.Id,
+            EntryId = entryId,
+            ContentHash = r.ContentHash,
+            Provider = r.Provider,
+            Model = r.Model,
+            PromptVersion = r.PromptVersion,
+            SchemaVersion = r.SchemaVersion,
+            PagesJson = r.PagesJson,
+            StartedUtc = r.StartedUtc,
+            FinishedUtc = r.FinishedUtc,
+            Outcome = r.Outcome,
+        };
     }
 
     /// <summary>
@@ -327,8 +366,8 @@ internal static class EntryAttachments
     }
 
     /// <summary>
-    /// Where the reader left the book. It moves as the heart does, only to a card without one. A removed entry's isn't
-    /// kept.
+    /// Where the reader left the book. It moves as the heart does, only to a card without one. A removed entry's is
+    /// kept, and comes back while the copy it was in is still there.
     /// </summary>
     sealed class ReadingRow : IEntryAttachment
     {
@@ -357,9 +396,14 @@ internal static class EntryAttachments
             }
         }
 
-        public Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) => Task.FromResult(removed);
+        public async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) =>
+            removed with { Reading = await db.ReadingStates.AsNoTracking().SingleOrDefaultAsync(r => r.EntryId == entry.Id, ct) };
 
-        public Task RestoreIntoAsync(EntryReturn back, CancellationToken ct) => Task.CompletedTask;
+        public async Task RestoreIntoAsync(EntryReturn back, CancellationToken ct)
+        {
+            if (back.Removed.Reading is { } reading && await back.Db.Documents.AnyAsync(d => d.Id == reading.DocumentId, ct))
+                back.Db.ReadingStates.Add(new ReadingState { EntryId = back.Entry.Id, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
+        }
     }
 
     /// <summary>
@@ -439,7 +483,7 @@ internal static class EntryAttachments
 
     /// <summary>
     /// Session items. They all move, in their places: a pack can hold the same book any number of times. A removed
-    /// entry's go back to their places, in packs and sections that are still there.
+    /// entry's go back to their places, in packs and sections that are still there, with their pages.
     /// </summary>
     sealed class SessionItemRows : IEntryAttachment
     {
@@ -464,10 +508,12 @@ internal static class EntryAttachments
         public async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct)
         {
             var entryId = new EntryId(entry.Id);
+            var items = await db.SessionItems.AsNoTracking().Include(i => i.PageRef).Where(i => i.EntryId == entry.Id).ToListAsync(ct);
+            await ForgetPagesAsync(db, [.. items.Where(i => i.PageRefId is not null).Select(i => i.PageRefId!.Value)], ct);
             return removed with
             {
-                SessionItems = [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entry.Id).ToListAsync(ct))
-                    .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc) { Link = i.Link })],
+                SessionItems = [.. items.Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId,
+                    i.PageRef is { } pages ? PageRefStore.ToRange(pages) : null, i.Label, i.Note, i.AddedUtc) { Link = i.Link })],
             };
         }
 
@@ -486,6 +532,7 @@ internal static class EntryAttachments
                     SectionId = section,
                     Position = item.Position,
                     EntryId = back.Entry.Id,
+                    PageRef = item.Range is { } range && await db.Documents.AnyAsync(d => d.Id == range.DocumentId, ct) ? PageRefStore.ToPageRef(range) : null,
                     Link = item.Link,
                     Label = item.Label,
                     Note = item.Note,
@@ -541,7 +588,10 @@ internal static class EntryAttachments
         }
     }
 
-    /// <summary>Notes on pages of the card's copies: they all move. A removed entry's aren't kept.</summary>
+    /// <summary>
+    /// Notes on pages of the card's copies: they all move. A removed entry's are kept with their pages, and come back on
+    /// those still there.
+    /// </summary>
     sealed class PageNotes : IEntryAttachment
     {
         public Type Rows => typeof(Note);
@@ -562,9 +612,29 @@ internal static class EntryAttachments
                 pageNote.EntryId = back.Card;
         }
 
-        public Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) => Task.FromResult(removed);
+        public async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct)
+        {
+            var notes = await db.Notes.AsNoTracking().Include(n => n.PageRef).Where(n => n.EntryId == entry.Id && n.PageRefId != null).ToListAsync(ct);
+            await ForgetPagesAsync(db, [.. notes.Select(n => n.PageRefId!.Value)], ct);
+            return removed with { PageNotes = [.. notes.Select(NoteStore.Info)] };
+        }
 
-        public Task RestoreIntoAsync(EntryReturn back, CancellationToken ct) => Task.CompletedTask;
+        public async Task RestoreIntoAsync(EntryReturn back, CancellationToken ct)
+        {
+            var db = back.Db;
+            foreach (var note in back.Removed.PageNotes ?? [])
+            {
+                if (!await db.Documents.AnyAsync(d => d.Id == note.Range.DocumentId, ct)) continue;
+                db.Notes.Add(new Note
+                {
+                    EntryId = back.Entry.Id,
+                    PageRef = PageRefStore.ToPageRef(note.Range),
+                    Text = note.Text,
+                    CreatedUtc = note.CreatedUtc,
+                    UpdatedUtc = note.UpdatedUtc,
+                });
+            }
+        }
     }
 
     /// <summary>
@@ -624,5 +694,41 @@ internal static class EntryAttachments
         public Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) => Task.FromResult(removed);
 
         public Task RestoreIntoAsync(EntryReturn back, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The card's Ask conversation. It stays behind on the card that joined, and is there again when Not the same book
+    /// brings it back. A removed entry's is kept, turn by turn as it was.
+    /// </summary>
+    sealed class AskTurns : IEntryAttachment
+    {
+        public Type Rows => typeof(AskTurn);
+        public string ForeignKey => nameof(AskTurn.EntryId);
+
+        public Task MoveAsync(EntryMove move, CancellationToken ct) => Task.CompletedTask;
+
+        public Task MoveBackAsync(EntryMoveBack back, CancellationToken ct) => Task.CompletedTask;
+
+        public async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) =>
+            removed with { AskTurns = await db.AskTurns.AsNoTracking().Where(t => t.EntryId == entry.Id).OrderBy(t => t.Id).ToListAsync(ct) };
+
+        public Task RestoreIntoAsync(EntryReturn back, CancellationToken ct)
+        {
+            back.Db.AskTurns.AddRange((back.Removed.AskTurns ?? []).Select(t => Detached(t, back.Entry.Id)));
+            return Task.CompletedTask;
+        }
+
+        static AskTurn Detached(AskTurn t, long entryId) => new()
+        {
+            EntryId = entryId,
+            AskedUtc = t.AskedUtc,
+            Question = t.Question,
+            Rewritten = t.Rewritten,
+            Answer = t.Answer,
+            Parts = t.Parts,
+            CitedPages = t.CitedPages,
+            Model = t.Model,
+            NotAnswered = t.NotAnswered,
+        };
     }
 }

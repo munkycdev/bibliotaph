@@ -57,12 +57,14 @@ public sealed record BookJoin(EntryId EntryId, IReadOnlyList<EntryId> Joined, lo
     IReadOnlyList<(string FirstHash, string SecondHash)> Forgotten);
 
 /// <summary>
-/// A book owned elsewhere that the user removed, with what was set on it, so Undo can put it back
-/// (<see cref="EntryStore.RestoreElsewhereAsync"/>).
+/// A card the user removed, a book owned elsewhere or an adventure, with what was set on it, so Undo can put it back
+/// (<see cref="EntryStore.RestoreElsewhereAsync"/>, <see cref="PartStore.RestoreAsync"/>). <see cref="Reading"/>,
+/// <see cref="AskTurns"/> and <see cref="Runs"/> are copies, not attached to the catalog.
 /// </summary>
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
     bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null, string? Note = null,
-    int? PinPosition = null, Guid? SyncId = null);
+    int? PinPosition = null, Guid? SyncId = null, IReadOnlyList<PageNoteInfo>? PageNotes = null, ReadingState? Reading = null,
+    IReadOnlyList<AskTurn>? AskTurns = null, IReadOnlyList<ClassificationRun>? Runs = null);
 
 /// <summary>
 /// Entries in catalog.db: which document each library card shows, and which card a document belongs to. Processing
@@ -230,7 +232,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
 
     /// <summary>
     /// What is set on an entry, its assertions and rejections loaded, so it can be put back after the entry is deleted:
-    /// what each of <see cref="EntryAttachments.All"/> keeps.
+    /// what each of <see cref="EntryAttachments.All"/> keeps. The page references of its page notes and session items,
+    /// which are theirs alone, are marked deleted with it; the caller saves.
     /// </summary>
     internal static async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, CancellationToken ct)
     {
@@ -240,8 +243,9 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// Adds <paramref name="entry"/>, new, with what <see cref="CaptureAsync"/> kept: its values, heart, pin, note,
-    /// collections, and session items in packs and sections that are still there. Saves.
+    /// Adds <paramref name="entry"/>, new, with what <see cref="CaptureAsync"/> kept: its values, model runs, heart,
+    /// reading place, pin, notes, Ask conversation, collections, and session items in packs and sections that are still
+    /// there. Saves.
     /// </summary>
     internal async Task RestoreIntoAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct)
     {
