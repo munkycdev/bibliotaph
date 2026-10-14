@@ -800,7 +800,7 @@ static partial class SmokeTest
         var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open page didn't open the viewer.");
         await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The PDF didn't open (still {viewer.Mode}).");
         if (!viewer.IsPdf) throw new InvalidOperationException($"The PDF didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
-        if (viewer.Highlights.Items.Count == 0) throw new InvalidOperationException("The search's word wasn't marked on the page.");
+        if (viewer.Find.Highlights.Items.Count == 0) throw new InvalidOperationException("The search's word wasn't marked on the page.");
 
         var pages = FindChild<Bibliotaph.Viewer.PdfPagesView>(window) ?? throw new InvalidOperationException("The viewer has no page surface.");
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && pages.PageModels[1] is { Image: not null, IsPreview: false },
@@ -811,9 +811,9 @@ static partial class SmokeTest
         await pages.SelectAllOnCurrentPageAsync();
         if (!pages.HasSelection) throw new InvalidOperationException("Select all found no text on the page.");
 
-        viewer.FindText = "mill";
-        await viewer.FindCommand.ExecuteAsync(null);
-        if (!viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal)) throw new InvalidOperationException($"Find said {viewer.FindStatus}.");
+        viewer.Find.Query = "mill";
+        await viewer.Find.FindCommand.ExecuteAsync(null);
+        if (!viewer.Find.Status.StartsWith("1 of ", StringComparison.Ordinal)) throw new InvalidOperationException($"Find said {viewer.Find.Status}.");
 
         viewer.PageEntry = "i";
         viewer.GoToPageCommand.Execute(null);
@@ -2019,21 +2019,21 @@ static partial class SmokeTest
         // A page note, added in the reader on the page in view.
         await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
         var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
-        await WaitUntilAsync(window, () => viewer.IsPdf && !viewer.HasPageNotes && Shown(window, "AddNote"), () => "The PDF didn't open, or it already has page notes.");
+        await WaitUntilAsync(window, () => viewer.IsPdf && !viewer.Notes.HasNotes && Shown(window, "AddNote"), () => "The PDF didn't open, or it already has page notes.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddNote"), "the reader's Note");
-        await WaitUntilAsync(window, () => viewer.NoteDialog is not null && Shown(window, "SaveNoteButton"), () => "Note didn't ask for the note.");
-        viewer.NoteDialog!.Text = $"The bell rings at midnight in the {PageWord} tower.";
+        await WaitUntilAsync(window, () => viewer.Notes.Dialog is not null && Shown(window, "SaveNoteButton"), () => "Note didn't ask for the note.");
+        viewer.Notes.Dialog!.Text = $"The bell rings at midnight in the {PageWord} tower.";
         await Settle(window);
         await AuditAsync(window, "the reader's page note dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveNoteButton"), "the dialog's Save note");
-        await WaitUntilAsync(window, () => viewer.NoteDialog is null && viewer.PageNotes is [{ Text: var saved }] && saved.Contains(PageWord, StringComparison.Ordinal) && viewer.NotesVisible
+        await WaitUntilAsync(window, () => viewer.Notes.Dialog is null && viewer.Notes.Items is [{ Text: var saved }] && saved.Contains(PageWord, StringComparison.Ordinal) && viewer.NotesVisible
                 && Descendants<ItemsControl>(window).Any(i => i.Name == "ReaderPageNotes" && i.IsVisible && i.Items.Count == 1),
             () => "Saving didn't show the note in the reader's notes panel.");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteNote"), "Delete this note");
-        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.NoteUndo.HasUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
+        await WaitUntilAsync(window, () => viewer.Notes.Items.Count == 0 && viewer.Notes.Undo.HasUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoNote"), "Undo the delete");
-        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 1, () => "Undo didn't bring the note back.");
+        await WaitUntilAsync(window, () => viewer.Notes.Items.Count == 1, () => "Undo didn't bring the note back.");
         await AuditAsync(window, "the reader with its notes panel");
         navigation.GoBack();
         await Settle(window);

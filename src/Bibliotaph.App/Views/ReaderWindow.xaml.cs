@@ -30,7 +30,7 @@ public partial class ReaderWindow
             Title = string.IsNullOrWhiteSpace(reader.Title) ? "Bibliotaph" : reader.Title;
             Host.Margin = new Thickness(22, 18, 22, 18);
             // Esc only clears find (or a selection, first); it never closes the window.
-            InputBindings.Add(new KeyBinding(reader.ClearFindCommand, Key.Escape, ModifierKeys.None));
+            InputBindings.Add(new KeyBinding(reader.Find.ClearCommand, Key.Escape, ModifierKeys.None));
         }
         else
         {
