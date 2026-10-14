@@ -31,23 +31,23 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => Own(scan) is not null && Own(handout) is not null,
             () => "The Library doesn't show the scan and a handout as cards of their own.");
 
-        page.StartSelectingCommand.Execute(null);
-        page.ClearSelectionCommand.Execute(null);
+        page.Selection.StartSelectingCommand.Execute(null);
+        page.Selection.ClearSelectionCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(Own(scan)!);
         await page.ActivateCommand.ExecuteAsync(Own(handout)!);
         await Settle(window);
-        if (!page.CanPackSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "PackSelected") is not { IsVisible: true } button)
+        if (!page.Selection.CanPackSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "PackSelected") is not { IsVisible: true } button)
             throw new InvalidOperationException("Pack together isn't offered for a PDF and an image.");
         Click(button, "Pack together");
-        await WaitUntilAsync(window, () => page.PackDialog is not null, () => "Pack together didn't open its dialog.");
-        var dialog = page.PackDialog!;
+        await WaitUntilAsync(window, () => page.Selection.PackDialog is not null, () => "Pack together didn't open its dialog.");
+        var dialog = page.Selection.PackDialog!;
         if (dialog.Heading != "Make a pack of 2 files" || dialog.Eyebrow != "PACK")
             throw new InvalidOperationException($"The dialog says “{dialog.Eyebrow}: {dialog.Heading}”.");
         dialog.Name = Name;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.PackCommand), "Pack together");
-        await WaitUntilAsync(window, () => page.PackDialog is null && page.Undo.HasUndo, () => $"Packing didn't finish ({dialog.Problem}).");
-        if (page.Undo.Message != $"Made a pack of 2 files: {Name}.") throw new InvalidOperationException($"Pack together says “{page.Undo.Message}”.");
-        page.StopSelectingCommand.Execute(null);
+        await WaitUntilAsync(window, () => page.Selection.PackDialog is null && page.Selection.Undo.HasUndo, () => $"Packing didn't finish ({dialog.Problem}).");
+        if (page.Selection.Undo.Message != $"Made a pack of 2 files: {Name}.") throw new InvalidOperationException($"Pack together says “{page.Selection.Undo.Message}”.");
+        page.Selection.StopSelectingCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Any(i => i is { Title: Name, IsPack: true, HasPdfMembers: true, SizeLabel: "2 files" }) && Own(scan) is null,
             () => $"The pack of files isn't in the Library ({string.Join(", ", page.Items.Select(i => $"{i.Title} ({i.SizeLabel})"))}).");
         var pack = page.Items.First(i => i.Title == Name);
@@ -68,7 +68,7 @@ static partial class SmokeTest
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Inspector!.SplitPackCommand), "Split into separate files");
         await WaitUntilAsync(window, () => Own(scan) is not null && Own(handout) is not null && page.Items.All(i => i.Title != Name),
             () => "Splitting the pack didn't give the scan and the handout their cards back.");
-        if (page.Undo.Message != $"Split {Name} into 2 files.") throw new InvalidOperationException($"The split says “{page.Undo.Message}”.");
+        if (page.Selection.Undo.Message != $"Split {Name} into 2 files.") throw new InvalidOperationException($"The split says “{page.Selection.Undo.Message}”.");
         var scanCard = Own(scan)!.EntryId;
 
         search.Search("box set");

@@ -54,7 +54,7 @@ static partial class SmokeTest
         // Inside its book: no card of its own while browsing, the file's card counting it; found by a search, on the
         // file's cover with the ribbon, and its card opens its details.
         library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
-        if (library.PartsChoice.Value != AdventureCards.InBooks) throw new InvalidOperationException($"The Library starts with adventures “{library.PartsChoice.Label}”.");
+        if (library.Filters.PartsChoice.Value != AdventureCards.InBooks) throw new InvalidOperationException($"The Library starts with adventures “{library.Filters.PartsChoice.Label}”.");
         await WaitUntilAsync(window, () => Part() is null && File() is { PartsLabel: "1 adventure" },
             () => "Browsing the Library shows the adventure's card, or its file doesn't count it.");
         search.Search("mill wheel");
@@ -69,7 +69,7 @@ static partial class SmokeTest
         search.Search("");
 
         // Shown as cards: its card, beside its file's, and the file's card counting it.
-        void ShowAsCards() => library.PartsChoice = library.PartsChoices.First(c => c.Value == AdventureCards.Cards);
+        void ShowAsCards() => library.Filters.PartsChoice = library.Filters.PartsChoices.First(c => c.Value == AdventureCards.Cards);
         ShowAsCards();
         await WaitUntilAsync(window, () => Part() is { Title: Title, IsFoundInBook: false } && File() is { PartsLabel: "1 adventure" },
             () => "The Library doesn't show the adventure's card and its file counting it.");
@@ -135,30 +135,30 @@ static partial class SmokeTest
         await library.RefreshAsync();
         LibraryItemViewModel[] Parts() => [.. library.Items.Where(i => i.DocumentId == documentId && i.IsPart)];
         await WaitUntilAsync(window, () => Parts().Length == 2 && File() is { PartsLabel: "2 adventures" }, () => "The Library doesn't show both adventures.");
-        library.StartSelectingCommand.Execute(null);
-        library.ClearSelectionCommand.Execute(null);
+        library.Selection.StartSelectingCommand.Execute(null);
+        library.Selection.ClearSelectionCommand.Execute(null);
         await library.ActivateCommand.ExecuteAsync(File()!);
         await library.ActivateCommand.ExecuteAsync(Parts()[0]);
-        if (library.CanRemoveSelectedParts) throw new InvalidOperationException("Remove adventures is offered with the file ticked.");
+        if (library.Selection.CanRemoveSelectedParts) throw new InvalidOperationException("Remove adventures is offered with the file ticked.");
         await library.ActivateCommand.ExecuteAsync(File()!);
         await library.ActivateCommand.ExecuteAsync(Parts()[1]);
         await Settle(window);
-        if (!library.CanRemoveSelectedParts || Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveSelectedParts") is not { IsVisible: true } remove)
+        if (!library.Selection.CanRemoveSelectedParts || Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveSelectedParts") is not { IsVisible: true } remove)
             throw new InvalidOperationException("Remove adventures isn't offered for two adventures.");
         await AuditAsync(window, "Select mode with adventures ticked");
         Click(remove, "Remove adventures");
-        await WaitUntilAsync(window, () => library.Undo.HasUndo && Parts().Length == 0 && File() is { PartsLabel: "" } && Shown(window, "UndoBulk"),
-            () => $"Remove adventures didn't take both cards away with Undo ({library.Undo.Message}).");
-        if (library.Undo.Message != "Removed 2 adventures. Their pages are only their files' again.")
-            throw new InvalidOperationException($"Remove adventures says “{library.Undo.Message}”.");
+        await WaitUntilAsync(window, () => library.Selection.Undo.HasUndo && Parts().Length == 0 && File() is { PartsLabel: "" } && Shown(window, "UndoBulk"),
+            () => $"Remove adventures didn't take both cards away with Undo ({library.Selection.Undo.Message}).");
+        if (library.Selection.Undo.Message != "Removed 2 adventures. Their pages are only their files' again.")
+            throw new InvalidOperationException($"Remove adventures says “{library.Selection.Undo.Message}”.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoBulk"), "Undo Remove adventures");
-        await WaitUntilAsync(window, () => !library.Undo.HasUndo && Parts().Select(p => p.Title).Order().SequenceEqual([Second, Title]),
+        await WaitUntilAsync(window, () => !library.Selection.Undo.HasUndo && Parts().Select(p => p.Title).Order().SequenceEqual([Second, Title]),
             () => "Undo didn't bring both adventures back.");
         foreach (var part in Parts()) await library.ActivateCommand.ExecuteAsync(part);
-        await library.RemoveSelectedPartsCommand.ExecuteAsync(null);
-        library.StopSelectingCommand.Execute(null);
+        await library.Selection.RemoveSelectedPartsCommand.ExecuteAsync(null);
+        library.Selection.StopSelectingCommand.Execute(null);
         await WaitUntilAsync(window, () => Parts().Length == 0 && File() is { PartsLabel: "" }, () => "Removing the adventures left their cards.");
-        library.PartsChoice = library.PartsChoices[0];
+        library.Filters.PartsChoice = library.Filters.PartsChoices[0];
     }
 
     /// <summary>

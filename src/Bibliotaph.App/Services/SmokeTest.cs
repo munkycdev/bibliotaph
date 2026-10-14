@@ -459,11 +459,11 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
 
         page.Layout = LibraryLayout.List;
-        page.ShowFilters = true;
-        page.ShowMoreFilters = true;
+        page.Filters.ShowFilters = true;
+        page.Filters.ShowMoreFilters = true;
         await Settle(window);
         await AuditAsync(window, "the Library as a list, with its filters");
-        page.ShowMoreFilters = false;
+        page.Filters.ShowMoreFilters = false;
         await EditMetadataAsync(window, page, books);
         await BulkEditAsync(window, page, search, books);
 
@@ -500,7 +500,7 @@ static partial class SmokeTest
             () => "The search box's × didn't clear the search.");
         page.Tab = ResultsTab.Documents;
         page.Layout = LibraryLayout.Grid;
-        page.ShowFilters = false;
+        page.Filters.ShowFilters = false;
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books, () => $"Clearing the search didn't bring back all {books} books.");
         await AuditAsync(window, "the Library's covers");
     }
@@ -515,16 +515,16 @@ static partial class SmokeTest
         var page = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         page.Layout = LibraryLayout.List;
-        page.ShowFilters = true;
-        await WaitUntilAsync(window, () => page.ShowCopiesChoice && page.Items.Count == books,
-            () => $"The Library shows {page.Items.Count} books and {(page.ShowCopiesChoice ? "the" : "no")} Copies filter.");
+        page.Filters.ShowFilters = true;
+        await WaitUntilAsync(window, () => page.Filters.ShowCopiesChoice && page.Items.Count == books,
+            () => $"The Library shows {page.Items.Count} books and {(page.Filters.ShowCopiesChoice ? "the" : "no")} Copies filter.");
 
-        page.CopiesChoice = page.CopiesChoices.Single(c => c.Value);
+        page.Filters.CopiesChoice = page.Filters.CopiesChoices.Single(c => c.Value);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs", CopiesLabel: "2 copies" }],
             () => $"Filtering by copies shows {string.Join(", ", page.Items.Select(i => $"{i.Title} ({i.CopiesLabel})"))}.");
         // The filter shows as a chip, and counts on the Filters button and the folded More filters.
-        if (page.ActiveFilters is not [{ Label: "Books with copies" }] || page.FiltersLabel != "Filters · 1" || page.MoreFiltersLabel != "More filters · 1")
-            throw new InvalidOperationException($"The Copies filter shows as {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}, {page.FiltersLabel}, {page.MoreFiltersLabel}.");
+        if (page.Filters.ActiveFilters is not [{ Label: "Books with copies" }] || page.Filters.FiltersLabel != "Filters · 1" || page.Filters.MoreFiltersLabel != "More filters · 1")
+            throw new InvalidOperationException($"The Copies filter shows as {string.Join(", ", page.Filters.ActiveFilters.Select(c => c.Label))}, {page.Filters.FiltersLabel}, {page.Filters.MoreFiltersLabel}.");
         var lairs = page.Items[0];
         await page.OpenDetailsCommand.ExecuteAsync(lairs);
         await WaitUntilAsync(window, () => page.Inspector is { Copies.Count: 2 }, () => "The inspector doesn't list the lairs' two copies.");
@@ -543,12 +543,12 @@ static partial class SmokeTest
         await AuditAsync(window, "a book's details with two copies");
 
         page.CloseDetailsCommand.Execute(null);
-        page.ShowFilters = false;
+        page.Filters.ShowFilters = false;
         await Settle(window);
         await AuditAsync(window, "the Library with a filter on, as a chip");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.ActiveFilters[0].Clear && b.IsVisible), "the Copies chip's ×");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Filters.ActiveFilters[0].Clear && b.IsVisible), "the Copies chip's ×");
         page.Layout = LibraryLayout.Grid;
-        await WaitUntilAsync(window, () => page.Items.Count == books && !page.HasActiveFilters && !page.CopiesChoice.Value,
+        await WaitUntilAsync(window, () => page.Items.Count == books && !page.Filters.HasActiveFilters && !page.Filters.CopiesChoice.Value,
             () => $"The Copies chip's × didn't bring back all {books} books.");
     }
 
@@ -560,35 +560,35 @@ static partial class SmokeTest
     {
         await WaitUntilAsync(window, () => page.Items.Any(i => i is { Title: "Haunted Inn", SystemLabel: "D&D 5e", KindLabel: "Adventure" }),
             () => "The Haunted Inn's folders didn't make it a D&D 5e adventure.");
-        await WaitUntilAsync(window, () => page.SystemChoices.Any(c => c.Value == "dnd"), () => "The game system filter doesn't offer D&D.");
-        page.SystemChoice = page.SystemChoices.First(c => c.Value == "dnd");
+        await WaitUntilAsync(window, () => page.Filters.SystemChoices.Any(c => c.Value == "dnd"), () => "The game system filter doesn't offer D&D.");
+        page.Filters.SystemChoice = page.Filters.SystemChoices.First(c => c.Value == "dnd");
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by D&D shows {page.Items.Count} books, not 1.");
-        page.ClearFiltersCommand.Execute(null);
+        page.Filters.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the filters didn't bring back all {books} books.");
 
         // The edition's type-ahead filter finds the 5th edition by another of its names; picking it makes a chip in the
         // box and above the results, whose × takes it off.
-        var edition = page.ChipFilters.Single(b => b.Field == MetadataFields.Edition);
-        await WaitUntilAsync(window, () => edition.IsOffered && page.ShowAboutFilters, () => "The Library offers no edition filter to type in.");
+        var edition = page.Filters.ChipFilters.Single(b => b.Field == MetadataFields.Edition);
+        await WaitUntilAsync(window, () => edition.IsOffered && page.Filters.ShowAboutFilters, () => "The Library offers no edition filter to type in.");
         edition.Text = "5e";
         await WaitUntilAsync(window, () => edition.Suggestions.Any(s => s.Value == "dnd-5e"), () => "Typing 5e in the edition filter didn't offer the 5th edition.");
         edition.PickCommand.Execute(edition.Suggestions.First(s => s.Value == "dnd-5e"));
-        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && edition.Chips.Count == 1 && page.ActiveFilters.Any(c => c.Label == "Edition: 5th edition"),
-            () => $"Picking the 5th edition shows {page.Items.Count} books and the chips {string.Join(", ", page.ActiveFilters.Select(c => c.Label))}.");
-        var editionChip = page.ActiveFilters.First(c => c.Label == "Edition: 5th edition");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && edition.Chips.Count == 1 && page.Filters.ActiveFilters.Any(c => c.Label == "Edition: 5th edition"),
+            () => $"Picking the 5th edition shows {page.Items.Count} books and the chips {string.Join(", ", page.Filters.ActiveFilters.Select(c => c.Label))}.");
+        var editionChip = page.Filters.ActiveFilters.First(c => c.Label == "Edition: 5th edition");
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == editionChip.Clear && b.IsVisible), "the 5th edition chip's ×");
-        await WaitUntilAsync(window, () => page.Items.Count == books && edition.Chips.Count == 0 && !page.HasActiveFilters,
+        await WaitUntilAsync(window, () => page.Items.Count == books && edition.Chips.Count == 0 && !page.Filters.HasActiveFilters,
             () => $"The 5th edition chip's × didn't bring back all {books} books.");
 
-        await WaitUntilAsync(window, () => page.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
+        await WaitUntilAsync(window, () => page.Filters.ShowAiChoice && page.Items.Any(i => i is { Title: "Dragon Lairs", IsAiRead: true }),
             () => "The book a model read isn't marked, or the filters don't offer the AI choice.");
-        page.AiChoice = page.AiChoices.First(c => c.Value == AiFilter.Read);
+        page.Filters.AiChoice = page.Filters.AiChoices.First(c => c.Value == AiFilter.Read);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Dragon Lairs" }], () => $"Filtering by Read by AI shows {page.Items.Count} books, not 1.");
         // Alone in the list, its row is surely drawn (a long list draws only the rows in view), so its spark should show.
         await WaitUntilAsync(window, () => Descendants<Border>(window).Any(b => b.Name == "AiBadge" && b.IsVisible),
             () => $"The book read by AI has no spark on its cover ({Descendants<Border>(window).Count(b => b.Name == "AiBadge")} badges drawn, none visible).");
-        page.ClearFiltersCommand.Execute(null);
+        page.Filters.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the AI filter didn't bring back all {books} books.");
 
         await page.OpenDetailsCommand.ExecuteAsync(page.Items.First(i => i.Title == "Haunted Inn"));
@@ -625,9 +625,9 @@ static partial class SmokeTest
         if (players.Problem is not null) throw new InvalidOperationException($"Saving players said: {players.Problem}");
         await WaitUntilAsync(window, () => Field(MetadataFields.Players) is { Display: "4–6 players", IsSuggested: false },
             () => $"The players field says {Field(MetadataFields.Players).Display}, not 4–6 players.");
-        page.PlayersChoice = page.PlayersChoices.First(c => c.Value == 5);
+        page.Filters.PlayersChoice = page.Filters.PlayersChoices.First(c => c.Value == 5);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by 5 players shows {page.Items.Count} books, not 1.");
-        page.ClearFiltersCommand.Execute(null);
+        page.Filters.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the players filter didn't bring back all {books} books.");
         await Field(MetadataFields.Players).ResetCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => !Field(MetadataFields.Players).IsKnown, () => "Resetting players didn't leave them unknown.");
@@ -646,10 +646,10 @@ static partial class SmokeTest
         var link = Field(MetadataFields.GetItFrom).Links[0];
         if (link.LinkText != "example-press.itch.io/haunted-inn" || !Field(MetadataFields.GetItFrom).OpenLinkCommand.CanExecute(link))
             throw new InvalidOperationException($"The Get it from link reads {link.LinkText} or can't be opened.");
-        await WaitUntilAsync(window, () => page.ShowStoreChoice && page.StoreChoices.Any(c => c.Value == "itch-io"), () => "The Library has no itch.io store filter.");
-        page.StoreChoice = page.StoreChoices.First(c => c.Value == "itch-io");
+        await WaitUntilAsync(window, () => page.Filters.ShowStoreChoice && page.Filters.StoreChoices.Any(c => c.Value == "itch-io"), () => "The Library has no itch.io store filter.");
+        page.Filters.StoreChoice = page.Filters.StoreChoices.First(c => c.Value == "itch-io");
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by itch.io shows {page.Items.Count} books, not 1.");
-        page.ClearFiltersCommand.Execute(null);
+        page.Filters.ClearFiltersCommand.Execute(null);
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"Clearing the store filter didn't bring back all {books} books.");
         await Field(MetadataFields.GetItFrom).ResetCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => !Field(MetadataFields.GetItFrom).IsKnown, () => "Resetting Get it from didn't leave it empty.");
@@ -667,15 +667,15 @@ static partial class SmokeTest
     {
         var gazetteer = page.Items.First(i => i.Title == "Gazetteer of the Marches");
         var lairs = page.Items.First(i => i.Title == "Dragon Lairs");
-        page.StartSelectingCommand.Execute(null);
+        page.Selection.StartSelectingCommand.Execute(null);
         await Settle(window);
-        page.SelectAllCommand.Execute(null);
-        if (!page.Selection.IsActive || page.Selection.Count != books) throw new InvalidOperationException($"Ctrl+A ticked {page.Selection.Count} books, not {books}.");
-        page.ClearSelectionCommand.Execute(null);
+        page.Selection.SelectAllCommand.Execute(null);
+        if (!page.Selection.Books.IsActive || page.Selection.Books.Count != books) throw new InvalidOperationException($"Ctrl+A ticked {page.Selection.Books.Count} books, not {books}.");
+        page.Selection.ClearSelectionCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(gazetteer);
         await page.ActivateCommand.ExecuteAsync(lairs);
-        if (page.Inspector is not null || page.Selection.Count != 2 || !gazetteer.IsSelected || !lairs.IsSelected)
-            throw new InvalidOperationException($"Clicking two books in Select mode ticked {page.Selection.Count} (details open: {page.Inspector is not null}).");
+        if (page.Inspector is not null || page.Selection.Books.Count != 2 || !gazetteer.IsSelected || !lairs.IsSelected)
+            throw new InvalidOperationException($"Clicking two books in Select mode ticked {page.Selection.Books.Count} (details open: {page.Inspector is not null}).");
         page.Layout = LibraryLayout.Grid;
         await Settle(window);
         await AuditAsync(window, "Select mode in the covers, two books ticked");
@@ -684,11 +684,11 @@ static partial class SmokeTest
 
         // Gathered across searches: the ticks stay while the results don't show them.
         search.Search("system:5e type:adventure");
-        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.Selection is { Count: 2, NotShown: 2 },
-            () => $"Searching while two books were ticked left {page.Selection.Summary}.");
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.Selection is { Books.Count: 2, Books.NotShown: 2 },
+            () => $"Searching while two books were ticked left {page.Selection.Books.Summary}.");
 
-        await page.EditSelectedCommand.ExecuteAsync(null);
-        var bulk = page.BulkEdit ?? throw new InvalidOperationException("Edit metadata didn't open the bulk editor.");
+        await page.Selection.EditSelectedCommand.ExecuteAsync(null);
+        var bulk = page.Selection.BulkEdit ?? throw new InvalidOperationException("Edit metadata didn't open the bulk editor.");
         await Settle(window);
         if (bulk.BookCount != 2 || bulk.Fields.Any(f => f.Field == MetadataFields.Title))
             throw new InvalidOperationException($"The bulk editor edits {bulk.BookCount} books, or offers the title.");
@@ -712,18 +712,18 @@ static partial class SmokeTest
             throw new InvalidOperationException($"The summary says {string.Join("; ", bulk.Summary.Select(l => $"{l.Field}: {l.Text}"))}.");
 
         await bulk.ApplyCommand.ExecuteAsync(null);
-        await WaitUntilAsync(window, () => page.BulkEdit is null && page.Undo.HasUndo, () => $"Applying the bulk edit didn't finish ({page.Undo.Message}).");
-        if (page.Undo.Message != "Edited 2 books.") throw new InvalidOperationException($"The bulk edit says {page.Undo.Message}");
+        await WaitUntilAsync(window, () => page.Selection.BulkEdit is null && page.Selection.Undo.HasUndo, () => $"Applying the bulk edit didn't finish ({page.Selection.Undo.Message}).");
+        if (page.Selection.Undo.Message != "Edited 2 books.") throw new InvalidOperationException($"The bulk edit says {page.Selection.Undo.Message}");
         search.Search("tag:shelved");
         await WaitUntilAsync(window, () => page.Items.Select(i => i.Title).Order(StringComparer.Ordinal).SequenceEqual(["Dragon Lairs", "Gazetteer of the Marches"]),
             () => $"Searching by the new tag found {string.Join(", ", page.Items.Select(i => i.Title))}.");
 
-        await page.Undo.UndoCommand.ExecuteAsync(null);
-        await WaitUntilAsync(window, () => page.Undo.Message is null && !page.Undo.HasUndo && page.IsEmpty,
-            () => $"After Undo, the tag still finds {page.Items.Count} books ({page.Undo.Message}).");
+        await page.Selection.Undo.UndoCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.Selection.Undo.Message is null && !page.Selection.Undo.HasUndo && page.IsEmpty,
+            () => $"After Undo, the tag still finds {page.Items.Count} books ({page.Selection.Undo.Message}).");
         search.Search("");
-        page.StopSelectingCommand.Execute(null);
-        await WaitUntilAsync(window, () => !page.Selection.IsActive && !gazetteer.IsSelected && page.Items.Count == books,
+        page.Selection.StopSelectingCommand.Execute(null);
+        await WaitUntilAsync(window, () => !page.Selection.Books.IsActive && !gazetteer.IsSelected && page.Items.Count == books,
             () => $"Done didn't leave Select mode with all {books} books showing.");
     }
 
@@ -1196,11 +1196,11 @@ static partial class SmokeTest
         if (library.Inspector is not { IsPack: true }) await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
         await WaitUntilAsync(window, () => library.Inspector is { IsPack: true }, () => "The pack's inspector didn't open again.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Inspector!.SplitPackCommand), "Split into separate images");
-        await WaitUntilAsync(window, () => library.Undo is { HasUndo: true, Message: { } split } && split.StartsWith("Split ", StringComparison.Ordinal)
+        await WaitUntilAsync(window, () => library.Selection.Undo is { HasUndo: true, Message: { } split } && split.StartsWith("Split ", StringComparison.Ordinal)
             && library.Items.Count(i => i.Folder.Contains(Name, StringComparison.Ordinal)) == PackStore.AutomaticMinimum
             && library.Items.All(i => i.EntryId != pack.EntryId), () => "Split didn't give the images their cards back.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Undo.UndoCommand), "Undo the split");
-        await WaitUntilAsync(window, () => !library.Undo.HasUndo && library.Items.Any(i => i.EntryId == pack.EntryId)
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Selection.Undo.UndoCommand), "Undo the split");
+        await WaitUntilAsync(window, () => !library.Selection.Undo.HasUndo && library.Items.Any(i => i.EntryId == pack.EntryId)
             && !library.Items.Any(i => i.Folder.Contains(Name, StringComparison.Ordinal) && !i.IsPack), () => "Undo didn't pack the images again.");
 
         var search = services.GetRequiredService<SearchState>();
@@ -1445,34 +1445,34 @@ static partial class SmokeTest
 
         async Task<PackTogetherDialogViewModel> OpenAsync(params LibraryItemViewModel[] cards)
         {
-            page.StartSelectingCommand.Execute(null);
-            page.ClearSelectionCommand.Execute(null);
+            page.Selection.StartSelectingCommand.Execute(null);
+            page.Selection.ClearSelectionCommand.Execute(null);
             foreach (var card in cards) await page.ActivateCommand.ExecuteAsync(card);
             await Settle(window);
-            if (!page.CanPackSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "PackSelected") is not { IsVisible: true } button)
+            if (!page.Selection.CanPackSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "PackSelected") is not { IsVisible: true } button)
                 throw new InvalidOperationException($"Pack together isn't offered for {string.Join(", ", cards.Select(c => c.Title))}.");
             Click(button, "Pack together");
-            await WaitUntilAsync(window, () => page.PackDialog is not null, () => "Pack together didn't open its dialog.");
-            return page.PackDialog!;
+            await WaitUntilAsync(window, () => page.Selection.PackDialog is not null, () => "Pack together didn't open its dialog.");
+            return page.Selection.PackDialog!;
         }
 
         async Task PackAsync(PackTogetherDialogViewModel dialog, string message)
         {
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.PackCommand), "Pack together");
-            await WaitUntilAsync(window, () => page.PackDialog is null && page.Undo.HasUndo, () => $"Packing didn't finish ({dialog.Problem}).");
-            if (page.Undo.Message != message) throw new InvalidOperationException($"Pack together says “{page.Undo.Message}”, not “{message}”.");
+            await WaitUntilAsync(window, () => page.Selection.PackDialog is null && page.Selection.Undo.HasUndo, () => $"Packing didn't finish ({dialog.Problem}).");
+            if (page.Selection.Undo.Message != message) throw new InvalidOperationException($"Pack together says “{page.Selection.Undo.Message}”, not “{message}”.");
         }
 
         // A PDF can go in a pack with images, but a pack isn't a copy of a book.
         var innId = DocumentOf("Haunted Inn.pdf");
         var inn = page.Items.Single(i => i.DocumentId == innId);
-        page.StartSelectingCommand.Execute(null);
+        page.Selection.StartSelectingCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(Handout(1));
         await page.ActivateCommand.ExecuteAsync(inn);
-        if (!page.CanPackSelected) throw new InvalidOperationException("Pack together isn't offered for a PDF and an image.");
+        if (!page.Selection.CanPackSelected) throw new InvalidOperationException("Pack together isn't offered for a PDF and an image.");
         await page.ActivateCommand.ExecuteAsync(inn);
         await page.ActivateCommand.ExecuteAsync(Card("Smoke Tokens"));
-        if (page.CanJoinSelected) throw new InvalidOperationException("Same book is offered for a pack.");
+        if (page.Selection.CanJoinSelected) throw new InvalidOperationException("Same book is offered for a pack.");
 
         var dialog = await OpenAsync(Handout(1), Handout(2));
         if (dialog.Heading != "Make a pack of 2 images" || dialog.Name != "Smoke Handouts")
@@ -1501,11 +1501,11 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Any(i => i.EntryId == tokens && i.SizeLabel == "23 images") && page.Items.All(i => i.EntryId != hand),
             () => "The hand-made pack didn't merge into the tokens' pack.");
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo Pack together");
-        await WaitUntilAsync(window, () => !page.Undo.HasUndo && page.Items.Any(i => i.EntryId == hand && i.SizeLabel == "3 images")
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Selection.Undo.UndoCommand), "Undo Pack together");
+        await WaitUntilAsync(window, () => !page.Selection.Undo.HasUndo && page.Items.Any(i => i.EntryId == hand && i.SizeLabel == "3 images")
             && page.Items.Any(i => i.EntryId == tokens && i.SizeLabel == "20 images"), () => "Undo didn't bring the hand-made pack back.");
 
-        page.StopSelectingCommand.Execute(null);
+        page.Selection.StopSelectingCommand.Execute(null);
         if (await services.GetRequiredService<PackService>().SplitAsync(hand) is not { Count: 3 }) throw new InvalidOperationException("The hand-made pack didn't split.");
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => FreeHandouts() == 6,
@@ -1708,21 +1708,21 @@ static partial class SmokeTest
         var views = services.GetRequiredService<SmartViewDirectory>();
         shell.NavigateCommand.Execute(Route.Library);
         var page = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
-        await WaitUntilAsync(window, () => page.Items.Count == books && !page.CanSaveView, () => "The whole library offers Save view.");
+        await WaitUntilAsync(window, () => page.Items.Count == books && !page.SmartViews.CanSaveView, () => "The whole library offers Save view.");
 
         search.Search(Query);
-        page.KindChoice = page.KindChoices.Single(c => c.Value == KindFilter.Books);
-        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.CanSaveView, () => "The search and filter didn't offer Save view.");
+        page.Filters.KindChoice = page.Filters.KindChoices.Single(c => c.Value == KindFilter.Books);
+        await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }] && page.SmartViews.CanSaveView, () => "The search and filter didn't offer Save view.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveView"), "Save view");
-        await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Save view didn't ask for a name.");
-        page.ViewDialog!.Name = "Haunted places";
+        await WaitUntilAsync(window, () => page.SmartViews.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Save view didn't ask for a name.");
+        page.SmartViews.ViewDialog!.Name = "Haunted places";
         await AuditAsync(window, "the Save view dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
-        await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.Pinned is [_, { Label: "Haunted places", IsActive: true }]
-                && page.ViewUndo.Message is not null && !page.IsViewChanged,
+        await WaitUntilAsync(window, () => page.SmartViews.ActiveView is { Name: "Haunted places" } && shell.Pinned is [_, { Label: "Haunted places", IsActive: true }]
+                && page.SmartViews.ViewUndo.Message is not null && !page.SmartViews.IsViewChanged,
             () => "Saving didn't make the page the saved search, pin it in the sidebar and mark it there.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Unpin the saved search");
-        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin" && page.IsView, () => "Unpin didn't take the search out of the sidebar.");
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin" && page.SmartViews.IsView, () => "Unpin didn't take the search out of the sidebar.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Pin the saved search");
         await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.PinLabel == "Unpin",
             () => "Pin didn't put the search back in the sidebar, marked.");
@@ -1732,36 +1732,36 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin", () => "Unpin didn't take the search out of the sidebar.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SavedSearches"), "Saved searches");
         var list = FindChild<Views.LibraryView>(window)?.SavedSearchesPopup ?? throw new InvalidOperationException("The Library has no Saved searches list.");
-        await WaitUntilAsync(window, () => list.IsOpen && list.Child is { IsVisible: true } && page.SavedSearches is [{ Name: "Haunted places", IsPinned: false }],
+        await WaitUntilAsync(window, () => list.IsOpen && list.Child is { IsVisible: true } && page.SmartViews.SavedSearches is [{ Name: "Haunted places", IsPinned: false }],
             () => "Saved searches didn't list the unpinned search.");
         await Settle(window);
         Click(Descendants<Button>(list.Child).FirstOrDefault(b => b.Name == "PinSavedSearch"), "the list's Pin");
-        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.SavedSearches is [{ IsPinned: true }] && list.IsOpen,
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted places", IsActive: true }] && page.SmartViews.SavedSearches is [{ IsPinned: true }] && list.IsOpen,
             () => "The list's Pin didn't put the search back in the sidebar.");
-        page.IsSavedSearchesOpen = false;
-        var viewId = page.ActiveView!.Id;
+        page.SmartViews.IsSavedSearchesOpen = false;
+        var viewId = page.SmartViews.ActiveView!.Id;
         var saved = SmartViewDefinition.Parse(views.Find(viewId)!.Definition);
         if (saved.Query != Query || saved.Kind != KindFilter.Books) throw new InvalidOperationException($"The view keeps “{saved.Query}” and {saved.Kind}.");
 
         // A changed filter offers Update view; its Undo puts the view back as it was.
-        page.KindChoice = page.KindChoices[0];
-        await WaitUntilAsync(window, () => page.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
+        page.Filters.KindChoice = page.Filters.KindChoices[0];
+        await WaitUntilAsync(window, () => page.SmartViews.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
         await AuditAsync(window, "a saved search that was changed");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UpdateView"), "Update view");
-        await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.ViewUndo.HasUndo
+        await WaitUntilAsync(window, () => !page.SmartViews.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.SmartViews.ViewUndo.HasUndo
                 && Shown(window, "UndoView"),
             () => "Update view didn't keep the change in the view.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the update");
-        await WaitUntilAsync(window, () => SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.Books && page.IsViewChanged,
+        await WaitUntilAsync(window, () => SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.Books && page.SmartViews.IsViewChanged,
             () => "Undo didn't put the view back.");
 
         // Leaving the view: the sidebar's Library is the whole library again, without the view's search.
         shell.NavigateCommand.Execute(Route.Library);
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView: null, Scope: null } whole && whole.Items.Count == books
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { SmartViews.ActiveView: null, Scope: null } whole && whole.Items.Count == books
                 && search.Text.Length == 0,
             () => "The sidebar's Library didn't show the whole library after the view.");
         var whole = (LibraryViewModel)shell.CurrentPage!;
-        whole.KindChoice = whole.KindChoices[0];
+        whole.Filters.KindChoice = whole.Filters.KindChoices[0];
 
         // Its pin on Home opens it with its search and filter.
         shell.NavigateCommand.Execute(Route.Home);
@@ -1772,31 +1772,31 @@ static partial class SmokeTest
             () => "Home doesn't show the saved search's pin.");
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "HomePin" && Equals(b.Content, "Haunted places") && b.IsVisible), "the saved search on Home");
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView.Name: "Haunted places", IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
-                && shown.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.Pinned[1].IsActive,
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { SmartViews.ActiveView.Name: "Haunted places", SmartViews.IsViewChanged: false, Items: [{ Title: "Haunted Inn" }] } shown
+                && shown.Filters.KindChoice.Value == KindFilter.Books && search.Text == Query && shell.Pinned[1].IsActive,
             () => "The saved search on Home didn't open with its search and filter.");
         page = (LibraryViewModel)shell.CurrentPage!;
 
         // The sidebar's right-click Rename… asks on the view's page.
         await shell.RenameViewCommand.ExecuteAsync(shell.Pinned[1]);
-        await WaitUntilAsync(window, () => page.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Rename… didn't ask for a name.");
-        page.ViewDialog!.Name = "Haunted inns";
+        await WaitUntilAsync(window, () => page.SmartViews.ViewDialog is not null && Shown(window, "SaveViewButton"), () => "Rename… didn't ask for a name.");
+        page.SmartViews.ViewDialog!.Name = "Haunted inns";
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
         await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted inns" }] && page.Heading == "Haunted inns" && Shown(window, "DeleteView"),
             () => "Rename didn't rename the search in the sidebar and on its page.");
 
         // Delete takes the view away, never a book; Undo brings it back.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteView"), "Delete the saved search");
-        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && !page.IsView && page.ViewUndo.HasUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && !page.SmartViews.IsView && page.SmartViews.ViewUndo.HasUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
             () => "Delete didn't take the search out of the sidebar and leave its books shown.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the delete");
-        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted inns" }] && page.IsView, () => "Undo didn't bring the search back, pinned.");
-        await page.DeleteViewCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted inns" }] && page.SmartViews.IsView, () => "Undo didn't bring the search back, pinned.");
+        await page.SmartViews.DeleteViewCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && views.All.Count == 0, () => "The search wasn't deleted at the end.");
-        page.KindChoice = page.KindChoices[0];
+        page.Filters.KindChoice = page.Filters.KindChoices[0];
         search.Search("");
         shell.NavigateCommand.Execute(Route.Library);
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { ActiveView: null } last && last.Items.Count == books,
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { SmartViews.ActiveView: null } last && last.Items.Count == books,
             () => "The library didn't go back to how it was.");
     }
 
@@ -1840,9 +1840,9 @@ static partial class SmokeTest
         // Select mode in the whole library: two books into Maps, through the selection's own menu.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ClearScope"), "scope chip's ×");
         await WaitUntilAsync(window, () => !campaign.HasScope && campaign.Items.Count == books, () => "The scope chip's × didn't show the whole library.");
-        campaign.StartSelectingCommand.Execute(null);
-        campaign.Selection.Toggle(campaign.Items[0]);
-        campaign.Selection.Toggle(campaign.Items[1]);
+        campaign.Selection.StartSelectingCommand.Execute(null);
+        campaign.Selection.Books.Toggle(campaign.Items[0]);
+        campaign.Selection.Books.Toggle(campaign.Items[1]);
         await Settle(window);
         var addSelected = Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddSelectedToCollection");
         Click(addSelected, "Select mode's Add to collection");
@@ -1851,7 +1851,7 @@ static partial class SmokeTest
         var toMaps = ((ICollectionChoices)campaign).MenuChoices.Single(c => c.CollectionId == mapsId);
         campaign.AddSelectedToCollectionCommand.Execute(new CollectionRequest(campaign, toMaps));
         await WaitUntilAsync(window, () => campaign.Collections.Undo.Message == "Added 2 books to Maps.", () => $"Adding the selection said “{campaign.Collections.Undo.Message}”.");
-        campaign.StopSelectingCommand.Execute(null);
+        campaign.Selection.StopSelectingCommand.Execute(null);
 
         // A card's menu: a third book into the campaign itself, undone and done again.
         var third = campaign.Items[2];
@@ -2426,9 +2426,9 @@ static partial class SmokeTest
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveFromLibrary"), "Remove from library");
-        await WaitUntilAsync(window, () => page.Undo is { HasUndo: true, Message: { } removed } && removed.StartsWith("Removed ", StringComparison.Ordinal)
+        await WaitUntilAsync(window, () => page.Selection.Undo is { HasUndo: true, Message: { } removed } && removed.StartsWith("Removed ", StringComparison.Ordinal)
             && page.Items.Count == books, () => "Remove from library didn't take the book away.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo the removal");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Selection.Undo.UndoCommand), "Undo the removal");
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == Title && i.IsElsewhere), () => "Undo didn't bring the book back.");
 
         var back = page.Items.Single(i => i.Title == Title);
@@ -2562,9 +2562,9 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items is [{ OpensOnline: true }], () => "where:elsewhere didn't find only the book owned online.");
         search.Search("");
         await WaitUntilAsync(window, () => !page.IsSearching && page.Items.Count == books + 1, () => "Clearing where: didn't bring the library back.");
-        page.KindChoice = page.KindChoices.Single(c => c.Value == KindFilter.Here);
+        page.Filters.KindChoice = page.Filters.KindChoices.Single(c => c.Value == KindFilter.Here);
         await WaitUntilAsync(window, () => page.Items.Count == books && page.Items.All(i => !i.IsElsewhere), () => "On this PC still shows the book owned online.");
-        page.KindChoice = page.KindChoices[0];
+        page.Filters.KindChoice = page.Filters.KindChoices[0];
         await WaitUntilAsync(window, () => page.Items.Count == books + 1, () => "All kinds didn't bring the book owned online back.");
     }
 
@@ -2588,16 +2588,16 @@ static partial class SmokeTest
         var scan = Card("IMG_0042.pdf");
         var map = Card("Tavern Map.png");
 
-        page.StartSelectingCommand.Execute(null);
+        page.Selection.StartSelectingCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(inn);
-        if (page.CanJoinSelected) throw new InvalidOperationException("Same book is offered for one card.");
+        if (page.Selection.CanJoinSelected) throw new InvalidOperationException("Same book is offered for one card.");
         await page.ActivateCommand.ExecuteAsync(scan);
         await Settle(window);
-        if (!page.CanJoinSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "JoinSelected") is not { IsVisible: true } join)
+        if (!page.Selection.CanJoinSelected || Descendants<Button>(window).FirstOrDefault(b => b.Name == "JoinSelected") is not { IsVisible: true } join)
             throw new InvalidOperationException("Same book isn't offered for two books.");
         Click(join, "Same book");
-        await WaitUntilAsync(window, () => page.SameBookDialog is not null, () => "Same book didn't open its dialog.");
-        var dialog = page.SameBookDialog!;
+        await WaitUntilAsync(window, () => page.Selection.SameBookDialog is not null, () => "Same book didn't open its dialog.");
+        var dialog = page.Selection.SameBookDialog!;
         if (dialog.Files.Count != 2 || dialog.Files.Count(f => f.Opens) != 1)
             throw new InvalidOperationException($"The dialog lists {dialog.Files.Count} files, {dialog.Files.Count(f => f.Opens)} of them opening.");
         var innFile = dialog.Files.Single(f => f.DocumentId == inn.DocumentId);
@@ -2606,24 +2606,24 @@ static partial class SmokeTest
         await Settle(window);
         await AuditAsync(window, "the Same book dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.JoinCommand), "Join as one book");
-        await WaitUntilAsync(window, () => page.SameBookDialog is null && page.Undo.HasUndo && page.Items.Count == books - 1,
-            () => $"Joining left {page.Items.Count} books ({page.Undo.Message}).");
+        await WaitUntilAsync(window, () => page.Selection.SameBookDialog is null && page.Selection.Undo.HasUndo && page.Items.Count == books - 1,
+            () => $"Joining left {page.Items.Count} books ({page.Selection.Undo.Message}).");
         var joined = page.Items.Single(i => i.EntryId == inn.EntryId || i.EntryId == scan.EntryId);
-        if (page.Undo.Message != $"Joined 2 cards as {joined.Title}.") throw new InvalidOperationException($"Same book says “{page.Undo.Message}”.");
+        if (page.Selection.Undo.Message != $"Joined 2 cards as {joined.Title}.") throw new InvalidOperationException($"Same book says “{page.Selection.Undo.Message}”.");
         if (joined.CopiesLabel != "2 copies" || joined.DocumentId != innFile.DocumentId)
             throw new InvalidOperationException($"The joined card reads “{joined.CopiesLabel}” and opens document {joined.DocumentId}, not {innFile.DocumentId}.");
         if (await copies.CountVersionsAsync() != versions - 1) throw new InvalidOperationException("The scan's “new version?” card is still waiting.");
 
         // An image is a single file as a book is, so it can join one too; only packs are left out.
-        page.StartSelectingCommand.Execute(null);
+        page.Selection.StartSelectingCommand.Execute(null);
         await page.ActivateCommand.ExecuteAsync(joined);
         await page.ActivateCommand.ExecuteAsync(map);
-        if (!page.CanJoinSelected) throw new InvalidOperationException("Same book isn't offered for a book and an image.");
-        page.StopSelectingCommand.Execute(null);
+        if (!page.Selection.CanJoinSelected) throw new InvalidOperationException("Same book isn't offered for a book and an image.");
+        page.Selection.StopSelectingCommand.Execute(null);
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo Same book");
-        await WaitUntilAsync(window, () => !page.Undo.HasUndo && page.Undo.Message is null && page.Items.Count == books,
-            () => $"Undo left {page.Items.Count} books ({page.Undo.Message}).");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Selection.Undo.UndoCommand), "Undo Same book");
+        await WaitUntilAsync(window, () => !page.Selection.Undo.HasUndo && page.Selection.Undo.Message is null && page.Items.Count == books,
+            () => $"Undo left {page.Items.Count} books ({page.Selection.Undo.Message}).");
         if (await copies.CountVersionsAsync() != versions) throw new InvalidOperationException("Undo didn't bring back the scan's “new version?” card.");
     }
 
