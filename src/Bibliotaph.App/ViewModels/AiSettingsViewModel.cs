@@ -68,14 +68,14 @@ public sealed partial class AiSettingsViewModel(
     public bool UseBuiltIn
     {
         get => ShowBuiltIn;
-        set { if (value && !ShowBuiltIn) _ = SwitchToBuiltInAsync(); }
+        set { if (value && !ShowBuiltIn) SwitchToBuiltInAsync().FireAndForget(); }
     }
 
     /// <summary>The Use a model server side. Switching keeps the built-in model, downloaded, for a switch back.</summary>
     public bool UseServer
     {
         get => !ShowBuiltIn;
-        set { if (value && ShowBuiltIn) _ = SwitchToServerAsync(); }
+        set { if (value && ShowBuiltIn) SwitchToServerAsync().FireAndForget(); }
     }
 
     async Task SwitchToBuiltInAsync()
@@ -93,14 +93,14 @@ public sealed partial class AiSettingsViewModel(
         if (ai.Setup.BuiltIn) await ai.SaveAsync(ai.Setup with { BuiltIn = false });
         IsOn = ai.Setup.Enabled;
         await RefreshProgressAsync();
-        if (ai.Setup.Endpoint is not null && !HasModels) _ = ConnectAsync();
+        if (ai.Setup.Endpoint is not null && !HasModels) ConnectAsync().FireAndForget();
     }
 
     void OnBuiltInSaved(object? sender, EventArgs e)
     {
         IsOn = ai.Setup.Enabled;
         SwitchProblem = null;
-        _ = RefreshProgressAsync();
+        RefreshProgressAsync().FireAndForget();
     }
 
     [ObservableProperty]
@@ -296,7 +296,7 @@ public sealed partial class AiSettingsViewModel(
         ShowLibraryVectors();
         await RefreshProgressAsync();
         if (ShowPilot) await Pilot.LoadAsync();
-        if (setup.Endpoint is not null && !ShowBuiltIn) _ = ConnectAsync();
+        if (setup.Endpoint is not null && !ShowBuiltIn) ConnectAsync().FireAndForget();
     }
 
     public override void Unload()
@@ -308,7 +308,7 @@ public sealed partial class AiSettingsViewModel(
         Pilot.Unload();
     }
 
-    void OnActivityRefreshed(object? sender, EventArgs e) => _ = RefreshProgressAsync();
+    void OnActivityRefreshed(object? sender, EventArgs e) => RefreshProgressAsync().FireAndForget();
 
     void OnLibraryVectorsChanged(object? sender, EventArgs e) => Application.Current?.Dispatcher.InvokeAsync(ShowLibraryVectors);
 
@@ -323,7 +323,7 @@ public sealed partial class AiSettingsViewModel(
         set
         {
             if (value == ai.Setup.LibraryVectors) return;
-            _ = SaveReadLibraryAsync(value);
+            SaveReadLibraryAsync(value).FireAndForget();
         }
     }
 
@@ -494,14 +494,14 @@ public sealed partial class AiSettingsViewModel(
     public bool UseAi
     {
         get => IsOn;
-        set { if (value && !IsOn) _ = SwitchAsync(true); }
+        set { if (value && !IsOn) SwitchAsync(true).FireAndForget(); }
     }
 
     /// <summary>The Off side: keeps the setup, sends nothing.</summary>
     public bool NoAi
     {
         get => !IsOn;
-        set { if (value && IsOn) _ = SwitchAsync(false); }
+        set { if (value && IsOn) SwitchAsync(false).FireAndForget(); }
     }
 
     partial void OnIsOnChanged(bool value)

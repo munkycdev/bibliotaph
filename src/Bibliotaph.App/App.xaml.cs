@@ -296,7 +296,8 @@ public partial class App : Application
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryVectors>());
         // Library sync: after indexing, so it stops first and writes this PC's file one last time.
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
-            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
         builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySync>>()));
@@ -483,17 +484,29 @@ public partial class App : Application
             }
         });
 
+    /// <summary>
+    /// A failure of something outside the app, such as a file that went away, is shown and the app carries on. Anything
+    /// else may have stopped an action half way, so the app says so and closes cleanly, letting the databases close.
+    /// </summary>
     void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        Log.Error(e.Exception, "Unhandled UI exception");
+        var recoverable = UiFailures.IsRecoverable(e.Exception);
+        Log.Error(e.Exception, recoverable ? "Unhandled UI exception; carrying on" : "Unhandled UI exception; closing");
         e.Handled = true;
         if (_smokeTest)
         {
             Shutdown(1);
             return;
         }
-        MessageBox.Show($"Something went wrong: {e.Exception.Message}\n\nThe details are in the log.", "Bibliotaph",
-            MessageBoxButton.OK, MessageBoxImage.Warning);
+        if (recoverable)
+        {
+            MessageBox.Show($"Something went wrong: {e.Exception.Message}\n\nThe details are in the log.", "Bibliotaph",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        MessageBox.Show($"Bibliotaph ran into a problem it can't safely carry on from, so it will close. Your library is "
+            + $"saved.\n\n{e.Exception.Message}\n\nThe details are in the log.", "Bibliotaph", MessageBoxButton.OK, MessageBoxImage.Error);
+        Shutdown(1);
     }
 
     protected override void OnExit(ExitEventArgs e)

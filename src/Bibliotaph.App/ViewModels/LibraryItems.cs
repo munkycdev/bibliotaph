@@ -70,7 +70,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
                     WeakEventManager<SiteIconImages, EventArgs>.AddHandler(sites, nameof(SiteIconImages.Changed), (_, _) => RefreshSiteIcon());
                 }
                 field = sites.TryGet(link);
-                if (field is null) _ = LoadSiteIconAsync(sites, link);
+                if (field is null) LoadSiteIconAsync(sites, link).FireAndForget();
             }
             return field;
         }
@@ -301,7 +301,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
             {
                 _coverRequested = true;
                 field = covers.TryGet(name);
-                if (field is null) _ = LoadCoverAsync(name);
+                if (field is null) LoadCoverAsync(name).FireAndForget();
             }
             return field;
         }
@@ -401,7 +401,7 @@ public sealed class CoverTile(string name, CoverImages covers) : ObservableObjec
             {
                 _requested = true;
                 field = covers.TryGet(Name);
-                if (field is null) _ = LoadAsync();
+                if (field is null) LoadAsync().FireAndForget();
             }
             return field;
         }

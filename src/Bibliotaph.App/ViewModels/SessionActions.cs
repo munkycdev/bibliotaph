@@ -74,7 +74,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         switch (choice.Kind)
         {
             case SessionMenuKind.Session when choice.PackId is { } id:
-                _ = AddToAsync(id, what, () => add(id));
+                AddToAsync(id, what, () => add(id)).FireAndForget();
                 break;
             case SessionMenuKind.New:
                 NewThen("Add to a new binder", "Create and add", pack => AddToAsync(pack.Id, what, () => add(pack.Id)));

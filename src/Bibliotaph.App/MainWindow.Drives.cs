@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using Microsoft.Extensions.Logging;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App;
 
@@ -24,7 +25,7 @@ public partial class MainWindow
         if (Marshal.ReadInt32(lParam, 4) != DbtDevTypVolume) return IntPtr.Zero;
         var mask = (uint)Marshal.ReadInt32(lParam, 12);
         var drives = Enumerable.Range(0, 26).Where(i => (mask & (1u << i)) != 0).Select(i => (char)('A' + i)).ToList();
-        _ = RescanDrivesAsync(drives);
+        RescanDrivesAsync(drives).FireAndForget();
         return IntPtr.Zero;
     }
 

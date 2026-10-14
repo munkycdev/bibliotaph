@@ -4,6 +4,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Sync;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Catalog;
 
@@ -45,6 +46,8 @@ public sealed partial class LibrarySyncStore
             }
             catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or FormatException or KeyNotFoundException or System.Text.Json.JsonException)
             {
+                // Tried again on the next pass; the log is the only place a record that keeps failing shows up.
+                _log.LogWarning(ex, "Library sync couldn't apply {Key}; it will be tried again", change.Key);
                 notApplied.Add(change.Key);
             }
         }
@@ -58,8 +61,9 @@ public sealed partial class LibrarySyncStore
             {
                 changed |= await DeleteAsync(change.Key, Card, ct);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
+                _log.LogWarning(ex, "Library sync couldn't delete {Key}; it will be tried again", change.Key);
                 notApplied.Add(change.Key);
             }
         }

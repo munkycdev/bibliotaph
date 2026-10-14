@@ -243,7 +243,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                 else if (again.CanOpen && Viewer.Here() is not null) await Viewer.LoadAsync();
                 else if (again.OpensOnline && Online is { } online) await ShowOnlineAsync(online.Here());
                 else await OpenAsync(again);
-                _ = ReadAheadAsync();
+                ReadAheadAsync().FireAndForget();
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
             else
@@ -299,7 +299,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _sessions.Changed -= OnSessionsChanged;
         Viewer.Unload();
         Online?.Unload();
-        if (_notesDirty) _ = SaveNotesAsync();
+        if (_notesDirty) SaveNotesAsync().FireAndForget();
     }
 
     public override async Task CloseWindowAsync()
@@ -354,7 +354,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                     if (moved && await SessionPackRows.RequestAsync(same, Pack?.Title ?? "", _queries) is { } request && Current == same)
                         await Viewer.FollowAsync(request);
                     // The page after it may have changed.
-                    _ = ReadAheadAsync();
+                    ReadAheadAsync().FireAndForget();
                 }
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
@@ -495,7 +495,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
             else await Viewer.ShowAsync(request);
         }
-        if (Current == row) _ = ReadAheadAsync();
+        if (Current == row) ReadAheadAsync().FireAndForget();
     }
 
     /// <summary>The online reader at <paramref name="request"/>'s page, in the reader's place.</summary>

@@ -124,7 +124,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         Actions.Done -= OnDone;
         _sessions.Changed -= OnSessionsChanged;
         Actions.Close();
-        if (_notesDirty) _ = SaveNotesAsync();
+        if (_notesDirty) SaveNotesAsync().FireAndForget();
     }
 
     async void OnDone(object? sender, EventArgs e) => await RefreshAsync();

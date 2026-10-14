@@ -11,6 +11,11 @@
   still rebuilt.
 - **An AI answer with nothing in it is treated as the AI's hiccup, not the book's.** The AI is checked before a book
   is marked as one it couldn't read, so a server that has stopped answering pauses the AI work instead.
+- **An unexpected error now closes Bibliotaph cleanly** instead of leaving it running in a half-finished state. A
+  problem outside the app, such as a file that went away, a busy clipboard or the AI server not answering, is still
+  just shown, and the app carries on.
+- **Problems that used to pass silently are now in the log:** a library sync change that keeps failing to apply, and
+  background work such as loading a cover or saving a note that fails.
 
 ## 1.2 · 13 October 2026
 

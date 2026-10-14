@@ -68,7 +68,7 @@ public sealed partial class PilotPanelViewModel : ObservableObject
         PickBooksCommand.NotifyCanExecuteChanged();
     }
 
-    void OnStopped(object? sender, EventArgs e) => _ = RefreshAsync();
+    void OnStopped(object? sender, EventArgs e) => RefreshAsync().FireAndForget();
 
     async Task RefreshAsync()
     {

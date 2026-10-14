@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App.Views;
 
@@ -14,7 +15,7 @@ public partial class AiTestDialog
         MaxHeight = Math.Min(MaxHeight, SystemParameters.WorkArea.Height * 0.9);
         Test = test;
         DataContext = test;
-        Loaded += (_, _) => _ = test.TestAgainCommand.ExecuteAsync(null);
+        Loaded += (_, _) => test.TestAgainCommand.ExecuteAsync(null).FireAndForget();
     }
 
     public AiTestViewModel Test { get; }

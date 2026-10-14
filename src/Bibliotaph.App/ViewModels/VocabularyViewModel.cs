@@ -226,7 +226,7 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         OnPropertyChanged(nameof(IsTags));
         Filter = "";
         AddProblem = AddNote = null;
-        _ = ReloadAsync();
+        ReloadAsync().FireAndForget();
     }
 
     /// <summary>Lists the selected vocabulary again, keeping <paramref name="editing"/>'s term open with its message.</summary>
