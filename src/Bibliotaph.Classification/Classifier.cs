@@ -66,6 +66,11 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
         {
             return await client.CompleteAsync(request, ct);
         }
+        catch (ModelContextException ex)
+        {
+            // The server said exactly why: this book's text, not the server, so there is nothing to check.
+            throw new ClassifierAnswerException($"The model couldn't read this book. {ex.Message}", ex);
+        }
         catch (ModelRequestException ex)
         {
             // The server took the book and failed on it. If it still answers a question with nothing of the book in it,

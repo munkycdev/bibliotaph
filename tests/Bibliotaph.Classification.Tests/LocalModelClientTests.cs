@@ -191,6 +191,44 @@ public class LocalModelClientTests
     static bool IsBook(JsonNode? body) =>
         body?["messages"]?[1]?["content"]?.GetValue<string>().Contains("<book-excerpt>", StringComparison.Ordinal) == true;
 
+    [Theory]
+    [InlineData("""{"error":{"code":400,"message":"request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":18366,"n_ctx":16384}}""")]
+    [InlineData("""{"error":{"code":400,"message":"request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it"}}""")]
+    public async Task A_prompt_longer_than_the_context_is_told_apart_with_the_servers_counts(string refusal)
+    {
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest, refusal),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ModelContextException>(() => client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+
+        Assert.Equal((18_366, 16_384), (ex.PromptTokens, ex.ContextTokens));
+        Assert.Equal("The text was too long for the model: 18,366 tokens, and it has room for 16,384.", ex.Message);
+        // Not taken for a refused schema: plain JSON mode would be just as long.
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
+    [Fact]
+    public async Task A_book_too_long_for_the_context_fails_by_itself_without_asking_the_server_again()
+    {
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest,
+                """{"error":{"code":400,"message":"request (9000 tokens) exceeds the available context size (8192 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":9000,"n_ctx":8192}}"""),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(
+            () => new ModelClassifier(client, "openai-compatible", "m").ClassifyAsync(Lantern(), ct: TestContext.Current.CancellationToken));
+
+        Assert.IsType<ModelContextException>(ex.InnerException);
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
     [Fact]
     public async Task A_server_that_fails_while_answering_is_told_apart_from_one_that_refuses()
     {

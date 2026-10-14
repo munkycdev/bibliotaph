@@ -165,6 +165,22 @@ public static class ChapterPrompt
         return Math.Clamp((tokens + 1023) / 1024 * 1024, 8_192, 32_768);
     }
 
+    /// <summary>
+    /// The batch with its pages cut so that a request the model refused as too long fits its context, judged by how
+    /// many tokens it counted in the <paramref name="sent"/> characters of the refused one, with a tenth to spare since
+    /// a page's tokens aren't spread evenly. Null when the model didn't give its counts, or too little would be left.
+    /// </summary>
+    public static ChapterBatch? Shrink(ChapterBatch batch, int sent, ModelContextException refused)
+    {
+        if (refused is not { PromptTokens: > 0 and var counted, ContextTokens: > 0 and var context } || sent <= 0) return null;
+        var pages = batch.Pages.Sum(p => p.Text.Length);
+        var fits = (long)sent * (context - AnswerTokens) / counted * 9 / 10 - (sent - pages);
+        return fits < MinShrunkCharacters || fits >= pages ? null : batch with { Pages = BookChapters.Fit(batch.Pages, (int)fits) };
+    }
+
+    /// <summary>Less book text than this, a page or two, isn't worth a request for several chapters.</summary>
+    const int MinShrunkCharacters = 4_000;
+
     /// <summary>The claims in a model's answer. Anything the schema doesn't describe is ignored.</summary>
     /// <exception cref="ClassifierAnswerException">The answer isn't a JSON object.</exception>
     public static IReadOnlyList<ChapterClaim> ParseAnswer(string content)
@@ -319,16 +335,30 @@ public sealed class ChapterReader(IModelClient client, string model)
 
     /// <summary>Reads one batch. <paramref name="pageText"/> gives a page's whole indexed text, which quotes are looked for in.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
-    /// <exception cref="ClassifierAnswerException">The model answered, but not in the schema, or couldn't read these chapters while it still answers.</exception>
+    /// <exception cref="ClassifierAnswerException">The model answered, but not in the schema, or couldn't read these chapters while it still answers, or they were too long for its context even cut down.</exception>
     public async Task<ChapterBatchResult> ReadAsync(ChapterBatch batch, Func<int, string?> pageText, Vocabulary vocabulary, CancellationToken ct = default)
     {
-        var system = ChapterPrompt.SystemMessage(vocabulary);
+        var answer = await CompleteAsync(ChapterPrompt.SystemMessage(vocabulary), batch, retry: true, ct);
+        return ChapterCheck.Check(ChapterPrompt.ParseAnswer(answer), batch.Chapters, pageText, vocabulary);
+    }
+
+    async Task<string> CompleteAsync(string system, ChapterBatch batch, bool retry, CancellationToken ct)
+    {
         var user = ChapterPrompt.UserMessage(batch);
         var request = new ModelRequest(Model, system, user, ChapterPrompt.SchemaJson, ChapterPrompt.ContextTokens(system, user), SchemaName: ChapterPrompt.SchemaName);
-        string answer;
         try
         {
-            answer = await client.CompleteAsync(request, ct);
+            return await client.CompleteAsync(request, ct);
+        }
+        catch (ModelContextException ex) when (retry && ChapterPrompt.Shrink(batch, system.Length + user.Length, ex) is { } smaller)
+        {
+            // Dense pages (stat blocks, tables, numbers) are more tokens than the estimate allows for, and the model has
+            // counted them: the same pages again, cut to what its context holds.
+            return await CompleteAsync(system, smaller, retry: false, ct);
+        }
+        catch (ModelContextException ex)
+        {
+            throw new ClassifierAnswerException($"The model couldn't read these chapters. {ex.Message}", ex);
         }
         catch (ModelRequestException ex)
         {
@@ -337,6 +367,5 @@ public sealed class ChapterReader(IModelClient client, string model)
             await ModelClassifier.CheckAsync(client, Model, request.ContextTokens, ct);
             throw new ClassifierAnswerException($"The model couldn't read these chapters. {ex.Message}", ex);
         }
-        return ChapterCheck.Check(ChapterPrompt.ParseAnswer(answer), batch.Chapters, pageText, vocabulary);
     }
 }
