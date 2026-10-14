@@ -27,7 +27,7 @@ public sealed record UnplacedPart(EntryId EntryId, EntryId FileEntryId, string T
 /// them into the file's other copies and new versions by the fingerprints of their first and last pages. Every change
 /// is projected at once, so the library shows the adventure's card, and its first page is drawn as its cover.
 /// </summary>
-public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueries queries, MetadataProjector projector, StageServices? stages = null,
+public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueries queries, MetadataProjector projector, StageServices stages,
     ILogger<PartsService>? log = null)
 {
     readonly ILogger _log = log ?? NullLogger<PartsService>.Instance;
@@ -265,7 +265,7 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
     /// <summary>Draws adventures' first pages as their covers, when the file can be read; a cover that can't be drawn now is drawn by its Covers stage.</summary>
     async Task DrawCoversAsync(long documentId, IReadOnlyCollection<int> pages, CancellationToken ct)
     {
-        if (stages is null || pages.All(p => p <= 0)) return;
+        if (pages.All(p => p <= 0)) return;
         var contentHash = (await entries.GetEntryAsync(documentId, ct))?.ContentHash;
         if (contentHash is null) return;
         try

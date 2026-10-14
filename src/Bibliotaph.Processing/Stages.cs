@@ -62,7 +62,7 @@ public sealed record StageServices(
     IPasswordStore Passwords,
     SourceFiles Sources,
     MetadataProjector Projector,
-    PartStore? Parts = null);
+    PartStore Parts);
 
 public interface IStage
 {
@@ -440,9 +440,8 @@ public sealed class CoversStage(StageServices s) : IStage
                 if (page > 0) key = CoverCache.PageKey(job.ContentHash, page);
                 jpeg = await StageHelpers.DrawCoverAsync(s, session, page, ct);
                 // The adventures marked in the file have their first pages as covers.
-                if (s.Parts is not null)
-                    await StageHelpers.DrawPartCoversAsync(s, session, job.DocumentId, job.ContentHash,
-                        [.. (await s.Parts.GetPagesInAsync(job.DocumentId, ct)).Select(p => p.Pages.First)], ct);
+                await StageHelpers.DrawPartCoversAsync(s, session, job.DocumentId, job.ContentHash,
+                    [.. (await s.Parts.GetPagesInAsync(job.DocumentId, ct)).Select(p => p.Pages.First)], ct);
             }
         }
 

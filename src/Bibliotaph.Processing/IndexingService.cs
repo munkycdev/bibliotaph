@@ -75,6 +75,13 @@ public enum RootRelocation
 public sealed record UnreadableFile(long LocationId, string Path, string Reason);
 
 /// <summary>
+/// How indexing reaches the library's files: hashing them, listing and opening ZIPs, the free space an online-only file
+/// needs to download into, the disk and file IDs that tell a moved file from a new one, and giving downloaded files
+/// back to online-only.
+/// </summary>
+public sealed record IndexingFiles(FileHasher Hasher, ArchiveReader Archives, IDiskSpace Disk, IFileIdentity Identity, OnlineOnlyReturns Returns);
+
+/// <summary>
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
 /// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
 /// pausable on its own. Classify works only while AI is ready, and waits with a notice while its endpoint can't be used.
@@ -86,23 +93,18 @@ public sealed class IndexingService(
     LibraryStore library,
     JobBoard queue,
     IEnumerable<IStage> stages,
-    FileHasher hasher,
-    IDiskSpace disk,
-    ArchiveReader archives,
+    IndexingFiles files,
+    PackService packs,
+    PartsService parts,
+    FolderCollections folderCollections,
     IndexingOptions? options = null,
     ILogger<IndexingService>? log = null,
-    TimeProvider? clock = null,
-    PackService? packs = null,
-    IFileIdentity? identity = null,
-    OnlineOnlyReturns? returns = null,
-    PartsService? parts = null,
-    FolderCollections? folderCollections = null) : BackgroundService
+    TimeProvider? clock = null) : BackgroundService
 {
     /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
     public const string UnexpectedError = "Unexpected error: ";
 
     readonly IndexingOptions _options = options ?? new IndexingOptions();
-    readonly IFileIdentity _identity = identity ?? new FileIdentity();
     readonly ILogger _log = log ?? NullLogger<IndexingService>.Instance;
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly Dictionary<Stage, IStage> _stages = stages.ToDictionary(s => s.Stage);
@@ -406,9 +408,8 @@ public sealed class IndexingService(
             Task.Run(() => LoopAsync("index lane", ct => LaneLoopAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("OCR lane", ct => LaneLoopAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("Classify lane", ct => LaneLoopAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("online-only returns", ct => ReturnLoopAsync(files.Returns, ct), stoppingToken), CancellationToken.None),
         ];
-        if (returns is not null)
-            loops.Add(Task.Run(() => LoopAsync("online-only returns", ct => ReturnLoopAsync(returns, ct), stoppingToken), CancellationToken.None));
         await Task.WhenAll(loops);
     }
 
@@ -424,8 +425,8 @@ public sealed class IndexingService(
             var lane = Pipeline.LaneOf(gated.Stage);
             gated.ReadyChanged += (_, _) => OnGateChanged(lane);
         }
-        parts?.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
-        returns?.SettingChanged += (_, _) => _returnSignal.Set();
+        parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
+        files.Returns.SettingChanged += (_, _) => _returnSignal.Set();
     }
 
     static readonly TimeSpan PartsRecheck = TimeSpan.FromSeconds(1);
@@ -580,7 +581,7 @@ public sealed class IndexingService(
             await MarkOfflineAsync(root, OfflineReason.Unreachable, now, ct);
             return [];
         }
-        var volume = await Task.Run(() => _identity.Volume(root.Path), ct);
+        var volume = await Task.Run(() => files.Identity.Volume(root.Path), ct);
         if (root.VolumeSerial is { } serial && volume is not null && !string.Equals(volume.Serial, serial, StringComparison.OrdinalIgnoreCase))
         {
             await MarkOfflineAsync(root, OfflineReason.DifferentDisk, now, ct);
@@ -592,7 +593,7 @@ public sealed class IndexingService(
             return [];
         }
 
-        Func<string, string?>? fileId = volume is { HasFileIds: true } ? relative => _identity.FileId(Path.Combine(root.Path, relative)) : null;
+        Func<string, string?>? fileId = volume is { HasFileIds: true } ? relative => files.Identity.FileId(Path.Combine(root.Path, relative)) : null;
         // On a local drive every file's ID is read again, so a file saved over another with the same size and date is
         // seen; on a network share each read is a round trip, so only new and changed files are asked.
         var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, fileId, volume?.Serial,
@@ -697,14 +698,14 @@ public sealed class IndexingService(
     /// </summary>
     async Task PackAsync(CancellationToken ct)
     {
-        if ((packs is null && folderCollections is null) || !_packsDue || IsPaused(Lane.Index)) return;
+        if (!_packsDue || IsPaused(Lane.Index)) return;
         _packing = true;
         _packsDue = false;
         try
         {
-            if (packs is not null) await packs.PlanAsync(ct);
+            await packs.PlanAsync(ct);
             // After packing, so images that went into a pack don't join as books of their own.
-            if (folderCollections is not null) await folderCollections.FollowAsync(ct);
+            await folderCollections.FollowAsync(ct);
             RaiseChanged();
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
@@ -738,7 +739,7 @@ public sealed class IndexingService(
                 foreach (var file in batch)
                 {
                     if (IsPaused(Lane.Index)) return;
-                    if (file.OnlineOnly && disk.FreeBytes(file.FullPath) is { } free && free - file.SizeBytes < _options.OnlineOnlyReserveBytes)
+                    if (file.OnlineOnly && files.Disk.FreeBytes(file.FullPath) is { } free && free - file.SizeBytes < _options.OnlineOnlyReserveBytes)
                     {
                         deferred.Add(file.LocationId);
                         waitingForSpace = true;
@@ -777,8 +778,8 @@ public sealed class IndexingService(
         RaiseChanged();
         try
         {
-            if (returns is not null) await returns.BeforeReadAsync(file, ct);
-            hash = await hasher.HashAsync(file.FullPath, ct);
+            await files.Returns.BeforeReadAsync(file, ct);
+            hash = await files.Hasher.HashAsync(file.FullPath, ct);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -813,13 +814,13 @@ public sealed class IndexingService(
         RaiseChanged();
         try
         {
-            if (returns is not null) await returns.BeforeReadAsync(archive, ct);
-            var hash = await hasher.HashAsync(archive.FullPath, ct);
-            var members = await Task.Run(() => archives.List(archive.FullPath), ct);
+            await files.Returns.BeforeReadAsync(archive, ct);
+            var hash = await files.Hasher.HashAsync(archive.FullPath, ct);
+            var members = await Task.Run(() => files.Archives.List(archive.FullPath), ct);
             if (await library.ReconcileArchiveAsync(archive, members, ct) is not { } pending) return;
             if (pending.Count > 0)
             {
-                using var zip = archives.Open(archive.FullPath);
+                using var zip = files.Archives.Open(archive.FullPath);
                 foreach (var member in pending)
                 {
                     if (IsPaused(Lane.Index)) return;

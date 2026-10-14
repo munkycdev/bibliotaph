@@ -9,6 +9,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
+/// The user's marks on their books, which the projector copies into index.db: their hearts, when they were last opened,
+/// the collections and session packs they are in, and their notes.
+/// </summary>
+public sealed record MarkStores(FavoriteStore Favorites, ReadingStore Reading, CollectionStore Collections, SessionStore Sessions, NoteStore Notes);
+
+/// <summary>
 /// Copies the library's cards from catalog.db into index.db: which document each entry shows (entry_doc), and its
 /// effective metadata (entry_meta, entry_facet, entry_fts, term_alias), where the library lists, filters and searches
 /// it, and which entries a model has read (entry_ai), for the AI badge and filter. It also copies the user's marks: the
@@ -18,9 +24,7 @@ namespace Bibliotaph.Processing;
 /// <paramref name="covers"/> finds the covers books owned elsewhere got from their online library.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
-    SettingsStore? settings = null, ILogger<MetadataProjector>? log = null, ClassificationStore? runs = null, FavoriteStore? favorites = null,
-    ReadingStore? reading = null, CollectionStore? collections = null, SessionStore? sessions = null, NoteStore? notes = null,
-    CoverCache? covers = null) : IDisposable
+    SettingsStore settings, ClassificationStore runs, MarkStores marks, CoverCache covers, ILogger<MetadataProjector>? log = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -95,23 +99,21 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     async Task WriteMarksAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct)
     {
         if (entryIds is { Count: 0 }) return;
-        if (favorites is not null || collections is not null || sessions is not null)
-        {
-            List<(EntryId, string)> scopes = [];
-            if (favorites is not null) scopes.AddRange((await favorites.GetAsync(entryIds, ct)).Select(id => (id, ScopeKeys.Favorites)));
-            if (collections is not null) scopes.AddRange(await collections.GetScopesAsync(entryIds, ct));
-            if (sessions is not null) scopes.AddRange(await sessions.GetScopesAsync(entryIds, ct));
-            await index.SetScopesAsync(entryIds, scopes, ct);
-        }
-        if (reading is not null) await index.SetOpenedAsync(entryIds, await reading.GetOpenedAsync(entryIds, ct), ct);
-        if (notes is not null) await index.SetNotesAsync(entryIds, await notes.GetSearchTextAsync(entryIds, ct), ct);
+        List<(EntryId, string)> scopes =
+        [
+            .. (await marks.Favorites.GetAsync(entryIds, ct)).Select(id => (id, ScopeKeys.Favorites)),
+            .. await marks.Collections.GetScopesAsync(entryIds, ct),
+            .. await marks.Sessions.GetScopesAsync(entryIds, ct),
+        ];
+        await index.SetScopesAsync(entryIds, scopes, ct);
+        await index.SetOpenedAsync(entryIds, await marks.Reading.GetOpenedAsync(entryIds, ct), ct);
+        await index.SetNotesAsync(entryIds, await marks.Notes.GetSearchTextAsync(entryIds, ct), ct);
         if (entryIds is null) await WriteCollectionNamesAsync(ct);
     }
 
     async Task WriteCollectionNamesAsync(CancellationToken ct)
     {
-        if (collections is null) return;
-        await index.SetScopeNamesAsync([.. (await collections.ListAsync(ct)).SelectMany(c =>
+        await index.SetScopeNamesAsync([.. (await marks.Collections.ListAsync(ct)).SelectMany(c =>
             new[] { (ScopeKeys.Collection(c.Id), c.Name), (ScopeKeys.CollectionOwn(c.Id), c.Name) })], ct);
     }
 
@@ -149,14 +151,14 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         var all = await metadata.GetManyAsync(shown, ct);
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. shown.Where(id => !all.ContainsKey(id))], ct);
-        if (runs is not null) await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
+        await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
         await WriteMarksAsync(shown, ct);
         return entryIds;
     }
 
     EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
     {
-        Cover = entry.SyncId is { } syncId ? covers?.FindElsewhere(syncId) : null,
+        Cover = entry.SyncId is { } syncId ? covers.FindElsewhere(syncId) : null,
         Name = entry.Name,
         AddedUtc = entry.AddedUtc,
         Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
@@ -203,7 +205,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         foreach (var chunk in all.Values.Chunk(Batch))
             await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. withMetadata.Where(id => shown.Contains(id) && !all.ContainsKey(id))], ct);
-        if (runs is not null) await index.SetAiReadAsync(null, (await runs.GetReadByAsync(ct: ct)).Where(r => shown.Contains(r.Key)).ToDictionary(), ct);
+        await index.SetAiReadAsync(null, (await runs.GetReadByAsync(ct: ct)).Where(r => shown.Contains(r.Key)).ToDictionary(), ct);
         await WriteMarksAsync(null, ct);
         _log.LogInformation("Projected metadata for {Count} entries", all.Count);
         return [.. all.Keys];
@@ -211,7 +213,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
 
     /// <summary>Whether every suggestion goes to Needs review, not only those a person has to look at.</summary>
     async Task<bool> ReviewAllAsync(CancellationToken ct) =>
-        settings is not null && await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
+        await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
 
     /// <summary>An entry's index.db metadata row: its effective values, labelled through the vocabulary.</summary>
     public static EntryMetaRow Build(EntryMetadata entry, Vocabulary vocabulary, bool reviewAll = false)
@@ -291,7 +293,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
 /// and switches the folder labels Settings shows, and gives files the folder rules switched on where they are.
 /// </summary>
 public sealed class MetadataHints(LibraryStore library, EntryStore entries, IndexQueries queries, MetadataStore metadata, VocabularyStore vocabularies,
-    MetadataProjector projector, PackStore packs, CorrectionStore? rules = null)
+    MetadataProjector projector, PackStore packs, CorrectionStore rules)
 {
     /// <summary>
     /// Stores packs' hints from their folder's names: every folder down to the pack's own, or its ZIP, counts through
@@ -354,7 +356,6 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
     /// <summary>The folder rules switched on in one library folder.</summary>
     async Task<IReadOnlyList<FolderRuleHint>> RulesAsync(long rootId, CancellationToken ct)
     {
-        if (rules is null) return [];
         return [.. (await rules.GetRulesAsync(FolderRuleState.On, ct))
             .Where(r => r.Folder.RootId == rootId && MetadataFields.Find(r.Field) is not null)
             .Select(r => new FolderRuleHint(r.Folder.Folder, MetadataFields.Get(r.Field), r.Value))];
@@ -413,7 +414,7 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
 public sealed record FolderLabelUse(string Folder, Term Term, int Documents, bool Enabled);
 
 /// <summary>Hints from names: folder names, the file name and the PDF's own information as provisional metadata.</summary>
-public sealed class RuleHintsStage(MetadataHints hints, PartProposalService? proposals = null) : IStage
+public sealed class RuleHintsStage(MetadataHints hints, PartProposalService proposals) : IStage
 {
     public Stage Stage => Stage.RuleHints;
 
@@ -421,7 +422,7 @@ public sealed class RuleHintsStage(MetadataHints hints, PartProposalService? pro
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         if (!await hints.ApplyAsync(job.DocumentId, ct)) return new StageOutcome.Done(StageStatus.Skipped, [], "The file has gone, so there are no names to read.");
-        if (proposals is not null) await proposals.ProposeAsync(job.DocumentId, ct);
+        await proposals.ProposeAsync(job.DocumentId, ct);
         return StageOutcome.Complete();
     }
 }
@@ -434,11 +435,11 @@ public sealed record MetadataProblem(MetadataField Field, string Message);
 /// catalog.db as an assertion state or a rejection, then the entry is projected again. A value the user sets may
 /// make a folder rule worth proposing, which <paramref name="rules"/> looks into.
 /// </summary>
-public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector, FolderRules? rules = null,
-    ChapterScanService? chapters = null)
+public sealed class MetadataService(MetadataStore metadata, VocabularyStore vocabularies, MetadataProjector projector, FolderRules rules,
+    ChapterScanService chapters)
 {
-    /// <summary>What the AI found reading the book chapter by chapter, shown apart from its own details; null where there is none (tests).</summary>
-    public ChapterScanService? Chapters => chapters;
+    /// <summary>What the AI found reading the book chapter by chapter, shown apart from its own details.</summary>
+    public ChapterScanService Chapters => chapters;
 
     public async Task<(EffectiveMetadata Metadata, Vocabulary Vocabulary)> GetAsync(EntryId entryId, CancellationToken ct = default) =>
         ((await metadata.GetAsync(entryId, ct)).Compute(), await vocabularies.GetAsync(ct));
@@ -463,7 +464,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         await metadata.SetValuesAsync(entryId, field, values, ct);
         if (added) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([entryId], ct);
-        if (rules is not null && values.Count > 0) await rules.ConsiderAsync([entryId], [field], ct);
+        if (values.Count > 0) await rules.ConsiderAsync([entryId], [field], ct);
         return null;
     }
 
@@ -535,14 +536,14 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         IReadOnlyList<string> values = field.Multiple ? [.. current.Values.Select(v => v.Value), value] : [value];
         await metadata.SetValuesAsync(entryId, field, values, ct);
         await projector.ProjectAsync([entryId], ct);
-        if (rules is not null) await rules.ConsiderAsync([entryId], [field], ct);
+        await rules.ConsiderAsync([entryId], [field], ct);
     }
 
     public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
         await metadata.ConfirmAsync(entryId, field, ct);
         await projector.ProjectAsync([entryId], ct);
-        if (rules is not null) await rules.ConsiderAsync([entryId], [field], ct);
+        await rules.ConsiderAsync([entryId], [field], ct);
     }
 
     public async Task RejectAsync(EntryId entryId, MetadataField field, string normalized, CancellationToken ct = default)
@@ -599,7 +600,7 @@ public sealed class MetadataService(MetadataStore metadata, VocabularyStore voca
         if (added) await projector.ProjectVocabularyAsync(ct);
         await ProjectAsync([.. undo.Select(s => s.EntryId).Distinct()], progress, ct);
         var set = stored.Where(c => c.Action is BulkAction.Set or BulkAction.Add).Select(c => c.Field).Distinct().ToList();
-        if (rules is not null && set.Count > 0 && undo.Count > 0) await rules.ConsiderAsync([.. undo.Select(s => s.EntryId).Distinct()], set, ct);
+        if (set.Count > 0 && undo.Count > 0) await rules.ConsiderAsync([.. undo.Select(s => s.EntryId).Distinct()], set, ct);
         return (null, undo);
     }
 

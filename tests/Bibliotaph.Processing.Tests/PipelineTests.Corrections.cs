@@ -29,9 +29,6 @@ public abstract partial class PipelineTests
 
     CorrectionService Corrections() => new(_correctionStore, _metadataStore, _metadata, _libraryStore, new LibraryQueries(_index));
 
-    ReviewService Review(CorrectionService corrections) => new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-        new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, corrections: corrections, rules: _folderRules);
-
     /// <summary>
     /// Easier corrections through the real pipeline: a correction offered to look-alikes, folder rules proposed and used,
     /// the Cataloged wrong card in Needs review, and worked examples for the classifier.
@@ -208,7 +205,7 @@ public abstract partial class PipelineTests
             await DecideAsync("Fey Court/Thorns.png", "Thorn Bargain");
             await DecideAsync("Other/Glimmer.png", "Glimmer Rules");
             await DecideAsync("Fey Court/Grove.png", "Hidden Grove");
-            var inputs = new ClassifierInputs(_libraryStore, _queries, _vocabulary, _entries, new ExampleFinder(_metadataStore, _libraryStore));
+            var inputs = Inputs();
             var book = cards["Fey Court/Known Text.pdf"].Document;
 
             var (input, _) = await inputs.BuildAsync(book, new HashSet<long> { kept.Id }, ct: Ct);

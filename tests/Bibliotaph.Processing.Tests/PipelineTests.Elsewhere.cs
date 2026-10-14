@@ -17,8 +17,7 @@ public abstract partial class PipelineTests
             await _roots.AddAsync(_library, Ct);
             await _service.StartAsync(Ct);
             var search = new LibraryQueries(_index);
-            var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-                new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, _elsewhere);
+            var review = Review();
 
             // A title is required, and nothing is made without one.
             Assert.Equal(MetadataFields.Title, (await _elsewhere.AddAsync(new ElsewhereDraft(" "), Ct)).Problem?.Field);

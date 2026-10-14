@@ -43,7 +43,7 @@ public sealed class FolderCollections(
     CollectionStore collectionStore,
     CollectionsService collections,
     VocabularyStore vocabularies,
-    PackService? packs = null)
+    PackService packs)
 {
     /// <summary>Books directly in a folder before it is proposed, so a book with its two handouts doesn't produce a card.</summary>
     public const int Threshold = 3;
@@ -63,7 +63,7 @@ public sealed class FolderCollections(
         lock (_lock) later = [.. _notNow];
         var vocabulary = await vocabularies.GetAsync(ct);
         // A folder of images waiting to be answered as a pack is asked about once that is settled.
-        var waitingPacks = packs is null ? [] : (await packs.GetProposalsAsync(ct)).Select(p => p.Place).ToList();
+        var waitingPacks = (await packs.GetProposalsAsync(ct)).Select(p => p.Place).ToList();
         var items = await collectionStore.GetItemsAsync(ct);
         var names = (await collectionStore.ListAsync(ct)).ToDictionary(c => c.Id, c => c.Name);
         var proposals = new List<FolderCollectionProposal>();

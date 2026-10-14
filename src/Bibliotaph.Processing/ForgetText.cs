@@ -24,8 +24,8 @@ public sealed class ForgetText(
     MetadataStore metadata,
     MetadataProjector projector,
     AskHistoryStore askHistory,
-    ILogger<ForgetText>? log = null,
-    ChapterScanStore? chapterScans = null)
+    ChapterScanStore chapterScans,
+    ILogger<ForgetText>? log = null)
 {
     readonly ILogger _log = log ?? NullLogger<ForgetText>.Instance;
 
@@ -52,7 +52,7 @@ public sealed class ForgetText(
         foreach (var hash in hashes) DeletePictures(hash);
         await classifications.ForgetAsync(hashes, ct);
         // What the AI found in each chapter quotes the book too; index.db's copy went with the pages.
-        if (chapterScans is not null) await chapterScans.ForgetAsync(hashes, ct);
+        await chapterScans.ForgetAsync(hashes, ct);
         await metadata.ForgetAiAsync(entryId, hashes, ct);
         // Tags guessed from its pages go too; one the user kept stays.
         await metadata.ReplaceTagGuessesAsync([entryId], [], ct);

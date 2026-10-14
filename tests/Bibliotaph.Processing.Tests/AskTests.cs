@@ -106,7 +106,7 @@ public sealed class AskTests : IAsyncLifetime
         var store = new IndexStore(_writer);
         _ai = new AiSettings(new SettingsStore(contexts), new NoApiKeys(), _ => _server);
         _ask = new AskService(_ai, new LibraryStore(contexts), new AskQueries(_index), new IndexQueries(_index), store, new EntryStore(contexts),
-            new AskHistoryStore(contexts));
+            new AskHistoryStore(contexts), new AiUse());
 
         // An invented book in an invented folder: a page waiting for OCR, then three with text under two bookmarks.
         await using (var db = _catalog.CreateContext())

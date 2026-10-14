@@ -374,7 +374,7 @@ public abstract partial class PipelineTests
             await SettleAsync();
             // The test picks a book with some length to it: three pages of more than 200 characters.
             await _writer.WriteAsync((c, t) => c.Execute("UPDATE page SET text = text || ' ' || @filler", new { filler = string.Join(' ', Enumerable.Repeat("More of the adventure.", 12)) }, t), Ct);
-            var ai = new AiService(_ai, new NoApiKeys(), _service, _runs, new ClassifierInputs(_libraryStore, _queries, _vocabulary), _queries,
+            var ai = new AiService(_ai, new NoApiKeys(), _service, _runs, Inputs(), _queries,
                 _libraryStore, _vocabulary);
             var steps = new List<AiTestProgress>();
 

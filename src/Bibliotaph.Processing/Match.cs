@@ -17,8 +17,7 @@ namespace Bibliotaph.Processing;
 /// user's own tags, whose words it can now be searched for.
 /// </summary>
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
-    ILogger<MatchStage>? log = null, ElsewhereStore? elsewhere = null, PagePlaces? places = null, MetadataHints? hints = null, PartsService? parts = null,
-    UserTagService? tags = null) : IStage
+    ElsewhereStore elsewhere, PagePlaces places, MetadataHints hints, PartsService parts, UserTagService tags, ILogger<MatchStage>? log = null) : IStage
 {
     /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
     internal static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
@@ -31,7 +30,7 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
     {
         var outcome = await MatchAsync(job, ct);
         // After any join, so the tags go on the card the book ended up on. Its text is all in: OCR has finished.
-        if (tags is not null && outcome is StageOutcome.Done) await tags.CheckDocumentAsync(job.DocumentId, ct);
+        if (outcome is StageOutcome.Done) await tags.CheckDocumentAsync(job.DocumentId, ct);
         return outcome;
     }
 
@@ -46,11 +45,11 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
         var texts = await queries.GetAllPageTextsAsync(job.DocumentId, ct);
         // Hints from names usually run before the text is in, so they are read again now for the store a watermark
         // names. Nothing is projected unless that changed them.
-        if (hints is not null) await hints.RefreshAsync(job.DocumentId, ct);
+        await hints.RefreshAsync(job.DocumentId, ct);
         var fingerprints = PageFingerprints.Compute(texts);
         await index.SetFingerprintsAsync(job.DocumentId, fingerprints, ct);
-        if (places is not null) await places.CheckAsync(job.DocumentId, fingerprinted: true, ct);
-        if (parts is not null) await parts.FollowDocumentAsync(job.DocumentId, ct);
+        await places.CheckAsync(job.DocumentId, fingerprinted: true, ct);
+        await parts.FollowDocumentAsync(job.DocumentId, ct);
         var enoughText = fingerprints.Count(f => f is not null) >= PageFingerprints.MinimumMatchingPages;
         var sharing = enoughText ? await queries.GetSharingPagesAsync(job.DocumentId, ct) : [];
 
@@ -61,7 +60,7 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
             if (await entries.JoinAsCopyAsync(job.DocumentId, other, ct) is not { } join) continue;
             _log.LogInformation("Document {Document} is a copy of document {Other}; its card joined entry {Entry}", job.DocumentId, other, join.EntryId);
             await projector.ProjectAsync([join.EntryId, join.JoinedEntryId], ct);
-            if (parts is not null) await parts.FollowAsync(join.EntryId, job.DocumentId, ct);
+            await parts.FollowAsync(join.EntryId, job.DocumentId, ct);
             return StageOutcome.Complete();
         }
 
@@ -76,7 +75,7 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
     /// </summary>
     async Task ProposeElsewhereAsync(long documentId, CancellationToken ct)
     {
-        if (elsewhere is null || await entries.GetEntryAsync(documentId, ct) is not { } entry) return;
+        if (await entries.GetEntryAsync(documentId, ct) is not { } entry) return;
         foreach (var book in await queries.GetElsewhereMatchesAsync(entry.EntryId, ct))
             if (await elsewhere.ProposeAsync(book, documentId, ct))
                 _log.LogInformation("Document {Document} has the title of entry {Entry}, owned elsewhere; proposed as its file", documentId, book);
@@ -127,12 +126,11 @@ public sealed record VersionItem(PendingVersion Version, string Title, string? P
 /// moves to its matching page. The adventures marked in the book's file follow it into its copies.
 /// </summary>
 public sealed class CopiesService(EntryStore entries, VersionStore versions, LibraryStore library, IndexQueries queries, MetadataProjector projector,
-    PagePlaces? places = null, PartsService? parts = null)
+    PagePlaces places, PartsService parts)
 {
     /// <summary>Follows the adventures marked in these cards' files into the copies each has now.</summary>
     async Task FollowPartsAsync(IEnumerable<EntryId> entryIds, CancellationToken ct)
     {
-        if (parts is null) return;
         foreach (var entryId in entryIds.Distinct()) await parts.FollowAsync(entryId, ct: ct);
     }
 
@@ -150,7 +148,7 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
         if (!await entries.MakeCurrentAsync(entryId, documentId, ct)) return;
         await projector.ProjectAsync([entryId], ct);
         await FollowPartsAsync([entryId], ct);
-        if (places is not null) await places.CheckAsync(documentId, ct: ct);
+        await places.CheckAsync(documentId, ct: ct);
     }
 
     /// <summary>Takes a copy onto a card of its own, as it was before it joined; returns that card.</summary>
@@ -174,7 +172,7 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
         if (await entries.JoinAsOneBookAsync(entryIds, opensDocumentId, ct) is not { } join) return null;
         await projector.ProjectAsync([join.EntryId, .. join.Joined], ct);
         await FollowPartsAsync([join.EntryId], ct);
-        if (places is not null && join.PreviousCurrent != opensDocumentId) await places.CheckAsync(opensDocumentId, ct: ct);
+        if (join.PreviousCurrent != opensDocumentId) await places.CheckAsync(opensDocumentId, ct: ct);
         return join;
     }
 
@@ -185,7 +183,7 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
         await projector.ProjectAsync([join.EntryId, .. join.Joined], ct);
         await FollowPartsAsync([join.EntryId, .. join.Joined], ct);
         // Where the book was left goes back to the copy it opens again.
-        if (places is not null && join.PreviousCurrent is { } previous) await places.CheckAsync(previous, ct: ct);
+        if (join.PreviousCurrent is { } previous) await places.CheckAsync(previous, ct: ct);
     }
 
     public async Task<int> CountVersionsAsync(CancellationToken ct = default) => (await versions.GetPendingAsync(ct)).Count;
@@ -218,7 +216,7 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
             await projector.ProjectAsync([version.MatchedEntryId, version.EntryId], ct);
             await FollowPartsAsync([version.MatchedEntryId, version.EntryId], ct);
         }
-        if (decision is not null && answer == VersionAnswer.MakeCurrent && places is not null) await places.CheckAsync(version.DocumentId, ct: ct);
+        if (decision is not null && answer == VersionAnswer.MakeCurrent) await places.CheckAsync(version.DocumentId, ct: ct);
         return decision;
     }
 
@@ -231,6 +229,6 @@ public sealed class CopiesService(EntryStore entries, VersionStore versions, Lib
             await FollowPartsAsync([decision.Version.MatchedEntryId, decision.Version.EntryId], ct);
         }
         // Where the book was left goes back to the copy it opens again.
-        if (decision is { Answer: VersionAnswer.MakeCurrent, PreviousCurrent: { } previous } && places is not null) await places.CheckAsync(previous, ct: ct);
+        if (decision is { Answer: VersionAnswer.MakeCurrent, PreviousCurrent: { } previous }) await places.CheckAsync(previous, ct: ct);
     }
 }

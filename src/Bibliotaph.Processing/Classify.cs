@@ -98,8 +98,10 @@ public sealed record AiState(AiSetup Setup, ModelClassifier? Classifier, ModelPl
 /// <param name="keys">The model servers' keys, read when a request is made.</param>
 /// <param name="clients">The client for a model server's endpoint; tests and the smoke test pass stand-ins.</param>
 /// <param name="builtIn">The built-in AI's chat engine, or null where the app has none (tests).</param>
-/// <param name="builtInEmbedding">The built-in AI's second engine, in embedding mode, for finding pages by meaning.</param>
-/// <param name="activity">Tracks every request a person waits on, so reading whole books gives way to them.</param>
+/// <param name="builtInEmbedding">The built-in AI's second engine, in embedding mode, for finding pages by meaning, or null
+/// where the app has none (tests).</param>
+/// <param name="activity">Tracks every request a person waits on, so reading whole books gives way to them. Made here when
+/// not given, since everything that uses it reaches it through <see cref="Activity"/>; tests give one a shorter quiet period.</param>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null,
     BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null)
 {
@@ -279,11 +281,10 @@ public sealed class ExampleFinder(MetadataStore metadata, LibraryStore library)
 }
 
 /// <summary>
-/// Builds what the classifier reads for a document from index.db, or says why there is nothing to read; with an
-/// <see cref="ExampleFinder"/>, the worked examples sent beside it too.
+/// Builds what the classifier reads for a document from index.db, or says why there is nothing to read, and the
+/// worked examples sent beside it.
 /// </summary>
-public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries, VocabularyStore vocabularies, EntryStore? entries = null,
-    ExampleFinder? examples = null)
+public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries, VocabularyStore vocabularies, EntryStore entries, ExampleFinder examples)
 {
     /// <param name="documentId">The book to read.</param>
     /// <param name="keptFromAi">The library folders kept from AI, whose books are never sent as examples.</param>
@@ -313,7 +314,7 @@ public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries,
         var byPage = texts.ToDictionary(p => p.PdfPage, p => p.Text);
         var fileName = path is null ? "" : Path.GetFileName(path);
         var vocabulary = await vocabularies.GetAsync(ct);
-        IReadOnlyList<WorkedExample> worked = withExamples && examples is not null && entries is not null && await entries.GetEntryAsync(documentId, ct) is { } entry
+        IReadOnlyList<WorkedExample> worked = withExamples && await entries.GetEntryAsync(documentId, ct) is { } entry
             ? await examples.FindAsync(entry.EntryId, keptFromAi ?? new HashSet<long>(), vocabulary, ct)
             : [];
         return (new ClassifierInput(excerpt, fileName, page => byPage.GetValueOrDefault(page), vocabulary, worked), null);
@@ -401,8 +402,7 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// </remarks>
 public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
-    TimeProvider? clock = null, ILogger<ClassifyStage>? log = null, AiReadingFeed? feed = null, PartsService? parts = null,
-    PartProposalService? proposals = null) : IGatedStage
+    AiReadingFeed feed, PartsService parts, PartProposalService proposals, TimeProvider? clock = null, ILogger<ClassifyStage>? log = null) : IGatedStage
 {
     /// <summary>
     /// How long a book whose scanned pages are still being read waits before Classify looks again. It looks sooner when
@@ -436,7 +436,7 @@ public sealed class ClassifyStage(
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
             return new StageOutcome.Later(OcrWait, "Waiting for its scanned pages to be read.");
         // The rules' proposal of its adventures comes with the hints, and a model is asked only when they found none.
-        if (!read && proposals is not null && await queries.GetStageStatusAsync(job.DocumentId, Stage.RuleHints, ct) is StageStatus.Pending or StageStatus.Running)
+        if (!read && await queries.GetStageStatusAsync(job.DocumentId, Stage.RuleHints, ct) is StageStatus.Pending or StageStatus.Running)
             return new StageOutcome.Later(MatchStage.HintsWait, "Waiting for its hints from names.");
 
         if (!read)
@@ -474,7 +474,7 @@ public sealed class ClassifyStage(
     {
         var started = _clock.GetUtcNow().UtcDateTime;
         // The AI reading page follows the answer as it streams.
-        var progress = feed?.Start(job.DocumentId, title, classifier.Model);
+        var progress = feed.Start(job.DocumentId, title, classifier.Model);
         ClassifierResult result;
         try
         {
@@ -482,12 +482,12 @@ public sealed class ClassifyStage(
         }
         catch (ModelEndpointException ex)
         {
-            feed?.Abandon(job.DocumentId);
+            feed.Abandon(job.DocumentId);
             return new StageOutcome.Unavailable(ex.Message);
         }
         catch (ClassifierAnswerException ex)
         {
-            feed?.Fail(job.DocumentId, ex.Message);
+            feed.Fail(job.DocumentId, ex.Message);
             if (part is { } failedPart)
                 await results.RecordFailedOnAsync(failedPart, job.ContentHash, classifier.Provider, classifier.Model, input, started, ex.Message, CancellationToken.None);
             else
@@ -496,10 +496,10 @@ public sealed class ClassifyStage(
         }
         catch (OperationCanceledException)
         {
-            feed?.Abandon(job.DocumentId);
+            feed.Abandon(job.DocumentId);
             throw;
         }
-        feed?.Finish(job.DocumentId, result);
+        feed.Finish(job.DocumentId, result);
 
         // Quotes are book text, so only counts and reasons go to the log.
         _log.LogInformation("Classified document {DocumentId}{Part} with {Model} in {Seconds:0.0} s, {Examples} worked examples: {Accepted} values kept, {Dropped} dropped ({Reasons})",
@@ -514,7 +514,6 @@ public sealed class ClassifyStage(
     /// <summary>The adventures with pages in this document that this model and prompt haven't read on their own pages, from any copy.</summary>
     async Task<IReadOnlyList<(EntryId EntryId, string Title, PartPages Pages)>> UnreadPartsAsync(long documentId, string model, CancellationToken ct)
     {
-        if (parts is null) return [];
         var unread = new List<(EntryId, string, PartPages)>();
         foreach (var part in await parts.GetInDocumentAsync(documentId, ct))
             if (part.Pages is { } pages && !await runs.HasRunOnAsync(part.EntryId, model, ClassifierPrompt.Version, ct))
@@ -529,7 +528,7 @@ public sealed class ClassifyStage(
     /// </summary>
     async Task FindPartsAsync(long documentId, ModelClassifier classifier, CancellationToken ct)
     {
-        if (proposals is null || !await proposals.WantsModelAsync(documentId, ct)) return;
+        if (!await proposals.WantsModelAsync(documentId, ct)) return;
         if (await inputs.BuildPartFinderAsync(documentId, ct) is not { } input) return;
         try
         {

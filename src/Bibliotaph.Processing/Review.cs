@@ -31,6 +31,22 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
 }
 
 /// <summary>
+/// Where Needs review's cards come from beyond fields and terms: new versions, packs, books owned elsewhere, places in
+/// new versions, books cataloged wrong, folder rules, adventures inside files, and collections from folders and books.
+/// </summary>
+public sealed record ReviewCards(
+    CopiesService Copies,
+    PackService Packs,
+    ElsewhereService Elsewhere,
+    PagePlaces Places,
+    CorrectionService Corrections,
+    FolderRules Rules,
+    PartsService Parts,
+    PartProposalService Proposals,
+    FolderCollections Folders,
+    CollectionSuggestions Suggestions);
+
+/// <summary>
 /// Needs review's metadata suggestions: which cards there are, and the user's decisions about them. Every
 /// decision about a field can be undone exactly, from a snapshot taken before it; a decision about a new term, from
 /// what it changed. The entries are projected again after each, so the library and the count keep up.
@@ -43,16 +59,7 @@ public sealed class ReviewService(
     IndexQueries queries,
     SettingsStore settings,
     VocabularyService vocabulary,
-    CopiesService copies,
-    PackService packs,
-    ElsewhereService? elsewhere = null,
-    PagePlaces? places = null,
-    CorrectionService? corrections = null,
-    FolderRules? rules = null,
-    PartsService? parts = null,
-    PartProposalService? proposals = null,
-    FolderCollections? folders = null,
-    CollectionSuggestions? suggestions = null)
+    ReviewCards cards)
 {
     public async Task<bool> GetReviewAllAsync(CancellationToken ct = default) =>
         await settings.GetAsync(SettingKeys.ReviewAll, ct) == bool.TrueString;
@@ -73,14 +80,14 @@ public sealed class ReviewService(
     /// books that could join collections.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default) =>
-        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await copies.CountVersionsAsync(ct)
-            + (await packs.GetProposalsAsync(ct)).Count + (elsewhere is null ? 0 : await elsewhere.CountPendingAsync(ct))
-            + (places is null ? 0 : await places.CountRevisionsAsync(ct))
-            + (corrections is null ? 0 : (await corrections.GetWaitingAsync(ct)).Count) + (rules is null ? 0 : (await rules.GetProposedAsync(ct)).Count)
-            + (parts is null ? 0 : (await parts.GetUnplacedAsync(ct)).Count)
-            + (proposals is null ? 0 : await proposals.CountPendingAsync(ct))
-            + (folders is null ? 0 : await folders.CountAsync(ct))
-            + (suggestions is null ? 0 : await suggestions.CountAsync(ct));
+        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await cards.Copies.CountVersionsAsync(ct)
+            + (await cards.Packs.GetProposalsAsync(ct)).Count + await cards.Elsewhere.CountPendingAsync(ct)
+            + await cards.Places.CountRevisionsAsync(ct)
+            + (await cards.Corrections.GetWaitingAsync(ct)).Count + (await cards.Rules.GetProposedAsync(ct)).Count
+            + (await cards.Parts.GetUnplacedAsync(ct)).Count
+            + await cards.Proposals.CountPendingAsync(ct)
+            + await cards.Folders.CountAsync(ct)
+            + await cards.Suggestions.CountAsync(ct);
 
     /// <summary>
     /// The cards: sources that disagree first, then missing titles, then other suggestions, each by title. The cards
@@ -89,8 +96,8 @@ public sealed class ReviewService(
     /// </summary>
     public async Task<ReviewList> GetQueueAsync(CancellationToken ct = default)
     {
-        folders?.ClearNotNow();
-        suggestions?.ClearNotNow();
+        cards.Folders.ClearNotNow();
+        cards.Suggestions.ClearNotNow();
         var reviewAll = await GetReviewAllAsync(ct);
         var entries = await queries.GetReviewEntriesAsync(ct);
         var all = await metadata.GetManyAsync([.. entries.Select(e => e.EntryId)], ct);
@@ -103,44 +110,44 @@ public sealed class ReviewService(
             .OrderBy(f => f.Issue.Kind)
             .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
-        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await copies.GetVersionsAsync(ct),
-            await packs.GetProposalsAsync(ct), elsewhere is null ? [] : await elsewhere.GetPendingAsync(ct), places is null ? [] : await places.GetRevisionsAsync(ct),
-            corrections is null ? [] : await corrections.GetWaitingAsync(ct), rules is null ? [] : await rules.GetProposedAsync(ct),
-            parts is null ? [] : await parts.GetUnplacedAsync(ct), proposals is null ? [] : await proposals.GetPendingAsync(ct),
-            folders is null ? [] : await folders.GetProposalsAsync(ct), suggestions is null ? [] : await suggestions.GetSuggestionsAsync(ct));
+        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await cards.Copies.GetVersionsAsync(ct),
+            await cards.Packs.GetProposalsAsync(ct), await cards.Elsewhere.GetPendingAsync(ct), await cards.Places.GetRevisionsAsync(ct),
+            await cards.Corrections.GetWaitingAsync(ct), await cards.Rules.GetProposedAsync(ct),
+            await cards.Parts.GetUnplacedAsync(ct), await cards.Proposals.GetPendingAsync(ct),
+            await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct));
     }
 
     /// <summary>
     /// Answers "Make a collection from these books?": Accept, Not now or Never. Returns what undoes it, or null when the
     /// folder isn't waiting any more.
     /// </summary>
-    public async Task<Func<Task>?> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer, CancellationToken ct = default) =>
-        folders is null ? null : await folders.AnswerAsync(proposal, answer, ct);
+    public Task<Func<Task>?> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer, CancellationToken ct = default) =>
+        cards.Folders.AnswerAsync(proposal, answer, ct);
 
     /// <summary>Answers "Add these books to this collection?": Accept, Not now or Never. Returns what undoes it.</summary>
     public async Task<Func<Task>?> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer, CancellationToken ct = default) =>
-        suggestions is null ? null : await suggestions.AnswerAsync(suggestion, answer, ct);
+        await cards.Suggestions.AnswerAsync(suggestion, answer, ct);
 
     /// <summary>"It's fine now" on a "cataloged wrong" card. Returns what brings the card back.</summary>
-    public async Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item, CancellationToken ct = default) =>
-        corrections is null ? () => Task.CompletedTask : await corrections.DismissAsync(item, ct);
+    public Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item, CancellationToken ct = default) =>
+        cards.Corrections.DismissAsync(item, ct);
 
     /// <summary>Use this rule, or No thanks, on a proposed folder rule. Returns what undoes it.</summary>
-    public async Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use, CancellationToken ct = default) =>
-        rules is null ? () => Task.CompletedTask : await rules.SetAsync(rule, use, ct);
+    public Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use, CancellationToken ct = default) =>
+        cards.Rules.SetAsync(rule, use, ct);
 
     /// <summary>
     /// Use this page on a "new version" card: the place points at the page suggested for it in the new version from now
     /// on, checked. Returns what undoes it, or null when the place is gone.
     /// </summary>
-    public async Task<Func<Task>?> UsePlaceAsync(RevisionPlace place, CancellationToken ct = default) =>
-        places is null ? null : await places.UseAsync(place.Place, place.Check.DocumentId, place.Check.FirstPdfPage, place.Check.LastPdfPage, ct);
+    public Task<Func<Task>?> UsePlaceAsync(RevisionPlace place, CancellationToken ct = default) =>
+        cards.Places.UseAsync(place.Place, place.Check.DocumentId, place.Check.FirstPdfPage, place.Check.LastPdfPage, ct);
 
     /// <summary>Answers "You own X elsewhere. Is this its file?". Returns what undoes it, or null when it isn't waiting any more.</summary>
     public async Task<Func<Task>?> AnswerElsewhereAsync(PendingElsewhere match, ElsewhereAnswer answer, CancellationToken ct = default)
     {
-        if (elsewhere is null || await elsewhere.AnswerAsync(match, answer, ct) is not { } decision) return null;
-        return () => elsewhere.UndoAsync(decision);
+        if (await cards.Elsewhere.AnswerAsync(match, answer, ct) is not { } decision) return null;
+        return () => cards.Elsewhere.UndoAsync(decision);
     }
 
     /// <summary>
@@ -149,15 +156,15 @@ public sealed class ReviewService(
     /// </summary>
     public async Task<Func<Task>?> AnswerPackAsync(PackProposal proposal, PackAnswer answer, CancellationToken ct = default)
     {
-        var previous = await packs.AnswerAsync(proposal.PackId, answer, ct);
-        return previous is { } p ? () => packs.UndoAsync(proposal.PackId, p) : null;
+        var previous = await cards.Packs.AnswerAsync(proposal.PackId, answer, ct);
+        return previous is { } p ? () => cards.Packs.UndoAsync(proposal.PackId, p) : null;
     }
 
     /// <summary>Answers a "new version?" card. Returns what undoes it, or null when it isn't waiting any more.</summary>
     public Task<VersionDecision?> AnswerVersionAsync(PendingVersion version, VersionAnswer answer, CancellationToken ct = default) =>
-        copies.AnswerVersionAsync(version, answer, ct);
+        cards.Copies.AnswerVersionAsync(version, answer, ct);
 
-    public Task UndoVersionAsync(VersionDecision decision, CancellationToken ct = default) => copies.UndoVersionAsync(decision, ct);
+    public Task UndoVersionAsync(VersionDecision decision, CancellationToken ct = default) => cards.Copies.UndoVersionAsync(decision, ct);
 
     /// <summary>Makes the card's suggestion the field's value, confirmed. Returns what undoes it.</summary>
     public async Task<FieldSnapshot> AcceptAsync(ReviewItem item, CancellationToken ct = default)

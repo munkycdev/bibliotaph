@@ -7,9 +7,6 @@ namespace Bibliotaph.Processing.Tests;
 
 public abstract partial class PipelineTests
 {
-    ReviewService FolderReview() => new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-        new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, folders: _folderCollections);
-
     static async Task<IReadOnlyList<FolderCollectionProposal>> FolderCardsAsync(ReviewService review) => (await review.GetQueueAsync(Ct)).Folders!;
 
     /// <summary>The books index.db has in a collection's scope, which a scoped Library and <c>collection:</c> read.</summary>
@@ -42,7 +39,7 @@ public abstract partial class PipelineTests
             await _roots.AddAsync(_library, Ct);
             await _service.StartAsync(Ct);
             await SettleAsync();
-            var review = FolderReview();
+            var review = Review();
 
             var proposed = await FolderCardsAsync(review);
             Assert.Equal(["Ashen Vale", "Fordwatch"], proposed.Select(p => p.Name));
@@ -91,7 +88,7 @@ public abstract partial class PipelineTests
             var root = await _roots.AddAsync(_library, Ct);
             await _service.StartAsync(Ct);
             await SettleAsync();
-            var review = FolderReview();
+            var review = Review();
             var proposed = await FolderCardsAsync(review);
             Assert.Equal(["Ashen Vale", "Lantern Coast", "Wintermoot Road"], proposed.Select(p => p.Name));
             var waiting = await review.CountAsync(Ct);
@@ -135,7 +132,7 @@ public abstract partial class PipelineTests
             await _roots.AddAsync(_library, Ct);
             await _service.StartAsync(Ct);
             await SettleAsync();
-            var review = FolderReview();
+            var review = Review();
             await review.AnswerFolderAsync(Assert.Single(await FolderCardsAsync(review)), CollectionAnswer.Accept, Ct);
             var vale = (await CollectionAsync("Ashen Vale"))!;
             Assert.True(Assert.Single(await _folderCollectionStore.ListAsync(Ct)).Follows);
@@ -174,7 +171,7 @@ public abstract partial class PipelineTests
             await _roots.AddAsync(_library, Ct);
             await _service.StartAsync(Ct);
             await SettleAsync();
-            var review = FolderReview();
+            var review = Review();
             await review.AnswerFolderAsync(Assert.Single(await FolderCardsAsync(review)), CollectionAnswer.Accept, Ct);
             var vale = (await CollectionAsync("Ashen Vale"))!;
 

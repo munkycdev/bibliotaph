@@ -8,9 +8,6 @@ public abstract partial class PipelineTests
 {
     CollectionSuggestions Suggestions() => new(_collections, _collectionsService, _metadataStore, _libraryStore, _queries);
 
-    ReviewService SuggestionReview(CollectionSuggestions suggestions) => new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-        new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, suggestions: suggestions);
-
     static async Task<IReadOnlyList<CollectionSuggestion>> SuggestedAsync(ReviewService review) => (await review.GetQueueAsync(Ct)).Suggestions!;
 
     /// <summary>
@@ -63,7 +60,7 @@ public abstract partial class PipelineTests
             var pair = await _collectionsService.CreateAsync("Pair", ct: Ct);
             await _collectionsService.AddAsync(pair.Id, [Book("E"), Book("F")], Ct);
             var suggestions = Suggestions();
-            var review = SuggestionReview(suggestions);
+            var review = Review(suggestions: suggestions);
 
             var suggested = await SuggestedAsync(review);
             Assert.Equal(["Embers"], suggested.Select(s => s.Name));
