@@ -196,7 +196,7 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
 }
 
 /// <summary>Settings > Start over: a development aid, shown only with --dev, and last in the list so it isn't chosen by accident.</summary>
-public sealed partial class StartOverSectionViewModel(StartOver startOver) : SettingsSectionViewModel
+public sealed partial class StartOverSectionViewModel(StartOver startOver, IUserPrompts prompts) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.StartOver;
     public override string Label => "Start over";
@@ -205,7 +205,7 @@ public sealed partial class StartOverSectionViewModel(StartOver startOver) : Set
     [RelayCommand]
     void StartOver()
     {
-        if (Services.StartOver.Confirm()) startOver.Run();
+        if (Services.StartOver.Confirm(prompts)) startOver.Run();
     }
 }
 
@@ -218,7 +218,7 @@ public sealed record PasswordRow(string ContentHash, string Title);
 /// read stays searchable until Forget its text.
 /// </summary>
 public sealed partial class PasswordsSectionViewModel(IPasswordVault vault, UnlockedPasswords unlocked, IndexQueries queries,
-    ILogger<PasswordsSectionViewModel> log) : SettingsSectionViewModel
+    IUserPrompts prompts, ILogger<PasswordsSectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Passwords;
     public override string Label => "Passwords";
@@ -264,10 +264,9 @@ public sealed partial class PasswordsSectionViewModel(IPasswordVault vault, Unlo
     void ForgetAll()
     {
         if (Rows.Count == 0) return;
-        var confirmed = System.Windows.MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        var confirmed = prompts.Confirm(
             $"Bibliotaph will forget {(Rows.Count == 1 ? "the remembered password" : $"all {Rows.Count:N0} remembered passwords")} and ask again the next time you open {(Rows.Count == 1 ? "the book" : "each book")}.\n\nYour files are not touched.",
-            "Forget all passwords?", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question,
-            System.Windows.MessageBoxResult.Cancel) == System.Windows.MessageBoxResult.OK;
+            "Forget all passwords?", PromptKind.Question, okByDefault: false);
         if (!confirmed) return;
         var count = vault.ForgetAll();
         foreach (var row in Rows) unlocked.Forget(row.ContentHash);

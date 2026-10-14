@@ -1,6 +1,3 @@
-using System.Windows;
-using Microsoft.Win32;
-
 namespace Bibliotaph.App.Services;
 
 /// <summary>
@@ -10,24 +7,6 @@ namespace Bibliotaph.App.Services;
 public sealed class LibraryFolders(SettingsLinks settings)
 {
     bool _pickRequested;
-
-    /// <summary>The native folder picker; empty when cancelled.</summary>
-    public static IReadOnlyList<string> Pick()
-    {
-        var dialog = new OpenFolderDialog
-        {
-            Title = "Add folders to your library",
-            Multiselect = true,
-        };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FolderNames : [];
-    }
-
-    /// <summary>The native folder picker for one folder, as for a folder's new place; null when cancelled.</summary>
-    public static string? PickOne(string title)
-    {
-        var dialog = new OpenFolderDialog { Title = title };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FolderName : null;
-    }
 
     /// <summary>Opens Settings > Library and shows the picker there.</summary>
     public void RequestPick()

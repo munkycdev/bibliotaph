@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using Bibliotaph.Catalog;
 using Bibliotaph.Catalog.Entities;
@@ -18,7 +17,8 @@ namespace Bibliotaph.App.Services;
 /// has, so Bibliotaph's own code still writes nothing into library folders. With no downloads folder, the browser
 /// saves to the user's Downloads folder as any browser does.
 /// </summary>
-public sealed class OnlineDownloads(SettingsStore settings, SourceRootStore roots, IndexingService indexing, ILogger<OnlineDownloads> log)
+public sealed class OnlineDownloads(SettingsStore settings, SourceRootStore roots, IndexingService indexing, IDesktopShell shell,
+    ILogger<OnlineDownloads> log)
 {
     string? _folder;
     bool _loaded;
@@ -79,7 +79,7 @@ public sealed class OnlineDownloads(SettingsStore settings, SourceRootStore root
                 // Bibliotaph lists the download in its own window instead of the browser's download bubble.
                 e.Handled = true;
             }
-            item = new OnlineDownload(e.DownloadOperation, e.ResultFilePath, serviceName, root?.Id, folder is not null && root is null);
+            item = new OnlineDownload(e.DownloadOperation, e.ResultFilePath, serviceName, root?.Id, folder is not null && root is null, shell);
         }
         finally
         {
@@ -100,10 +100,11 @@ public sealed partial class OnlineDownload : ObservableObject
 {
     readonly CoreWebView2DownloadOperation _operation;
     readonly bool _folderAway;
+    readonly IDesktopShell _shell;
 
-    public OnlineDownload(CoreWebView2DownloadOperation operation, string path, string serviceName, long? rootId, bool folderAway)
+    public OnlineDownload(CoreWebView2DownloadOperation operation, string path, string serviceName, long? rootId, bool folderAway, IDesktopShell shell)
     {
-        (_operation, Path, ServiceName, RootId, _folderAway) = (operation, path, serviceName, rootId, folderAway);
+        (_operation, Path, ServiceName, RootId, _folderAway, _shell) = (operation, path, serviceName, rootId, folderAway, shell);
         Name = System.IO.Path.GetFileName(path);
         operation.BytesReceivedChanged += (_, _) => Show();
         operation.StateChanged += (_, _) => Show();
@@ -182,6 +183,6 @@ public sealed partial class OnlineDownload : ObservableObject
     [RelayCommand(CanExecute = nameof(Saved))]
     void ShowInFolder()
     {
-        if (File.Exists(Path)) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path}\"") { UseShellExecute = false })?.Dispose();
+        if (File.Exists(Path)) _shell.ShowInFolder(Path);
     }
 }

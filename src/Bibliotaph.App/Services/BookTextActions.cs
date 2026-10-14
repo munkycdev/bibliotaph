@@ -1,4 +1,3 @@
-using System.Windows;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
@@ -11,7 +10,8 @@ namespace Bibliotaph.App.Services;
 /// and Forget its text and Read it again; and Open on… for a book owned online. The page that runs one refreshes
 /// after it.
 /// </summary>
-public sealed class BookTextActions(OtherApps otherApps, OnlineBooks online, OnlineReaders readers, ForgetText forget, ILogger<BookTextActions> log)
+public sealed class BookTextActions(OtherApps otherApps, OnlineBooks online, OnlineReaders readers, ForgetText forget, IUserPrompts prompts,
+    ILogger<BookTextActions> log)
 {
     /// <summary>
     /// Opens a book's page where the user owns it online, as Open does for a book owned only online: in the online
@@ -71,11 +71,7 @@ public sealed class BookTextActions(OtherApps otherApps, OnlineBooks online, Onl
         }
     }
 
-    static void Tell(string message, string title)
-    {
-        if (Application.Current?.MainWindow is { } owner)
-            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
-    }
+    void Tell(string message, string title) => prompts.Tell(message, title, PromptKind.Information);
 
     /// <summary>For a card: its book's own document, or nothing for a card with no file.</summary>
     public static bool HasFile(LibraryItemViewModel? item) => item is { IsElsewhere: false, DocumentId: > 0 };

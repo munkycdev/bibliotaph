@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Data;
 using Bibliotaph.App.Services;
@@ -80,7 +79,7 @@ public sealed partial class BuiltInModelItem : ObservableObject
 /// </summary>
 public sealed partial class BuiltInAiViewModel(
     AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester,
-    [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine)
+    IFilePicker files, IUserPrompts prompts, IDesktopShell shell, [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine)
     : ObservableObject
 {
     // Ask this book's embedding model, downloaded like a chat model and run by a second engine.
@@ -148,8 +147,13 @@ public sealed partial class BuiltInAiViewModel(
     }
 
     [RelayCommand]
-    void OpenEmbeddingLicence() =>
-        Process.Start(new ProcessStartInfo(_embedding.LicenceUrl.ToString()) { UseShellExecute = true })?.Dispose();
+    void OpenEmbeddingLicence() => ShowLicence(_embedding);
+
+    void ShowLicence(BuiltInModel model)
+    {
+        if (shell.Open(model.LicenceUrl.ToString()) is not null)
+            prompts.Tell($"Windows couldn't open the licence. It is at {model.LicenceUrl}", "Model licence", PromptKind.Warning);
+    }
 
     public ObservableCollection<BuiltInModelItem> Models { get; } = [];
 
@@ -289,9 +293,7 @@ public sealed partial class BuiltInAiViewModel(
     [RelayCommand]
     void ChooseFile()
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Use a model file on this computer", Filter = "Model files (*.gguf)|*.gguf" };
-        if (dialog.ShowDialog(Application.Current.MainWindow) != true) return;
-        ChooseFile(dialog.FileName);
+        if (files.OpenFile("Use a model file on this computer", "Model files (*.gguf)|*.gguf") is { } path) ChooseFile(path);
     }
 
     /// <summary>Lists <paramref name="path"/> as the user's own model, in place of any chosen before, and chooses it.</summary>
@@ -373,9 +375,9 @@ public sealed partial class BuiltInAiViewModel(
     async Task DeleteAsync()
     {
         if (Chosen is not { Model: { } model } item) return;
-        if (MessageBox.Show(Application.Current.MainWindow,
+        if (!prompts.Confirm(
                 $"{item.Name} ({BuiltInModelDownloads.Gb(model.Bytes)}) will be deleted from this computer. The built-in AI can't read books until a model is downloaded again.",
-                "Delete this model?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
+                "Delete this model?", PromptKind.Warning, okByDefault: false)) return;
         var inUse = ai.Setup.BuiltInModel == model.Id;
         // The engine holds the file open while it runs.
         await engine.StopAsync();
@@ -405,6 +407,6 @@ public sealed partial class BuiltInAiViewModel(
     [RelayCommand]
     void OpenLicence()
     {
-        if (Chosen is { Model: { } model }) Process.Start(new ProcessStartInfo(model.LicenceUrl.ToString()) { UseShellExecute = true })?.Dispose();
+        if (Chosen is { Model: { } model }) ShowLicence(model);
     }
 }

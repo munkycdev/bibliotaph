@@ -1,15 +1,12 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Windows;
 using Bibliotaph.App.Services;
 using Bibliotaph.Core.Sync;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -55,7 +52,7 @@ public sealed partial class RestoreFolderItem(RestoreFolder folder) : Observable
 /// where, and says what happened.
 /// </summary>
 public sealed partial class BackupSectionViewModel(BackupService backups, ExportService export, LibrarySync sync, AppRestart restart, TimeProvider clock,
-    ILogger<BackupSectionViewModel> log) : SettingsSectionViewModel
+    IFilePicker files, IUserPrompts prompts, IDesktopShell shell, ILogger<BackupSectionViewModel> log) : SettingsSectionViewModel
 {
     bool _loading;
     System.Windows.Threading.Dispatcher? _dispatcher;
@@ -159,7 +156,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     [RelayCommand(CanExecute = nameof(IsSyncIdle))]
     async Task ChooseSyncFolder()
     {
-        if (LibraryFolders.PickOne("Choose a folder to sync with your other PC") is { } path) await UseSyncFolderAsync(path);
+        if (files.PickFolder("Choose a folder to sync with your other PC") is { } path) await UseSyncFolderAsync(path);
     }
 
     /// <summary>Syncs with <paramref name="path"/>, or says why it can't: what choosing a folder does. Returns whether it was taken.</summary>
@@ -248,14 +245,8 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     [RelayCommand(CanExecute = nameof(IsIdle))]
     async Task BackUpNow()
     {
-        var dialog = new SaveFileDialog
-        {
-            Title = "Back up your library",
-            FileName = $"Bibliotaph backup {clock.GetLocalNow():yyyy-MM-dd}.zip",
-            DefaultExt = ".zip",
-            Filter = "Bibliotaph backups (*.zip)|*.zip",
-        };
-        if (dialog.ShowDialog(Application.Current.MainWindow) == true) await BackUpToAsync(dialog.FileName);
+        if (files.SaveFile("Back up your library", $"Bibliotaph backup {clock.GetLocalNow():yyyy-MM-dd}.zip", "Bibliotaph backups (*.zip)|*.zip", ".zip")
+            is { } path) await BackUpToAsync(path);
     }
 
     /// <summary>Backs up to <paramref name="path"/>: what Back up now does once a place is picked.</summary>
@@ -283,20 +274,14 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     void OpenBackupsFolder()
     {
         Directory.CreateDirectory(backups.BackupsFolder);
-        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{backups.BackupsFolder}\"") { UseShellExecute = false })?.Dispose();
+        shell.OpenFolder(backups.BackupsFolder);
     }
 
     /// <summary>Restore: the backup to restore from, then its library folders.</summary>
     [RelayCommand(CanExecute = nameof(IsIdle))]
     async Task ChooseBackup()
     {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Restore a backup",
-            Filter = "Bibliotaph backups (*.zip)|*.zip",
-            InitialDirectory = backups.BackupsFolder,
-        };
-        if (dialog.ShowDialog(Application.Current.MainWindow) == true) await PreviewRestoreAsync(dialog.FileName);
+        if (files.OpenFile("Restore a backup", "Bibliotaph backups (*.zip)|*.zip", backups.BackupsFolder) is { } path) await PreviewRestoreAsync(path);
     }
 
     /// <summary>Reads <paramref name="path"/> for restoring and shows what it holds: what choosing a backup does.</summary>
@@ -351,7 +336,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     void PointRestoredFolder(RestoreFolderItem folder)
     {
         if (Preview is not { } preview) return;
-        if (LibraryFolders.PickOne($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
+        if (files.PickFolder($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
         folder.Problem = BackupService.CheckPlace(preview, Places(), folder.Id, path) switch
         {
             RootRelocation.NotFound => "That folder can't be opened.",
@@ -380,8 +365,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
         var message = "Bibliotaph will keep a copy of your current catalog in the backups folder, then restart with this backup's. "
             + "Anything you did since the backup was made is replaced." + (offline == 0 ? ""
                 : $"\n\n{(offline == 1 ? "One library folder stays" : $"{offline} library folders stay")} offline until you point {(offline == 1 ? "it" : "them")} to {(offline == 1 ? "its" : "their")} new place.");
-        if (MessageBox.Show(Application.Current.MainWindow, message, "Restore this backup?", MessageBoxButton.OKCancel, MessageBoxImage.Warning,
-            MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
+        if (!prompts.Confirm(message, "Restore this backup?", PromptKind.Warning, okByDefault: false)) return;
 
         IsBusy = true;
         try
@@ -444,17 +428,16 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
 
     async Task ExportAsync(string title, string name, string filter, Func<string, Task<string>> write)
     {
-        var dialog = new SaveFileDialog { Title = title, FileName = name, Filter = filter, DefaultExt = System.IO.Path.GetExtension(name) };
-        if (dialog.ShowDialog(Application.Current.MainWindow) != true) return;
+        if (files.SaveFile(title, name, filter, System.IO.Path.GetExtension(name)) is not { } path) return;
         IsBusy = true;
         ExportNote = "Exporting…";
         try
         {
-            ExportNote = await write(dialog.FileName);
+            ExportNote = await write(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
-            log.LogError(ex, "Exporting to {Path} failed", dialog.FileName);
+            log.LogError(ex, "Exporting to {Path} failed", path);
             ExportNote = $"The export couldn't be saved: {ex.Message}";
         }
         finally

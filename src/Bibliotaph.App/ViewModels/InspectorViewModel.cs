@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using Bibliotaph.Catalog;
 using Bibliotaph.App.Services;
@@ -58,6 +57,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly ElsewhereService _elsewhere;
     readonly CorrectionService? _corrections;
     readonly ChosenCovers? _chosen;
+    readonly IFilePicker _files;
+    readonly IUserPrompts _prompts;
+    readonly IDesktopShell _shell;
     /// <summary>The metadata as last shown, so a correction can be compared with what the field held before it.</summary>
     EffectiveMetadata _shown = EffectiveMetadata.Empty;
     /// <summary>The user changed or kept a value since Cataloged wrong… opened the editor.</summary>
@@ -67,8 +69,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
-        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections, ChosenCovers? chosen)
+        PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, CorrectionService? corrections,
+        ChosenCovers? chosen)
     {
+        _files = files;
+        _prompts = prompts;
+        _shell = shell;
         _elsewhere = elsewhere;
         _chosen = chosen;
         _corrections = corrections;
@@ -153,9 +159,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     async Task ChooseCover()
     {
         if (_chosen is null) return;
-        var dialog = new Microsoft.Win32.OpenFileDialog { Title = $"Choose a cover for {Item.Title}", Filter = ChosenCovers.FileFilter };
-        if (dialog.ShowDialog() != true) return;
-        CoverProblem = await Task.Run(() => _chosen.ChooseAsync(Item.EntryId, dialog.FileName));
+        if (_files.OpenFile($"Choose a cover for {Item.Title}", ChosenCovers.FileFilter) is not { } path) return;
+        CoverProblem = await Task.Run(() => _chosen.ChooseAsync(Item.EntryId, path));
         if (CoverProblem is not null) return;
         HasChosenCover = true;
         MetadataChanged?.Invoke(this, EventArgs.Empty);
@@ -204,9 +209,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     }
 
     [RelayCommand]
-    static void ShowCopyInExplorer(InspectorCopy copy)
+    void ShowCopyInExplorer(InspectorCopy copy)
     {
-        if ((copy.ExplorerPath ?? copy.Path) is { } path) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+        if ((copy.ExplorerPath ?? copy.Path) is { } path) _shell.ShowInFolder(path);
     }
 
     static InspectorCopy ToCopy(CopyDetails details)
@@ -389,9 +394,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     void IMetadataEditor.OpenLink(string url)
     {
         if (StoreLink.WebAddress(url) is not { } address) return;
-        if (!WebLinks.AskAndOpen(address, out var failed) && failed is not null)
-            System.Windows.MessageBox.Show("Windows couldn't open that link.", "Open a web link", System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+        if (!WebLinkPrompt.ConfirmOpen(_prompts, address) || _shell.Open(address) is null) return;
+        _prompts.Tell("Windows couldn't open that link.", "Open a web link", PromptKind.Warning);
     }
 
     public LibraryItemViewModel Item { get; }
@@ -464,7 +468,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
-        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null, ChosenCovers? chosen = null)
+        IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null,
+        ChosenCovers? chosen = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -491,7 +496,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections, chosen);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, files, prompts,
+            shell, corrections, chosen);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts, log);
@@ -510,7 +516,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [RelayCommand(CanExecute = nameof(CanReprocess))]
     async Task ReprocessWithOcr()
     {
-        if (PageCount == 0 || !Services.ReprocessPrompt.ConfirmOcrEveryPage(Title, PageCount)) return;
+        if (PageCount == 0 || !Services.ReprocessPrompt.ConfirmOcrEveryPage(_prompts, Title, PageCount)) return;
         await StartReprocessAsync(ocrEveryPage: true);
     }
 
@@ -569,17 +575,17 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// or the nearest one above it still there. Explorer only shows it; nothing is changed.
     /// </summary>
     [RelayCommand]
-    static void ShowInExplorer(InspectorLocation location)
+    void ShowInExplorer(InspectorLocation location)
     {
         var path = location.ExplorerPath ?? location.Path;
         if (!location.IsMissing)
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+            _shell.ShowInFolder(path);
             return;
         }
         var folder = System.IO.Path.GetDirectoryName(path);
         while (folder is not null && !System.IO.Directory.Exists(folder)) folder = System.IO.Path.GetDirectoryName(folder);
-        if (folder is not null) Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false });
+        if (folder is not null) _shell.OpenFolder(folder);
     }
 
     static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details)

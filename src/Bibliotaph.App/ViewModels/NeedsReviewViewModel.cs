@@ -1,8 +1,6 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Windows;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -117,6 +115,8 @@ public sealed partial class NeedsReviewViewModel(
     PartsService parts,
     PartProposalService proposals,
     LibraryPages pages,
+    IClipboard clipboard,
+    IDesktopShell shell,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
     /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
@@ -479,7 +479,7 @@ public sealed partial class NeedsReviewViewModel(
             $"Files: {group.Rows.Count:N0}");
         try
         {
-            Clipboard.SetText(details);
+            clipboard.SetText(details);
             group.Copied = true;
         }
         catch (COMException ex)
@@ -700,8 +700,7 @@ public sealed partial class NeedsReviewViewModel(
             });
     }
 
-    public void ShowFolder(string path) =>
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
+    public void ShowFolder(string path) => shell.ShowInFolder(path);
 
     /// <summary>The covers of a proposal's first four images that have one.</summary>
     async Task<IReadOnlyList<CoverTile>> TilesAsync(PackProposal proposal)
