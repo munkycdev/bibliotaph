@@ -182,6 +182,7 @@ public interface IJobControl
     Task<bool> ReprocessAsync(long documentId, bool ocrEveryPage = false, CancellationToken ct = default);
 }
 
+
 /// <summary>
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
 /// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
@@ -189,172 +190,117 @@ public interface IJobControl
 /// Leases left by a previous run go back to pending before anything else starts. Online-only files that reading
 /// downloaded go back to online-only once their stages are done with them (<see cref="OnlineOnlyReturns"/>).
 /// </summary>
-public sealed class IndexingService(
-    SourceRootStore roots,
-    LibraryStore library,
-    JobBoard queue,
-    IEnumerable<IStage> stages,
-    IndexingFiles files,
-    PackService packs,
-    PartsService parts,
-    FolderCollections folderCollections,
-    IndexingOptions? options = null,
-    ILogger<IndexingService>? log = null,
-    TimeProvider? clock = null) : BackgroundService, IJobControl, IIndexingStatus
+public sealed class IndexingService : BackgroundService, IJobControl, IIndexingStatus
 {
     /// <summary>How the reason begins when a stage threw something nothing expected: a bug, not a problem with the file.</summary>
     public const string UnexpectedError = "Unexpected error: ";
 
-    readonly IndexingOptions _options = options ?? new IndexingOptions();
-    readonly ILogger _log = log ?? NullLogger<IndexingService>.Instance;
-    readonly TimeProvider _clock = clock ?? TimeProvider.System;
-    readonly Dictionary<Stage, IStage> _stages = stages.ToDictionary(s => s.Stage);
+    readonly SourceRootStore _roots;
+    readonly LibraryStore _library;
+    readonly JobBoard _queue;
+    readonly PartsService _parts;
+    readonly OnlineOnlyReturns _returns;
+    readonly ILogger _log;
+    readonly TimeProvider _clock;
+    readonly IndexingActivityState _activity = new();
+    readonly LaneRunner _lanes;
+    readonly HashingLoop _hashing;
+    readonly FolderWatchers _watchers;
+    readonly LibraryScanner _scanner;
     readonly Lock _lock = new();
     bool _gatesWatched;
-
-    readonly Signal _scanSignal = new();
-    readonly Signal _hashSignal = new();
-    /// <summary>Set when a file may be done with: a file stage finished, a batch was hashed, a lane paused, the setting changed.</summary>
-    readonly Signal _returnSignal = new();
-    readonly Dictionary<Lane, Signal> _laneSignals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
-    readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
-
-    /// <summary>Set when files may have arrived, moved or been hashed, so folders are looked at for packs after hashing.</summary>
-    volatile bool _packsDue = true;
-    volatile bool _packing;
-    HashSet<long>? _pendingScans; // null: every root
-    bool _scanAll = true;
-    /// <summary>Those waiting in <see cref="ScanNowAsync"/> for the next pass to finish.</summary>
-    List<TaskCompletionSource>? _scanWaits;
-    readonly Dictionary<long, RootScan> _scans = [];
-    readonly Dictionary<long, UnreadableFile> _unreadable = [];
-    readonly Dictionary<long, (FileSystemWatcher Watcher, ITimer Debounce)> _watchers = [];
-    /// <summary>Roots whose watcher stopped (its drive went away) or that came back online: watched afresh at the next sync.</summary>
-    readonly HashSet<long> _staleWatchers = [];
     CancellationToken _stopping;
+
+    /// <summary>Library folders are watched through <paramref name="folderWatcher"/>: the file system's own notifications unless a test says otherwise.</summary>
+    public IndexingService(
+        SourceRootStore roots,
+        LibraryStore library,
+        JobBoard queue,
+        IEnumerable<IStage> stages,
+        IndexingFiles files,
+        PackService packs,
+        PartsService parts,
+        FolderCollections folderCollections,
+        IndexingOptions? options = null,
+        ILogger<IndexingService>? log = null,
+        TimeProvider? clock = null,
+        IFolderWatcher? folderWatcher = null)
+    {
+        options ??= new IndexingOptions();
+        (_roots, _library, _queue, _parts, _returns) = (roots, library, queue, parts, files.Returns);
+        _log = log ?? NullLogger<IndexingService>.Instance;
+        _clock = clock ?? TimeProvider.System;
+        // Each part logs as indexing, and says through Changed when what it shows moves. A callback into a part made
+        // after it runs only once the loops have started, long after this.
+        _lanes = new LaneRunner(queue, library, stages, options, _log, _clock, RaiseChanged, fileStageDone: () => _hashing!.WakeReturns());
+        _hashing = new HashingLoop(library, queue, files, packs, folderCollections, _lanes, _activity, options, _log, _clock, RaiseChanged);
+        _watchers = new FolderWatchers(folderWatcher ?? new FileSystemFolderWatcher(), options.RescanDelay, _log, _clock, rootId => _scanner!.RequestScan(rootId));
+        _scanner = new LibraryScanner(roots, library, files.Identity, _watchers, _hashing, _lanes, _activity, options, _log, _clock, RaiseChanged);
+    }
 
     /// <summary>Something changed that a progress display would show. Raised on a background thread, often; throttle.</summary>
     public event EventHandler? Changed;
 
-    /// <summary>Wakes a lane whose gate may have opened, as when AI is switched on, and clears what it was waiting for.</summary>
-    void OnGateChanged(Lane lane)
-    {
-        lock (_lock) _lanes[lane].Unavailable = null;
-        _laneSignals[lane].Set();
-        RaiseChanged();
-    }
-
     /// <summary>Whether a lane may work: every gated stage in it is ready. A lane with no gated stage always may.</summary>
-    public bool IsOpen(Lane lane) =>
-        _stages.Values.Where(s => Pipeline.LaneOf(s.Stage) == lane).OfType<IGatedStage>().All(s => s.IsReady);
+    public bool IsOpen(Lane lane) => _lanes.IsOpen(lane);
 
     /// <summary>Why a lane is waiting even though it has work, such as a model endpoint that isn't answering; null otherwise.</summary>
-    public string? Unavailable(Lane lane)
-    {
-        lock (_lock) return _lanes[lane].Unavailable;
-    }
+    public string? Unavailable(Lane lane) => _lanes.Unavailable(lane);
 
-    public bool IsScanning { get; private set; }
+    public bool IsScanning => _activity.Current.IsScanning;
 
     /// <summary>
     /// True while folders are due to be looked at for packs and for the collections that follow them, or are being
     /// looked at: hashing can finish and every job go idle a moment before the pack cards it calls for are made.
     /// </summary>
-    public bool PacksPending => (packs is not null || folderCollections is not null) && (_packsDue || _packing);
+    public bool PacksPending => _hashing.PacksPending;
 
     /// <summary>True when online-only files are waiting because their drive is short of space.</summary>
-    public bool WaitingForDiskSpace { get; private set; }
+    public bool WaitingForDiskSpace => _activity.Current.WaitingForDiskSpace;
 
-    public IReadOnlyList<RootScan> Scans
-    {
-        get { lock (_lock) return [.. _scans.Values]; }
-    }
+    public IReadOnlyList<RootScan> Scans => _scanner.Scans;
 
-    public IReadOnlyList<UnreadableFile> Unreadable
-    {
-        get { lock (_lock) return [.. _unreadable.Values]; }
-    }
+    public IReadOnlyList<UnreadableFile> Unreadable => _hashing.Unreadable;
 
     /// <summary>The file being read for hashing, if any.</summary>
-    public string? Hashing { get; private set; }
+    public string? Hashing => _activity.Current.Hashing;
 
     /// <summary>The job a lane is running, if any.</summary>
-    public JobRecord? Running(Lane lane)
-    {
-        lock (_lock) return _lanes[lane].Running;
-    }
+    public JobRecord? Running(Lane lane) => _lanes.Running(lane);
 
-    public bool IsPaused(Lane lane)
-    {
-        lock (_lock) return _lanes[lane].Paused;
-    }
+    public bool IsPaused(Lane lane) => _lanes.IsPaused(lane);
 
     /// <summary>Pauses a lane. Its running job stops at the next page and goes back to the queue without using an attempt.</summary>
     public void Pause(Lane lane)
     {
-        lock (_lock)
-        {
-            var control = _lanes[lane];
-            if (control.Paused) return;
-            control.Paused = true;
-            control.Cancel.Cancel();
-        }
-        // While online-only files wait for space, a paused lane's books give their files back (ReturnLoopAsync).
-        _returnSignal.Set();
+        if (!_lanes.Pause(lane)) return;
+        // While online-only files wait for space, a paused lane's books give their files back (HashingLoop.ReturnLoopAsync).
+        _hashing.WakeReturns();
         RaiseChanged();
     }
 
     public void Resume(Lane lane)
     {
-        lock (_lock)
-        {
-            var control = _lanes[lane];
-            if (!control.Paused) return;
-            control.Paused = false;
-            control.Cancel.Dispose();
-            control.Cancel = new CancellationTokenSource();
-        }
-        _laneSignals[lane].Set();
-        if (lane == Lane.Index) _hashSignal.Set();
+        if (!_lanes.Resume(lane)) return;
+        if (lane == Lane.Index) _hashing.Wake();
         RaiseChanged();
     }
 
     /// <summary>Scans one root, or every root when <paramref name="rootId"/> is null, as soon as the scanner is free.</summary>
-    public void RequestScan(long? rootId = null)
-    {
-        lock (_lock)
-        {
-            if (rootId is null) _scanAll = true;
-            else (_pendingScans ??= []).Add(rootId.Value);
-        }
-        _scanSignal.Set();
-    }
+    public void RequestScan(long? rootId = null) => _scanner.RequestScan(rootId);
 
     /// <summary>
     /// Scans these roots, or every root when <paramref name="rootIds"/> is null, and returns once that scan has
     /// finished: as the reader's Try again does for a book whose folder was offline or whose file had gone, so it
     /// opens at once if the folder is back or the file turned up. Nothing waits for files to be read.
     /// </summary>
-    public async Task ScanNowAsync(IReadOnlyCollection<long>? rootIds = null, CancellationToken ct = default)
-    {
-        if (rootIds is { Count: 0 }) return;
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (_lock)
-        {
-            // Asked for under the same lock the scan loop takes them under, so the pass that takes these roots takes this wait too.
-            if (rootIds is null) _scanAll = true;
-            else (_pendingScans ??= []).UnionWith(rootIds);
-            (_scanWaits ??= []).Add(done);
-        }
-        _scanSignal.Set();
-        await done.Task.WaitAsync(ct);
-    }
+    public Task ScanNowAsync(IReadOnlyCollection<long>? rootIds = null, CancellationToken ct = default) => _scanner.ScanNowAsync(rootIds, ct);
 
     /// <summary>Runs a stage again for every document that has been through it, as after a vocabulary edit.</summary>
     public async Task<int> RerunAsync(Stage stage, CancellationToken ct = default)
     {
-        var queued = await queue.RerunAsync(stage, ct);
-        _laneSignals[Pipeline.LaneOf(stage)].Set();
+        var queued = await _queue.RerunAsync(stage, ct);
+        _lanes.Wake(Pipeline.LaneOf(stage));
         RaiseChanged();
         return queued;
     }
@@ -365,8 +311,8 @@ public sealed class IndexingService(
     /// </summary>
     public async Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default)
     {
-        var queued = await queue.RerunAsync(stage, documentId, ct);
-        _laneSignals[Pipeline.LaneOf(stage)].Set();
+        var queued = await _queue.RerunAsync(stage, documentId, ct);
+        _lanes.Wake(Pipeline.LaneOf(stage));
         RaiseChanged();
         return queued;
     }
@@ -378,8 +324,8 @@ public sealed class IndexingService(
     public async Task RetryAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
     {
         if (documentIds.Count == 0) return;
-        await queue.RetryAsync(documentIds, ct);
-        foreach (var signal in _laneSignals.Values) signal.Set();
+        await _queue.RetryAsync(documentIds, ct);
+        _lanes.WakeAll();
         RaiseChanged();
     }
 
@@ -389,17 +335,7 @@ public sealed class IndexingService(
     /// </summary>
     public void Interrupt(IReadOnlyCollection<long> documentIds)
     {
-        lock (_lock)
-        {
-            foreach (var control in _lanes.Values)
-            {
-                if (control.Paused || control.Running is not { } job || !documentIds.Contains(job.DocumentId)) continue;
-                // Not disposed: the lane's loop still holds the old token, and drops it with this job.
-                var interrupted = control.Cancel;
-                control.Cancel = new CancellationTokenSource();
-                interrupted.Cancel();
-            }
-        }
+        _lanes.Interrupt(documentIds);
         RaiseChanged();
     }
 
@@ -408,14 +344,7 @@ public sealed class IndexingService(
     /// as when a disk is plugged in or taken out. One that can be reached again comes back with its books without
     /// Look for changes; one whose disk went reads as offline at once.
     /// </summary>
-    public async Task RescanOfflineAsync(IReadOnlyCollection<char>? drives = null, CancellationToken ct = default)
-    {
-        foreach (var root in await roots.ListAsync(ct))
-            if (root.Availability == SourceRootAvailability.Offline || drives?.Any(d => OnDrive(root.Path, d)) == true) RequestScan(root.Id);
-    }
-
-    static bool OnDrive(string path, char drive) =>
-        Path.GetPathRoot(path) is { Length: >= 2 } root && root[1] == ':' && char.ToUpperInvariant(root[0]) == char.ToUpperInvariant(drive);
+    public Task RescanOfflineAsync(IReadOnlyCollection<char>? drives = null, CancellationToken ct = default) => _scanner.RescanOfflineAsync(drives, ct);
 
     /// <summary>
     /// "Point to its new place", for a library folder that moved for good, as to a new disk: checked as a folder to
@@ -424,28 +353,12 @@ public sealed class IndexingService(
     /// card and everything done with it, and nothing is read again unless it changed. Restore points folders at their
     /// new places through this too.
     /// </summary>
-    public async Task<RootRelocation> RelocateRootAsync(long rootId, string path, CancellationToken ct = default)
-    {
-        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        if (!Directory.Exists(full)) return RootRelocation.NotFound;
-        var others = (await roots.ListAsync(ct)).Where(r => r.Id != rootId).Select(r => r.Path);
-        if (others.Any(other => SourceScanner.IsUnder(full, other) || SourceScanner.IsUnder(other, full))) return RootRelocation.Overlaps;
-        if (!await roots.RelocateAsync(rootId, full, ct)) return RootRelocation.WasRemoved;
-        _log.LogInformation("Library folder {RootId} pointed to its new place", rootId);
-        lock (_lock)
-        {
-            _scans.Remove(rootId);
-            _staleWatchers.Add(rootId);
-        }
-        RequestScan(rootId);
-        RaiseChanged();
-        return RootRelocation.Relocated;
-    }
+    public Task<RootRelocation> RelocateRootAsync(long rootId, string path, CancellationToken ct = default) => _scanner.RelocateRootAsync(rootId, path, ct);
 
     /// <summary>Lists a folder for the Add folder preview, without adding it or opening any file.</summary>
     public async Task<ScanResult?> PreviewAsync(string folder, CancellationToken ct = default)
     {
-        var others = (await roots.ListAsync(ct)).Select(r => r.Path).ToList();
+        var others = (await _roots.ListAsync(ct)).Select(r => r.Path).ToList();
         return await Task.Run(() => SourceScanner.Scan(folder, others, ct), ct);
     }
 
@@ -456,10 +369,10 @@ public sealed class IndexingService(
     /// </summary>
     public async Task<bool> ReprocessAsync(long documentId, bool ocrEveryPage = false, CancellationToken ct = default)
     {
-        if (!await queue.ReprocessAsync(documentId, ocrEveryPage, ct)) return false;
+        if (!await _queue.ReprocessAsync(documentId, ocrEveryPage, ct)) return false;
         _log.LogInformation("Reprocessing document {DocumentId} (OCR on every page: {EveryPage})", documentId, ocrEveryPage);
-        foreach (var rootId in await library.GetRootIdsAsync(documentId, ct)) RequestScan(rootId);
-        foreach (var signal in _laneSignals.Values) signal.Set();
+        foreach (var rootId in await _library.GetRootIdsAsync(documentId, ct)) _scanner.RequestScan(rootId);
+        _lanes.WakeAll();
         RaiseChanged();
         return true;
     }
@@ -467,49 +380,49 @@ public sealed class IndexingService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stopping = stoppingToken;
-        var recovered = await queue.RecoverLeasesAsync(stoppingToken);
+        var recovered = await _queue.RecoverLeasesAsync(stoppingToken);
         if (recovered > 0) _log.LogInformation("Returned {Count} interrupted jobs to the queue", recovered);
         // A new index.db beside a catalog with books in it, as after a restore without the index: each is read again.
-        var unqueued = await queue.EnqueueUnqueuedAsync(await library.GetDocumentHashesAsync(stoppingToken), Pipeline.First, stoppingToken);
+        var unqueued = await _queue.EnqueueUnqueuedAsync(await _library.GetDocumentHashesAsync(stoppingToken), Pipeline.First, stoppingToken);
         if (unqueued > 0) _log.LogInformation("Queued {Count} documents index.db had no record of, to be read again", unqueued);
         // A library indexed before rule hints existed gets them without re-probing anything.
-        if (_stages.ContainsKey(Stage.RuleHints))
+        if (_lanes.Stages.ContainsKey(Stage.RuleHints))
         {
-            var backfilled = await queue.EnqueueMissingAsync(Stage.RuleHints, after: Stage.Probe, stoppingToken);
+            var backfilled = await _queue.EnqueueMissingAsync(Stage.RuleHints, after: Stage.Probe, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued hints from names for {Count} documents", backfilled);
         }
         // Likewise classification, for books read before it existed; they wait in the queue until AI is set up.
-        if (_stages.ContainsKey(Stage.Classify))
+        if (_lanes.Stages.ContainsKey(Stage.Classify))
         {
-            var backfilled = await queue.EnqueueMissingAsync(Stage.Classify, after: Stage.Text, stoppingToken);
+            var backfilled = await _queue.EnqueueMissingAsync(Stage.Classify, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued classification for {Count} documents", backfilled);
         }
         // And looking for other copies, for books read before that stage existed: from the text already stored, so no
         // file is read again.
-        if (_stages.ContainsKey(Stage.Match))
+        if (_lanes.Stages.ContainsKey(Stage.Match))
         {
-            var backfilled = await queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
+            var backfilled = await _queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued the search for other copies for {Count} documents", backfilled);
         }
         // And reading whole books, chapter by chapter, which comes after everything else and waits for AI to be on.
-        if (_stages.ContainsKey(Stage.ChapterScan))
+        if (_lanes.Stages.ContainsKey(Stage.ChapterScan))
         {
-            var backfilled = await queue.EnqueueMissingAsync(Stage.ChapterScan, after: Stage.Text, stoppingToken);
+            var backfilled = await _queue.EnqueueMissingAsync(Stage.ChapterScan, after: Stage.Text, stoppingToken);
             if (backfilled > 0) _log.LogInformation("Queued whole-book scans for {Count} documents", backfilled);
         }
         WatchGates();
 
-        _scanSignal.Set();
+        _scanner.Wake();
         // Each loop on the thread pool: none of this may run on the UI thread that started the host.
         List<Task> loops =
         [
-            Task.Run(() => LoopAsync("scanner", ScanLoopAsync, stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("offline check", OfflineLoopAsync, stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("hasher", HashLoopAsync, stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("index lane", ct => LaneLoopAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("OCR lane", ct => LaneLoopAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("Classify lane", ct => LaneLoopAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("online-only returns", ct => ReturnLoopAsync(files.Returns, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("scanner", _scanner.RunAsync, stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("offline check", _scanner.OfflineLoopAsync, stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("hasher", _hashing.RunAsync, stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("index lane", ct => _lanes.RunAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("OCR lane", ct => _lanes.RunAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("Classify lane", ct => _lanes.RunAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("online-only returns", _hashing.ReturnLoopAsync, stoppingToken), CancellationToken.None),
         ];
         await Task.WhenAll(loops);
     }
@@ -521,13 +434,13 @@ public sealed class IndexingService(
             if (_gatesWatched) return;
             _gatesWatched = true;
         }
-        foreach (var gated in _stages.Values.OfType<IGatedStage>())
+        foreach (var gated in _lanes.Stages.Values.OfType<IGatedStage>())
         {
             var lane = Pipeline.LaneOf(gated.Stage);
-            gated.ReadyChanged += (_, _) => OnGateChanged(lane);
+            gated.ReadyChanged += (_, _) => _lanes.GateChanged(lane);
         }
-        parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
-        files.Returns.SettingChanged += (_, _) => _returnSignal.Set();
+        _parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
+        _returns.SettingChanged += (_, _) => _hashing.WakeReturns();
     }
 
     static readonly TimeSpan PartsRecheck = TimeSpan.FromSeconds(1);
@@ -542,19 +455,19 @@ public sealed class IndexingService(
         {
             // Classify may be reading the document now, having looked for its adventures before this one was marked
             // (Accept marks several in a row): it runs again once it is done.
-            while (!await queue.RerunAsync(Stage.Classify, documentId, _stopping))
+            while (!await _queue.RerunAsync(Stage.Classify, documentId, _stopping))
             {
-                if (await queue.IsRunningAsync(Stage.Classify, documentId, _stopping))
+                if (await _queue.IsRunningAsync(Stage.Classify, documentId, _stopping))
                 {
                     await Task.Delay(PartsRecheck, _clock, _stopping);
                     continue;
                 }
                 // Not running and not finished: waiting to run, which reads the adventure then; or it finished between
                 // the two looks, and runs again now.
-                if (await queue.RerunAsync(Stage.Classify, documentId, _stopping)) break;
+                if (await _queue.RerunAsync(Stage.Classify, documentId, _stopping)) break;
                 return;
             }
-            _laneSignals[Pipeline.LaneOf(Stage.Classify)].Set();
+            _lanes.Wake(Pipeline.LaneOf(Stage.Classify));
             RaiseChanged();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -566,15 +479,7 @@ public sealed class IndexingService(
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken);
-        lock (_lock)
-        {
-            foreach (var (watcher, debounce) in _watchers.Values)
-            {
-                watcher.Dispose();
-                debounce.Dispose();
-            }
-            _watchers.Clear();
-        }
+        _watchers.Clear();
     }
 
     /// <summary>Keeps a loop alive through unexpected errors, so one bad file can't stop indexing until restart.</summary>
@@ -605,580 +510,13 @@ public sealed class IndexingService(
         }
     }
 
-    // ---- Scanning -------------------------------------------------------------------------------------------------
-
-    async Task ScanLoopAsync(CancellationToken ct)
-    {
-        while (true)
-        {
-            await _scanSignal.WaitAsync(Timeout.InfiniteTimeSpan, ct);
-            bool all;
-            HashSet<long>? some;
-            List<TaskCompletionSource>? waits;
-            lock (_lock)
-            {
-                (all, some, waits) = (_scanAll, _pendingScans, _scanWaits);
-                (_scanAll, _pendingScans, _scanWaits) = (false, null, null);
-            }
-
-            try
-            {
-                var current = await roots.ListAsync(ct);
-                // A folder that was offline and can be watched again is scanned now: a watcher only reports changes from then on.
-                if (_options.WatchFolders) foreach (var rootId in SyncWatchers(current)) (some ??= []).Add(rootId);
-                IsScanning = true;
-                RaiseChanged();
-                try
-                {
-                    // A folder a file may have moved from is scanned in the same pass, before the file is read at its new place.
-                    var pass = current.Where(r => all || some?.Contains(r.Id) == true).ToList();
-                    for (var i = 0; i < pass.Count; i++)
-                        foreach (var from in await ScanRootAsync(pass[i], current, ct))
-                            if (pass.All(r => r.Id != from) && current.FirstOrDefault(r => r.Id == from) is { } source) pass.Add(source);
-                }
-                finally
-                {
-                    IsScanning = false;
-                    RaiseChanged();
-                }
-            }
-            finally
-            {
-                // Done or failed, the pass is over: nobody waits on it for ever.
-                foreach (var wait in waits ?? []) wait.TrySetResult();
-            }
-            // A folder back online is watched again now rather than at the next scan.
-            if (_options.WatchFolders) foreach (var rootId in SyncWatchers(await roots.ListAsync(ct))) RequestScan(rootId);
-            await ReleaseReachableAsync(ct);
-            _packsDue = true;
-            _hashSignal.Set();
-        }
-    }
-
-    /// <summary>Every few minutes, offline folders are looked at again, for a network share that has come back.</summary>
-    async Task OfflineLoopAsync(CancellationToken ct)
-    {
-        while (true)
-        {
-            await Task.Delay(_options.OfflineRecheck, _clock, ct);
-            await RescanOfflineAsync(ct: ct);
-        }
-    }
-
-    /// <summary>
-    /// Scans a root, unless it reads as offline: it can't be listed, its drive holds another disk than at its first
-    /// scan, or it lists as empty though the catalog has files in it. Then nothing is marked missing. File IDs are
-    /// read only where its disk keeps them, so a moved file is followed rather than read.
-    /// </summary>
-    /// <returns>The other folders a file new here may have moved from (<see cref="ReconcileResult.MovedFrom"/>).</returns>
-    async Task<IReadOnlyList<long>> ScanRootAsync(SourceRoot root, IReadOnlyList<SourceRoot> all, CancellationToken ct)
-    {
-        var others = all.Where(r => r.Id != root.Id).Select(r => r.Path).ToList();
-        var result = await Task.Run(() => SourceScanner.Scan(root.Path, others, ct), ct);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        // A folder whose own listing fails is as good as unreachable.
-        if (result is null || result.Summary.Inaccessible.Contains("."))
-        {
-            await MarkOfflineAsync(root, OfflineReason.Unreachable, now, ct);
-            return [];
-        }
-        var volume = await Task.Run(() => files.Identity.Volume(root.Path), ct);
-        if (root.VolumeSerial is { } serial && volume is not null && !string.Equals(volume.Serial, serial, StringComparison.OrdinalIgnoreCase))
-        {
-            await MarkOfflineAsync(root, OfflineReason.DifferentDisk, now, ct);
-            return [];
-        }
-        if (result.Files.Count == 0 && await library.HasFilesAsync(root.Id, ct))
-        {
-            await MarkOfflineAsync(root, OfflineReason.LooksEmpty, now, ct);
-            return [];
-        }
-
-        Func<string, string?>? fileId = volume is { HasFileIds: true } ? relative => files.Identity.FileId(Path.Combine(root.Path, relative)) : null;
-        // On a local drive every file's ID is read again, so a file saved over another with the same size and date is
-        // seen; on a network share each read is a round trip, so only new and changed files are asked.
-        var changes = await library.ReconcileRootAsync(root.Id, result.Files, result.Summary.Inaccessible, fileId, volume?.Serial,
-            readKnownIds: volume is { IsLocal: true }, ct: ct);
-        _log.LogInformation("Scanned library folder {RootId}: {Files} files, {Changes}", root.Id, result.Files.Count, changes);
-        if (root.Availability == SourceRootAvailability.Offline)
-        {
-            _log.LogInformation("Library folder {RootId} is back online", root.Id);
-            // Its watcher, if it had one, watched a drive that went away.
-            lock (_lock) _staleWatchers.Add(root.Id);
-        }
-        lock (_lock)
-        {
-            _scans[root.Id] = new RootScan(root.Id, root.Path, true, result.Summary, changes, now);
-            // Anything that couldn't be read gets another try now its folder has been looked at again.
-            foreach (var stale in _unreadable.Values.Where(u => u.Path.StartsWith(root.Path, StringComparison.OrdinalIgnoreCase)).ToList())
-                _unreadable.Remove(stale.LocationId);
-        }
-        return changes.MovedFrom ?? [];
-    }
-
-    async Task MarkOfflineAsync(SourceRoot root, OfflineReason reason, DateTime now, CancellationToken ct)
-    {
-        _log.LogInformation("Library folder {RootId} is offline: {Reason}", root.Id, reason);
-        await library.SetRootAvailabilityAsync(root.Id, SourceRootAvailability.Offline, ct);
-        lock (_lock) _scans[root.Id] = new RootScan(root.Id, root.Path, false, null, null, now, reason);
-    }
-
-    /// <summary>
-    /// One watcher per root. One that stopped, or whose folder came back online, is made again. Returns the offline
-    /// folders that could be watched again, which want a scan.
-    /// </summary>
-    List<long> SyncWatchers(IReadOnlyList<SourceRoot> current)
-    {
-        var reachable = new List<long>();
-        lock (_lock)
-        {
-            foreach (var gone in _watchers.Keys.Where(id => current.All(r => r.Id != id) || _staleWatchers.Contains(id)).ToList())
-            {
-                _watchers[gone].Watcher.Dispose();
-                _watchers[gone].Debounce.Dispose();
-                _watchers.Remove(gone);
-            }
-            _staleWatchers.Clear();
-            foreach (var root in current.Where(r => !_watchers.ContainsKey(r.Id)))
-            {
-                var rootId = root.Id;
-                try
-                {
-                    var debounce = _clock.CreateTimer(_ => RequestScan(rootId), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-                    var watcher = new FileSystemWatcher(root.Path)
-                    {
-                        IncludeSubdirectories = true,
-                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
-                        InternalBufferSize = 64 * 1024,
-                    };
-                    void Changed(object? sender, EventArgs e) => debounce.Change(_options.RescanDelay, Timeout.InfiniteTimeSpan);
-                    watcher.Created += Changed;
-                    watcher.Changed += Changed;
-                    watcher.Deleted += Changed;
-                    watcher.Renamed += Changed;
-                    // A buffer overflow loses events; a rescan catches up with whatever they were. Any other error, as
-                    // when its drive goes away, stops the watcher for good: the rescan finds the folder offline, and
-                    // the watcher is made again once it can be.
-                    watcher.Error += (sender, e) =>
-                    {
-                        if (e.GetException() is not InternalBufferOverflowException)
-                            lock (_lock) _staleWatchers.Add(rootId);
-                        Changed(sender, e);
-                    };
-                    watcher.EnableRaisingEvents = true;
-                    _watchers[rootId] = (watcher, debounce);
-                    if (root.Availability == SourceRootAvailability.Offline) reachable.Add(rootId);
-                }
-                catch (Exception ex) when (ex is ArgumentException or IOException or PlatformNotSupportedException)
-                {
-                    // An offline root can't be watched; the next scan after it returns tries again.
-                    _log.LogDebug(ex, "Not watching library folder {RootId}", rootId);
-                }
-            }
-        }
-        return reachable;
-    }
-
-    // ---- Hashing --------------------------------------------------------------------------------------------------
-
-    async Task HashLoopAsync(CancellationToken ct)
-    {
-        while (true)
-        {
-            await _hashSignal.WaitAsync(_options.IdleRecheck, ct);
-            if (IsPaused(Lane.Index)) continue;
-            await HashPendingAsync(ct);
-            await PackAsync(ct);
-        }
-    }
-
-    /// <summary>
-    /// Makes folders and ZIPs of many images one card, once what's there has been hashed, then adds the books new to a
-    /// folder made into a collection to that collection. A failure is logged and tried again next time, so it never
-    /// stops hashing.
-    /// </summary>
-    async Task PackAsync(CancellationToken ct)
-    {
-        if (!_packsDue || IsPaused(Lane.Index)) return;
-        _packing = true;
-        _packsDue = false;
-        try
-        {
-            await packs.PlanAsync(ct);
-            // After packing, so images that went into a pack don't join as books of their own.
-            await folderCollections.FollowAsync(ct);
-            RaiseChanged();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
-        {
-            _log.LogError(ex, "Looking for image packs, or for books new to a folder made into a collection, failed");
-            _packsDue = true;
-        }
-        finally
-        {
-            _packing = false;
-        }
-    }
-
-    async Task HashPendingAsync(CancellationToken ct)
-    {
-        // Online-only files skipped for space this pass; re-checked on the next pass.
-        var deferred = new HashSet<long>();
-        var waitingForSpace = false;
-        try
-        {
-            while (!IsPaused(Lane.Index))
-            {
-                HashSet<long> skip;
-                lock (_lock) skip = [.. _unreadable.Keys, .. deferred];
-                var batch = (await library.NextUnhashedAsync(_options.HashBatch + skip.Count, includeOnlineOnly: true, ct))
-                    .Where(f => !skip.Contains(f.LocationId))
-                    .Take(_options.HashBatch)
-                    .ToList();
-                if (batch.Count == 0) return;
-
-                foreach (var file in batch)
-                {
-                    if (IsPaused(Lane.Index)) return;
-                    if (file.OnlineOnly && files.Disk.FreeBytes(file.FullPath) is { } free && free - file.SizeBytes < _options.OnlineOnlyReserveBytes)
-                    {
-                        deferred.Add(file.LocationId);
-                        waitingForSpace = true;
-                        continue;
-                    }
-                    await HashFileAsync(file, ct);
-                }
-                // A changed file hashed back to its old content is that document's file again.
-                await ReleaseReachableAsync(ct);
-                _laneSignals[Lane.Index].Set();
-                // A copy of a book already read is done with its file as soon as it is hashed.
-                _returnSignal.Set();
-                RaiseChanged();
-            }
-        }
-        finally
-        {
-            if (WaitingForDiskSpace != waitingForSpace)
-            {
-                WaitingForDiskSpace = waitingForSpace;
-                if (waitingForSpace) _log.LogWarning("Online-only files are waiting: less than {Reserve} bytes would be free", _options.OnlineOnlyReserveBytes);
-                RaiseChanged();
-            }
-        }
-    }
-
-    async Task HashFileAsync(UnhashedFile file, CancellationToken ct)
-    {
-        if (file.IsArchive)
-        {
-            await HashArchiveAsync(file, ct);
-            return;
-        }
-        ContentHash hash;
-        Hashing = file.FullPath;
-        RaiseChanged();
-        try
-        {
-            await files.Returns.BeforeReadAsync(file, ct);
-            hash = await files.Hasher.HashAsync(file.FullPath, ct);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _log.LogWarning("Could not read {LocationId} for hashing: {Reason}", file.LocationId, ex.Message);
-            lock (_lock) _unreadable[file.LocationId] = new UnreadableFile(file.LocationId, file.FullPath, ex.Message);
-            return;
-        }
-        finally
-        {
-            Hashing = null;
-        }
-
-        await AttachAsync(file, hash, ct);
-    }
-
-    async Task AttachAsync(UnhashedFile file, ContentHash hash, CancellationToken ct)
-    {
-        var attached = await library.AttachHashAsync(file, hash, ct);
-        _packsDue = true;
-        // Idempotent: a copy of a known document finds its Probe job already there.
-        if (attached is { } document) await queue.EnqueueAsync(document.DocumentId, hash.Hex, Pipeline.First, ct: ct);
-    }
-
-    /// <summary>
-    /// Reads a ZIP: its own hash, then the list of what it holds, then each new or changed PDF and image hashed as it
-    /// decompresses. The ZIP counts as read only once every member is, so a pause part way picks up with the members
-    /// still to do.
-    /// </summary>
-    async Task HashArchiveAsync(UnhashedFile archive, CancellationToken ct)
-    {
-        Hashing = archive.FullPath;
-        RaiseChanged();
-        try
-        {
-            await files.Returns.BeforeReadAsync(archive, ct);
-            var hash = await files.Hasher.HashAsync(archive.FullPath, ct);
-            var members = await Task.Run(() => files.Archives.List(archive.FullPath), ct);
-            if (await library.ReconcileArchiveAsync(archive, members, ct) is not { } pending) return;
-            if (pending.Count > 0)
-            {
-                using var zip = files.Archives.Open(archive.FullPath);
-                foreach (var member in pending)
-                {
-                    if (IsPaused(Lane.Index)) return;
-                    Hashing = member.FullPath;
-                    RaiseChanged();
-                    ContentHash memberHash;
-                    try
-                    {
-                        await using var stream = ArchiveReader.OpenMember(zip, member.EntryPath!);
-                        memberHash = await FileHasher.HashAsync(stream, ct);
-                    }
-                    catch (InvalidDataException ex)
-                    {
-                        _log.LogWarning("A file inside ZIP {LocationId} is damaged: {Reason}", archive.LocationId, ex.Message);
-                        await library.SetProblemAsync(member.LocationId, ArchiveReader.Damaged, ct);
-                        continue;
-                    }
-                    await AttachAsync(member, memberHash, ct);
-                }
-            }
-            await library.AttachArchiveHashAsync(archive, hash, ct);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            var reason = ex is InvalidDataException ? "it is damaged, or isn't a ZIP Bibliotaph can read" : ex.Message;
-            _log.LogWarning("Could not read ZIP {LocationId}: {Reason}", archive.LocationId, ex.Message);
-            lock (_lock) _unreadable[archive.LocationId] = new UnreadableFile(archive.LocationId, archive.FullPath, reason);
-        }
-        finally
-        {
-            Hashing = null;
-        }
-    }
-
-    /// <summary>
-    /// Gives stages blocked because no copy of their file could be read another go, for each document whose file
-    /// can be read again: its folder is back online, a scan found the file again, or it was hashed back to the document.
-    /// </summary>
-    async Task ReleaseReachableAsync(CancellationToken ct)
-    {
-        var blocked = await queue.BlockedForAsync(StageOutcome.Blocked.Unreachable, ct);
-        if (blocked.Count == 0) return;
-        var readable = await library.GetReadableAsync(blocked, ct);
-        if (readable.Count == 0) return;
-        var released = await queue.UnblockAsync(readable, StageOutcome.Blocked.Unreachable, ct);
-        _log.LogInformation("Released {Count} stages whose files can be read again", released);
-        foreach (var signal in _laneSignals.Values) signal.Set();
-        RaiseChanged();
-    }
-
-    // ---- Returning files to online-only ---------------------------------------------------------------------------
-
-    /// <summary>
-    /// Gives files that reading downloaded back to online-only once their stages are done with them. While online-only
-    /// files wait for space, a paused lane's waiting stages don't keep their files: those go back too, and download
-    /// again when the lane resumes, so the space a paused lane would hold lets hashing go on. Space freed wakes the
-    /// hasher, now and again once the sync app has had time to let the files go.
-    /// </summary>
-    async Task ReturnLoopAsync(OnlineOnlyReturns returning, CancellationToken ct)
-    {
-        while (true)
-        {
-            await _returnSignal.WaitAsync(_options.IdleRecheck, ct);
-            var waitingForSpace = WaitingForDiskSpace;
-            IReadOnlyCollection<Stage> holding = waitingForSpace
-                ? [.. Pipeline.FileStages.Where(s => !IsPaused(Pipeline.LaneOf(s)))]
-                : Pipeline.FileStages;
-            if (await returning.ReturnDoneAsync(holding, ct) == 0 || !waitingForSpace) continue;
-            _hashSignal.Set();
-            await Task.Delay(_options.SpaceSettle, _clock, ct);
-            _hashSignal.Set();
-        }
-    }
-
-    // ---- Lanes ----------------------------------------------------------------------------------------------------
-
-    async Task LaneLoopAsync(Lane lane, CancellationToken stoppingToken)
-    {
-        var names = _stages.Keys.Where(s => Pipeline.LaneOf(s) == lane).ToArray();
-        if (names.Length == 0) return;
-        var owner = $"{Environment.ProcessId}/{lane}";
-
-        while (true)
-        {
-            CancellationToken laneToken;
-            string? unavailable;
-            lock (_lock) (laneToken, unavailable) = (_lanes[lane].Paused ? default : _lanes[lane].Cancel.Token, _lanes[lane].Unavailable);
-            if (laneToken == default)
-            {
-                await _laneSignals[lane].WaitAsync(Timeout.InfiniteTimeSpan, stoppingToken);
-                continue;
-            }
-            if (!IsOpen(lane))
-            {
-                // Its gate opening (AI switched on) wakes it; nothing else needs to.
-                await _laneSignals[lane].WaitAsync(Timeout.InfiniteTimeSpan, stoppingToken);
-                continue;
-            }
-            if (unavailable is not null && !await WaitOutAsync(lane, stoppingToken)) continue;
-
-            var job = await queue.LeaseAsync(names, owner, _options.Lease, stoppingToken);
-            if (job is null)
-            {
-                var next = await queue.NextReadyAsync(names, stoppingToken);
-                var wait = next is null ? _options.IdleRecheck : next.Value - _clock.GetUtcNow();
-                wait = wait < TimeSpan.Zero ? TimeSpan.Zero : wait > _options.IdleRecheck ? _options.IdleRecheck : wait;
-                await _laneSignals[lane].WaitAsync(wait, stoppingToken);
-                continue;
-            }
-
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(laneToken, stoppingToken);
-            lock (_lock) _lanes[lane].Running = job;
-            RaiseChanged();
-            try
-            {
-                await RunJobAsync(job, linked.Token);
-            }
-            finally
-            {
-                lock (_lock) _lanes[lane].Running = null;
-            }
-            RaiseChanged();
-        }
-    }
-
-    /// <summary>
-    /// A lane that couldn't work waits before trying again, unless woken first. Returns whether to try now; the next job
-    /// that gets through clears the notice.
-    /// </summary>
-    async Task<bool> WaitOutAsync(Lane lane, CancellationToken ct)
-    {
-        DateTimeOffset until;
-        lock (_lock) until = _lanes[lane].RetryAt;
-        var wait = until - _clock.GetUtcNow();
-        if (wait <= TimeSpan.Zero) return true;
-        await _laneSignals[lane].WaitAsync(wait, ct);
-        return false;
-    }
-
-    async Task RunJobAsync(JobRecord job, CancellationToken ct)
-    {
-        StageOutcome outcome;
-        try
-        {
-            // A book whose text the user chose to forget isn't read again until "Read it again", whatever queued the
-            // job.
-            outcome = await library.IsTextForgottenAsync(job.DocumentId, ct)
-                ? new StageOutcome.Done(StageStatus.Skipped, [], TextAccessReasons.Forgotten)
-                : await _stages[job.Stage].RunAsync(job, ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            // Paused or closing: back to the queue as if it never started.
-            await TryAsync(() => queue.ReleaseAsync(job, CancellationToken.None));
-            return;
-        }
-        catch (PagePoisonedException ex)
-        {
-            outcome = new StageOutcome.Failed(ex.Message, Retry: false);
-        }
-        catch (WorkerException ex)
-        {
-            outcome = new StageOutcome.Failed($"The PDF engine stopped: {ex.Message}", Retry: true);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            outcome = new StageOutcome.Failed($"The file could not be read: {ex.Message}", Retry: true);
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "{Stage} failed for document {DocumentId}", job.Stage, job.DocumentId);
-            outcome = new StageOutcome.Failed(UnexpectedError + ex.Message, Retry: true);
-        }
-
-        if (outcome is not StageOutcome.Done { Status: StageStatus.Complete } and not StageOutcome.Later)
-            _log.LogInformation("{Stage} for document {DocumentId}: {Outcome}", job.Stage, job.DocumentId, outcome);
-
-        var lane = Pipeline.LaneOf(job.Stage);
-        lock (_lock)
-        {
-            var control = _lanes[lane];
-            if (outcome is StageOutcome.Unavailable unavailable)
-            {
-                control.Unavailable = unavailable.Reason;
-                control.RetryAt = _clock.GetUtcNow() + _options.UnavailableRetry;
-            }
-            else control.Unavailable = null;
-        }
-
-        // Recorded even while closing, so a finished job isn't redone next time.
-        await TryAsync(() => outcome switch
-        {
-            StageOutcome.Done done => queue.CompleteAsync(job, done.Status, done.Reason, done.Next, CancellationToken.None),
-            StageOutcome.Blocked blocked => queue.BlockAsync(job, blocked.Reason, CancellationToken.None),
-            StageOutcome.Failed failed => queue.FailAsync(job, failed.Reason, failed.Retry, CancellationToken.None),
-            StageOutcome.Later later => queue.DeferAsync(job, later.Wait, later.Reason, CancellationToken.None),
-            StageOutcome.Unavailable => queue.ReleaseAsync(job, CancellationToken.None),
-            _ => throw new InvalidOperationException($"Unknown outcome {outcome}"),
-        });
-        if (outcome is StageOutcome.Done { Next: var next })
-            foreach (var other in next.Select(Pipeline.LaneOf).Distinct()) _laneSignals[other].Set();
-        if (Pipeline.FileStages.Contains(job.Stage)) _returnSignal.Set();
-    }
-
-    /// <summary>A queue write at shutdown can find the index writer already stopped; the lease is recovered next start.</summary>
-    async Task TryAsync(Func<Task> write)
-    {
-        try
-        {
-            await write();
-        }
-        catch (InvalidOperationException) when (_stopping.IsCancellationRequested)
-        {
-        }
-    }
-
     void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
     public override void Dispose()
     {
         base.Dispose();
-        foreach (var control in _lanes.Values) control.Dispose();
-        foreach (var signal in _laneSignals.Values) signal.Dispose();
-        _scanSignal.Dispose();
-        _hashSignal.Dispose();
-        _returnSignal.Dispose();
-    }
-
-    sealed class LaneControl : IDisposable
-    {
-        public bool Paused;
-        public CancellationTokenSource Cancel = new();
-        public JobRecord? Running;
-        public string? Unavailable;
-        public DateTimeOffset RetryAt;
-
-        public void Dispose() => Cancel.Dispose();
-    }
-
-    /// <summary>An auto-reset signal: any number of Sets before a wait wake it once.</summary>
-    sealed class Signal : IDisposable
-    {
-        readonly SemaphoreSlim _semaphore = new(0, 1);
-
-        public void Set()
-        {
-            try
-            {
-                _semaphore.Release();
-            }
-            catch (SemaphoreFullException)
-            {
-            }
-        }
-
-        public Task<bool> WaitAsync(TimeSpan timeout, CancellationToken ct) => _semaphore.WaitAsync(timeout, ct);
-
-        public void Dispose() => _semaphore.Dispose();
+        _lanes.Dispose();
+        _scanner.Dispose();
+        _hashing.Dispose();
     }
 }
