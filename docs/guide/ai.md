@@ -97,6 +97,9 @@ themes and creatures in each chapter, with the pages they're on.
 - **Search uses it.** `setting:`, `environment:` and `theme:` also find books by what's inside them, and `creature:`
   finds the books with a creature in one of their chapters, such as `creature:owlbear`.
 - **Each finding is checked like any other**: its quote must be on its page, inside its chapter.
+- **Dense pages still fit.** Stat blocks and tables take up more of the model's room than ordinary text. When a few
+  chapters turn out too long for the model, they're sent again with each page cut shorter, and if even that doesn't
+  fit, only those chapters are skipped.
 - A book is read once. It's read again only if the file changes or you ask. What it found stays on this PC, even if
   the index is rebuilt, and isn't part of sync.
 - **Settings > AI** shows how far it's got: "Scanning whole books · 12 of 40".

@@ -14,8 +14,8 @@ handouts spread over folders, and you keep thinking "I own something for this, b
 - **Your files stay put.** Bibliotaph never moves, renames, edits or deletes them. It only reads them.
 - **It works offline.** Everything lives on your PC. There's no account, no subscription and no cloud service.
 - **AI is optional, and local.** If you want, an AI model running on your own PC fills in each book's system, type and
-  levels, quoting the page it found them on. Bibliotaph can download and run one itself, or use Ollama, LM Studio or
-  another model server you already have. Without it, everything else still works.
+  levels, quoting the page it found them on. Bibliotaph can download and run one itself (Qwen3, Llama 3.1, Mistral and
+  others, or a model file you already have), or use Ollama, LM Studio or another model server you already have. Without it, everything else still works.
 
 This is version 1.2. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
 
