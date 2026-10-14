@@ -540,27 +540,27 @@
               </DockPanel>
             </Border>
             <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="14,10"
-                    Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+                    Visibility="{Binding Sessions.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                         ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionMessageCommand}" />
                 <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                        Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
-                        Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                        Command="{Binding Sessions.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
+                        Visibility="{Binding Sessions.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                            VerticalAlignment="Center" />
               </DockPanel>
             </Border>
             <!-- What the last page note change did, with Undo. -->
             <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,8,0,0"
-                    Visibility="{Binding NoteMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+                    Visibility="{Binding NoteUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                         ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissNoteMessageCommand}" />
                 <Button x:Name="UndoNote" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                        Command="{Binding UndoNoteCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the note change" VerticalAlignment="Center"
-                        Visibility="{Binding HasNoteUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <TextBlock x:Name="NoteMessage" Text="{Binding NoteMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                        Command="{Binding NoteUndo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the note change" VerticalAlignment="Center"
+                        Visibility="{Binding NoteUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="NoteMessage" Text="{Binding NoteUndo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                            VerticalAlignment="Center" />
               </DockPanel>
             </Border>

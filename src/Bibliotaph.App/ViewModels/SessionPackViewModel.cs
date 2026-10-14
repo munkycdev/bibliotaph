@@ -208,7 +208,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (SessionPackRows.OnlineRequest(row) is { } online)
         {
-            if (await _online.OpenAsync(online) is { } problem) Actions.Say(problem);
+            if (await _online.OpenAsync(online) is { } problem) Actions.Undo.Say(problem);
         }
         else if (await RequestAsync(row) is { } request) _readers.OpenInMainWindow(request);
     }
@@ -218,7 +218,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (SessionPackRows.OnlineRequest(row) is { } online)
         {
-            if (await _online.OpenInWindowAsync(online) is { } problem) Actions.Say(problem);
+            if (await _online.OpenInWindowAsync(online) is { } problem) Actions.Undo.Say(problem);
         }
         else if (await RequestAsync(row) is { } request) await _readers.OpenInNewWindowAsync(request);
     }
@@ -227,7 +227,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (!row.CanOpen)
         {
-            Actions.Say(row.Reason ?? "This item can't be opened right now.");
+            Actions.Undo.Say(row.Reason ?? "This item can't be opened right now.");
             return null;
         }
         return await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
@@ -274,7 +274,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         if (row.Target.LastPath is not { } path) return;
         if (File.Exists(path)) _shell.ShowInFolder(path);
         else if (Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder)) _shell.ShowInFolder(folder);
-        else Actions.Say($"{path} can't be reached right now.");
+        else Actions.Undo.Say($"{path} can't be reached right now.");
     }
 
     [RelayCommand]
@@ -346,7 +346,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "{Failure}", failure);
-            Actions.Say("That didn't work. The log has the details.");
+            Actions.Undo.Say("That didn't work. The log has the details.");
             return false;
         }
         finally

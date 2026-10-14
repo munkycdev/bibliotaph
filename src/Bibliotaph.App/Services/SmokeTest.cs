@@ -712,15 +712,15 @@ static partial class SmokeTest
             throw new InvalidOperationException($"The summary says {string.Join("; ", bulk.Summary.Select(l => $"{l.Field}: {l.Text}"))}.");
 
         await bulk.ApplyCommand.ExecuteAsync(null);
-        await WaitUntilAsync(window, () => page.BulkEdit is null && page.HasBulkUndo, () => $"Applying the bulk edit didn't finish ({page.BulkMessage}).");
-        if (page.BulkMessage != "Edited 2 books.") throw new InvalidOperationException($"The bulk edit says {page.BulkMessage}");
+        await WaitUntilAsync(window, () => page.BulkEdit is null && page.Undo.HasUndo, () => $"Applying the bulk edit didn't finish ({page.Undo.Message}).");
+        if (page.Undo.Message != "Edited 2 books.") throw new InvalidOperationException($"The bulk edit says {page.Undo.Message}");
         search.Search("tag:shelved");
         await WaitUntilAsync(window, () => page.Items.Select(i => i.Title).Order(StringComparer.Ordinal).SequenceEqual(["Dragon Lairs", "Gazetteer of the Marches"]),
             () => $"Searching by the new tag found {string.Join(", ", page.Items.Select(i => i.Title))}.");
 
-        await page.UndoBulkEditCommand.ExecuteAsync(null);
-        await WaitUntilAsync(window, () => page.BulkMessage is null && !page.HasBulkUndo && page.IsEmpty,
-            () => $"After Undo, the tag still finds {page.Items.Count} books ({page.BulkMessage}).");
+        await page.Undo.UndoCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => page.Undo.Message is null && !page.Undo.HasUndo && page.IsEmpty,
+            () => $"After Undo, the tag still finds {page.Items.Count} books ({page.Undo.Message}).");
         search.Search("");
         page.StopSelectingCommand.Execute(null);
         await WaitUntilAsync(window, () => !page.Selection.IsActive && !gazetteer.IsSelected && page.Items.Count == books,
@@ -1196,10 +1196,11 @@ static partial class SmokeTest
         if (library.Inspector is not { IsPack: true }) await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
         await WaitUntilAsync(window, () => library.Inspector is { IsPack: true }, () => "The pack's inspector didn't open again.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Inspector!.SplitPackCommand), "Split into separate images");
-        await WaitUntilAsync(window, () => library.HasSplitUndo && library.Items.Count(i => i.Folder.Contains(Name, StringComparison.Ordinal)) == PackStore.AutomaticMinimum
+        await WaitUntilAsync(window, () => library.Undo is { HasUndo: true, Message: { } split } && split.StartsWith("Split ", StringComparison.Ordinal)
+            && library.Items.Count(i => i.Folder.Contains(Name, StringComparison.Ordinal)) == PackStore.AutomaticMinimum
             && library.Items.All(i => i.EntryId != pack.EntryId), () => "Split didn't give the images their cards back.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.UndoSplitCommand), "Undo the split");
-        await WaitUntilAsync(window, () => !library.HasSplitUndo && library.Items.Any(i => i.EntryId == pack.EntryId)
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Undo.UndoCommand), "Undo the split");
+        await WaitUntilAsync(window, () => !library.Undo.HasUndo && library.Items.Any(i => i.EntryId == pack.EntryId)
             && !library.Items.Any(i => i.Folder.Contains(Name, StringComparison.Ordinal) && !i.IsPack), () => "Undo didn't pack the images again.");
 
         var search = services.GetRequiredService<SearchState>();
@@ -1458,8 +1459,8 @@ static partial class SmokeTest
         async Task PackAsync(PackTogetherDialogViewModel dialog, string message)
         {
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.PackCommand), "Pack together");
-            await WaitUntilAsync(window, () => page.PackDialog is null && page.HasPackUndo, () => $"Packing didn't finish ({dialog.Problem}).");
-            if (page.BulkMessage != message) throw new InvalidOperationException($"Pack together says “{page.BulkMessage}”, not “{message}”.");
+            await WaitUntilAsync(window, () => page.PackDialog is null && page.Undo.HasUndo, () => $"Packing didn't finish ({dialog.Problem}).");
+            if (page.Undo.Message != message) throw new InvalidOperationException($"Pack together says “{page.Undo.Message}”, not “{message}”.");
         }
 
         // A PDF can go in a pack with images, but a pack isn't a copy of a book.
@@ -1500,8 +1501,8 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.Items.Any(i => i.EntryId == tokens && i.SizeLabel == "23 images") && page.Items.All(i => i.EntryId != hand),
             () => "The hand-made pack didn't merge into the tokens' pack.");
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoPackCommand), "Undo Pack together");
-        await WaitUntilAsync(window, () => !page.HasPackUndo && page.Items.Any(i => i.EntryId == hand && i.SizeLabel == "3 images")
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo Pack together");
+        await WaitUntilAsync(window, () => !page.Undo.HasUndo && page.Items.Any(i => i.EntryId == hand && i.SizeLabel == "3 images")
             && page.Items.Any(i => i.EntryId == tokens && i.SizeLabel == "20 images"), () => "Undo didn't bring the hand-made pack back.");
 
         page.StopSelectingCommand.Execute(null);
@@ -1718,7 +1719,7 @@ static partial class SmokeTest
         await AuditAsync(window, "the Save view dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SaveViewButton"), "the dialog's Save");
         await WaitUntilAsync(window, () => page.ActiveView is { Name: "Haunted places" } && shell.Pinned is [_, { Label: "Haunted places", IsActive: true }]
-                && page.ViewMessage is not null && !page.IsViewChanged,
+                && page.ViewUndo.Message is not null && !page.IsViewChanged,
             () => "Saving didn't make the page the saved search, pin it in the sidebar and mark it there.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PinView"), "Unpin the saved search");
         await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && page.PinLabel == "Pin" && page.IsView, () => "Unpin didn't take the search out of the sidebar.");
@@ -1747,7 +1748,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => page.IsViewChanged && Shown(window, "UpdateView"), () => "Changing the filter didn't offer Update view.");
         await AuditAsync(window, "a saved search that was changed");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UpdateView"), "Update view");
-        await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.HasViewUndo
+        await WaitUntilAsync(window, () => !page.IsViewChanged && SmartViewDefinition.Parse(views.Find(viewId)!.Definition).Kind == KindFilter.All && page.ViewUndo.HasUndo
                 && Shown(window, "UndoView"),
             () => "Update view didn't keep the change in the view.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the update");
@@ -1786,7 +1787,7 @@ static partial class SmokeTest
 
         // Delete takes the view away, never a book; Undo brings it back.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteView"), "Delete the saved search");
-        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && !page.IsView && page.HasViewUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
+        await WaitUntilAsync(window, () => shell.Pinned.Count == 1 && !page.IsView && page.ViewUndo.HasUndo && page.Items.Count == 1 && Shown(window, "UndoView"),
             () => "Delete didn't take the search out of the sidebar and leave its books shown.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoView"), "Undo the delete");
         await WaitUntilAsync(window, () => shell.Pinned is [_, { Label: "Haunted inns" }] && page.IsView, () => "Undo didn't bring the search back, pinned.");
@@ -1849,7 +1850,7 @@ static partial class SmokeTest
         addSelected!.ContextMenu!.IsOpen = false;
         var toMaps = ((ICollectionChoices)campaign).MenuChoices.Single(c => c.CollectionId == mapsId);
         campaign.AddSelectedToCollectionCommand.Execute(new CollectionRequest(campaign, toMaps));
-        await WaitUntilAsync(window, () => campaign.Collections.Message == "Added 2 books to Maps.", () => $"Adding the selection said “{campaign.Collections.Message}”.");
+        await WaitUntilAsync(window, () => campaign.Collections.Undo.Message == "Added 2 books to Maps.", () => $"Adding the selection said “{campaign.Collections.Undo.Message}”.");
         campaign.StopSelectingCommand.Execute(null);
 
         // A card's menu: a third book into the campaign itself, undone and done again.
@@ -1857,14 +1858,14 @@ static partial class SmokeTest
         var toCampaign = ((ICollectionChoices)campaign).MenuChoices.Single(c => c.CollectionId == campaignId);
         BookCommands.AddToCollection.Execute(new CollectionRequest(third, toCampaign), FindChild<Views.LibraryView>(window));
         // The selection's "Added 2 books to Maps." is still shown with its Undo, so wait for this add's own note.
-        await WaitUntilAsync(window, () => campaign.Collections is { HasUndo: true, Message: { } note } && note.StartsWith("Added ", StringComparison.Ordinal)
+        await WaitUntilAsync(window, () => campaign.Collections.Undo is { HasUndo: true, Message: { } note } && note.StartsWith("Added ", StringComparison.Ordinal)
                 && note.EndsWith(" to Winter campaign.", StringComparison.Ordinal),
-            () => $"The card menu's Add to collection said “{campaign.Collections.Message}”.");
+            () => $"The card menu's Add to collection said “{campaign.Collections.Undo.Message}”.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
         // Undo has finished once its note is gone and the collections have reloaded.
-        await WaitUntilAsync(window, () => campaign.Collections is { Message: null, UndoCommand.IsRunning: false }, () => "Undo didn't finish.");
+        await WaitUntilAsync(window, () => campaign.Collections.Undo is { Message: null, UndoCommand.IsRunning: false }, () => "Undo didn't finish.");
         campaign.AddToCollection(new CollectionRequest(third, toCampaign));
-        await WaitUntilAsync(window, () => campaign.Collections.HasUndo, () => $"Adding the third book again said “{campaign.Collections.Message}”.");
+        await WaitUntilAsync(window, () => campaign.Collections.Undo.HasUndo, () => $"Adding the third book again said “{campaign.Collections.Undo.Message}”.");
 
         search.Search("collection:\"winter campaign\"");
         await WaitUntilAsync(window, () => campaign.IsSearching && campaign.Items.Count == 3, () => $"collection:\"winter campaign\" found {campaign.Items.Count} books, not 3.");
@@ -1915,7 +1916,7 @@ static partial class SmokeTest
 
         // Delete: Collections again, with Maps moved up and Undo bringing the campaign back around it.
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteCollection"), "Delete");
-        await WaitUntilAsync(window, () => shell.CurrentPage is CollectionsViewModel { Actions.HasUndo: true } c && c.Cards is [{ Name: "Maps" }],
+        await WaitUntilAsync(window, () => shell.CurrentPage is CollectionsViewModel { Actions.Undo.HasUndo: true } c && c.Cards is [{ Name: "Maps" }],
             () => "Delete didn't go to Collections with Maps moved up and an Undo.");
         page = (CollectionsViewModel)shell.CurrentPage!;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoCollection"), "Undo");
@@ -2030,7 +2031,7 @@ static partial class SmokeTest
             () => "Saving didn't show the note in the reader's notes panel.");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteNote"), "Delete this note");
-        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.HasNoteUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
+        await WaitUntilAsync(window, () => viewer.PageNotes.Count == 0 && viewer.NoteUndo.HasUndo && Shown(window, "UndoNote"), () => "Delete didn't take the note away with Undo.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoNote"), "Undo the delete");
         await WaitUntilAsync(window, () => viewer.PageNotes.Count == 1, () => "Undo didn't bring the note back.");
         await AuditAsync(window, "the reader with its notes panel");
@@ -2170,12 +2171,12 @@ static partial class SmokeTest
         await Settle(window);
         await AuditAsync(window, "the reader's Add pages dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPagesButton" && b.IsVisible), "Add");
-        await WaitUntilAsync(window, () => viewer.Sessions is { Dialog: null, HasUndo: true, Message: "Added Warehouse ambush to The midnight bell." },
-            () => $"Add pages… said “{viewer.Sessions.Message}”.");
+        await WaitUntilAsync(window, () => viewer.Sessions is { Dialog: null, Undo: { HasUndo: true, Message: "Added Warehouse ambush to The midnight bell." } },
+            () => $"Add pages… said “{viewer.Sessions.Undo.Message}”.");
         var pageInView = viewer.CurrentPageIndex;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPage"), "Add page");
-        await WaitUntilAsync(window, () => viewer.Sessions.Message is { } note && note.StartsWith("Added page ", StringComparison.Ordinal),
-            () => $"Add page said “{viewer.Sessions.Message}”.");
+        await WaitUntilAsync(window, () => viewer.Sessions.Undo.Message is { } note && note.StartsWith("Added page ", StringComparison.Ordinal),
+            () => $"Add page said “{viewer.Sessions.Undo.Message}”.");
         navigation.GoBack();
         await Settle(window);
 
@@ -2293,7 +2294,7 @@ static partial class SmokeTest
         await sessions.UpdateItemAsync(elsewhere.Id, "Harbour ambush", elsewhere.Note);
         await WaitUntilAsync(window, () => Items(pack).Any(i => i.Heading == "Harbour ambush"), () => "The open session didn't show a label changed elsewhere.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DeleteSession"), "Delete");
-        await WaitUntilAsync(window, () => shell.CurrentPage is SessionsViewModel { Actions.HasUndo: true, HasSessions: false }, () => "Delete didn't go to Sessions with an Undo.");
+        await WaitUntilAsync(window, () => shell.CurrentPage is SessionsViewModel { Actions.Undo.HasUndo: true, HasSessions: false }, () => "Delete didn't go to Sessions with an Undo.");
         list = (SessionsViewModel)shell.CurrentPage!;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoSession" && b.IsVisible), "Undo");
         await WaitUntilAsync(window, () => list.Upcoming is [{ Title: "The midnight bell", CountLabel: "2 items" }], () => "Undo didn't bring the session back.");
@@ -2425,8 +2426,9 @@ static partial class SmokeTest
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveFromLibrary"), "Remove from library");
-        await WaitUntilAsync(window, () => page.HasRemoveUndo && page.Items.Count == books, () => "Remove from library didn't take the book away.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoRemoveCommand), "Undo the removal");
+        await WaitUntilAsync(window, () => page.Undo is { HasUndo: true, Message: { } removed } && removed.StartsWith("Removed ", StringComparison.Ordinal)
+            && page.Items.Count == books, () => "Remove from library didn't take the book away.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo the removal");
         await WaitUntilAsync(window, () => page.Items.Any(i => i.Title == Title && i.IsElsewhere), () => "Undo didn't bring the book back.");
 
         var back = page.Items.Single(i => i.Title == Title);
@@ -2604,10 +2606,10 @@ static partial class SmokeTest
         await Settle(window);
         await AuditAsync(window, "the Same book dialog");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == dialog.JoinCommand), "Join as one book");
-        await WaitUntilAsync(window, () => page.SameBookDialog is null && page.HasJoinUndo && page.Items.Count == books - 1,
-            () => $"Joining left {page.Items.Count} books ({page.BulkMessage}).");
+        await WaitUntilAsync(window, () => page.SameBookDialog is null && page.Undo.HasUndo && page.Items.Count == books - 1,
+            () => $"Joining left {page.Items.Count} books ({page.Undo.Message}).");
         var joined = page.Items.Single(i => i.EntryId == inn.EntryId || i.EntryId == scan.EntryId);
-        if (page.BulkMessage != $"Joined 2 cards as {joined.Title}.") throw new InvalidOperationException($"Same book says “{page.BulkMessage}”.");
+        if (page.Undo.Message != $"Joined 2 cards as {joined.Title}.") throw new InvalidOperationException($"Same book says “{page.Undo.Message}”.");
         if (joined.CopiesLabel != "2 copies" || joined.DocumentId != innFile.DocumentId)
             throw new InvalidOperationException($"The joined card reads “{joined.CopiesLabel}” and opens document {joined.DocumentId}, not {innFile.DocumentId}.");
         if (await copies.CountVersionsAsync() != versions - 1) throw new InvalidOperationException("The scan's “new version?” card is still waiting.");
@@ -2619,9 +2621,9 @@ static partial class SmokeTest
         if (!page.CanJoinSelected) throw new InvalidOperationException("Same book isn't offered for a book and an image.");
         page.StopSelectingCommand.Execute(null);
 
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoJoinCommand), "Undo Same book");
-        await WaitUntilAsync(window, () => !page.HasJoinUndo && page.BulkMessage is null && page.Items.Count == books,
-            () => $"Undo left {page.Items.Count} books ({page.BulkMessage}).");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo Same book");
+        await WaitUntilAsync(window, () => !page.Undo.HasUndo && page.Undo.Message is null && page.Items.Count == books,
+            () => $"Undo left {page.Items.Count} books ({page.Undo.Message}).");
         if (await copies.CountVersionsAsync() != versions) throw new InvalidOperationException("Undo didn't bring back the scan's “new version?” card.");
     }
 

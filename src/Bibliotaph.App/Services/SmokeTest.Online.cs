@@ -54,8 +54,8 @@ static partial class SmokeTest
         await AuditAsync(window, "an online library's import preview");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ImportOnline"), "Import 2 books");
-        await WaitUntilAsync(window, () => !page.IsBusy && page.Message == "Added 2 books owned on D&D Beyond.",
-            () => $"Importing says “{page.Message}”.");
+        await WaitUntilAsync(window, () => !page.IsBusy && page.Undo.Message == "Added 2 books owned on D&D Beyond.",
+            () => $"Importing says “{page.Undo.Message}”.");
         if (page.Groups is not [{ Outcome: OnlineOutcome.Unchanged, Items.Count: 2 }])
             throw new InvalidOperationException($"After importing, the preview's groups are {string.Join(", ", page.Groups.Select(g => g.Heading))}.");
 
@@ -67,8 +67,8 @@ static partial class SmokeTest
         await AuditAsync(window, "an online library imported");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoOnline"), "Undo the import");
-        await WaitUntilAsync(window, () => !page.IsBusy && page.Message is null && page.Groups is [{ Outcome: OnlineOutcome.New }],
-            () => $"Undo left “{page.Message}”.");
+        await WaitUntilAsync(window, () => !page.IsBusy && page.Undo.Message is null && page.Groups is [{ Outcome: OnlineOutcome.New }],
+            () => $"Undo left “{page.Undo.Message}”.");
         cards = await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible)));
         if (cards.Count != books) throw new InvalidOperationException($"After Undo the library has {cards.Count} cards, not {books}.");
 
@@ -186,8 +186,8 @@ static partial class SmokeTest
         try
         {
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlineAddPage" && b.IsVisible), "Add this page");
-            await WaitUntilAsync(window, () => reader.Sessions.Message?.StartsWith("Added", StringComparison.Ordinal) == true,
-                () => $"Add this page didn't add the page ({reader.Sessions.Message ?? "no message"}).");
+            await WaitUntilAsync(window, () => reader.Sessions.Undo.Message?.StartsWith("Added", StringComparison.Ordinal) == true,
+                () => $"Add this page didn't add the page ({reader.Sessions.Undo.Message ?? "no message"}).");
             var item = Assert1((await sessions.GetAsync(binder.Id))!.Items, "the binder's items");
             if (item.Link != reader.Address || item.EntryId != reader.Request.EntryId || string.IsNullOrEmpty(item.Label))
                 throw new InvalidOperationException($"Add this page added {item.Link} labelled {item.Label ?? "nothing"}, not {reader.Address}.");

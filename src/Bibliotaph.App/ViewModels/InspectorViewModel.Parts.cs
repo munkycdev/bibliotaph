@@ -5,7 +5,6 @@ using Bibliotaph.Core.Reading;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -19,7 +18,6 @@ public sealed record InspectorPart(EntryId EntryId, string Title, PartPages? Pag
 public sealed partial class InspectorViewModel
 {
     PartsService? _parts;
-    ILogger? _partsLog;
     IReadOnlyList<string?> _labels = [];
 
     /// <summary>Raised to show another card's details, as an adventure's file or one of a file's adventures.</summary>
@@ -50,20 +48,11 @@ public sealed partial class InspectorViewModel
     public partial PartEditorViewModel? PartEditor { get; private set; }
 
     /// <summary>"Removed “The Crypt”.", beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? PartMessage { get; private set; }
+    public UndoSlot PartUndo { get; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPartUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoPartCommand))]
-    public partial Func<Task>? PartUndo { get; private set; }
-
-    public bool HasPartUndo => PartUndo is not null;
-
-    async Task LoadPartsAsync(PartsService parts, ILogger log)
+    async Task LoadPartsAsync(PartsService parts)
     {
         _parts = parts;
-        _partsLog = log;
         if (Item.IsElsewhere || Item.IsPack || Item.Entry.Format != SourceFormats.Pdf) return;
         _labels = await Task.Run(() => parts.GetPageLabelsAsync(Item.DocumentId));
         if (!Item.IsPart) await ReloadPartsAsync();
@@ -92,7 +81,7 @@ public sealed partial class InspectorViewModel
         {
             var added = await Task.Run(() => parts.AddAsync(documentId, pages, title));
             if (added.Problem is not null) return added.Problem;
-            SayPart($"“{title}” has a card of its own now.", null);
+            PartUndo.Say($"“{title}” has a card of its own now.");
             await PartsChangedAsync();
             return null;
         }));
@@ -139,11 +128,7 @@ public sealed partial class InspectorViewModel
     public void ShowPartRemoved(RemovedPart removed, string title)
     {
         var parts = _parts;
-        SayPart($"Removed “{title}”. Its pages are only the file's again.", parts is null ? null : async () =>
-        {
-            await Task.Run(() => parts.RestoreAsync(removed));
-            await PartsChangedAsync();
-        });
+        SayPart($"Removed “{title}”. Its pages are only the file's again.", parts is null ? null : () => Task.Run(() => parts.RestoreAsync(removed)));
     }
 
     /// <summary>The file an adventure is in, or an adventure in this file: its details.</summary>
@@ -156,31 +141,15 @@ public sealed partial class InspectorViewModel
     [RelayCommand]
     void ShowPart(InspectorPart part) => ShowEntryRequested?.Invoke(this, part.EntryId);
 
-    [RelayCommand(CanExecute = nameof(HasPartUndo))]
-    async Task UndoPart()
-    {
-        if (PartUndo is not { } undo) return;
-        SayPart(null, null);
-        try
-        {
-            await undo();
-            await PartsChangedAsync();
-        }
-        catch (Exception ex)
-        {
-            _partsLog?.LogError(ex, "Undoing a change to the adventures in entry {EntryId} failed", Item.EntryId);
-            SayPart("That couldn't be undone.", null);
-        }
-    }
-
     [RelayCommand]
-    void DismissPartMessage() => SayPart(null, null);
+    void DismissPartMessage() => PartUndo.Clear();
 
-    void SayPart(string? message, Func<Task>? undo)
+    /// <summary>Says what changed in the adventures, with Undo that takes it back and lists them again.</summary>
+    void SayPart(string message, Func<Task>? undo) => PartUndo.Offer(message, undo is null ? null : async () =>
     {
-        PartMessage = message;
-        PartUndo = undo;
-    }
+        await undo();
+        await PartsChangedAsync();
+    });
 
     void OpenPartEditor(PartEditorViewModel editor)
     {

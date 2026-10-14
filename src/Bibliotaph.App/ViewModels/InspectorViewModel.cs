@@ -70,8 +70,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
         PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, CorrectionService? corrections,
-        ChosenCovers? chosen)
+        ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log)
     {
+        PartUndo = new UndoSlot(log);
         _files = files;
         _prompts = prompts;
         _shell = shell;
@@ -497,10 +498,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, files, prompts,
-            shell, corrections, chosen);
+            shell, corrections, chosen, log);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
-        await inspector.LoadPartsAsync(parts, log);
+        await inspector.LoadPartsAsync(parts);
         await inspector.LoadChaptersAsync(log);
         return inspector;
     }
