@@ -46,6 +46,9 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     readonly FakeIdentity _identity = new();
     readonly FakeCloud _cloud = new();
     readonly FakeDisk _disk = new();
+    readonly FakeWatcher _watcher = new();
+    /// <summary>Whether library folders are watched for changes: only for the tests of watching, so no other test is rescanned unasked.</summary>
+    bool _watchFolders;
     OnlineOnlyReturns _returns = null!;
     AiSettings _ai = null!;
     ClassificationStore _runs = null!;
@@ -154,7 +157,12 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
                 chapters,
             ],
             new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns), _packs, _parts, _folderCollections,
-            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
+            new IndexingOptions
+            {
+                WatchFolders = _watchFolders, RescanDelay = TimeSpan.FromMilliseconds(200), IdleRecheck = TimeSpan.FromSeconds(1),
+                UnavailableRetry = TimeSpan.FromMilliseconds(300),
+            },
+            folderWatcher: _watcher);
         _chapterService = new ChapterScanService(_ai, _service, _service, _chapterScans, _chapterProjection, new ChapterQueries(_index));
         _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules, _chapterService);
         _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
