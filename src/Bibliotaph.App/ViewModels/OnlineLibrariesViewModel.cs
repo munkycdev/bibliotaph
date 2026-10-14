@@ -8,7 +8,6 @@ using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -19,7 +18,7 @@ namespace Bibliotaph.App.ViewModels;
 /// section for the whole app, so a preview is still here after a look at the Library.
 /// </summary>
 public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
-    INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders,
+    INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders, IFilePicker files,
     ILogger<OnlineLibrariesViewModel> log) : SettingsSectionViewModel
 {
     OnlinePage? _page;
@@ -82,15 +81,8 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     IReadOnlyList<OnlineImportRow> Chosen => [.. Groups.SelectMany(g => g.Items).Where(i => i.CanChoose && i.IsChosen).Select(i => i.Row)];
 
     [RelayCommand]
-    Task ImportSavedPageAsync()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Import a library page you saved",
-            Filter = "Web pages (*.html;*.htm)|*.html;*.htm",
-        };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? ReadSavedPageAsync(dialog.FileName) : Task.CompletedTask;
-    }
+    Task ImportSavedPageAsync() =>
+        files.OpenFile("Import a library page you saved", "Web pages (*.html;*.htm)|*.html;*.htm") is { } page ? ReadSavedPageAsync(page) : Task.CompletedTask;
 
     /// <summary>
     /// Reads a library page saved with Save as, Webpage complete, and shows what importing it does. Its covers are the
@@ -249,7 +241,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     [RelayCommand]
     async Task ChooseDownloadsFolderAsync()
     {
-        if (LibraryFolders.PickOne("Choose where store downloads go") is not { } folder) return;
+        if (files.PickFolder("Choose where store downloads go") is not { } folder) return;
         await UseDownloadsFolderAsync(folder);
     }
 

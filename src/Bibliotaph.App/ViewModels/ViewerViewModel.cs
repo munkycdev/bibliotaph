@@ -68,7 +68,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     UnlockedPasswords Unlocked, IPasswordPrompt Prompt, IndexingService Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
-    ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
+    IUserPrompts UserPrompts, IDesktopShell Shell, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -90,6 +90,8 @@ public sealed partial class ViewerViewModel : PageViewModel
     readonly PdfWorkerPool _workers;
     readonly IPasswordVault _vault;
     readonly OtherApps _otherApps;
+    readonly IUserPrompts _userPrompts;
+    readonly IDesktopShell _shell;
     readonly UnlockedPasswords _unlocked;
     readonly IPasswordPrompt _prompt;
     readonly IndexingService _indexing;
@@ -152,6 +154,8 @@ public sealed partial class ViewerViewModel : PageViewModel
         _workers = services.Workers;
         _vault = services.Vault;
         _otherApps = services.OtherApps;
+        _userPrompts = services.UserPrompts;
+        _shell = services.Shell;
         _unlocked = services.Unlocked;
         _prompt = services.Prompt;
         _indexing = services.Indexing;
@@ -309,11 +313,11 @@ public sealed partial class ViewerViewModel : PageViewModel
     }
 
     /// <summary>File Explorer at the folder a missing file was last in, or the nearest one above it still there.</summary>
-    static void ShowNearestFolder(string path)
+    void ShowNearestFolder(string path)
     {
         var folder = System.IO.Path.GetDirectoryName(path);
         while (folder is not null && !System.IO.Directory.Exists(folder)) folder = System.IO.Path.GetDirectoryName(folder);
-        if (folder is not null) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
+        if (folder is not null) _shell.OpenFolder(folder);
     }
 
     public override Route Route => Route.Viewer;
@@ -1815,7 +1819,7 @@ public sealed partial class ViewerViewModel : PageViewModel
 
     void OpenWebLink(string uri)
     {
-        if (WebLinks.AskAndOpen(uri, out var failed) || failed is null) return;
+        if (!WebLinkPrompt.ConfirmOpen(_userPrompts, uri) || _shell.Open(uri) is not { } failed) return;
         _log.LogWarning(failed, "Opening a web link failed");
         ShowNotice("Windows couldn't open that link.");
     }

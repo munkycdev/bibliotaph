@@ -99,6 +99,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     readonly AskService _ask;
     readonly LibraryAskScope _askScope;
     readonly CorrectionService _corrections;
+    readonly IFilePicker _files;
+    readonly IUserPrompts _prompts;
+    readonly IDesktopShell _shell;
     int _version;
     bool _loaded;
     bool _stale;
@@ -110,9 +113,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
         ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
-        LibraryAskScope askScope, ILogger<LibraryViewModel> log)
+        LibraryAskScope askScope, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _files = files;
+        _prompts = prompts;
+        _shell = shell;
         _chosenCovers = chosenCovers;
         _askScope = askScope;
         _parts = parts;
@@ -1068,7 +1074,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts, _log, _corrections, _chosenCovers);
+            var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts,
+                _files, _prompts, _shell, _log, _corrections, _chosenCovers);
             inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
             await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
@@ -1378,7 +1385,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     {
         try
         {
-            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere, _chosenCovers);
+            var dialog = await AddElsewhereViewModel.LoadAsync(_elsewhere, _files, _chosenCovers);
             dialog.Closed += async (_, entryId) => await AddElsewhereClosedAsync(entryId);
             Inspector = null;
             AddElsewhereDialog = dialog;
@@ -1598,23 +1605,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel
     [RelayCommand(CanExecute = nameof(CanClearSelection))]
     async Task ExportSelected()
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Title = "Export these books for a spreadsheet",
-            FileName = "Bibliotaph books.csv",
-            DefaultExt = ".csv",
-            Filter = "CSV (*.csv)|*.csv",
-        };
-        if (dialog.ShowDialog(System.Windows.Application.Current.MainWindow) != true) return;
+        if (_files.SaveFile("Export these books for a spreadsheet", "Bibliotaph books.csv", "CSV (*.csv)|*.csv", ".csv") is not { } path) return;
         ClearUndos();
         try
         {
-            var rows = await _export.WriteCsvAsync(dialog.FileName, Selection.EntryIds);
-            BulkMessage = $"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(dialog.FileName)}.";
+            var rows = await _export.WriteCsvAsync(path, Selection.EntryIds);
+            BulkMessage = $"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(path)}.";
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
-            _log.LogError(ex, "Exporting {Count} selected books to {Path} failed", Selection.Count, dialog.FileName);
+            _log.LogError(ex, "Exporting {Count} selected books to {Path} failed", Selection.Count, path);
             BulkMessage = $"The export couldn't be saved: {ex.Message}";
         }
     }

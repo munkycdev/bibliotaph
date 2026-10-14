@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Windows;
 using Bibliotaph.Core.Progress;
 
 namespace Bibliotaph.App.Services;
@@ -12,9 +11,9 @@ static class ReprocessPrompt
 {
     static readonly TimeSpan PerPage = TimeSpan.FromMilliseconds(250);
 
-    public static bool ConfirmOcrEveryPage(string title, int pages) => MessageBox.Show(Application.Current.MainWindow,
+    public static bool ConfirmOcrEveryPage(IUserPrompts prompts, string title, int pages) => prompts.Confirm(
         $"Bibliotaph will read all {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")} of “{title}” with OCR, " +
         $"including pages whose text came from the PDF itself. That takes {TimeLeft.Describe(PerPage * pages)}.\n\n" +
         "Until each page has been read, its current text stays searchable. Nothing you added to the book changes.",
-        "Reprocess with OCR on every page?", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.OK) == MessageBoxResult.OK;
+        "Reprocess with OCR on every page?", PromptKind.Question, okByDefault: true);
 }

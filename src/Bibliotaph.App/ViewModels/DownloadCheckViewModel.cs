@@ -1,15 +1,12 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Windows;
 using Bibliotaph.App.Services;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -18,7 +15,8 @@ namespace Bibliotaph.App.ViewModels;
 /// New first. One page for the whole app, so a check keeps running while you go back to the library, and its results
 /// are still here when you come back.
 /// </summary>
-public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWindows readers, ILogger<DownloadCheckViewModel> log) : PageViewModel
+public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWindows readers, IFilePicker files, IClipboard clipboard, IDesktopShell shell,
+    ILogger<DownloadCheckViewModel> log) : PageViewModel
 {
     /// <summary>Stops the running check.</summary>
     Action? _cancel;
@@ -64,18 +62,12 @@ public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWi
     public bool HasResults => Groups.Count > 0;
 
     [RelayCommand(CanExecute = nameof(CanStart))]
-    Task CheckFolderAsync()
-    {
-        var dialog = new OpenFolderDialog { Title = "Check a folder against your library" };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? StartAsync(dialog.FolderName) : Task.CompletedTask;
-    }
+    Task CheckFolderAsync() =>
+        files.PickFolder("Check a folder against your library") is { } folder ? StartAsync(folder) : Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(CanStart))]
-    Task CheckZipAsync()
-    {
-        var dialog = new OpenFileDialog { Title = "Check a ZIP against your library", Filter = "ZIP files (*.zip)|*.zip" };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? StartAsync(dialog.FileName) : Task.CompletedTask;
-    }
+    Task CheckZipAsync() =>
+        files.OpenFile("Check a ZIP against your library", "ZIP files (*.zip)|*.zip") is { } zip ? StartAsync(zip) : Task.CompletedTask;
 
     bool CanStart() => !IsRunning;
 
@@ -166,7 +158,7 @@ public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWi
                 text.Append(group.Label).Append('\t').Append(item.Location).Append('\t').AppendLine(item.Result.MatchTitle ?? "");
         try
         {
-            Clipboard.SetText(text.ToString());
+            clipboard.SetText(text.ToString());
             Copied = "The list is on the clipboard.";
         }
         catch (COMException ex)
@@ -176,8 +168,7 @@ public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWi
         }
     }
 
-    internal static void ShowInFolder(string path) =>
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
+    internal void ShowInFolder(string path) => shell.ShowInFolder(path);
 
     internal void Open(long documentId, string title) => readers.OpenInMainWindow(new ViewerRequest(documentId, title));
 }
@@ -251,7 +242,7 @@ public sealed partial class CheckResultViewModel(CheckedFile result, DownloadChe
     public bool CanOpen => Result.MatchDocumentId is not null;
 
     [RelayCommand]
-    void ShowInFolder() => DownloadCheckViewModel.ShowInFolder(Result.Item.FullPath); // a file inside a ZIP: the ZIP
+    void ShowInFolder() => page.ShowInFolder(Result.Item.FullPath); // a file inside a ZIP: the ZIP
 
     [RelayCommand]
     void OpenBook()

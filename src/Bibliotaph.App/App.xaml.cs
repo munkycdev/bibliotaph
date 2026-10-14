@@ -306,6 +306,10 @@ public partial class App : Application
 
         // Shell
         builder.Services.AddSingleton<ThemeService>();
+        builder.Services.AddSingleton<IFilePicker, WindowsFilePicker>();
+        builder.Services.AddSingleton<IUserPrompts, WpfUserPrompts>();
+        builder.Services.AddSingleton<IClipboard, WpfClipboard>();
+        builder.Services.AddSingleton<IDesktopShell, WindowsDesktopShell>();
         builder.Services.AddSingleton<SettingsLinks>();
         builder.Services.AddSingleton<LibraryFolders>();
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it

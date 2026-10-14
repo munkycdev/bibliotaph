@@ -1,4 +1,3 @@
-using System.Windows;
 using Bibliotaph.App.Views;
 
 namespace Bibliotaph.App.Services;
@@ -21,7 +20,7 @@ public sealed class PasswordPrompt : IPasswordPrompt
     public EnteredPassword? Ask(string title, bool retry)
     {
         // Over the window being read, which may be a pop-out.
-        var owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+        var owner = WpfUserPrompts.Owner();
         var dialog = new PasswordDialog(title, retry) { Owner = owner };
         return dialog.ShowDialog() == true ? new EnteredPassword(dialog.EnteredPassword, dialog.RememberPassword, dialog.MakeSearchable) : null;
     }

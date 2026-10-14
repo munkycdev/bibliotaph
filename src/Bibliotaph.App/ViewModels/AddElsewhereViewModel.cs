@@ -1,3 +1,4 @@
+using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
@@ -25,13 +26,15 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
 {
     readonly ElsewhereService _elsewhere;
     readonly ChosenCovers? _covers;
+    readonly IFilePicker _files;
 
     /// <summary>The cover picked, already at cover size, kept once the book is made.</summary>
     byte[]? _cover;
 
-    AddElsewhereViewModel(ElsewhereService elsewhere, ChosenCovers? covers, Vocabulary vocabulary)
+    AddElsewhereViewModel(ElsewhereService elsewhere, IFilePicker files, ChosenCovers? covers, Vocabulary vocabulary)
     {
         _elsewhere = elsewhere;
+        _files = files;
         _covers = covers;
         static IEnumerable<string> Labels(Vocabulary vocabulary, string name) =>
             vocabulary.InVocabulary(name).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase);
@@ -51,8 +54,8 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
         return names.FirstOrDefault(n => n is not null && vocabulary.Resolve("system", n) is null && vocabulary.Resolve("edition", n)?.Key == edition.Key);
     }
 
-    public static async Task<AddElsewhereViewModel> LoadAsync(ElsewhereService elsewhere, ChosenCovers? covers = null) =>
-        new(elsewhere, covers, await Task.Run(() => elsewhere.GetVocabularyAsync()));
+    public static async Task<AddElsewhereViewModel> LoadAsync(ElsewhereService elsewhere, IFilePicker files, ChosenCovers? covers = null) =>
+        new(elsewhere, files, covers, await Task.Run(() => elsewhere.GetVocabularyAsync()));
 
     /// <summary>Raised when the dialog closes: with the new card, or null when it was cancelled.</summary>
     public event EventHandler<EntryId?>? Closed;
@@ -100,13 +103,12 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
     async Task ChooseCover()
     {
         if (_covers is null) return;
-        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Choose a cover image", Filter = ChosenCovers.FileFilter };
-        if (dialog.ShowDialog() != true) return;
-        var (jpeg, problem) = await Task.Run(() => _covers.ReadAsync(dialog.FileName));
+        if (_files.OpenFile("Choose a cover image", ChosenCovers.FileFilter) is not { } path) return;
+        var (jpeg, problem) = await Task.Run(() => _covers.ReadAsync(path));
         Problem = problem;
         if (jpeg is null) return;
         _cover = jpeg;
-        CoverName = global::System.IO.Path.GetFileName(dialog.FileName);
+        CoverName = global::System.IO.Path.GetFileName(path);
     }
 
     [RelayCommand]

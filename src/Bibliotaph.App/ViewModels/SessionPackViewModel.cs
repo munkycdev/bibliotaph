@@ -33,6 +33,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly ReaderWindows _readers;
     readonly OnlineReaders _online;
     readonly INavigationService _navigation;
+    readonly IDesktopShell _shell;
     readonly ILogger<SessionPackViewModel> _log;
     readonly DispatcherTimer _notesTimer;
     int _version;
@@ -40,9 +41,11 @@ public sealed partial class SessionPackViewModel : PageViewModel
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, ILogger<SessionPackViewModel> log)
+        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell,
+        ILogger<SessionPackViewModel> log)
     {
         _online = online;
+        _shell = shell;
         Actions = actions;
         _sessions = sessions;
         _sessionPages = sessionPages;
@@ -270,8 +273,8 @@ public sealed partial class SessionPackViewModel : PageViewModel
     void ShowInFolder(SessionItemRow row)
     {
         if (row.Target.LastPath is not { } path) return;
-        if (File.Exists(path)) DownloadCheckViewModel.ShowInFolder(path);
-        else if (Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder)) DownloadCheckViewModel.ShowInFolder(folder);
+        if (File.Exists(path)) _shell.ShowInFolder(path);
+        else if (Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder)) _shell.ShowInFolder(folder);
         else Actions.Say($"{path} can't be reached right now.");
     }
 

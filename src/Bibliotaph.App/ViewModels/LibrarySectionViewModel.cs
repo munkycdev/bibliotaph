@@ -93,7 +93,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 /// </summary>
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies,
+    LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies, IFilePicker files,
     ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
@@ -294,7 +294,7 @@ public sealed partial class LibrarySectionViewModel(
     [RelayCommand]
     async Task AddFolder()
     {
-        foreach (var path in LibraryFolders.Pick())
+        foreach (var path in files.PickFolders("Add folders to your library"))
         {
             if (Pending.Any(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
             var pending = new PendingFolder(path);
@@ -327,7 +327,7 @@ public sealed partial class LibrarySectionViewModel(
     [RelayCommand]
     async Task PointToNewPlace(LibraryFolderItem folder)
     {
-        if (LibraryFolders.PickOne($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
+        if (files.PickFolder($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
         try
         {
             folder.Problem = await indexing.RelocateRootAsync(folder.Id, path) switch
