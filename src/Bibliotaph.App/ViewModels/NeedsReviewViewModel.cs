@@ -141,7 +141,6 @@ public sealed partial class NeedsReviewViewModel(
     int _shown;
     bool _choosing;
     Vocabulary _vocabulary = Vocabulary.Empty;
-    IReadOnlyList<FieldSnapshot>? _bulkUndo;
     bool _loaded;
 
     public override Route Route => Route.NeedsReview;
@@ -234,8 +233,7 @@ public sealed partial class NeedsReviewViewModel(
     public bool ShowEmpty => !IsLoading && Cards.Count == 0;
 
     /// <summary>"Accepted 40 suggestions." while that Accept all can be undone in one go.</summary>
-    [ObservableProperty]
-    public partial string? BulkMessage { get; private set; }
+    public UndoSlot BulkUndo { get; } = new(log);
 
     public override async Task LoadAsync()
     {
@@ -267,8 +265,7 @@ public sealed partial class NeedsReviewViewModel(
             var list = await review.GetQueueAsync();
             _items = [.. list.Items];
             _vocabulary = list.Vocabulary;
-            _bulkUndo = null;
-            BulkMessage = null;
+            BulkUndo.Clear();
             _fieldCards.Clear();
             List<DecidedCardViewModel> cards = [];
             foreach (var term in list.Terms) cards.Add(new TermCardViewModel(term, _vocabulary, this));
@@ -505,18 +502,6 @@ public sealed partial class NeedsReviewViewModel(
     [RelayCommand]
     void ReturnToLibrary() => navigation.NavigateTo(Route.Library);
 
-    /// <summary>Undoes the last Accept all, then lists the cards again, since some of them weren't shown.</summary>
-    [RelayCommand]
-    async Task UndoBulk()
-    {
-        if (_bulkUndo is not { } undo) return;
-        _bulkUndo = null;
-        BulkMessage = null;
-        await review.UndoAsync(undo);
-        activity.Invalidate();
-        await ReloadAsync();
-    }
-
     // IReviewActions: each decision goes to catalog.db and the library at once; the sidebar count follows.
 
     public void Decided(int change)
@@ -555,8 +540,13 @@ public sealed partial class NeedsReviewViewModel(
             cards[i].MarkDone($"{cards[i].FieldLabel} is now {cards[i].SuggestedText}.", () => review.UndoAsync([snapshot]));
         }
         CountChoices();
-        _bulkUndo = undo;
-        BulkMessage = group.Count == 1 ? "Accepted one suggestion." : $"Accepted {group.Count:N0} suggestions.";
+        // Undo all lists the cards again, since some of them weren't shown.
+        BulkUndo.Offer(group.Count == 1 ? "Accepted one suggestion." : $"Accepted {group.Count:N0} suggestions.", async () =>
+        {
+            await review.UndoAsync(undo);
+            activity.Invalidate();
+            await ReloadAsync();
+        });
         activity.Invalidate();
     }
 

@@ -176,6 +176,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         _chapters = services.Chapters;
         _ask = services.Ask;
         _log = services.Log;
+        NoteUndo = new UndoSlot(_log);
         _windows = windows;
         Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
         ShowStrip = windows.ShowsStrip;
@@ -598,8 +599,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         Sessions.Close();
         NoteDialog?.CancelCommand.Execute(null);
         PartEditor?.CancelCommand.Execute(null);
-        NoteMessage = null;
-        NoteUndo = null;
+        NoteUndo.Clear();
         _notes.PageNotesChanged -= OnPageNotesChanged;
         _pins.Changed -= OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
@@ -936,7 +936,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         catch (Exception ex)
         {
             _log.LogError(ex, "Pointing a session item or page note at a page failed");
-            Sessions.Say("That didn't work. The log has the details.");
+            Sessions.Undo.Say("That didn't work. The log has the details.");
             return;
         }
         CanUsePage = false;
@@ -945,12 +945,12 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         {
             _request = request with { SessionItem = used with { State = SessionItemState.Ready, Reason = null, FirstPage = first, LastPage = last } };
             MarkItemPages();
-            Sessions.Say($"Saved. In {used.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
+            Sessions.Undo.Say($"Saved. In {used.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
         }
         else
         {
             _request = request with { PageNote = request.PageNote! with { State = PagePlaceState.Ready, Reason = null, FirstPage = first, LastPage = last } };
-            SayNote($"Saved. The note is now on page {PageNumbers.Display(first, _labels)}.", null);
+            NoteUndo.Say($"Saved. The note is now on page {PageNumbers.Display(first, _labels)}.");
         }
     }
 
@@ -1036,15 +1036,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
     public partial PageNoteDialogViewModel? NoteDialog { get; private set; }
 
     /// <summary>"Deleted the note on p. 12.", beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? NoteMessage { get; private set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasNoteUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoNoteCommand))]
-    public partial Func<Task>? NoteUndo { get; private set; }
-
-    public bool HasNoteUndo => NoteUndo is not null;
+    public UndoSlot NoteUndo { get; }
 
     [RelayCommand]
     void ToggleNotes() => NotesVisible = !NotesVisible;
@@ -1119,11 +1111,11 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         OpenNoteDialog(new PageNoteDialogViewModel($"A note on page {shown}", "Save note", shown, "", "", FindPage), async result =>
         {
             var added = await Task.Run(() => _notes.AddPageNoteAsync(request.DocumentId, result.FirstPage, result.LastPage, result.Text));
-            if (added is null) SayNote("The note couldn't be saved. The log may have the details.", null);
+            if (added is null) NoteUndo.Say("The note couldn't be saved. The log may have the details.");
             else
             {
                 NotesVisible = true;
-                SayNote($"Saved the note on {SessionItemRow.Pages(added.Range)}.", null);
+                NoteUndo.Say($"Saved the note on {SessionItemRow.Pages(added.Range)}.");
             }
         });
     }
@@ -1145,7 +1137,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
                 ? (range.DocumentId, range.FirstPdfPage, range.LastPdfPage)
                 : (request.DocumentId, result.FirstPage, result.LastPage);
             var updated = await Task.Run(() => _notes.UpdatePageNoteAsync(row.Note, result.Text, document, firstPage, lastPage));
-            if (updated is null) SayNote("That note isn't there any more.", null);
+            if (updated is null) NoteUndo.Say("That note isn't there any more.");
         });
     }
 
@@ -1155,7 +1147,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
     {
         var deleted = await Task.Run(() => _notes.DeletePageNoteAsync(row.Id));
         if (deleted is null) return;
-        SayNote($"Deleted the note on {row.Pages}.", async () => await Task.Run(() => _notes.RestorePageNoteAsync(deleted)));
+        NoteUndo.Offer($"Deleted the note on {row.Pages}.", async () => await Task.Run(() => _notes.RestorePageNoteAsync(deleted)));
     }
 
     /// <summary>
@@ -1180,29 +1172,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
         }
     }
 
-    [RelayCommand(CanExecute = nameof(HasNoteUndo))]
-    async Task UndoNote()
-    {
-        if (NoteUndo is not { } undo) return;
-        NoteUndo = null;
-        NoteMessage = null;
-        try
-        {
-            await undo();
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing a page note change failed");
-            NoteMessage = "That couldn't be undone.";
-        }
-    }
-
     [RelayCommand]
-    void DismissNoteMessage()
-    {
-        NoteMessage = null;
-        NoteUndo = null;
-    }
+    void DismissNoteMessage() => NoteUndo.Clear();
 
     // Adventures inside the file.
 
@@ -1340,16 +1311,10 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices
             catch (Exception ex)
             {
                 _log.LogError(ex, "Saving a page note failed");
-                SayNote("That didn't work. The log has the details.", null);
+                NoteUndo.Say("That didn't work. The log has the details.");
             }
         };
         NoteDialog = dialog;
-    }
-
-    void SayNote(string message, Func<Task>? undo)
-    {
-        NoteMessage = message;
-        NoteUndo = undo;
     }
 
     /// <summary>The open book's page notes, read again whenever any reader changes one of them.</summary>

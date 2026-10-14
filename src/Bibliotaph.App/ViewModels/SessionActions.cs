@@ -4,7 +4,6 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
@@ -22,15 +21,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     public partial SessionDialogViewModel? Dialog { get; private set; }
 
     /// <summary>"Added Warehouse ambush to The midnight bell.", beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? Message { get; private set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
-    public partial Func<Task>? UndoAction { get; private set; }
-
-    public bool HasUndo => UndoAction is not null;
+    public UndoSlot Undo { get; } = new(log);
 
     /// <summary>Raised on the UI thread after a change, so the page shows it.</summary>
     public event EventHandler? Done;
@@ -196,39 +187,14 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     }
 
     /// <summary>The note after a delete, on the page shown after it, with Undo bringing the pack back.</summary>
-    public void ShowDeleted(SessionPackSnapshot deleted)
-    {
-        Message = $"Deleted {deleted.Title}. Its books are still in your library.";
-        UndoAction = async () => await sessions.RestoreAsync(deleted);
-    }
-
-    /// <summary>A note with nothing to undo, such as why an item can't open.</summary>
-    public void Say(string message)
-    {
-        Message = message;
-        UndoAction = null;
-    }
-
-    [RelayCommand(CanExecute = nameof(HasUndo))]
-    async Task Undo()
-    {
-        if (UndoAction is not { } undo) return;
-        UndoAction = null;
-        Message = "Undoing…";
-        if (await Run(async () => { await undo(); return true; }, "Undoing a session change failed"))
-        {
-            Message = null;
-            await FinishAsync(null, null);
-        }
-        else Message = "That couldn't be undone.";
-    }
+    public void ShowDeleted(SessionPackSnapshot deleted) =>
+        Undo.Offer($"Deleted {deleted.Title}. Its books are still in your library.", Undoing(async () => await sessions.RestoreAsync(deleted)));
 
     /// <summary>Esc or Cancel closes the dialog; the note goes when the page is left.</summary>
     public void Close()
     {
         Dialog?.CancelCommand.Execute(null);
-        Message = null;
-        UndoAction = null;
+        Undo.Clear();
     }
 
     void Open(SessionDialogViewModel dialog, Func<SessionDialogResult, Task> then)
@@ -243,8 +209,20 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
 
     async Task FinishAsync(string? message, Func<Task>? undo)
     {
-        Message = message;
-        UndoAction = undo;
+        if (message is null) Undo.Clear();
+        else Undo.Offer(message, undo is null ? null : Undoing(undo));
+        await ShowChangeAsync();
+    }
+
+    /// <summary>What Undo runs: <paramref name="undo"/> off the UI thread, then the page shows the change.</summary>
+    Func<Task> Undoing(Func<Task> undo) => async () =>
+    {
+        await Task.Run(undo);
+        await ShowChangeAsync();
+    };
+
+    async Task ShowChangeAsync()
+    {
         await Directory.LoadAsync();
         Done?.Invoke(this, EventArgs.Empty);
     }
@@ -258,8 +236,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         catch (Exception ex)
         {
             log.LogError(ex, "{Failure}", failure);
-            Message = "That didn't work. The log has the details.";
-            UndoAction = null;
+            Undo.Say("That didn't work. The log has the details.");
             return default;
         }
     }

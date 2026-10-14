@@ -148,6 +148,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _settings = settings;
         _readers = readers;
         _log = log;
+        Undo = new UndoSlot(log);
+        ViewUndo = new UndoSlot(log);
         _text = text;
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
         KindChoice = KindChoices[0];
@@ -565,8 +567,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         ViewDialog?.CancelCommand.Execute(null);
         Inspector?.Notes?.Flush();
         if (Inspector is { IsCorrecting: true } correcting) EndCorrecting(correcting);
-        ViewMessage = null;
-        ViewUndo = null;
+        ViewUndo.Clear();
         Search.PropertyChanged -= OnSearchChanged;
         // A view's search is the view's: it goes when the view is left, and comes back with the page on Back.
         if (ActiveView is not null)
@@ -576,8 +577,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         }
         _staleTimer.Stop();
         // A bulk edit can be undone until the Library is left, and a split likewise.
-        ClearUndos();
-        BulkMessage = null;
+        Undo.Clear();
         AddElsewhereDialog = null;
         SameBookDialog = null;
         PackDialog = null;
@@ -1153,24 +1153,24 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// </summary>
     async Task ApplyLookAlikesAsync(LookAlikeOffer offer)
     {
-        ClearUndos();
-        BulkMessage = "Changing…";
+        Undo.Say("Changing…");
         try
         {
             var (problem, undo) = await Task.Run(() => _corrections.ApplyAsync(offer));
-            if (problem is not null) BulkMessage = $"The other books couldn't be changed: {problem.Message}";
+            if (problem is not null) Undo.Say($"The other books couldn't be changed: {problem.Message}");
             else
             {
                 var books = undo?.Select(s => s.EntryId).Distinct().Count() ?? 0;
-                BulkUndo = books > 0 && ReferenceEquals(_navigation.Current, this) ? undo : null;
-                BulkMessage = books == 0 ? "Those books already had these values, so nothing changed."
-                    : $"Changed {BulkEditViewModel.Books(books)} from “{offer.FolderName}”.";
+                SayDone(books == 0 ? "Those books already had these values, so nothing changed."
+                        : $"Changed {BulkEditViewModel.Books(books)} from “{offer.FolderName}”.",
+                    books > 0 && undo is not null && ReferenceEquals(_navigation.Current, this) ? () => _metadata.UndoManyAsync(undo) : null,
+                    "The edit couldn't be undone.");
             }
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Correcting {Count} look-alikes of {EntryId} failed", offer.Books.Count, offer.EntryId);
-            BulkMessage = "The other books couldn't be changed.";
+            Undo.Say("The other books couldn't be changed.");
         }
         // Three books given the same value can propose a folder rule, a card in Needs review.
         Activity.Invalidate();
@@ -1418,37 +1418,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     async Task ShowRemovedAsync(LibraryItemViewModel item, RemovedEntry removed)
     {
         Inspector = null;
-        ClearUndos();
-        RemoveUndo = removed;
-        BulkMessage = $"Removed {item.Title} from your library.";
-        await RefreshAsync();
-    }
-
-    /// <summary>The book owned elsewhere the last Remove took away, until the next edit or until the Library is left.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasRemoveUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoRemoveCommand))]
-    public partial RemovedEntry? RemoveUndo { get; private set; }
-
-    public bool HasRemoveUndo => RemoveUndo is not null;
-
-    /// <summary>Brings the removed book back, with everything that was set on it.</summary>
-    [RelayCommand(CanExecute = nameof(HasRemoveUndo))]
-    async Task UndoRemove()
-    {
-        if (RemoveUndo is not { } removed) return;
-        RemoveUndo = null;
-        BulkMessage = "Undoing…";
-        try
-        {
-            await Task.Run(() => _elsewhere.UndoRemoveAsync(removed));
-            BulkMessage = null;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing the removal of entry {EntryId} failed", removed.EntryId);
-            BulkMessage = "The book couldn't be brought back.";
-        }
+        // Undo brings the book back with everything that was set on it.
+        SayDone($"Removed {item.Title} from your library.", () => _elsewhere.UndoRemoveAsync(removed), "The book couldn't be brought back.");
         await RefreshAsync();
     }
 
@@ -1456,38 +1427,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     async Task ShowPackSplitAsync(LibraryItemViewModel pack, IReadOnlyList<EntryId> files)
     {
         Inspector = null;
-        ClearUndos();
-        SplitUndo = (pack.EntryId, files);
-        BulkMessage = $"Split {pack.Title} into {(pack.HasPdfMembers ? LibraryItemViewModel.Files(files.Count) : LibraryItemViewModel.Images(files.Count))}.";
-        await RefreshAsync();
-    }
-
-    /// <summary>The pack the last split took apart, and its files, until the next edit or until the Library is left.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSplitUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoSplitCommand))]
-    public partial (EntryId Pack, IReadOnlyList<EntryId> Images)? SplitUndo { get; private set; }
-
-    public bool HasSplitUndo => SplitUndo is not null;
-
-    /// <summary>Makes the split pack one card again.</summary>
-    [RelayCommand(CanExecute = nameof(HasSplitUndo))]
-    async Task UndoSplit()
-    {
-        if (SplitUndo is not { } undo) return;
-        var (pack, images) = undo;
-        SplitUndo = null;
-        BulkMessage = "Undoing…";
-        try
-        {
-            await Task.Run(() => _packs.RepackAsync(pack, images));
-            BulkMessage = null;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing the split of pack {EntryId} failed", pack);
-            BulkMessage = "The split couldn't be undone.";
-        }
+        // Undo makes the split pack one card again.
+        SayDone($"Split {pack.Title} into {(pack.HasPdfMembers ? LibraryItemViewModel.Files(files.Count) : LibraryItemViewModel.Images(files.Count))}.",
+            () => _packs.RepackAsync(pack.EntryId, files), "The split couldn't be undone.");
         await RefreshAsync();
     }
 
@@ -1510,17 +1452,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     [NotifyCanExecuteChangedFor(nameof(EditSelectedCommand), nameof(SelectAllCommand))]
     public partial BulkEditViewModel? BulkEdit { get; private set; }
 
-    /// <summary>"Edited 12 books.", after a bulk edit, beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? BulkMessage { get; private set; }
-
-    /// <summary>What undoes the last bulk edit: until the next one, or until the Library is left.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBulkUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoBulkEditCommand))]
-    public partial IReadOnlyList<FieldSnapshot>? BulkUndo { get; private set; }
-
-    public bool HasBulkUndo => BulkUndo is not null;
+    /// <summary>
+    /// "Edited 12 books.", under the Select bar, after a bulk edit, Same book, Pack together, Remove adventures, a split
+    /// or a removal, beside its Undo: until the next of them, or until the Library is left.
+    /// </summary>
+    public UndoSlot Undo { get; }
 
     void OnSelectionChanged()
     {
@@ -1605,16 +1541,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     async Task ExportSelected()
     {
         if (_files.SaveFile("Export these books for a spreadsheet", "Bibliotaph books.csv", "CSV (*.csv)|*.csv", ".csv") is not { } path) return;
-        ClearUndos();
+        Undo.Clear();
         try
         {
             var rows = await _export.WriteCsvAsync(path, Selection.EntryIds);
-            BulkMessage = $"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(path)}.";
+            Undo.Say($"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(path)}.");
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
             _log.LogError(ex, "Exporting {Count} selected books to {Path} failed", Selection.Count, path);
-            BulkMessage = $"The export couldn't be saved: {ex.Message}";
+            Undo.Say($"The export couldn't be saved: {ex.Message}");
         }
     }
 
@@ -1622,31 +1558,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         BulkEdit = null;
         if (result is null) return;
-        // Leaving the Library while it applied ends the Undo, as leaving afterwards would.
-        ClearUndos();
-        BulkUndo = result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? result.Undo : null;
-        BulkMessage = result.Books == 0 ? "Those books already had these values, so nothing changed."
-            : $"Edited {BulkEditViewModel.Books(result.Books)}.";
-        await RefreshAsync();
-    }
-
-    /// <summary>Puts back exactly what the fields held before the last bulk edit.</summary>
-    [RelayCommand(CanExecute = nameof(HasBulkUndo))]
-    async Task UndoBulkEdit()
-    {
-        if (BulkUndo is not { } undo) return;
-        BulkUndo = null;
-        BulkMessage = "Undoing…";
-        try
-        {
-            await Task.Run(() => _metadata.UndoManyAsync(undo));
-            BulkMessage = null;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing a bulk edit of {Count} fields failed", undo.Count);
-            BulkMessage = "The edit couldn't be undone.";
-        }
+        // Leaving the Library while it applied ends the Undo, as leaving afterwards would. Undo puts back exactly what
+        // the fields held before.
+        SayDone(result.Books == 0 ? "Those books already had these values, so nothing changed." : $"Edited {BulkEditViewModel.Books(result.Books)}.",
+            result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? () => _metadata.UndoManyAsync(result.Undo) : null,
+            "The edit couldn't be undone.");
         await RefreshAsync();
     }
 
@@ -1688,40 +1604,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         SameBookDialog = null;
         OnPropertyChanged(nameof(CanJoinSelected));
         if (result is null) return;
-        ClearUndos();
-        // Leaving the Library while it joined ends the Undo, as leaving afterwards would.
-        JoinUndo = ReferenceEquals(_navigation.Current, this) ? result.Join : null;
         var title = _known.TryGetValue(result.Join.EntryId, out var card) ? card.Title : "one book";
-        BulkMessage = $"Joined {result.Cards.ToString("N0", CultureInfo.CurrentCulture)} cards as {title}.";
+        // Leaving the Library while it joined ends the Undo, as leaving afterwards would. Undo gives each card its
+        // files back, with what it brought.
+        SayDone($"Joined {result.Cards.ToString("N0", CultureInfo.CurrentCulture)} cards as {title}.",
+            ReferenceEquals(_navigation.Current, this) ? () => _copies.UndoJoinAsOneBookAsync(result.Join) : null,
+            "The cards couldn't be taken apart again. Use Not the same book in the card's Copies list.");
         Selection.Clear();
-        await RefreshAsync();
-    }
-
-    /// <summary>What undoes the last Same book, until the next edit or until the Library is left.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasJoinUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoJoinCommand))]
-    public partial BookJoin? JoinUndo { get; private set; }
-
-    public bool HasJoinUndo => JoinUndo is not null;
-
-    /// <summary>Gives each card its files back, with what it brought.</summary>
-    [RelayCommand(CanExecute = nameof(HasJoinUndo))]
-    async Task UndoJoin()
-    {
-        if (JoinUndo is not { } join) return;
-        JoinUndo = null;
-        BulkMessage = "Undoing…";
-        try
-        {
-            await Task.Run(() => _copies.UndoJoinAsOneBookAsync(join));
-            BulkMessage = null;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing Same book on entry {EntryId} failed", join.EntryId);
-            BulkMessage = "The cards couldn't be taken apart again. Use Not the same book in the card's Copies list.";
-        }
         await RefreshAsync();
     }
 
@@ -1765,39 +1654,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         PackDialog = null;
         OnPropertyChanged(nameof(CanPackSelected));
         if (result is null) return;
-        ClearUndos();
-        // Leaving the Library while it packed ends the Undo, as leaving afterwards would.
-        PackUndo = ReferenceEquals(_navigation.Current, this) ? result.Result : null;
-        BulkMessage = result.Message;
+        // Leaving the Library while it packed ends the Undo, as leaving afterwards would. Undo puts the cards back as
+        // they were: merged packs come back, and files have their own cards again.
+        SayDone(result.Message, ReferenceEquals(_navigation.Current, this) ? () => _packs.UndoPackTogetherAsync(result.Result) : null,
+            "The pack couldn't be put back as it was. Use Split in its details.");
         Selection.Clear();
-        await RefreshAsync();
-    }
-
-    /// <summary>What undoes the last Pack together, until the next edit or until the Library is left.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPackUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoPackCommand))]
-    public partial PackTogetherResult? PackUndo { get; private set; }
-
-    public bool HasPackUndo => PackUndo is not null;
-
-    /// <summary>Puts the cards back as they were: merged packs come back, and files have their own cards again.</summary>
-    [RelayCommand(CanExecute = nameof(HasPackUndo))]
-    async Task UndoPack()
-    {
-        if (PackUndo is not { } result) return;
-        PackUndo = null;
-        BulkMessage = "Undoing…";
-        try
-        {
-            await Task.Run(() => _packs.UndoPackTogetherAsync(result));
-            BulkMessage = null;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing Pack together on pack {EntryId} failed", result.Together.PackId);
-            BulkMessage = "The pack couldn't be put back as it was. Use Split in its details.";
-        }
         await RefreshAsync();
     }
 
@@ -1817,65 +1678,46 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         IsRemovingParts = true;
         OnSelectionChanged();
         Inspector = null;
-        ClearUndos();
-        BulkMessage = "Removing…";
+        Undo.Say("Removing…");
+        string message;
         try
         {
             foreach (var card in cards)
                 if (await Task.Run(() => _parts.RemoveAsync(card.EntryId)) is { } part) removed.Add(part);
-            BulkMessage = $"Removed {LibraryItemViewModel.Adventures(removed.Count)}. Their pages are only their files' again.";
+            message = $"Removed {LibraryItemViewModel.Adventures(removed.Count)}. Their pages are only their files' again.";
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Removing {Count} selected adventures failed after {Removed}", cards.Count, removed.Count);
-            BulkMessage = removed.Count == 0 ? "The adventures couldn't be removed."
-                : $"Only {LibraryItemViewModel.Adventures(removed.Count)} could be removed.";
+            message = removed.Count == 0 ? "The adventures couldn't be removed." : $"Only {LibraryItemViewModel.Adventures(removed.Count)} could be removed.";
         }
-        // Leaving the Library while it removed ends the Undo, as leaving afterwards would.
-        PartsUndo = removed.Count > 0 && ReferenceEquals(_navigation.Current, this) ? removed : null;
+        // Leaving the Library while it removed ends the Undo, as leaving afterwards would. Undo brings each adventure
+        // back as a card with what was set on it.
+        SayDone(message, removed.Count > 0 && ReferenceEquals(_navigation.Current, this) ? async () =>
+        {
+            foreach (var part in Enumerable.Reverse(removed)) await _parts.RestoreAsync(part);
+        } : null, "The adventures couldn't all be brought back. Mark their pages again from their files' details.");
         IsRemovingParts = false;
         Selection.Clear();
         await RefreshAsync();
     }
 
-    /// <summary>The adventures the last Remove adventures took away, until the next edit or until the Library is left.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPartsUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoPartsCommand))]
-    public partial IReadOnlyList<RemovedPart>? PartsUndo { get; private set; }
-
-    public bool HasPartsUndo => PartsUndo is not null;
-
-    /// <summary>Brings the removed adventures back, each as a card with what was set on it.</summary>
-    [RelayCommand(CanExecute = nameof(HasPartsUndo))]
-    async Task UndoParts()
+    /// <summary>
+    /// Says under the Select bar what a change did, with Undo when <paramref name="undo"/> is given: it runs off the UI
+    /// thread, and the library is shown again whether or not it worked. <paramref name="failed"/> is what the note says
+    /// if it didn't.
+    /// </summary>
+    void SayDone(string message, Func<Task>? undo, string failed) => Undo.Offer(message, undo is null ? null : async () =>
     {
-        if (PartsUndo is not { } removed) return;
-        PartsUndo = null;
-        BulkMessage = "Undoing…";
         try
         {
-            foreach (var part in removed.Reverse()) await Task.Run(() => _parts.RestoreAsync(part));
-            BulkMessage = null;
+            await Task.Run(undo);
         }
-        catch (Exception ex)
+        finally
         {
-            _log.LogError(ex, "Undoing the removal of {Count} adventures failed", removed.Count);
-            BulkMessage = "The adventures couldn't all be brought back. Mark their pages again from their files' details.";
+            await RefreshAsync();
         }
-        await RefreshAsync();
-    }
-
-    /// <summary>Ends every Undo the note under the Select bar offers, before another change says what it did.</summary>
-    void ClearUndos()
-    {
-        BulkUndo = null;
-        SplitUndo = null;
-        RemoveUndo = null;
-        JoinUndo = null;
-        PackUndo = null;
-        PartsUndo = null;
-    }
+    }, failed);
 
     /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>
     [RelayCommand]
@@ -2025,7 +1867,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         }
         var deleted = await RunView(() => Views.DeleteAsync(row.View.Id));
         if (deleted is null) return;
-        SayView($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () => await Views.RestoreAsync(deleted));
+        ViewUndo.Offer($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () => await Views.RestoreAsync(deleted));
     }
 
     /// <summary>A book's Pin or Unpin, from its menu or its details.</summary>
@@ -2214,15 +2056,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     public partial string? ViewNote { get; private set; }
 
     /// <summary>"Saved Haunted places. It's in the sidebar.", beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? ViewMessage { get; private set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasViewUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoViewCommand))]
-    public partial Func<Task>? ViewUndo { get; private set; }
-
-    public bool HasViewUndo => ViewUndo is not null;
+    public UndoSlot ViewUndo { get; }
 
     /// <summary>Naming a view, while the dialog is open over the page.</summary>
     [ObservableProperty]
@@ -2343,7 +2177,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         var created = await RunView(() => Views.CreateAsync(name, current));
         if (created is null) return;
         ShowView(created, current);
-        SayView($"Saved {created.Name}. It's pinned in the sidebar.", null);
+        ViewUndo.Say($"Saved {created.Name}. It's pinned in the sidebar.");
     });
 
     /// <summary>Update view: the view now keeps the search and filters as they are.</summary>
@@ -2355,7 +2189,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (!await RunView(() => Views.UpdateAsync(view.Id, current))) return;
         var previous = _viewSaved;
         ShowView(Views.Find(view.Id) ?? view, current);
-        SayView($"Updated {view.Name}.", previous is null ? null : async () =>
+        ViewUndo.Offer($"Updated {view.Name}.", previous is null ? null : async () =>
         {
             await Views.UpdateAsync(view.Id, previous);
             if (ActiveView?.Id == view.Id) ShowView(Views.Find(view.Id) ?? view, previous);
@@ -2370,7 +2204,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         var created = await RunView(() => Views.CreateAsync(name, current));
         if (created is null) return;
         ShowView(created, current);
-        SayView($"Saved {created.Name}. It's pinned in the sidebar.", null);
+        ViewUndo.Say($"Saved {created.Name}. It's pinned in the sidebar.");
     });
 
     [RelayCommand]
@@ -2392,35 +2226,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (deleted is null) return;
         var saved = _viewSaved;
         ShowView(null, null);
-        SayView($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () =>
+        ViewUndo.Offer($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () =>
         {
             var back = await Views.RestoreAsync(deleted);
             ShowView(back, saved ?? SmartViewDefinition.Parse(back.Definition));
         });
-    }
-
-    [RelayCommand(CanExecute = nameof(HasViewUndo))]
-    async Task UndoView()
-    {
-        if (ViewUndo is not { } undo) return;
-        ViewUndo = null;
-        ViewMessage = "Undoing…";
-        try
-        {
-            await undo();
-            ViewMessage = null;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Undoing a saved search change failed");
-            ViewMessage = "That couldn't be undone.";
-        }
-    }
-
-    void SayView(string message, Func<Task>? undo)
-    {
-        ViewMessage = message;
-        ViewUndo = undo;
     }
 
     void AskName(string heading, string action, string name, Func<string, Task> then)
@@ -2443,7 +2253,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         catch (Exception ex)
         {
             _log.LogError(ex, "Changing a saved search failed");
-            SayView("That didn't work. The log has the details.", null);
+            ViewUndo.Say("That didn't work. The log has the details.");
             return default;
         }
     }

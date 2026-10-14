@@ -119,7 +119,7 @@ static partial class SmokeTest
             throw new InvalidOperationException($"The adventure's details say “{library.Inspector.PartOf}”.");
         await AuditAsync(window, "an adventure's details");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "RemoveThisPart"), "Remove adventure");
-        await WaitUntilAsync(window, () => library.Inspector is { IsPart: false, HasPartUndo: true, HasParts: false } && Part() is null && Shown(window, "UndoPart"),
+        await WaitUntilAsync(window, () => library.Inspector is { IsPart: false, PartUndo.HasUndo: true, HasParts: false } && Part() is null && Shown(window, "UndoPart"),
             () => "Remove adventure didn't take its card away and show its file's details with Undo.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoPart"), "Undo the removal");
         await WaitUntilAsync(window, () => library.Inspector is { Parts: [{ Title: Title }] } && Part() is not null, () => "Undo didn't bring the adventure back.");
@@ -147,12 +147,12 @@ static partial class SmokeTest
             throw new InvalidOperationException("Remove adventures isn't offered for two adventures.");
         await AuditAsync(window, "Select mode with adventures ticked");
         Click(remove, "Remove adventures");
-        await WaitUntilAsync(window, () => library.HasPartsUndo && Parts().Length == 0 && File() is { PartsLabel: "" } && Shown(window, "UndoParts"),
-            () => $"Remove adventures didn't take both cards away with Undo ({library.BulkMessage}).");
-        if (library.BulkMessage != "Removed 2 adventures. Their pages are only their files' again.")
-            throw new InvalidOperationException($"Remove adventures says “{library.BulkMessage}”.");
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoParts"), "Undo Remove adventures");
-        await WaitUntilAsync(window, () => !library.HasPartsUndo && Parts().Select(p => p.Title).Order().SequenceEqual([Second, Title]),
+        await WaitUntilAsync(window, () => library.Undo.HasUndo && Parts().Length == 0 && File() is { PartsLabel: "" } && Shown(window, "UndoBulk"),
+            () => $"Remove adventures didn't take both cards away with Undo ({library.Undo.Message}).");
+        if (library.Undo.Message != "Removed 2 adventures. Their pages are only their files' again.")
+            throw new InvalidOperationException($"Remove adventures says “{library.Undo.Message}”.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoBulk"), "Undo Remove adventures");
+        await WaitUntilAsync(window, () => !library.Undo.HasUndo && Parts().Select(p => p.Title).Order().SequenceEqual([Second, Title]),
             () => "Undo didn't bring both adventures back.");
         foreach (var part in Parts()) await library.ActivateCommand.ExecuteAsync(part);
         await library.RemoveSelectedPartsCommand.ExecuteAsync(null);

@@ -26,7 +26,6 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     /// <summary>The service whose browser read the page shown, so its next page adds to it.</summary>
     string? _fromBrowser;
     Func<string, CancellationToken, Task<byte[]?>>? _covers;
-    Func<Task>? _undo;
 
     public override SettingsSection Section => SettingsSection.OnlineLibraries;
 
@@ -60,15 +59,15 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     public partial string? Problem { get; private set; }
 
     /// <summary>What the last import or removal did, with Undo beside it.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanUndo))]
-    public partial string? Message { get; private set; }
-
-    public bool CanUndo => Message is not null && _undo is not null;
+    public UndoSlot Undo { get; } = new(log);
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ImportCommand), nameof(UndoCommand))]
+    [NotifyPropertyChangedFor(nameof(IsIdle))]
+    [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
     public partial bool IsBusy { get; private set; }
+
+    /// <summary>Nothing is being read, imported or undone, so Undo can run.</summary>
+    public bool IsIdle => !IsBusy;
 
     /// <summary>"Import 12 books", for the books ticked.</summary>
     public string ImportLabel => Chosen.Count switch
@@ -105,8 +104,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
             _page = saved.Page;
             _fromBrowser = null;
             _covers = imports.SavedCovers(saved.Images);
-            Message = null;
-            _undo = null;
+            Undo.Clear();
             await ShowPlanAsync(saved.Reader, saved.Page);
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
@@ -146,8 +144,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         _page = combined;
         _fromBrowser = reader.Key;
         _covers = covers;
-        Message = null;
-        _undo = null;
+        Undo.Clear();
         Problem = null;
         await ShowPlanAsync(reader, combined);
         if (navigation.Current is not SettingsViewModel || !IsSelected) links.Open(SettingsSection.OnlineLibraries);
@@ -282,8 +279,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         try
         {
             await browsers.SignOutAsync();
-            _undo = null;
-            Message = "Bibliotaph's browser is signed out of every service.";
+            Undo.Say("Bibliotaph's browser is signed out of every service.");
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
         {
@@ -336,18 +332,17 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         {
             var chosen = Chosen;
             var result = await Task.Run(() => imports.ImportAsync(plan, chosen, _covers));
-            _undo = async () =>
-            {
-                await Task.Run(() => imports.UndoAsync(result.Undo));
-                await ShowPlanAsync(plan.Reader, page);
-            };
-            Message = (result.Added, result.Changed) switch
+            Undo.Offer((result.Added, result.Changed) switch
             {
                 (0, 0) => "Nothing needed changing.",
                 (var added, 0) => $"Added {Count(added, "book")} owned on {plan.Reader.Name}.",
                 (0, var changed) => $"Updated {Count(changed, "card")} already in your library.",
                 var (added, changed) => $"Added {Count(added, "book")} owned on {plan.Reader.Name} and updated {Count(changed, "card")} already in your library.",
-            };
+            }, () => WhileBusyAsync(async () =>
+            {
+                await Task.Run(() => imports.UndoAsync(result.Undo));
+                await ShowPlanAsync(plan.Reader, page);
+            }));
             await ShowPlanAsync(plan.Reader, page);
         }
         finally
@@ -358,16 +353,13 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
 
     static string Count(int n, string noun) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {noun}{(n == 1 ? "" : "s")}";
 
-    [RelayCommand(CanExecute = nameof(CanRunUndo))]
-    async Task UndoAsync()
+    /// <summary>Runs an Undo as busy, so Import waits for it.</summary>
+    async Task WhileBusyAsync(Func<Task> undo)
     {
-        if (_undo is not { } undo) return;
         IsBusy = true;
         try
         {
-            _undo = null;
             await undo();
-            Message = null;
         }
         finally
         {
@@ -375,21 +367,17 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         }
     }
 
-    bool CanRunUndo() => !IsBusy;
-
     /// <summary>Removes a book the library page no longer lists, with Undo (never on its own).</summary>
     internal async Task RemoveAsync(MissingBookViewModel book)
     {
         if (await elsewhere.RemoveAsync(book.Book.EntryId) is not { } removed) return;
         Missing.Remove(book);
         OnPropertyChanged(nameof(HasMissing));
-        _undo = async () =>
+        Undo.Offer($"Removed {book.Title} from your library.", () => WhileBusyAsync(async () =>
         {
             await elsewhere.UndoRemoveAsync(removed);
             if (Plan is { } plan && _page is { } page) await ShowPlanAsync(plan.Reader, page);
-        };
-        Message = $"Removed {book.Title} from your library.";
-        OnPropertyChanged(nameof(CanUndo));
+        }));
     }
 
     /// <summary>A field's name as the preview says it: "Edition".</summary>

@@ -88,14 +88,14 @@
 
     <!-- What Add this page did, with Undo. -->
     <Border DockPanel.Dock="Top" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6"
-            Padding="14,10" Margin="0,0,0,8" Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+            Padding="14,10" Margin="0,0,0,8" Visibility="{Binding Sessions.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
       <DockPanel>
         <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                 ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionMessageCommand}" />
         <Button x:Name="OnlineUndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
-                Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <TextBlock x:Name="OnlineSessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                Command="{Binding Sessions.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
+                Visibility="{Binding Sessions.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock x:Name="OnlineSessionMessage" Text="{Binding Sessions.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                    VerticalAlignment="Center" />
       </DockPanel>
     </Border>

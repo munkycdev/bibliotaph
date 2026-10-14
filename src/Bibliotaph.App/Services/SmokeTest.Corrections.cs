@@ -98,9 +98,9 @@ static partial class SmokeTest
             var corrected = page.Items.Single(i => i.EntryId == first).SystemLabel;
 
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ChangeLookAlikes"), "Change them");
-            await WaitUntilAsync(window, () => page.HasBulkUndo && page.BulkMessage == "Changed 1 book from “Fey Court”."
+            await WaitUntilAsync(window, () => page.Undo.HasUndo && page.Undo.Message == "Changed 1 book from “Fey Court”."
                     && page.Items.Single(i => i.EntryId == second).SystemLabel == corrected,
-                () => $"Change them left the other card reading “{page.Items.Single(i => i.EntryId == second).SystemLabel}” ({page.BulkMessage}).");
+                () => $"Change them left the other card reading “{page.Items.Single(i => i.EntryId == second).SystemLabel}” ({page.Undo.Message}).");
             if (details.HasLookAlikeOffer) throw new InvalidOperationException("The offer stayed after Change them.");
 
             await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Cataloged wrong… banner has no Done after Change them.");
@@ -112,10 +112,10 @@ static partial class SmokeTest
             if (left != false || (await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
                 throw new InvalidOperationException("The corrected book still has a Cataloged wrong card.");
 
-            await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Command == page.UndoBulkEditCommand && b.IsVisible && b.IsEnabled),
+            await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Command == page.Undo.UndoCommand && b.IsVisible && b.IsEnabled),
                 () => "The bulk banner has no Undo showing.");
-            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.UndoBulkEditCommand), "Undo the edit");
-            await WaitUntilAsync(window, () => !page.HasBulkUndo && page.Items.Single(i => i.EntryId == second).SystemLabel == guessed,
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == page.Undo.UndoCommand), "Undo the edit");
+            await WaitUntilAsync(window, () => !page.Undo.HasUndo && page.Items.Single(i => i.EntryId == second).SystemLabel == guessed,
                 () => $"Undo left the other card reading “{page.Items.Single(i => i.EntryId == second).SystemLabel}”, not “{guessed}”.");
             page.CloseDetailsCommand.Execute(null);
         }

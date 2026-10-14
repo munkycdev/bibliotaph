@@ -535,34 +535,34 @@
                      Visibility="{Binding ViewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
           <!-- What the last saved search change did, with Undo. -->
           <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-                  Visibility="{Binding ViewMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+                  Visibility="{Binding ViewUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel>
               <Button x:Name="UndoView" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                      Command="{Binding UndoViewCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the saved search change"
-                      Visibility="{Binding HasViewUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <TextBlock x:Name="ViewMessage" Text="{Binding ViewMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                      Command="{Binding ViewUndo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the saved search change"
+                      Visibility="{Binding ViewUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="ViewMessage" Text="{Binding ViewUndo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                          VerticalAlignment="Center" />
             </DockPanel>
           </Border>
           <!-- What the last collection change did, with Undo. -->
           <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-                  Visibility="{Binding Collections.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+                  Visibility="{Binding Collections.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel>
               <Button x:Name="UndoCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                      Command="{Binding Collections.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the collection change"
-                      Visibility="{Binding Collections.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <TextBlock x:Name="CollectionMessage" Text="{Binding Collections.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                      Command="{Binding Collections.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the collection change"
+                      Visibility="{Binding Collections.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="CollectionMessage" Text="{Binding Collections.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                          VerticalAlignment="Center" />
             </DockPanel>
           </Border>
           <!-- What the last Add to binder did, with Undo. -->
           <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-                  Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+                  Visibility="{Binding Sessions.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel>
               <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                      Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the binder change"
-                      Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                      Command="{Binding Sessions.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the binder change"
+                      Visibility="{Binding Sessions.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                          VerticalAlignment="Center" />
             </DockPanel>
           </Border>
@@ -616,21 +616,11 @@
         </WrapPanel>
       </Border>
       <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
-              Visibility="{Binding BulkMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+              Visibility="{Binding Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
         <DockPanel>
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoBulkEditCommand}"
-                  Padding="12,0,0,0" AutomationProperties.Name="Undo the edit" Visibility="{Binding HasBulkUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoSplitCommand}"
-                  Padding="12,0,0,0" AutomationProperties.Name="Undo the split" Visibility="{Binding HasSplitUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoPackCommand}"
-                  Padding="12,0,0,0" AutomationProperties.Name="Undo Pack together" Visibility="{Binding HasPackUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoJoinCommand}"
-                  Padding="12,0,0,0" AutomationProperties.Name="Undo Same book" Visibility="{Binding HasJoinUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoRemoveCommand}"
-                  Padding="12,0,0,0" AutomationProperties.Name="Undo the removal" Visibility="{Binding HasRemoveUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <Button x:Name="UndoParts" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding UndoPartsCommand}"
-                  Padding="12,0,0,0" AutomationProperties.Name="Undo Remove adventures" Visibility="{Binding HasPartsUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock Text="{Binding BulkMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <Button x:Name="UndoBulk" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding Undo.UndoCommand}"
+                  Padding="12,0,0,0" AutomationProperties.Name="Undo the change" Visibility="{Binding Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock Text="{Binding Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
         </DockPanel>
       </Border>
       <DockPanel Visibility="{Binding IsEmpty, Converter={StaticResource Bt.CollapsedWhenTrue}}">
@@ -1335,13 +1325,13 @@
             <Border Margin="0,0,0,8" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
               <v:PartEditorView x:Name="InspectorPartEditor" DataContext="{Binding PartEditor}" />
             </Border>
-            <DockPanel Margin="0,0,0,8" Visibility="{Binding PartMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <DockPanel Margin="0,0,0,8" Visibility="{Binding PartUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
               <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                       ToolTip="Dismiss" AutomationProperties.Name="Dismiss" Command="{Binding DismissPartMessageCommand}" />
               <Button x:Name="UndoPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                      Command="{Binding UndoPartCommand}" AutomationProperties.Name="Undo the change to the adventures"
-                      Visibility="{Binding HasPartUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <TextBlock x:Name="PartMessage" Text="{Binding PartMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
+                      Command="{Binding PartUndo.UndoCommand}" AutomationProperties.Name="Undo the change to the adventures"
+                      Visibility="{Binding PartUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <TextBlock x:Name="PartMessage" Text="{Binding PartUndo.Message}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
                          AutomationProperties.LiveSetting="Polite" />
             </DockPanel>
 
