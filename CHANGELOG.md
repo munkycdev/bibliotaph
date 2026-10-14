@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **The Library remembers its order.** The order picked in the toolbar, for the books and for the matching pages,
+  stays the next time the Library opens, after a restart too. Browsing and searching each keep their own, so
+  **Best match** still comes with a search. A saved search still opens in the order it was saved with.
 - **Fixed: Undo after removing an adventure sent it to the AI again.** It now comes back still read by the AI. Undo
   after removing a book owned elsewhere also brings back its page notes, Ask conversation and reading place, which
   it could have kept from a time when a file was joined to it.

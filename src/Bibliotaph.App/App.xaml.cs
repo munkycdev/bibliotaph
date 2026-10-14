@@ -79,6 +79,7 @@ public partial class App : Application
 
             var theme = services.GetRequiredService<ThemeService>();
             await theme.InitializeAsync();
+            await services.GetRequiredService<LibrarySorts>().InitializeAsync();
 
             var window = services.GetRequiredService<MainWindow>();
             theme.Track(window);
@@ -315,6 +316,7 @@ public partial class App : Application
 
         // Shell
         builder.Services.AddSingleton<ThemeService>();
+        builder.Services.AddSingleton<LibrarySorts>();
         builder.Services.AddSingleton<IFilePicker, WindowsFilePicker>();
         builder.Services.AddSingleton<IUserPrompts, WpfUserPrompts>();
         builder.Services.AddSingleton<IClipboard, WpfClipboard>();

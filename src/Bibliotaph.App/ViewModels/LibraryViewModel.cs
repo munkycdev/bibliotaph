@@ -91,13 +91,16 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     bool _loaded;
     bool _stale;
     bool _holdRefresh;
+    readonly LibrarySorts _sorts;
+    // Whether the order shown was chosen for a search, so the order changes only when searching starts or stops.
+    bool _sortSearching;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
-        TimeProvider time, ILogger<LibraryViewModel> log)
+        LibrarySorts sorts, TimeProvider time, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _files = files;
@@ -125,9 +128,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _readers = readers;
         _log = log;
         _text = text;
+        _sorts = sorts;
         Selection = selection.Create(this);
         SmartViews = new SmartViewsViewModel(views, this, log);
-        SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
+        _sortSearching = IsSearching;
+        SortChoice = RememberedSort();
         Filters.Changed += (_, _) => Refresh();
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
         _staleTimer = new UiTimer(time, TimeSpan.FromSeconds(3), repeat: true, RefreshIfStaleAsync);
@@ -345,13 +350,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         if (e.PropertyName != nameof(SearchState.Text)) return;
         Inspector = null;
-        // Best match is the order for a search, and means nothing without one. The sort is chosen before the menu
-        // changes, so the menu never sees its selection disappear.
-        var resort = SortChoice == BestMatch != IsSearching;
-        if (resort)
+        // Browsing and searching each keep their own order, since Best match means nothing without a search. The sort
+        // is chosen before the menu changes, so the menu never sees its selection disappear.
+        if (_sortSearching != IsSearching)
         {
+            _sortSearching = IsSearching;
             _holdRefresh = true;
-            SortChoice = IsSearching ? BestMatch : RecentlyAdded;
+            SortChoice = RememberedSort();
             _holdRefresh = false;
         }
         OnPropertyChanged(nameof(IsSearching));
@@ -403,9 +408,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     // A menu whose items are replaced can briefly select nothing; the sort never holds null.
     partial void OnSortChoiceChanged(Choice<LibrarySort> value)
     {
-        if (value is null) SortChoice = IsSearching ? BestMatch : RecentlyAdded;
-        else Refresh();
+        if (value is null) SortChoice = RememberedSort();
+        else
+        {
+            // Only the user's own pick is kept: not a saved search's order, nor the switch as a search starts or stops.
+            if (_loaded && !_holdRefresh) _ = _sorts.RememberAsync(IsSearching, value.Value);
+            Refresh();
+        }
     }
+
+    Choice<LibrarySort> RememberedSort() =>
+        SortChoices.FirstOrDefault(c => c.Value == _sorts.For(IsSearching)) ?? (IsSearching ? BestMatch : RecentlyAdded);
 
     partial void OnTabChanged(ResultsTab value) => Refresh();
 
@@ -1299,7 +1312,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
                 OnPropertyChanged(nameof(IsSearching));
                 OnPropertyChanged(nameof(SortChoices));
             }
-            SortChoice = SortChoices.FirstOrDefault(c => c.Value == view.Sort) ?? (IsSearching ? BestMatch : RecentlyAdded);
+            _sortSearching = IsSearching;
+            SortChoice = SortChoices.FirstOrDefault(c => c.Value == view.Sort) ?? RememberedSort();
             Filters.Apply(view);
             Layout = view.Layout;
             Tab = view.Tab;

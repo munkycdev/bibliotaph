@@ -136,7 +136,9 @@ The filters that are on show as chips above the results, whether the panel is op
 several, to turn them all off. A filter and a search work together.
 
 The toolbar also has the order (**Best match**, **Recently added**, **Recently opened**, **Title A–Z**,
-**Publisher A–Z**) and a switch between covers and a list.
+**Publisher A–Z**) and a switch between covers and a list. The order you pick is remembered, even after Bibliotaph
+closes: one for browsing and one for searching, since **Best match** only makes sense with a search. A saved search
+opens in its own order.
 
 ## Saved searches
 

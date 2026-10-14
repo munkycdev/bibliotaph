@@ -93,6 +93,12 @@ public static class SettingKeys
     /// <summary>"Library" to start on the Library; otherwise the app starts on Home.</summary>
     public const string StartPage = "start-page";
 
+    /// <summary>The Library's order while browsing: a <c>LibrarySort</c> name. Absent for Recently added.</summary>
+    public const string LibrarySort = "library.sort";
+
+    /// <summary>The Library's order while searching: a <c>LibrarySort</c> name. Absent for Best match.</summary>
+    public const string LibrarySearchSort = "library.search-sort";
+
     /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
     public const string SidebarCollapsed = "sidebar-collapsed";
 
