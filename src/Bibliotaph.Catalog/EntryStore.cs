@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
@@ -229,18 +228,15 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return new EntryId(entry.Id);
     }
 
-    /// <summary>What is set on an entry, its assertions and rejections loaded, so it can be put back after the entry is deleted.</summary>
+    /// <summary>
+    /// What is set on an entry, its assertions and rejections loaded, so it can be put back after the entry is deleted:
+    /// what each of <see cref="EntryAttachments.All"/> keeps.
+    /// </summary>
     internal static async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, CancellationToken ct)
     {
-        var entryId = new EntryId(entry.Id);
-        return new RemovedEntry(entryId, entry.CreatedUtc,
-            [.. entry.Assertions.Select(Detached)], [.. entry.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc })],
-            await db.Favorites.AnyAsync(f => f.EntryId == entryId.Value, ct),
-            await db.CollectionItems.Where(i => i.EntryId == entryId.Value).Select(i => i.CollectionId).ToListAsync(ct),
-            [.. (await db.SessionItems.AsNoTracking().Where(i => i.EntryId == entryId.Value).ToListAsync(ct))
-                .Select(i => new SessionItemInfo(i.Id, i.PackId, i.SectionId, i.Position, entryId, null, i.Label, i.Note, i.AddedUtc) { Link = i.Link })],
-            await db.Notes.Where(n => n.EntryId == entryId.Value && n.PageRefId == null).Select(n => n.Text).SingleOrDefaultAsync(ct),
-            await PinStore.PositionAsync(db, PinTarget.Entry(entryId), ct), entry.SyncId);
+        var removed = new RemovedEntry(new EntryId(entry.Id), entry.CreatedUtc, [], [], SyncId: entry.SyncId);
+        foreach (var attachment in EntryAttachments.All) removed = await attachment.CaptureAsync(db, entry, removed, ct);
+        return removed;
     }
 
     /// <summary>
@@ -249,56 +245,12 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     /// </summary>
     internal async Task RestoreIntoAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct)
     {
-        entry.Assertions.AddRange(removed.Assertions.Select(Detached));
-        entry.Rejections.AddRange(removed.Rejections.Select(r => new Rejection { Field = r.Field, NormalizedValue = r.NormalizedValue, CreatedUtc = r.CreatedUtc }));
         db.Entries.Add(entry);
         await db.SaveChangesAsync(ct);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        if (removed.Favorite) db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = now });
-        if (removed.PinPosition is { } pin) await PinStore.AddAsync(db, PinTarget.Entry(new EntryId(entry.Id)), pin, ct);
-        if (removed.Note is { } note) db.Notes.Add(new Note { EntryId = entry.Id, Text = note, CreatedUtc = now, UpdatedUtc = now });
-        if (removed.Collections is { Count: > 0 } collections)
-        {
-            var still = await db.Collections.Where(c => collections.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
-            db.CollectionItems.AddRange(still.Select(id => new CollectionItem { CollectionId = id, EntryId = entry.Id, AddedUtc = now }));
-        }
-        // Its session items go back to their places, in packs and sections that are still there.
-        foreach (var item in removed.SessionItems ?? [])
-        {
-            if (!await db.SessionPacks.AnyAsync(p => p.Id == item.PackId, ct)) continue;
-            var section = item.SectionId is { } s && await db.SessionSections.AnyAsync(x => x.Id == s, ct) ? item.SectionId : null;
-            await db.SessionItems.Where(i => i.PackId == item.PackId && i.SectionId == section && i.Position >= item.Position)
-                .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position + 1), ct);
-            db.SessionItems.Add(new SessionItem
-            {
-                PackId = item.PackId,
-                SectionId = section,
-                Position = item.Position,
-                EntryId = entry.Id,
-                Link = item.Link,
-                Label = item.Label,
-                Note = item.Note,
-                AddedUtc = item.AddedUtc,
-            });
-        }
+        var back = new EntryReturn(db, entry, removed, _clock.GetUtcNow().UtcDateTime);
+        foreach (var attachment in EntryAttachments.All) await attachment.RestoreIntoAsync(back, ct);
         await db.SaveChangesAsync(ct);
     }
-
-    static Assertion Detached(Assertion a) => new()
-    {
-        Field = a.Field,
-        ValueJson = a.ValueJson,
-        NormalizedValue = a.NormalizedValue,
-        Origin = a.Origin,
-        ContentHash = a.ContentHash,
-        EvidencePagesJson = a.EvidencePagesJson,
-        EvidenceQuote = a.EvidenceQuote,
-        FromSampling = a.FromSampling,
-        RunId = a.RunId,
-        State = a.State,
-        CreatedUtc = a.CreatedUtc,
-        DecidedUtc = a.DecidedUtc,
-    };
 
     /// <summary>
     /// "Same book" on an owned-elsewhere card: the file's card joins the book owned elsewhere, which keeps everything
@@ -435,116 +387,18 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     }
 
     /// <summary>
-    /// Moves one card onto another: its sources, its suggestions and runs, its rejections unless the other card has
-    /// them, and a value the user set that disagrees with one set on the other card, for a field with one value, set
-    /// aside for a "Copies disagree" card. The card that joined keeps its id, marked as merged. Returns what moved,
-    /// which the caller records; the caller saves.
+    /// Moves one card onto another: everything <see cref="EntryAttachments.All"/> lists, as each kind says (its sources,
+    /// its suggestions and runs, its rejections unless the other card has them, and a value the user set that disagrees
+    /// with one set on the other card, for a field with one value, set aside for a "Copies disagree" card). The card
+    /// that joined keeps its id, marked as merged. Returns what moved, which the caller records; the caller saves.
     /// </summary>
     internal async Task<MovedRows> MoveAsync(CatalogDbContext db, long joining, long target, CancellationToken ct)
     {
-        var sources = await db.EntrySources.Where(s => s.EntryId == joining).ToListAsync(ct);
-        var moved = new MovedRows { Sources = [.. sources.Select(s => new MovedSource(s.Id, s.IsCurrent))] };
-        foreach (var source in sources) source.EntryId = target;
-
-        var settled = await db.Assertions.AsNoTracking()
-            .Where(a => a.EntryId == target && a.State == AssertionState.Confirmed)
-            .Select(a => new { a.Field, a.NormalizedValue })
-            .ToListAsync(ct);
-        foreach (var assertion in await db.Assertions.Where(a => a.EntryId == joining).ToListAsync(ct))
-        {
-            if (assertion.State == AssertionState.Confirmed && MetadataFields.Find(assertion.Field) is { Multiple: false }
-                && settled.Any(s => s.Field == assertion.Field && s.NormalizedValue != assertion.NormalizedValue))
-            {
-                assertion.State = AssertionState.SetAside;
-                moved.SetAside.Add(assertion.Id);
-            }
-            assertion.EntryId = target;
-            moved.Assertions.Add(assertion.Id);
-        }
-
-        var rejected = await db.Rejections.AsNoTracking().Where(r => r.EntryId == target).Select(r => new { r.Field, r.NormalizedValue }).ToListAsync(ct);
-        foreach (var rejection in await db.Rejections.Where(r => r.EntryId == joining).ToListAsync(ct))
-        {
-            if (rejected.Any(r => r.Field == rejection.Field && r.NormalizedValue == rejection.NormalizedValue)) continue;
-            rejection.EntryId = target;
-            moved.Rejections.Add(rejection.Id);
-        }
-
-        foreach (var run in await db.ClassificationRuns.Where(r => r.EntryId == joining).ToListAsync(ct))
-        {
-            run.EntryId = target;
-            moved.Runs.Add(run.Id);
-        }
-
-        // A heart and a reading position move only to a card without one; otherwise they stay behind on the card that
-        // joined, which shows nowhere, until Not the same book brings it back.
-        if (await db.Favorites.SingleOrDefaultAsync(f => f.EntryId == joining, ct) is { } favorite
-            && !await db.Favorites.AnyAsync(f => f.EntryId == target, ct))
-        {
-            db.Favorites.Remove(favorite);
-            db.Favorites.Add(new Favorite { EntryId = target, CreatedUtc = favorite.CreatedUtc });
-            moved.Favorite = true;
-        }
-        if (await db.ReadingStates.SingleOrDefaultAsync(r => r.EntryId == joining, ct) is { } reading
-            && !await db.ReadingStates.AnyAsync(r => r.EntryId == target, ct))
-        {
-            db.ReadingStates.Remove(reading);
-            db.ReadingStates.Add(new ReadingState { EntryId = target, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
-            moved.Reading = true;
-        }
-        // A pin moves the same way, keeping its place in the sidebar.
-        if (await db.Pins.SingleOrDefaultAsync(p => p.EntryId == joining, ct) is { } pin && !await db.Pins.AnyAsync(p => p.EntryId == target, ct))
-        {
-            pin.EntryId = target;
-            moved.Pin = true;
-        }
-        // Memberships move to every collection the card isn't in already; those it is in stay behind with the card.
-        var targetCollections = await db.CollectionItems.Where(i => i.EntryId == target).Select(i => i.CollectionId).ToListAsync(ct);
-        foreach (var item in await db.CollectionItems.Where(i => i.EntryId == joining && !targetCollections.Contains(i.CollectionId)).ToListAsync(ct))
-        {
-            db.CollectionItems.Remove(item);
-            db.CollectionItems.Add(new CollectionItem { CollectionId = item.CollectionId, EntryId = target, AddedUtc = item.AddedUtc });
-            moved.Collections.Add(item.CollectionId);
-        }
-        // Session items all move, in their places: a pack can hold the same book any number of times.
-        foreach (var item in await db.SessionItems.Where(i => i.EntryId == joining).ToListAsync(ct))
-        {
-            item.EntryId = target;
-            moved.SessionItems.Add(item.Id);
-        }
-        // Notes: page notes all move. The card's own note moves to a card without one; to a card with one, its text is
-        // added at the end, and the note stays behind on the card that joined for Not the same book.
-        if (await db.Notes.SingleOrDefaultAsync(n => n.EntryId == joining && n.PageRefId == null, ct) is { } note)
-        {
-            if (await db.Notes.SingleOrDefaultAsync(n => n.EntryId == target && n.PageRefId == null, ct) is { } own)
-            {
-                var appended = $"{Environment.NewLine}{Environment.NewLine}{note.Text}";
-                own.Text += appended;
-                own.UpdatedUtc = _clock.GetUtcNow().UtcDateTime;
-                moved.NoteAppended = appended;
-            }
-            else
-            {
-                note.EntryId = target;
-                moved.Note = true;
-            }
-        }
-        foreach (var pageNote in await db.Notes.Where(n => n.EntryId == joining && n.PageRefId != null).ToListAsync(ct))
-        {
-            pageNote.EntryId = target;
-            moved.PageNotes.Add(pageNote.Id);
-        }
-
-        // Adventures marked in the joining card's file go with it: their pages are in a copy of this book now, and are
-        // looked for in its other copies.
-        foreach (var part in await db.Entries.Where(e => e.ParentEntryId == joining && e.Kind == EntryKind.Part).ToListAsync(ct))
-        {
-            part.ParentEntryId = target;
-            moved.Parts.Add(part.Id);
-        }
-
-        (await db.Entries.SingleAsync(e => e.Id == joining, ct)).MergedIntoEntryId = target;
-        return moved;
+        var card = await db.Entries.SingleAsync(e => e.Id == joining, ct);
+        var move = new EntryMove(db, card, target, new MovedRows { Version = MovedRows.CurrentVersion }, _clock.GetUtcNow().UtcDateTime);
+        foreach (var attachment in EntryAttachments.All) await attachment.MoveAsync(move, ct);
+        card.MergedIntoEntryId = target;
+        return move.Moved;
     }
 
     internal void AddJoin(CatalogDbContext db, long target, long joining, long? documentId, long? matchedDocumentId, MovedRows moved) =>
@@ -554,72 +408,19 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             JoinedEntryId = joining,
             DocumentId = documentId,
             MatchedDocumentId = matchedDocumentId,
-            MovedJson = JsonSerializer.Serialize(moved),
+            MovedJson = moved.ToJson(),
             CreatedUtc = _clock.GetUtcNow().UtcDateTime,
         });
 
     /// <summary>
-    /// Puts back what a join moved: the sources go back to the card that joined, as current as they were, with the
-    /// assertions, rejections and runs they brought, and that card shows again. The caller saves.
+    /// Puts back what a join moved: the sources go back to the card that joined, as current as they were, with
+    /// everything else of <see cref="EntryAttachments.All"/> they brought, and that card shows again. The caller saves.
     /// </summary>
     internal static async Task RestoreAsync(CatalogDbContext db, long entryId, EntryJoin join, List<EntrySource> sources, CancellationToken ct)
     {
         var card = join.JoinedEntryId;
-        var moved = JsonSerializer.Deserialize<MovedRows>(join.MovedJson) ?? new MovedRows();
-        var sourceIds = moved.Sources.Select(s => s.Id).ToList();
-        // Cleared first and saved: the unique index allows one current source per entry at any moment.
-        foreach (var source in sources.Where(s => sourceIds.Contains(s.Id))) source.IsCurrent = false;
-        await db.SaveChangesAsync(ct);
-        foreach (var source in sources.Where(s => sourceIds.Contains(s.Id)))
-        {
-            source.EntryId = card;
-            source.IsCurrent = moved.Sources.Single(s => s.Id == source.Id).WasCurrent;
-        }
-        if (!sources.Any(s => s.EntryId == card && s.IsCurrent) && sources.FirstOrDefault(s => s.DocumentId == join.DocumentId && s.FirstPdfPage == null) is { } leaving)
-            leaving.IsCurrent = true;
-        foreach (var assertion in await db.Assertions.Where(a => a.EntryId == entryId && moved.Assertions.Contains(a.Id)).ToListAsync(ct))
-        {
-            assertion.EntryId = card;
-            // Back to what it was on its own card, even after the user settled the disagreement on this one.
-            if (moved.SetAside.Contains(assertion.Id) && assertion.State is AssertionState.SetAside or AssertionState.Superseded)
-                assertion.State = AssertionState.Confirmed;
-        }
-        foreach (var rejection in await db.Rejections.Where(r => r.EntryId == entryId && moved.Rejections.Contains(r.Id)).ToListAsync(ct))
-            rejection.EntryId = card;
-        foreach (var run in await db.ClassificationRuns.Where(r => r.EntryId == entryId && moved.Runs.Contains(r.Id)).ToListAsync(ct))
-            run.EntryId = card;
-        // What the card brought goes back with it, as it is now: unmarked since, it stays unmarked.
-        if (moved.Favorite && await db.Favorites.SingleOrDefaultAsync(f => f.EntryId == entryId, ct) is { } favorite)
-        {
-            db.Favorites.Remove(favorite);
-            db.Favorites.Add(new Favorite { EntryId = card, CreatedUtc = favorite.CreatedUtc });
-        }
-        if (moved.Reading && await db.ReadingStates.SingleOrDefaultAsync(r => r.EntryId == entryId, ct) is { } reading)
-        {
-            db.ReadingStates.Remove(reading);
-            db.ReadingStates.Add(new ReadingState { EntryId = card, DocumentId = reading.DocumentId, PageIndex = reading.PageIndex, OpenedUtc = reading.OpenedUtc });
-        }
-        if (moved.Pin && await db.Pins.SingleOrDefaultAsync(p => p.EntryId == entryId, ct) is { } pin) pin.EntryId = card;
-        foreach (var item in await db.CollectionItems.Where(i => i.EntryId == entryId && moved.Collections.Contains(i.CollectionId)).ToListAsync(ct))
-        {
-            db.CollectionItems.Remove(item);
-            db.CollectionItems.Add(new CollectionItem { CollectionId = item.CollectionId, EntryId = card, AddedUtc = item.AddedUtc });
-        }
-        foreach (var item in await db.SessionItems.Where(i => i.EntryId == entryId && moved.SessionItems.Contains(i.Id)).ToListAsync(ct))
-            item.EntryId = card;
-        var own = await db.Notes.SingleOrDefaultAsync(n => n.EntryId == entryId && n.PageRefId == null, ct);
-        if (moved.Note && own is not null) own.EntryId = card;
-        // The added text comes off again, unless the note has been edited past it since; the card kept its own note anyway.
-        else if (moved.NoteAppended is { } appended && own is not null && own.Text.EndsWith(appended, StringComparison.Ordinal))
-            own.Text = own.Text[..^appended.Length];
-        foreach (var pageNote in await db.Notes.Where(n => n.EntryId == entryId && moved.PageNotes.Contains(n.Id)).ToListAsync(ct))
-            pageNote.EntryId = card;
-        // A pack's images go back to it, those still in the pack it merged into.
-        foreach (var member in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Members.Contains(e.Id)).ToListAsync(ct))
-            member.ParentEntryId = card;
-        // So do the adventures marked in its file.
-        foreach (var part in await db.Entries.Where(e => e.ParentEntryId == entryId && moved.Parts.Contains(e.Id)).ToListAsync(ct))
-            part.ParentEntryId = card;
+        var back = new EntryMoveBack(db, entryId, card, join, MovedRows.FromJson(join.MovedJson), sources);
+        foreach (var attachment in EntryAttachments.All) await attachment.MoveBackAsync(back, ct);
         (await db.Entries.SingleAsync(e => e.Id == card, ct)).MergedIntoEntryId = null;
         db.EntryJoins.Remove(join);
     }
@@ -815,35 +616,4 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         var current = sources.FirstOrDefault(s => s.IsCurrent) ?? sources.MaxBy(s => s.DocumentId)!;
         return current.HasFile ? current : sources.Where(s => s.HasFile).MaxBy(s => s.DocumentId) ?? current;
     }
-
-    internal sealed class MovedRows
-    {
-        public List<MovedSource> Sources { get; set; } = [];
-        public List<long> Assertions { get; set; } = [];
-        public List<long> SetAside { get; set; } = [];
-        public List<long> Rejections { get; set; } = [];
-        public List<string> Runs { get; set; } = [];
-        /// <summary>The card that joined brought its heart.</summary>
-        public bool Favorite { get; set; }
-        /// <summary>The card that joined brought its reading position.</summary>
-        public bool Reading { get; set; }
-        /// <summary>The card that joined brought its pin.</summary>
-        public bool Pin { get; set; }
-        /// <summary>The collections the card that joined brought its membership of.</summary>
-        public List<long> Collections { get; set; } = [];
-        /// <summary>The session items that pointed at the card that joined.</summary>
-        public List<long> SessionItems { get; set; } = [];
-        /// <summary>The card that joined brought its own note, to a card without one.</summary>
-        public bool Note { get; set; }
-        /// <summary>The text added to the end of the surviving card's own note, from the note of the card that joined.</summary>
-        public string? NoteAppended { get; set; }
-        /// <summary>The page notes the card that joined brought.</summary>
-        public List<long> PageNotes { get; set; } = [];
-        /// <summary>For a pack merged into another: the images that were in it.</summary>
-        public List<long> Members { get; set; } = [];
-        /// <summary>The adventures marked in the joining card's file.</summary>
-        public List<long> Parts { get; set; } = [];
-    }
-
-    internal sealed record MovedSource(long Id, bool WasCurrent);
 }
