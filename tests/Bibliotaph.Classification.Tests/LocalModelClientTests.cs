@@ -316,6 +316,59 @@ public class LocalModelClientTests
     }
 
     [Fact]
+    public async Task An_empty_answer_is_a_failed_request_from_either_kind_of_server_streamed_or_not()
+    {
+        var (ollama, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""{"message":{"role":"assistant"},"done":true}"""),
+            _ => NotFound,
+        });
+        var (openAi, _) = Connect("http://127.0.0.1:1234", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok("""{"choices":[{"message":{"role":"assistant"}}]}"""),
+            _ => NotFound,
+        });
+        var (streaming, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""{"message":{"content":""},"done":true}"""),
+            _ => NotFound,
+        });
+        var ct = TestContext.Current.CancellationToken;
+
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => ollama.CompleteAsync(Request, ct));
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => openAi.CompleteAsync(Request, ct));
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => streaming.CompleteAsync(Request with { Progress = new Reports() }, ct));
+    }
+
+    [Fact]
+    public async Task An_empty_answer_to_a_book_is_that_books_problem_only_while_the_server_still_answers_a_check()
+    {
+        var checkAnswers = true;
+        var (client, server) = Connect("http://localhost:11434", (path, body) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" when IsBook(body) || !checkAnswers => Ok("""{"message":{"role":"assistant"},"done":true}"""),
+            "/api/chat" => Ok("""{"message":{"content":"{\"ok\":true}"}}"""),
+            _ => NotFound,
+        });
+        var classifier = new ModelClassifier(client, "ollama", "model-a");
+        var ct = TestContext.Current.CancellationToken;
+
+        var book = await Assert.ThrowsAsync<ClassifierAnswerException>(() => classifier.ClassifyAsync(Lantern(), ct: ct));
+        Assert.Contains("answer was empty", book.Message, StringComparison.Ordinal);
+        Assert.Equal(2, server.Requests.Count(r => r.Path == "/api/chat"));
+
+        checkAnswers = false;
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => classifier.ClassifyAsync(Lantern(), ct: ct));
+    }
+
+    [Fact]
     public async Task A_server_that_fails_every_request_is_the_servers_problem()
     {
         var (client, _) = Connect("http://localhost:11434", (path, _) => path switch

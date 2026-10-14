@@ -29,6 +29,16 @@ public class AskRetrievalTests
     }
 
     [Fact]
+    public void A_page_with_half_a_surrogate_pair_or_a_noncharacter_is_still_searched()
+    {
+        // PDF text can carry these, and string.Normalize throws on them.
+        var page = "The dragon\uD83D sleeps \uFFFE under the mill\uDC00.";
+
+        Assert.Equal(3, AskRetrieval.Coverage(["dragon", "sleep", "mill"], page));
+        Assert.Contains("dragon", AskRetrieval.Excerpt(page, ["dragon"]).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Cosine_is_one_for_the_same_direction_zero_for_unrelated_and_zero_for_nothing()
     {
         Assert.Equal(1, AskRetrieval.Cosine([1, 2, 3], [2, 4, 6]), 6);

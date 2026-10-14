@@ -224,13 +224,13 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         {
             if (version == _version) Message = "Stopped. What was written so far is above.";
         }
+        catch (ModelEmptyAnswerException)
+        {
+            if (version == _version) Message = "The model sent back nothing. Try asking another way.";
+        }
         catch (ModelEndpointException ex)
         {
             if (version == _version) Message = $"The model couldn't answer: {ex.Message}";
-        }
-        catch (ClassifierAnswerException)
-        {
-            if (version == _version) Message = "The model sent back nothing. Try asking another way.";
         }
         finally
         {

@@ -16,4 +16,7 @@
     <EmbeddedResource Include="Schema\index.sql" LogicalName="Bibliotaph.Index.Schema.index.sql" />
     <EmbeddedResource Include="Schema\upgrade-*.sql" LogicalName="Bibliotaph.Index.Schema.%(Filename).sql" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bibliotaph.Index.Tests" />
+  </ItemGroup>
 </Project>

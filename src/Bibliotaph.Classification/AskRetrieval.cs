@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Classification;
 
@@ -417,7 +418,7 @@ public static partial class AskRetrieval
     static IEnumerable<string> Tokens(string text)
     {
         var builder = new StringBuilder();
-        foreach (var c in text.Normalize(NormalizationForm.FormKD))
+        foreach (var c in MetadataText.UnicodeForm(text, NormalizationForm.FormKD))
         {
             if (char.IsLetterOrDigit(c)) builder.Append(char.ToLowerInvariant(c));
             else if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark) continue;

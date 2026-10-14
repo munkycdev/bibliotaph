@@ -1,5 +1,17 @@
 # Changes
 
+## Unreleased
+
+- **Fixed: a reader could stay blank.** Closing or switching a book at the moment a page was being drawn could stop
+  the reader drawing pages until it was closed. A page that can't be drawn now says why and the rest carry on.
+- **Fixed: Ask this book failed on some pages.** A page whose PDF text holds a broken character made the question
+  fail; those pages are now searched like any other.
+- **index.db is kept when it is only busy.** If another program holds the search index or the disk can't be read at
+  start, Bibliotaph now says so instead of deleting the index and reading the whole library again. A damaged index is
+  still rebuilt.
+- **An AI answer with nothing in it is treated as the AI's hiccup, not the book's.** The AI is checked before a book
+  is marked as one it couldn't read, so a server that has stopped answering pauses the AI work instead.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.487 (14 October 2026):

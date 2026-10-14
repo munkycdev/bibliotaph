@@ -76,6 +76,32 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(IndexSchema.Version, UserVersion(read));
     }
 
+    [Theory]
+    [InlineData(5, true)] // busy: another process has the file
+    [InlineData(6, true)] // locked
+    [InlineData(10, true)] // disk I/O error
+    [InlineData(13, true)] // disk full
+    [InlineData(14, true)] // can't open
+    [InlineData(266, true)] // an extended I/O error code, read by its primary code
+    [InlineData(11, false)] // the file is damaged
+    [InlineData(26, false)] // not a database
+    [InlineData(1, false)] // an upgrade script that doesn't fit this file
+    public void Only_damage_rebuilds_the_index_and_a_failure_of_the_moment_is_passed_on(int code, bool transient) =>
+        Assert.Equal(transient, IndexDatabase.IsTransient(new SqliteException("test", code)));
+
+    [Fact]
+    public async Task A_file_that_cannot_be_opened_is_reported_not_deleted()
+    {
+        // A folder where the file should be fails to open at once, as a file another process holds would after a wait.
+        Directory.CreateDirectory(DbPath);
+        var db = IndexDatabase.ForFile(DbPath);
+
+        var thrown = await Assert.ThrowsAsync<SqliteException>(() => db.InitializeAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(IndexDatabase.IsTransient(thrown));
+        Assert.True(Directory.Exists(DbPath));
+    }
+
     [Fact]
     public async Task Read_connections_cannot_write()
     {
