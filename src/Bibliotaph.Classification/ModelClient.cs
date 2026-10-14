@@ -86,6 +86,19 @@ public class ModelRequestException : ModelEndpointException
 }
 
 /// <summary>
+/// The server finished answering but the answer had nothing in it. Like any failed request this can be the book or the
+/// server, so it is told apart the same way; a caller that wants to say so plainly, as Ask does, can catch it alone.
+/// </summary>
+public sealed class ModelEmptyAnswerException : ModelRequestException
+{
+    public ModelEmptyAnswerException() : base("The model's answer was empty.") { }
+
+    public ModelEmptyAnswerException(string message) : base(message) { }
+
+    public ModelEmptyAnswerException(string message, Exception? inner = null) : base(message, inner) { }
+}
+
+/// <summary>
 /// The server refused the request because the prompt is longer than the model's context window, as llama.cpp's server
 /// does (the built-in AI among them). That is the request's fault, not the server's: the same server takes a shorter
 /// one, so a caller that can send less tries again with less, and one that can't fails that book alone. The token
@@ -121,7 +134,10 @@ public interface IModelClient
 
     /// <summary>Asks the model for an answer, in the request's schema when it has one, and returns the answer's text.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be reached or refused the request.</exception>
-    /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
+    /// <exception cref="ModelRequestException">
+    /// The endpoint took the request but failed while answering, took too long, or answered with nothing
+    /// (<see cref="ModelEmptyAnswerException"/>).
+    /// </exception>
     Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default);
 }
 
@@ -296,7 +312,7 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
                 using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), chat, ct);
                 var json = await ReadJsonAsync(response, ct);
                 return json?["message"]?["content"]?.GetValue<string>()
-                    ?? throw new ClassifierAnswerException("The model's answer was empty.");
+                    ?? throw new ModelEmptyAnswerException();
             });
         }
 
@@ -348,7 +364,7 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
             {
                 var json = await ReadJsonAsync(completion, ct);
                 return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
-                    ?? throw new ClassifierAnswerException("The model's answer was empty.");
+                    ?? throw new ModelEmptyAnswerException();
             }
         });
     }
@@ -505,7 +521,7 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
         {
             throw new ModelRequestException("The model server stopped part way through its answer.", ex);
         }
-        return answer.Length > 0 ? answer.ToString() : throw new ClassifierAnswerException("The model's answer was empty.");
+        return answer.Length > 0 ? answer.ToString() : throw new ModelEmptyAnswerException();
     }
 
     async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, JsonObject? body, CancellationToken ct,
