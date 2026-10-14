@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
-using System.Windows.Threading;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
@@ -93,7 +92,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly Dictionary<EntryId, LibraryItemViewModel> _known = [];
     /// <summary>The books whose files are offline or missing as of the last refresh, so their covers are marked.</summary>
     IReadOnlyDictionary<EntryId, EntryAvailability> _away = new Dictionary<EntryId, EntryAvailability>();
-    readonly DispatcherTimer _staleTimer;
+    readonly UiTimer _staleTimer;
+    readonly TimeProvider _time;
     readonly NotesService _notes;
     readonly ExportService _export;
     readonly AskService _ask;
@@ -113,9 +113,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, FavoritesService favorites,
         CollectionActions collections, SessionActions sessions, SmartViewDirectory views, NotesService notes, LibraryPages pages, BookTextActions text,
         ExportService export, PinDirectory pins, PartsService parts, CorrectionService corrections, AskService ask, ChosenCovers chosenCovers,
-        LibraryAskScope askScope, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, ILogger<LibraryViewModel> log)
+        LibraryAskScope askScope, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, TimeProvider time, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _time = time;
         _files = files;
         _prompts = prompts;
         _shell = shell;
@@ -165,9 +166,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         StoreChoice = AnyStore;
         foreach (var box in ChipFilters) box.Changed += (_, _) => Refresh();
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
-        _staleTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RefreshIfStaleAsync(),
-            Dispatcher.CurrentDispatcher);
-        _staleTimer.Stop();
+        _staleTimer = new UiTimer(time, TimeSpan.FromSeconds(3), repeat: true, RefreshIfStaleAsync);
         Selection.Changed += (_, _) => OnSelectionChanged();
     }
 
@@ -1076,7 +1075,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         {
             var inspector = await InspectorViewModel.LoadAsync(item, _queries, _library, _metadata, _indexing, _copies, _packs, _elsewhere, _covers, _parts,
                 _files, _prompts, _shell, _log, _corrections, _chosenCovers);
-            inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _log);
+            inspector.Notes = new EntryNotesViewModel(item.EntryId, _notes, _time, _log);
             await inspector.Notes.LoadAsync();
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();

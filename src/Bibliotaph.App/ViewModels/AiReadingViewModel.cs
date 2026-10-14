@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Classification;
 using Bibliotaph.Core.Metadata;
@@ -31,9 +30,10 @@ public sealed class AiReadingDoneItem(string title, string summary, string? prob
 /// the last 20 books with what the evidence check kept and dropped. The page looks at the feed four times a second,
 /// since an answer streams faster than it is worth redrawing.
 /// </summary>
-public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai, LibraryActivity activity, SettingsLinks links) : PageViewModel
+public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai, LibraryActivity activity, SettingsLinks links, TimeProvider time)
+    : PageViewModel
 {
-    DispatcherTimer? _timer;
+    UiTimer? _timer;
     volatile bool _dirty;
     Vocabulary? _vocabulary;
 
@@ -84,7 +84,7 @@ public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai,
         _vocabulary = await ai.VocabularyAsync();
         feed.Changed -= OnChanged;
         feed.Changed += OnChanged;
-        _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => Tick(), Dispatcher.CurrentDispatcher);
+        _timer ??= new UiTimer(time, TimeSpan.FromMilliseconds(250), repeat: true, Tick);
         _timer.Start();
         _recentShown = null;
         Refresh();
@@ -105,7 +105,7 @@ public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai,
             _dirty = false;
             Refresh();
         }
-        else if (feed.Current is { } book) ElapsedText = Seconds(DateTimeOffset.UtcNow - book.Started);
+        else if (feed.Current is { } book) ElapsedText = Seconds(time.GetUtcNow() - book.Started);
     }
 
     AiReadingBook? _recentShown;
@@ -117,7 +117,7 @@ public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai,
         if (book is not null)
         {
             CurrentTitle = book.Title;
-            ElapsedText = Seconds(DateTimeOffset.UtcNow - book.Started);
+            ElapsedText = Seconds(time.GetUtcNow() - book.Started);
             StepText = book.Step switch
             {
                 AiReadingStep.Reading => $"Reading the excerpt with {book.Model}",

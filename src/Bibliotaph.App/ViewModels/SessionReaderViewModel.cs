@@ -35,7 +35,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
     readonly ILogger<SessionReaderViewModel> _log;
-    readonly DispatcherTimer _notesTimer;
+    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly UiTimer _notesTimer;
     int _version;
     int _ownWrites;
     bool _notesDirty;
@@ -44,7 +45,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        SessionDirectory directory, PinDirectory pins, OnlineReaders online, ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, PinDirectory pins, OnlineReaders online, TimeProvider time, ILogger<SessionReaderViewModel> log)
     {
         _online = online;
         _directory = directory;
@@ -55,8 +56,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _covers = covers;
         _readers = readers;
         _log = log;
-        _notesTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveNotesAsync(), Dispatcher.CurrentDispatcher);
-        _notesTimer.Stop();
+        _notesTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
     }
 
     public long PackId { get; set; }
@@ -181,7 +181,6 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         if (_loadingNotes) return;
         _notesDirty = true;
-        _notesTimer.Stop();
         _notesTimer.Start();
     }
 
@@ -321,7 +320,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     void OnSessionsChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _ownWrites) > 0) return;
-        _notesTimer.Dispatcher.InvokeAsync(async () =>
+        _dispatcher.InvokeAsync(async () =>
         {
             if (IsLoaded) await RefreshRowsAsync();
         });

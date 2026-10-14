@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
@@ -63,17 +62,16 @@ public sealed partial class EntryNotesViewModel : ObservableObject
 {
     readonly NotesService _notes;
     readonly ILogger _log;
-    readonly DispatcherTimer _saveTimer;
+    readonly UiTimer _saveTimer;
     bool _loading;
     bool _dirty;
 
-    public EntryNotesViewModel(EntryId entryId, NotesService notes, ILogger log)
+    public EntryNotesViewModel(EntryId entryId, NotesService notes, TimeProvider time, ILogger log)
     {
         EntryId = entryId;
         _notes = notes;
         _log = log;
-        _saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveAsync(), Dispatcher.CurrentDispatcher);
-        _saveTimer.Stop();
+        _saveTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveAsync);
     }
 
     public EntryId EntryId { get; }
@@ -85,7 +83,6 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     {
         if (_loading) return;
         _dirty = true;
-        _saveTimer.Stop();
         _saveTimer.Start();
     }
 
