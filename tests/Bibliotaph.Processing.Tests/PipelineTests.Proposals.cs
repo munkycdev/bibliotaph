@@ -7,9 +7,6 @@ namespace Bibliotaph.Processing.Tests;
 
 public abstract partial class PipelineTests
 {
-    ReviewService Review() => new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-        new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, places: _places, parts: _parts, proposals: _proposals);
-
     /// <summary>A compilation's adventures proposed from its bookmarks and blurbs, settled in Needs review.</summary>
     public sealed class ProposalsTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
     {

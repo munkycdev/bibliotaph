@@ -52,8 +52,8 @@ public sealed record LibraryAskAnswer(string Question, string Text, CheckedAnswe
 /// without vectors take part by their words. Nothing from a library folder kept from AI is read or sent.
 /// </summary>
 public sealed class LibraryAskService(
-    AiSettings ai, LibraryAskQueries ask, LibraryQueries library, IndexQueries queries, LibraryStore store, ILogger<LibraryAskService>? log = null,
-    AskRetrievalOptions? options = null, AiUse? use = null)
+    AiSettings ai, LibraryAskQueries ask, LibraryQueries library, IndexQueries queries, LibraryStore store, AiUse use,
+    ILogger<LibraryAskService>? log = null, AskRetrievalOptions? options = null)
 {
     /// <summary>
     /// How a library is searched: more pages ranked than in one book, as many pages of evidence as one book's budget
@@ -110,7 +110,7 @@ public sealed class LibraryAskService(
     {
         var state = ai.Current;
         if (!state.Setup.IsReady) throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
-        using var busy = use?.Begin();
+        using var busy = use.Begin();
         var started = Stopwatch.GetTimestamp();
         var embedder = state.Embedder;
         var model = state.Setup.EmbeddingName;
@@ -246,7 +246,7 @@ public sealed class LibraryAskService(
         if (!state.Setup.IsReady || client is null || model is null)
             throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
-        using var busy = use?.Begin();
+        using var busy = use.Begin();
         var pages = PromptPages(findings);
         var user = AskPrompt.UserMessage(findings.Question, pages);
         var started = Stopwatch.GetTimestamp();

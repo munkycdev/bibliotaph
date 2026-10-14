@@ -77,7 +77,7 @@ public sealed record AskFill(int Done, int Total, bool Running, string? Problem)
 /// </summary>
 public sealed class AskService(
     AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, EntryStore entries, AskHistoryStore history,
-    ILogger<AskService>? log = null, AskRetrievalOptions? options = null, AiUse? use = null) : IDisposable
+    AiUse use, ILogger<AskService>? log = null, AskRetrievalOptions? options = null) : IDisposable
 {
     /// <summary>A turn's checked pieces as kept: kinds by name, so catalog.db reads sensibly in any SQLite tool.</summary>
     static readonly JsonSerializerOptions PartsJson = new() { Converters = { new JsonStringEnumConverter() } };
@@ -134,7 +134,7 @@ public sealed class AskService(
     public async Task<AskFindings> FindAsync(long documentId, string question, CancellationToken ct = default)
     {
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
-        using var busy = use?.Begin();
+        using var busy = use.Begin();
         var started = Stopwatch.GetTimestamp();
         var state = ai.Current;
         var setup = state.Setup;
@@ -233,7 +233,7 @@ public sealed class AskService(
         var model = state.Setup.ModelName;
         if (client is null || model is null) throw new AskUnavailableException("Ask this book uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
-        using var busy = use?.Begin();
+        using var busy = use.Begin();
         var pages = PromptPages(findings);
         var user = AskPrompt.UserMessage(findings.Question, pages, earlier);
         var started = Stopwatch.GetTimestamp();
@@ -259,7 +259,7 @@ public sealed class AskService(
         if (earlier.Count == 0) return (followUp, false);
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
         if (ai.Current is not { Chat: { } client, Setup.ModelName: { } model }) return (followUp, false);
-        using var busy = use?.Begin();
+        using var busy = use.Begin();
         try
         {
             var reply = await client.CompleteAsync(new ModelRequest(model, AskPrompt.RewriteSystemMessage, AskPrompt.RewriteUserMessage(earlier, followUp), null,

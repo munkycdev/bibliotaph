@@ -273,6 +273,7 @@ public partial class App : Application
         builder.Services.AddSingleton<ChapterProjection>();
         builder.Services.AddSingleton<IStage, ChapterScanStage>();
         builder.Services.AddSingleton<ChapterScanService>();
+        builder.Services.AddSingleton<MarkStores>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<FolderRules>();
@@ -280,6 +281,7 @@ public partial class App : Application
         builder.Services.AddSingleton<CorrectionService>();
         builder.Services.AddSingleton<VocabularyService>();
         builder.Services.AddSingleton<UserTagService>();
+        builder.Services.AddSingleton<ReviewCards>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
         builder.Services.AddSingleton<PlainSearchService>();
@@ -289,6 +291,7 @@ public partial class App : Application
         builder.Services.AddSingleton(new PilotMode(pilot));
         builder.Services.AddSingleton<PilotSession>();
         builder.Services.AddSingleton(new IndexingOptions());
+        builder.Services.AddSingleton<IndexingFiles>();
         builder.Services.AddSingleton<IndexingService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
         // Reading the whole library for meaning, slowly and last of all.

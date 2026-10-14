@@ -123,8 +123,7 @@ public abstract partial class PipelineTests
             var unplaced = Assert.Single(await _parts.GetUnplacedAsync(Ct));
             Assert.Equal((crypt, book.EntryId, "The Crypt", revised, new PartPages(3, 3)),
                 (unplaced.EntryId, unplaced.FileEntryId, unplaced.Title, unplaced.DocumentId, unplaced.WasPages!.Value));
-            var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-                new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, places: _places, parts: _parts);
+            var review = Review();
             Assert.Equal([crypt], (await review.GetQueueAsync(Ct)).Parts!.Select(p => p.EntryId));
             var count = await review.CountAsync(Ct);
 

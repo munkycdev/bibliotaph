@@ -15,8 +15,8 @@ public sealed record PackTogetherResult(PackTogether Together, FieldSnapshot? Ti
 /// such as a party's character sheets. Each change stores
 /// the packs' hints from their folder names and projects the cards that changed, so the library shows them.
 /// </summary>
-public sealed class PackService(PackStore packs, MetadataProjector projector, MetadataHints hints, ILogger<PackService>? log = null,
-    MetadataStore? metadata = null)
+public sealed class PackService(PackStore packs, MetadataProjector projector, MetadataHints hints, MetadataStore metadata,
+    ILogger<PackService>? log = null)
 {
     readonly ILogger _log = log ?? NullLogger<PackService>.Instance;
 
@@ -54,7 +54,7 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
         if (await packs.PackTogetherAsync(entryIds, ct) is not { } together) return null;
         FieldSnapshot? title = null;
         name = name.Trim();
-        if (metadata is not null && name.Length > 0)
+        if (name.Length > 0)
         {
             var current = (await metadata.GetAsync(together.PackId, ct)).Compute()[MetadataFields.Title].First;
             // A hint can give way to another pack's after a merge, so a merged pack's name is made the user's own.
@@ -72,7 +72,7 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
     public async Task UndoPackTogetherAsync(PackTogetherResult result, CancellationToken ct = default)
     {
         var changed = await packs.UndoPackTogetherAsync(result.Together, ct);
-        if (result.Title is { } title && metadata is not null) await metadata.RestoreAsync(title, ct);
+        if (result.Title is { } title) await metadata.RestoreAsync(title, ct);
         await ProjectAsync(changed, ct);
     }
 

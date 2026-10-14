@@ -64,7 +64,7 @@ public abstract partial class PipelineTests
             var search = new LibraryQueries(_index);
             var cards = await search.ListAsync(new LibraryFilter(), ct: Ct);
             var (known, scan) = (cards[0], cards[1]);
-            var collections = new CollectionsService(_collections, _projector);
+            var collections = new CollectionsService(_collections, _projector, _folderCollectionStore);
             var changes = 0;
             collections.Changed += (_, _) => changes++;
             static List<EntryId> Ids(params EntryId[] ids) => [.. ids.OrderBy(e => e.Value)];

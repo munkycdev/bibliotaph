@@ -11,7 +11,7 @@ public abstract partial class PipelineTests
          "words": [{"text": "terraform", "exclude": false}]}
         """;
 
-    PlainSearchService PlainSearch() => new(_ai, _vocabulary, _queries);
+    PlainSearchService PlainSearch() => new(_ai, _vocabulary, _queries, new AiUse());
 
     /// <summary>Ask through the app's AI setup, with the fake model in place of the server.</summary>
     public sealed class PlainSearchTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)

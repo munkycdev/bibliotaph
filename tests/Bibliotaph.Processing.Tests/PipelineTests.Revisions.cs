@@ -47,8 +47,7 @@ public abstract partial class PipelineTests
             var sessions = new SessionsService(_sessions, _entries, _libraryStore, _queries, _projector, _places);
             var notes = new NotesService(_notes, _entries, _projector, _places);
             var reading = new ReadingService(_reading, _projector, _places);
-            var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-                new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs, places: _places);
+            var review = Review();
 
             // A session item and a page note on a page the new edition keeps, and on the one it corrects, and the
             // book left at the bell tower.

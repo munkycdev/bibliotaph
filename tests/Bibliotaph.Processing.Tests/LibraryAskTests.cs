@@ -110,8 +110,8 @@ public sealed class LibraryAskTests : IAsyncLifetime
         _use = new AiUse(_clock);
         _ai = new AiSettings(new SettingsStore(contexts), new NoApiKeys(), _ => _server);
         _bookAsk = new AskService(_ai, library, new AskQueries(_index), new IndexQueries(_index), store, new EntryStore(contexts),
-            new AskHistoryStore(contexts), use: _use);
-        _ask = new LibraryAskService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), new IndexQueries(_index), library, use: _use);
+            new AskHistoryStore(contexts), _use);
+        _ask = new LibraryAskService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), new IndexQueries(_index), library, _use);
         _vectors = new LibraryVectors(_ai, _bookAsk, new LibraryAskQueries(_index), library, _use, _clock);
 
         // Three invented books: one with the lich on every page, one with a lich among other things, and one in a folder kept from AI.

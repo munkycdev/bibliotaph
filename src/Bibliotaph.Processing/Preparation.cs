@@ -59,7 +59,7 @@ public sealed class ReadingService(ReadingStore reading, MetadataProjector proje
 /// a collection made from a folder following that folder (<see cref="FolderCollectionStore"/>); the books its folder
 /// and Needs review bring join with <see cref="JoinAsync"/>, which leaves it following.
 /// </summary>
-public sealed class CollectionsService(CollectionStore collections, MetadataProjector projector, FolderCollectionStore? folders = null)
+public sealed class CollectionsService(CollectionStore collections, MetadataProjector projector, FolderCollectionStore folders)
 {
     /// <summary>Raised after any collection changed, on the thread that changed it.</summary>
     public event EventHandler? Changed;
@@ -97,7 +97,7 @@ public sealed class CollectionsService(CollectionStore collections, MetadataProj
     public async Task<IReadOnlyList<EntryId>> AddAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         var added = await collections.AddAsync(collectionId, entryIds, ct);
-        if (added.Count > 0 && folders is not null) await folders.UnlinkAsync(collectionId, ct);
+        if (added.Count > 0) await folders.UnlinkAsync(collectionId, ct);
         // Even when every book was in it already: the collection was used, so it heads the recent ones.
         await ProjectAsync(added, ct);
         return added;
@@ -107,7 +107,7 @@ public sealed class CollectionsService(CollectionStore collections, MetadataProj
     public async Task<IReadOnlyList<EntryId>> RemoveAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         var removed = await collections.RemoveAsync(collectionId, entryIds, ct);
-        if (removed.Count > 0 && folders is not null) await folders.UnlinkAsync(collectionId, ct);
+        if (removed.Count > 0) await folders.UnlinkAsync(collectionId, ct);
         if (removed.Count > 0) await ProjectAsync(removed, ct);
         return removed;
     }

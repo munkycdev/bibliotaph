@@ -114,8 +114,8 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _collections = new CollectionStore(contexts);
         _sessions = new SessionStore(contexts);
         _notes = new NoteStore(contexts);
-        var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, runs: _runs,
-            favorites: _favorites, reading: _reading, collections: _collections, sessions: _sessions, notes: _notes, covers: new CoverCache(_paths));
+        var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, _runs,
+            new MarkStores(_favorites, _reading, _collections, _sessions, _notes), new CoverCache(_paths));
         _partStore = new PartStore(contexts);
         var services = _stages = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
             _partStore);
@@ -124,7 +124,6 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _correctionStore = new CorrectionStore(contexts);
         var hints = _hints = new MetadataHints(library, entries, _queries, _metadataStore, vocabulary, projector, packStore, _correctionStore);
         _folderRules = new FolderRules(_correctionStore, library, _metadataStore, vocabulary, hints);
-        _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules);
         _proposals = new PartProposalService(new PartProposalStore(contexts), _parts, entries, _queries);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
@@ -132,7 +131,6 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _places = new PagePlaces(_pageRefs, entries, library, _queries, _reading);
         _copies = new CopiesService(entries, versions, library, _queries, projector, _places, _parts);
         var elsewhere = new ElsewhereStore(contexts, entries);
-        _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
         // AI is off, as it is until someone sets it up; the model is a fake that answers as each test says.
         _ai = new AiSettings(_settings, new NoApiKeys(), _ => _model, activity: _activity);
         await _ai.LoadAsync(Ct);
@@ -142,25 +140,37 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _chapterProjection = new ChapterProjection(_chapterScans, index, new ChapterQueries(_index), library);
         var chapters = new ChapterScanStage(_ai, library, _queries, _chapterScans, _chapterProjection, vocabulary);
         _userTags = new UserTagService(new UserTagStore(contexts), _metadataStore, new UserTagQueries(_index), projector);
-        var classify = new ClassifyStage(_ai, library, _queries, new ClassifierInputs(library, _queries, vocabulary), _runs,
-            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), feed: _aiReading, parts: _parts, proposals: _proposals);
+        var classify = new ClassifyStage(_ai, library, _queries, Inputs(), _runs,
+            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), _aiReading, _parts, _proposals);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
-        _packs = new PackService(packStore, projector, hints);
+        _packs = new PackService(packStore, projector, hints, _metadataStore);
         _folderCollectionStore = new FolderCollectionStore(contexts);
         _collectionsService = new CollectionsService(_collections, projector, _folderCollectionStore);
         _folderCollections = new FolderCollections(_folderCollectionStore, library, _collections, _collectionsService, vocabulary, _packs);
         _service = new IndexingService(_roots, library, queue,
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
-                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere: elsewhere, places: _places, hints: hints, parts: _parts,
-                    tags: _userTags), _matchGate),
+                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
                 chapters,
             ],
-            new FileHasher(reader), _disk, archives,
-            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) },
-            packs: _packs, identity: _identity, returns: _returns, parts: _parts, folderCollections: _folderCollections);
+            new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns), _packs, _parts, _folderCollections,
+            new IndexingOptions { WatchFolders = false, IdleRecheck = TimeSpan.FromSeconds(1), UnavailableRetry = TimeSpan.FromMilliseconds(300) });
         _chapterService = new ChapterScanService(_ai, _service, _chapterScans, _chapterProjection, new ChapterQueries(_index));
+        _metadata = new MetadataService(_metadataStore, vocabulary, projector, _folderRules, _chapterService);
+        _elsewhere = new ElsewhereService(entries, elsewhere, _metadata, vocabulary, projector, library, _queries, new LibraryQueries(_index));
     }
+
+    /// <summary>What the classifier reads, with worked examples from the books the user has confirmed, as in the app.</summary>
+    ClassifierInputs Inputs() => new(_libraryStore, _queries, _vocabulary, _entries, new ExampleFinder(_metadataStore, _libraryStore));
+
+    /// <summary>
+    /// Needs review with every kind of card, as in the app. A test that works with the corrections or the collection
+    /// suggestions itself passes the ones it holds.
+    /// </summary>
+    ReviewService Review(CorrectionService? corrections = null, CollectionSuggestions? suggestions = null) =>
+        new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings, new VocabularyService(_vocabulary, _projector, _service, _hints),
+            new ReviewCards(_copies, _packs, _elsewhere, _places, corrections ?? Corrections(), _folderRules, _parts, _proposals, _folderCollections,
+                suggestions ?? Suggestions()));
 
     public async ValueTask DisposeAsync()
     {
@@ -554,8 +564,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
             await _roots.AddAsync(_library, Ct);
             await _service.StartAsync(Ct);
             await SettleAsync();
-            var review = new ReviewService(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings,
-                new VocabularyService(_vocabulary, _projector, _service, _hints), _copies, _packs);
+            var review = Review();
             Assert.Equal(0, await review.CountAsync(Ct));
 
             // Reviewing everything: the title and the type nobody has confirmed are cards now.

@@ -113,7 +113,8 @@ public abstract partial class PipelineTests
             var thumbnails = new PageThumbnailCache(_paths);
             var hash = Path.GetFileNameWithoutExtension(entry.Cover!);
             thumbnails.Write(hash, 0, [1, 2, 3]);
-            var forget = new ForgetText(_entries, _libraryStore, _indexStore, _service, new CoverCache(_paths), thumbnails, _runs, _metadataStore, _projector, askHistory);
+            var forget = new ForgetText(_entries, _libraryStore, _indexStore, _service, new CoverCache(_paths), thumbnails, _runs, _metadataStore, _projector, askHistory,
+                _chapterScans);
 
             Assert.True(await forget.ForgetAsync(entry.EntryId, Ct));
 
