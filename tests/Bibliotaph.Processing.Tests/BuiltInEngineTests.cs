@@ -215,6 +215,18 @@ public sealed class BuiltInEngineTests : IDisposable
         Assert.Equal("qwen3-8b", BuiltInModels.Suggest(8 * GiB).Id);
         Assert.Equal("qwen3-4b", BuiltInModels.Suggest(6 * GiB).Id);
         Assert.Equal("qwen3-4b", BuiltInModels.Suggest(null).Id);
+        // Only the models the classifier was tried with are suggested, however big the card.
+        Assert.Equal("qwen3-8b", BuiltInModels.Suggest(24 * GiB).Id);
+        Assert.True(BuiltInModels.Fits(BuiltInModels.Llama8B, 8 * GiB));
+        Assert.False(BuiltInModels.Fits(BuiltInModels.Qwen14B, 8 * GiB));
+        Assert.False(BuiltInModels.Fits(BuiltInModels.Qwen8B, null));
+        Assert.True(BuiltInModels.Fits(BuiltInModels.Qwen4B, null));
+        Assert.Equal(BuiltInModels.All, BuiltInModels.All.OrderBy(m => m.GraphicsBytes));
+        Assert.Equal(BuiltInModels.All.Count, BuiltInModels.All.Select(m => m.Id).Distinct().Count());
+        Assert.Equal(BuiltInModels.All.Count, BuiltInModels.All.Select(m => m.File).Distinct().Count());
+        Assert.True(BuiltInModels.IsFile(_model));
+        Assert.False(BuiltInModels.IsFile("llama-3.1-8b"));
+        Assert.Equal("Llama 3.1 8B (built in)", BuiltInModels.NameFor("llama-3.1-8b"));
         Assert.All(BuiltInModels.All, m => Assert.Equal(64, m.Sha256.Length));
         Assert.Equal("https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q4_K_M.gguf",
             BuiltInModels.Qwen8B.DownloadUrl.ToString());

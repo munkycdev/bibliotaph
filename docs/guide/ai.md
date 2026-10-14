@@ -46,9 +46,14 @@ Bibliotaph never switches to a cloud service by itself.
 ## Set it up: Built in
 
 1. Open **Settings > AI**, and choose **Built in** under **Where the model runs**.
-2. Pick a model. Bibliotaph suggests the one that suits your graphics card:
-   - **Qwen3 8B**, about a 5 GB download, for a graphics card with 7 GB of memory or more.
-   - **Qwen3 4B**, about a 2.5 GB download, for smaller graphics cards or a PC without one.
+2. Pick a model from the list. Those that fit your graphics card come first, and Bibliotaph preselects the one it
+   suggests: **Qwen3 8B** (about 5 GB) for a card with 7 GB of memory or more, or **Qwen3 4B** (about 2.5 GB) for a
+   smaller card or a PC without one. The list also has Phi-4 mini, Llama 3.1 8B and Granite 3.3 8B for 8 GB cards, and
+   Qwen3 14B, Mistral Small 3.2 24B and Qwen3 30B-A3B for bigger ones. Each shows its download size, the graphics
+   memory it needs and its licence. Llama 3.1 comes under Meta's own licence; the others are Apache-2.0 or MIT.
+
+   Already have a model? **Use a model file…** uses a `.gguf` file on your PC where it is, such as one LM Studio
+   downloaded. Bibliotaph never changes or deletes it.
 3. Click **Download**. You can pause it and carry on later, even after closing Bibliotaph. As soon as the download
    finishes, AI switches on and starts reading.
 

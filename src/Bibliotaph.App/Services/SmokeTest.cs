@@ -2754,7 +2754,7 @@ static partial class SmokeTest
         // Built in, first: the models, the suggested one chosen, and Download with its size. Nothing downloads by itself.
         if (!page.ShowBuiltIn) throw new InvalidOperationException("Settings > AI doesn't show Built in first, with nothing set up.");
         var builtIn = page.BuiltIn;
-        if (builtIn.Models.Count != BuiltInModels.All.Count || builtIn.Chosen is not { IsSuggested: true, IsChosen: true })
+        if (builtIn.Models.Count != BuiltInModels.Offered.Count || builtIn.Chosen is not { IsSuggested: true, IsChosen: true })
             throw new InvalidOperationException("The Built in panel doesn't list the models with the suggested one chosen.");
         if (builtIn.IsDownloading || builtIn.Chosen.State == BuiltInModelState.Downloaded)
             throw new InvalidOperationException("A model is downloading, or downloaded, before Download was pressed.");
