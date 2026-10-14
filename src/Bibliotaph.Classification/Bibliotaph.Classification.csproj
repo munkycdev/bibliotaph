@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- IClassifier, rule hints, evidence validator and AI adapters (from slice 2). -->
+  <!-- The classifier, rule hints, evidence validator and AI adapters. -->
   <PropertyGroup>
     <TargetFramework>$(BibTfm)</TargetFramework>
   </PropertyGroup>

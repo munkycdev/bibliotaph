@@ -98,10 +98,10 @@ public sealed class AskService(
     public bool IsOn => ai.Setup.IsReady;
 
     /// <summary>Whether pages can be found by meaning: an embedding model is set up for the current AI.</summary>
-    public bool HasEmbeddingModel => ai.Embedder is not null && ai.Setup.EmbeddingName is not null;
+    public bool HasEmbeddingModel => ai.Current is { Embedder: not null, Setup.EmbeddingName: not null };
 
     /// <summary>Whether a question can be answered, as well as its pages found: AI is ready with a chat model.</summary>
-    public bool CanAnswer => ai.Chat is not null && ai.Setup.ModelName is not null;
+    public bool CanAnswer => ai.Current is { Chat: not null, Setup.ModelName: not null };
 
     /// <summary>Raised, on any thread, when AI's setup changes, which can show or hide Ask.</summary>
     public event EventHandler? Changed
@@ -119,8 +119,9 @@ public sealed class AskService(
     /// <summary>Why this book can't be asked, or null when it can.</summary>
     public async Task<string?> WhyNotAsync(long documentId, CancellationToken ct = default)
     {
-        if (!ai.Setup.IsReady) return "Ask this book uses AI, which is off. Set it up in Settings > AI.";
-        if (ai.Setup.SkippedRoots.Count > 0 && (await library.GetRootIdsAsync(documentId, ct)).Any(ai.Setup.SkippedRoots.Contains))
+        var setup = ai.Setup;
+        if (!setup.IsReady) return "Ask this book uses AI, which is off. Set it up in Settings > AI.";
+        if (setup.SkippedRoots.Count > 0 && (await library.GetRootIdsAsync(documentId, ct)).Any(setup.SkippedRoots.Contains))
             return "This book's library folder is kept from AI, so it can't be asked. Settings > AI says which folders are sent.";
         return null;
     }
@@ -135,8 +136,9 @@ public sealed class AskService(
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
         using var busy = use?.Begin();
         var started = Stopwatch.GetTimestamp();
-        var setup = ai.Setup;
-        var embedder = ai.Embedder;
+        var state = ai.Current;
+        var setup = state.Setup;
+        var embedder = state.Embedder;
         var model = setup.EmbeddingName;
 
         var words = AskRetrieval.Words(question);
@@ -226,8 +228,9 @@ public sealed class AskService(
         IReadOnlyList<AskEarlierTurn>? earlier = null, CancellationToken ct = default)
     {
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
-        var client = ai.Chat;
-        var model = ai.Setup.ModelName;
+        var state = ai.Current;
+        var client = state.Chat;
+        var model = state.Setup.ModelName;
         if (client is null || model is null) throw new AskUnavailableException("Ask this book uses AI, which is off. Set it up in Settings > AI.");
         if (findings.Weak || findings.Evidence.Count == 0) throw new InvalidOperationException("There are no pages to answer from.");
         using var busy = use?.Begin();
@@ -255,7 +258,7 @@ public sealed class AskService(
     {
         if (earlier.Count == 0) return (followUp, false);
         if (await WhyNotAsync(documentId, ct) is { } why) throw new AskUnavailableException(why);
-        if (ai.Chat is not { } client || ai.Setup.ModelName is not { } model) return (followUp, false);
+        if (ai.Current is not { Chat: { } client, Setup.ModelName: { } model }) return (followUp, false);
         using var busy = use?.Begin();
         try
         {
@@ -375,8 +378,9 @@ public sealed class AskService(
             IReadOnlyDictionary<int, HeadingPath>? headings = null;
             while (true)
             {
-                var embedder = waiting ? ai.Embedder : ai.BackgroundEmbedder;
-                var name = ai.Setup.EmbeddingName;
+                var state = ai.Current;
+                var embedder = waiting ? state.Embedder : state.BackgroundEmbedder;
+                var name = state.Setup.EmbeddingName;
                 if (embedder is null || name is null || await WhyNotAsync(documentId, ct) is not null) break;
                 if (name != model)
                 {

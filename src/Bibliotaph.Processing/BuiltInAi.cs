@@ -585,7 +585,7 @@ public static class BuiltInEngineWatch
     {
         void Check(object? sender, EventArgs e)
         {
-            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || !ai.Setup.IsReady || !ai.Setup.BuiltIn)) _ = engine.StopAsync();
+            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || ai.Setup is not { IsReady: true, BuiltIn: true })) _ = engine.StopAsync();
         }
         ai.Changed += Check;
         indexing.Changed += Check;
@@ -598,6 +598,6 @@ public static class BuiltInEngineWatch
     public static void StopWhenNotNeededForAsk(this BuiltInEngine engine, AiSettings ai) =>
         ai.Changed += (_, _) =>
         {
-            if (engine.IsRunning && (!ai.Setup.IsReady || !ai.Setup.BuiltIn || ai.Setup.BuiltInEmbeddingModel is null)) _ = engine.StopAsync();
+            if (engine.IsRunning && ai.Setup is not { IsReady: true, BuiltIn: true, BuiltInEmbeddingModel: not null }) _ = engine.StopAsync();
         };
 }

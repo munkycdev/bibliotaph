@@ -67,7 +67,7 @@ The worker opens a PDF through `FPDF_LoadCustomDocument` over a read-only .NET s
 | `Bibliotaph.Core` | Domain types and enums, the search query parser and field list, effective metadata, page fingerprints, watermark detection, part rules, sync file format and merge; no I/O | Nothing |
 | `Bibliotaph.Catalog` | EF Core context and migrations for `catalog.db`, the stores for user work, backup files, JSON and CSV export, applying library sync records | Core |
 | `Bibliotaph.Index` | `index.db` schema and upgrades, page and FTS5 writers, search, facet and library queries, the job board | Core |
-| `Bibliotaph.Classification` | `IClassifier`, model client, prompts and schemas, excerpt builder, evidence check, rule hints, Ask's prompts and checks | Core |
+| `Bibliotaph.Classification` | `ModelClassifier`, model client, prompts and schemas, excerpt builder, evidence check, rule hints, Ask's prompts and checks | Core |
 | `Bibliotaph.Processing` | Scanner, watcher, reconcile, hashing, ZIPs, the pipeline and its stages, metadata projection, built-in AI engine and downloads, Ask, online library readers, backups, library sync | Core, Catalog, Index, Classification, Pdf.Host |
 | `Bibliotaph.Pdf.Contracts` | Worker messages and framing | Nothing |
 | `Bibliotaph.Pdf.Host` | Worker pool, job objects, shared sections, restarts, poison tracking | Pdf.Contracts |

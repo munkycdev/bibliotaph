@@ -13,35 +13,23 @@ public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int,
 public sealed record ClassifierResult(string Provider, string Model, IReadOnlyList<CheckedClaim> Accepted, IReadOnlyList<DroppedClaim> Dropped);
 
 /// <summary>
-/// Classifies a book (architecture, "Metadata and classification"). The result's claims have passed the evidence check;
-/// what to store is the caller's business.
+/// Classifies a book over a model server, the built-in AI's included: the prompt and schema from <see
+/// cref="ClassifierPrompt"/>, the answer through <see cref="EvidenceCheck"/>; and the same model finding a compilation's
+/// adventures, through <see cref="PartFinderPrompt"/> and <see cref="PartCheck"/>. The book's text goes only into the user
+/// message, inside the excerpt tags. The results have passed their checks; what to store is the caller's business.
+/// Tests stand in for the model with an <see cref="IModelClient"/>, not for this class.
 /// </summary>
-public interface IClassifier
+public sealed class ModelClassifier(IModelClient client, string provider, string model)
 {
-    string Provider { get; }
+    public string Provider { get; } = provider;
 
-    string Model { get; }
+    public string Model { get; } = model;
 
     /// <summary>Classifies <paramref name="input"/>, reporting the answer as it is written when <paramref name="progress"/> is given.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
     /// <exception cref="ClassifierAnswerException">
     /// The model answered, but not in the schema, or couldn't answer for this book while it still answers others.
     /// </exception>
-    Task<ClassifierResult> ClassifyAsync(ClassifierInput input, IProgress<ModelProgress>? progress = null, CancellationToken ct = default);
-}
-
-/// <summary>
-/// The classifier over a model server: the prompt and schema from <see cref="ClassifierPrompt"/>, the answer through
-/// <see cref="EvidenceCheck"/>; and the same model finding a compilation's adventures, through <see
-/// cref="PartFinderPrompt"/> and <see cref="PartCheck"/>. The book's text goes only into the user message, inside the
-/// excerpt tags.
-/// </summary>
-public sealed class ModelClassifier(IModelClient client, string provider, string model) : IClassifier, IPartFinder
-{
-    public string Provider { get; } = provider;
-
-    public string Model { get; } = model;
-
     public async Task<ClassifierResult> ClassifyAsync(ClassifierInput input, IProgress<ModelProgress>? progress = null, CancellationToken ct = default)
     {
         var system = ClassifierPrompt.SystemMessage(input.Vocabulary);
@@ -52,6 +40,9 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
         return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped);
     }
 
+    /// <summary>The adventures the model found among <paramref name="input"/>'s candidates whose evidence checks out; none when fewer than two do.</summary>
+    /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
+    /// <exception cref="ClassifierAnswerException">The model answered, but not in the schema, or couldn't answer for this file.</exception>
     public async Task<PartFinderResult> FindPartsAsync(PartFinderInput input, CancellationToken ct = default)
     {
         var system = PartFinderPrompt.SystemMessage();

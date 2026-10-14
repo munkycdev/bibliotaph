@@ -79,15 +79,6 @@ public sealed record DroppedPart(PartClaim Claim, string Reason);
 /// <summary>The adventures that passed the check, in page order, and those that didn't.</summary>
 public sealed record PartFinderResult(IReadOnlyList<ProposedPart> Accepted, IReadOnlyList<DroppedPart> Dropped);
 
-/// <summary>Asks a model which of a compilation's candidates are adventures.</summary>
-public interface IPartFinder
-{
-    /// <summary>The adventures the model found among <paramref name="input"/>'s candidates whose evidence checks out; none when fewer than two do.</summary>
-    /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
-    /// <exception cref="ClassifierAnswerException">The model answered, but not in the schema, or couldn't answer for this file.</exception>
-    Task<PartFinderResult> FindPartsAsync(PartFinderInput input, CancellationToken ct = default);
-}
-
 /// <summary>
 /// What a model is asked to find a compilation's adventures, and the shape it must answer in. Guarded as the
 /// classifier's prompt is: the book's text, bookmark titles included, goes only into the user message inside the
