@@ -242,6 +242,56 @@ public class ChapterPromptTests
                 """).Select(c => (c.Chapter, c.Field, c.Value, c.Page)));
     }
 
+    /// <summary>A server whose context holds <paramref name="context"/> tokens, counting one per <paramref name="charactersPerToken"/> characters.</summary>
+    sealed class CountingServer(int context, double charactersPerToken) : IModelClient
+    {
+        public List<ModelRequest> Requests { get; } = [];
+
+        public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) => Task.FromResult(new EndpointInfo(EndpointKind.BuiltIn, null, ["m"]));
+
+        public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
+        {
+            Requests.Add(request);
+            var tokens = (int)((request.System.Length + request.User.Length) / charactersPerToken);
+            return tokens >= context
+                ? throw new ModelContextException("Too long.", tokens, context)
+                : Task.FromResult("""{"chapters": []}""");
+        }
+    }
+
+    static ChapterBatch DenseBatch()
+    {
+        var page = string.Join(' ', Enumerable.Repeat("AC 15, HP 22 (4d8+4), Str 14 (+2), Dex 12 (+1).", 60));
+        return new ChapterBatch("Stat Blocks", Chapters, [.. Enumerable.Range(0, 10).Select(i => new BookPage(i, page))]);
+    }
+
+    [Fact]
+    public async Task Pages_the_model_counts_as_too_long_for_its_context_are_sent_again_cut_to_fit()
+    {
+        var server = new CountingServer(10_000, 2.0);
+
+        var result = await new ChapterReader(server, "m").ReadAsync(DenseBatch(), _ => null, Vocabulary, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, result.Tags.Count);
+        Assert.Equal(2, server.Requests.Count);
+        Assert.True(server.Requests[1].User.Length < server.Requests[0].User.Length / 2, $"{server.Requests[1].User.Length} characters.");
+        // Every page is still read, each cut shorter, rather than the last pages left out.
+        Assert.All(Enumerable.Range(1, 10), n => Assert.Contains($"[Page {n}]", server.Requests[1].User, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_batch_too_long_even_cut_down_fails_by_itself()
+    {
+        var server = new CountingServer(3_500, 1.0);
+
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(
+            () => new ChapterReader(server, "m").ReadAsync(DenseBatch(), _ => null, Vocabulary, TestContext.Current.CancellationToken));
+
+        Assert.IsType<ModelContextException>(ex.InnerException);
+        // No check request: the refusal already said the server is fine.
+        Assert.Single(server.Requests);
+    }
+
     [Fact]
     public void Chapter_tags_are_described_one_line_per_field()
     {

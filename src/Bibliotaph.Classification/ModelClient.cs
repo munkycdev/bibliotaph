@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Bibliotaph.Classification;
 
@@ -74,13 +76,40 @@ public class ModelEndpointException : Exception
 /// allowed. That can be the book or the server, so <see cref="ModelClassifier"/> asks the server something small to tell
 /// which. Callers that don't care treat it like any other <see cref="ModelEndpointException"/>.
 /// </summary>
-public sealed class ModelRequestException : ModelEndpointException
+public class ModelRequestException : ModelEndpointException
 {
     public ModelRequestException(string message, Exception? inner = null) : base(message, inner) { }
 
     public ModelRequestException() { }
 
     public ModelRequestException(string message) : base(message) { }
+}
+
+/// <summary>
+/// The server refused the request because the prompt is longer than the model's context window, as llama.cpp's server
+/// does (the built-in AI among them). That is the request's fault, not the server's: the same server takes a shorter
+/// one, so a caller that can send less tries again with less, and one that can't fails that book alone. The token
+/// counts are the server's own, when it gave them.
+/// </summary>
+public sealed class ModelContextException : ModelRequestException
+{
+    public ModelContextException(string message, int? promptTokens, int? contextTokens) : base(message)
+    {
+        PromptTokens = promptTokens;
+        ContextTokens = contextTokens;
+    }
+
+    public ModelContextException(string message, Exception? inner = null) : base(message, inner) { }
+
+    public ModelContextException() { }
+
+    public ModelContextException(string message) : base(message) { }
+
+    /// <summary>How many tokens the server counted in the prompt.</summary>
+    public int? PromptTokens { get; }
+
+    /// <summary>How many tokens the model's context window holds.</summary>
+    public int? ContextTokens { get; }
 }
 
 /// <summary>A local model server, as the classifier needs it.</summary>
@@ -115,7 +144,7 @@ public interface IEmbeddingClient
 /// before it answers. It sends only what it is given: no tools, no functions, nothing from any other file. Embeddings
 /// go to Ollama's own embed call, or the OpenAI-compatible one.
 /// </summary>
-public sealed class LocalModelClient : IModelClient, IEmbeddingClient
+public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
 {
     readonly HttpClient _http;
     readonly Func<string?> _apiKey;
@@ -451,6 +480,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
                 if (chunk?["error"] is { } error)
                 {
                     var detail = error is JsonObject o ? o["message"]?.GetValue<string>() : error.GetValue<string>();
+                    if (TooLong(error as JsonObject, detail) is { } tooLong) throw tooLong;
                     throw new ModelRequestException($"The model server failed while answering. It said: {detail}");
                 }
                 if (chunk?["prompt_progress"] is JsonObject read && read["total"]?.GetValue<double>() is > 0 and var total)
@@ -502,7 +532,8 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
 
         using (response)
         {
-            var detail = await ErrorDetailAsync(response, ct);
+            var (detail, error) = await ErrorDetailAsync(response, ct);
+            if (TooLong(error, detail) is { } tooLong) throw tooLong;
             var status = (int)response.StatusCode;
             // The reason, "" when the server gave none, so a refusal can be told apart by what it is about.
             var inner = new HttpRequestException(detail ?? "", null, response.StatusCode);
@@ -533,26 +564,56 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
         }
     }
 
-    /// <summary>The server's own error message, short, for the notice.</summary>
-    static async Task<string?> ErrorDetailAsync(HttpResponseMessage response, CancellationToken ct)
+    /// <summary>The server's own error message, short, for the notice, and its error object when it sent one.</summary>
+    static async Task<(string? Message, JsonObject? Error)> ErrorDetailAsync(HttpResponseMessage response, CancellationToken ct)
     {
         try
         {
             var text = await response.Content.ReadAsStringAsync(ct);
-            var json = JsonNode.Parse(text);
-            var message = json?["error"] switch
-            {
-                JsonValue value => value.GetValue<string>(),
-                JsonObject error => error["message"]?.GetValue<string>(),
-                _ => null,
-            };
-            return message is null ? null : message.Length > 200 ? message[..200] + "…" : message;
+            var error = JsonNode.Parse(text)?["error"];
+            return (Short(error), error as JsonObject);
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or HttpRequestException)
         {
-            return null;
+            return (null, null);
         }
     }
+
+    static string? Short(JsonNode? error)
+    {
+        var message = error switch
+        {
+            JsonValue value => value.GetValue<string>(),
+            JsonObject o => o["message"]?.GetValue<string>(),
+            _ => null,
+        };
+        return message is null ? null : message.Length > 200 ? message[..200] + "…" : message;
+    }
+
+    /// <summary>
+    /// llama.cpp's server refuses a prompt longer than its context with an "exceed_context_size_error" that gives both
+    /// counts ("request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it"). Older
+    /// builds say so only in the message, so that is read too.
+    /// </summary>
+    static ModelContextException? TooLong(JsonObject? error, string? detail)
+    {
+        var match = detail is null ? null : ContextExceeded().Match(detail);
+        if (error?["type"]?.GetValue<string>() != "exceed_context_size_error" && match is not { Success: true }) return null;
+        var prompt = Number(error?["n_prompt_tokens"]) ?? Count(match, 1);
+        var context = Number(error?["n_ctx"]) ?? Count(match, 2);
+        var message = prompt is { } p && context is { } c
+            ? string.Create(CultureInfo.InvariantCulture, $"The text was too long for the model: {p:N0} tokens, and it has room for {c:N0}.")
+            : $"The text was too long for the model. It said: {detail}";
+        return new ModelContextException(message, prompt, context);
+
+        static int? Number(JsonNode? node) => node is JsonValue value && value.TryGetValue<int>(out var n) ? n : null;
+    }
+
+    static int? Count(Match? match, int group) =>
+        match is { Success: true } && int.TryParse(match.Groups[group].ValueSpan, CultureInfo.InvariantCulture, out var n) ? n : null;
+
+    [GeneratedRegex(@"\((\d+) tokens\) exceeds the available context size \((\d+) tokens\)", RegexOptions.IgnoreCase)]
+    private static partial Regex ContextExceeded();
 
     /// <summary>Connection refused, a name that doesn't resolve, or a timeout that wasn't the caller cancelling.</summary>
     static bool Unreachable(Exception ex, CancellationToken ct) =>
