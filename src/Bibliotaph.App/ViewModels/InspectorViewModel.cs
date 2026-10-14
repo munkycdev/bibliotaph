@@ -446,7 +446,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool CanOcrEveryPage => PageCount > 0;
 
-    /// <summary>The Notes tab: the book's own note and its page notes. Set by the page once the details load.</summary>
+    /// <summary>The Notes tab: the book's own note and its page notes. Set once the details load, as they open.</summary>
     [ObservableProperty]
     public partial EntryNotesViewModel? Notes { get; set; }
 

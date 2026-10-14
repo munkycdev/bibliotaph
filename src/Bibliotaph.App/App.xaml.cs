@@ -355,6 +355,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SmartViewDirectory>();
         builder.Services.AddSingleton<PinDirectory>();
         builder.Services.AddSingleton<PinOpener>();
+        builder.Services.AddSingleton<InspectorFactory>();
+        builder.Services.AddSingleton<LibrarySelectionFactory>();
         builder.Services.AddTransient<CollectionActions>();
         builder.Services.AddSingleton<SessionDirectory>();
         builder.Services.AddTransient<SessionActions>();
