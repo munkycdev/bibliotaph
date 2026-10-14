@@ -89,6 +89,7 @@ public sealed partial class LibraryActivity : ObservableObject
 
     readonly IIndexingStatus _indexing;
     readonly IJobControl _jobs;
+    readonly IStageCatalog _stages;
     readonly IndexQueries _queries;
     readonly LibraryStore _library;
     readonly ReviewService _review;
@@ -104,11 +105,12 @@ public sealed partial class LibraryActivity : ObservableObject
     int _dirty = 1;
     bool _refreshing;
 
-    public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IndexQueries queries, LibraryStore library, MetadataProjector metadata,
-        ReviewService review, TimeProvider time, ILogger<LibraryActivity> log)
+    public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IStageCatalog stages, IndexQueries queries, LibraryStore library,
+        MetadataProjector metadata, ReviewService review, TimeProvider time, ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
         _jobs = jobs;
+        _stages = stages;
         _queries = queries;
         _library = library;
         _review = review;
@@ -336,22 +338,9 @@ public sealed partial class LibraryActivity : ObservableObject
     {
         var lines = new List<string>();
         if (_indexing.Hashing is { } file) lines.Add($"Reading {System.IO.Path.GetFileName(file)}");
-        if (_indexing.Running(Lane.Index) is { } job)
-        {
-            var title = await TitleAsync(job.DocumentId);
-            lines.Add(job.Stage switch
-            {
-                Stage.Probe => $"Opening {title}",
-                Stage.Text => $"Reading the text of {title}",
-                Stage.Covers => $"Making a cover for {title}",
-                _ => $"Working on {title}",
-            });
-        }
-        if (_indexing.Running(Lane.Ocr) is { } ocr) lines.Add($"Reading scanned pages of {await TitleAsync(ocr.DocumentId)}");
-        if (_indexing.Running(Lane.Classify) is { } ai)
-            lines.Add(ai.Stage == Stage.ChapterScan
-                ? $"Scanning the chapters of {await TitleAsync(ai.DocumentId)}"
-                : $"Asking the AI about {await TitleAsync(ai.DocumentId)}");
+        foreach (var lane in Enum.GetValues<Lane>())
+            if (_indexing.Running(lane) is { } job)
+                lines.Add($"{_stages.Find(job.Stage)?.Names.Running ?? "Working on"} {await TitleAsync(job.DocumentId)}");
         return lines;
     }
 

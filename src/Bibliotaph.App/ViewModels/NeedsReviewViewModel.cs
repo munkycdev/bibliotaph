@@ -107,6 +107,7 @@ public sealed partial class NeedsReviewViewModel(
     LibraryStore library,
     IIndexingStatus indexing,
     IJobControl jobs,
+    IStageCatalog stages,
     LibraryActivity activity,
     INavigationService navigation,
     SettingsLinks links,
@@ -413,28 +414,15 @@ public sealed partial class NeedsReviewViewModel(
     }
 
     /// <summary>A failed or blocked stage in words: a bug says so, and keeps what to paste into a report.</summary>
-    static AttentionRow Row(AttentionItem item)
+    AttentionRow Row(AttentionItem item)
     {
-        var step = StageName(item.Stage);
+        var step = stages.Find(item.Stage)?.Names.Step ?? item.Stage.ToString();
         var reason = item.Reason ?? "something went wrong";
         if (reason.StartsWith(IndexingService.UnexpectedError, StringComparison.Ordinal))
             return new AttentionRow(item.DocumentId, item.Title, $"{step}: Bibliotaph hit a bug ({reason[IndexingService.UnexpectedError.Length..]})",
                 Error: $"{item.Stage}: {reason}");
         return new AttentionRow(item.DocumentId, item.Title, $"{step}: {reason}", TextAccessReasons.Of(item.Status, item.Reason));
     }
-
-    static string StageName(Stage stage) => stage switch
-    {
-        Stage.Probe => "Opening",
-        Stage.Text => "Reading text",
-        Stage.Covers => "Making a cover",
-        Stage.RuleHints => "Reading hints from its name",
-        Stage.Ocr => "Reading scanned pages",
-        Stage.Classify => "Reading with AI",
-        Stage.Match => "Looking for other copies",
-        Stage.ChapterScan => "Scanning the whole book",
-        _ => stage.ToString(),
-    };
 
     [RelayCommand]
     async Task Retry(AttentionRow row)

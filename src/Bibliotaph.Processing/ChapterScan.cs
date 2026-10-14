@@ -96,6 +96,16 @@ public sealed class ChapterScanStage : IStage, IDisposable
 
     public Stage Stage => Stage.ChapterScan;
 
+    /// <summary>The AI's lane, so pausing AI work pauses it too and it never asks the model while a book is classified.</summary>
+    public Lane Lane => Lane.Classify;
+
+    public Stage? After => Stage.Text;
+
+    /// <summary>Books read before whole-book scans existed get them too, after everything else, once AI is on.</summary>
+    public bool Backfill => true;
+
+    public StageNames Names => new("Scanning the whole book", "Scanning the whole book", "Scanning the chapters of");
+
     public void Dispose()
     {
         lock (_lock) _stop.Dispose();

@@ -260,6 +260,8 @@ public partial class App : Application
         builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
         builder.Services.AddSingleton<OnlineOnlyReturns>();
         builder.Services.AddSingleton<StageServices>();
+        // Every stage registered as an IStage is in it: lanes, startup and the screens that name stages all read it.
+        builder.Services.AddSingleton<IStageCatalog, StageCatalog>();
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();
         builder.Services.AddSingleton<IStage, CoversStage>();

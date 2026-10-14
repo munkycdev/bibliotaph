@@ -216,7 +216,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         SourceRootStore roots,
         LibraryStore library,
         JobBoard queue,
-        IEnumerable<IStage> stages,
+        IStageCatalog stages,
         IndexingFiles files,
         PackService packs,
         PartsService parts,
@@ -300,7 +300,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     public async Task<int> RerunAsync(Stage stage, CancellationToken ct = default)
     {
         var queued = await _queue.RerunAsync(stage, ct);
-        _lanes.Wake(Pipeline.LaneOf(stage));
+        _lanes.Wake(stage);
         RaiseChanged();
         return queued;
     }
@@ -312,7 +312,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     public async Task<bool> RerunAsync(Stage stage, long documentId, CancellationToken ct = default)
     {
         var queued = await _queue.RerunAsync(stage, documentId, ct);
-        _lanes.Wake(Pipeline.LaneOf(stage));
+        _lanes.Wake(stage);
         RaiseChanged();
         return queued;
     }
@@ -385,30 +385,12 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         // A new index.db beside a catalog with books in it, as after a restore without the index: each is read again.
         var unqueued = await _queue.EnqueueUnqueuedAsync(await _library.GetDocumentHashesAsync(stoppingToken), Pipeline.First, stoppingToken);
         if (unqueued > 0) _log.LogInformation("Queued {Count} documents index.db had no record of, to be read again", unqueued);
-        // A library indexed before rule hints existed gets them without re-probing anything.
-        if (_lanes.Stages.ContainsKey(Stage.RuleHints))
+        // A stage added in an update reaches the books read before it existed, when the stage says it should.
+        foreach (var stage in _lanes.Stages.All)
         {
-            var backfilled = await _queue.EnqueueMissingAsync(Stage.RuleHints, after: Stage.Probe, stoppingToken);
-            if (backfilled > 0) _log.LogInformation("Queued hints from names for {Count} documents", backfilled);
-        }
-        // Likewise classification, for books read before it existed; they wait in the queue until AI is set up.
-        if (_lanes.Stages.ContainsKey(Stage.Classify))
-        {
-            var backfilled = await _queue.EnqueueMissingAsync(Stage.Classify, after: Stage.Text, stoppingToken);
-            if (backfilled > 0) _log.LogInformation("Queued classification for {Count} documents", backfilled);
-        }
-        // And looking for other copies, for books read before that stage existed: from the text already stored, so no
-        // file is read again.
-        if (_lanes.Stages.ContainsKey(Stage.Match))
-        {
-            var backfilled = await _queue.EnqueueMissingAsync(Stage.Match, after: Stage.Text, stoppingToken);
-            if (backfilled > 0) _log.LogInformation("Queued the search for other copies for {Count} documents", backfilled);
-        }
-        // And reading whole books, chapter by chapter, which comes after everything else and waits for AI to be on.
-        if (_lanes.Stages.ContainsKey(Stage.ChapterScan))
-        {
-            var backfilled = await _queue.EnqueueMissingAsync(Stage.ChapterScan, after: Stage.Text, stoppingToken);
-            if (backfilled > 0) _log.LogInformation("Queued whole-book scans for {Count} documents", backfilled);
+            if (stage is not { Backfill: true, After: { } after }) continue;
+            var backfilled = await _queue.EnqueueMissingAsync(stage.Stage, after, stoppingToken);
+            if (backfilled > 0) _log.LogInformation("Queued {Stage} for {Count} documents read before it existed", stage.Stage, backfilled);
         }
         WatchGates();
 
@@ -434,9 +416,9 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
             if (_gatesWatched) return;
             _gatesWatched = true;
         }
-        foreach (var gated in _lanes.Stages.Values.OfType<IGatedStage>())
+        foreach (var gated in _lanes.Stages.All.OfType<IGatedStage>())
         {
-            var lane = Pipeline.LaneOf(gated.Stage);
+            var lane = gated.Lane;
             gated.ReadyChanged += (_, _) => _lanes.GateChanged(lane);
         }
         _parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
@@ -467,7 +449,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
                 if (await _queue.RerunAsync(Stage.Classify, documentId, _stopping)) break;
                 return;
             }
-            _lanes.Wake(Pipeline.LaneOf(Stage.Classify));
+            _lanes.Wake(Stage.Classify);
             RaiseChanged();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

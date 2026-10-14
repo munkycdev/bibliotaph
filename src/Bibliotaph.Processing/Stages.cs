@@ -10,7 +10,11 @@ namespace Bibliotaph.Processing;
 /// <summary>How a stage ended. The lane turns it into the job's next state.</summary>
 public abstract record StageOutcome
 {
-    /// <summary>The stage finished (complete, partial or skipped) and these stages come next.</summary>
+    /// <summary>
+    /// The stage finished (complete, partial or skipped). Complete or partial, it is followed by the stages that always
+    /// come after it (<see cref="IStage.After"/>) and by <paramref name="Next"/>, those it asks for this time only, as
+    /// Text asks for OCR only when pages need it. A skipped stage is followed only by <paramref name="Next"/>.
+    /// </summary>
     public sealed record Done(StageStatus Status, IReadOnlyList<Stage> Next, string? Reason = null) : StageOutcome;
 
     /// <summary>Waiting on the user: a password, a folder that is offline.</summary>
@@ -64,10 +68,53 @@ public sealed record StageServices(
     MetadataProjector Projector,
     PartStore Parts);
 
+/// <summary>
+/// One step of reading a book. Besides doing its work, a stage says where it runs, what queues it and what the app
+/// calls it, so the lanes, startup and the app's screens all follow from the stages registered. What a stage says about
+/// itself never depends on the services it is given.
+/// </summary>
 public interface IStage
 {
     Stage Stage { get; }
+
+    /// <summary>The lane that runs it. A lane runs one job at a time, and pauses as a whole.</summary>
+    Lane Lane { get; }
+
+    /// <summary>
+    /// The stage whose finishing, complete or partly, queues this one; null for the first stage, and for one that the
+    /// stage before asks for only when needed, as Text asks for OCR only when pages need it.
+    /// </summary>
+    Stage? After { get; }
+
+    /// <summary>
+    /// Whether, at startup, it is queued for every book that finished <see cref="After"/> without ever having had it,
+    /// so a library read before the stage existed gets it without reading anything again.
+    /// </summary>
+    bool Backfill { get; }
+
+    /// <summary>What the app calls it.</summary>
+    StageNames Names { get; }
+
     Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct);
+}
+
+/// <summary>
+/// What the app calls a stage: <paramref name="Label"/> in a book's list of processing steps, <paramref name="Step"/>
+/// before the reason in Files needing attention, and <paramref name="Running"/> before the book's title while it runs.
+/// </summary>
+public sealed record StageNames(string Label, string Step, string Running);
+
+/// <summary>
+/// How long a stage that needs another of the book's stages to finish first waits before looking again. It looks
+/// sooner when that stage ends, since the job board wakes a book's deferred jobs when another of its stages finishes.
+/// </summary>
+static class StageWaits
+{
+    /// <summary>For the book's scanned pages to be read, which can take a while.</summary>
+    public static readonly TimeSpan ForOcr = TimeSpan.FromMinutes(5);
+
+    /// <summary>For the book's hints from names, which take moments.</summary>
+    public static readonly TimeSpan ForHints = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>A stage that runs only while something outside the queue allows it, as Classify runs only while AI is set up.</summary>
@@ -225,6 +272,14 @@ public sealed class ProbeStage(StageServices s) : IStage
 {
     public Stage Stage => Stage.Probe;
 
+    public Lane Lane => Lane.Index;
+
+    public Stage? After => null;
+
+    public bool Backfill => false;
+
+    public StageNames Names => new("Opening", "Opening", "Opening");
+
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
@@ -254,7 +309,7 @@ public sealed class ProbeStage(StageServices s) : IStage
                 FolderHint = source.FolderHint,
             }, [], [], ct);
             await s.Library.SetProbeResultAsync(job.DocumentId, null, ProtectionType.None, "{}", ct);
-            return StageOutcome.Complete(Stage.Text, Stage.Covers, Stage.RuleHints);
+            return StageOutcome.Complete();
         }
 
         // The document is in the library from here, by its file name, even if it turns out not to open.
@@ -291,7 +346,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             var capabilities = JsonSerializer.Serialize(new { canCopy = doc.CanCopy, canPrint = doc.CanPrint, encrypted = doc.IsEncrypted });
             await s.Library.SetProbeResultAsync(job.DocumentId, doc.PageCount, protection, capabilities, ct);
         }
-        return StageOutcome.Complete(Stage.Text, Stage.Covers, Stage.RuleHints);
+        return StageOutcome.Complete();
     }
 
     /// <summary>
@@ -332,6 +387,14 @@ public sealed class TextStage(StageServices s) : IStage
 
     public Stage Stage => Stage.Text;
 
+    public Lane Lane => Lane.Index;
+
+    public Stage? After => Stage.Probe;
+
+    public bool Backfill => false;
+
+    public StageNames Names => new("Reading text", "Reading text", "Reading the text of");
+
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
@@ -354,11 +417,9 @@ public sealed class TextStage(StageServices s) : IStage
             }
 
             // Read back rather than counted from the scores: a page flagged for OCR before Text ran (Reprocess with OCR
-            // on every page) keeps its flag whatever its text layer scores. Classify, Match and the whole-book scan wait
-            // for OCR by themselves, so they can be queued now either way; the scan also waits behind everything else.
-            var next = (await s.Queries.GetPagesNeedingOcrAsync(job.DocumentId, ct)).Count > 0
-                ? new[] { Stage.Ocr, Stage.Classify, Stage.Match, Stage.ChapterScan }
-                : [Stage.Classify, Stage.Match, Stage.ChapterScan];
+            // on every page) keeps its flag whatever its text layer scores. The stages after Text wait for OCR by
+            // themselves, so they are queued now either way.
+            Stage[] next = (await s.Queries.GetPagesNeedingOcrAsync(job.DocumentId, ct)).Count > 0 ? [Stage.Ocr] : [];
             return failedPages == 0
                 ? new StageOutcome.Done(StageStatus.Complete, next)
                 : new StageOutcome.Done(StageStatus.Partial, next, $"{failedPages} page(s) could not be read.");
@@ -414,6 +475,14 @@ public sealed class CoversStage(StageServices s) : IStage
 {
     public Stage Stage => Stage.Covers;
 
+    public Lane Lane => Lane.Index;
+
+    public Stage? After => Stage.Probe;
+
+    public bool Backfill => false;
+
+    public StageNames Names => new("Cover", "Making a cover", "Making a cover for");
+
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
@@ -461,6 +530,16 @@ public sealed class OcrStage(StageServices s) : IStage
     public const double Dpi = 300;
 
     public Stage Stage => Stage.Ocr;
+
+    /// <summary>Its own lane: slow, so it never holds up the next book's text.</summary>
+    public Lane Lane => Lane.Ocr;
+
+    /// <summary>None: Text asks for it only when pages need it.</summary>
+    public Stage? After => null;
+
+    public bool Backfill => false;
+
+    public StageNames Names => new("Reading scanned pages", "Reading scanned pages", "Reading scanned pages of");
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {

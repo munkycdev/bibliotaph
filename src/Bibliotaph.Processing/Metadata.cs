@@ -418,6 +418,15 @@ public sealed class RuleHintsStage(MetadataHints hints, PartProposalService prop
 {
     public Stage Stage => Stage.RuleHints;
 
+    public Lane Lane => Lane.Index;
+
+    public Stage? After => Stage.Probe;
+
+    /// <summary>A library indexed before rule hints existed gets them without probing anything again.</summary>
+    public bool Backfill => true;
+
+    public StageNames Names => new("Hints from names", "Reading hints from its name", "Working on");
+
     /// <summary>Reads hints from the file's names, then whether its bookmarks and blurbs say it holds several adventures.</summary>
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {

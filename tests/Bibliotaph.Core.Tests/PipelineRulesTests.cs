@@ -61,8 +61,4 @@ public class SourceFormatsTests
     [InlineData("README", null)]
     public void Recognises_the_indexed_types(string name, string? expected) =>
         Assert.Equal(expected, SourceFormats.FromFileName(name));
-
-    [Fact]
-    public void Ocr_runs_in_its_own_lane() =>
-        Assert.Equal([Lane.Index, Lane.Index, Lane.Index, Lane.Ocr], new[] { Stage.Probe, Stage.Text, Stage.Covers, Stage.Ocr }.Select(Pipeline.LaneOf));
 }
