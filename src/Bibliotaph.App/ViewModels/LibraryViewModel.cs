@@ -48,7 +48,8 @@ public enum AdventureCards
 /// the top bar has a search, its results in two tabs (Documents: titles and file details; Inside documents: page
 /// text). Results update as indexing finds more, without losing the scroll position.
 /// </summary>
-public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, ICollectionChoices, ISessionChoices, IPinState
+public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, ICollectionChoices, ISessionChoices, IPinState, ILibrarySelectionPage,
+    ISavedSearchPage
 {
     /// <summary>More changes than this between refreshes replace the list instead of editing it in place.</summary>
     const int InPlaceLimit = 50;
@@ -58,15 +59,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     static readonly Choice<LibrarySort> TitleOrder = new(LibrarySort.Title, "Title A–Z");
     static readonly Choice<LibrarySort> PublisherOrder = new(LibrarySort.Publisher, "Publisher A–Z");
     static readonly Choice<LibrarySort> RecentlyOpened = new(LibrarySort.RecentlyOpened, "Recently opened");
-    static readonly Choice<long?> AllFolders = new(null, "All folders");
-    static readonly Choice<string?> AllSystems = new(null, "All systems");
-    static readonly Choice<string?> AllTypes = new(null, "All types");
-    static readonly Choice<int?> AnyLevel = new(null, "Any level");
-    static readonly Choice<string?> AnyOwn = new(null, "Also own: any");
-    static readonly Choice<string?> AnyStyle = new(null, "Any style");
-    static readonly Choice<string?> AnyDuration = new(null, "Any length");
-    static readonly Choice<int?> AnyPlayers = new(null, "Any number");
-    static readonly Choice<string?> AnyStore = new(null, "Any store");
     static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
     static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
 
@@ -95,7 +87,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly UiTimer _staleTimer;
     readonly TimeProvider _time;
     readonly NotesService _notes;
-    readonly ExportService _export;
     readonly AskService _ask;
     readonly LibraryAskScope _askScope;
     readonly CorrectionService _corrections;
@@ -106,7 +97,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     bool _loaded;
     bool _stale;
     bool _holdRefresh;
-    int _moreFiltersOn;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
         CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
@@ -123,11 +113,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _chosenCovers = chosenCovers;
         _askScope = askScope;
         _parts = parts;
-        _export = export;
         _ask = ask;
         _corrections = corrections;
         Pins = pins;
-        Views = views;
         _notes = notes;
         Collections = collections;
         Sessions = sessions;
@@ -148,32 +136,18 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _settings = settings;
         _readers = readers;
         _log = log;
-        Undo = new UndoSlot(log);
-        ViewUndo = new UndoSlot(log);
         _text = text;
+        Selection = new LibrarySelectionViewModel(this, metadata, copies, packs, library, parts, export, files, log);
+        SmartViews = new SmartViewsViewModel(views, this, log);
         SortChoice = search.IsSearching ? BestMatch : RecentlyAdded;
-        KindChoice = KindChoices[0];
-        AiChoice = AiChoices[0];
-        CopiesChoice = CopiesChoices[0];
-        PartsChoice = PartsChoices[0];
-        CollectionChoice = CollectionChoices[0];
-        FolderChoice = AllFolders;
-        SystemChoice = AllSystems;
-        TypeChoice = AllTypes;
-        LevelChoice = AnyLevel;
-        OwnChoice = AnyOwn;
-        StyleChoice = AnyStyle;
-        DurationChoice = AnyDuration;
-        PlayersChoice = AnyPlayers;
-        StoreChoice = AnyStore;
-        foreach (var box in ChipFilters) box.Changed += (_, _) => Refresh();
+        Filters.Changed += (_, _) => Refresh();
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
         _staleTimer = new UiTimer(time, TimeSpan.FromSeconds(3), repeat: true, RefreshIfStaleAsync);
-        Selection.Changed += (_, _) => OnSelectionChanged();
+        Selection.Books.Changed += (_, _) => RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
     }
 
     public override Route Route => Route.Library;
-    public override string Title => ActiveView?.Name ?? Scope?.Name ?? "Library";
+    public override string Title => SmartViews.ActiveView?.Name ?? Scope?.Name ?? "Library";
     public override bool ScrollsItself => true;
 
     /// <summary>A collection's page sits under Collections, in the breadcrumb and the sidebar.</summary>
@@ -181,7 +155,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     public override Route? SectionRoute => IsCollection ? Route.Collections : null;
 
-    public override Route NavRoute => IsCollection && ActiveView is null ? Route.Collections : Route;
+    public override Route NavRoute => IsCollection && SmartViews.ActiveView is null ? Route.Collections : Route;
 
     /// <summary>The part of the library shown, such as Favorites, or null for all of it.</summary>
     public LibraryScope? Scope { get; private set; }
@@ -189,7 +163,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     public bool HasScope => Scope is not null;
 
     /// <summary>The saved search, collection or Favorites shown, which its pin in the sidebar marks.</summary>
-    public override string? PinKey => ActiveView is { } view ? SmartViewKey(view.Id) : Scope?.Key is ScopeKeys.Favorites || IsCollection ? Scope?.Key : null;
+    public override string? PinKey => SmartViews.ActiveView is { } view ? SmartViewKey(view.Id) : Scope?.Key is ScopeKeys.Favorites || IsCollection ? Scope?.Key : null;
 
     /// <summary>Shows only a part of the library, or all of it. Set before the page is shown, or by the scope chip's ×.</summary>
     public void ShowScope(LibraryScope? scope)
@@ -235,9 +209,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     public bool IsSearching => Search.IsSearching;
 
-    public string Heading => ActiveView?.Name ?? (IsSearching ? "Search results" : Scope?.Name ?? "Your library");
+    public string Heading => SmartViews.ActiveView?.Name ?? (IsSearching ? "Search results" : Scope?.Name ?? "Your library");
 
-    public string Subtitle => ActiveView is not null ? "A saved search: its search, filters and order, run again each time." : IsSearching
+    public string Subtitle => SmartViews.ActiveView is not null ? "A saved search: its search, filters and order, run again each time." : IsSearching
         ? Scope is { } scope ? $"In {scope.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
         : Scope?.Subtitle ?? "Good stories begin with something you already own.";
 
@@ -247,172 +221,19 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     [ObservableProperty]
     public partial IReadOnlyList<DocumentHitsViewModel> Hits { get; set; } = [];
 
-    public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
+    /// <summary>The books' filters, their menus and the chips that show which are on.</summary>
+    public LibraryFilterState Filters { get; } = new();
 
-    /// <summary>
-    /// Books, single images, packs, everything with a file on this PC or books owned elsewhere.
-    /// </summary>
-    public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
-        [new(KindFilter.All, "All kinds"), new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Packs"),
-            new(KindFilter.Here, "On this PC"), new(KindFilter.Elsewhere, "Owned elsewhere")];
+    /// <summary>Select mode: the books ticked, the bulk editor and the Select bar's actions, with their Undo.</summary>
+    public LibrarySelectionViewModel Selection { get; }
 
-    /// <summary>
-    /// Where else books are owned: "Also own: any", then Print, Foundry VTT and so on with how many books each has.
-    /// Shown once some book has a value, or while one is chosen.
-    /// </summary>
-    public ObservableCollection<Choice<string?>> OwnChoices { get; } = [AnyOwn];
-
-    [ObservableProperty]
-    public partial Choice<string?> OwnChoice { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowOwnChoice { get; private set; }
-
-    /// <summary>
-    /// The kind of adventure (heist, dungeon crawl) with how many books each has, and how long they take to play.
-    /// Each is shown once some book has a value, or while one is chosen.
-    /// </summary>
-    public ObservableCollection<Choice<string?>> StyleChoices { get; } = [AnyStyle];
-
-    [ObservableProperty]
-    public partial Choice<string?> StyleChoice { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
-    public partial bool ShowStyleChoice { get; private set; }
-
-    public ObservableCollection<Choice<string?>> DurationChoices { get; } = [AnyDuration];
-
-    [ObservableProperty]
-    public partial Choice<string?> DurationChoice { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowAdventureFilters))]
-    public partial bool ShowDurationChoice { get; private set; }
-
-    /// <summary>Where to get it, with how many books each store has; shown once some book has one.</summary>
-    public ObservableCollection<Choice<string?>> StoreChoices { get; } = [AnyStore];
-
-    [ObservableProperty]
-    public partial Choice<string?> StoreChoice { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowStoreChoice { get; private set; }
-
-    /// <summary>
-    /// The type-ahead filters for fields with too many values for a menu: setting, themes, environments, publisher and
-    /// edition. Each box's chips widen it; the boxes narrow together, and with every other filter.
-    /// </summary>
-    public IReadOnlyList<ChipFilterViewModel> ChipFilters { get; } =
-    [
-        new(MetadataFields.Settings, "Type a setting: a world, a region, a city"),
-        new(MetadataFields.Themes, "Type a theme: horror, intrigue, fey"),
-        new(MetadataFields.Environments, "Type an environment: a swamp, the underdark, a city"),
-        new(MetadataFields.Publisher, "Type a publisher"),
-        new(MetadataFields.Edition, "Type an edition: 5e, 2nd edition"),
-    ];
-
-    /// <summary>Their group shows once one of them has something to offer.</summary>
-    public bool ShowAboutFilters => ChipFilters.Any(b => b.IsOffered);
-
-    /// <summary>How many players: books whose stated party size includes the number chosen.</summary>
-    public IReadOnlyList<Choice<int?>> PlayersChoices { get; } =
-        [AnyPlayers, new Choice<int?>(1, "1 player"), .. Enumerable.Range(2, 9).Select(n => new Choice<int?>(n, $"{n.ToString(CultureInfo.CurrentCulture)} players"))];
-
-    [ObservableProperty]
-    public partial Choice<int?> PlayersChoice { get; set; }
-
-    /// <summary>Books a model has read: shown once there are some, or while a choice is made.</summary>
-    public IReadOnlyList<Choice<AiFilter>> AiChoices { get; } =
-        [new(AiFilter.All, "All books"), new(AiFilter.Read, "Read by AI"), new(AiFilter.NotRead, "Not read by AI")];
-
-    [ObservableProperty]
-    public partial Choice<AiFilter> AiChoice { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowAiChoice { get; private set; }
-
-    /// <summary>
-    /// Books in more than one file, so the copies Bibliotaph joined can be checked: shown once there are some, or
-    /// while it is chosen.
-    /// </summary>
-    public IReadOnlyList<Choice<bool>> CopiesChoices { get; } = [new(false, "All books"), new(true, "Books with copies")];
-
-    [ObservableProperty]
-    public partial Choice<bool> CopiesChoice { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowCopiesChoice { get; private set; }
-
-    /// <summary>Books in some collection, or in none yet: shown once there are collections, or while it is chosen.</summary>
-    public IReadOnlyList<Choice<CollectionFilter>> CollectionChoices { get; } =
-        [new(CollectionFilter.All, "All books"), new(CollectionFilter.InOne, "In a collection"), new(CollectionFilter.NotInOne, "Not in a collection")];
-
-    [ObservableProperty]
-    public partial Choice<CollectionFilter> CollectionChoice { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowCollectionChoice { get; private set; }
-
-    partial void OnCollectionChoiceChanged(Choice<CollectionFilter> value)
-    {
-        if (value is null) CollectionChoice = CollectionChoices[0];
-        else Refresh();
-    }
-
-    /// <summary>
-    /// Adventures inside files: inside their books (only a search shows them as cards), shown as cards of their own, or
-    /// hidden so only their files show. Offered once there are some, or while another than the first is chosen.
-    /// </summary>
-    public IReadOnlyList<Choice<AdventureCards>> PartsChoices { get; } =
-        [new(AdventureCards.InBooks, "Inside their book"), new(AdventureCards.Cards, "Show as cards"), new(AdventureCards.Hidden, "Hide")];
-
-    [ObservableProperty]
-    public partial Choice<AdventureCards> PartsChoice { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowPartsChoice { get; private set; }
-
-    partial void OnPartsChoiceChanged(Choice<AdventureCards> value)
-    {
-        if (value is null) PartsChoice = PartsChoices[0];
-        else Refresh();
-    }
+    /// <summary>The saved search shown, Save search, and the list of every saved search.</summary>
+    public SmartViewsViewModel SmartViews { get; }
 
     public IReadOnlyList<Choice<LibrarySort>> SortChoices => IsSearching ? SearchSorts : BrowseSorts;
 
     [ObservableProperty]
     public partial Choice<LibrarySort> SortChoice { get; set; }
-
-    [ObservableProperty]
-    public partial Choice<KindFilter> KindChoice { get; set; }
-
-    [ObservableProperty]
-    public partial Choice<long?> FolderChoice { get; set; }
-
-    /// <summary>"All systems", then each game system with how many books have it, then Unknown.</summary>
-    public ObservableCollection<Choice<string?>> SystemChoices { get; } = [AllSystems];
-
-    public ObservableCollection<Choice<string?>> TypeChoices { get; } = [AllTypes];
-
-    public IReadOnlyList<Choice<int?>> LevelChoices { get; } =
-        [AnyLevel, .. Enumerable.Range(1, 20).Select(l => new Choice<int?>(l, $"Level {l.ToString(CultureInfo.CurrentCulture)}"))];
-
-    [ObservableProperty]
-    public partial Choice<string?> SystemChoice { get; set; }
-
-    [ObservableProperty]
-    public partial Choice<string?> TypeChoice { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasLevelChoice))]
-    public partial Choice<int?> LevelChoice { get; set; }
-
-    /// <summary>Whether a level filter also keeps books whose levels nobody knows yet.</summary>
-    [ObservableProperty]
-    public partial bool IncludeUnknownLevels { get; set; }
-
-    public bool HasLevelChoice => LevelChoice.Value is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDocumentsTab), nameof(IsPagesTab), nameof(ShowGrid), nameof(ShowList), nameof(ShowHits), nameof(ShowLayoutChoice))]
@@ -421,35 +242,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsGridLayout), nameof(IsListLayout), nameof(ShowGrid), nameof(ShowList))]
     public partial LibraryLayout Layout { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowFilters { get; set; }
-
-    /// <summary>
-    /// The filters past the common four (game system, type, level, players), in groups: the adventure, where the book
-    /// lives, and housekeeping. Folded away until asked for; the chips show any of them that are on.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MoreFiltersLabel))]
-    public partial bool ShowMoreFilters { get; set; }
-
-    /// <summary>The filters that are on, as chips under the toolbar, so they show with the panel closed; a chip's × turns one off.</summary>
-    public ObservableCollection<FilterChip> ActiveFilters { get; } = [];
-
-    public bool HasActiveFilters => ActiveFilters.Count > 0;
-
-    /// <summary>Clear filters beside the chips, once there is more than one to clear.</summary>
-    public bool HasSeveralFilters => ActiveFilters.Count > 1;
-
-    /// <summary>"Filters", or "Filters · 2" with two on.</summary>
-    public string FiltersLabel => ActiveFilters.Count > 0 ? $"Filters · {ActiveFilters.Count.ToString(CultureInfo.CurrentCulture)}" : "Filters";
-
-    /// <summary>"More filters", with how many of them are on while they are folded away.</summary>
-    public string MoreFiltersLabel => ShowMoreFilters ? "Fewer filters"
-        : _moreFiltersOn > 0 ? $"More filters · {_moreFiltersOn.ToString(CultureInfo.CurrentCulture)}" : "More filters";
-
-    /// <summary>The adventure's group shows once Style or Duration does.</summary>
-    public bool ShowAdventureFilters => ShowStyleChoice || ShowDurationChoice;
 
     public bool IsDocumentsTab { get => Tab == ResultsTab.Documents; set { if (value) Tab = ResultsTab.Documents; } }
 
@@ -523,25 +315,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         Collections.Directory.Changed += OnCollectionsChanged;
         Pins.Changed -= OnPinsChanged;
         Pins.Changed += OnPinsChanged;
-        Views.Changed -= OnViewsChanged;
-        Views.Changed += OnViewsChanged;
-        OnPropertyChanged(nameof(HasSavedSearches));
+        SmartViews.Load();
         await Sessions.Directory.LoadAsync();
-        if (_viewOnLoad is { } view)
-        {
-            _viewOnLoad = null;
-            ApplyView(view);
-        }
+        if (SmartViews.TakeViewOnLoad() is { } view) ApplyView(view);
         _staleTimer.Start();
         if (IsCollection) await ShowCollectionAsync();
+        // A saved search's folder is chosen here, once the folders are known.
         await LoadFolderChoicesAsync();
-        if (_folderOnLoad is { } folder)
-        {
-            _folderOnLoad = null;
-            _holdRefresh = true;
-            FolderChoice = FolderChoices.FirstOrDefault(c => c.Value == folder) ?? AllFolders;
-            _holdRefresh = false;
-        }
         await RefreshAsync();
         if (SavedScrollOffset is not null) RestoreScroll?.Invoke(this, EventArgs.Empty);
         if (DetailsOnLoad is { } details)
@@ -560,28 +340,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         Activity.Refreshed -= OnActivityRefreshed;
         Collections.Directory.Changed -= OnCollectionsChanged;
         Pins.Changed -= OnPinsChanged;
-        Views.Changed -= OnViewsChanged;
-        IsSavedSearchesOpen = false;
         Collections.Close();
         Sessions.Close();
-        ViewDialog?.CancelCommand.Execute(null);
         Inspector?.Notes?.Flush();
         if (Inspector is { IsCorrecting: true } correcting) EndCorrecting(correcting);
-        ViewUndo.Clear();
+        SmartViews.Unload();
         Search.PropertyChanged -= OnSearchChanged;
         // A view's search is the view's: it goes when the view is left, and comes back with the page on Back.
-        if (ActiveView is not null)
-        {
-            _viewOnLoad = CurrentView();
-            if (Search.Text.Length > 0) Search.Search("");
-        }
+        if (SmartViews.IsView && Search.Text.Length > 0) Search.Search("");
         _staleTimer.Stop();
-        // A bulk edit can be undone until the Library is left, and a split likewise.
-        Undo.Clear();
+        Selection.Close();
         AddElsewhereDialog = null;
-        SameBookDialog = null;
-        PackDialog = null;
-        if (BulkEdit is { IsApplyingStep: false }) BulkEdit = null;
     }
 
     async void OnSearchChanged(object? sender, PropertyChangedEventArgs e)
@@ -643,88 +412,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (!_holdRefresh) await RefreshAsync();
     }
 
-    // A menu whose items are replaced can briefly select nothing; the filters never hold null.
+    // A menu whose items are replaced can briefly select nothing; the sort never holds null.
     partial void OnSortChoiceChanged(Choice<LibrarySort> value)
     {
         if (value is null) SortChoice = IsSearching ? BestMatch : RecentlyAdded;
         else Refresh();
-    }
-
-    partial void OnKindChoiceChanged(Choice<KindFilter> value)
-    {
-        if (value is null) KindChoice = KindChoices[0];
-        else Refresh();
-    }
-
-    partial void OnAiChoiceChanged(Choice<AiFilter> value)
-    {
-        if (value is null) AiChoice = AiChoices[0];
-        else Refresh();
-    }
-
-    partial void OnCopiesChoiceChanged(Choice<bool> value)
-    {
-        if (value is null) CopiesChoice = CopiesChoices[0];
-        else Refresh();
-    }
-
-    partial void OnFolderChoiceChanged(Choice<long?> value)
-    {
-        if (value is null) FolderChoice = AllFolders;
-        else Refresh();
-    }
-
-    partial void OnSystemChoiceChanged(Choice<string?> value)
-    {
-        if (value is null) SystemChoice = AllSystems;
-        else Refresh();
-    }
-
-    partial void OnTypeChoiceChanged(Choice<string?> value)
-    {
-        if (value is null) TypeChoice = AllTypes;
-        else Refresh();
-    }
-
-    partial void OnOwnChoiceChanged(Choice<string?> value)
-    {
-        if (value is null) OwnChoice = AnyOwn;
-        else Refresh();
-    }
-
-    partial void OnStyleChoiceChanged(Choice<string?> value)
-    {
-        if (value is null) StyleChoice = AnyStyle;
-        else Refresh();
-    }
-
-    partial void OnDurationChoiceChanged(Choice<string?> value)
-    {
-        if (value is null) DurationChoice = AnyDuration;
-        else Refresh();
-    }
-
-    partial void OnStoreChoiceChanged(Choice<string?> value)
-    {
-        if (value is null) StoreChoice = AnyStore;
-        else Refresh();
-    }
-
-    partial void OnPlayersChoiceChanged(Choice<int?> value)
-    {
-        if (value is null) PlayersChoice = AnyPlayers;
-        else Refresh();
-    }
-
-    partial void OnLevelChoiceChanged(Choice<int?> value)
-    {
-        if (value is null) LevelChoice = AnyLevel;
-        else Refresh();
-    }
-
-    partial void OnIncludeUnknownLevelsChanged(bool value)
-    {
-        if (LevelChoice.Value is not null) Refresh();
     }
 
     partial void OnTabChanged(ResultsTab value) => Refresh();
@@ -733,51 +425,34 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         var roots = await _roots.ListAsync();
         FolderCount = roots.Count;
-        var choices = roots.Select(r => new Choice<long?>(r.Id, System.IO.Path.GetFileName(r.Path) is { Length: > 0 } name ? name : r.Path)).ToList();
-        if (FolderChoices.Skip(1).SequenceEqual(choices)) return;
-        var selected = FolderChoice;
-        _holdRefresh = true;
-        while (FolderChoices.Count > 1) FolderChoices.RemoveAt(1);
-        foreach (var choice in choices) FolderChoices.Add(choice);
-        FolderChoice = FolderChoices.Contains(selected) ? selected : AllFolders;
-        _holdRefresh = false;
+        Filters.ShowFolders([.. roots.Select(r => new Choice<long?>(r.Id, System.IO.Path.GetFileName(r.Path) is { Length: > 0 } name ? name : r.Path))]);
     }
 
     /// <summary>Runs the current view's query. A newer refresh supersedes an older one still running.</summary>
     public async Task RefreshAsync()
     {
-        // The constructor sets the filters, which would otherwise query before the page is shown (and before all are set).
+        // The constructor sets the order, which would otherwise query before the page is shown.
         if (!_loaded) return;
-        ShowActiveFilters();
+        Filters.ShowChips();
         var version = ++_version;
         try
         {
-            var scope = await _library.GetVisibleEntryIdsAsync(FolderChoice.Value);
+            var scope = await _library.GetVisibleEntryIdsAsync(Filters.FolderChoice.Value);
             var away = await _library.GetUnavailableAsync();
-            var filter = new LibraryFilter(scope, KindChoice.Value, SortChoice.Value, Selected(SystemChoice), Selected(TypeChoice), LevelChoice.Value,
-                IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), Group, Styles: Selected(StyleChoice),
-                Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice),
-                HideParts: PartsChoice.Value == AdventureCards.Hidden, Collections: CollectionChoice.Value, Picked: ChipPicks(),
-                PartsInBooks: PartsChoice.Value == AdventureCards.InBooks);
+            var filter = Filters.ToFilter(scope, SortChoice.Value, Group);
             // A question to the library is about the books shown here.
-            _askScope.Set(filter, IsSearching ? Search.Query : SearchQuery.Parse(""), ActiveFilters.Select(c => c.Label));
+            _askScope.Set(filter, IsSearching ? Search.Query : SearchQuery.Parse(""), Filters.ActiveFilters.Select(c => c.Label));
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             var parts = await Task.Run(() => _queries.CountPartsAsync());
-            if (version == _version)
-            {
-                ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
-                ShowCopiesChoice = withCopies > 0 || CopiesChoice.Value;
-                ShowPartsChoice = parts > 0 || PartsChoice.Value != AdventureCards.InBooks;
-                ShowCollectionChoice = Collections.Directory.ChildrenOf(null).Count > 0 || CollectionChoice.Value != CollectionFilter.All;
-            }
+            if (version == _version) Filters.ShowCounts(aiRead, withCopies, parts, Collections.Directory.ChildrenOf(null).Count > 0);
             if (!IsSearching)
             {
                 var entries = await Task.Run(() => _queries.ListAsync(filter));
                 var browseFacets = await CountFacetsAsync(filter, null);
                 if (version != _version) return;
                 _away = away;
-                ShowFacets(browseFacets);
+                Filters.ShowFacets(browseFacets);
                 ShowResults(entries, null, null, SearchQuery.Parse(""));
                 NotifyViewState();
                 return;
@@ -792,7 +467,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             var facets = await CountFacetsAsync(filter, plan);
             if (version != _version) return;
             _away = away;
-            ShowFacets(facets);
+            Filters.ShowFacets(facets);
             ShowResults(found, pageResults, plan, query);
             NotifyViewState();
         }
@@ -802,23 +477,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         }
     }
 
-    static string[]? Selected(Choice<string?> choice) => choice.Value is { } value ? [value] : null;
-
-    /// <summary>The values picked in the type-ahead filters, or null with none.</summary>
-    PickedValues? ChipPicks() => PickedValues.Of(ChipFilters.Select(b => KeyValuePair.Create(b.Field.Key, b.Values)));
-
-    /// <summary>The counted choices of the filter panel's menus.</summary>
-    sealed record FacetMenus(
-        IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns, IReadOnlyList<FacetCount> Styles,
-        IReadOnlyList<FacetCount> Durations, IReadOnlyList<FacetCount> Stores, IReadOnlyList<IReadOnlyList<ValueCount>> Chips);
-
     /// <summary>
     /// How many books each system, type and the rest would show. Each menu is counted without its own choice, so
     /// picking a system still shows how many books the other systems have.
     /// </summary>
     Task<FacetMenus> CountFacetsAsync(LibraryFilter filter, SearchPlan? plan)
     {
-        var chips = ChipFilters.Select(b => b.Field.Key).ToList();
+        var chips = Filters.ChipFilters.Select(b => b.Field.Key).ToList();
         return Task.Run(async () => new FacetMenus(
             await _queries.GetFacetCountsAsync("system", filter with { Systems = null }, plan),
             await _queries.GetFacetCountsAsync("type", filter with { Types = null }, plan),
@@ -829,56 +494,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             await Task.WhenAll(chips.Select(key => _queries.GetValueCountsAsync(key, filter with { Picked = filter.Picked?.Without(key) }, plan)))));
     }
 
-    void ShowFacets(FacetMenus facets)
-    {
-        _holdRefresh = true;
-        SystemChoice = ShowChoices(SystemChoices, AllSystems, facets.Systems, SystemChoice);
-        TypeChoice = ShowChoices(TypeChoices, AllTypes, facets.Types, TypeChoice);
-        OwnChoice = ShowChoices(OwnChoices, AnyOwn, facets.Owns, OwnChoice);
-        ShowOwnChoice = facets.Owns.Any(c => c.Value != SearchQuery.Unknown) || OwnChoice.Value is not null;
-        StyleChoice = ShowChoices(StyleChoices, AnyStyle, facets.Styles, StyleChoice);
-        ShowStyleChoice = facets.Styles.Any(c => c.Value != SearchQuery.Unknown) || StyleChoice.Value is not null;
-        DurationChoice = ShowChoices(DurationChoices, AnyDuration, facets.Durations, DurationChoice);
-        ShowDurationChoice = facets.Durations.Any(c => c.Value != SearchQuery.Unknown) || DurationChoice.Value is not null;
-        StoreChoice = ShowChoices(StoreChoices, AnyStore, facets.Stores, StoreChoice);
-        ShowStoreChoice = facets.Stores.Any(c => c.Value != SearchQuery.Unknown) || StoreChoice.Value is not null;
-        for (var i = 0; i < ChipFilters.Count; i++) ChipFilters[i].ShowCounts(facets.Chips[i]);
-        OnPropertyChanged(nameof(ShowAboutFilters));
-        _holdRefresh = false;
-        // A chip put back from a saved search shows its value's name once the counts have it.
-        ShowActiveFilters();
-    }
-
-    /// <summary>
-    /// Replaces a menu's counted choices, and returns the choice to select: the one with the same value, which is
-    /// kept with a count of none when no book has it any more, so the menu never changes what was picked.
-    /// </summary>
-    static Choice<string?> ShowChoices(ObservableCollection<Choice<string?>> menu, Choice<string?> all, IReadOnlyList<FacetCount> counts,
-        Choice<string?> selected)
-    {
-        var choices = counts.Select(c => new Choice<string?>(c.Value, $"{c.Label} ({c.Count.ToString("N0", CultureInfo.CurrentCulture)})")).ToList();
-        if (selected.Value is { } value && choices.All(c => c.Value != value))
-            choices.Add(new Choice<string?>(value, Uncounted(selected.Label) + " (0)"));
-        if (menu.Skip(1).SequenceEqual(choices)) return menu.FirstOrDefault(c => c.Value == selected.Value) ?? all;
-        while (menu.Count > 1) menu.RemoveAt(1);
-        foreach (var choice in choices) menu.Add(choice);
-        return menu.FirstOrDefault(c => c.Value == selected.Value) ?? all;
-    }
-
-    static string Uncounted(string label) => label.LastIndexOf(" (", StringComparison.Ordinal) is var i and > 0 ? label[..i] : label;
-
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)
     {
-        var filtered = KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
-            || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
-            || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null
-            || PartsChoice.Value != AdventureCards.InBooks || CollectionChoice.Value != CollectionFilter.All || ChipFilters.Any(b => b.Picks.Count > 0);
+        var filtered = Filters.IsFiltering;
         IssueText = query.Issues.Count == 0 ? null : Describe(query, query.Issues[0]);
 
         if (pages is null || plan is null)
         {
             ShowItems(documents);
-            Selection.SetShown(Items);
+            Selection.Books.SetShown(Items);
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = documents.Count == 1 ? "document" : "documents";
@@ -886,7 +510,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             if (documents.Count > 0) SetEmpty(null);
             else if (!HasFolders) SetEmpty(("No folders yet.", "Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are.",
                 "Add a folder", AddFolderCommand));
-            else if (filtered) SetEmpty(("Nothing here. Yet.", "No books match these filters.", "Clear filters", ClearFiltersCommand));
+            else if (filtered) SetEmpty(("Nothing here. Yet.", "No books match these filters.", "Clear filters", Filters.ClearFiltersCommand));
             else if (Scope is { } scope) SetEmpty((scope.EmptyTitle, scope.EmptyMessage, "Show your library", ClearScopeCommand));
             else SetEmpty(("Indexing your library.", $"{Activity.Summary}. Books appear here as they are read.", "Manage folders", ManageFoldersCommand));
             return;
@@ -901,7 +525,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (Tab == ResultsTab.Documents)
         {
             ShowItems(documents);
-            Selection.SetShown(Items);
+            Selection.Books.SetShown(Items);
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}";
@@ -984,84 +608,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     void ManageFolders() => _folders.Manage();
 
     [RelayCommand]
-    void ToggleFilters() => ShowFilters = !ShowFilters;
-
-    [RelayCommand]
-    void ToggleMoreFilters() => ShowMoreFilters = !ShowMoreFilters;
-
-    /// <summary>The chips for the filters that are on, common ones first, each turning its filter off.</summary>
-    void ShowActiveFilters()
-    {
-        List<FilterChip> chips = [];
-        var more = 0;
-        void Add(bool on, string label, string filter, Action clear, bool folded = false)
-        {
-            if (!on) return;
-            chips.Add(new FilterChip(label, $"Turn off the {filter} filter", new RelayCommand(clear)));
-            if (folded) more++;
-        }
-        Add(SystemChoice.Value is not null, Uncounted(SystemChoice.Label), "game system", () => SystemChoice = AllSystems);
-        Add(TypeChoice.Value is not null, Uncounted(TypeChoice.Label), "type", () => TypeChoice = AllTypes);
-        Add(LevelChoice.Value is not null, IncludeUnknownLevels ? $"{LevelChoice.Label} or unknown" : LevelChoice.Label, "character level",
-            () => LevelChoice = AnyLevel);
-        Add(PlayersChoice.Value is not null, PlayersChoice.Label, "players", () => PlayersChoice = AnyPlayers);
-        Add(StyleChoice.Value is not null, Uncounted(StyleChoice.Label), "style", () => StyleChoice = AnyStyle, folded: true);
-        Add(DurationChoice.Value is not null, Uncounted(DurationChoice.Label), "duration", () => DurationChoice = AnyDuration, folded: true);
-        foreach (var box in ChipFilters)
-            foreach (var pick in box.Picks)
-            {
-                var label = $"{box.Label}: {pick.Label}";
-                chips.Add(new FilterChip(label, $"Remove {label}", new RelayCommand(() => box.Remove(pick.Value))));
-                more++;
-            }
-        Add(FolderChoice.Value is not null, $"Folder: {FolderChoice.Label}", "source folder", () => FolderChoice = AllFolders, folded: true);
-        Add(OwnChoice.Value is not null, $"Also own: {Uncounted(OwnChoice.Label)}", "also own", () => OwnChoice = AnyOwn, folded: true);
-        Add(StoreChoice.Value is not null, $"Get it from: {Uncounted(StoreChoice.Label)}", "get it from", () => StoreChoice = AnyStore, folded: true);
-        Add(KindChoice.Value != KindFilter.All, KindChoice.Label, "kind", () => KindChoice = KindChoices[0], folded: true);
-        Add(AiChoice.Value != AiFilter.All, AiChoice.Label, "AI", () => AiChoice = AiChoices[0], folded: true);
-        Add(CopiesChoice.Value, CopiesChoice.Label, "copies", () => CopiesChoice = CopiesChoices[0], folded: true);
-        Add(PartsChoice.Value != AdventureCards.InBooks, PartsChoice.Value == AdventureCards.Hidden ? "Adventures inside files hidden" : "Adventures as cards",
-            "adventures inside files", () => PartsChoice = PartsChoices[0], folded: true);
-        Add(CollectionChoice.Value != CollectionFilter.All, CollectionChoice.Label, "collection", () => CollectionChoice = CollectionChoices[0], folded: true);
-
-        _moreFiltersOn = more;
-        OnPropertyChanged(nameof(MoreFiltersLabel));
-        if (ActiveFilters.Select(c => c.Label).SequenceEqual(chips.Select(c => c.Label))) return;
-        ActiveFilters.Clear();
-        foreach (var chip in chips) ActiveFilters.Add(chip);
-        OnPropertyChanged(nameof(HasActiveFilters));
-        OnPropertyChanged(nameof(HasSeveralFilters));
-        OnPropertyChanged(nameof(FiltersLabel));
-    }
-
-    [RelayCommand]
-    void ClearFilters()
-    {
-        _holdRefresh = true;
-        KindChoice = KindChoices[0];
-        AiChoice = AiChoices[0];
-        CopiesChoice = CopiesChoices[0];
-        PartsChoice = PartsChoices[0];
-        CollectionChoice = CollectionChoices[0];
-        FolderChoice = AllFolders;
-        SystemChoice = AllSystems;
-        TypeChoice = AllTypes;
-        LevelChoice = AnyLevel;
-        OwnChoice = AnyOwn;
-        StyleChoice = AnyStyle;
-        DurationChoice = AnyDuration;
-        PlayersChoice = AnyPlayers;
-        StoreChoice = AnyStore;
-        foreach (var box in ChipFilters) box.Clear();
-        IncludeUnknownLevels = false;
-        _holdRefresh = false;
-        Refresh();
-    }
-
-    [RelayCommand]
     void ClearAll()
     {
-        ClearFilters();
+        Filters.ClearFiltersCommand.Execute(null);
         Search.Search("");
     }
 
@@ -1153,15 +702,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// </summary>
     async Task ApplyLookAlikesAsync(LookAlikeOffer offer)
     {
-        Undo.Say("Changing…");
+        Selection.Undo.Say("Changing…");
         try
         {
             var (problem, undo) = await Task.Run(() => _corrections.ApplyAsync(offer));
-            if (problem is not null) Undo.Say($"The other books couldn't be changed: {problem.Message}");
+            if (problem is not null) Selection.Undo.Say($"The other books couldn't be changed: {problem.Message}");
             else
             {
                 var books = undo?.Select(s => s.EntryId).Distinct().Count() ?? 0;
-                SayDone(books == 0 ? "Those books already had these values, so nothing changed."
+                Selection.SayDone(books == 0 ? "Those books already had these values, so nothing changed."
                         : $"Changed {BulkEditViewModel.Books(books)} from “{offer.FolderName}”.",
                     books > 0 && undo is not null && ReferenceEquals(_navigation.Current, this) ? () => _metadata.UndoManyAsync(undo) : null,
                     "The edit couldn't be undone.");
@@ -1170,7 +719,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         catch (Exception ex)
         {
             _log.LogError(ex, "Correcting {Count} look-alikes of {EntryId} failed", offer.Books.Count, offer.EntryId);
-            Undo.Say("The other books couldn't be changed.");
+            Selection.Undo.Say("The other books couldn't be changed.");
         }
         // Three books given the same value can propose a folder rule, a card in Needs review.
         Activity.Invalidate();
@@ -1419,7 +968,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         Inspector = null;
         // Undo brings the book back with everything that was set on it.
-        SayDone($"Removed {item.Title} from your library.", () => _elsewhere.UndoRemoveAsync(removed), "The book couldn't be brought back.");
+        Selection.SayDone($"Removed {item.Title} from your library.", () => _elsewhere.UndoRemoveAsync(removed), "The book couldn't be brought back.");
         await RefreshAsync();
     }
 
@@ -1428,7 +977,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         Inspector = null;
         // Undo makes the split pack one card again.
-        SayDone($"Split {pack.Title} into {(pack.HasPdfMembers ? LibraryItemViewModel.Files(files.Count) : LibraryItemViewModel.Images(files.Count))}.",
+        Selection.SayDone($"Split {pack.Title} into {(pack.HasPdfMembers ? LibraryItemViewModel.Files(files.Count) : LibraryItemViewModel.Images(files.Count))}.",
             () => _packs.RepackAsync(pack.EntryId, files), "The split couldn't be undone.");
         await RefreshAsync();
     }
@@ -1442,51 +991,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>Raised after a refresh that followed coming Back, when the view can restore its scroll position.</summary>
     public event EventHandler? RestoreScroll;
 
-    // Select mode and bulk metadata editing.
-
-    /// <summary>The books ticked in Select mode, kept while the search and filters change.</summary>
-    public BookSelection Selection { get; } = new();
-
-    /// <summary>The bulk editor, while it is open over the Library.</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(EditSelectedCommand), nameof(SelectAllCommand))]
-    public partial BulkEditViewModel? BulkEdit { get; private set; }
-
-    /// <summary>
-    /// "Edited 12 books.", under the Select bar, after a bulk edit, Same book, Pack together, Remove adventures, a split
-    /// or a removal, beside its Undo: until the next of them, or until the Library is left.
-    /// </summary>
-    public UndoSlot Undo { get; }
-
-    void OnSelectionChanged()
-    {
-        RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
-        EditSelectedCommand.NotifyCanExecuteChanged();
-        ExportSelectedCommand.NotifyCanExecuteChanged();
-        SelectAllCommand.NotifyCanExecuteChanged();
-        ClearSelectionCommand.NotifyCanExecuteChanged();
-        SelectRangeCommand.NotifyCanExecuteChanged();
-        JoinSelectedCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(CanJoinSelected));
-        PackSelectedCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(CanPackSelected));
-        RemoveSelectedPartsCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(CanRemoveSelectedParts));
-    }
-
-    /// <summary>Select: a checkbox on every book, and a click ticks a book instead of opening its details.</summary>
-    [RelayCommand]
-    void StartSelecting() => Selection.Start();
-
-    /// <summary>Done, or Esc: leaves Select mode, and the ticks with it.</summary>
-    [RelayCommand]
-    void StopSelecting() => Selection.Stop();
+    // Select mode: a click ticks a book rather than opening it.
 
     /// <summary>A click or Enter on a book: in Select mode it ticks the book, otherwise it opens its details.</summary>
     [RelayCommand]
     async Task Activate(LibraryItemViewModel item)
     {
-        if (Selection.IsActive) Selection.Toggle(item);
+        if (Selection.Books.IsActive) Selection.Books.Toggle(item);
         else await OpenDetails(item);
     }
 
@@ -1498,240 +1009,29 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         await OpenBook(item);
     }
 
-    bool CanOpenFromCard(LibraryItemViewModel? item) => !Selection.IsActive && CanOpenCard(item);
+    bool CanOpenFromCard(LibraryItemViewModel? item) => !Selection.Books.IsActive && CanOpenCard(item);
 
-    /// <summary>Shift+click in Select mode: ticks every book from the last one clicked to this one.</summary>
-    [RelayCommand(CanExecute = nameof(IsSelecting))]
-    void SelectRange(LibraryItemViewModel item) => Selection.SelectRange(Items, item);
+    IReadOnlyList<LibraryItemViewModel> ILibrarySelectionPage.Shown => Items;
 
-    bool IsSelecting() => Selection.IsActive;
+    bool ILibrarySelectionPage.ShowsPages => ShowingHits;
 
-    bool CanSelectAll => Selection.IsActive && !ShowingHits && BulkEdit is null;
+    bool ILibrarySelectionPage.IsCurrent => ReferenceEquals(_navigation.Current, this);
 
-    /// <summary>Ctrl+A in Select mode: ticks every book in the current results.</summary>
-    [RelayCommand(CanExecute = nameof(CanSelectAll))]
-    void SelectAll() => Selection.SelectAll(Items);
+    string? ILibrarySelectionPage.TitleOf(EntryId entryId) => _known.TryGetValue(entryId, out var card) ? card.Title : null;
 
-    [RelayCommand(CanExecute = nameof(CanClearSelection))]
-    void ClearSelection() => Selection.Clear();
-
-    bool CanClearSelection => Selection.HasAny;
-
-    bool CanEditSelected => Selection.HasAny && BulkEdit is null;
-
-    /// <summary>Opens the bulk editor for the ticked books, shown or not.</summary>
-    [RelayCommand(CanExecute = nameof(CanEditSelected))]
-    async Task EditSelected()
-    {
-        try
-        {
-            var bulk = await BulkEditViewModel.LoadAsync(Selection.EntryIds, _metadata);
-            bulk.Closed += async (_, result) => await BulkEditClosedAsync(result);
-            Inspector = null;
-            BulkEdit = bulk;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Loading metadata for {Count} selected documents failed", Selection.Count);
-        }
-    }
-
-    /// <summary>Export these: the ticked books as CSV, the rows Settings > Backup's Export CSV writes.</summary>
-    [RelayCommand(CanExecute = nameof(CanClearSelection))]
-    async Task ExportSelected()
-    {
-        if (_files.SaveFile("Export these books for a spreadsheet", "Bibliotaph books.csv", "CSV (*.csv)|*.csv", ".csv") is not { } path) return;
-        Undo.Clear();
-        try
-        {
-            var rows = await _export.WriteCsvAsync(path, Selection.EntryIds);
-            Undo.Say($"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(path)}.");
-        }
-        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
-        {
-            _log.LogError(ex, "Exporting {Count} selected books to {Path} failed", Selection.Count, path);
-            Undo.Say($"The export couldn't be saved: {ex.Message}");
-        }
-    }
-
-    async Task BulkEditClosedAsync(BulkEditResult? result)
-    {
-        BulkEdit = null;
-        if (result is null) return;
-        // Leaving the Library while it applied ends the Undo, as leaving afterwards would. Undo puts back exactly what
-        // the fields held before.
-        SayDone(result.Books == 0 ? "Those books already had these values, so nothing changed." : $"Edited {BulkEditViewModel.Books(result.Books)}.",
-            result.Books > 0 && ReferenceEquals(_navigation.Current, this) ? () => _metadata.UndoManyAsync(result.Undo) : null,
-            "The edit couldn't be undone.");
-        await RefreshAsync();
-    }
-
-    // Same book.
-
-    /// <summary>The Same book dialog, while it is open over the Library.</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(JoinSelectedCommand))]
-    public partial SameBookDialogViewModel? SameBookDialog { get; private set; }
-
-    /// <summary>
-    /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them.
-    /// Packs aren't offered: a pack is many files, not a copy of a book.
-    /// </summary>
-    public bool CanJoinSelected => SameBookDialog is null && Selection.Count >= 2 && Selection.Items is var cards
-        && !cards.Any(c => c.IsPack) && cards.Count(c => c.IsElsewhere) <= 1;
-
-    /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
-    [RelayCommand(CanExecute = nameof(CanJoinSelected))]
-    async Task JoinSelected()
-    {
-        try
-        {
-            var dialog = await SameBookDialogViewModel.LoadAsync(_copies, Selection.Items);
-            dialog.Closed += async (_, result) => await SameBookClosedAsync(result);
-            Inspector = null;
-            SameBookDialog = dialog;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Loading the copies of {Count} selected cards failed", Selection.Count);
-        }
-        OnPropertyChanged(nameof(CanJoinSelected));
-    }
-
-    /// <summary>After Join: the library with one card where there were several, and Undo beside a note saying so.</summary>
-    async Task SameBookClosedAsync(SameBookResult? result)
-    {
-        SameBookDialog = null;
-        OnPropertyChanged(nameof(CanJoinSelected));
-        if (result is null) return;
-        var title = _known.TryGetValue(result.Join.EntryId, out var card) ? card.Title : "one book";
-        // Leaving the Library while it joined ends the Undo, as leaving afterwards would. Undo gives each card its
-        // files back, with what it brought.
-        SayDone($"Joined {result.Cards.ToString("N0", CultureInfo.CurrentCulture)} cards as {title}.",
-            ReferenceEquals(_navigation.Current, this) ? () => _copies.UndoJoinAsOneBookAsync(result.Join) : null,
-            "The cards couldn't be taken apart again. Use Not the same book in the card's Copies list.");
-        Selection.Clear();
-        await RefreshAsync();
-    }
-
-    // Pack together.
-
-    /// <summary>The Pack together dialog, while it is open over the Library.</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PackSelectedCommand))]
-    public partial PackTogetherDialogViewModel? PackDialog { get; private set; }
-
-    /// <summary>
-    /// Pack together fits two or more cards for single files, images or PDFs (a party's character sheets), or packs:
-    /// no books owned elsewhere, no adventures inside files, and no file with adventures marked in it, whose cards
-    /// name it.
-    /// </summary>
-    public bool CanPackSelected => PackDialog is null && Selection.Count >= 2
-        && Selection.Items.All(c => c.IsPack || c is { IsElsewhere: false, IsPart: false, Entry.Parts: 0 }
-            && (SourceFormats.IsImage(c.Entry.Format) || c.Entry.Format == SourceFormats.Pdf));
-
-    /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
-    [RelayCommand(CanExecute = nameof(CanPackSelected))]
-    async Task PackSelected()
-    {
-        try
-        {
-            var dialog = await PackTogetherDialogViewModel.LoadAsync(_packs, _library, Selection.Items);
-            dialog.Closed += async (_, result) => await PackDialogClosedAsync(result);
-            Inspector = null;
-            PackDialog = dialog;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Opening Pack together for {Count} selected cards failed", Selection.Count);
-        }
-        OnPropertyChanged(nameof(CanPackSelected));
-    }
-
-    /// <summary>After Pack together: the library with the pack, and Undo beside a note saying what happened.</summary>
-    async Task PackDialogClosedAsync(PackTogetherDialogResult? result)
-    {
-        PackDialog = null;
-        OnPropertyChanged(nameof(CanPackSelected));
-        if (result is null) return;
-        // Leaving the Library while it packed ends the Undo, as leaving afterwards would. Undo puts the cards back as
-        // they were: merged packs come back, and files have their own cards again.
-        SayDone(result.Message, ReferenceEquals(_navigation.Current, this) ? () => _packs.UndoPackTogetherAsync(result.Result) : null,
-            "The pack couldn't be put back as it was. Use Split in its details.");
-        Selection.Clear();
-        await RefreshAsync();
-    }
-
-    // Remove adventures: the ticked adventures' cards go at once, as each one's own Remove adventure would.
-
-    /// <summary>Remove adventures fits ticked cards that are all adventures inside files.</summary>
-    public bool CanRemoveSelectedParts => !IsRemovingParts && Selection.HasAny && Selection.Items.All(c => c.IsPart);
-
-    bool IsRemovingParts { get; set; }
-
-    /// <summary>Remove adventures: each ticked adventure's card goes and its pages are its file's again, with one Undo for them all.</summary>
-    [RelayCommand(CanExecute = nameof(CanRemoveSelectedParts))]
-    async Task RemoveSelectedParts()
-    {
-        var cards = Selection.Items;
-        var removed = new List<RemovedPart>();
-        IsRemovingParts = true;
-        OnSelectionChanged();
-        Inspector = null;
-        Undo.Say("Removing…");
-        string message;
-        try
-        {
-            foreach (var card in cards)
-                if (await Task.Run(() => _parts.RemoveAsync(card.EntryId)) is { } part) removed.Add(part);
-            message = $"Removed {LibraryItemViewModel.Adventures(removed.Count)}. Their pages are only their files' again.";
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Removing {Count} selected adventures failed after {Removed}", cards.Count, removed.Count);
-            message = removed.Count == 0 ? "The adventures couldn't be removed." : $"Only {LibraryItemViewModel.Adventures(removed.Count)} could be removed.";
-        }
-        // Leaving the Library while it removed ends the Undo, as leaving afterwards would. Undo brings each adventure
-        // back as a card with what was set on it.
-        SayDone(message, removed.Count > 0 && ReferenceEquals(_navigation.Current, this) ? async () =>
-        {
-            foreach (var part in Enumerable.Reverse(removed)) await _parts.RestoreAsync(part);
-        } : null, "The adventures couldn't all be brought back. Mark their pages again from their files' details.");
-        IsRemovingParts = false;
-        Selection.Clear();
-        await RefreshAsync();
-    }
-
-    /// <summary>
-    /// Says under the Select bar what a change did, with Undo when <paramref name="undo"/> is given: it runs off the UI
-    /// thread, and the library is shown again whether or not it worked. <paramref name="failed"/> is what the note says
-    /// if it didn't.
-    /// </summary>
-    void SayDone(string message, Func<Task>? undo, string failed) => Undo.Offer(message, undo is null ? null : async () =>
-    {
-        try
-        {
-            await Task.Run(undo);
-        }
-        finally
-        {
-            await RefreshAsync();
-        }
-    }, failed);
+    void ILibrarySelectionPage.CloseDetails() => Inspector = null;
 
     /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>
     [RelayCommand]
     void Escape()
     {
-        if (ViewDialog is { } naming) naming.CancelCommand.Execute(null);
+        if (SmartViews.ViewDialog is { } naming) naming.CancelCommand.Execute(null);
         else if (Sessions.Dialog is { } session) session.CancelCommand.Execute(null);
         else if (Collections.Dialog is { } collection) collection.CancelCommand.Execute(null);
         else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
-        else if (SameBookDialog is { } sameBook) sameBook.CancelCommand.Execute(null);
-        else if (PackDialog is { } packing) packing.CancelCommand.Execute(null);
-        else if (BulkEdit is { } bulk) bulk.EscapeCommand.Execute(null);
+        else if (Selection.CloseDialog()) return;
         else if (Inspector is not null) Inspector = null;
-        else Selection.Stop();
+        else Selection.Books.Stop();
     }
 
     // Collections.
@@ -1748,10 +1048,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     public bool IsWholeLibrary => !IsCollection;
 
     /// <summary>Add folder and the other library actions, in the header unless a Smart View's own actions are there.</summary>
-    public bool ShowsLibraryActions => IsWholeLibrary && !IsView;
+    public bool ShowsLibraryActions => IsWholeLibrary && !SmartViews.IsView;
 
     /// <summary>A collection's actions, in the header unless a Smart View scoped to it is shown.</summary>
-    public bool ShowsCollectionActions => IsCollection && !IsView;
+    public bool ShowsCollectionActions => IsCollection && !SmartViews.IsView;
 
     CollectionInfo? Collection => Scope?.CollectionId is { } id ? Collections.Directory.Find(id) : null;
 
@@ -1776,11 +1076,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     bool IPinState.IsPinned(object? context) => ((IPinState)Pins).IsPinned(context);
 
-    PinTarget? PageTarget => ActiveView is { } view ? PinTarget.SavedSearch(view.Id)
+    PinTarget? PageTarget => SmartViews.ActiveView is { } view ? PinTarget.SavedSearch(view.Id)
         : Scope?.CollectionId is { } id ? PinTarget.Collection(id)
         : Scope?.Key == ScopeKeys.Favorites ? PinTarget.Favorites : null;
 
-    public bool IsFavoritesPage => ActiveView is null && Scope?.Key == ScopeKeys.Favorites;
+    public bool IsFavoritesPage => SmartViews.ActiveView is null && Scope?.Key == ScopeKeys.Favorites;
 
     public string PinLabel => PageTarget is { } target ? Pins.PinLabel(target) : "Pin";
 
@@ -1795,79 +1095,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         OnPropertyChanged(nameof(PinLabel));
         Inspector?.IsPinned = Pins.IsPinned(PinTarget.Entry(Inspector.Item.EntryId));
-        ShowSavedSearchRows();
-    }
-
-    // The Saved searches list: every saved search, pinned or not, from the toolbar.
-
-    public ObservableCollection<SavedSearchRow> SavedSearches { get; } = [];
-
-    public bool HasSavedSearches => Views.All.Count > 0;
-
-    [ObservableProperty]
-    public partial bool IsSavedSearchesOpen { get; set; }
-
-    [RelayCommand]
-    void ShowSavedSearches()
-    {
-        ShowSavedSearchRows();
-        IsSavedSearchesOpen = true;
-    }
-
-    void OnViewsChanged(object? sender, EventArgs e)
-    {
-        OnPropertyChanged(nameof(HasSavedSearches));
-        ShowSavedSearchRows();
-        if (!HasSavedSearches) IsSavedSearchesOpen = false;
-    }
-
-    /// <summary>The rows in name order; the same searches keep their rows, so a pin toggled keeps the keyboard where it was.</summary>
-    void ShowSavedSearchRows()
-    {
-        var views = Views.All;
-        if (views.SequenceEqual(SavedSearches.Select(r => r.View)))
-        {
-            foreach (var row in SavedSearches) row.IsPinned = Pins.IsPinned(PinTarget.SavedSearch(row.View.Id));
-            return;
-        }
-        SavedSearches.Clear();
-        foreach (var view in views) SavedSearches.Add(new SavedSearchRow(view, Pins.IsPinned(PinTarget.SavedSearch(view.Id)), this));
-    }
-
-    [RelayCommand]
-    void OpenSavedSearch(SavedSearchRow row)
-    {
-        IsSavedSearchesOpen = false;
-        _pages.OpenView(row.View);
-    }
-
-    [RelayCommand]
-    Task TogglePinSavedSearch(SavedSearchRow row) => Pins.ToggleAsync(PinTarget.SavedSearch(row.View.Id));
-
-    [RelayCommand]
-    void RenameSavedSearch(SavedSearchRow row)
-    {
-        IsSavedSearchesOpen = false;
-        var id = row.View.Id;
-        AskName("Rename saved search", "Save", row.Name, async name =>
-        {
-            if (await RunView(() => Views.RenameAsync(id, name)) && ActiveView?.Id == id && Views.Find(id) is { } renamed) ShowView(renamed, _viewSaved);
-        });
-    }
-
-    /// <summary>Deletes a saved search, never a book; the one shown is deleted as its own Delete does. Undo brings it back.</summary>
-    [RelayCommand]
-    async Task DeleteSavedSearch(SavedSearchRow row)
-    {
-        IsSavedSearchesOpen = false;
-        if (ActiveView?.Id == row.View.Id)
-        {
-            await DeleteView();
-            return;
-        }
-        var deleted = await RunView(() => Views.DeleteAsync(row.View.Id));
-        if (deleted is null) return;
-        ViewUndo.Offer($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () => await Views.RestoreAsync(deleted));
+        SmartViews.ShowSavedSearchRows();
     }
 
     /// <summary>A book's Pin or Unpin, from its menu or its details.</summary>
@@ -1976,17 +1204,17 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>Select mode's Add to collection: every ticked book, shown or not.</summary>
     [RelayCommand]
     void AddSelectedToCollection(CollectionRequest request) =>
-        Collections.Add(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), request.Choice);
+        Collections.Add(Selection.Books.EntryIds, BulkEditViewModel.Books(Selection.Books.Count), request.Choice);
 
-    bool CanRemoveSelected => IsCollection && Selection.HasAny;
+    bool CanRemoveSelected => IsCollection && Selection.Books.HasAny;
 
     /// <summary>Select mode's Remove from collection, while a collection is shown: the ticked books leave it.</summary>
     [RelayCommand(CanExecute = nameof(CanRemoveSelected))]
     async Task RemoveSelectedFromCollection()
     {
         if (Scope?.CollectionId is not { } id) return;
-        await Collections.RemoveAsync(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), id);
-        Selection.Clear();
+        await Collections.RemoveAsync(Selection.Books.EntryIds, BulkEditViewModel.Books(Selection.Books.Count), id);
+        Selection.Books.Clear();
     }
 
     /// <summary>A collection chip's × in the details: the book leaves that collection.</summary>
@@ -2018,7 +1246,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>Select mode's Add to session: every ticked book, shown or not.</summary>
     [RelayCommand]
     void AddSelectedToSession(SessionRequest request) =>
-        Sessions.Add(Selection.EntryIds, BulkEditViewModel.Books(Selection.Count), request.Choice);
+        Sessions.Add(Selection.Books.EntryIds, BulkEditViewModel.Books(Selection.Books.Count), request.Choice);
 
     /// <summary>A matching page's Add: that page to the current session pack.</summary>
     [RelayCommand]
@@ -2028,59 +1256,22 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     // Smart Views, called saved searches in the app.
 
-    SmartViewDefinition? _viewOnLoad;
-    SmartViewDefinition? _viewSaved;
-    long? _folderOnLoad;
-
-    public SmartViewDirectory Views { get; }
-
     /// <summary>The sidebar key of a Smart View's item, which the Library marks while it shows that view.</summary>
     public static string SmartViewKey(long viewId) => $"view:{viewId.ToString(CultureInfo.InvariantCulture)}";
 
-    /// <summary>The Smart View shown, if the page was opened from one or saved as one.</summary>
-    public SmartViewInfo? ActiveView { get; private set; }
-
-    public bool IsView => ActiveView is not null;
-
-    /// <summary>The search, filters, order, layout or tab differ from the view's: Update view and Save as new show.</summary>
-    public bool IsViewChanged => ActiveView is not null && _viewSaved is { } saved && saved != CurrentView();
-
-    /// <summary>Save view, while a search, a filter or a scope is in use and no view is shown.</summary>
-    public bool CanSaveView => ActiveView is null && (IsSearching || HasScope || CurrentView() with { Sort = Unfiltered.Sort, Layout = Unfiltered.Layout, Tab = Unfiltered.Tab } != Unfiltered);
-
-    /// <summary>The whole library with no search or filter, which isn't worth saving as a view.</summary>
-    static readonly SmartViewDefinition Unfiltered = new();
-
-    /// <summary>Why the view shows less than it was saved with, as when its collection is gone.</summary>
-    [ObservableProperty]
-    public partial string? ViewNote { get; private set; }
-
-    /// <summary>"Saved Haunted places. It's in the sidebar.", beside its Undo.</summary>
-    public UndoSlot ViewUndo { get; }
-
-    /// <summary>Naming a view, while the dialog is open over the page.</summary>
-    [ObservableProperty]
-    public partial SmartViewDialogViewModel? ViewDialog { get; private set; }
-
-    /// <summary>Opens the page as a Smart View: its search, filters and scope are put back when the page loads.</summary>
-    public void OpenView(SmartViewInfo view)
-    {
-        _viewOnLoad = SmartViewDefinition.Parse(view.Definition);
-        ShowView(view, _viewOnLoad);
-    }
-
     /// <summary>What the Library shows now, as a Smart View would keep it.</summary>
-    public SmartViewDefinition CurrentView() => new(Search.Text, Scope?.Key, Scope?.CollectionId is not null && OnlyAddedHere, KindChoice.Value, FolderChoice.Value,
-        SystemChoice.Value, TypeChoice.Value, LevelChoice.Value, LevelChoice.Value is not null && IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value,
-        OwnChoice.Value, SortChoice.Value, Layout, Tab, StyleChoice.Value, DurationChoice.Value, PlayersChoice.Value, StoreChoice.Value,
-        Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value);
-
-    void ShowView(SmartViewInfo? view, SmartViewDefinition? saved)
+    public SmartViewDefinition CurrentView() => Filters.ToView() with
     {
-        ActiveView = view;
-        _viewSaved = saved;
-        OnPropertyChanged(nameof(ActiveView));
-        OnPropertyChanged(nameof(IsView));
+        Query = Search.Text,
+        Scope = Scope?.Key,
+        OnlyAddedHere = Scope?.CollectionId is not null && OnlyAddedHere,
+        Sort = SortChoice.Value,
+        Layout = Layout,
+        Tab = Tab,
+    };
+
+    void ISavedSearchPage.ViewShown()
+    {
         OnPropertyChanged(nameof(ShowsLibraryActions));
         OnPropertyChanged(nameof(ShowsCollectionActions));
         OnPropertyChanged(nameof(Title));
@@ -2088,14 +1279,15 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         OnPropertyChanged(nameof(Subtitle));
         OnPropertyChanged(nameof(NavRoute));
         NotifyPin();
-        NotifyViewState();
     }
 
-    void NotifyViewState()
-    {
-        OnPropertyChanged(nameof(IsViewChanged));
-        OnPropertyChanged(nameof(CanSaveView));
-    }
+    bool ISavedSearchPage.IsPinned(SmartViewInfo view) => Pins.IsPinned(PinTarget.SavedSearch(view.Id));
+
+    Task ISavedSearchPage.TogglePinAsync(SmartViewInfo view) => Pins.ToggleAsync(PinTarget.SavedSearch(view.Id));
+
+    void ISavedSearchPage.Open(SmartViewInfo view) => _pages.OpenView(view);
+
+    void NotifyViewState() => SmartViews.NotifyCurrentChanged();
 
     partial void OnLayoutChanged(LibraryLayout value) => NotifyViewState();
 
@@ -2110,7 +1302,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         try
         {
             var scope = ResolveScope(view.Scope);
-            ViewNote = view.Scope is not null && scope is null
+            SmartViews.ViewNote = view.Scope is not null && scope is null
                 ? "The collection or binder this search was saved in is gone, so it looks through your whole library." : null;
             ShowScope(scope);
             OnlyAddedHere = scope?.CollectionId is not null && view.OnlyAddedHere;
@@ -2123,24 +1315,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
                 OnPropertyChanged(nameof(SortChoices));
             }
             SortChoice = SortChoices.FirstOrDefault(c => c.Value == view.Sort) ?? (IsSearching ? BestMatch : RecentlyAdded);
-            KindChoice = KindChoices.FirstOrDefault(c => c.Value == view.Kind) ?? KindChoices[0];
-            AiChoice = AiChoices.FirstOrDefault(c => c.Value == view.Ai) ?? AiChoices[0];
-            CopiesChoice = CopiesChoices.FirstOrDefault(c => c.Value == view.Copies) ?? CopiesChoices[0];
-            PartsChoice = PartsChoices.FirstOrDefault(c => c.Value == view.Adventures) ?? PartsChoices[0];
-            CollectionChoice = CollectionChoices.FirstOrDefault(c => c.Value == view.Collections) ?? CollectionChoices[0];
-            SystemChoice = Pick(SystemChoices, AllSystems, view.System);
-            TypeChoice = Pick(TypeChoices, AllTypes, view.Type);
-            OwnChoice = Pick(OwnChoices, AnyOwn, view.Own);
-            StyleChoice = Pick(StyleChoices, AnyStyle, view.Style);
-            StoreChoice = Pick(StoreChoices, AnyStore, view.Store);
-            DurationChoice = Pick(DurationChoices, AnyDuration, view.Duration);
-            foreach (var box in ChipFilters) box.Restore(view.Picked?[box.Field.Key] ?? []);
-            PlayersChoice = PlayersChoices.FirstOrDefault(c => c.Value == view.Players) ?? AnyPlayers;
-            LevelChoice = LevelChoices.FirstOrDefault(c => c.Value == view.Level) ?? AnyLevel;
-            IncludeUnknownLevels = view.IncludeUnknownLevels;
+            Filters.Apply(view);
             Layout = view.Layout;
             Tab = view.Tab;
-            _folderOnLoad = view.Folder;
         }
         finally
         {
@@ -2150,16 +1327,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         OnPropertyChanged(nameof(Subtitle));
     }
 
-    /// <summary>A counted menu's choice for a saved value, added to the menu until the counts arrive.</summary>
-    static Choice<string?> Pick(ObservableCollection<Choice<string?>> menu, Choice<string?> all, string? value)
-    {
-        if (value is null) return all;
-        if (menu.FirstOrDefault(c => c.Value == value) is { } found) return found;
-        var choice = new Choice<string?>(value, value);
-        menu.Add(choice);
-        return choice;
-    }
-
     LibraryScope? ResolveScope(string? key)
     {
         if (key is null) return null;
@@ -2167,94 +1334,5 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (Collections.Directory.All.FirstOrDefault(c => ScopeKeys.Collection(c.Id) == key) is { } collection) return Collections.Directory.ScopeFor(collection);
         if (Sessions.Directory.All.FirstOrDefault(p => ScopeKeys.Session(p.Id) == key) is { } pack) return SessionDirectory.ScopeFor(pack);
         return null;
-    }
-
-    /// <summary>Save view: names the search, filters and scope in use as a Smart View, listed in the sidebar.</summary>
-    [RelayCommand]
-    void SaveView() => AskName("Save search", "Save", "", async name =>
-    {
-        var current = CurrentView();
-        var created = await RunView(() => Views.CreateAsync(name, current));
-        if (created is null) return;
-        ShowView(created, current);
-        ViewUndo.Say($"Saved {created.Name}. It's pinned in the sidebar.");
-    });
-
-    /// <summary>Update view: the view now keeps the search and filters as they are.</summary>
-    [RelayCommand]
-    async Task UpdateView()
-    {
-        if (ActiveView is not { } view) return;
-        var current = CurrentView();
-        if (!await RunView(() => Views.UpdateAsync(view.Id, current))) return;
-        var previous = _viewSaved;
-        ShowView(Views.Find(view.Id) ?? view, current);
-        ViewUndo.Offer($"Updated {view.Name}.", previous is null ? null : async () =>
-        {
-            await Views.UpdateAsync(view.Id, previous);
-            if (ActiveView?.Id == view.Id) ShowView(Views.Find(view.Id) ?? view, previous);
-        });
-    }
-
-    /// <summary>Save as new: a second view from the changed search and filters, leaving the first as it was.</summary>
-    [RelayCommand]
-    void SaveViewAsNew() => AskName("Save as a new search", "Save", ActiveView is { } view ? $"{view.Name} (2)" : "", async name =>
-    {
-        var current = CurrentView();
-        var created = await RunView(() => Views.CreateAsync(name, current));
-        if (created is null) return;
-        ShowView(created, current);
-        ViewUndo.Say($"Saved {created.Name}. It's pinned in the sidebar.");
-    });
-
-    [RelayCommand]
-    void RenameView()
-    {
-        if (ActiveView is not { } view) return;
-        AskName("Rename saved search", "Save", view.Name, async name =>
-        {
-            if (await RunView(() => Views.RenameAsync(view.Id, name)) && Views.Find(view.Id) is { } renamed) ShowView(renamed, _viewSaved);
-        });
-    }
-
-    /// <summary>Deletes the view, never a book. The page keeps showing the same books, and Undo brings the view back.</summary>
-    [RelayCommand]
-    async Task DeleteView()
-    {
-        if (ActiveView is not { } view) return;
-        var deleted = await RunView(() => Views.DeleteAsync(view.Id));
-        if (deleted is null) return;
-        var saved = _viewSaved;
-        ShowView(null, null);
-        ViewUndo.Offer($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () =>
-        {
-            var back = await Views.RestoreAsync(deleted);
-            ShowView(back, saved ?? SmartViewDefinition.Parse(back.Definition));
-        });
-    }
-
-    void AskName(string heading, string action, string name, Func<string, Task> then)
-    {
-        var dialog = new SmartViewDialogViewModel(heading, action, name);
-        dialog.Closed += async (_, chosen) =>
-        {
-            ViewDialog = null;
-            if (chosen is not null) await then(chosen);
-        };
-        ViewDialog = dialog;
-    }
-
-    async Task<T?> RunView<T>(Func<Task<T>> change)
-    {
-        try
-        {
-            return await change();
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Changing a saved search failed");
-            ViewUndo.Say("That didn't work. The log has the details.");
-            return default;
-        }
     }
 }

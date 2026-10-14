@@ -13,7 +13,7 @@ public sealed class LibraryPages(INavigationService navigation, Func<LibraryView
     /// <summary>The Library, scoped or whole. Nothing happens when that is already the page shown.</summary>
     public void Open(LibraryScope? scope)
     {
-        if (navigation.Current is LibraryViewModel { ActiveView: null } current && current.Scope?.Key == scope?.Key) return;
+        if (navigation.Current is LibraryViewModel { SmartViews.ActiveView: null } current && current.Scope?.Key == scope?.Key) return;
         var page = createLibrary();
         page.ShowScope(scope);
         navigation.Show(page);
@@ -22,9 +22,9 @@ public sealed class LibraryPages(INavigationService navigation, Func<LibraryView
     /// <summary>A saved Smart View: the Library with its search, filters and order. Nothing happens when it is already shown.</summary>
     public void OpenView(SmartViewInfo view)
     {
-        if (navigation.Current is LibraryViewModel { ActiveView: { } shown } && shown.Id == view.Id) return;
+        if (navigation.Current is LibraryViewModel { SmartViews.ActiveView: { } shown } && shown.Id == view.Id) return;
         var page = createLibrary();
-        page.OpenView(view);
+        page.SmartViews.OpenView(view);
         navigation.Show(page);
     }
 

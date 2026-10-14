@@ -71,11 +71,32 @@ public sealed record SmartViewDefinition(
     }
 }
 
+/// <summary>Every saved Smart View, listed by name, and the changes the Library makes to them.</summary>
+public interface ISmartViewDirectory
+{
+    /// <summary>Raised on the UI thread after the views were reloaded.</summary>
+    event EventHandler? Changed;
+
+    IReadOnlyList<SmartViewInfo> All { get; }
+
+    SmartViewInfo? Find(long viewId);
+
+    Task<SmartViewInfo> CreateAsync(string name, SmartViewDefinition definition);
+
+    Task<bool> UpdateAsync(long viewId, SmartViewDefinition definition);
+
+    Task<bool> RenameAsync(long viewId, string name);
+
+    Task<SmartViewDeletion?> DeleteAsync(long viewId);
+
+    Task<SmartViewInfo> RestoreAsync(SmartViewDeletion deleted);
+}
+
 /// <summary>
 /// Every saved Smart View, kept in memory for the sidebar, Home and the Library, listed by name. Changes go through
 /// here, and <see cref="Changed"/> is raised on the UI thread after each.
 /// </summary>
-public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDirectory> log)
+public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDirectory> log) : ISmartViewDirectory
 {
     /// <summary>Raised on the UI thread after the views were reloaded.</summary>
     public event EventHandler? Changed;

@@ -291,20 +291,20 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     async Task RenameView(PinnedItemViewModel item)
     {
-        if (await ShowViewAsync(item) is { } page) page.RenameViewCommand.Execute(null);
+        if (await ShowViewAsync(item) is { } page) page.SmartViews.RenameViewCommand.Execute(null);
     }
 
     /// <summary>A saved search's right-click Delete: the search opens and is deleted there, where Undo is offered.</summary>
     [RelayCommand]
     async Task DeleteView(PinnedItemViewModel item)
     {
-        if (await ShowViewAsync(item) is { } page) page.DeleteViewCommand.Execute(null);
+        if (await ShowViewAsync(item) is { } page) page.SmartViews.DeleteViewCommand.Execute(null);
     }
 
     async Task<LibraryViewModel?> ShowViewAsync(PinnedItemViewModel item)
     {
         await OpenPin(item);
-        return CurrentPage is LibraryViewModel { ActiveView: { } shown } page && shown.Id == item.Target.Id ? page : null;
+        return CurrentPage is LibraryViewModel { SmartViews.ActiveView: { } shown } page && shown.Id == item.Target.Id ? page : null;
     }
 
     [RelayCommand]
