@@ -103,7 +103,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         var viewer = _readers.Create(null, poppedOut: IsPoppedOut, inBinder: true);
         viewer.PropertyChanged += OnViewerChanged;
-        viewer.PageNotes.CollectionChanged += (_, _) => RefreshItemNotes();
+        viewer.Notes.Items.CollectionChanged += (_, _) => RefreshItemNotes();
         return viewer;
     }
 
@@ -144,7 +144,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         ItemNotes.Clear();
         if (Current is { Target: { DocumentId: { } documentId } target } current)
         {
-            foreach (var note in Viewer.PageNotes)
+            foreach (var note in Viewer.Notes.Items)
                 if (note.Note.EntryId == current.Item.EntryId && (current.Item.Range is null || note.Overlaps(documentId, target.FirstPage, target.LastPage)))
                     ItemNotes.Add(note);
         }

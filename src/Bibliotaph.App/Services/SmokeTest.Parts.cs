@@ -98,11 +98,11 @@ static partial class SmokeTest
             throw new InvalidOperationException($"The reader says “{viewer.Title}”, “{viewer.PartPosition}”.");
         var wholeFile = Descendants<CheckBox>(window).FirstOrDefault(c => c.Name == "FindWholeFile");
         if (wholeFile is not { IsVisible: true, IsEnabled: true }) throw new InvalidOperationException("The reader doesn't offer Find in the whole file.");
-        viewer.FindText = "front";
-        await viewer.FindCommand.ExecuteAsync(null);
-        if (viewer.FindStatus != "No matches in this adventure") throw new InvalidOperationException($"Find in the adventure said {viewer.FindStatus}.");
+        viewer.Find.Query = "front";
+        await viewer.Find.FindCommand.ExecuteAsync(null);
+        if (viewer.Find.Status != "No matches in this adventure") throw new InvalidOperationException($"Find in the adventure said {viewer.Find.Status}.");
         wholeFile.IsChecked = true;
-        await WaitUntilAsync(window, () => viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal), () => $"Find in the whole file said {viewer.FindStatus}.");
+        await WaitUntilAsync(window, () => viewer.Find.Status.StartsWith("1 of ", StringComparison.Ordinal), () => $"Find in the whole file said {viewer.Find.Status}.");
         await AuditAsync(window, "the reader with an adventure inside a file");
         navigation.GoBack();
         await Settle(window);

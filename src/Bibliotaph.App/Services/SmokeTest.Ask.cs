@@ -105,9 +105,9 @@ static partial class SmokeTest
             var link = block.Inlines.OfType<Hyperlink>().FirstOrDefault() ?? throw new InvalidOperationException("The answer's citation isn't a link.");
             if (AutomationProperties.GetName(link) != "Go to page 1") throw new InvalidOperationException($"The citation is named “{AutomationProperties.GetName(link)}”.");
             ((IInvokeProvider)ContentElementAutomationPeer.CreatePeerForElement(link).GetPattern(PatternInterface.Invoke)).Invoke();
-            await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && viewer.FindText.StartsWith("dragon", StringComparison.Ordinal)
-                    && viewer.Highlights.Items.Count > 0 && viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal),
-                () => $"The citation left page {pages.CurrentPageIndex} in view with Find saying “{viewer.FindStatus}” for “{viewer.FindText}”.");
+            await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && viewer.Find.Query.StartsWith("dragon", StringComparison.Ordinal)
+                    && viewer.Find.Highlights.Items.Count > 0 && viewer.Find.Status.StartsWith("1 of ", StringComparison.Ordinal),
+                () => $"The citation left page {pages.CurrentPageIndex} in view with Find saying “{viewer.Find.Status}” for “{viewer.Find.Query}”.");
 
             // Opening the book made its vectors in the background; once they are all made, a question is found by meaning too.
             await WaitUntilAsync(window, () => ask.FillOf(documentId) is { Running: false, Problem: null, Done: > 0 } fill && fill.Done == fill.Total,
@@ -119,9 +119,9 @@ static partial class SmokeTest
 
             await GoToFirstPageAsync(window, viewer, pages);
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AskPassageLink"), "the passage's page link");
-            await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && viewer.FindText == "dragon" && viewer.Highlights.Items.Count > 0
-                    && viewer.FindStatus.StartsWith("1 of ", StringComparison.Ordinal),
-                () => $"The page link left page {pages.CurrentPageIndex} in view with Find saying “{viewer.FindStatus}”.");
+            await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && viewer.Find.Query == "dragon" && viewer.Find.Highlights.Items.Count > 0
+                    && viewer.Find.Status.StartsWith("1 of ", StringComparison.Ordinal),
+                () => $"The page link left page {pages.CurrentPageIndex} in view with Find saying “{viewer.Find.Status}”.");
 
             // The same question again stood on its own, so it wasn't rewritten; the first answer is now the conversation's.
             await WaitUntilAsync(window, () => viewer.Ask.History.Count == 1 && viewer.Ask.LookedFor is null && Visible(window, "AskHistory"),
