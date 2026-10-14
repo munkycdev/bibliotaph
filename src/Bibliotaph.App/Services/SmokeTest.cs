@@ -117,6 +117,8 @@ static partial class SmokeTest
             await Check("Ask with AI off saying it needs AI, its link to Settings > AI, and the search box searching as before",
                 () => PlainSearchWithoutAiAsync(services, window, books));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
+            await Check("the Library's order picked for browsing and for a search, each kept on a new Library page and in the settings",
+                () => RememberSortAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
                 () => UseCollectionsAsync(services, window, books));
             await Check("a search saved and pinned, unpinned and pinned again, updated with Undo, opened from Home, renamed from the sidebar, and deleted with Undo",
