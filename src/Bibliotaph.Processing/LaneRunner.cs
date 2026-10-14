@@ -13,20 +13,19 @@ namespace Bibliotaph.Processing;
 /// <paramref name="changed"/> is called when something a progress display would show has moved, and
 /// <paramref name="fileStageDone"/> when a stage that reads the file is done with it, so it may go back to online-only.
 /// </summary>
-internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerable<IStage> stages, IndexingOptions options, ILogger log,
+internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCatalog stages, IndexingOptions options, ILogger log,
     TimeProvider clock, Action changed, Action fileStageDone) : IDisposable
 {
-    readonly Dictionary<Stage, IStage> _stages = stages.ToDictionary(s => s.Stage);
     readonly Lock _lock = new();
     readonly Dictionary<Lane, Signal> _signals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
     readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
-    /// <summary>The stages the lanes run, by name.</summary>
-    public IReadOnlyDictionary<Stage, IStage> Stages => _stages;
+    /// <summary>The stages the lanes run.</summary>
+    public IStageCatalog Stages => stages;
 
     /// <summary>Whether a lane may work: every gated stage in it is ready. A lane with no gated stage always may.</summary>
     public bool IsOpen(Lane lane) =>
-        _stages.Values.Where(s => Pipeline.LaneOf(s.Stage) == lane).OfType<IGatedStage>().All(s => s.IsReady);
+        stages.All.Where(s => s.Lane == lane).OfType<IGatedStage>().All(s => s.IsReady);
 
     /// <summary>Why a lane is waiting even though it has work, such as a model endpoint that isn't answering; null otherwise.</summary>
     public string? Unavailable(Lane lane)
@@ -47,6 +46,12 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
 
     /// <summary>Wakes a lane to look for work, as when some was queued for it.</summary>
     public void Wake(Lane lane) => _signals[lane].Set();
+
+    /// <summary>Wakes the lane that runs a stage, as when it was queued again. No lane runs a stage indexing doesn't have.</summary>
+    public void Wake(Stage stage)
+    {
+        if (stages.Find(stage) is { } runs) Wake(runs.Lane);
+    }
 
     public void WakeAll()
     {
@@ -127,7 +132,7 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
     /// <summary>Works a lane's jobs one at a time until indexing stops.</summary>
     public async Task RunAsync(Lane lane, CancellationToken stoppingToken)
     {
-        var names = _stages.Keys.Where(s => Pipeline.LaneOf(s) == lane).ToArray();
+        var names = stages.All.Where(s => s.Lane == lane).Select(s => s.Stage).ToArray();
         if (names.Length == 0) return;
         var owner = $"{Environment.ProcessId}/{lane}";
 
@@ -164,7 +169,7 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
             changed();
             try
             {
-                await RunJobAsync(job, linked.Token, stoppingToken);
+                await RunJobAsync(lane, job, linked.Token, stoppingToken);
             }
             finally
             {
@@ -188,7 +193,7 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
         return false;
     }
 
-    async Task RunJobAsync(JobRecord job, CancellationToken ct, CancellationToken stopping)
+    async Task RunJobAsync(Lane lane, JobRecord job, CancellationToken ct, CancellationToken stopping)
     {
         StageOutcome outcome;
         try
@@ -197,7 +202,7 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
             // job.
             outcome = await library.IsTextForgottenAsync(job.DocumentId, ct)
                 ? new StageOutcome.Done(StageStatus.Skipped, [], TextAccessReasons.Forgotten)
-                : await _stages[job.Stage].RunAsync(job, ct);
+                : await (stages.Find(job.Stage) ?? throw new InvalidOperationException($"No stage does {job.Stage}.")).RunAsync(job, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -226,7 +231,6 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
         if (outcome is not StageOutcome.Done { Status: StageStatus.Complete } and not StageOutcome.Later)
             log.LogInformation("{Stage} for document {DocumentId}: {Outcome}", job.Stage, job.DocumentId, outcome);
 
-        var lane = Pipeline.LaneOf(job.Stage);
         lock (_lock)
         {
             var control = _lanes[lane];
@@ -237,6 +241,10 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
             }
             else control.Unavailable = null;
         }
+
+        // A stage that got somewhere is followed by the stages that always come after it, as well as any it asked for.
+        if (outcome is StageOutcome.Done { Status: StageStatus.Complete or StageStatus.Partial } done)
+            outcome = done with { Next = [.. done.Next.Union(stages.Following(job.Stage)).Order()] };
 
         // Recorded even while closing, so a finished job isn't redone next time.
         await TryAsync(() => outcome switch
@@ -249,7 +257,7 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IEnumerab
             _ => throw new InvalidOperationException($"Unknown outcome {outcome}"),
         }, stopping);
         if (outcome is StageOutcome.Done { Next: var next })
-            foreach (var other in next.Select(Pipeline.LaneOf).Distinct()) _signals[other].Set();
+            foreach (var other in next.Select(stages.Find).OfType<IStage>().Select(s => s.Lane).Distinct()) _signals[other].Set();
         if (Pipeline.FileStages.Contains(job.Stage)) fileStageDone();
     }
 

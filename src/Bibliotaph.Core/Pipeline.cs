@@ -13,7 +13,11 @@ public enum Lane
     Classify,
 }
 
-/// <summary>The stage versions and order of the processing pipeline.</summary>
+/// <summary>
+/// What the job queue in index.db needs to know about the processing pipeline, whichever stages an app runs: stage
+/// versions, which stages wait behind everything else, the first stage, and the stages Reprocess runs again. The rest
+/// of what a stage is, its lane and what follows it, each stage says about itself.
+/// </summary>
 public static class Pipeline
 {
     /// <summary>
@@ -34,14 +38,6 @@ public static class Pipeline
         // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
         Stage.ChapterScan => 1,
         _ => 1,
-    };
-
-    public static Lane LaneOf(Stage stage) => stage switch
-    {
-        Stage.Ocr => Lane.Ocr,
-        // Shares the AI's lane, so pausing AI work pauses it too and it never asks the model while a book is classified.
-        Stage.Classify or Stage.ChapterScan => Lane.Classify,
-        _ => Lane.Index,
     };
 
     /// <summary>

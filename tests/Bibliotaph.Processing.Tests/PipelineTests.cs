@@ -151,11 +151,12 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _collectionsService = new CollectionsService(_collections, projector, _folderCollectionStore);
         _folderCollections = new FolderCollections(_folderCollectionStore, library, _collections, _collectionsService, vocabulary, _packs);
         _service = new IndexingService(_roots, library, queue,
+            new StageCatalog(
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
                 chapters,
-            ],
+            ]),
             new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns), _packs, _parts, _folderCollections,
             new IndexingOptions
             {

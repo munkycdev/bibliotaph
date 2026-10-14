@@ -250,7 +250,7 @@ internal sealed class HashingLoop(LibraryStore library, JobBoard queue, Indexing
             await _returnSignal.WaitAsync(options.IdleRecheck, ct);
             var waitingForSpace = activity.Current.WaitingForDiskSpace;
             IReadOnlyCollection<Stage> holding = waitingForSpace
-                ? [.. Pipeline.FileStages.Where(s => !lanes.IsPaused(Pipeline.LaneOf(s)))]
+                ? [.. Pipeline.FileStages.Where(s => lanes.Stages.Find(s) is not { } stage || !lanes.IsPaused(stage.Lane))]
                 : Pipeline.FileStages;
             if (await files.Returns.ReturnDoneAsync(holding, ct) == 0 || !waitingForSpace) continue;
             _hashSignal.Set();

@@ -19,12 +19,18 @@ namespace Bibliotaph.Processing;
 public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
     ElsewhereStore elsewhere, PagePlaces places, MetadataHints hints, PartsService parts, UserTagService tags, ILogger<MatchStage>? log = null) : IStage
 {
-    /// <summary>How long Match waits for a document's hints from names, which take moments.</summary>
-    internal static readonly TimeSpan HintsWait = TimeSpan.FromSeconds(30);
-
     readonly ILogger _log = log ?? NullLogger<MatchStage>.Instance;
 
     public Stage Stage => Stage.Match;
+
+    public Lane Lane => Lane.Index;
+
+    public Stage? After => Stage.Text;
+
+    /// <summary>Books read before it existed are looked at too: from the text already stored, so no file is read again.</summary>
+    public bool Backfill => true;
+
+    public StageNames Names => new("Looking for other copies", "Looking for other copies", "Working on");
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
@@ -37,10 +43,10 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
     async Task<StageOutcome> MatchAsync(JobRecord job, CancellationToken ct)
     {
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
-            return new StageOutcome.Later(ClassifyStage.OcrWait, "Waiting for its scanned pages to be read.");
+            return new StageOutcome.Later(StageWaits.ForOcr, "Waiting for its scanned pages to be read.");
         // Title and publisher come from the hints, which are usually in by now.
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.RuleHints, ct) is StageStatus.Pending or StageStatus.Running)
-            return new StageOutcome.Later(HintsWait, "Waiting for its hints from names.");
+            return new StageOutcome.Later(StageWaits.ForHints, "Waiting for its hints from names.");
 
         var texts = await queries.GetAllPageTextsAsync(job.DocumentId, ct);
         // Hints from names usually run before the text is in, so they are read again now for the store a watermark

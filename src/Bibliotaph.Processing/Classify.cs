@@ -404,16 +404,20 @@ public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
     AiReadingFeed feed, PartsService parts, PartProposalService proposals, TimeProvider? clock = null, ILogger<ClassifyStage>? log = null) : IGatedStage
 {
-    /// <summary>
-    /// How long a book whose scanned pages are still being read waits before Classify looks again. It looks sooner when
-    /// OCR ends, since the job board wakes a book's deferred jobs when another of its stages finishes.
-    /// </summary>
-    public static readonly TimeSpan OcrWait = TimeSpan.FromMinutes(5);
-
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<ClassifyStage>.Instance;
 
     public Stage Stage => Stage.Classify;
+
+    /// <summary>One book at a time, and only while AI is set up and switched on.</summary>
+    public Lane Lane => Lane.Classify;
+
+    public Stage? After => Stage.Text;
+
+    /// <summary>Books read before classification existed get it too; they wait in the queue until AI is set up.</summary>
+    public bool Backfill => true;
+
+    public StageNames Names => new("Cataloguing with AI", "Reading with AI", "Asking the AI about");
 
     public bool IsReady => ai.Classifier is not null;
 
@@ -434,10 +438,10 @@ public sealed class ClassifyStage(
         var unread = await UnreadPartsAsync(job.DocumentId, classifier.Model, ct);
         if (read && unread.Count == 0) return StageOutcome.Complete();
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
-            return new StageOutcome.Later(OcrWait, "Waiting for its scanned pages to be read.");
+            return new StageOutcome.Later(StageWaits.ForOcr, "Waiting for its scanned pages to be read.");
         // The rules' proposal of its adventures comes with the hints, and a model is asked only when they found none.
         if (!read && await queries.GetStageStatusAsync(job.DocumentId, Stage.RuleHints, ct) is StageStatus.Pending or StageStatus.Running)
-            return new StageOutcome.Later(MatchStage.HintsWait, "Waiting for its hints from names.");
+            return new StageOutcome.Later(StageWaits.ForHints, "Waiting for its hints from names.");
 
         if (!read)
         {

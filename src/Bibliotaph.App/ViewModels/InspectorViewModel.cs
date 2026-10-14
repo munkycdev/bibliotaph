@@ -52,6 +52,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly MetadataService _metadata;
     readonly LibraryQueries _queries;
     readonly IJobControl _indexing;
+    readonly IStageCatalog _stages;
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
@@ -68,9 +69,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     bool _refreshAgain;
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
-        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IJobControl indexing, CopiesService copiesService,
-        PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, CorrectionService? corrections,
-        ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log)
+        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IJobControl indexing, IStageCatalog stages,
+        CopiesService copiesService, PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell,
+        CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log)
     {
         PartUndo = new UndoSlot(log);
         _files = files;
@@ -83,6 +84,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _metadata = metadata;
         _queries = queries;
         _indexing = indexing;
+        _stages = stages;
         _copies = copiesService;
         _packs = packs;
         Locations = locations;
@@ -468,9 +470,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IJobControl indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
-        IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null,
-        ChosenCovers? chosen = null)
+        IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
+        PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
+        CorrectionService? corrections = null, ChosenCovers? chosen = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -497,8 +499,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, files, prompts,
-            shell, corrections, chosen, log);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
+            files, prompts, shell, corrections, chosen, log);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts);
@@ -563,7 +565,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var facts = BuildFacts(entry, details);
         if (!facts.SequenceEqual(Facts)) Facts = facts;
         // A pack's processing is its images', each read like any image.
-        IReadOnlyList<InspectorStage> stages = details is null || entry.IsPack ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
+        IReadOnlyList<InspectorStage> stages = details is null || entry.IsPack
+            ? []
+            : [.. details.Stages.Select(s => new InspectorStage(_stages.Find(s.Stage)?.Names.Label ?? s.Stage.ToString(), StatusText(s)))];
         if (!stages.SequenceEqual(Stages)) Stages = stages;
         // AI cataloguing isn't part of Reprocess and can wait for hours (AI off, a model server down), so only the
         // stages that read the file count.
@@ -659,19 +663,6 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         (FileLocationState.OnlineOnly, _) => "Online-only",
         _ when location.ArchivePath is not null => "Inside a ZIP",
         _ => "",
-    };
-
-    static string StageName(Stage stage) => stage switch
-    {
-        Stage.Probe => "Opening",
-        Stage.Text => "Reading text",
-        Stage.Covers => "Cover",
-        Stage.RuleHints => "Hints from names",
-        Stage.Ocr => "Reading scanned pages",
-        Stage.Classify => "Cataloguing with AI",
-        Stage.Match => "Looking for other copies",
-        Stage.ChapterScan => "Scanning the whole book",
-        _ => stage.ToString(),
     };
 
     static string StatusText(StageState stage) => stage.Status switch

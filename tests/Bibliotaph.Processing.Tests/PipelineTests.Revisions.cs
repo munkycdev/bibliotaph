@@ -20,6 +20,14 @@ public abstract partial class PipelineTests
 
         public Stage Stage => inner.Stage;
 
+        public Lane Lane => inner.Lane;
+
+        public Stage? After => inner.After;
+
+        public bool Backfill => inner.Backfill;
+
+        public StageNames Names => inner.Names;
+
         public Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct) =>
             gate.Held ? Task.FromResult<StageOutcome>(new StageOutcome.Later(TimeSpan.FromMilliseconds(200), "Held by the test.")) : inner.RunAsync(job, ct);
     }
