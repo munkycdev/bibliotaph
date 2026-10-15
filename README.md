@@ -45,7 +45,42 @@ when it suits you. Nothing restarts in the middle of a game.
 
 More in [Getting started](docs/guide/getting-started.md).
 
-<!-- Code signing policy: PR #70's "## Code signing policy" section goes here, after Install. -->
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+Signing isn't set up yet; this is how it will work. Releases are built only by the Release workflow
+([.github/workflows/release.yml](.github/workflows/release.yml)), on GitHub-hosted runners, from a version tag in this
+repository. The workflow sends the installer it built, `BibliotaphApp-win-Setup.exe`, to SignPath, and a maintainer
+approves each signing request by hand. The programs the
+installer carries from other projects (the .NET runtime, PDFium, llama.cpp's `llama-server` and Velopack's updater)
+keep their own publishers' signatures, or none, and aren't signed as Bibliotaph's.
+
+Team roles:
+
+- Committers and reviewers: [munkycdev](https://github.com/munkycdev)
+- Approvers: [munkycdev](https://github.com/munkycdev)
+
+### Privacy
+
+Bibliotaph collects nothing about you or your library and sends nothing to its maintainers. It indexes your files on
+your PC, and the built-in AI runs there too. It connects to the internet only for these:
+
+- **Updates.** An installed copy checks this repository's GitHub Releases when it starts and once a day, and downloads
+  a newer version if there is one.
+- **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
+- **Online libraries.** When you open D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG in Bibliotaph's browser, it
+  talks to that site the way any browser does, signed in as you. Bibliotaph reads a page only when you press
+  **Read this page**, and never sees or keeps your password; see [Online libraries](docs/guide/online-libraries.md).
+  The browser is Microsoft Edge WebView2, which follows Microsoft's own privacy statement.
+- **An AI server you set up.** If you point Settings > AI at a model server instead of the built-in AI, Bibliotaph
+  sends it excerpts from your books to catalogue them, and what you type into Ask and Ask this book. A server on
+  another machine or a hosted service is your choice and is covered by its own terms; see
+  [AI](docs/guide/ai.md#what-it-sends-and-where).
+
+Library sync only writes a file to a folder you pick. If that folder is in OneDrive, OneDrive uploads it, not
+Bibliotaph.
 
 ## What it does
 
