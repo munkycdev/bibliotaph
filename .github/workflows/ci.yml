@@ -78,8 +78,10 @@ jobs:
         run: ./build/verify.ps1 -Step Test
 
       # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
-      # exception or binding error.
+      # exception or binding error. It is the slowest step, so pull requests skip it and main runs it; a release waits
+      # for CI on its tagged commit, so no release ships without it.
       - name: App smoke test
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: ./build/verify.ps1 -Step Smoke
 
@@ -88,7 +90,9 @@ jobs:
         shell: pwsh
         run: ./build/verify.ps1 -Step BannedApi
 
+      # The release workflow builds Release itself, so pull requests leave this to main.
       - name: Build (Release)
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: ./build/verify.ps1 -Step Release
 

@@ -31,7 +31,8 @@ The app keeps its databases and logs in `%LOCALAPPDATA%\Bibliotaph`. To try it a
 dotnet run --project src\Bibliotaph.App -- --data-root $env:TEMP\bibliotaph-scratch
 ```
 
-`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it.
+`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it on pushes to
+main, which every release waits for.
 
 ## The verify script
 
@@ -43,8 +44,9 @@ Before pushing, run the same checks as CI (in PowerShell 7):
 ./build/verify.ps1 -Step Build, Test
 ```
 
-CI runs each step of this script, so a green run here should mean a green run there. Off Windows the Engine and Smoke
-steps are skipped.
+CI runs each step of this script, so a green run here should mean a green run there. To keep pull requests quick,
+their CI runs skip the smoke test and the Release build; pushes to main run every step. Run the smoke test yourself
+before pushing a change to what the app shows. Off Windows the Engine and Smoke steps are skipped.
 
 ## Layout
 
