@@ -19,7 +19,8 @@ year, setting, themes and environments.
   examples of how you catalog.
 - **It reads whole books, chapter by chapter**, once everything else is done. See
   [Scanning whole books](#scanning-whole-books).
-- **It finds adventures inside anthologies**, and reads each one on its own pages. See
+- **It finds adventures inside anthologies**, when the book says it is a collection of them, and reads each one on
+  its own pages. See
   [Cataloging](cataloging.md#adventures-inside-a-file).
 - **It reads requests in plain English** in the search box's **Ask** mode. See
   [Searching](searching.md#ask-in-plain-english).
