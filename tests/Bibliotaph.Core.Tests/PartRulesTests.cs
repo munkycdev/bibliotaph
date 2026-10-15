@@ -68,6 +68,24 @@ public class PartRulesTests
     }
 
     [Fact]
+    public void A_party_of_some_level_is_a_blurb_but_a_contents_page_listing_levels_is_not()
+    {
+        string[] pages =
+        [
+            "A Dozen Adventures for the Marsh",
+            "Contents The Salt Mine (Levels 1-2) 2 Lantern Night (Levels 3-4) 4 The Glass Tower (Levels 5-6) 6 Fog Market (Levels 7-8) 8",
+            "FOUR 1ST- TO 2ND-LEVEL PCS The Salt Mine", "more",
+            "FIVE 3RD-LEVEL CHARACTERS Lantern Night", "more",
+        ];
+        (string, int, int)[] outline = [("A Dozen Adventures for the Marsh", 0, 0), ("The Salt Mine", 2, 0), ("Lantern Night", 4, 0)];
+
+        var found = PartRules.Propose(outline, pages)!;
+
+        Assert.Equal([("The Salt Mine", new PartPages(2, 3), "1-2"), ("Lantern Night", new PartPages(4, 5), "3")], found.Parts.Select(p => (p.Title, p.Pages, p.Levels)));
+        Assert.Equal(new CollectionEvidence(0, "A Dozen Adventures for the Marsh"), found.Evidence);
+    }
+
+    [Fact]
     public void One_adventure_is_not_a_compilation()
     {
         (string, int, int)[] outline = [("Credits", 0, 0), ("The Salt Mine", 2, 0), ("Appendix", 9, 0)];
@@ -121,6 +139,8 @@ public class PartRulesTests
     [InlineData("Welcome. These adventures can each be played on their own or in any order.", "These adventures can each be played on their own or in any order.")]
     [InlineData("The book holds seven adventures you can drop into any game.", "The book holds seven adventures you can drop into any game.")]
     [InlineData("An adventure collection for the marsh.", "An adventure collection for the marsh.")]
+    [InlineData("A DOZEN ADVENTURES FOR ANY TABLE", "A DOZEN ADVENTURES FOR ANY TABLE")]
+    [InlineData("12 MINI-ADVENTURES FOR LEVELS 1 TO 15", "12 MINI-ADVENTURES FOR LEVELS 1 TO 15")]
     public void A_book_saying_it_holds_separate_adventures_is_found(string text, string sentence) => Assert.Equal(sentence, PartRules.CollectionSentence(text));
 
     [Theory]
@@ -131,6 +151,8 @@ public class PartRulesTests
     [InlineData("These four adventures form a single campaign.")]
     [InlineData("The next two adventures take place underground.")]
     [InlineData("A collection of maps and handouts.")]
+    [InlineData("Then comes a summary of the three adventures.")]
+    [InlineData("Contents Introduction 4 Journeys 29 Mini adventures 109 Random events 112 Index 120")]
     public void A_single_adventure_or_a_campaign_is_not_a_collection(string text) => Assert.Null(PartRules.CollectionSentence(text));
 
     [Theory]
@@ -158,11 +180,17 @@ public class PartRulesTests
     [InlineData("OGL")]
     [InlineData("Open Game License Version 1.0a")]
     [InlineData("Table of Contents")]
+    [InlineData("Back Cover")]
+    [InlineData("(AD) Another Book")]
+    [InlineData("1. Introduction")]
+    [InlineData("Chapter 2: Credits")]
     public void Front_and_back_matter_is_never_an_adventure(string title) => Assert.True(PartRules.IsMatter(title));
 
     [Theory]
     [InlineData("The Salt Mine")]
     [InlineData("Indexing the Archive")]
     [InlineData("Legacy of the Glass Tower")]
+    [InlineData("2. The Salt Mine")]
+    [InlineData("Covered Bridge")]
     public void An_adventure_title_is_not_matter(string title) => Assert.False(PartRules.IsMatter(title));
 }

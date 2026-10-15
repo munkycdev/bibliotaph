@@ -76,11 +76,13 @@ public sealed record PartFinderInput(string FileName, int PageCount, IReadOnlyLi
             described -= cut.Length;
             budget -= cut.Length;
         }
-        var describing = PartRules.DescriptionPages(pageCount, candidates[0].Pages.First);
-        if (describing.Where(p => p >= pageCount - 2 && p > candidates[0].Pages.First && texts.ContainsKey(p)).Select(p => (int?)p).Max() is { } back)
+        // A bookmark on the cover is a candidate too, but the book describes itself up to the first one after it.
+        var first = candidates.Select(c => c.Pages.First).FirstOrDefault(p => p > 0, candidates[0].Pages.First);
+        var describing = PartRules.DescriptionPages(pageCount, first);
+        if (describing.Where(p => p >= pageCount - 2 && p > first && texts.ContainsKey(p)).Select(p => (int?)p).Max() is { } back)
             Describe(back, ExcerptPart.BackCover, BackCoverCharacters);
-        // The first candidate's own page is read with the candidates.
-        var front = describing.Where(p => p < candidates[0].Pages.First && texts.ContainsKey(p)).ToList();
+        // That candidate's own page is read with the candidates.
+        var front = describing.Where(p => p < first && texts.ContainsKey(p)).ToList();
         foreach (var page in front.OrderByDescending(p => ExcerptBuilder.LooksLikeIntroduction(texts[p])).ThenBy(p => p))
             Describe(page, ExcerptPart.Introduction, DescriptionPageCharacters);
         var share = Math.Min(FirstPageCharacters, Math.Max(200, budget / candidates.Count));

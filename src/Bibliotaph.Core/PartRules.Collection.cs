@@ -53,6 +53,8 @@ public static partial class PartRules
     {
         foreach (var sentence in SentenceBreak().Split(MetadataText.Tidy(text)))
         {
+            // A contents page or an index runs on without full stops, and its page numbers read as counts.
+            if (PageNumber().Count(sentence) >= ListedNumbers) continue;
             if (Linked().IsMatch(sentence) && !StandAlone().IsMatch(sentence)) continue;
             var match = Statements.Select(s => s.Match(sentence)).FirstOrDefault(m => m.Success);
             if (match is not null) return Around(sentence, match);
@@ -72,6 +74,9 @@ public static partial class PartRules
         return PluralAdventures().IsMatch(tidy) && (!Linked().IsMatch(tidy) || StandAlone().IsMatch(tidy));
     }
 
+    /// <summary>A "sentence" with this many numbers in it is a list of headings and pages, not something the book says.</summary>
+    const int ListedNumbers = 5;
+
     static readonly Regex[] Statements = [OneShots(), StandAloneAdventures(), CollectionOf(), RunOnTheirOwn(), Counted()];
 
     static string Around(string sentence, Match match)
@@ -86,7 +91,11 @@ public static partial class PartRules
     [GeneratedRegex(@"(?<=[.!?])\s+")]
     private static partial Regex SentenceBreak();
 
-    const string Adventures = @"(?:adventures|scenarios|modules|quests|missions|one[\s-]?shots)";
+    [GeneratedRegex(@"\b\d{1,3}\b")]
+    private static partial Regex PageNumber();
+
+    /// <summary>Adventures in the plural, also as "mini-adventures".</summary>
+    const string Adventures = @"(?:[a-z]+-)?(?:adventures|scenarios|modules|quests|missions|one[\s-]?shots)";
 
     /// <summary>"four one-shots", "one-shot adventures".</summary>
     [GeneratedRegex(@"\bone[\s-]?shots\b|\bone[\s-]?shot\s+(?:adventures|scenarios|games|modules)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -107,8 +116,11 @@ public static partial class PartRules
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex RunOnTheirOwn();
 
-    /// <summary>"contains seven adventures", "12 short scenarios", but not "the first two adventures".</summary>
-    [GeneratedRegex(@"(?<!\b(?:first|last|next|previous|other|later|earlier|following)\s+)\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|twenty|[2-9]|[1-9]\d)\s+(?:[\w-]+\s+){0,2}?" + Adventures + @"\b",
+    /// <summary>
+    /// "contains seven adventures", "12 short scenarios", "a dozen adventures", but not "the first two adventures" or
+    /// "a summary of the three adventures", which a campaign says of its acts.
+    /// </summary>
+    [GeneratedRegex(@"(?<!\b(?:the|first|last|next|previous|other|later|earlier|following)\s+)\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|twenty|dozen|[2-9]|[1-9]\d)\s+(?:[\w-]+\s+){0,2}?" + Adventures + @"\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex Counted();
 

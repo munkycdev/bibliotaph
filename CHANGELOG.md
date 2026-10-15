@@ -7,7 +7,8 @@
   first adventure or on its back cover, saying it is a collection of separate adventures or one-shots, and the Needs
   review card shows those words and their page. Proposals still waiting are cleared and the rules look at the library
   again; files you already accepted or kept as one book stay as they are. The AI asks the stricter question for books
-  it reads from now on.
+  it reads from now on. Blurbs such as "four 1st- to 2nd-level PCs" are now read, and bookmarks for covers and ads,
+  or a contents page listing levels, no longer make adventures.
 - **Fixed: the question about a file's adventures could send watermark lines to the AI.** The lines naming the buyer
   and their order are now left out, as they already were when the AI catalogues a book.
 
