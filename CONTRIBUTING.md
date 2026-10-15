@@ -104,6 +104,17 @@ Redraw the app icon after changing the monogram (needs Python with `pip install 
 python tools\AppIcon\make_icon.py
 ```
 
+## Docs go with the change
+
+Every feature and every fix updates the docs in the same pull request, so main always describes the app as it is:
+
+- The user guide ([README](README.md) and [docs/guide/](docs/guide/)) wherever the change alters what someone sees or
+  does.
+- [docs/features.md](docs/features.md) for what the feature does, and [docs/architecture.md](docs/architecture.md)
+  when the design changes.
+- A bullet under `## Unreleased` at the top of [CHANGELOG.md](CHANGELOG.md), written for the people using the app.
+  Start the heading if it isn't there.
+
 ## Releases
 
 A version tag `vMAJOR.MINOR.PATCH` runs `.github/workflows/release.yml`:
@@ -120,6 +131,9 @@ $n = git rev-list --count origin/main
 git tag "v1.2.$n" origin/main
 git push origin "v1.2.$n"
 ```
+
+Before tagging, move the `## Unreleased` bullets into a "New in MAJOR.MINOR.PATCH" block at the top of that
+MAJOR.MINOR's section of `CHANGELOG.md`: the release notes are that section.
 
 `Directory.Build.props` keeps `MAJOR.MINOR.0` for local builds.
 
