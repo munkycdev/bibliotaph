@@ -131,6 +131,9 @@ public static partial class ExcerptBuilder
         return new Excerpt([.. chosen.Values.OrderBy(p => p.PdfPage)], headings, pageCount);
     }
 
+    /// <summary>A page that opens with an introduction's or a foreword's heading.</summary>
+    internal static bool LooksLikeIntroduction(string text) => IntroductionHeading().IsMatch(text[..Math.Min(200, text.Length)]);
+
     [GeneratedRegex(@"^(introduction|foreword|preface|overview|welcome|about this (book|adventure|module|supplement)|adventure (background|overview|summary)|background|running this adventure|using this book|how to use this book)\b", RegexOptions.IgnoreCase)]
     private static partial Regex IntroductionHeading();
 

@@ -13,10 +13,13 @@ public sealed record ProposedPart(string Title, PartPages Pages, string? Levels 
 /// <summary>
 /// The rule that proposes the adventures in a compilation. The candidates are the top-level bookmarks, or the level
 /// under a single top-level bookmark, leaving out front and back matter (credits, an introduction, appendices, an
-/// index, the licence). A candidate starts an adventure when its first two pages carry an adventure's blurb ("for four
-/// characters of 3rd level", "levels 1-3", "an adventure for"); it runs to the next candidate. Two or more starts make
-/// a proposal. A file with no bookmarks is read page by page, and the blurb alone decides, the first line of the page
-/// being the title. The blurb gives the level range.
+/// index, the licence, covers and advertisements). A candidate starts an adventure when its first two pages carry an adventure's blurb ("for four
+/// characters of 3rd level", "four 1st- to 2nd-level PCs", "levels 1-3", "an adventure for"); it runs to the next
+/// candidate. Two or more starts make
+/// a proposal. A file with no bookmarks is read page by page, and the blurb alone finds the starts, the first line of
+/// the page being the title. The blurb gives the level range. Blurbs alone never make a proposal: campaign books print
+/// one at the start of every chapter, so the book must also say, before its first adventure or on its back cover, that
+/// it is a collection of separate adventures (<see cref="FindCollection"/>).
 /// </summary>
 public static partial class PartRules
 {
@@ -28,14 +31,15 @@ public static partial class PartRules
 
     /// <summary>
     /// The adventures <paramref name="outline"/> and <paramref name="pages"/> (each page's text, in order) say the
-    /// file holds, or none.
+    /// file holds, with where the book says it is a collection; or null.
     /// </summary>
-    public static IReadOnlyList<ProposedPart> Propose(IReadOnlyList<(string Title, int Page, int Depth)> outline, IReadOnlyList<string> pages)
+    public static Compilation? Propose(IReadOnlyList<(string Title, int Page, int Depth)> outline, IReadOnlyList<string> pages)
     {
         var count = pages.Count;
-        if (count == 0) return [];
+        if (count == 0) return null;
         var proposed = HasMarks(outline, count) ? FromBookmarks(Candidates(outline, count), pages) : FromPages(pages);
-        return proposed.Count >= MinimumParts ? proposed : [];
+        if (proposed.Count < MinimumParts) return null;
+        return FindCollection(pages, proposed[0].Pages.First) is { } evidence ? new Compilation(evidence, proposed) : null;
     }
 
     static bool HasMarks(IReadOnlyList<(string Title, int Page, int Depth)> outline, int pageCount) =>
@@ -77,7 +81,7 @@ public static partial class PartRules
     {
         var proposed = new List<ProposedPart>();
         foreach (var candidate in candidates)
-            if (Blurb(pages, candidate.Pages.First) is { } blurb)
+            if (Blurb(pages, candidate.Pages) is { } blurb)
                 proposed.Add(candidate with { Levels = blurb.Levels?.ToString(), Quote = blurb.Quote });
         return proposed;
     }
@@ -106,30 +110,52 @@ public static partial class PartRules
     /// <summary>Front and back matter that is never an adventure, however its pages read.</summary>
     public static bool IsMatter(string title)
     {
-        var words = MetadataText.Words(MetadataText.Normalize(title));
+        var words = Unnumbered(MetadataText.Words(MetadataText.Normalize(title)));
         if (words.Length == 0) return true;
         return words[0] is "credits" or "introduction" or "intro" or "foreword" or "preface" or "appendix" or "appendices" or "index" or "contents"
-                or "ogl" or "legal" or "license" or "licence"
+                or "ogl" or "legal" or "license" or "licence" or "cover" or "ad" or "ads" or "advert" or "advertisement" or "advertisements"
+            || (words.Length >= 2 && words[0] is "front" or "back" or "rear" && words[1] == "cover")
             || (words.Length >= 3 && words[0] == "open" && words[1] == "game" && words[2] is "license" or "licence")
             || (words.Length >= 3 && words[0] == "table" && words[1] == "of" && words[2] == "contents");
     }
 
+    /// <summary>A title's words without its numbering: "1. Introduction" and "Chapter 2: Credits" are matter too.</summary>
+    static string[] Unnumbered(string[] words)
+    {
+        var skip = 0;
+        if (words.Length > 1 && words[0] is "chapter" or "part" or "section" or "act") skip = 1;
+        while (skip < words.Length - 1 && (words[skip].All(char.IsAsciiDigit) || RomanNumeral().IsMatch(words[skip]))) skip++;
+        return words[skip..];
+    }
+
+    [GeneratedRegex(@"^(?:i{1,3}|iv|vi{0,3}|ix|xi{0,3})$")]
+    private static partial Regex RomanNumeral();
+
     sealed record Found(string Quote, LevelRange? Levels);
 
-    /// <summary>The blurb on <paramref name="page"/> or the page after, if either has one.</summary>
-    static Found? Blurb(IReadOnlyList<string> pages, int page)
+    /// <summary>The blurb on the first page of <paramref name="range"/> or the page after, if either has one.</summary>
+    static Found? Blurb(IReadOnlyList<string> pages, PartPages range)
     {
-        for (var i = page; i < Math.Min(pages.Count, page + BlurbPages); i++)
+        // Only the candidate's own pages: the next one's blurb, or a back cover's, isn't this one's.
+        for (var i = range.First; i < Math.Min(Math.Min(pages.Count, range.Last + 1), range.First + BlurbPages); i++)
             if (Find(pages[i]) is { } found) return found;
         return null;
     }
+
+    /// <summary>A page giving this many different level ranges lists adventures, as a contents page does, rather than opening one.</summary>
+    const int ListedLevels = 4;
 
     /// <summary>An adventure's blurb in a page's text: what it says, and the levels it gives, if it gives them.</summary>
     static Found? Find(string text)
     {
         var tidy = MetadataText.Tidy(text);
+        var given = CharactersOfLevel().Matches(tidy).Concat(PartyOfLevel().Matches(tidy)).Concat(LevelsSpan().Matches(tidy))
+            .Select(m => m.Value.ToUpperInvariant()).Distinct().Count();
+        if (given >= ListedLevels) return null;
         if (CharactersOfLevel().Match(tidy) is { Success: true } characters)
             return new Found(characters.Value, Range(characters.Groups["min"].Value, characters.Groups["max"].Value));
+        if (PartyOfLevel().Match(tidy) is { Success: true } party)
+            return new Found(party.Value, Range(party.Groups["min"].Value, party.Groups["max"].Value));
         if (LevelsSpan().Match(tidy) is { Success: true } span)
             return new Found(span.Value, Range(span.Groups["min"].Value, span.Groups["max"].Value));
         if (AnAdventureFor().Match(tidy) is { Success: true } adventure)
@@ -157,6 +183,11 @@ public static partial class PartRules
     [GeneratedRegex(@"\bfor\s+(?:\S+\s+){0,4}?characters\s+of\s+(?:levels?\s+)?(?<min>\d{1,2})(?:st|nd|rd|th)?(?:\s*(?:-|–|—|to|through)\s*(?<max>\d{1,2})(?:st|nd|rd|th)?)?(?:\s+level)?",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CharactersOfLevel();
+
+    /// <summary>"four 1st- to 2nd-level PCs", "4 3rd-level characters", "five 5th–7th level heroes".</summary>
+    [GeneratedRegex(@"\b(?:one|two|three|four|five|six|seven|eight|\d)\s+(?<min>\d{1,2})(?:st|nd|rd|th)(?:[\s-]*(?:level[\s-]*)?(?:-|–|—|to|through)[\s-]*(?<max>\d{1,2})(?:st|nd|rd|th))?[\s-]*level\s+(?:pcs|characters|player\s+characters|adventurers|heroes)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PartyOfLevel();
 
     /// <summary>"levels 1-3", "levels 1–3", "levels 5 to 7".</summary>
     [GeneratedRegex(@"\blevels\s+(?<min>\d{1,2})\s*(?:-|–|—|to|through)\s*(?<max>\d{1,2})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

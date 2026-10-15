@@ -6,6 +6,20 @@
   its own, at the page the suggestion's evidence is on, while Needs review stays put so you can read and decide side
   by side. Middle-click or **Shift+Enter** on the title does the same. The cards share the window, so going down the
   list shows each book in it instead of opening another.
+
+## 1.2 · 13 October 2026
+
+New in 1.2.530 (15 October 2026):
+
+- **Adventures are proposed only when the book says it holds them.** A campaign whose chapters each start with a
+  level blurb no longer looks like a collection. The rules and the AI now look for the book's own words, before its
+  first adventure or on its back cover, saying it is a collection of separate adventures or one-shots, and the Needs
+  review card shows those words and their page. Proposals still waiting are cleared and the rules look at the library
+  again; files you already accepted or kept as one book stay as they are. The AI asks the stricter question for books
+  it reads from now on. Blurbs such as "four 1st- to 2nd-level PCs" are now read, and bookmarks for covers and ads,
+  or a contents page listing levels, no longer make adventures.
+- **Fixed: the question about a file's adventures could send watermark lines to the AI.** The lines naming the buyer
+  and their order are now left out, as they already were when the AI catalogues a book.
 - **The Library remembers its order.** The order picked in the toolbar, for the books and for the matching pages,
   stays the next time the Library opens, after a restart too. Browsing and searching each keep their own, so
   **Best match** still comes with a search. A saved search still opens in the order it was saved with.
@@ -26,8 +40,6 @@
   just shown, and the app carries on.
 - **Problems that used to pass silently are now in the log:** a library sync change that keeps failing to apply, and
   background work such as loading a cover or saving a note that fails.
-
-## 1.2 · 13 October 2026
 
 New in 1.2.487 (14 October 2026):
 
