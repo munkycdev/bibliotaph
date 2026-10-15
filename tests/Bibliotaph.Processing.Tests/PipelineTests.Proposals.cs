@@ -26,6 +26,9 @@ public abstract partial class PipelineTests
             Assert.Equal((book.EntryId, book.DocumentId, PartProposalSource.Rules), (proposal.FileEntryId, proposal.DocumentId, proposal.Source));
             Assert.Equal([("The Salt Mine", new PartPages(1, 2), "1"), ("Lantern Night", new PartPages(3, 4), "3-5")],
                 proposal.Parts.Select(p => (p.Title, p.Pages, p.Levels)));
+            // The credits say it is a collection, which blurbs alone never would.
+            Assert.Equal(0, proposal.Evidence!.PdfPage);
+            Assert.EndsWith("Two short adventures, each of which can be run on its own.", proposal.Evidence.Quote, StringComparison.Ordinal);
             Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
             var count = await review.CountAsync(Ct);
 

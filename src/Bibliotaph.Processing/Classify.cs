@@ -526,8 +526,8 @@ public sealed class ClassifyStage(
     }
 
     /// <summary>
-    /// Asks the model which of the book's bookmarks are self-contained adventures, when nothing has been proposed for
-    /// it; those that pass the evidence check wait in Needs review. A failure here costs only the proposal: the book's
+    /// Asks the model whether the book says it is a collection of separate adventures and which of its bookmarks they
+    /// are, when nothing has been proposed for it; those that pass the evidence check wait in Needs review. A failure here costs only the proposal: the book's
     /// own values are stored, and it is asked again when it is reclassified.
     /// </summary>
     async Task FindPartsAsync(long documentId, ModelClassifier classifier, CancellationToken ct)
@@ -540,7 +540,7 @@ public sealed class ClassifyStage(
             _log.LogInformation("Asked {Model} for the adventures in document {DocumentId}: {Accepted} kept, {Dropped} dropped ({Reasons})",
                 classifier.Model, documentId, found.Accepted.Count, found.Dropped.Count,
                 string.Join("; ", found.Dropped.GroupBy(d => d.Reason).Select(g => $"{g.Count().ToString(CultureInfo.InvariantCulture)} × {g.Key}")));
-            await proposals.ProposeFromModelAsync(documentId, found.Accepted, CancellationToken.None);
+            await proposals.ProposeFromModelAsync(documentId, found.Compilation, CancellationToken.None);
         }
         catch (Exception ex) when (ex is ModelEndpointException or ClassifierAnswerException)
         {

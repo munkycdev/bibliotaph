@@ -10,11 +10,12 @@ namespace Bibliotaph.Processing.Tests;
 public abstract partial class PipelineTests
 {
     /// <summary>
-    /// The adventures in the quiet compilation (Fog Tales) with true quotes, plus a candidate that doesn't
-    /// exist, one given twice, and one whose quote isn't on its page.
+    /// Where the quiet compilation (Fog Tales) says it is a collection, and its adventures with true quotes, plus a
+    /// candidate that doesn't exist, one given twice, and one whose quote isn't on its page.
     /// </summary>
     const string FoundAdventures = """
-        {"adventures": [
+        {"collection": {"page": 1, "quote": "Two stand-alone scenarios for one evening each"},
+         "adventures": [
           {"candidate": 1, "title": "The Bell Tower", "levels": "2", "page": 2, "quote": "Recommended party: level 2"},
           {"candidate": 2, "title": "Fog Market", "levels": "4-5", "page": 4, "quote": "Recommended party: levels 4 and 5"},
           {"candidate": 2, "title": "Fog Market Again", "levels": "", "page": 4, "quote": "A night of trading goes wrong"},
@@ -71,6 +72,7 @@ public abstract partial class PipelineTests
             // What passed the check waits in Needs review as AI's proposal; nothing is made by itself.
             var proposal = Assert.Single(await _proposals.GetPendingAsync(Ct));
             Assert.Equal(PartProposalSource.Ai, proposal.Source);
+            Assert.Equal(new CollectionEvidence(0, "Two stand-alone scenarios for one evening each"), proposal.Evidence);
             Assert.Equal([("The Bell Tower", new PartPages(1, 2), "2"), ("Fog Market", new PartPages(3, 4), "4-5")],
                 proposal.Parts.Select(p => (p.Title, p.Pages, p.Levels)));
             var search = new LibraryQueries(_index);

@@ -15,8 +15,10 @@ public sealed record ProposedPart(string Title, PartPages Pages, string? Levels 
 /// under a single top-level bookmark, leaving out front and back matter (credits, an introduction, appendices, an
 /// index, the licence). A candidate starts an adventure when its first two pages carry an adventure's blurb ("for four
 /// characters of 3rd level", "levels 1-3", "an adventure for"); it runs to the next candidate. Two or more starts make
-/// a proposal. A file with no bookmarks is read page by page, and the blurb alone decides, the first line of the page
-/// being the title. The blurb gives the level range.
+/// a proposal. A file with no bookmarks is read page by page, and the blurb alone finds the starts, the first line of
+/// the page being the title. The blurb gives the level range. Blurbs alone never make a proposal: campaign books print
+/// one at the start of every chapter, so the book must also say, before its first adventure or on its back cover, that
+/// it is a collection of separate adventures (<see cref="FindCollection"/>).
 /// </summary>
 public static partial class PartRules
 {
@@ -28,14 +30,15 @@ public static partial class PartRules
 
     /// <summary>
     /// The adventures <paramref name="outline"/> and <paramref name="pages"/> (each page's text, in order) say the
-    /// file holds, or none.
+    /// file holds, with where the book says it is a collection; or null.
     /// </summary>
-    public static IReadOnlyList<ProposedPart> Propose(IReadOnlyList<(string Title, int Page, int Depth)> outline, IReadOnlyList<string> pages)
+    public static Compilation? Propose(IReadOnlyList<(string Title, int Page, int Depth)> outline, IReadOnlyList<string> pages)
     {
         var count = pages.Count;
-        if (count == 0) return [];
+        if (count == 0) return null;
         var proposed = HasMarks(outline, count) ? FromBookmarks(Candidates(outline, count), pages) : FromPages(pages);
-        return proposed.Count >= MinimumParts ? proposed : [];
+        if (proposed.Count < MinimumParts) return null;
+        return FindCollection(pages, proposed[0].Pages.First) is { } evidence ? new Compilation(evidence, proposed) : null;
     }
 
     static bool HasMarks(IReadOnlyList<(string Title, int Page, int Depth)> outline, int pageCount) =>

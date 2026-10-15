@@ -172,11 +172,12 @@ static partial class SmokeTest
         var entry = await services.GetRequiredService<EntryStore>().GetEntryAsync(documentId) ?? throw new InvalidOperationException("The smoke PDF has no card.");
         var proposals = services.GetRequiredService<PartProposalService>();
         var parts = services.GetRequiredService<PartsService>();
-        await services.GetRequiredService<PartProposalStore>().SaveAsync(entry.ContentHash, PartProposalSource.Rules,
-        [
-            new ProposedPart("The Front Matter", new PartPages(0, 0)),
-            new ProposedPart("The Mill Wheel", new PartPages(1, 1), "2", "for four characters of 2nd level"),
-        ]);
+        await services.GetRequiredService<PartProposalStore>().SaveAsync(entry.ContentHash, PartProposalSource.Rules, new Compilation(
+            new CollectionEvidence(0, "Two short adventures, each playable on its own."),
+            [
+                new ProposedPart("The Front Matter", new PartPages(0, 0)),
+                new ProposedPart("The Mill Wheel", new PartPages(1, 1), "2", "for four characters of 2nd level"),
+            ]));
         if (await proposals.CountPendingAsync() != 1) throw new InvalidOperationException("The proposal isn't counted for Needs review.");
 
         var shell = services.GetRequiredService<ShellViewModel>();
@@ -192,6 +193,8 @@ static partial class SmokeTest
         var card = Proposal()!;
         if (card.Heading != "This file looks like it holds 2 adventures." || card.Rows is not [{ Summary: "p. i" }, { Summary: "p. 1 · Level 2" }])
             throw new InvalidOperationException($"The card says “{card.Heading}”, {string.Join(", ", card.Rows.Select(r => r.Summary))}.");
+        if (!card.Detail.StartsWith("The book says “Two short adventures, each playable on its own.” (p. i).", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The card doesn't show where the book says it is a collection: “{card.Detail}”.");
         Button? On(string name, System.Windows.Input.ICommand command) => Descendants<Button>(window).FirstOrDefault(b => b.Name == name && b.Command == command);
 
         await WaitUntilAsync(window, () => Shown(window, "NotSplit"), () => "The proposal has no Not split.");

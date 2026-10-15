@@ -280,14 +280,14 @@ public sealed class SyntheticPdfs : IDisposable
     }
 
     /// <summary>
-    /// A made-up compilation of two adventures: credits, each adventure with its blurb on its first page,
-    /// and an appendix, with a top-level bookmark for each.
+    /// A made-up compilation of two adventures: credits that say it is one, each adventure with its blurb on its first
+    /// page, and an appendix, with a top-level bookmark for each.
     /// </summary>
     public string Compilation { get; }
 
     public static readonly string[][] CompilationPages =
     [
-        ["Credits", "Written by Ana Ruiz and Dale Ito"],
+        ["Credits", "Written by Ana Ruiz and Dale Ito", "Two short adventures, each of which can be run on its own."],
         ["The Salt Mine", "An adventure for four characters of 1st level"],
         ["The mine's shafts run deep under the marsh, where the salt glows."],
         ["Lantern Night", "A festival adventure for characters of 3rd to 5th level"],
@@ -298,14 +298,15 @@ public sealed class SyntheticPdfs : IDisposable
     static readonly (string Title, int Page)[] CompilationOutline = [("Credits", 0), ("The Salt Mine", 1), ("Lantern Night", 3), ("Appendix: New Monsters", 5)];
 
     /// <summary>
-    /// Two adventures between credits and an appendix, bookmarked like <see cref="Compilation"/>, but with nothing on
-    /// their first pages that the rules read as a blurb: only a model can tell they are adventures.
+    /// Two adventures between credits that say it is a collection and an appendix, bookmarked like
+    /// <see cref="Compilation"/>, but with nothing on their first pages that the rules read as a blurb: only a model can
+    /// tell they are adventures.
     /// </summary>
     public string QuietCompilation { get; }
 
     public static readonly string[][] QuietCompilationPages =
     [
-        ["Credits", "Written by Ana Ruiz and Dale Ito for the Marsh Guild"],
+        ["Credits", "Written by Ana Ruiz and Dale Ito for the Marsh Guild", "Two stand-alone scenarios for one evening each."],
         ["The Bell Tower", "A scenario for heroes of modest experience.", "Recommended party: level 2"],
         ["The tower's bells ring at noon, and something answers from the deep water."],
         ["Fog Market", "A night of trading goes wrong in the harbour.", "Recommended party: levels 4 and 5"],

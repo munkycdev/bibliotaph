@@ -141,9 +141,12 @@ An anthology or a magazine can hold several adventures. Each can be marked as an
 details, cover and page range, while the file stays one file. Mark one with **Mark as adventure** in the reader,
 **Index as its own adventure…** on a bookmark in the reader's Contents, or **Adventures in this file** in the details.
 
-When a file's bookmarks and first pages show it holds several adventures, Needs review says "This file looks like it
-holds 4 adventures." with a list you can tick, and **Edit**, **Accept** and **Not split**. With AI turned on, the AI
-helps find them too, and reads each adventure on its own pages to fill in its details.
+When a file says, in its own words, that it holds several separate adventures ("a collection of four adventures",
+"each can be run on its own", "six one-shots"), Needs review says "This file looks like it holds 4 adventures." with
+those words and their page, a list you can tick, and **Edit**, **Accept** and **Not split**. Its bookmarks and the blurbs
+on their first pages show where each adventure starts. A campaign whose chapters each say which level they're for
+isn't proposed, since it doesn't call itself a collection. With AI turned on, the AI helps find them too, quoting where
+the book says so, and reads each adventure on its own pages to fill in its details.
 
 While you browse, adventures stay inside their book: the file's card says how many it holds ("3 adventures"), and
 its details list them under **Adventures in this file**, where clicking one shows its own details. A search finds

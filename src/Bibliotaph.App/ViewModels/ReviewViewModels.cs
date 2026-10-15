@@ -510,15 +510,18 @@ public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReview
 }
 
 /// <summary>
-/// "This file looks like it holds 5 adventures": a ticked list of the adventures proposed, with their titles and
-/// pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not split" keeps the file
+/// "This file looks like it holds 5 adventures": where the book says it is a collection, and a ticked list of the
+/// adventures proposed, with their titles and pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not split" keeps the file
 /// as one book. Either is remembered, and can be undone.
 /// </summary>
 public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
 {
+    readonly IReadOnlyList<string?> _labels;
+
     public PartProposalCardViewModel(PartProposalItem item, IReadOnlyList<string?> labels, IReviewActions actions) : base(actions)
     {
         Item = item;
+        _labels = labels;
         Rows = [.. item.Parts.Select(p => new ProposedPartRow(this, p, labels))];
     }
 
@@ -530,9 +533,19 @@ public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
 
     public string Chip => Item.Source == PartProposalSource.Ai ? "Adventures? Read with AI" : "Adventures?";
 
-    public string Detail => Item.Source == PartProposalSource.Ai
-        ? "A model read its contents and the first page of each. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed."
-        : "Its bookmarks and the blurbs on their first pages say so. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+    public string Detail
+    {
+        get
+        {
+            var says = Item.Evidence is { } evidence
+                ? $"The book says “{evidence.Quote}” (p. {Bibliotaph.Core.Reading.PageNumbers.Display(evidence.PdfPage, _labels)}). "
+                : "";
+            var found = Item.Source == PartProposalSource.Ai
+                ? "A model read its contents and the first page of each to find them."
+                : "Its bookmarks and the blurbs on their first pages show where each starts.";
+            return $"{says}{found} Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+        }
+    }
 
     public IReadOnlyList<ProposedPartRow> Rows { get; }
 

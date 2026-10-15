@@ -241,6 +241,37 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Adventure_proposals_still_waiting_are_dropped_so_they_are_asked_again_with_the_books_own_words_and_answers_stay()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var database = Database();
+        await using (var context = database.CreateContext())
+        {
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261013200000_CatalogChapterScans", ct);
+        }
+        using (var c = new SqliteConnection(database.ConnectionString))
+        {
+            c.Open();
+            using var command = c.CreateCommand();
+            command.CommandText = $"""
+                INSERT INTO part_proposal (content_hash, source, parts_json, answer, created_utc, decided_utc) VALUES
+                    ('{new string('a', 64)}', 'Rules', '[]', NULL, '2026-10-12 12:00:00', NULL),
+                    ('{new string('b', 64)}', 'Ai', '[]', NULL, '2026-10-12 12:00:00', NULL),
+                    ('{new string('c', 64)}', 'Rules', '[]', 'NotSplit', '2026-10-12 12:00:00', '2026-10-13 12:00:00'),
+                    ('{new string('d', 64)}', 'Ai', '[]', 'Accepted', '2026-10-12 12:00:00', '2026-10-13 12:00:00');
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var result = await database.MigrateAsync(ct);
+
+        Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_CatalogPartProposalEvidence", StringComparison.Ordinal));
+        var cs = database.ConnectionString;
+        Assert.Equal(2, Scalar(cs, "SELECT count(*) FROM part_proposal WHERE answer IS NOT NULL AND evidence IS NULL AND evidence_page IS NULL"));
+        Assert.Equal(0, Scalar(cs, "SELECT count(*) FROM part_proposal WHERE answer IS NULL"));
+    }
+
+    [Fact]
     public async Task Themes_that_name_a_kind_of_adventure_move_to_style_with_their_values_and_the_new_terms_take_their_names()
     {
         var ct = TestContext.Current.CancellationToken;
