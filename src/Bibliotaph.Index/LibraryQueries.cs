@@ -80,6 +80,9 @@ public sealed record LibraryEntry(
     /// </summary>
     public bool FoundInBook { get; init; }
 
+    /// <summary>How many players it is written for, as cards show it ("4–6 players"), when someone has said.</summary>
+    public string? Players { get; init; }
+
     /// <summary>"in The Big Compilation · pp. 34–52", for an adventure's card; null for any other.</summary>
     public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
@@ -231,7 +234,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable, s.status AS TextStatus, s.reason AS TextReason,
         ps.status AS ProbeStatus, ps.reason AS ProbeReason,
         m.system_label AS SystemLabel, m.kind_label AS KindLabel, m.publisher AS Publisher, m.level_min AS LevelMin, m.level_max AS LevelMax,
-        coalesce(m.level_state, 'unknown') AS LevelState, coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
+        coalesce(m.level_state, 'unknown') AS LevelState, m.players_min AS PlayersMin, m.players_max AS PlayersMax,
+        coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
         ai.model AS AiModel, e.copies AS Copies, e.kind AS EntryKind, e.members AS Members,
         CASE WHEN e.kind = 'Pack' THEN (
             SELECT json_group_array(cover) FROM (
@@ -733,6 +737,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             OnlineLink = r.OnlineLink,
             OnlineLabel = r.OnlineLabel,
             FoundInBook = partsInBooks && r.EntryKind == nameof(EntryKind.Part),
+            Players = r.PlayersMin is { } fewest && r.PlayersMax is { } most ? new PlayerRange((int)fewest, (int)most).Describe() : null,
         })];
 
     /// <summary>
@@ -787,6 +792,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         public long? LevelMin { get; init; }
         public long? LevelMax { get; init; }
         public string LevelState { get; init; } = "unknown";
+        public long? PlayersMin { get; init; }
+        public long? PlayersMax { get; init; }
         public long NeedsReview { get; init; }
         public long Suggested { get; init; }
         public string? AiModel { get; init; }

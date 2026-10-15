@@ -638,8 +638,11 @@ public sealed partial class ProposedPartRow(PartProposalCardViewModel card, Prop
     /// <summary>"Levels 1–3", from its blurb; empty when it gave none.</summary>
     public string Levels => part.Levels is { } levels && LevelRange.TryParse(levels, out var range) ? range.Describe() : "";
 
-    /// <summary>"pp. 34–52 · Levels 1–3".</summary>
-    public string Summary => Levels.Length > 0 ? $"{PagesText} · {Levels}" : PagesText;
+    /// <summary>"4–6 players", from its blurb; empty when it gave none.</summary>
+    public string Players => PartRules.Party(part.Quote)?.Describe() ?? "";
+
+    /// <summary>"pp. 34–52 · Levels 1–3 · 4 players".</summary>
+    public string Summary => string.Join(" · ", new[] { PagesText, Levels, Players }.Where(s => s.Length > 0));
 
     partial void OnIsCheckedChanged(bool value) => card.Ticked();
 

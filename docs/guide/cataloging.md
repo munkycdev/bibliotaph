@@ -34,7 +34,7 @@ The **Details** tab shows:
 - The fields: title, game system, edition, type, levels, players, duration, style, setting, themes, environments,
   publisher, authors, series, year, your tags, where else you own it (**Also own**, with the book's page online if you
   like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
-  **More fields**.
+  **More fields**, except the main ones, and **Players** on an adventure, so you can say who it's for straight away.
 - **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
 - **Where it is**: the file's folder, with **Show in File Explorer**.
 - **Copies**, when the book is in more than one file.
@@ -146,13 +146,17 @@ the pack's card.
 An anthology or a magazine can hold several adventures. Each can be marked as an adventure of its own, with its own
 details, cover and page range, while the file stays one file. Mark one with **Mark as adventure** in the reader,
 **Index as its own adventure…** on a bookmark in the reader's Contents, or **Adventures in this file** in the details.
+If the adventure's first page or the one after has a blurb such as "for four to six characters of 3rd level",
+Bibliotaph suggests its levels and players from it, quoting the blurb. Type over them in its details, as with any
+field; values you set are never replaced.
 
 When a file says, in its own words, that it holds several separate adventures ("a collection of four adventures",
 "each can be run on its own", "six one-shots"), Needs review says "This file looks like it holds 4 adventures." with
-those words and their page, a list you can tick, and **Edit**, **Accept** and **Not split**. Its bookmarks and the blurbs
-on their first pages show where each adventure starts. A campaign whose chapters each say which level they're for
-isn't proposed, since it doesn't call itself a collection. With AI turned on, the AI helps find them too, quoting where
-the book says so, and reads each adventure on its own pages to fill in its details.
+those words and their page, a list you can tick showing each adventure's pages, levels and players as its blurb gives
+them, and **Edit**, **Accept** and **Not split**. Its bookmarks and the blurbs on their first pages show where each
+adventure starts. A campaign whose chapters each say which level they're for isn't proposed, since it doesn't call
+itself a collection. With AI turned on, the AI helps find them too, quoting where the book says so, and reads each
+adventure on its own pages to fill in its details.
 
 While you browse, adventures stay inside their book: the file's card says how many it holds ("3 adventures"), and
 its details list them under **Adventures in this file**, where clicking one shows its own details. A search finds

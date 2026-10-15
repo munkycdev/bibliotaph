@@ -191,7 +191,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => !page.IsLoading && Proposal() is not null,
             () => $"The proposal isn't a card in Needs review (proposal cards: {string.Join(", ", page.Cards.OfType<PartProposalCardViewModel>().Select(c => c.Item.FileTitle))}).");
         var card = Proposal()!;
-        if (card.Heading != "This file looks like it holds 2 adventures." || card.Rows is not [{ Summary: "p. i" }, { Summary: "p. 1 · Level 2" }])
+        if (card.Heading != "This file looks like it holds 2 adventures." || card.Rows is not [{ Summary: "p. i" }, { Summary: "p. 1 · Level 2 · 4 players" }])
             throw new InvalidOperationException($"The card says “{card.Heading}”, {string.Join(", ", card.Rows.Select(r => r.Summary))}.");
         if (!card.Detail.StartsWith("The book says “Two short adventures, each playable on its own.” (p. i).", StringComparison.Ordinal))
             throw new InvalidOperationException($"The card doesn't show where the book says it is a collection: “{card.Detail}”.");

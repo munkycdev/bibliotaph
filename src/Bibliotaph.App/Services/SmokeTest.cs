@@ -629,6 +629,8 @@ static partial class SmokeTest
         if (players.Problem is not null) throw new InvalidOperationException($"Saving players said: {players.Problem}");
         await WaitUntilAsync(window, () => Field(MetadataFields.Players) is { Display: "4–6 players", IsSuggested: false },
             () => $"The players field says {Field(MetadataFields.Players).Display}, not 4–6 players.");
+        await WaitUntilAsync(window, () => page.Items.Any(i => i is { Title: "Haunted Inn", PlayersLabel: "4–6 players" }),
+            () => "The book's row in the list doesn't say 4–6 players.");
         page.Filters.PlayersChoice = page.Filters.PlayersChoices.First(c => c.Value == 5);
         await WaitUntilAsync(window, () => page.Items is [{ Title: "Haunted Inn" }], () => $"Filtering by 5 players shows {page.Items.Count} books, not 1.");
         page.Filters.ClearFiltersCommand.Execute(null);
