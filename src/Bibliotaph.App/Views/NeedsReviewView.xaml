@@ -45,6 +45,15 @@
       </Setter>
     </Style>
 
+    <!-- Opens a card's book in a window of its own, so the card can be decided with the book beside it. -->
+    <Style x:Key="WindowButton" TargetType="Button" BasedOn="{StaticResource Bt.IconButton}">
+      <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.SquareArrowOutUpRight}" />
+      <Setter Property="ToolTip" Value="Open in a window beside this page (Shift+Enter)" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="DockPanel.Dock" Value="Right" />
+      <Setter Property="Margin" Value="8,-4,0,0" />
+    </Style>
+
     <!-- A decided card: what happened, and Undo. -->
     <DataTemplate x:Key="Decided" DataType="{x:Type vm:DecidedCardViewModel}">
       <DockPanel>
@@ -70,7 +79,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="{Binding FieldLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenCommand}" ToolTip="Open the book"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenInWindowCommand}" ToolTip="Open the book"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
             </DockPanel>
             <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
@@ -198,7 +210,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="New version?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this file"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenFileInWindowCommand}" ToolTip="Open this file"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
             </DockPanel>
             <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -210,8 +225,12 @@
               <StackPanel>
                 <TextBlock Text="{Binding Evidence}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                <Button Style="{StaticResource Bt.Link}" Content="Open the book" Command="{Binding OpenBookCommand}" HorizontalAlignment="Left"
-                        Margin="0,6,0,0" ToolTip="{Binding BookPath}" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                  <Button Style="{StaticResource Bt.Link}" Content="Open the book" Command="{Binding OpenBookCommand}" CommandParameter="{Binding}"
+                          c:NewWindowGesture.Command="{Binding OpenBookInWindowCommand}" ToolTip="{Binding BookPath}" VerticalAlignment="Center" />
+                  <Button Style="{StaticResource WindowButton}" Command="{Binding OpenBookInWindowCommand}" VerticalAlignment="Center" Margin="4,0,0,0"
+                          AutomationProperties.Name="Open the book in a window" />
+                </StackPanel>
               </StackPanel>
             </DockPanel>
             <WrapPanel Margin="0,16,0,0">
@@ -239,7 +258,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="New version" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button x:Name="OpenRevisedBook" Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenBookCommand}" ToolTip="Open the new version"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenBookInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button x:Name="OpenRevisedBook" Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenBookCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenBookInWindowCommand}" ToolTip="Open the new version"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
             </DockPanel>
             <TextBlock x:Name="RevisionHeading" Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -253,8 +275,11 @@
                   <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,8" Margin="0,0,0,6" AutomationProperties.Name="{Binding Heading}">
                     <DockPanel>
                       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                        <Button x:Name="OpenPlace" Style="{StaticResource Bt.Link}" Content="Open" Command="{Binding OpenCommand}" Margin="0,0,12,0"
+                        <Button x:Name="OpenPlace" Style="{StaticResource Bt.Link}" Content="Open" Command="{Binding OpenCommand}" CommandParameter="{Binding}"
+                                c:NewWindowGesture.Command="{Binding OpenInWindowCommand}"
                                 ToolTip="Open the new version at this page" AutomationProperties.Name="{Binding OpenName}" />
+                        <Button x:Name="OpenPlaceInWindow" Style="{StaticResource WindowButton}" Command="{Binding OpenInWindowCommand}" VerticalAlignment="Center"
+                                Margin="4,0,12,0" AutomationProperties.Name="{Binding OpenInWindowName}" />
                         <Button x:Name="UsePlace" Style="{StaticResource Bt.Link}" Content="Use this page" Command="{Binding UseCommand}"
                                 ToolTip="This place opens at the page suggested from now on" AutomationProperties.Name="{Binding UseName}"
                                 Visibility="{Binding CanUse, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -309,7 +334,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Owned elsewhere" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this file"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenFileInWindowCommand}" ToolTip="Open this file"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
             </DockPanel>
             <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -339,7 +367,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Cataloged wrong" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this book"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenFileInWindowCommand}" ToolTip="Open this book"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
             </DockPanel>
             <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -432,9 +463,15 @@
             <ItemsControl ItemsSource="{Binding Books}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="Books suggested">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Button Style="{StaticResource Bt.Link}" Content="{Binding Title}" HorizontalAlignment="Left" Margin="0,2,0,0" ToolTip="Open this book"
-                          Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                          AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+                  <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <Button Style="{StaticResource Bt.Link}" Content="{Binding Title}" ToolTip="Open this book" VerticalAlignment="Center"
+                            Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                            c:NewWindowGesture.Command="{Binding DataContext.OpenBookInWindowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+                    <Button Style="{StaticResource WindowButton}" VerticalAlignment="Center" Margin="4,0,0,0"
+                            Command="{Binding DataContext.OpenBookInWindowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                            AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+                  </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -461,7 +498,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="{Binding Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open this file"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenFileInWindowCommand}" ToolTip="Open this file"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
             </DockPanel>
             <TextBlock x:Name="ProposalHeading" Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -525,7 +565,10 @@
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Adventure in a file" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
-              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" ToolTip="Open its file"
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenFileInWindowCommand}" ToolTip="Open its file"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open the file {0} is in'}" />
             </DockPanel>
             <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />

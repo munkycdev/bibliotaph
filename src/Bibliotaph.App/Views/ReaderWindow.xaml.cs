@@ -27,7 +27,12 @@ public partial class ReaderWindow
         DataContext = model;
         if (model is ViewerViewModel reader)
         {
-            Title = string.IsNullOrWhiteSpace(reader.Title) ? "Bibliotaph" : reader.Title;
+            ShowTitle(reader);
+            // Another book can follow in the same window, as Needs review shows card after card's book in one.
+            reader.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(PageViewModel.Title)) ShowTitle(reader);
+            };
             Host.Margin = new Thickness(22, 18, 22, 18);
             // Esc only clears find (or a selection, first); it never closes the window.
             InputBindings.Add(new KeyBinding(reader.Find.ClearCommand, Key.Escape, ModifierKeys.None));
@@ -53,6 +58,8 @@ public partial class ReaderWindow
     }
 
     public PageViewModel Model { get; }
+
+    void ShowTitle(ViewerViewModel reader) => Title = string.IsNullOrWhiteSpace(reader.Title) ? "Bibliotaph" : reader.Title;
 
     /// <summary>Where the window was as it closed; null until then.</summary>
     public WindowPlacement? Placement { get; private set; }

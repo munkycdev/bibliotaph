@@ -33,9 +33,12 @@ public interface IReviewActions
     Task<Func<Task>> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer);
     Task<Func<Task>> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer);
     void OpenPlace(RevisionItem item, RevisionPlace place);
+    Task OpenPlaceInWindowAsync(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
+    Task OpenInWindowAsync(ReviewItem item);
     void OpenDocument(long documentId, string title);
+    Task OpenDocumentInWindowAsync(long documentId, string title);
     void Decided(int change);
 }
 
@@ -275,6 +278,9 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
 
     [RelayCommand]
     void Open() => Actions.Open(Item);
+
+    [RelayCommand]
+    Task OpenInWindow() => Actions.OpenInWindowAsync(Item);
 }
 
 /// <summary>
@@ -369,7 +375,13 @@ public sealed partial class VersionCardViewModel(VersionItem item, IReviewAction
     void OpenFile() => Actions.OpenDocument(Version.DocumentId, Title);
 
     [RelayCommand]
+    Task OpenFileInWindow() => Actions.OpenDocumentInWindowAsync(Version.DocumentId, Title);
+
+    [RelayCommand]
     void OpenBook() => Actions.OpenDocument(Version.MatchedDocumentId, Item.BookTitle);
+
+    [RelayCommand]
+    Task OpenBookInWindow() => Actions.OpenDocumentInWindowAsync(Version.MatchedDocumentId, Item.BookTitle);
 }
 
 /// <summary>
@@ -429,6 +441,9 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
+
+    [RelayCommand]
+    Task OpenFileInWindow() => Actions.OpenDocumentInWindowAsync(Item.Match.DocumentId, Title);
 }
 
 /// <summary>
@@ -480,6 +495,9 @@ public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOn
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Part.DocumentId, Part.FileTitle);
+
+    [RelayCommand]
+    Task OpenFileInWindow() => Actions.OpenDocumentInWindowAsync(Part.DocumentId, Part.FileTitle);
 }
 
 /// <summary>
@@ -507,6 +525,9 @@ public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReview
     {
         if (Item.DocumentId is { } id) Actions.OpenDocument(id, Title);
     }
+
+    [RelayCommand]
+    Task OpenFileInWindow() => Item.DocumentId is { } id ? Actions.OpenDocumentInWindowAsync(id, Title) : Task.CompletedTask;
 }
 
 /// <summary>
@@ -589,6 +610,9 @@ public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.DocumentId, Item.FileTitle);
+
+    [RelayCommand]
+    Task OpenFileInWindow() => Actions.OpenDocumentInWindowAsync(Item.DocumentId, Item.FileTitle);
 }
 
 /// <summary>An adventure on a proposal card: ticked to make its card, and its title and pages as the file numbers them.</summary>
@@ -748,6 +772,9 @@ public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggesti
     {
         if (book.DocumentId is { } id) Actions.OpenDocument(id, book.Title);
     }
+
+    [RelayCommand]
+    Task OpenBookInWindow(SuggestedBook book) => book.DocumentId is { } id ? Actions.OpenDocumentInWindowAsync(id, book.Title) : Task.CompletedTask;
 }
 
 /// <summary>How a folder rule reads, on its Needs review card and in Settings > Library.</summary>
@@ -820,7 +847,12 @@ public sealed partial class RevisionCardViewModel : DecidedCardViewModel
     [RelayCommand]
     void OpenBook() => Actions.OpenDocument(Item.DocumentId, Item.BookTitle);
 
+    [RelayCommand]
+    Task OpenBookInWindow() => Actions.OpenDocumentInWindowAsync(Item.DocumentId, Item.BookTitle);
+
     internal void Open(RevisionRowViewModel row) => Actions.OpenPlace(Item, row.Place);
+
+    internal Task OpenInWindowAsync(RevisionRowViewModel row) => Actions.OpenPlaceInWindowAsync(Item, row.Place);
 
     internal Task<Func<Task>?> UseAsync(RevisionRowViewModel row) => Actions.UsePlaceAsync(row.Place);
 
@@ -877,6 +909,8 @@ public sealed partial class RevisionRowViewModel(RevisionCardViewModel card, Rev
 
     public string OpenName => $"Open {Heading}";
 
+    public string OpenInWindowName => $"Open {Heading} in a window";
+
     public string UseName => $"Use the suggested page for {Heading}";
 
     public string UndoName => $"Undo the page for {Heading}";
@@ -896,6 +930,9 @@ public sealed partial class RevisionRowViewModel(RevisionCardViewModel card, Rev
 
     [RelayCommand]
     void Open() => card.Open(this);
+
+    [RelayCommand]
+    Task OpenInWindow() => card.OpenInWindowAsync(this);
 
     [RelayCommand]
     async Task Use()

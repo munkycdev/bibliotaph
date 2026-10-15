@@ -111,6 +111,8 @@ static partial class SmokeTest
                 await Check($"a PDF popped out in {preference}", () => PopOutAsync(services, window, files.Pdf));
                 await Check($"an image viewed in {preference}", () => ViewImageAsync(services, window, files.Image));
             }
+            await Check("a suggestion's book opened in a window beside Needs review at its evidence's page, the same window showing the next card's book, and a new one once it was closed",
+                () => OpenReviewInWindowAsync(services, window));
             await Check("every route drawn in the Windows contrast theme's colours", () => ShowContrastAsync(services, window));
             await Check("the Keyboard shortcuts popup, from Ctrl+/ and from the Settings link", () => ShowShortcutsAsync(services, window));
             await Check("the sidebar collapsed to its icons and expanded again", () => CollapseSidebarAsync(window));
@@ -890,6 +892,53 @@ static partial class SmokeTest
         await AuditAsync(window, "the reader with a book it can't open");
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// A card's window button opens its book in a pop-out at the page its evidence is on, while Needs review stays in the
+    /// main window to be decided. Another card's book shows in that same window, and once it is closed the next opens a
+    /// new one. The made-up books have no file, so only where each opens is checked, not what it draws.
+    /// </summary>
+    static async Task OpenReviewInWindowAsync(IServiceProvider services, Window window)
+    {
+        var navigation = services.GetRequiredService<INavigationService>();
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var readers = services.GetRequiredService<ReaderWindows>();
+        services.GetRequiredService<LibraryActivity>().Invalidate();
+        navigation.NavigateTo(Route.NeedsReview);
+        var page = shell.CurrentPage as NeedsReviewViewModel ?? throw new InvalidOperationException("The Needs review route didn't open Needs review.");
+        await WaitUntilAsync(window, () => !page.IsLoading && page.Cards.Count > 0, () => "Needs review shows no cards.");
+        var conflict = page.Cards.OfType<ReviewCardViewModel>().FirstOrDefault(c => c is { Kind: ReviewKind.Conflict, Title: "Dragon Lairs", IsDone: false })
+            ?? throw new InvalidOperationException("The classifier's disagreement with the Monsters folder isn't a card.");
+        var other = page.Cards.OfType<ReviewCardViewModel>().FirstOrDefault(c => c.Item.DocumentId != conflict.Item.DocumentId)
+            ?? throw new InvalidOperationException("No card is about another book.");
+        static int EvidencePage(ReviewCardViewModel card) => card.Item.Issue.Evidence is { Pages.Count: > 0 } claim ? claim.Pages[0] : 0;
+        await Settle(window);
+
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == conflict.OpenInWindowCommand), "Open Dragon Lairs in a window");
+        await WaitUntilAsync(window, () => readers.Windows.Count == 1, () => $"The window button opened {readers.Windows.Count} windows, not one.");
+        var popOut = readers.Windows[0];
+        var reader = popOut.Model as ViewerViewModel ?? throw new InvalidOperationException("The window doesn't show a reader.");
+        if (!ReferenceEquals(shell.CurrentPage, page)) throw new InvalidOperationException($"Opening a card's book in a window took the main window to {shell.CurrentPage?.Title}.");
+        if (popOut.Owner is not null || !reader.IsPoppedOut || popOut.Title != "Dragon Lairs" || reader.Here()?.PageIndex != EvidencePage(conflict))
+            throw new InvalidOperationException($"The window shows “{popOut.Title}” at page index {reader.Here()?.PageIndex}, not Dragon Lairs at {EvidencePage(conflict)}.");
+        if (conflict.IsDone) throw new InvalidOperationException("Opening the book decided its card.");
+
+        await other.OpenInWindowCommand.ExecuteAsync(null);
+        if (readers.Windows is not [var same] || !ReferenceEquals(same, popOut) || !ReferenceEquals(same.Model, reader))
+            throw new InvalidOperationException($"Another card's book opened {readers.Windows.Count} windows instead of showing in the one open.");
+        await WaitUntilAsync(window, () => popOut.Title == other.Item.Title && reader.Here()?.PageIndex == EvidencePage(other),
+            () => $"The window shows “{popOut.Title}” at page index {reader.Here()?.PageIndex}, not {other.Item.Title} at {EvidencePage(other)}.");
+
+        popOut.Close();
+        await WaitUntilAsync(window, () => readers.Windows.Count == 0, () => "The review window didn't close.");
+        await conflict.OpenInWindowCommand.ExecuteAsync(null);
+        if (readers.Windows is not [var fresh] || ReferenceEquals(fresh.Model, reader))
+            throw new InvalidOperationException("Once its window was closed, a card's book didn't open in a new one.");
+        readers.CloseAll();
+        await WaitUntilAsync(window, () => readers.Windows.Count == 0 && Application.Current.Windows.Count == 1,
+            () => $"Closing the review window left {Application.Current.Windows.Count - 1} windows.");
+        Log.Information("Smoke test: a suggestion's book opened in a window beside Needs review");
     }
 
     /// <summary>

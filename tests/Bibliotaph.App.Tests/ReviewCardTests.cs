@@ -31,6 +31,18 @@ public class ReviewCardTests
     }
 
     [Fact]
+    public async Task Opening_the_book_in_a_window_leaves_the_card_to_be_decided()
+    {
+        var card = Conflict();
+
+        await card.OpenInWindowCommand.ExecuteAsync(null);
+
+        Assert.Equal(["open in window"], _actions.Calls);
+        Assert.False(card.IsDone);
+        Assert.Empty(_actions.Decisions);
+    }
+
+    [Fact]
     public async Task Undo_takes_the_answer_back_and_opens_the_card_again()
     {
         var card = Conflict();

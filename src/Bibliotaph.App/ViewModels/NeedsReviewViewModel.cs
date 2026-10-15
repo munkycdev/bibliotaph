@@ -145,6 +145,12 @@ public sealed partial class NeedsReviewViewModel(
     Vocabulary _vocabulary = Vocabulary.Empty;
     bool _loaded;
 
+    /// <summary>
+    /// The reader every card opens its book in, beside the page: one window showing whichever book was opened last, so
+    /// working down the cards with the book beside them doesn't leave a window per card.
+    /// </summary>
+    ViewerViewModel? _window;
+
     public override Route Route => Route.NeedsReview;
     public override string Title => "Needs review";
 
@@ -661,12 +667,16 @@ public sealed partial class NeedsReviewViewModel(
     /// A place on a "new version" card opens at the page suggested for it, as its session item or note would, so the
     /// reader offers Use this page there too.
     /// </summary>
-    public void OpenPlace(RevisionItem item, RevisionPlace place)
+    public void OpenPlace(RevisionItem item, RevisionPlace place) => readers.OpenInMainWindow(PlaceRequest(item, place));
+
+    public Task OpenPlaceInWindowAsync(RevisionItem item, RevisionPlace place) => ShowInWindowAsync(PlaceRequest(item, place));
+
+    static ViewerRequest PlaceRequest(RevisionItem item, RevisionPlace place)
     {
         var check = place.Check;
         var request = new ViewerRequest(check.DocumentId, item.BookTitle, check.FirstPdfPage);
         var needsLook = place.Outcome == PageCheck.NeedsLook;
-        readers.OpenInMainWindow(place.Place.Kind == PlaceKind.SessionItem
+        return place.Place.Kind == PlaceKind.SessionItem
             ? request with
             {
                 SessionItem = new SessionItemOpen(place.Place.OwnerId, place.Place.PackTitle ?? "the binder",
@@ -676,7 +686,7 @@ public sealed partial class NeedsReviewViewModel(
             {
                 PageNote = new PageNoteOpen(place.Place.OwnerId, needsLook ? PagePlaceState.Changed : PagePlaceState.Ready,
                     needsLook ? PagePlaces.ChangedReason : null, check.FirstPdfPage, check.LastPdfPage),
-            });
+            };
     }
 
     public void ShowFolder(string path) => shell.ShowInFolder(path);
@@ -695,6 +705,15 @@ public sealed partial class NeedsReviewViewModel(
 
     public void OpenDocument(long documentId, string title) => readers.OpenInMainWindow(new ViewerRequest(documentId, title, 0));
 
-    public void Open(ReviewItem item) =>
-        readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title, item.Issue.Evidence is { Pages.Count: > 0 } claim ? claim.Pages[0] : 0));
+    public Task OpenDocumentInWindowAsync(long documentId, string title) => ShowInWindowAsync(new ViewerRequest(documentId, title, 0));
+
+    public void Open(ReviewItem item) => readers.OpenInMainWindow(EvidenceRequest(item));
+
+    public Task OpenInWindowAsync(ReviewItem item) => ShowInWindowAsync(EvidenceRequest(item));
+
+    /// <summary>The book at the page its evidence was found on, so checking a suggestion starts where it came from.</summary>
+    static ViewerRequest EvidenceRequest(ReviewItem item) =>
+        new(item.DocumentId, item.Title, item.Issue.Evidence is { Pages.Count: > 0 } claim ? claim.Pages[0] : 0);
+
+    async Task ShowInWindowAsync(ViewerRequest request) => _window = await readers.ShowInWindowAsync(_window, request);
 }

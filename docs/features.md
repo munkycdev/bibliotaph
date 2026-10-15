@@ -117,6 +117,8 @@ Review never blocks browsing. **Metadata suggestions** holds disagreements, miss
 
 A card shows the current value, the suggestion and its evidence. **Show** narrows the list to one kind of card, or to the suggestions for one field, with a count for each. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
 
+Each card's book can open in a window beside the page (its window button, or middle-click or **Shift+Enter** on the title), at the evidence's page, so it can be checked before deciding. The cards share that one window: the next book opened shows in it, and a new one opens only once it is closed.
+
 ### Copies, versions and packs
 
 Files with the same text on every page, such as copies stamped for different buyers, become one book; **Make current** chooses which opens and **Not the same book** splits one off. A file sharing most of its pages, or its title and publisher, with a book is asked about as a new version: nothing is joined without asking unless the text is identical. **Same book** joins cards by hand.

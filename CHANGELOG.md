@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Check a book beside Needs review.** Each card has a button beside its title that opens the book in a window of
+  its own, at the page the suggestion's evidence is on, while Needs review stays put so you can read and decide side
+  by side. Middle-click or **Shift+Enter** on the title does the same. The cards share the window, so going down the
+  list shows each book in it instead of opening another.
 - **Adventures show who they're for.** The Library's list shows each book's players ("4–6 players") beside its levels,
   and the details header shows both. An adventure's details show **Players** even before anyone has set it, so you
   can fill it in straight away.
