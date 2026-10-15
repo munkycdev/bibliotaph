@@ -9,9 +9,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request makes its earlier run moot, but every commit on main keeps its run: a release waits
+# for CI on the commit it tags, so a merge landing just after the release commit mustn't cancel that commit's run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-test:

@@ -134,6 +134,9 @@ git tag "v1.2.$n" origin/main
 git push origin "v1.2.$n"
 ```
 
+The draft waits for CI on the tagged commit. Every push to main gets its own run, so merging more pull requests
+straight after the release commit doesn't hold the release up.
+
 Before tagging, move the `## Unreleased` bullets into a "New in MAJOR.MINOR.PATCH" block at the top of that
 MAJOR.MINOR's section of `CHANGELOG.md`: the release notes are that section.
 
