@@ -177,6 +177,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string LevelsLabel => Entry.Levels ?? "";
 
+    public string PlayersLabel => Entry.Players ?? "";
+
     public string PublisherLabel => Entry.Publisher ?? "";
 
     /// <summary>
@@ -340,6 +342,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(SystemLabel));
         OnPropertyChanged(nameof(KindLabel));
         OnPropertyChanged(nameof(LevelsLabel));
+        OnPropertyChanged(nameof(PlayersLabel));
         OnPropertyChanged(nameof(PublisherLabel));
         OnPropertyChanged(nameof(Byline));
         OnPropertyChanged(nameof(SizeLabel));

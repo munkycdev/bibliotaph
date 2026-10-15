@@ -67,14 +67,27 @@ public sealed class PartsService(PartStore parts, EntryStore entries, IndexQueri
 
     /// <summary>
     /// "Index as its own adventure" and "Mark pages as an adventure": pages of a copy of a file become an adventure
-    /// with a card of its own, found in the file's other copies too. Returns it, or why it can't be.
+    /// with a card of its own, found in the file's other copies too. The blurb on its first pages ("for four characters
+    /// of 3rd level") suggests its levels and party size. Returns it, or why it can't be.
     /// </summary>
-    public Task<PartChange> AddAsync(long documentId, PartPages pages, string title, CancellationToken ct = default) =>
-        AddAsync(documentId, pages, title, [], ct);
+    public async Task<PartChange> AddAsync(long documentId, PartPages pages, string title, CancellationToken ct = default) =>
+        await AddAsync(documentId, pages, title, await ReadBlurbAsync(documentId, pages, ct), ct);
+
+    /// <summary>What the blurb on an adventure's first pages says about who it is for, as rule suggestions.</summary>
+    async Task<IReadOnlyList<MetadataProposal>> ReadBlurbAsync(long documentId, PartPages pages, CancellationToken ct)
+    {
+        if (PartRules.ReadBlurb(await queries.GetAllPageTextsAsync(documentId, ct), pages) is not { } blurb) return [];
+        var suggestions = new List<MetadataProposal>(2);
+        if (blurb.Levels is { } levels)
+            suggestions.Add(new MetadataProposal(MetadataFields.Levels, levels.ToString(), AssertionOrigin.Rule, blurb.Quote, [blurb.Page]));
+        if (blurb.Players is { } players)
+            suggestions.Add(new MetadataProposal(MetadataFields.Players, players.ToString(), AssertionOrigin.Rule, blurb.Quote, [blurb.Page]));
+        return suggestions;
+    }
 
     /// <summary>
     /// <see cref="AddAsync(long, PartPages, string, CancellationToken)"/>, with what a proposal read for the adventure,
-    /// such as the levels its blurb gives, as suggestions on its card.
+    /// such as the levels and party size its blurb gives, as suggestions on its card.
     /// </summary>
     public async Task<PartChange> AddAsync(long documentId, PartPages pages, string title, IReadOnlyList<MetadataProposal> suggestions, CancellationToken ct = default)
     {

@@ -20,7 +20,7 @@ public sealed record ProposalAccepted(IReadOnlyList<EntryId> Parts, string? Prob
 /// <summary>
 /// Proposes the adventures inside compilation files and settles the proposals in Needs review. The rules read a
 /// file's bookmarks and the blurbs on their first pages as Hints from names reads its names, and propose only when the
-/// book also says it is a collection of separate adventures; a proposal never makes cards by itself. Accept makes a card for each ticked adventure, with the levels its blurb gave as a suggestion;
+/// book also says it is a collection of separate adventures; a proposal never makes cards by itself. Accept makes a card for each ticked adventure, with the levels and party size its blurb gave as suggestions;
 /// "Not split" says the file is one book. Either answer is remembered for every copy of the file, by content hash,
 /// and can be undone.
 /// </summary>
@@ -81,7 +81,7 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
 
     /// <summary>
     /// Accept, with the ticked adventures as the user left them (titles and pages edited, perhaps): each gets a card of
-    /// its own, with the levels its blurb gave as a suggestion. When one can't, those made so far are taken back and
+    /// its own, with the levels and party size its blurb gave as suggestions. When one can't, those made so far are taken back and
     /// the card stays, saying why.
     /// </summary>
     public async Task<ProposalAccepted> AcceptAsync(PartProposalItem item, IReadOnlyList<ProposedPart> chosen, CancellationToken ct = default)
@@ -91,9 +91,11 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
         var added = new List<EntryId>();
         foreach (var part in chosen.OrderBy(p => p.Pages.First))
         {
-            IReadOnlyList<MetadataProposal> suggestions = part.Levels is { } levels && LevelRange.TryParse(levels, out var range)
-                ? [new MetadataProposal(MetadataFields.Levels, range.ToString(), origin, part.Quote, [part.Pages.First])]
-                : [];
+            var suggestions = new List<MetadataProposal>();
+            if (part.Levels is { } levels && LevelRange.TryParse(levels, out var range))
+                suggestions.Add(new MetadataProposal(MetadataFields.Levels, range.ToString(), origin, part.Quote, [part.Pages.First]));
+            if (PartRules.Party(part.Quote) is { } players)
+                suggestions.Add(new MetadataProposal(MetadataFields.Players, players.ToString(), origin, part.Quote, [part.Pages.First]));
             var made = await parts.AddAsync(item.DocumentId, part.Pages, part.Title, suggestions, ct);
             if (made.EntryId is { } partId)
             {
