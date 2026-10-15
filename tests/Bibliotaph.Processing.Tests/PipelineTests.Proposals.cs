@@ -45,8 +45,8 @@ public abstract partial class PipelineTests
             var cards = (await search.ListAsync(new LibraryFilter(), ct: Ct)).ToDictionary(c => c.EntryId);
             Assert.Equal(3, cards.Count);
             var mine = cards[accepted.Parts[0]];
-            Assert.Equal(("The Salt Mine", "in Marsh Tales · pp. 2–3", "Level 1"), (mine.Title, mine.PartLine, mine.Levels));
-            Assert.Equal("Lantern Festival", cards[accepted.Parts[1]].Title);
+            Assert.Equal(("The Salt Mine", "in Marsh Tales · pp. 2–3", "Level 1", "4 players"), (mine.Title, mine.PartLine, mine.Levels, mine.Players));
+            Assert.Equal(("Lantern Festival", null), (cards[accepted.Parts[1]].Title, cards[accepted.Parts[1]].Players));
             var levels = (await _metadataStore.GetAsync(accepted.Parts[1], Ct)).Compute()[MetadataFields.Levels].First!;
             Assert.Equal(("3-5", AssertionOrigin.Rule, false, "for characters of 3rd to 5th level"), (levels.Value, levels.Origin, levels.Confirmed, levels.Source.Quote));
             Assert.Equal((2, "Anthology"), (cards[book.EntryId].Parts, cards[book.EntryId].Kind));
@@ -70,6 +70,32 @@ public abstract partial class PipelineTests
             Assert.Equal([], clash.Parts);
             Assert.Contains("The Salt Mine: Those pages overlap “Hand marked”", clash.Problem, StringComparison.Ordinal);
             Assert.Equal(2, (await search.ListAsync(new LibraryFilter(), ct: Ct)).Count);
+        }
+
+        [Fact]
+        public async Task An_adventure_marked_by_hand_is_suggested_the_levels_and_party_size_its_blurb_gives()
+        {
+            Copy(_pdfs.Compilation, "Compilations/Marsh Tales.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var search = new LibraryQueries(_index);
+            var book = Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct));
+
+            var marked = await _parts.AddAsync(book.DocumentId, new PartPages(1, 2), "The Salt Mine", Ct);
+
+            var fields = (await _metadataStore.GetAsync(marked.EntryId!.Value, Ct)).Compute();
+            var players = fields[MetadataFields.Players].First!;
+            Assert.Equal(("4", AssertionOrigin.Rule, false, "for four characters of 1st level"), (players.Value, players.Origin, players.Confirmed, players.Source.Quote));
+            Assert.Equal([1], players.Source.Pages);
+            Assert.Equal("1", fields[MetadataFields.Levels].First!.Value);
+            var card = Assert.Single(await search.ListAsync(new LibraryFilter(), Plan("players:4"), ct: Ct));
+            Assert.Equal((marked.EntryId, "Level 1", "4 players"), (card.EntryId, card.Levels, card.Players));
+
+            // Pages with no blurb suggest nothing.
+            var quiet = await _parts.AddAsync(book.DocumentId, new PartPages(5, 5), "New Monsters", Ct);
+            Assert.Null(quiet.Problem);
+            Assert.Empty((await _metadataStore.GetAsync(quiet.EntryId!.Value, Ct)).Compute()[MetadataFields.Players].Values);
         }
     }
 }

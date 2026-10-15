@@ -173,6 +173,38 @@ public class PartRulesTests
     }
 
     [Theory]
+    [InlineData("for four characters of 1st level", "4")]
+    [InlineData("four to six 5th-level characters", "4-6")]
+    [InlineData("for four to six characters of 3rd level", "4-6")]
+    [InlineData("FOUR 1ST- TO 2ND-LEVEL PCS", "4")]
+    [InlineData("An adventure for 3-5 players of 2nd level", "3-5")]
+    [InlineData("for a party of 5", "5")]
+    [InlineData("for characters of levels 2-4", null)]
+    [InlineData("for 4th-level characters", null)]
+    [InlineData(null, null)]
+    public void A_blurb_gives_the_party_size_when_it_counts_the_characters(string? quote, string? players) =>
+        Assert.Equal(players, PartRules.Party(quote)?.ToString());
+
+    [Fact]
+    public void A_blurbs_quote_takes_in_the_party_size_written_around_it_and_not_another_groups()
+    {
+        string[] pages =
+        [
+            "Six heroes vanished last spring.\nThe Fog Market\nAn adventure for four to six 5th-level characters",
+            "For four players, levels 2-3",
+            "The Glass Tower\nAn adventure for characters of 7th level",
+        ];
+
+        var fog = PartRules.ReadBlurb(pages, new PartPages(0, 0))!;
+        Assert.Equal((0, "four to six 5th-level characters", "5", "4-6"), (fog.Page, fog.Quote, fog.Levels?.ToString(), fog.Players?.ToString()));
+        var meet = PartRules.ReadBlurb(pages, new PartPages(1, 1))!;
+        Assert.Equal(("four players, levels 2-3", "2-3", "4"), (meet.Quote, meet.Levels?.ToString(), meet.Players?.ToString()));
+        var tower = PartRules.ReadBlurb(pages, new PartPages(2, 2))!;
+        Assert.Equal(("for characters of 7th level", "7", (string?)null), (tower.Quote, tower.Levels?.ToString(), tower.Players?.ToString()));
+        Assert.Null(PartRules.ReadBlurb(["The mine's shafts run deep."], new PartPages(0, 0)));
+    }
+
+    [Theory]
     [InlineData("Credits")]
     [InlineData("INTRODUCTION")]
     [InlineData("Appendix B: Magic Items")]

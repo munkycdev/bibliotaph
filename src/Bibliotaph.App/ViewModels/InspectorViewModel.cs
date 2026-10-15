@@ -248,6 +248,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [RelayCommand]
     void ToggleAllFields() => ShowAllFields = !ShowAllFields;
 
+    /// <summary>
+    /// An adventure, marked in a file or typed as one: who it is written for matters as much as its levels, so Players
+    /// shows even before anyone has said.
+    /// </summary>
+    bool IsAdventure(EffectiveMetadata metadata) =>
+        Item.IsPart || metadata[MetadataFields.Types].Values.Any(v => v.Value == PartStore.AdventureType);
+
     async Task ReloadMetadataAsync(bool changed)
     {
         var (metadata, vocabulary) = await _metadata.GetAsync(Item.EntryId);
@@ -255,7 +262,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var open = Fields.Where(f => f.ShowEvidence).Select(f => f.Field).ToHashSet();
         // A book owned elsewhere says first where it is owned.
         var fields = IsElsewhere ? metadata.Fields.OrderBy(f => f.Field != MetadataFields.AlsoOwn) : metadata.Fields;
-        Fields = [.. fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this, PrimaryFields.Contains(f.Field) || IsElsewhere && f.Field == MetadataFields.AlsoOwn)
+        var adventure = IsAdventure(metadata);
+        Fields = [.. fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this,
+            PrimaryFields.Contains(f.Field) || IsElsewhere && f.Field == MetadataFields.AlsoOwn || adventure && f.Field == MetadataFields.Players)
         {
             ShowEvidence = open.Contains(f.Field),
             MarksGuesses = IsCorrecting,

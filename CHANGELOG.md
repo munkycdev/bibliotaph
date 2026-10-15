@@ -1,5 +1,15 @@
 # Changes
 
+## Unreleased
+
+- **Adventures show who they're for.** The Library's list shows each book's players ("4–6 players") beside its levels,
+  and the details header shows both. An adventure's details show **Players** even before anyone has set it, so you
+  can fill it in straight away.
+- **Adventures pick up their party size from their blurb.** When you accept a file's proposed adventures, a blurb
+  such as "for four characters of 3rd level" now suggests the players as well as the levels, and the Needs review
+  card lists both. An adventure you mark by hand, from the reader, a bookmark or the details, gets the same
+  suggestions from the blurb on its first pages, quoted as evidence. Values you set are never replaced.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.530 (15 October 2026):
