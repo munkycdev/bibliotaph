@@ -40,7 +40,10 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
         return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped);
     }
 
-    /// <summary>The adventures the model found among <paramref name="input"/>'s candidates whose evidence checks out; none when fewer than two do.</summary>
+    /// <summary>
+    /// The adventures the model found among <paramref name="input"/>'s candidates whose evidence checks out, with where
+    /// the book says it is a collection; none when fewer than two do, or the book doesn't say so.
+    /// </summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be used right now.</exception>
     /// <exception cref="ClassifierAnswerException">The model answered, but not in the schema, or couldn't answer for this file.</exception>
     public async Task<PartFinderResult> FindPartsAsync(PartFinderInput input, CancellationToken ct = default)

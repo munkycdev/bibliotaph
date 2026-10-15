@@ -14,7 +14,7 @@ public sealed class StageCatalogTests
         new(Stage.Probe, 1, Lane.Index, null, false, "Opening", "Opening", "Opening"),
         new(Stage.Text, 1, Lane.Index, Stage.Probe, false, "Reading text", "Reading text", "Reading the text of"),
         new(Stage.Covers, 1, Lane.Index, Stage.Probe, false, "Cover", "Making a cover", "Making a cover for"),
-        new(Stage.RuleHints, 1, Lane.Index, Stage.Probe, true, "Hints from names", "Reading hints from its name", "Working on"),
+        new(Stage.RuleHints, 2, Lane.Index, Stage.Probe, true, "Hints from names", "Reading hints from its name", "Working on"),
         new(Stage.Ocr, 1, Lane.Ocr, null, false, "Reading scanned pages", "Reading scanned pages", "Reading scanned pages of"),
         new(Stage.Classify, 1, Lane.Classify, Stage.Text, true, "Cataloguing with AI", "Reading with AI", "Asking the AI about"),
         new(Stage.Match, 2, Lane.Index, Stage.Text, true, "Looking for other copies", "Looking for other copies", "Working on"),

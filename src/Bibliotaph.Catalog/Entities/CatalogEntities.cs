@@ -212,6 +212,10 @@ public sealed class PartProposal
     public PartProposalSource Source { get; set; }
     /// <summary>The adventures, in page order, as JSON: title, first and last PDF page, levels and the words that said so.</summary>
     public required string PartsJson { get; set; }
+    /// <summary>The book's own words saying it holds separate adventures, which a proposal needs before it is shown.</summary>
+    public string? Evidence { get; set; }
+    /// <summary>The PDF page <see cref="Evidence"/> is on.</summary>
+    public int? EvidencePage { get; set; }
     public PartProposalAnswer? Answer { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime? DecidedUtc { get; set; }
