@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased
+## 1.2 · 13 October 2026
+
+New in 1.2.544 (15 October 2026):
 
 - **Check a book beside Needs review.** Each card has a button beside its title that opens the book in a window of
   its own, at the page the suggestion's evidence is on, while Needs review stays put so you can read and decide side
@@ -13,8 +15,6 @@
   such as "for four characters of 3rd level" now suggests the players as well as the levels, and the Needs review
   card lists both. An adventure you mark by hand, from the reader, a bookmark or the details, gets the same
   suggestions from the blurb on its first pages, quoted as evidence. Values you set are never replaced.
-
-## 1.2 · 13 October 2026
 
 New in 1.2.530 (15 October 2026):
 
