@@ -134,6 +134,18 @@ public class OtherReviewCardTests
     }
 
     [Fact]
+    public async Task A_place_opened_in_a_window_still_needs_a_look()
+    {
+        var card = Revision();
+
+        await card.Rows[0].OpenInWindowCommand.ExecuteAsync(null);
+
+        Assert.Equal(["open place in window"], _actions.Calls);
+        Assert.False(card.Rows[0].IsChecked);
+        Assert.EndsWith("2 need a look", card.Heading, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Using_the_suggested_page_for_a_place_counts_it_as_checked()
     {
         var card = Revision();

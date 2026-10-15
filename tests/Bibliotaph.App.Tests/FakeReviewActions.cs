@@ -105,11 +105,23 @@ sealed class FakeReviewActions : IReviewActions
 
     public void OpenPlace(RevisionItem item, RevisionPlace place) => Calls.Add("open place");
 
+    public Task OpenPlaceInWindowAsync(RevisionItem item, RevisionPlace place) => Call("open place in window");
+
     public void ShowFolder(string path) => Calls.Add("show folder");
 
     public void Open(ReviewItem item) => Calls.Add("open");
 
+    public Task OpenInWindowAsync(ReviewItem item) => Call("open in window");
+
     public void OpenDocument(long documentId, string title) => Calls.Add($"open document {documentId}");
+
+    public Task OpenDocumentInWindowAsync(long documentId, string title) => Call($"open document {documentId} in window");
+
+    Task Call(string call)
+    {
+        Calls.Add(call);
+        return Task.CompletedTask;
+    }
 
     public void Decided(int change) => Decisions.Add(change);
 }

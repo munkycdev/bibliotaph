@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Check a book beside Needs review.** Each card has a button beside its title that opens the book in a window of
+  its own, at the page the suggestion's evidence is on, while Needs review stays put so you can read and decide side
+  by side. Middle-click or **Shift+Enter** on the title does the same. The cards share the window, so going down the
+  list shows each book in it instead of opening another.
 - **The Library remembers its order.** The order picked in the toolbar, for the books and for the matching pages,
   stays the next time the Library opens, after a restart too. Browsing and searching each keep their own, so
   **Best match** still comes with a search. A saved search still opens in the order it was saved with.

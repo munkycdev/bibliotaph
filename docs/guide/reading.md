@@ -73,7 +73,9 @@ and the panel says how far it has got.
 
 Right-click a book and choose **Open in new window** (or press **Shift+Enter**, or middle-click a cover) to read it in
 a separate window. In the reader, **Pop out** moves the open book into its own window, and **Return to main window**
-brings it back. Open as many as you like, the same book twice included. **Ctrl+W** closes a reader window.
+brings it back. Open as many as you like, the same book twice included. **Ctrl+W** closes a reader window. Needs review
+can open a card's book in a window too, to check it before deciding (see
+[Needs review](cataloging.md#needs-review)).
 
 ## Adding to a binder
 

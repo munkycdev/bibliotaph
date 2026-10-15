@@ -66,6 +66,31 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
     /// <summary>Opens a book in a pop-out window of its own. The book loads once the window is showing.</summary>
     public Task OpenInNewWindowAsync(ViewerRequest request) => HostAsync(Create(request, poppedOut: true));
 
+    /// <summary>
+    /// Shows a book in <paramref name="reader"/>'s pop-out, brought forward, while that window is open; otherwise in a
+    /// new pop-out. Returns the reader showing it, to pass back next time, so a page that opens book after book keeps
+    /// one window rather than stacking them up.
+    /// </summary>
+    public async Task<ViewerViewModel> ShowInWindowAsync(ViewerViewModel? reader, ViewerRequest request)
+    {
+        if (reader is null || _windows.Find(w => ReferenceEquals(w.Model, reader)) is not { } window)
+        {
+            var created = Create(request, poppedOut: true);
+            await HostAsync(created);
+            return created;
+        }
+        BringForward(window);
+        try
+        {
+            await reader.ShowAsync(request);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            log.LogError(ex, "Showing another book in a reader window failed");
+        }
+        return reader;
+    }
+
     /// <summary>Shows a page, a reader or a binder, in a pop-out window of its own. The page loads once the window is showing.</summary>
     public async Task HostAsync(PageViewModel model)
     {

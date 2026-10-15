@@ -92,6 +92,12 @@ usable while its card waits. It has two lists:
 - **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
   share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
+To check a book before you answer, click the window button beside its title (or middle-click the title, or press
+**Shift+Enter** on it). The book opens in a window of its own, at the page the suggestion's evidence is on, and Needs
+review stays where it was, so you can read and decide side by side, on a second monitor too. The window is shared:
+opening the next card's book shows it in the same window rather than another. Clicking a title still opens the book
+in the main window.
+
 When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
 elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
 such as Setting or Type. Each entry says how many are waiting, and **Everything** shows the whole list again.
