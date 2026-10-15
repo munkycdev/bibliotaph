@@ -13,9 +13,9 @@ namespace Bibliotaph.Processing;
 public sealed record VolumeIdentity(string Serial, bool HasFileIds, bool IsLocal);
 
 /// <summary>
-/// What tells a file or a disk apart without reading it (slice 4g plan, choices 2 and 3): the volume serial a
-/// folder is on, so a different disk in its drive reads as offline, and a file's ID, so a moved file is recognised
-/// without being hashed again. Both open the item for its attributes only, which never downloads a cloud file.
+/// What tells a file or a disk apart without reading it: the volume serial a folder is on, so a different disk in
+/// its drive reads as offline, and a file's ID, so a moved file is recognised without being hashed again. Both open
+/// the item for its attributes only, which never downloads a cloud file.
 /// </summary>
 public interface IFileIdentity
 {

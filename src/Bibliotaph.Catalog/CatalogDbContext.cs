@@ -17,12 +17,15 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<PackDecision> PackDecisions => Set<PackDecision>();
     public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
     public DbSet<PartProposal> PartProposals => Set<PartProposal>();
+    public DbSet<ChapterScan> ChapterScans => Set<ChapterScan>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
     public DbSet<ReadingState> ReadingStates => Set<ReadingState>();
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
+    public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
+    public DbSet<CollectionDecline> CollectionDeclines => Set<CollectionDecline>();
     public DbSet<SmartView> SmartViews => Set<SmartView>();
     public DbSet<Pin> Pins => Set<Pin>();
     public DbSet<Note> Notes => Set<Note>();
@@ -38,6 +41,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<AskTurn> AskTurns => Set<AskTurn>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
     public DbSet<FolderRule> FolderRules => Set<FolderRule>();
+    public DbSet<UserTag> UserTags => Set<UserTag>();
     public DbSet<SyncState> SyncStates => Set<SyncState>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
@@ -101,6 +105,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<PartProposal>(e => e.HasIndex(p => p.ContentHash).IsUnique());
+        modelBuilder.Entity<ChapterScan>(e => e.HasIndex(s => s.ContentHash).IsUnique());
 
         modelBuilder.Entity<PackDecision>(e =>
         {
@@ -160,6 +165,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<SourceRoot>().WithMany().HasForeignKey(r => r.SourceRootId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<UserTag>(e => e.HasIndex(t => t.NormalizedName).IsUnique());
+
         modelBuilder.Entity<PageRef>(e =>
         {
             e.HasIndex(p => p.DocumentId);
@@ -189,7 +196,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         modelBuilder.Entity<CollectionNode>(e =>
         {
             e.HasIndex(c => c.ParentId);
-            // Deleting a collection moves its sub-collections up a level first (choice 8); this only guards the rest.
+            // Deleting a collection moves its sub-collections up a level first; this only guards the rest.
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(c => c.ParentId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -199,6 +206,23 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(i => i.EntryId);
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CollectionFolder>(e =>
+        {
+            e.HasIndex(f => new { f.SourceRootId, f.Folder }).IsUnique();
+            e.HasIndex(f => f.CollectionId).IsUnique();
+            e.HasOne<SourceRoot>().WithMany().HasForeignKey(f => f.SourceRootId).OnDelete(DeleteBehavior.Cascade);
+            // A deleted collection leaves its folder answered, so the folder isn't asked about again.
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(f => f.CollectionId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CollectionDecline>(e =>
+        {
+            e.HasKey(d => new { d.CollectionId, d.EntryId });
+            e.HasIndex(d => d.EntryId);
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(d => d.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(d => d.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SmartView>(e => e.HasIndex(v => v.Name));
@@ -251,7 +275,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(i => i.PackId);
             e.HasIndex(i => i.EntryId);
             e.HasOne<SessionPack>().WithMany().HasForeignKey(i => i.PackId).OnDelete(DeleteBehavior.Cascade);
-            // Deleting a section moves its items to the one above first (choice 11); this only guards the rest.
+            // Deleting a section moves its items to the one above first; this only guards the rest.
             e.HasOne<SessionSection>().WithMany().HasForeignKey(i => i.SectionId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Entry>().WithMany().HasForeignKey(i => i.EntryId).OnDelete(DeleteBehavior.Cascade);
             // An item's page reference is its own: the store deletes it with the item.
@@ -260,13 +284,13 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
         modelBuilder.Entity<Setting>(e => e.HasKey(s => s.Key));
 
-        // Ask this book's conversations (Ask plan, choice 10): a book's turns go with its entry.
+        // Ask this book's conversations: a book's turns go with its entry.
         modelBuilder.Entity<AskTurn>(e =>
         {
             e.HasIndex(t => t.EntryId);
             e.HasOne<Entry>().WithMany().HasForeignKey(t => t.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
-        // Library sync (library sync plan, choice 4): each sync id names one row on every PC.
+        // Library sync: each sync id names one row on every PC.
         modelBuilder.Entity<Entry>().HasIndex(x => x.SyncId).IsUnique();
         modelBuilder.Entity<CollectionNode>().HasIndex(x => x.SyncId).IsUnique();
         modelBuilder.Entity<SmartView>().HasIndex(x => x.SyncId).IsUnique();

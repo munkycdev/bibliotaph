@@ -1,6 +1,6 @@
 namespace Bibliotaph.App.Views;
 
-/// <summary>"Add a book I own elsewhere", over the Library (F5a). The Library moves keyboard focus in and out of it.</summary>
+/// <summary>"Add a book I own elsewhere", over the Library. The Library moves keyboard focus in and out of it.</summary>
 public partial class AddElsewhereView
 {
     public AddElsewhereView() => InitializeComponent();

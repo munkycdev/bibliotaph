@@ -2,8 +2,9 @@
 
 [Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Reading
 
-Bibliotaph has its own reader, so you don't need to switch to another PDF app. A book opened from the Library or Home
-opens where you left it; one opened from a search result opens at the matching page. A book you own online, such as on
+Bibliotaph has its own reader, so you don't need to switch to another PDF app. Double-click a book in the Library to
+open it, or click it once for its details and click **Open**. A book opened from the Library or Home opens where you
+left it; one opened from a search result opens at the matching page. A book you own online, such as on
 D&D Beyond, opens in the online reader instead; see [Online libraries](online-libraries.md#read-a-book-you-own-online).
 
 ## Getting around a book
@@ -12,11 +13,16 @@ D&D Beyond, opens in the online reader instead; see [Online libraries](online-li
   **Ctrl+Home** and **Ctrl+End** go to the first and last page.
 - **Zoom**: the zoom buttons, **Ctrl+Plus** and **Ctrl+Minus**, or **Ctrl** and the mouse wheel. **Ctrl+0** fits the
   page to the width again.
-- **Contents**: the book's own bookmarks, in a panel on the left. Click one to go there.
+- **Contents**: the book's own bookmarks, in a panel on the left. Click one to go there. Once the AI has
+  [scanned the whole book](ai.md#scanning-whole-books), each chapter also shows the settings, environments, themes and
+  creatures found in it.
 - **Page thumbnails**: the toolbar button shows a strip of small pages along the bottom. The page you're on is
   outlined, and pages with notes have a badge. Click a thumbnail to go to it.
 - **Links**: links in the PDF work. On an index or contents page without links of its own, the printed page numbers
   become links too ("Go to page 34"). After following one, **Back to page …** takes you back.
+- **Use this page as the cover**: the picture button at the top makes the page in view the book's cover in the Library,
+  for books whose first page is blank or a plain title sheet. To go back, use it on the first page. Reading the file
+  again keeps your choice.
 
 ## Find and copy
 
@@ -58,9 +64,9 @@ You can ask follow-up questions: "And where is his mill?" is understood in the l
 the panel shows "Looked for: …" when it reworded your question to search. Each book keeps its conversation (its last
 50 questions), and lists it again when you reopen the book. **New conversation** starts afresh.
 
-Ask finds pages by their words. With a model server and an embedding model, it can also find them by meaning, so
-"who's behind the disappearances" can find a page that never says "disappearances"; see
-[AI](ai.md#set-it-up-a-model-server). The first time you ask a book that way, its pages are prepared in the background,
+Ask finds pages by their words. With an embedding model, built in or on a model server, it can also find them by
+meaning, so "who's behind the disappearances" can find a page that never says "disappearances"; see [AI](ai.md). A
+book's pages are prepared for that in the background as soon as you open it,
 and the panel says how far it has got.
 
 ## Windows of their own
@@ -77,7 +83,8 @@ brings it back. Open as many as you like, the same book twice included. **Ctrl+W
 ## Maps and image packs
 
 Images open with zoom and pan. In an image pack, the **Left** and **Right** arrow keys (or the arrows on screen) go to
-the previous and next image.
+the previous and next image. A pack with PDFs in it, such as a party's character sheets, steps the same way through
+its files with the arrows on screen: each PDF opens as a PDF, and each image as an image.
 
 WebP images need Microsoft's free WebP Image Extensions from the Microsoft Store. Without them, a WebP file shows in
 **Needs review** saying so.

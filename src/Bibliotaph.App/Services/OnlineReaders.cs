@@ -17,10 +17,9 @@ public sealed record OnlineReaderRequest(EntryId EntryId, string Title, string L
 }
 
 /// <summary>
-/// The online reader (online libraries plan, O2b, choices 19 to 22): a book owned online opens in a window built like
-/// the PDF reader, around the service's own page, signed in through Bibliotaph's browser. Settings &gt; Library can send
-/// them to the everyday browser instead. Bibliotaph copies no text from the page, so the reader has no search, page
-/// numbers or page notes.
+/// The online reader: a book owned online opens in a window built like the PDF reader, around the service's own page,
+/// signed in through Bibliotaph's browser. Settings &gt; Library can send them to the everyday browser instead.
+/// Bibliotaph copies no text from the page, so the reader has no search, page numbers or page notes.
 /// </summary>
 public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows, INavigationService navigation, IShellLauncher launcher,
     FavoritesService favorites, PinDirectory pins, NotesService notes, SettingsStore settings, Func<SessionActions> sessionActions,
@@ -66,7 +65,7 @@ public sealed class OnlineReaders(OnlineBrowsers browsers, ReaderWindows windows
         _inApp = inApp;
     }
 
-    /// <summary>Whether the online reader shows a service's pages in Reading mode (choice 24): on unless the user turned it off.</summary>
+    /// <summary>Whether the online reader shows a service's pages in Reading mode: on unless the user turned it off.</summary>
     public async Task<bool> ReadingModeAsync()
     {
         if (_readingMode is { } known) return known;

@@ -14,10 +14,10 @@ using Serilog;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Slice 4k: accessibility audits of what the smoke test shows, page by page and dialog by dialog. Each audit checks
-/// that every interactive control has a name a screen reader can read; then, with the window at its minimum size (what
-/// a small screen at 200% scaling leaves), that no primary control is cut off and that Tab reaches every one and comes
-/// back round. Misses are gathered rather than thrown, so the checks around them still run, and one check at the end
+/// Accessibility audits of what the smoke test shows, page by page and dialog by dialog. Each audit checks that every
+/// interactive control has a name a screen reader can read; then, with the window at its minimum size (what a small
+/// screen at 200% scaling leaves), that no primary control is cut off and that Tab reaches every one and comes back
+/// round. Misses are gathered rather than thrown, so the checks around them still run, and one check at the end
 /// reports them all.
 /// </summary>
 /// <remarks>
@@ -435,6 +435,23 @@ static partial class SmokeTest
         await ClosedAsync<Views.ShortcutsDialog>(window, "Esc");
         navigation.GoBack();
         await Settle(window);
+    }
+
+    /// <summary>Ctrl+B folds the sidebar to its icons, with the names as tooltips, and its button unfolds it.</summary>
+    static async Task CollapseSidebarAsync(Window window)
+    {
+        if (window is not MainWindow { DataContext: ShellViewModel shell } main) throw new InvalidOperationException("The main window has no shell.");
+        var gesture = window.InputBindings.OfType<KeyBinding>().FirstOrDefault(b => b.Command == shell.ToggleSidebarCommand);
+        if (gesture is not { Key: Key.B, Modifiers: ModifierKeys.Control }) throw new InvalidOperationException("Ctrl+B doesn't collapse the sidebar.");
+        var wide = main.Sidebar.ActualWidth;
+        await shell.ToggleSidebarCommand.ExecuteAsync(null);
+        await WaitUntilAsync(window, () => main.Sidebar.ActualWidth < wide / 2, () => $"The sidebar is {main.Sidebar.ActualWidth} wide once collapsed.");
+        var home = Descendants<Button>(main.Sidebar).FirstOrDefault(b => b.Content is "Home" && b.IsVisible)
+            ?? throw new InvalidOperationException("The collapsed sidebar has no Home button.");
+        if (home.ToolTip as string != "Home") throw new InvalidOperationException("The collapsed sidebar's Home button has no tooltip naming it.");
+        if (Descendants<TextBlock>(main.Sidebar).Any(t => t.Text == "PINNED" && t.IsVisible)) throw new InvalidOperationException("The collapsed sidebar still says PINNED.");
+        Click(main.FindName("ToggleSidebar") as Button, "Expand the sidebar");
+        await WaitUntilAsync(window, () => !shell.IsSidebarCollapsed && Math.Abs(main.Sidebar.ActualWidth - wide) < 1, () => "The sidebar didn't expand again.");
     }
 
     static async Task<T> OpenedAsync<T>(Window window, string how) where T : Window

@@ -22,8 +22,8 @@ public enum CloudFileState
 
 /// <summary>
 /// The Windows cloud files platform, as far as Bibliotaph uses it: whether a library file is online-only, and giving a
-/// downloaded one back to online-only after indexing (Dale's review, row 2). Behind an interface so the decisions about
-/// which files go back, and when, are tested without Windows.
+/// downloaded one back to online-only after indexing. Behind an interface so the decisions about which files go back,
+/// and when, are tested without Windows.
 /// </summary>
 public interface ICloudFiles
 {

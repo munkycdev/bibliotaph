@@ -20,11 +20,12 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>), since it is optional and may wait
 /// for an endpoint for as long as the user likes; only a book it failed for good also needs attention. <see cref="Withheld"/> counts the documents whose
 /// text won't be read by itself: locked, protected or forgotten (<see cref="TextAccess"/>), so nothing says they are still
-/// being read.
+/// being read. Reading whole books chapter by chapter is counted apart too (<see cref="ToScanWhole"/>,
+/// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book.
 /// </summary>
 public sealed record IndexProgress(
     long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
-    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0)
+    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0, long ToScanWhole = 0, long ScannedWhole = 0)
 {
     /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
     public long Indexed => Math.Max(0, Queued - Indexing);
@@ -62,7 +63,7 @@ public sealed class IndexQueries(IndexDatabase database)
                 count(*) FILTER (WHERE status IN ('pending', 'leased')) AS Pending,
                 count(*) FILTER (WHERE status = 'failed')              AS Failed
             FROM job
-            WHERE stage <> 'Classify'
+            WHERE stage NOT IN ('Classify', 'ChapterScan')
             """, cancellationToken: ct));
     }
 
@@ -74,18 +75,20 @@ public sealed class IndexQueries(IndexDatabase database)
             SELECT
                 (SELECT count(*) FROM doc) AS Documents,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped')) AS Searchable,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage <> 'Classify') AS Processing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Classify', 'ChapterScan')) AS Processing,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
                     (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify')) AS Indexing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify', 'ChapterScan')) AS Indexing,
                 (SELECT count(DISTINCT document_id) FROM stage_status) AS Queued,
                 (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Pending', 'Running')) AS ToClassify,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Complete', 'Partial', 'Skipped')) AS Classified,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status = 'Failed') AS ClassifyFailed,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE stage IN ('Probe', 'Text') AND (
-                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason = @protected) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld
+                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason = @protected) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld,
+                (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Pending', 'Running')) AS ToScanWhole,
+                (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Complete', 'Partial')) AS ScannedWhole
             """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, forgotten = TextAccessReasons.Forgotten },
             cancellationToken: ct));
     }
@@ -127,7 +130,7 @@ public sealed class IndexQueries(IndexDatabase database)
 
     /// <summary>
     /// Each page's printed label, in page order (null for a page without one), so pages can be typed as the file
-    /// numbers them outside the reader, as in the details' adventures (slice 5). Empty until the file's pages are read.
+    /// numbers them outside the reader, as in the details' adventures. Empty until the file's pages are read.
     /// </summary>
     public async Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId, CancellationToken ct = default)
     {
@@ -144,7 +147,10 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT fingerprint FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
     }
 
-    /// <summary>A page's printed label and fingerprint, for a session item's page reference (slice 3 plan, choice 14). Null for a page the index doesn't have.</summary>
+    /// <summary>
+    /// A page's printed label and fingerprint, for a session item's page reference. Null for a page the index doesn't
+    /// have.
+    /// </summary>
     public async Task<(string? Label, string? Fingerprint)?> GetPageMarkAsync(long documentId, int pdfPage, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
@@ -163,8 +169,8 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// Those of <paramref name="documentIds"/> whose pages have their fingerprints, or never will: Match has run, or their
-    /// text couldn't be read so it won't. Until then a new version's pages aren't looked for (slice 4h plan, choice 1).
+    /// Those of <paramref name="documentIds"/> whose pages have their fingerprints, or never will: Match has run, or
+    /// their text couldn't be read so it won't. Until then a new version's pages aren't looked for.
     /// </summary>
     public async Task<IReadOnlyList<long>> GetFingerprintedAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
     {
@@ -195,7 +201,7 @@ public sealed class IndexQueries(IndexDatabase database)
 
     /// <summary>
     /// The bookmark a page sits under: the deepest one at or before it, nearest first. A session item takes its label
-    /// from it (choice 13). Null when the book has no bookmarks before that page.
+    /// from it. Null when the book has no bookmarks before that page.
     /// </summary>
     public async Task<string?> GetBookmarkAsync(long documentId, int pdfPage, CancellationToken ct = default)
     {
@@ -233,9 +239,9 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The documents with a page whose fingerprint is one of <paramref name="fingerprints"/>, for a file that isn't in the
-    /// library (Check a download, F5 plan, choice 10): how many of them each shares, most first, and how many distinct
-    /// fingerprints each has in all.
+    /// The documents with a page whose fingerprint is one of <paramref name="fingerprints"/>, for a file that isn't in
+    /// the library (Check a download): how many of them each shares, most first, and how many distinct fingerprints
+    /// each has in all.
     /// </summary>
     public async Task<IReadOnlyList<(long DocumentId, int Shared, int Fingerprinted)>> GetSharingPagesAsync(IReadOnlyCollection<string> fingerprints,
         CancellationToken ct = default)
@@ -268,7 +274,7 @@ public sealed class IndexQueries(IndexDatabase database)
 
     /// <summary>
     /// The cards with this title, ignoring case, with their kind, the document each shows (none for a book owned
-    /// elsewhere) and their publisher, for Check a download (F5 plan, choice 11).
+    /// elsewhere) and their publisher, for Check a download.
     /// </summary>
     public async Task<IReadOnlyList<TitleMatch>> GetTitleMatchesAsync(string title, CancellationToken ct = default)
     {
@@ -305,9 +311,9 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The books owned elsewhere that could be <paramref name="entryId"/>'s (F5 plan, choice 6): the same title,
-    /// ignoring case, and no publisher that says otherwise. A file's publisher often arrives later than its title, so
-    /// one missing on either side doesn't rule a book out; the user answers the card anyway.
+    /// The books owned elsewhere that could be <paramref name="entryId"/>'s: the same title, ignoring case, and no
+    /// publisher that says otherwise. A file's publisher often arrives later than its title, so one missing on either
+    /// side doesn't rule a book out; the user answers the card anyway.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> GetElsewhereMatchesAsync(EntryId entryId, CancellationToken ct = default)
     {
@@ -350,9 +356,9 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// Every book's card, for matching books read from an online library by title (online libraries plan, choice 6):
-    /// files' cards and books owned elsewhere, not adventures inside a file or packs of images. Title is what the card
-    /// shows; Publisher is null when none is set.
+    /// Every book's card, for matching books read from an online library by title: files' cards and books owned
+    /// elsewhere, not adventures inside a file or packs of images. Title is what the card shows; Publisher is null when
+    /// none is set.
     /// </summary>
     public async Task<IReadOnlyList<(EntryId EntryId, string Title, string? Publisher, bool Elsewhere)>> GetBookCardsAsync(CancellationToken ct = default)
     {
@@ -370,9 +376,9 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The cards with a link in <paramref name="field"/> (own or store) under the place <paramref name="value"/>: each card,
-    /// the link, its title, and whether it is a book owned elsewhere. Importing from an online library finds the books it
-    /// imported before by these links (online libraries plan, choice 7).
+    /// The cards with a link in <paramref name="field"/> (own or store) under the place <paramref name="value"/>: each
+    /// card, the link, its title, and whether it is a book owned elsewhere. Importing from an online library finds the
+    /// books it imported before by these links.
     /// </summary>
     public async Task<IReadOnlyList<(EntryId EntryId, string Link, string Title, bool Elsewhere)>> GetLinkedCardsAsync(string field, string value,
         CancellationToken ct = default)
@@ -406,8 +412,8 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The game systems and editions (field and term key) whose books in the library are marked as having no levels,
-    /// at least one of them and none with known levels: Ask ignores a level asked of one (scenario review, row 5).
+    /// The game systems and editions (field and term key) whose books in the library are marked as having no levels, at
+    /// least one of them and none with known levels: Ask ignores a level asked of one.
     /// </summary>
     public async Task<IReadOnlyList<(string Field, string Key)>> GetSystemsWithoutLevelsAsync(CancellationToken ct = default)
     {
@@ -440,8 +446,8 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The title each of these content hashes is shown by: its card's title, or its file's name. Hashes the index doesn't
-    /// have are left out. For Settings, Passwords (slice 4i plan, choice 2), which knows its books only by hash.
+    /// The title each of these content hashes is shown by: its card's title, or its file's name. Hashes the index
+    /// doesn't have are left out. For Settings, Passwords, which knows its books only by hash.
     /// </summary>
     public async Task<IReadOnlyDictionary<string, string>> GetTitlesByHashAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
     {
@@ -475,6 +481,22 @@ public sealed class IndexQueries(IndexDatabase database)
             WHERE s.stage = 'Text' AND s.status IN ('Complete', 'Partial', 'Skipped') AND e.entry_id IN (SELECT value FROM json_each(@ids))
             """,
             new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
+    }
+
+    /// <summary>The title each of these cards shows, and the document it opens (null for a book owned elsewhere).</summary>
+    public async Task<IReadOnlyDictionary<EntryId, (string Title, long? DocumentId)>> GetCardTitlesAsync(IReadOnlyCollection<EntryId> entryIds,
+        CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return new Dictionary<EntryId, (string, long?)>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, long? DocumentId, string? Title)>(new CommandDefinition(
+            """
+            SELECT e.entry_id, e.document_id, coalesce(m.title, e.name, d.display_title)
+            FROM entry_doc e LEFT JOIN entry_meta m ON m.entry_id = e.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
+            WHERE e.entry_id IN (SELECT value FROM json_each(@ids))
+            """,
+            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
+        return rows.ToDictionary(r => new EntryId(r.EntryId), r => (r.Title ?? $"Document {r.EntryId}", r.DocumentId));
     }
 
     /// <summary>

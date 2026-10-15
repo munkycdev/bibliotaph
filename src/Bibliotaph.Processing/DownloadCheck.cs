@@ -9,7 +9,7 @@ using Bibliotaph.Pdf.Host;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>What Check a download made of a file (F5 plan, choice 11), in the order the page groups them.</summary>
+/// <summary>What Check a download made of a file, in the order the page groups them.</summary>
 public enum CheckVerdict
 {
     New,
@@ -49,10 +49,10 @@ public sealed record CheckedFile(CheckItem Item, CheckVerdict Verdict, string? N
 }
 
 /// <summary>
-/// Check a download (F5 plan, choices 9 to 13): which files in a folder or ZIP the library already has, before anything
-/// is copied anywhere. It reads through the read-only reader and writes only its own temporary copies of PDFs inside a
-/// ZIP, in the extract cache, which go when the check ends. Nothing goes into the catalog, the index or the job queue.
-/// The rules are Match's: the same hash, every page alike, most pages alike, or the title and publisher.
+/// Check a download: which files in a folder or ZIP the library already has, before anything is copied anywhere. It
+/// reads through the read-only reader and writes only its own temporary copies of PDFs inside a ZIP, in the extract
+/// cache, which go when the check ends. Nothing goes into the catalog, the index or the job queue. The rules are
+/// Match's: the same hash, every page alike, most pages alike, or the title and publisher.
 /// </summary>
 public sealed class DownloadCheck(LibraryStore library, EntryStore entries, IndexQueries queries, PdfWorkerPool workers, ArchiveReader archives,
     ISourceFileReader reader, VocabularyStore vocabularies, AppPaths paths, IDiskSpace disk)
@@ -129,7 +129,7 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
                 var where = (await library.GetLocationsAsync(owned, ct)).FirstOrDefault(l => l.State != FileLocationState.Missing)?.FullPath;
                 return await MatchAsync(item, CheckVerdict.AlreadyOwned, owned, ct) with { MatchWhere = where };
             }
-            // Images have no text to compare (choice 13).
+            // Images have no text to compare.
             if (!pdf || file is null) return new CheckedFile(item, CheckVerdict.New);
             return await CompareAsync(item, file, root, vocabulary, ct);
         }

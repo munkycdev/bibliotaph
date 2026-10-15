@@ -93,17 +93,22 @@ public sealed record SearchPlan
         _ => null,
     };
 
-    /// <summary>The entry_facet fields a vocabulary field searches, or null for a field that isn't one.</summary>
+    /// <summary>
+    /// The entry_facet fields a vocabulary field searches, or null for a field that isn't one. The book's own field
+    /// comes first; setting, theme and environment also find a book through what the AI found in its chapters, and
+    /// creatures are found only there.
+    /// </summary>
     public static IReadOnlyList<string>? FacetFields(SearchField field) => field switch
     {
         SearchField.System => ["system", "edition"],
         SearchField.Edition => ["edition"],
         SearchField.Type => ["type"],
-        SearchField.Setting => ["setting"],
-        SearchField.Theme => ["theme"],
+        SearchField.Setting => ["setting", ChapterFields.Inside(ChapterFields.Setting)],
+        SearchField.Theme => ["theme", ChapterFields.Inside(ChapterFields.Theme)],
         SearchField.Style => ["style"],
         SearchField.Duration => ["duration"],
-        SearchField.Environment => ["environment"],
+        SearchField.Environment => ["environment", ChapterFields.Inside(ChapterFields.Environment)],
+        SearchField.Creature => [ChapterFields.Inside(ChapterFields.Creature)],
         SearchField.Own => ["own"],
         SearchField.Store => ["store"],
         _ => null,
@@ -229,5 +234,5 @@ public sealed record SearchPlan
     }
 
     /// <summary>An FTS5 string: double quotes with any inside doubled. The tokenizer splits it into words.</summary>
-    static string Quote(string text) => "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+    internal static string Quote(string text) => "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 }

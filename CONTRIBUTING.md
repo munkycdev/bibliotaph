@@ -23,7 +23,7 @@ dotnet run --project src\Bibliotaph.App
 
 Until .NET 11's general release (due November 2026), Bibliotaph builds on the release candidate: `global.json` asks
 for the RC SDK, `DotNetPackagesVersion` in `Directory.Packages.props` names the RC packages, and the workflows install
-the SDK with `dotnet-quality: preview`. At GA all three move to the GA versions.
+that exact SDK version. At GA all three move to the GA versions.
 
 The app keeps its databases and logs in `%LOCALAPPDATA%\Bibliotaph`. To try it against a throwaway folder instead:
 
@@ -104,12 +104,38 @@ Redraw the app icon after changing the monogram (needs Python with `pip install 
 python tools\AppIcon\make_icon.py
 ```
 
+## Docs go with the change
+
+Every feature and every fix updates the docs in the same pull request, so main always describes the app as it is:
+
+- The user guide ([README](README.md) and [docs/guide/](docs/guide/)) wherever the change alters what someone sees or
+  does.
+- [docs/features.md](docs/features.md) for what the feature does, and [docs/architecture.md](docs/architecture.md)
+  when the design changes.
+- A bullet under `## Unreleased` at the top of [CHANGELOG.md](CHANGELOG.md), written for the people using the app.
+  Start the heading if it isn't there.
+
 ## Releases
 
-A version tag `vMAJOR.MINOR.PATCH` (such as `v1.0.0`) runs `.github/workflows/release.yml`: every CI check,
+A version tag `vMAJOR.MINOR.PATCH` runs `.github/workflows/release.yml`:
 a self-contained win-x64 publish, Velopack's pack, and a draft GitHub Release holding `BibliotaphApp-win-Setup.exe`
 and the update files. The draft stays private until it's published, and installed copies update from published
 releases only. See "Installer", "Releases" and "Updates" in [docs/architecture.md](docs/architecture.md).
+
+PATCH is the build number: the count of commits on main at the tagged commit. The workflow refuses a tag whose PATCH
+doesn't match. To tag the head of main:
+
+```powershell
+git fetch origin
+$n = git rev-list --count origin/main
+git tag "v1.2.$n" origin/main
+git push origin "v1.2.$n"
+```
+
+Before tagging, move the `## Unreleased` bullets into a "New in MAJOR.MINOR.PATCH" block at the top of that
+MAJOR.MINOR's section of `CHANGELOG.md`: the release notes are that section.
+
+`Directory.Build.props` keeps `MAJOR.MINOR.0` for local builds.
 
 ## README screenshots
 

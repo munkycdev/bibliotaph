@@ -6,7 +6,7 @@ namespace Bibliotaph.Catalog;
 
 /// <summary>
 /// Pages of one document, as a session item points at them: zero-based PDF pages, inclusive, with the printed labels
-/// and fingerprints of the first and last pages (slice 3 plan, choice 14).
+/// and fingerprints of the first and last pages.
 /// </summary>
 public sealed record PageRange(long DocumentId, int FirstPdfPage, int LastPdfPage, string? FirstLabel = null, string? LastLabel = null,
     string? FirstFingerprint = null, string? LastFingerprint = null)
@@ -16,7 +16,9 @@ public sealed record PageRange(long DocumentId, int FirstPdfPage, int LastPdfPag
     /// <summary>The page reference's id once it is stored; 0 for pages not stored yet.</summary>
     public long RefId { get; init; }
 
-    /// <summary>What was found when the pages were looked for in a new version of the book (slice 4h), if they have been.</summary>
+    /// <summary>
+    /// What was found when the pages were looked for in a new version of the book, if they have been.
+    /// </summary>
     public PageRefCheck? Check { get; init; }
 }
 
@@ -28,8 +30,7 @@ public sealed record PageRefCheck(PageCheck Outcome, long DocumentId, int FirstP
 
 /// <summary>
 /// A pack as the Sessions page shows it: how many items it has, and the books of its first two, for covers. One kept at
-/// hand holds rules to look up mid-game (Binders plan, choice 9), for <see cref="GameSystem"/> (a system vocabulary key)
-/// or any system.
+/// hand holds rules to look up mid-game, for <see cref="GameSystem"/> (a system vocabulary key) or any system.
 /// </summary>
 public sealed record SessionPackInfo(long Id, string Title, DateOnly? Date, string? Notes, DateTime TouchedUtc, int ItemCount, IReadOnlyList<EntryId> FirstEntries,
     bool KeepAtHand = false, string? GameSystem = null);
@@ -38,7 +39,7 @@ public sealed record SessionSectionInfo(long Id, string Name, int Position);
 
 public sealed record SessionItemInfo(long Id, long PackId, long? SectionId, int Position, EntryId EntryId, PageRange? Range, string? Label, string? Note, DateTime AddedUtc)
 {
-    /// <summary>A page of a book owned online: its address (online libraries plan, O2b). Null for a book's file or pages.</summary>
+    /// <summary>A page of a book owned online: its address. Null for a book's file or pages.</summary>
     public string? Link { get; init; }
 }
 
@@ -59,9 +60,9 @@ public sealed record SessionPackSnapshot(string Title, DateOnly? Date, string? N
     IReadOnlyList<SessionItemInfo> Items, bool KeepAtHand = false, string? GameSystem = null, int? PinPosition = null);
 
 /// <summary>
-/// Session packs (slice 3 plan, choices 11 to 15): ordered items, each a book or a page range of one, in optional
-/// sections. Items before the first section come first; each section's follow in the sections' order. Every change
-/// touches the pack, so the pack worked on last is the current one.
+/// Session packs: ordered items, each a book or a page range of one, in optional sections. Items before the first
+/// section come first; each section's follow in the sections' order. Every change touches the pack, so the pack worked
+/// on last is the current one.
 /// </summary>
 public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -144,7 +145,7 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.Notes, text).SetProperty(p => p.TouchedUtc, Now), ct) > 0;
     }
 
-    /// <summary>Opening a pack makes it the current one (choice 13).</summary>
+    /// <summary>Opening a pack makes it the current one.</summary>
     public async Task<bool> TouchAsync(long packId, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
@@ -181,8 +182,8 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// Duplicate (choice 11): a new pack with the same sections, items, labels and notes, each page range a new
-    /// reference to the same pages, kept at hand if the pack is. It has no date, since it is usually for another session.
+    /// Duplicate: a new pack with the same sections, items, labels and notes, each page range a new reference to the
+    /// same pages, kept at hand if the pack is. It has no date, since it is usually for another session.
     /// </summary>
     public async Task<SessionPackInfo?> DuplicateAsync(long packId, string title, CancellationToken ct = default)
     {
@@ -348,8 +349,8 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// "Use this page" (choice 14): the item points at these pages from now on, checked by the user (slice 4h plan,
-    /// choice 4), so Needs review counts it as done.
+    /// "Use this page": the item points at these pages from now on, checked by the user, so Needs review counts it as
+    /// done.
     /// </summary>
     public async Task<bool> RepointAsync(long itemId, PageRange range, CancellationToken ct = default)
     {
@@ -363,8 +364,8 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// Move up (<paramref name="by"/> −1) or Move down (+1), as Alt+Up and Alt+Down do (choice 12): past the next item
-    /// in its section, or over a section's heading into the section above or below. Returns false at either end.
+    /// Move up (<paramref name="by"/> −1) or Move down (+1), as Alt+Up and Alt+Down do: past the next item in its
+    /// section, or over a section's heading into the section above or below. Returns false at either end.
     /// </summary>
     public async Task<bool> MoveItemAsync(long itemId, int by, CancellationToken ct = default)
     {
@@ -391,7 +392,9 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         return true;
     }
 
-    /// <summary>A drag (choice 12): puts an item at <paramref name="index"/> among the items of a section, or of <see cref="NoSection"/>.</summary>
+    /// <summary>
+    /// A drag: puts an item at <paramref name="index"/> among the items of a section, or of <see cref="NoSection"/>.
+    /// </summary>
     public async Task<bool> MoveItemToAsync(long itemId, long sectionId, int index, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
@@ -407,7 +410,7 @@ public sealed class SessionStore(IDbContextFactory<CatalogDbContext> contexts, T
         return true;
     }
 
-    /// <summary>Add section (choice 11): a heading at the end of the pack, for the items added after it.</summary>
+    /// <summary>Add section: a heading at the end of the pack, for the items added after it.</summary>
     public async Task<SessionSectionInfo> AddSectionAsync(long packId, string name, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);

@@ -5,9 +5,8 @@ using System.Windows.Media;
 namespace Bibliotaph.App.Controls;
 
 /// <summary>
-/// The line a dragged pin shows where it will land (Pinned Views plan, choice 8): across the top or the bottom of the
-/// item under the mouse, in the accent colour. One at a time; <see cref="Show"/> moves it and <see cref="Hide"/> takes
-/// it away.
+/// The line a dragged pin shows where it will land: across the top or the bottom of the item under the mouse, in the
+/// accent colour. One at a time; <see cref="Show"/> moves it and <see cref="Hide"/> takes it away.
 /// </summary>
 public sealed class DropLine : Adorner
 {

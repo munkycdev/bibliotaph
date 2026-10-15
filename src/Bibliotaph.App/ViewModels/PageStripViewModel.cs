@@ -182,7 +182,7 @@ public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action
             }
             var cts = new CancellationTokenSource();
             _drawing[index] = cts;
-            _ = DrawAsync(page, hash, renderer, cts);
+            DrawAsync(page, hash, renderer, cts).FireAndForget();
         }
     }
 

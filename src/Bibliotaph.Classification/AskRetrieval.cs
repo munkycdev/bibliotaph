@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
+using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Classification;
 
@@ -8,9 +10,10 @@ public sealed record AskPage(long PageId, int PdfPage, string Text);
 
 /// <summary>
 /// A page as the two signals ranked it (1 is first; null when that signal didn't rank it), whether a heading above it
-/// matched the question, and its score after fusing them.
+/// matched the question, its score after fusing them, and whether it reads like an index or contents page and was
+/// pushed down for it.
 /// </summary>
-public sealed record RankedPage(long PageId, int? WordRank, int? MeaningRank, bool Boosted, double Score);
+public sealed record RankedPage(long PageId, int? WordRank, int? MeaningRank, bool Boosted, double Score, bool ListLike = false);
 
 /// <summary>A bookmark with the bookmarks above it, innermost last: "Part Two", "The Mill".</summary>
 public sealed record HeadingPath(IReadOnlyList<string> Titles)
@@ -22,7 +25,7 @@ public sealed record HeadingPath(IReadOnlyList<string> Titles)
 /// <summary>The few lines of a page shown under a question, and the word in them that matched it, for Find to mark.</summary>
 public sealed record Passage(string Text, string? Phrase);
 
-/// <summary>How retrieval weighs and cuts (Ask this book, choices 3, 5, 8 and 9).</summary>
+/// <summary>How retrieval weighs and cuts.</summary>
 public sealed record AskRetrievalOptions
 {
     /// <summary>How many pages each signal ranks before they are fused.</summary>
@@ -34,6 +37,18 @@ public sealed record AskRetrievalOptions
     /// <summary>A page under a bookmark that matches the question gains this share of a first place.</summary>
     public double HeadingBoost { get; init; } = 0.5;
 
+    /// <summary>
+    /// A page that reads like an index, contents or glossary keeps this share of its score. Halved, it falls below any
+    /// page both signals found and most pages one signal found, so it is chosen only when nothing better is there.
+    /// </summary>
+    public double ListPenalty { get; init; } = 0.5;
+
+    /// <summary>The words signal counts as strong when the best page by words has at least this share of the question's weight.</summary>
+    public double MinWordShare { get; init; } = 0.5;
+
+    /// <summary>How many of the best pages by words the weak-signal guard reads.</summary>
+    public int GuardPages { get; init; } = 5;
+
     /// <summary>The meaning signal counts as strong only when the best page is at least this close to the question...</summary>
     public double MinCosine { get; init; } = 0.45;
 
@@ -43,19 +58,25 @@ public sealed record AskRetrievalOptions
     /// <summary>At most this many pages are the evidence.</summary>
     public int MaxPages { get; init; } = 8;
 
-    /// <summary>About 6,000 tokens of pages (choice 9), at roughly four characters a token.</summary>
+    /// <summary>About 6,000 tokens of pages, at roughly four characters a token.</summary>
     public int Budget { get; init; } = 24_000;
 
     /// <summary>A page gives at most this much, so one long page can't take the whole budget.</summary>
     public int PageCharacters { get; init; } = 4_000;
+
+    /// <summary>
+    /// At most this many pages of one book are the evidence, so across a library one book that has the question's words
+    /// on every page doesn't take every place. One book has no limit but <see cref="MaxPages"/>.
+    /// </summary>
+    public int MaxPagesPerBook { get; init; } = int.MaxValue;
 }
 
 /// <summary>
-/// Finding the pages of one book that answer a question, without a model (Ask this book, step 2): the question's words
-/// through the book's search index, its meaning against each page's vector, the two fused by reciprocal rank, and pages
-/// under a bookmark that matches the question lifted a little. Pure, so it is tested without an index or a server.
+/// Finding the pages of one book that answer a question, without a model: the question's words through the book's
+/// search index, its meaning against each page's vector, the two fused by reciprocal rank, and pages under a bookmark
+/// that matches the question lifted a little. Pure, so it is tested without an index or a server.
 /// </summary>
-public static class AskRetrieval
+public static partial class AskRetrieval
 {
     /// <summary>A word this long or longer also finds words that start with it, as search does (SearchPlan.MinWordStart).</summary>
     const int MinWordStart = 3;
@@ -91,8 +112,10 @@ public static class AskRetrieval
     /// rarer ones first. Each word is quoted, and is letters and digits only, so nothing typed can become FTS5 syntax.
     /// Null when the question has no words worth looking for.
     /// </summary>
-    public static string? WordsMatch(IReadOnlyList<string> words) =>
-        words.Count == 0 ? null : string.Join(" OR ", words.Select(w => w.Length >= MinWordStart ? $"\"{w}\"*" : $"\"{w}\""));
+    public static string? WordsMatch(IReadOnlyList<string> words) => words.Count == 0 ? null : string.Join(" OR ", words.Select(WordMatch));
+
+    /// <summary>One of the question's words as an FTS5 expression, found as <see cref="WordsMatch"/> finds it.</summary>
+    public static string WordMatch(string word) => word.Length >= MinWordStart ? $"\"{word}\"*" : $"\"{word}\"";
 
     /// <summary>How many of the question's words a text has, as search would find them (a longer word by its start).</summary>
     public static int Coverage(IReadOnlyList<string> words, string text)
@@ -119,17 +142,21 @@ public static class AskRetrieval
         return aa == 0 || bb == 0 ? 0 : dot / (Math.Sqrt(aa) * Math.Sqrt(bb));
     }
 
-    /// <summary>Every page's closeness to the question, closest first (choice 5: in process, over the one book's vectors).</summary>
+    /// <summary>
+    /// Every page's closeness to the question, closest first (in process, over the one book's vectors).
+    /// </summary>
     public static IReadOnlyList<(long PageId, double Cosine)> RankByMeaning(float[] question, IEnumerable<(long PageId, float[] Vector)> pages) =>
         [.. pages.Select(p => (p.PageId, Cosine: Cosine(question, p.Vector))).OrderByDescending(p => p.Cosine).ThenBy(p => p.PageId)];
 
     /// <summary>
     /// Reciprocal rank fusion: each signal gives a page 1 / (K + its rank), and a page under a matching bookmark gains
     /// part of a first place. Only pages a signal ranked take part, so a matching chapter can lift its pages but not
-    /// bring in pages that say nothing of the question. Best first.
+    /// bring in pages that say nothing of the question. A page that reads like an index or contents page (see
+    /// <see cref="IsListLike"/>) keeps only <see cref="AskRetrievalOptions.ListPenalty"/> of its score: it has the
+    /// question's words without answering it. Best first.
     /// </summary>
     public static IReadOnlyList<RankedPage> Fuse(IReadOnlyList<long> byWords, IReadOnlyList<long> byMeaning, IReadOnlySet<long> boosted,
-        AskRetrievalOptions? options = null)
+        AskRetrievalOptions? options = null, IReadOnlySet<long>? lists = null)
     {
         options ??= new AskRetrievalOptions();
         var words = byWords.Take(options.RankDepth).Select((id, i) => (id, i)).ToDictionary(p => p.id, p => p.i + 1);
@@ -143,30 +170,140 @@ public static class AskRetrieval
                 var boost = boosted.Contains(id);
                 var score = (wordRank is { } wr ? 1.0 / (options.K + wr) : 0) + (meaningRank is { } mr ? 1.0 / (options.K + mr) : 0)
                     + (boost ? options.HeadingBoost * first : 0);
-                return new RankedPage(id, wordRank, meaningRank, boost, score);
+                var list = lists?.Contains(id) == true;
+                return new RankedPage(id, wordRank, meaningRank, boost, list ? score * options.ListPenalty : score, list);
             })
             .OrderByDescending(p => p.Score).ThenBy(p => p.PageId)];
     }
 
     /// <summary>
-    /// The weak-signal guard (choice 8, before any model is asked): the best page by words has fewer than half the
-    /// question's words (at least one), and the best page by meaning is neither close to the question nor stands out
-    /// from the book's typical page. Without vectors, words alone decide.
+    /// The ranking with at most <paramref name="max"/> pages of each book, in the same order: the rest of a book's pages
+    /// make way for the next books' best. A page whose book isn't known counts as a book of its own.
     /// </summary>
-    /// <param name="wordCount">How many words the question has worth looking for.</param>
-    /// <param name="bestCoverage">How many of them the best page by words has.</param>
+    /// <param name="ranked">Pages best first, as <see cref="Fuse"/> ranks them.</param>
+    /// <param name="bookOf">The book (document) of each page.</param>
+    /// <param name="max">How many pages of one book to keep.</param>
+    public static IReadOnlyList<RankedPage> CapPerBook(IReadOnlyList<RankedPage> ranked, IReadOnlyDictionary<long, long> bookOf, int max)
+    {
+        if (max == int.MaxValue) return ranked;
+        var taken = new Dictionary<long, int>();
+        var kept = new List<RankedPage>();
+        foreach (var page in ranked)
+        {
+            if (!bookOf.TryGetValue(page.PageId, out var book))
+            {
+                kept.Add(page);
+                continue;
+            }
+            var count = taken.GetValueOrDefault(book);
+            if (count >= max) continue;
+            taken[book] = count + 1;
+            kept.Add(page);
+        }
+        return kept;
+    }
+
+    /// <summary>
+    /// How much a question's word says about where the answer is in this book: one over the number of the book's
+    /// pages that have it, so a word on three pages ("lich") outweighs one on two hundred ("rules") sixty-fold. A word
+    /// on no page weighs as much as one on a single page: the book lacks what the question names, and that counts
+    /// against whatever pages its other words find ("which starship crashed into the harbour?" in a book with a harbour
+    /// and no starships).
+    /// </summary>
+    /// <param name="pagesWith">How many of the book's pages have each word, in the words' order.</param>
+    public static IReadOnlyList<double> Weights(IReadOnlyList<int> pagesWith) => [.. pagesWith.Select(n => 1.0 / Math.Max(1, n))];
+
+    /// <summary>
+    /// The share of the question's weight (see <see cref="Weights"/>) the best of these pages has, from 0 to 1: 0 when
+    /// the question has no words. When every word is on as many pages, it is simply the share of the words the page has.
+    /// </summary>
+    /// <param name="words">The question's words worth looking for.</param>
+    /// <param name="pagesWith">How many of the book's pages have each word, in the same order.</param>
+    /// <param name="texts">The best few pages by words.</param>
+    public static double WordShare(IReadOnlyList<string> words, IReadOnlyList<int> pagesWith, IEnumerable<string> texts)
+    {
+        var weights = Weights(pagesWith);
+        var total = weights.Sum();
+        if (words.Count == 0 || words.Count != weights.Count || total <= 0) return 0;
+        var best = 0.0;
+        foreach (var text in texts)
+        {
+            var tokens = Tokens(text).ToHashSet(StringComparer.Ordinal);
+            best = Math.Max(best, words.Select((w, i) => Matches(w, tokens) ? weights[i] : 0).Sum());
+        }
+        return best / total;
+    }
+
+    /// <summary>
+    /// The weak-signal guard (before any model is asked): the best page by words has less than half the question's
+    /// weight (see <see cref="WordShare"/>), so it lacks the rare words that say what the question is about, and the
+    /// best page by meaning is neither close to the question nor stands out from the book's typical page. Without
+    /// vectors, words alone decide.
+    /// </summary>
+    /// <param name="wordShare">The share of the question's weight the best page by words has.</param>
     /// <param name="cosines">Every page's closeness to the question, or null when the book has no vectors.</param>
     /// <param name="options">The thresholds; the defaults when null.</param>
-    public static bool IsWeak(int wordCount, int bestCoverage, IReadOnlyList<double>? cosines, AskRetrievalOptions? options = null)
+    public static bool IsWeak(double wordShare, IReadOnlyList<double>? cosines, AskRetrievalOptions? options = null)
     {
         options ??= new AskRetrievalOptions();
-        var wordsStrong = wordCount > 0 && bestCoverage >= Math.Max(1, (wordCount + 1) / 2);
-        if (wordsStrong) return false;
+        if (wordShare > 0 && wordShare >= options.MinWordShare) return false;
         if (cosines is not { Count: > 0 }) return true;
         var best = cosines.Max();
         var typical = Median(cosines);
         return !(best >= options.MinCosine && best - typical >= options.MinCosineLead);
     }
+
+    /// <summary>
+    /// Whether a page reads like an index, a table of contents or a glossary of page references rather than something
+    /// that says anything: it has many of a question's words (that is what it's for), so search ranks it high, but it
+    /// answers nothing. Any one of three signs is enough.
+    /// <list type="bullet">
+    /// <item>Dot leaders: at least 5 runs of four or more dots before a number ("The Mill ....... 12"). A contents page
+    /// has one an entry; prose has none.</item>
+    /// <item>Entry lines: of at least 8 lines with text, 40% or more are short (60 characters or fewer) and end in a
+    /// word and then page numbers ("Dragon, red 12, 45, 112–114"). Prose lines are longer and seldom end in a bare
+    /// number, and a table's rows end in a number after other numbers or a sign ("1st 2 3", "+2"), which doesn't count.
+    /// </item>
+    /// <item>Page numbers, for text whose lines were lost: of at least 40 words, 45% or more are numbers of up to four
+    /// digits, in runs of three or fewer on average. A stat block is about a third numbers, and a table of numbers
+    /// has long runs of them.</item>
+    /// </list>
+    /// </summary>
+    public static bool IsListLike(string text)
+    {
+        if (DotLeader().Count(text) >= 5) return true;
+
+        var lines = text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        if (lines.Count >= 8 && lines.Count(l => l.Length <= 60 && EntryLine().IsMatch(l)) >= lines.Count * 0.4) return true;
+
+        var numbers = 0;
+        var runs = 0;
+        var count = 0;
+        var inRun = false;
+        foreach (var token in Tokens(text))
+        {
+            count++;
+            var number = token.Length <= 4 && token.All(char.IsAsciiDigit);
+            if (number)
+            {
+                numbers++;
+                if (!inRun) runs++;
+            }
+            inRun = number;
+        }
+        return count >= 40 && numbers >= count * 0.45 && numbers <= runs * 3;
+    }
+
+    /// <summary>Four or more dots (or two or more ellipses), spaced or not, then a page number.</summary>
+    [GeneratedRegex(@"(?:(?:\.\s?){4,}|(?:…\s?){2,})\s*\d{1,4}\b")]
+    private static partial Regex DotLeader();
+
+    /// <summary>
+    /// A line that ends in a word, then one or more page numbers or ranges after a space: "Dragon, red 12, 45, 112–114".
+    /// The word starts a word, so a table's "2nd 3" isn't one.
+    /// </summary>
+    [GeneratedRegex(@"(?<![\p{L}\p{M}\d'’])\p{L}[\p{L}\p{M}'’)\]]*[,.:]?\s+\d{1,4}(?:\s*[-–—]\s*\d{1,4})?(?:\s*,\s*\d{1,4}(?:\s*[-–—]\s*\d{1,4})?)*\.?$")]
+    private static partial Regex EntryLine();
 
     static double Median(IReadOnlyList<double> values)
     {
@@ -281,7 +418,7 @@ public static class AskRetrieval
     static IEnumerable<string> Tokens(string text)
     {
         var builder = new StringBuilder();
-        foreach (var c in text.Normalize(NormalizationForm.FormKD))
+        foreach (var c in MetadataText.UnicodeForm(text, NormalizationForm.FormKD))
         {
             if (char.IsLetterOrDigit(c)) builder.Append(char.ToLowerInvariant(c));
             else if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark) continue;
@@ -295,6 +432,41 @@ public static class AskRetrieval
     }
 
     static string Normal(string word) => Tokens(word).FirstOrDefault() ?? "";
+}
+
+/// <summary>
+/// Pages ranked by meaning one at a time, for more pages than are worth holding as vectors at once (a whole library):
+/// it keeps the closest few, best first and ties by page as <see cref="AskRetrieval.RankByMeaning"/> breaks them, and
+/// every page's closeness, which the weak-signal guard compares the best with.
+/// </summary>
+/// <param name="question">The question's vector.</param>
+/// <param name="keep">How many of the closest pages to keep.</param>
+public sealed class MeaningRanking(float[] question, int keep)
+{
+    readonly List<double> _cosines = [];
+
+    /// <summary>The closest kept pages, the least close first, so the next to go is at the front; ties drop the later page.</summary>
+    readonly PriorityQueue<(long PageId, double Cosine), (double Cosine, long Order)> _best = new();
+
+    /// <summary>Every page's closeness to the question, in the order they were added.</summary>
+    public IReadOnlyList<double> Cosines => _cosines;
+
+    /// <summary>How many pages were ranked.</summary>
+    public int Count => _cosines.Count;
+
+    /// <summary>Ranks one more page.</summary>
+    public void Add(long pageId, ReadOnlySpan<float> vector)
+    {
+        var cosine = AskRetrieval.Cosine(question, vector);
+        _cosines.Add(cosine);
+        if (keep <= 0) return;
+        _best.Enqueue((pageId, cosine), (cosine, -pageId));
+        if (_best.Count > keep) _best.Dequeue();
+    }
+
+    /// <summary>The closest pages, closest first.</summary>
+    public IReadOnlyList<(long PageId, double Cosine)> Best() =>
+        [.. _best.UnorderedItems.Select(i => i.Element).OrderByDescending(p => p.Cosine).ThenBy(p => p.PageId)];
 }
 
 /// <summary>

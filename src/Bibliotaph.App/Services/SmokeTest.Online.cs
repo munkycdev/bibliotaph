@@ -13,10 +13,10 @@ namespace Bibliotaph.App.Services;
 static partial class SmokeTest
 {
     /// <summary>
-    /// Online libraries (O2): a made-up D&amp;D Beyond library page, saved with its covers beside the data root by
-    /// verify.ps1, imported from Settings &gt; Online libraries, which the Library's Import from an online library
-    /// opens. The preview, the two new books with their links and covers, the preview again with both imported, then
-    /// Undo and the library as it was.
+    /// Online libraries: a made-up D&amp;D Beyond library page, saved with its covers beside the data root by verify.ps1,
+    /// imported from Settings &gt; Online libraries, which the Library's Import from an online library opens. The preview,
+    /// the two new books with their links and covers, the preview again with both imported, then Undo and the library as
+    /// it was.
     /// </summary>
     static async Task ImportOnlineLibraryAsync(IServiceProvider services, Window window, int books)
     {
@@ -35,7 +35,7 @@ static partial class SmokeTest
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
         var page = (OnlineLibrariesViewModel)(await ExpectSettingsAsync(window, shell, SettingsSection.OnlineLibraries, "The Library's Import from an online library")).Selected;
-        // How books owned online show and open moved here from Settings > Library, so everything online is in one place.
+        // How books owned online show and open is here, not in Settings > Library, so everything online is in one place.
         await Settle(window);
         if (Descendants<CheckBox>(window).Count(c => c.Name is "ShowSiteIcons" or "ReadOnlineInApp" && c.IsVisible) != 2)
             throw new InvalidOperationException("Settings > Online libraries doesn't show Show site icons and Read books owned online in Bibliotaph.");
@@ -54,8 +54,8 @@ static partial class SmokeTest
         await AuditAsync(window, "an online library's import preview");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "ImportOnline"), "Import 2 books");
-        await WaitUntilAsync(window, () => !page.IsBusy && page.Message == "Added 2 books owned on D&D Beyond.",
-            () => $"Importing says “{page.Message}”.");
+        await WaitUntilAsync(window, () => !page.IsBusy && page.Undo.Message == "Added 2 books owned on D&D Beyond.",
+            () => $"Importing says “{page.Undo.Message}”.");
         if (page.Groups is not [{ Outcome: OnlineOutcome.Unchanged, Items.Count: 2 }])
             throw new InvalidOperationException($"After importing, the preview's groups are {string.Join(", ", page.Groups.Select(g => g.Heading))}.");
 
@@ -67,8 +67,8 @@ static partial class SmokeTest
         await AuditAsync(window, "an online library imported");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoOnline"), "Undo the import");
-        await WaitUntilAsync(window, () => !page.IsBusy && page.Message is null && page.Groups is [{ Outcome: OnlineOutcome.New }],
-            () => $"Undo left “{page.Message}”.");
+        await WaitUntilAsync(window, () => !page.IsBusy && page.Undo.Message is null && page.Groups is [{ Outcome: OnlineOutcome.New }],
+            () => $"Undo left “{page.Undo.Message}”.");
         cards = await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible)));
         if (cards.Count != books) throw new InvalidOperationException($"After Undo the library has {cards.Count} cards, not {books}.");
 
@@ -120,8 +120,8 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// The online reader (O2b) on the made-up library page standing in for a book's page: it opens in the main window
-    /// with the page loaded, keeps the book's note, pops out into a window of its own and comes back.
+    /// The online reader on the made-up library page standing in for a book's page: it opens in the main window with the
+    /// page loaded, keeps the book's note, pops out into a window of its own and comes back.
     /// </summary>
     static async Task ReadOnlineBookAsync(IServiceProvider services, Window window)
     {
@@ -172,9 +172,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Add this page (O2b): the page in view goes into the current binder as a link labelled with the page's title,
-    /// opening it from the binder's list opens the online reader at that page, and the binder's reader shows it there in
-    /// place of its file reader. The binder is deleted afterwards.
+    /// Add this page: the page in view goes into the current binder as a link labelled with the page's title, opening it
+    /// from the binder's list opens the online reader at that page, and the binder's reader shows it there in place of its
+    /// file reader. The binder is deleted afterwards.
     /// </summary>
     static async Task AddOnlinePageAsync(IServiceProvider services, Window window, OnlineReaderViewModel reader)
     {
@@ -186,8 +186,8 @@ static partial class SmokeTest
         try
         {
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "OnlineAddPage" && b.IsVisible), "Add this page");
-            await WaitUntilAsync(window, () => reader.Sessions.Message?.StartsWith("Added", StringComparison.Ordinal) == true,
-                () => $"Add this page didn't add the page ({reader.Sessions.Message ?? "no message"}).");
+            await WaitUntilAsync(window, () => reader.Sessions.Undo.Message?.StartsWith("Added", StringComparison.Ordinal) == true,
+                () => $"Add this page didn't add the page ({reader.Sessions.Undo.Message ?? "no message"}).");
             var item = Assert1((await sessions.GetAsync(binder.Id))!.Items, "the binder's items");
             if (item.Link != reader.Address || item.EntryId != reader.Request.EntryId || string.IsNullOrEmpty(item.Label))
                 throw new InvalidOperationException($"Add this page added {item.Link} labelled {item.Label ?? "nothing"}, not {reader.Address}.");
@@ -229,9 +229,9 @@ static partial class SmokeTest
         items.Count == 1 ? items[0] : throw new InvalidOperationException($"Expected one of {what}, found {items.Count}.");
 
     /// <summary>
-    /// Downloads (O5): a downloads folder outside the library refused, one inside it chosen, and a made-up store's
-    /// Download (a link with a download name, clicked on the made-up page) saved there by the in-app browser, listed in
-    /// its window and read into the library.
+    /// Downloads: a downloads folder outside the library refused, one inside it chosen, and a made-up store's Download (a
+    /// link with a download name, clicked on the made-up page) saved there by the in-app browser, listed in its window and
+    /// read into the library.
     /// </summary>
     static async Task DownloadFromStoreAsync(IServiceProvider services, Window window)
     {

@@ -37,7 +37,7 @@ public abstract partial class SettingsSectionViewModel : ObservableObject
 /// <summary>
 /// Settings > Processing: indexing step by step with the time left, what each part is on now, pause and resume for
 /// each lane, and why online-only files wait. The progress itself is <see cref="LibraryActivity"/>'s, which the
-/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only (Dale's review, row 2).
+/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only.
 /// </summary>
 public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links, OnlineOnlyReturns returns,
     ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
@@ -112,19 +112,19 @@ public sealed class AppearanceSectionViewModel(ThemeService theme) : SettingsSec
     public bool UseSystem
     {
         get => theme.Preference == ThemePreference.System;
-        set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.System); }
+        set { if (value) theme.SetPreferenceAsync(ThemePreference.System).FireAndForget(); }
     }
 
     public bool UseLight
     {
         get => theme.Preference == ThemePreference.Light;
-        set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.Light); }
+        set { if (value) theme.SetPreferenceAsync(ThemePreference.Light).FireAndForget(); }
     }
 
     public bool UseDark
     {
         get => theme.Preference == ThemePreference.Dark;
-        set { if (value) _ = theme.SetPreferenceAsync(ThemePreference.Dark); }
+        set { if (value) theme.SetPreferenceAsync(ThemePreference.Dark).FireAndForget(); }
     }
 
     /// <summary>While a Windows contrast theme is on, the system's colours show whatever is chosen here.</summary>
@@ -162,14 +162,14 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
     public bool ReviewWhenUnsure
     {
         get => !_reviewAll;
-        set { if (value) _ = SetReviewAllAsync(false); }
+        set { if (value) SetReviewAllAsync(false).FireAndForget(); }
     }
 
-    /// <summary>Needs review gets every suggestion nobody has confirmed (choice 4).</summary>
+    /// <summary>Needs review gets every suggestion nobody has confirmed.</summary>
     public bool ReviewEverything
     {
         get => _reviewAll;
-        set { if (value) _ = SetReviewAllAsync(true); }
+        set { if (value) SetReviewAllAsync(true).FireAndForget(); }
     }
 
     /// <summary>"Counting…" while every book's cards are counted again.</summary>
@@ -196,7 +196,7 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
 }
 
 /// <summary>Settings > Start over: a development aid, shown only with --dev, and last in the list so it isn't chosen by accident.</summary>
-public sealed partial class StartOverSectionViewModel(StartOver startOver) : SettingsSectionViewModel
+public sealed partial class StartOverSectionViewModel(StartOver startOver, IUserPrompts prompts) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.StartOver;
     public override string Label => "Start over";
@@ -205,7 +205,7 @@ public sealed partial class StartOverSectionViewModel(StartOver startOver) : Set
     [RelayCommand]
     void StartOver()
     {
-        if (Services.StartOver.Confirm()) startOver.Run();
+        if (Services.StartOver.Confirm(prompts)) startOver.Run();
     }
 }
 
@@ -213,12 +213,12 @@ public sealed partial class StartOverSectionViewModel(StartOver startOver) : Set
 public sealed record PasswordRow(string ContentHash, string Title);
 
 /// <summary>
-/// Settings > Passwords (slice 4i plan, choice 2): the books whose password was remembered in Windows Credential
-/// Manager, each with Forget, and Forget all. Forgetting one also forgets the copy kept for this sitting, so the next
-/// open asks again; text already read stays searchable until Forget its text.
+/// Settings > Passwords: the books whose password was remembered in Windows Credential Manager, each with Forget, and
+/// Forget all. Forgetting one also forgets the copy kept for this sitting, so the next open asks again; text already
+/// read stays searchable until Forget its text.
 /// </summary>
 public sealed partial class PasswordsSectionViewModel(IPasswordVault vault, UnlockedPasswords unlocked, IndexQueries queries,
-    ILogger<PasswordsSectionViewModel> log) : SettingsSectionViewModel
+    IUserPrompts prompts, ILogger<PasswordsSectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Passwords;
     public override string Label => "Passwords";
@@ -264,10 +264,9 @@ public sealed partial class PasswordsSectionViewModel(IPasswordVault vault, Unlo
     void ForgetAll()
     {
         if (Rows.Count == 0) return;
-        var confirmed = System.Windows.MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        var confirmed = prompts.Confirm(
             $"Bibliotaph will forget {(Rows.Count == 1 ? "the remembered password" : $"all {Rows.Count:N0} remembered passwords")} and ask again the next time you open {(Rows.Count == 1 ? "the book" : "each book")}.\n\nYour files are not touched.",
-            "Forget all passwords?", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question,
-            System.Windows.MessageBoxResult.Cancel) == System.Windows.MessageBoxResult.OK;
+            "Forget all passwords?", PromptKind.Question, okByDefault: false);
         if (!confirmed) return;
         var count = vault.ForgetAll();
         foreach (var row in Rows) unlocked.Forget(row.ContentHash);

@@ -6,7 +6,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Reading ZIPs (F3): what a ZIP lists, and the extract cache the PDF engine and the viewer read from.</summary>
+/// <summary>Reading ZIPs: what a ZIP lists, and the extract cache the PDF engine and the viewer read from.</summary>
 public sealed class ArchiveTests : IDisposable
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-archives-").FullName;

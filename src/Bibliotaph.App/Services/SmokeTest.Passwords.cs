@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Slice 4i: passwords, DRM and forgetting a book's text, on two hand-made PDFs (<see cref="SmokePdfs"/>).</summary>
+/// <summary>Passwords, DRM and forgetting a book's text, on two hand-made PDFs (<see cref="SmokePdfs"/>).</summary>
 static partial class SmokeTest
 {
     const string LockedTitle = "Smoke Locked Book";
@@ -64,7 +64,7 @@ static partial class SmokeTest
             await using (var member = zip.CreateEntry($"Smoke Protected/{ProtectedTitle}.pdf").Open()) await member.WriteAsync(SmokePdfs.Protected());
         }
         var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
-        services.GetRequiredService<IndexingService>().RequestScan(root.Id);
+        services.GetRequiredService<IJobControl>().RequestScan(root.Id);
 
         var queries = services.GetRequiredService<LibraryQueries>();
         var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 60;

@@ -17,12 +17,17 @@ year, setting, themes and environments.
 - **Your values always win.** Anything you've typed, accepted or rejected stays as it is. AI never fills in your tags.
 - **It learns from you.** The model is shown a few books you've already sorted out, from the same folder or system, as
   examples of how you catalog.
-- **It finds adventures inside anthologies**, and reads each one on its own pages. See
+- **It reads whole books, chapter by chapter**, once everything else is done. See
+  [Scanning whole books](#scanning-whole-books).
+- **It finds adventures inside anthologies**, when the book says it is a collection of them, and reads each one on
+  its own pages. See
   [Cataloging](cataloging.md#adventures-inside-a-file).
 - **It reads requests in plain English** in the search box's **Ask** mode. See
   [Searching](searching.md#ask-in-plain-english).
 - **It answers questions about a book** from the book's own pages, citing and checking each one. See
   [Reading](reading.md#ask-this-book).
+- **It answers questions from your whole library**, citing the book and page of each claim. See
+  [Searching](searching.md#ask-your-library-a-question).
 - **Book text can't give it orders.** Text in a PDF is treated as text to read, never as instructions, and an answer
   can only fill in suggestions.
 
@@ -34,17 +39,22 @@ Nothing leaves your PC unless you set it up that way.
 - **A model server**: a program such as Ollama or LM Studio that you install and run yourself. Bibliotaph sends each
   book's excerpt (a few thousand words of its text) to that server. If the server is on another computer outside your
   network, Settings says so, and you have to tick **Send excerpts to this server** first. **Ask** sends it what you
-  typed, and **Ask this book** sends your question with the few pages that answer it (and, with an embedding model,
-  each page's text once, to find pages by meaning).
+  typed, **Ask this book** and **Answer from my books** send your question with the few pages that answer it, and,
+  with an embedding model, each page's text is sent once to find pages by meaning.
 
 Bibliotaph never switches to a cloud service by itself.
 
 ## Set it up: Built in
 
 1. Open **Settings > AI**, and choose **Built in** under **Where the model runs**.
-2. Pick a model. Bibliotaph suggests the one that suits your graphics card:
-   - **Qwen3 8B**, about a 5 GB download, for a graphics card with 7 GB of memory or more.
-   - **Qwen3 4B**, about a 2.5 GB download, for smaller graphics cards or a PC without one.
+2. Pick a model from the list. Those that fit your graphics card come first, and Bibliotaph preselects the one it
+   suggests: **Qwen3 8B** (about 5 GB) for a card with 7 GB of memory or more, or **Qwen3 4B** (about 2.5 GB) for a
+   smaller card or a PC without one. The list also has Phi-4 mini, Llama 3.1 8B and Granite 3.3 8B for 8 GB cards, and
+   Qwen3 14B, Mistral Small 3.2 24B and Qwen3 30B-A3B for bigger ones. Each shows its download size, the graphics
+   memory it needs and its licence. Llama 3.1 comes under Meta's own licence; the others are Apache-2.0 or MIT.
+
+   Already have a model? **Use a model file…** uses a `.gguf` file on your PC where it is, such as one LM Studio
+   downloaded. Bibliotaph never changes or deletes it.
 3. Click **Download**. You can pause it and carry on later, even after closing Bibliotaph. As soon as the download
    finishes, AI switches on and starts reading.
 
@@ -52,8 +62,11 @@ Bibliotaph never switches to a cloud service by itself.
 threw away and why. **Delete model** frees the space.
 
 The built-in AI uses your graphics card when it can and falls back to the processor, which is much slower. It only
-runs while it has books to read. With it, **Ask this book** finds pages by their words only; finding them by meaning
-needs a model server with an embedding model.
+runs while it has books to read.
+
+Under **Ask this book**, **Download the embedding model** (nomic-embed-text, about 150 MB) lets **Ask this book** and
+[questions to your library](searching.md#ask-your-library-a-question) find pages by what they mean as well as by their
+words. Without it, they find pages by their words only. **Delete embedding model** frees the space.
 
 ## Set it up: a model server
 
@@ -66,8 +79,31 @@ needs a model server with an embedding model.
 If the server needs a key, type it under **Key, only if the server needs one**. It's kept in Windows Credential
 Manager and never shown again.
 
-**Embedding model, for Ask this book** lets **Ask this book** find pages by what they mean, not only by their words.
-Download one such as nomic-embed-text on the server first, then choose it here.
+**Embedding model, for Ask this book** lets **Ask this book**, and questions to your library, find pages by what they
+mean, not only by their words. Download one such as nomic-embed-text on the server first, then choose it here.
+
+## Scanning whole books
+
+Cataloging reads only a few pages of each book. With **Scan whole books** on (in **Settings > AI**, on unless you turn
+it off), the AI then goes back and reads every page, a few chapters at a time, and notes the setting, environments,
+themes and creatures in each chapter, with the pages they're on.
+
+- **Chapters come from the book.** Bibliotaph uses the PDF's bookmarks, else its printed contents page, else runs of
+  about 25 pages. Long chapters are read in parts.
+- **It waits its turn.** It starts only after a book is catalogued, and stops the moment you use the AI for anything
+  else (cataloging, **Ask**, **Ask this book**), carrying on half a minute after you've finished. Closing Bibliotaph
+  doesn't lose its place.
+- **It never changes a book's own details.** What it finds is shown apart, under **Found inside the book** in the
+  book's details, and beside each chapter in the reader's **Contents**. **Scan again** there reads the book again.
+- **Search uses it.** `setting:`, `environment:` and `theme:` also find books by what's inside them, and `creature:`
+  finds the books with a creature in one of their chapters, such as `creature:owlbear`.
+- **Each finding is checked like any other**: its quote must be on its page, inside its chapter.
+- **Dense pages still fit.** Stat blocks and tables take up more of the model's room than ordinary text. When a few
+  chapters turn out too long for the model, they're sent again with each page cut shorter, and if even that doesn't
+  fit, only those chapters are skipped.
+- A book is read once. It's read again only if the file changes or you ask. What it found stays on this PC, even if
+  the index is rebuilt, and isn't part of sync.
+- **Settings > AI** shows how far it's got: "Scanning whole books · 12 of 40".
 
 ## Day to day
 
@@ -82,6 +118,17 @@ Download one such as nomic-embed-text on the server first, then choose it here.
   offers **Reclassify**, with the number, to read them again.
 - **Files needing attention** in Needs review lists books the AI couldn't read, with **Try all again**.
   **Settings > AI** counts them too, with **Try again** (or, alongside books an earlier model read, **Reclassify**).
+
+## Reading your library for meaning
+
+With an embedding model set, Bibliotaph slowly reads every book in your library for meaning in the background, so
+[a question to your library](searching.md#ask-your-library-a-question) can find a page by what it means, not only by
+its words. For a large library this takes hours. It goes last: it waits while you're using the AI (asking a question,
+say) and for a little after, gives way to a book you've just opened, and carries on where it was after you restart
+Bibliotaph. Books in folders kept from AI are left out.
+
+**Settings > AI > Read the whole library for meaning** shows how many pages are read so far. Untick **Read the library
+for meaning in the background** to stop it; questions to your library then find the remaining pages by their words.
 
 ---
 

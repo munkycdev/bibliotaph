@@ -6,11 +6,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// The small icons websites show in a browser tab, for the badge on a card owned elsewhere (online libraries plan,
-/// choice 12): D&amp;D Beyond's icon beside "D&amp;D Beyond". They live in %LOCALAPPDATA%\Bibliotaph\cache\icons, one
-/// file per site, named by its host. A site's icon is fetched once, from its /favicon.ico, the first time a card asks
-/// for it; a site without one is asked again only after <see cref="RetryAfter"/>. Nothing is fetched while the
-/// "Show site icons" setting is off, which the caller checks. Derived and disposable, like covers.
+/// The small icons websites show in a browser tab, for the badge on a card owned elsewhere: D&amp;D Beyond's icon
+/// beside "D&amp;D Beyond". They live in %LOCALAPPDATA%\Bibliotaph\cache\icons, one file per site, named by its host.
+/// A site's icon is fetched once, from its /favicon.ico, the first time a card asks for it; a site without one is
+/// asked again only after <see cref="RetryAfter"/>. Nothing is fetched while the "Show site icons" setting is off,
+/// which the caller checks. Derived and disposable, like covers.
 /// </summary>
 public sealed class SiteIcons(AppPaths paths, HttpClient http, TimeProvider? clock = null, ILogger<SiteIcons>? log = null)
 {

@@ -22,6 +22,12 @@ public sealed class PdfOpenException(ErrorKind kind, string? message) : Exceptio
 /// from the worker's shared memory, so pixels are copied once. Small pictures for the thumbnail strip wait in a lane of
 /// their own, drawn only while no page is waiting. Reopens the document if the worker restarts.
 /// </summary>
+/// <remarks>
+/// The session is read by the render loop and changed from the UI thread, so every change to it (open, close, reopen
+/// after a worker restart) waits its turn on <c>_sessionGate</c>; otherwise a close racing a reopen would leave a
+/// document open in the worker that nothing will close. A job that fails in a way nobody expected marks its page with
+/// the reason and the loop carries on, so one bad job can never leave the reader blank for the rest of its life.
+/// </remarks>
 public sealed class PdfRenderer : IAsyncDisposable
 {
     static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(30);
@@ -31,12 +37,13 @@ public sealed class PdfRenderer : IAsyncDisposable
     readonly Dispatcher _dispatcher;
     readonly Lock _lock = new();
     readonly SemaphoreSlim _signal = new(0, 1);
+    readonly SemaphoreSlim _sessionGate = new(1, 1);
     readonly CancellationTokenSource _stop = new();
     readonly Task _loop;
 
     IReadOnlyList<RenderJob> _pending = [];
     readonly List<IdleJob> _idle = [];
-    Session? _session;
+    volatile Session? _session;
 
     sealed record Session(string Path, string? Password, int DocId, int WorkerGeneration);
 
@@ -58,18 +65,42 @@ public sealed class PdfRenderer : IAsyncDisposable
     {
         lock (_lock) _pending = [];
         DropIdle();
-        await CloseAsync();
-        var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = path, Password = password }, OpenTimeout, ct);
-        if (!response.Ok || response.Doc is null) throw new PdfOpenException(response.Error, response.Message);
-        _session = new Session(path, password, response.Doc.DocId, _worker.Generation);
-        return response.Doc;
+        await _sessionGate.WaitAsync(ct);
+        try
+        {
+            await CloseSessionAsync();
+            var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = path, Password = password }, OpenTimeout, ct);
+            if (!response.Ok || response.Doc is null) throw new PdfOpenException(response.Error, response.Message);
+            _session = new Session(path, password, response.Doc.DocId, _worker.Generation);
+            return response.Doc;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
     public async Task CloseAsync()
     {
         lock (_lock) _pending = [];
         DropIdle();
-        if (_session is { } old && _worker.IsRunning && old.WorkerGeneration == _worker.Generation)
+        await _sessionGate.WaitAsync();
+        try
+        {
+            await CloseSessionAsync();
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    /// <summary>Closes the open document in the worker, if it is still there. Call only while holding the gate.</summary>
+    async Task CloseSessionAsync()
+    {
+        var old = _session;
+        _session = null;
+        if (old is not null && _worker.IsRunning && old.WorkerGeneration == _worker.Generation)
         {
             try
             {
@@ -80,7 +111,6 @@ public sealed class PdfRenderer : IAsyncDisposable
                 // The worker went away; the document went with it.
             }
         }
-        _session = null;
     }
 
     /// <summary>Replaces whatever is still queued: only the current viewport matters.</summary>
@@ -182,8 +212,17 @@ public sealed class PdfRenderer : IAsyncDisposable
                 // Pages on screen first; a thumbnail only once none is waiting, checked again after each one.
                 while (true)
                 {
-                    if (TryTake(out var job)) await RenderAsync(job, token);
-                    else if (TryTakeIdle(out var idle)) await RenderIdleAsync(idle, token);
+                    if (TryTake(out var job))
+                    {
+                        await GuardedAsync(
+                            () => RenderAsync(job, token),
+                            ex => OnUi(() => job.Page.Error = $"Page {job.Page.Index + 1} could not be drawn. {ex.Message}"),
+                            token);
+                    }
+                    else if (TryTakeIdle(out var idle))
+                    {
+                        await GuardedAsync(() => RenderIdleAsync(idle, token), _ => Task.FromResult(idle.Done.TrySetResult(null)), token);
+                    }
                     else break;
                 }
             }
@@ -191,6 +230,33 @@ public sealed class PdfRenderer : IAsyncDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             // Disposed.
+        }
+    }
+
+    /// <summary>
+    /// Runs one job, sending anything it throws other than the loop's own stop to <paramref name="onFault"/>, so the loop
+    /// lives on. A fault in <paramref name="onFault"/> itself, as when the window has already gone, is dropped.
+    /// </summary>
+    static async Task GuardedAsync(Func<Task> work, Func<Exception, Task> onFault, CancellationToken token)
+    {
+        try
+        {
+            await work();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await onFault(ex);
+            }
+            catch (Exception)
+            {
+                // Nowhere left to show it: the page or its window is gone.
+            }
         }
     }
 
@@ -282,6 +348,10 @@ public sealed class PdfRenderer : IAsyncDisposable
         {
             await OnUi(() => job.Page.Error = $"The PDF reader restarted. {ex.Message}");
         }
+        catch (InvalidOperationException) when (_session is null)
+        {
+            // The document closed while this page was on its way; there is nothing left to draw it into.
+        }
     }
 
     void Place(RenderJob job, BitmapSource bitmap)
@@ -311,11 +381,22 @@ public sealed class PdfRenderer : IAsyncDisposable
         var session = _session ?? throw new InvalidOperationException("No document is open.");
         if (_worker.IsRunning && session.WorkerGeneration == _worker.Generation) return session;
 
-        // The worker died and came back without the document; reopen it.
-        var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = session.Path, Password = session.Password }, OpenTimeout, ct);
-        if (!response.Ok || response.Doc is null) throw new WorkerException($"The document could not be reopened: {response.Message}");
-        _session = session with { DocId = response.Doc.DocId, WorkerGeneration = _worker.Generation };
-        return _session;
+        // The worker died and came back without the document; reopen it, once, however many callers noticed.
+        await _sessionGate.WaitAsync(ct);
+        try
+        {
+            session = _session ?? throw new InvalidOperationException("No document is open.");
+            if (_worker.IsRunning && session.WorkerGeneration == _worker.Generation) return session;
+            var response = await _worker.SendAsync(new Request { Op = Op.Open, Path = session.Path, Password = session.Password }, OpenTimeout, ct);
+            if (!response.Ok || response.Doc is null) throw new WorkerException($"The document could not be reopened: {response.Message}");
+            var reopened = session with { DocId = response.Doc.DocId, WorkerGeneration = _worker.Generation };
+            _session = reopened;
+            return reopened;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
     Task OnUi(Action action) => _dispatcher.InvokeAsync(action, DispatcherPriority.Background).Task;
@@ -335,6 +416,7 @@ public sealed class PdfRenderer : IAsyncDisposable
         await CloseAsync();
         _stop.Dispose();
         _signal.Dispose();
+        _sessionGate.Dispose();
     }
 }
 

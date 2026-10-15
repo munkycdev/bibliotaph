@@ -14,8 +14,8 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// A pin as the sidebar and Home show it (Pinned Views plan, choices 6 and 9): its name and icon, and for a book, the
-/// book's card, dimmed while its file can't be opened.
+/// A pin as the sidebar and Home show it: its name and icon, and for a book, the book's card, dimmed while its file
+/// can't be opened.
 /// </summary>
 public sealed partial class PinnedItemViewModel(PinTarget target, string label, Geometry icon, string key, LibraryItemViewModel? book = null) : ObservableObject
 {
@@ -34,7 +34,7 @@ public sealed partial class PinnedItemViewModel(PinTarget target, string label, 
     /// <summary>A saved search, which also renames and deletes from its right-click menu.</summary>
     public bool IsSavedSearch => Target.Kind == PinKind.SavedSearch;
 
-    /// <summary>A book whose file is offline or missing: the pin stays, dimmed (choice 9).</summary>
+    /// <summary>A book whose file is offline or missing: the pin stays, dimmed.</summary>
     public bool IsDimmed => Book?.IsAway == true;
 
     public string Tip => Book?.AvailabilityTip is { } tip ? $"{Label}: {tip}" : Label;
@@ -44,11 +44,11 @@ public sealed partial class PinnedItemViewModel(PinTarget target, string label, 
 }
 
 /// <summary>
-/// The sidebar's Pinned group (Pinned Views plan), kept in memory for the sidebar, Home and every Pin button: the pins
-/// in order, and each as an item with its target's current name. It reloads after pins change, and after the
-/// collections, binders, saved searches or books they point at do, on the UI thread.
+/// The sidebar's Pinned group, kept in memory for the sidebar, Home and every Pin button: the pins in order, and each
+/// as an item with its target's current name. It reloads after pins change, and after the collections, binders, saved
+/// searches or books they point at do, on the UI thread.
 /// </summary>
-public sealed class PinDirectory
+public sealed class PinDirectory : IPinState
 {
     readonly PinsService _pins;
     readonly CollectionDirectory _collections;
@@ -79,7 +79,6 @@ public sealed class PinDirectory
         binders.Changed += async (_, _) => await LoadAsync();
         views.Changed += async (_, _) => await LoadAsync();
         activity.Refreshed += async (_, _) => await LoadAsync();
-        PinMenu.IsPinned = target => target is LibraryItemViewModel item && IsPinned(PinTarget.Entry(item.EntryId));
     }
 
     /// <summary>Raised on the UI thread after the pins were reloaded.</summary>
@@ -91,6 +90,9 @@ public sealed class PinDirectory
     public bool Any => Items.Count > 0;
 
     public bool IsPinned(PinTarget target) => _pinned.Contains(target);
+
+    /// <summary>Whether a book menu's card is pinned.</summary>
+    bool IPinState.IsPinned(object? context) => context is LibraryItemViewModel item && IsPinned(PinTarget.Entry(item.EntryId));
 
     public string PinLabel(PinTarget target) => IsPinned(target) ? "Unpin" : "Pin";
 

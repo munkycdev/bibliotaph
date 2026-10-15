@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Site icons for the badge on books owned online (online libraries plan, choice 12), decoded once per site and
-/// frozen. The "Show site icons" setting (Settings > Library) turns them off, and then nothing is fetched; cards show a
-/// plain mark instead. <see cref="Changed"/> tells the pages to show or hide them on the cards already made.
+/// Site icons for the badge on books owned online, decoded once per site and frozen. The "Show site icons" setting
+/// (Settings > Library) turns them off, and then nothing is fetched; cards show a plain mark instead.
+/// <see cref="Changed"/> tells the pages to show or hide them on the cards already made.
 /// </summary>
 public sealed class SiteIconImages(SiteIcons icons, SettingsStore settings, ILogger<SiteIconImages> log)
 {

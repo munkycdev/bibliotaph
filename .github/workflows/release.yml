@@ -1,15 +1,18 @@
 name: Release
 
-# A version tag (vMAJOR.MINOR.PATCH, such as v1.0.0; before 1.0, v0.N.P for slice N) runs every check
-# CI runs, publishes the app self-contained for win-x64, packs it with Velopack, and leaves a DRAFT GitHub Release
-# holding Setup.exe and the update files. Nothing is public until someone presses Publish on the draft.
+# A version tag (vMAJOR.MINOR.PATCH, such as v1.2.130, where PATCH is the commit count on main at the tagged commit)
+# publishes the app self-contained for win-x64, packs it with Velopack, waits for CI to pass on the tagged commit, and
+# leaves a DRAFT GitHub Release holding Setup.exe and the update files. Nothing is public until someone presses Publish
+# on the draft.
 on:
   push:
     tags: ['v*.*.*']
 
-# Only this workflow may write: it creates the draft release. CI keeps contents: read.
+# Only this workflow may write: it creates the draft release. CI keeps contents: read. checks: read lets it see CI's
+# result on the tagged commit.
 permissions:
   contents: write
+  checks: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -29,13 +32,16 @@ jobs:
       VPK_VERSION: 1.2.161
 
     steps:
+      # The whole history, so the version step can count the commits behind the tag.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # .NET 11 is in release candidate until November 2026; switch dotnet-quality to ga then (as in ci.yml).
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK as in ci.yml; use '11.0.x'
+      # with dotnet-quality ga then.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '11.0.x'
-          dotnet-quality: preview
+          dotnet-version: '11.0.100-rc.2.26504.105'
 
       - uses: actions/cache@v4
         with:
@@ -48,17 +54,24 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ($env:TAG -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "The tag $env:TAG isn't vMAJOR.MINOR.PATCH, such as v1.0.1." }
+          if ($env:TAG -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "The tag $env:TAG isn't vMAJOR.MINOR.PATCH, such as v1.2.130." }
+          # PATCH names the build: two releases can't share it, and it says how far main had got.
+          $count = git rev-list --count HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Counting the commits failed.' }
+          if ($Matches[3] -ne $count) {
+            throw "The tag $env:TAG says build $($Matches[3]), but the tagged commit is commit $count. Tag it v$($Matches[1]).$($Matches[2]).$count."
+          }
           "number=$($Matches[1]).$($Matches[2]).$($Matches[3])" >> $env:GITHUB_OUTPUT
 
-      # Everything CI checks, smoke test included, on this exact commit.
-      - name: Verify
+      # What publishing needs: packages, the built-in AI's engine (copied in by the app build) and the Release build of
+      # the licence tool. The tests and smoke test are CI's, which the draft waits for below.
+      - name: Restore, engine and Release build
         shell: pwsh
-        run: ./build/verify.ps1
+        run: ./build/verify.ps1 -Step Restore, Engine, Release
 
       # The app starts its workers from pdfworker\ beside Bibliotaph.exe (WorkerOptions.DefaultWorkerPath), so the
       # worker is published there too, self-contained like the app: neither needs .NET installed.
-      # The built-in AI's engine comes with the app, in aiworker\ (build/fetch-engine.ps1, run by Verify).
+      # The built-in AI's engine comes with the app, in aiworker\ (build/fetch-engine.ps1, run by the Engine step above).
       - name: Publish (self-contained win-x64)
         shell: pwsh
         env:
@@ -91,7 +104,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installing vpk failed.' }
 
       # The latest published release's full package, so vpk pack can make a delta from it. Anonymous, as the app
-      # checks, so drafts and pre-releases are never the base. With no release yet, vpk says so and exits 0.
+      # checks, so drafts and pre-releases are never the base. With no release yet, vpk says so and exits 0. A delta
+      # only saves download size, so a release whose full package can't be fetched (1.0.0 was published without
+      # one) just gets none.
       - name: Download the latest release
         shell: pwsh
         env:
@@ -100,7 +115,12 @@ jobs:
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           ./.tools/vpk download github --repoUrl $env:REPO_URL --channel win --outputDir releases
-          if ($LASTEXITCODE -ne 0) { throw 'Downloading the latest release failed.' }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'The latest release has no full package to download, so this release has no delta.'
+            Remove-Item releases -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          # The runner fails a pwsh step on the last native exit code, even one handled above.
+          exit 0
 
       # Installs per user into %LOCALAPPDATA%\BibliotaphApp, apart from the library in %LOCALAPPDATA%\Bibliotaph
       # (AppPaths.PackId; a test fails if the two ever meet). Unsigned for now (choice 5).
@@ -115,23 +135,60 @@ jobs:
             --runtime win-x64 --channel win --noPortable --outputDir releases
           if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed.' }
 
-      # This build's files as vpk listed them (Setup.exe, the full package, a delta when there was a release before),
-      # and a feed of just those, which is what vpk upload github would send: the feed vpk wrote also lists the
-      # downloaded package, which belongs to the earlier release.
+      # CI runs on every push to main, so the tagged commit has its own "Build and test (Windows)": the draft waits for
+      # it to pass rather than running the same build, tests and smoke test again here.
+      - name: Wait for CI on this commit
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $checks = "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?check_name=Build%20and%20test%20(Windows)"
+          $deadline = (Get-Date).AddMinutes(40)
+          while ($true) {
+            $runs = @(gh api $checks --jq '.check_runs[] | {status, conclusion}' | ConvertFrom-Json)
+            if ($LASTEXITCODE -ne 0) { throw "Reading the checks on $env:GITHUB_SHA failed." }
+            if ($runs | Where-Object { $_.conclusion -eq 'success' }) { Write-Host 'CI passed on this commit.'; break }
+            if (-not ($runs | Where-Object { $_.status -ne 'completed' })) {
+              $found = if ($runs) { @($runs.conclusion) -join ', ' } else { 'it never ran' }
+              throw "CI hasn't passed on $env:GITHUB_SHA ($found). Re-run it, or tag a commit where it passed."
+            }
+            if ((Get-Date) -gt $deadline) { throw "CI on $env:GITHUB_SHA hasn't finished after 40 minutes." }
+            Start-Sleep 30
+          }
+
+      # This build's entries in the feed vpk wrote (the full package, and a delta when there was a release before),
+      # their files, Setup.exe, and a feed of just those entries, which is what vpk upload github would send: the
+      # feed vpk wrote also lists the downloaded package, which belongs to the earlier release. The notes are this
+      # MAJOR.MINOR's section of CHANGELOG.md, followed by GitHub's list of the pull requests merged since the last
+      # published release.
       - name: Draft the GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.number }}
         run: |
-          $built = @(Get-Content releases/assets.win.json -Raw | ConvertFrom-Json | ForEach-Object { $_.RelativeFileName })
-          if ($built.Count -eq 0) { throw 'vpk listed no files.' }
           $feed = Get-Content releases/releases.win.json -Raw | ConvertFrom-Json
-          $feed.Assets = @($feed.Assets | Where-Object { $_.FileName -in $built })
+          $feed.Assets = @($feed.Assets | Where-Object { $_.Version -eq $env:VERSION })
+          if (-not ($feed.Assets | Where-Object { $_.Type -eq 'Full' })) { throw "vpk made no full package for $env:VERSION." }
           New-Item -ItemType Directory feed | Out-Null
           $feed | ConvertTo-Json -Depth 10 -Compress | Set-Content feed/releases.win.json -Encoding utf8NoBOM
-          $files = @($built | ForEach-Object { Join-Path releases $_ }) + 'feed/releases.win.json'
-          gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" --generate-notes
+          $files = @($feed.Assets | ForEach-Object { Join-Path releases $_.FileName }) + 'releases/BibliotaphApp-win-Setup.exe' + 'feed/releases.win.json'
+          foreach ($file in $files) { if (-not (Test-Path $file)) { throw "$file is missing." } }
+
+          $minor = $env:VERSION -replace '\.\d+$', ''
+          $lines = Get-Content CHANGELOG.md
+          $start = [array]::FindIndex($lines, [Predicate[string]] { param($l) $l -match "^## $([regex]::Escape($minor))( |$)" })
+          if ($start -lt 0) { throw "CHANGELOG.md has no '## $minor' section." }
+          $end = [array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($l) $l.StartsWith('## ') })
+          if ($end -lt 0) { $end = $lines.Count }
+          ($lines[($start + 1)..($end - 1)] -join "`n").Trim() | Set-Content notes.md -Encoding utf8NoBOM
+
+          # GitHub's list starts from the last published release, not from an earlier tag whose release never happened.
+          $since = @()
+          $published = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>$null
+          if ($LASTEXITCODE -eq 0 -and $published) { $since = '--notes-start-tag', $published }
+          gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" `
+            --notes-file notes.md --generate-notes @since
           if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed.' }
 
       - name: Upload test results

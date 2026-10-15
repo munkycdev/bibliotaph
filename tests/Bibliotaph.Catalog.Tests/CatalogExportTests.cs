@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 4j: the JSON export holds every table of the user's work, whatever tables are added later.</summary>
+/// <summary>The JSON export holds every table of the user's work, whatever tables are added later.</summary>
 public sealed class CatalogExportTests : IAsyncLifetime
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-export-").FullName;
@@ -16,7 +16,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _db = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _db.MigrateAsync(Ct);
+        await _db.MigrateFromTemplateAsync(Ct);
     }
 
     public ValueTask DisposeAsync()
@@ -123,13 +123,17 @@ public sealed class CatalogExportTests : IAsyncLifetime
         var term = new VocabularyTerm { Vocabulary = "system", Key = "test-system", Label = "Test System", Origin = TermOrigin.User, State = TermState.Active, CreatedUtc = now };
         db.VocabularyTerms.Add(term);
         db.ClassificationRuns.Add(new ClassificationRun { Id = "run-1", EntryId = entry.Id, ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, SchemaVersion = 1, StartedUtc = now, Outcome = "complete" });
+        db.ChapterScans.Add(new ChapterScan { ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, ChaptersJson = "[]", StartedUtc = now, FinishedUtc = now });
         db.IgnoredFolderLabels.Add(new IgnoredFolderLabel { Folder = "adventures", Vocabulary = "type", TermKey = "adventure", CreatedUtc = now });
         db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entry.Id, CreatedUtc = now });
         db.FolderRules.Add(new FolderRule { SourceRootId = root.Id, Folder = "Fey Court", Field = "system", Value = "pathfinder", State = FolderRuleState.On, Books = 3, CreatedUtc = now, DecidedUtc = now });
+        db.UserTags.Add(new UserTag { Name = "Undead", NormalizedName = "undead", WordsJson = "[\"undead\",\"zombie\"]", CreatedUtc = now, UpdatedUtc = now });
         db.SyncStates.Add(new SyncState { Key = "c:7f0c3a2e-5b1d-4c9a-8e2f-0a1b2c3d4e5f", FieldsJson = """{"name":{"value":"\"Campaign\"","changedUtc":"2026-10-10T09:00:00Z"}}""" });
         await db.SaveChangesAsync(Ct);
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });
+        db.CollectionDeclines.Add(new CollectionDecline { CollectionId = collection.Id, EntryId = joined.Id, CreatedUtc = now });
+        db.CollectionFolders.Add(new CollectionFolder { SourceRootId = root.Id, Folder = "Winter campaign", State = FolderCollectionState.Linked, CollectionId = collection.Id, DecidedUtc = now });
         // A new catalog has Favorites pinned already.
         db.Pins.Add(new Pin { Kind = PinKind.Collection, Position = 1, CollectionId = collection.Id });
         db.Notes.AddRange(

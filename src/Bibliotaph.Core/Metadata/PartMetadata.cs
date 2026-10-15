@@ -1,10 +1,10 @@
 namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
-/// What an adventure inside a file takes from the file (slice 5 plan, choice 8). A part has its own title, types,
-/// levels, themes, environments and authors. Its game system, edition, publisher, series, year and setting come from
-/// the file: a value confirmed on the file is the part's too, and one only suggested for the file is suggested for the
-/// part, unless the part has a confirmed value of its own in that field.
+/// What an adventure inside a file takes from the file. A part has its own title, types, levels, themes, environments
+/// and authors. Its game system, edition, publisher, series, year and setting come from the file: a value confirmed on
+/// the file is the part's too, and one only suggested for the file is suggested for the part, unless the part has a
+/// confirmed value of its own in that field.
 /// </summary>
 public static class PartMetadata
 {

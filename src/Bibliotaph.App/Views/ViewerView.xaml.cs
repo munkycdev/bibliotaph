@@ -18,6 +18,7 @@ public partial class ViewerView
 {
     ViewerViewModel? _model;
     PageStripViewModel? _strip;
+    FindViewModel? _find;
     OpenPdf? _shown;
     ScrollViewer? _stripScroll;
     bool _drawQueued;
@@ -46,8 +47,10 @@ public partial class ViewerView
             _model.DrawAhead = null;
         }
         _strip?.PropertyChanged -= OnStripChanged;
+        _find?.PropertyChanged -= OnFindChanged;
         _model = model;
         _strip = model?.Strip;
+        _find = model?.Find;
         if (model is null)
         {
             ShowPdf(null);
@@ -57,6 +60,7 @@ public partial class ViewerView
         model.GoToRequested += OnGoToRequested;
         model.DrawAhead = (renderer, doc, page) => PagesView.PrerenderAsync(renderer, doc, page);
         _strip!.PropertyChanged += OnStripChanged;
+        _find!.PropertyChanged += OnFindChanged;
         ShowPdf(model.Pdf);
         ShowHighlights();
         KeepCurrentThumbnailInView();
@@ -68,9 +72,6 @@ public partial class ViewerView
         {
             case nameof(ViewerViewModel.Pdf):
                 ShowPdf(_model?.Pdf);
-                break;
-            case nameof(ViewerViewModel.Highlights):
-                ShowHighlights();
                 break;
             case nameof(ViewerViewModel.IsPdf) when _model?.IsPdf == true:
                 // The pages take keyboard focus once they're shown, so Ctrl+A and the arrow keys work straight away.
@@ -89,6 +90,11 @@ public partial class ViewerView
                 KeepCurrentThumbnailInView();
                 break;
         }
+    }
+
+    void OnFindChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FindViewModel.Highlights)) ShowHighlights();
     }
 
     // ---------- The thumbnail strip ----------
@@ -163,7 +169,7 @@ public partial class ViewerView
 
     void ShowHighlights()
     {
-        if (_model is { } model) PagesView.ShowHighlights(model.Highlights.Items, model.Highlights.Current);
+        if (_find?.Highlights is { } highlights) PagesView.ShowHighlights(highlights.Items, highlights.Current);
     }
 
     void OnGoToRequested(object? sender, PageTarget target) => PagesView.GoToPage(target.PageIndex, target.PdfTop);
@@ -176,7 +182,7 @@ public partial class ViewerView
             FindBox.SelectAll();
             e.Handled = true;
         }
-        // In a pack, the arrow keys step through its images (F4 plan, choice 7), ahead of the image's scroll bars.
+        // In a pack, the arrow keys step through its images, ahead of the image's scroll bars.
         else if (e.Key is Key.Left or Key.Right && Keyboard.Modifiers == ModifierKeys.None && _model is { IsImage: true, IsInPack: true }
             && e.OriginalSource is not System.Windows.Controls.Primitives.TextBoxBase)
         {
@@ -212,8 +218,8 @@ public partial class ViewerView
     void AddPages_Click(object sender, RoutedEventArgs e) => _model?.AddPagesCommand.Execute(_selectionPage);
 
     /// <summary>Note: on the page with selected text, if there is a selection, else the page in view.</summary>
-    void AddNote_Click(object sender, RoutedEventArgs e) => _model?.AddNoteCommand.Execute(PagesView.SelectionPageIndex);
+    void AddNote_Click(object sender, RoutedEventArgs e) => _model?.Notes.AddCommand.Execute(PagesView.SelectionPageIndex);
 
-    /// <summary>A bookmark's Index as its own adventure (slice 5): the menu's row is the bookmark.</summary>
+    /// <summary>A bookmark's Index as its own adventure: the menu's row is the bookmark.</summary>
     void IndexBookmark_Click(object sender, RoutedEventArgs e) => _model?.IndexBookmarkCommand.Execute((sender as FrameworkElement)?.DataContext as OutlineEntry);
 }

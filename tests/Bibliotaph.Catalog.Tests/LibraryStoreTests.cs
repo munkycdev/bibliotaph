@@ -16,7 +16,7 @@ public sealed partial class LibraryStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _contexts = new Factory(_database);
         _library = new LibraryStore(_contexts);
         _roots = new SourceRootStore(_contexts);
@@ -226,7 +226,7 @@ public sealed partial class LibraryStoreTests : IAsyncLifetime
         var entries = new EntryStore(_contexts);
         var shared = (await entries.GetEntryAsync(ids["shared.pdf"], Ct))!.EntryId;
         var gone = (await entries.GetEntryAsync(ids["gone.pdf"], Ct))!.EntryId;
-        // The book whose file went stays, marked missing (slice 4g plan, choice 1); the one only in the removed folder goes.
+        // The book whose file went stays, marked missing; the one only in the removed folder goes.
         Assert.Equal([shared, gone], (await _library.GetVisibleEntryIdsAsync(ct: Ct)).OrderBy(e => e.Value));
         Assert.Equal([shared, gone], (await _library.GetVisibleEntryIdsAsync(kept, Ct)).OrderBy(e => e.Value));
         Assert.Empty(await _library.GetVisibleEntryIdsAsync(removed, Ct));

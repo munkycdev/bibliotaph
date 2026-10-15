@@ -35,10 +35,10 @@ public enum SearchField
     /// <summary><c>type:</c>, a document type: adventure, bestiary, map.</summary>
     Type,
 
-    /// <summary><c>setting:</c>, a campaign setting.</summary>
+    /// <summary><c>setting:</c>, a campaign setting: the book's own, or one the AI found in one of its chapters.</summary>
     Setting,
 
-    /// <summary><c>theme:</c>, a theme or tone such as horror or fey.</summary>
+    /// <summary><c>theme:</c>, a theme or tone such as horror or fey, the book's own or one of its chapters'.</summary>
     Theme,
 
     /// <summary><c>style:</c>, the kind of adventure: heist, dungeon crawl, hexcrawl.</summary>
@@ -47,7 +47,7 @@ public enum SearchField
     /// <summary><c>duration:</c>, how long it takes to play: one-shot, short, long, campaign.</summary>
     Duration,
 
-    /// <summary><c>environment:</c>, where it happens: urban, underground.</summary>
+    /// <summary><c>environment:</c>, where it happens: urban, underground. The book's own, or one of its chapters'.</summary>
     Environment,
 
     /// <summary><c>own:</c>, where else the book is owned: print, foundry.</summary>
@@ -62,17 +62,19 @@ public enum SearchField
     /// <summary><c>players:</c> 4, 3-5 or unknown. A number matches books written for it; a range, books whose range overlaps it.</summary>
     Players,
 
-    /// <summary><c>favorite:</c> yes or no: the books marked with a heart (slice 3 plan, choice 5).</summary>
+    /// <summary><c>favorite:</c> yes or no: the books marked with a heart.</summary>
     Favorite,
 
-    /// <summary><c>collection:</c> a collection's name: its books and its sub-collections' books (slice 3 plan, choice 10).</summary>
+    /// <summary><c>collection:</c> a collection's name: its books and its sub-collections' books.</summary>
     Collection,
 
     /// <summary>
-    /// <c>where:</c> here for the books with a file on this PC, elsewhere for those owned only somewhere else (online
-    /// libraries, O1).
+    /// <c>where:</c> here for the books with a file on this PC, elsewhere for those owned only somewhere else.
     /// </summary>
     Where,
+
+    /// <summary><c>creature:</c>, a creature the AI found in one of the book's chapters: dragon, ghoul.</summary>
+    Creature,
 }
 
 /// <summary>

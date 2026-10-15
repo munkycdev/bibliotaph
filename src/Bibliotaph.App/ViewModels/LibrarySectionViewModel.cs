@@ -21,7 +21,7 @@ public sealed partial class LibraryFolderItem(long id, string path) : Observable
     [ObservableProperty]
     public partial string Path { get; set; } = path;
 
-    /// <summary>The folder can't be read right now, so it offers Point to its new place (slice 4g plan, choice 6).</summary>
+    /// <summary>The folder can't be read right now, so it offers Point to its new place.</summary>
     [ObservableProperty]
     public partial bool IsOffline { get; set; }
 
@@ -67,8 +67,8 @@ public sealed partial class FolderLabelItem(FolderLabelUse use, Func<FolderLabel
 }
 
 /// <summary>
-/// A folder rule the user answered in Needs review (scenario review, row 8): "Fey Court → system Pathfinder", switched
-/// on or off here as a folder label is.
+/// A folder rule the user answered in Needs review: "Fey Court → system Pathfinder", switched on or off here as a
+/// folder label is.
 /// </summary>
 public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, Func<FolderRuleItem, bool, Task> setEnabled) : ObservableObject
 {
@@ -93,7 +93,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 /// </summary>
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies,
+    LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies, IFilePicker files,
     ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
@@ -135,7 +135,7 @@ public sealed partial class LibrarySectionViewModel(
         if (folders.TakePickRequest()) await AddFolder();
     }
 
-    /// <summary>Start on: the Library rather than Home when Bibliotaph opens (slice 3 plan, choice 7).</summary>
+    /// <summary>Start on: the Library rather than Home when Bibliotaph opens.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StartOnHome))]
     public partial bool StartOnLibrary { get; set; }
@@ -294,7 +294,7 @@ public sealed partial class LibrarySectionViewModel(
     [RelayCommand]
     async Task AddFolder()
     {
-        foreach (var path in LibraryFolders.Pick())
+        foreach (var path in files.PickFolders("Add folders to your library"))
         {
             if (Pending.Any(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
             var pending = new PendingFolder(path);
@@ -321,13 +321,13 @@ public sealed partial class LibrarySectionViewModel(
     }
 
     /// <summary>
-    /// Point to its new place (slice 4g plan, choice 6), for a folder that moved for good: picked with the folder picker,
-    /// then every book in it, and everything done with them, follows without its files being read again.
+    /// Point to its new place, for a folder that moved for good: picked with the folder picker, then every book in it,
+    /// and everything done with them, follows without its files being read again.
     /// </summary>
     [RelayCommand]
     async Task PointToNewPlace(LibraryFolderItem folder)
     {
-        if (LibraryFolders.PickOne($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
+        if (files.PickFolder($"Where is {System.IO.Path.GetFileName(folder.Path)} now?") is not { } path) return;
         try
         {
             folder.Problem = await indexing.RelocateRootAsync(folder.Id, path) switch

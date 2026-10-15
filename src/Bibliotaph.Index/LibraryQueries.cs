@@ -9,19 +9,20 @@ using Dapper;
 namespace Bibliotaph.Index;
 
 /// <summary>
-/// A library card as the grid and search results show it: an entry, through the document it shows
-/// (<see cref="DocumentId"/>, which opens). <see cref="Title"/> is its effective title, or the one from its file name. <see cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/>
-/// ("Levels 1–5") read as cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/>
-/// is the model that last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack
-/// (<see cref="EntryKind"/>) shows its first image, counts its <see cref="Members"/>, and has the covers of its first
-/// four images for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its images' names carries that
-/// image (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned
-/// elsewhere (<see cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/>
-/// empty, and <see cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/>
-/// is a heart on it (slice 3), and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/>
-/// says when its text won't be read by itself: it is locked, protected or forgotten (slice 4i). An adventure inside a
-/// file (<see cref="IsPart"/>, slice 5) opens its file's document at its first page; its cover is that page and its
-/// page count its own pages.
+/// A library card as the grid and search results show it: an entry, through the document it shows (<see
+/// cref="DocumentId"/>, which opens). <see cref="Title"/> is its effective title, or the one from its file name. <see
+/// cref="System"/> ("D&amp;D 5e"), <see cref="Kind"/> ("Adventure") and <see cref="Levels"/> ("Levels 1–5") read as
+/// cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/> is the model that
+/// last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack (<see cref="EntryKind"/>)
+/// shows its first file, counts its <see cref="Members"/> (and <see cref="PdfMembers"/>, the PDFs among them), and has
+/// the covers of its first four files for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its files'
+/// names carries that file (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned elsewhere (<see
+/// cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/> empty, and <see
+/// cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/> is a heart
+/// on it, and <see cref="OpenedUtc"/> when it was last opened, if it has been. <see cref="TextAccess"/> says when its
+/// text won't be read by itself: it is locked, protected or forgotten. An adventure inside a file (<see
+/// cref="IsPart"/>) opens its file's document at its first page; its cover is that page and its page count its own
+/// pages.
 /// </summary>
 public sealed record LibraryEntry(
     EntryId EntryId, long DocumentId, string Title, string Format, int? PageCount, string? Cover, string? FolderHint, DateTime AddedUtc, bool Searchable,
@@ -35,10 +36,16 @@ public sealed record LibraryEntry(
     /// <summary>A book owned elsewhere, with no file in the library: nothing to open.</summary>
     public bool IsElsewhere => EntryKind == EntryKind.Elsewhere;
 
-    /// <summary>The cover file names of a pack's first four images that have one.</summary>
+    /// <summary>
+    /// How many of a pack's files are PDFs, packed by hand with its images: a pack with none is an image pack ("120
+    /// images"), one with some a pack of files ("6 files").
+    /// </summary>
+    public int PdfMembers { get; init; }
+
+    /// <summary>The cover file names of a pack's first four files that have one.</summary>
     public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
 
-    /// <summary>An adventure inside a file (slice 5): a card of its own for some of the file's pages.</summary>
+    /// <summary>An adventure inside a file: a card of its own for some of the file's pages.</summary>
     public bool IsPart => EntryKind == EntryKind.Part;
 
     /// <summary>For an adventure inside a file, the file's entry.</summary>
@@ -55,23 +62,32 @@ public sealed record LibraryEntry(
 
     public string? LastLabel { get; init; }
 
-    /// <summary>For a file, how many adventures are marked in it: "5 adventures" (slice 5 plan, choice 9).</summary>
+    /// <summary>For a file, how many adventures are marked in it: "5 adventures".</summary>
     public int Parts { get; init; }
 
     /// <summary>
-    /// The book's page where the user owns it online, from its first Also own place with a link ("D&amp;D Beyond",
-    /// online libraries, O1): a card owned elsewhere opens it, and any card offers "Open on D&amp;D Beyond".
+    /// The book's page where the user owns it online, from its first Also own place with a link ("D&amp;D Beyond"): a
+    /// card owned elsewhere opens it, and any card offers "Open on D&amp;D Beyond".
     /// </summary>
     public string? OnlineLink { get; init; }
 
     /// <summary>The place <see cref="OnlineLink"/> is on: "D&amp;D Beyond".</summary>
     public string? OnlineLabel { get; init; }
 
+    /// <summary>
+    /// An adventure a search found while adventures stay inside their books: its card shows its file's cover (<see
+    /// cref="Cover"/>) with an Adventure ribbon, and stands in for its file's card.
+    /// </summary>
+    public bool FoundInBook { get; init; }
+
     /// <summary>"in The Big Compilation · pp. 34–52", for an adventure's card; null for any other.</summary>
     public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
 
-/// <summary>An image in a pack, in file name order: the document it shows, its own entry, its name and its cover.</summary>
+/// <summary>
+/// A file in a pack, an image or a PDF, in file name order: the document it shows, its own entry, its name, its format
+/// and its cover.
+/// </summary>
 public sealed record PackImage(long DocumentId, EntryId MemberEntryId, string Name, string Format, string? Cover);
 
 public enum LibrarySort
@@ -82,11 +98,11 @@ public enum LibrarySort
     Title,
     /// <summary>By publisher, documents without one last, then by title.</summary>
     Publisher,
-    /// <summary>The last opened first, then those never opened, newest first (slice 3 plan, choice 6).</summary>
+    /// <summary>The last opened first, then those never opened, newest first.</summary>
     RecentlyOpened,
 }
 
-/// <summary>Kind choices in the filter panel (F4 plan, choice 10). The format: field gives finer control.</summary>
+/// <summary>Kind choices in the filter panel. The format: field gives finer control.</summary>
 public enum KindFilter
 {
     All,
@@ -95,9 +111,9 @@ public enum KindFilter
     /// <summary>Single images, not those in packs.</summary>
     Images,
     Packs,
-    /// <summary>Books owned elsewhere, with no file (F5 plan, choice 8).</summary>
+    /// <summary>Books owned elsewhere, with no file.</summary>
     Elsewhere,
-    /// <summary>Everything with a file on this PC: books, images and packs, but no book owned only elsewhere (online libraries, O1).</summary>
+    /// <summary>Everything with a file on this PC: books, images and packs, but no book owned only elsewhere.</summary>
     Here,
 }
 
@@ -109,19 +125,31 @@ public enum AiFilter
     NotRead,
 }
 
+/// <summary>The Collection choice in the filter panel: books in some collection, or in none yet.</summary>
+public enum CollectionFilter
+{
+    All,
+    InOne,
+    NotInOne,
+}
+
 /// <summary>
 /// What the library shows: the entries in scope (from catalog.db: with a file present in a folder the user hasn't
-/// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is
-/// <see cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books
-/// with unknown levels match only with <see cref="IncludeUnknownLevel"/> (A12). <see cref="Ai"/> keeps books a model
-/// has or hasn't read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in
-/// any of those places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of
-/// entry_scope, such as the favourites (slice 3), and <see cref="OnlyOpened"/> those that have been opened.
-/// <see cref="Styles"/> and <see cref="Durations"/> keep books with any of those terms (unknown is none), and
-/// <see cref="Players"/> books written for that many players; as for levels, books nobody has counted players for don't
-/// match. <see cref="Stores"/> keeps books to get from any of those stores (scenario review, row 7).
-/// <see cref="HideParts"/> leaves out the adventures inside files (slice 5 plan, choice 9: "Adventures inside files:
-/// Hide"), whose page hits then go with their files.
+/// removed, optionally one folder), a format, game systems and document types (any of those chosen; unknown is <see
+/// cref="SearchQuery.Unknown"/>), a level, and an order. A level matches books whose range contains it; books with
+/// unknown levels match only with <see cref="IncludeUnknownLevel"/>. <see cref="Ai"/> keeps books a model has or hasn't
+/// read, <see cref="OnlyWithCopies"/> those with more than one file, and <see cref="Owns"/> those owned in any of those
+/// places (Also own term keys; unknown is none). <see cref="Group"/> keeps the entries in one group of entry_scope,
+/// such as the favourites, and <see cref="OnlyOpened"/> those that have been opened. <see cref="Styles"/> and <see
+/// cref="Durations"/> keep books with any of those terms (unknown is none), and <see cref="Players"/> books written for
+/// that many players; as for levels, books nobody has counted players for don't match. <see cref="Stores"/> keeps books
+/// to get from any of those stores. <see cref="HideParts"/> leaves out the adventures inside files ("Adventures inside
+/// files: Hide"), whose page hits then go with their files. <see cref="Collections"/> keeps books in some collection, or
+/// those in none yet. <see cref="Picked"/> holds the values picked in the type-ahead filters (settings, themes,
+/// publishers): books with any of a field's values, in every field with some. <see cref="PartsInBooks"/> keeps the
+/// adventures inside files in their books instead of hiding them: the library without a search leaves them out, as
+/// their files' cards and details list them, while a search shows those it finds, each on its file's cover and in
+/// place of its file's card when both are found.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -140,10 +168,19 @@ public sealed record LibraryFilter(
     IReadOnlyCollection<string>? Durations = null,
     int? Players = null,
     IReadOnlyCollection<string>? Stores = null,
-    bool HideParts = false);
+    bool HideParts = false,
+    CollectionFilter Collections = CollectionFilter.All,
+    PickedValues? Picked = null,
+    bool PartsInBooks = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
+
+/// <summary>
+/// A value a type-ahead filter offers, with how many entries have it, and every other name it goes by in comparison
+/// form, joined with " · " (a term's aliases), so typing "5e" finds the 5th edition.
+/// </summary>
+public sealed record ValueCount(string Value, string Label, long Count, string Names);
 
 /// <summary>A page that matched, with its indexed text quoted around the hits. Hits sit between <see cref="LibraryQueries.HitStart"/> and <see cref="LibraryQueries.HitEnd"/>.</summary>
 public sealed record PageHit(EntryId EntryId, long DocumentId, int PdfPage, string? Label, string Snippet, bool FromOcr);
@@ -181,7 +218,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// <summary>Column weights for entry_fts, in schema order: title, subtitle, publisher, series, authors, tags, notes, confirmed, provisional.</summary>
     const string DocRank = "bm25(entry_fts, 10.0, 5.0, 2.0, 3.0, 2.0, 3.0, 1.0, 4.0, 1.0)";
 
-    /// <summary>An image's name in a pack weighs as a title does: you look for "kraken", not for the pack's name.</summary>
+    /// <summary>A file's name in a pack weighs as a title does: you look for "kraken", not for the pack's name.</summary>
     const string MemberRank = "bm25(member_fts, 10.0)";
 
     const string EntryColumns = """
@@ -200,6 +237,9 @@ public sealed class LibraryQueries(IndexDatabase database)
             SELECT json_group_array(cover) FROM (
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
+        CASE WHEN e.kind = 'Pack' THEN (
+            SELECT count(*) FROM entry_member em JOIN doc md ON md.document_id = em.document_id
+            WHERE em.entry_id = e.entry_id AND md.format = 'pdf') ELSE 0 END AS PdfMembers,
         (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn,
         (SELECT ol.link FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLink,
         (SELECT ol.label FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLabel,
@@ -210,7 +250,8 @@ public sealed class LibraryQueries(IndexDatabase database)
             LEFT JOIN entry_meta pm ON pm.entry_id = pe.entry_id LEFT JOIN doc pd ON pd.document_id = pe.document_id
             WHERE pe.entry_id = e.parent_id) END AS ParentTitle,
         CASE WHEN e.kind = 'Part' THEN (SELECT fp.label FROM page fp WHERE fp.document_id = e.document_id AND fp.pdf_page = e.first_page) END AS FirstLabel,
-        CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel
+        CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel,
+        CASE WHEN e.kind = 'Part' THEN d.cover END AS FileCover
         """;
 
     /// <summary>
@@ -233,21 +274,17 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> ListAsync(LibraryFilter filter, SearchPlan? plan = null, int? limit = null, CancellationToken ct = default)
     {
-        var where = new Where(filter, plan ?? new SearchPlan(), titleAsFilter: true);
+        plan ??= new SearchPlan();
+        var where = new Where(filter, plan, titleAsFilter: true);
         if (limit is { } count) where.Parameters.Add("limit", count);
-        var sql = $"""
-            SELECT {EntryColumns}
-            FROM {Entries} {EntryJoin}
-            WHERE {where.Sql}
-            ORDER BY {Order(filter.Sort, relevance: null)}
-            {(limit is null ? "" : "LIMIT @limit")}
-            """;
+        var sql = Found(null, EntryColumns, $"{Entries} {EntryJoin}", where.Sql, Order(filter.Sort, relevance: null), limit is not null,
+            filesGiveWay: filter.PartsInBooks && !plan.IsEmpty);
         await using var connection = database.OpenRead();
-        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
+        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)), filter.PartsInBooks);
     }
 
     /// <summary>
-    /// The Documents tab: titles and metadata, and the names of the images in packs. A pack found by an image's name
+    /// The Documents tab: titles and metadata, and the names of the files in packs. A pack found by a file's name
     /// says which (the best match). With no words or title: to find, this is the filtered library.
     /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> SearchDocumentsAsync(SearchPlan plan, LibraryFilter filter, int limit = 1000, CancellationToken ct = default)
@@ -266,36 +303,30 @@ public sealed class LibraryQueries(IndexDatabase database)
             """ : "";
         // One row per card, its best hit: SQLite takes the bare columns from the row min() picks. The hits are
         // materialized, since bm25() can't run once flattened into the grouping.
-        var sql = $"""
-            WITH hit AS MATERIALIZED (
+        var sql = Found(
+            $"""
+            hit AS MATERIALIZED (
                 SELECT rowid AS entry_id, {DocRank} AS rank, NULL AS member, NULL AS member_document FROM entry_fts WHERE entry_fts MATCH @match
                 {members})
-            SELECT {EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId
-            FROM (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
+            """,
+            $"{EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId",
+            $"""
+            (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
             JOIN entry_doc e ON e.entry_id = h.entry_id LEFT JOIN doc d ON d.document_id = e.document_id {EntryJoin}
-            WHERE {where.Sql}
-            ORDER BY {Order(filter.Sort, relevance: "h.rank")}
-            LIMIT @limit
-            """;
+            """,
+            where.Sql, Order(filter.Sort, relevance: "h.rank"), limit: true, filesGiveWay: filter.PartsInBooks);
         await using var connection = database.OpenRead();
-        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)));
+        return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)), filter.PartsInBooks);
     }
 
     /// <summary>
     /// How many entries have each value of a vocabulary field (<c>system</c>, <c>type</c>), among those the library
-    /// shows for <paramref name="filter"/> and <paramref name="plan"/>, plus those with none (<see cref="SearchQuery.Unknown"/>).
+    /// shows for <paramref name="filter"/> and <paramref name="plan"/>, in name order, then those with none (<see cref="SearchQuery.Unknown"/>).
     /// To count the choices within a dimension, pass a filter without that dimension's own choices.
     /// </summary>
     public async Task<IReadOnlyList<FacetCount>> GetFacetCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
     {
-        plan ??= new SearchPlan();
-        var where = new Where(filter, plan, titleAsFilter: true);
-        // As the Documents tab finds them: packs by their images' names too.
-        if (plan.TextMatch is { } match)
-            where.Also("""
-                e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
-                    UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
-                """, "countMatch", match);
+        var where = CountWhere(filter, plan);
         where.Parameters.Add("countField", field);
         await using var connection = database.OpenRead();
         var counts = (await connection.QueryAsync<(string Value, string Label, long Count)>(new CommandDefinition(
@@ -304,7 +335,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             FROM {Entries} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
             WHERE {where.Sql}
             GROUP BY f.value
-            ORDER BY count(*) DESC, min(f.label) COLLATE NOCASE
+            ORDER BY min(f.label) COLLATE NOCASE
             """, where.Parameters, cancellationToken: ct))).Select(c => new FacetCount(c.Value, c.Label, c.Count)).ToList();
         var unknown = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"""
@@ -313,6 +344,51 @@ public sealed class LibraryQueries(IndexDatabase database)
             """, where.Parameters, cancellationToken: ct));
         if (unknown > 0) counts.Add(new FacetCount(SearchQuery.Unknown, "Unknown", unknown));
         return counts;
+    }
+
+    /// <summary>
+    /// The values of a field the Library filters by typing (setting, theme, environment, edition, publisher), each with
+    /// how many of the entries shown for <paramref name="filter"/> and <paramref name="plan"/> have it, most first: what
+    /// its box offers. Terms come with their other names to type; publishers are free text, counted by name. To count
+    /// a box's values beside its own picks, pass a filter without them.
+    /// </summary>
+    public async Task<IReadOnlyList<ValueCount>> GetValueCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
+    {
+        var where = CountWhere(filter, plan);
+        where.Parameters.Add("countField", field);
+        where.Parameters.Add("countVocabulary", MetadataFields.Find(field)?.Vocabulary ?? field);
+        var sql = field == MetadataFields.Publisher.Key
+            ? $"""
+                SELECT m.publisher, m.publisher, count(*), ''
+                FROM {Entries} JOIN entry_meta m ON m.entry_id = e.entry_id
+                WHERE {where.Sql} AND m.publisher IS NOT NULL
+                GROUP BY m.publisher
+                ORDER BY count(*) DESC, m.publisher COLLATE NOCASE
+                """
+            : $"""
+                SELECT f.value, min(f.label), count(*),
+                       coalesce((SELECT group_concat(a.alias, ' · ') FROM term_alias a WHERE a.vocabulary = @countVocabulary AND a.value = f.value), '')
+                FROM {Entries} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
+                WHERE {where.Sql}
+                GROUP BY f.value
+                ORDER BY count(*) DESC, min(f.label) COLLATE NOCASE
+                """;
+        await using var connection = database.OpenRead();
+        var counts = await connection.QueryAsync<(string Value, string Label, long Count, string Names)>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct));
+        return [.. counts.Select(c => new ValueCount(c.Value, c.Label, c.Count, c.Names))];
+    }
+
+    /// <summary>The entries a count covers: those the library shows, found as the Documents tab finds them, packs by their images' names too.</summary>
+    static Where CountWhere(LibraryFilter filter, SearchPlan? plan)
+    {
+        plan ??= new SearchPlan();
+        var where = new Where(filter, plan, titleAsFilter: true);
+        if (plan.TextMatch is { } match)
+            where.Also("""
+                e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
+                    UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
+                """, "countMatch", match);
+        return where;
     }
 
     /// <summary>
@@ -368,7 +444,9 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE copies > 1", cancellationToken: ct));
     }
 
-    /// <summary>How many adventures inside files there are (slice 5), so the Library offers to hide them once there are some.</summary>
+    /// <summary>
+    /// How many adventures inside files there are, so the Library offers to hide them once there are some.
+    /// </summary>
     public async Task<long> CountPartsAsync(CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
@@ -376,12 +454,11 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most
-    /// <paramref name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other
-    /// copies of a book don't repeat its hits. A page inside an adventure marked in a file goes with the adventure, and
-    /// with the file only when the adventure is filtered out (slice 5 plan, choice 10). Snippets are made only for the
-    /// pages returned.
-    /// Exclusions alone find no pages, so a query like <c>-maps</c> returns nothing here.
+    /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most <paramref
+    /// name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other copies of a
+    /// book don't repeat its hits. A page inside an adventure marked in a file goes with the adventure, and with the
+    /// file only when the adventure is filtered out. A page of a PDF in a pack goes with the pack, its card. Snippets are made only for the pages returned. Exclusions alone
+    /// find no pages, so a query like <c>-maps</c> returns nothing here.
     /// </summary>
     public async Task<PageResults> SearchPagesAsync(
         SearchPlan plan, LibraryFilter filter, int maxDocuments = 100, int pagesPerDocument = 3, CancellationToken ct = default)
@@ -397,13 +474,24 @@ public sealed class LibraryQueries(IndexDatabase database)
                 FROM page_fts JOIN page p ON p.id = page_fts.rowid
                 WHERE page_fts MATCH @match
             ),
-            claimed AS (
-                SELECT e.entry_id AS entry, m.page_id, m.score,
-                       row_number() OVER (PARTITION BY m.page_id ORDER BY e.kind <> 'Part', e.entry_id) AS k
+            owned AS (
+                SELECT e.entry_id AS entry, e.kind AS kind, m.page_id, m.score
                 FROM matched m
-                JOIN entry_doc e ON e.document_id = m.doc AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
+                JOIN entry_doc e ON e.document_id = m.doc AND e.kind <> 'Pack' AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
                 JOIN doc d ON d.document_id = e.document_id
                 WHERE {where.Sql}
+                UNION ALL
+                SELECT e.entry_id, e.kind, m.page_id, m.score
+                FROM matched m
+                JOIN entry_member em ON em.document_id = m.doc
+                JOIN entry_doc e ON e.entry_id = em.entry_id
+                JOIN doc d ON d.document_id = e.document_id
+                WHERE {where.Sql}
+            ),
+            claimed AS (
+                SELECT entry, page_id, score,
+                       row_number() OVER (PARTITION BY page_id ORDER BY kind <> 'Part', entry) AS k
+                FROM owned
             ),
             ranked AS (
                 SELECT entry, page_id,
@@ -446,7 +534,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             },
             cancellationToken: ct))).ToDictionary(h => h.PageId);
 
-        var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct)).ToDictionary(e => e.EntryId.Value);
+        var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct, filter.PartsInBooks)).ToDictionary(e => e.EntryId.Value);
         var found = shown
             .Where(b => entries.ContainsKey(b.Entry))
             .Select(b => new EntryHits(
@@ -456,6 +544,33 @@ public sealed class LibraryQueries(IndexDatabase database)
                 b.Pages))
             .ToList();
         return new PageResults(found, books.Count, matchingPages);
+    }
+
+    /// <summary>
+    /// The pages a question to the library may read among the cards the library shows for <paramref name="filter"/> and
+    /// <paramref name="plan"/>: each PDF's pages, or an adventure's own pages in its file. Images, packs and books owned
+    /// elsewhere have no pages to read. A file gives way to its found adventure as it does in the Library.
+    /// </summary>
+    public async Task<IReadOnlyList<PageSpan>> GetPageSpansAsync(LibraryFilter filter, SearchPlan plan, CancellationToken ct = default)
+    {
+        var where = new Where(filter, plan, titleAsFilter: true);
+        where.Parameters.Add("spanFormat", SourceFormats.Pdf);
+        var giveWay = filter.PartsInBooks && !plan.IsEmpty
+            ? "WHERE NOT EXISTS (SELECT 1 FROM found c WHERE c.Kind = 'Part' AND c.ParentId = f.EntryId)"
+            : "";
+        var sql = $"""
+            WITH found AS MATERIALIZED (
+                SELECT e.entry_id AS EntryId, e.parent_id AS ParentId, e.document_id AS DocumentId, e.kind AS Kind,
+                    e.first_page AS FirstPage, e.last_page AS LastPage
+                FROM {Entries}
+                WHERE {where.Sql} AND e.document_id IS NOT NULL AND e.kind <> 'Pack' AND d.format = @spanFormat)
+            SELECT f.DocumentId, f.Kind, f.FirstPage, f.LastPage FROM found f {giveWay}
+            """;
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, string Kind, long? FirstPage, long? LastPage)>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct));
+        return [.. rows.Select(r => r.Kind == nameof(EntryKind.Part) && r.FirstPage is { } first && r.LastPage is { } last
+            ? new PageSpan(r.DocumentId, (int)first, (int)last)
+            : new PageSpan(r.DocumentId))];
     }
 
     /// <summary>
@@ -508,7 +623,7 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     /// <summary>
     /// Documents as cards of their own, by id: for a session item whose book has no card in the Library, such as an
-    /// image hidden in a pack, which still shows and opens in the pack (slice 3 plan, choice 19).
+    /// image hidden in a pack, which still shows and opens in the pack.
     /// </summary>
     public async Task<IReadOnlyDictionary<long, LibraryEntry>> GetDocumentCardsAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
     {
@@ -522,7 +637,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal), Searchable: true));
     }
 
-    /// <summary>A pack's images in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
+    /// <summary>A pack's files in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
     public async Task<IReadOnlyList<PackImage>> GetPackImagesAsync(EntryId packId, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
@@ -543,14 +658,47 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await GetEntriesAsync(connection, entryIds.Select(e => e.Value), ct);
     }
 
-    static async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, IEnumerable<long> entryIds, CancellationToken ct) =>
+    static async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, IEnumerable<long> entryIds, CancellationToken ct,
+        bool partsInBooks = false) =>
         ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(
             $"""
             SELECT {EntryColumns}
             FROM {Entries} {EntryJoin}
             WHERE e.entry_id IN (SELECT value FROM json_each(@ids))
             """,
-            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct)));
+            new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct)), partsInBooks);
+
+    /// <summary>
+    /// The query for the cards <paramref name="where"/> keeps, after any common table expressions <paramref
+    /// name="with"/> needs, in <paramref name="order"/> and at most @limit of them when <paramref name="limit"/> is set.
+    /// With <paramref name="filesGiveWay"/>, a file one of whose adventures is found too is left out: the adventure is
+    /// what was looked for, and its card shows the file's cover.
+    /// </summary>
+    static string Found(string? with, string columns, string from, string where, string order, bool limit, bool filesGiveWay)
+    {
+        var top = limit ? "LIMIT @limit" : "";
+        if (!filesGiveWay)
+            return $"""
+                {(with is null ? "" : "WITH " + with)}
+                SELECT {columns}
+                FROM {from}
+                WHERE {where}
+                ORDER BY {order}
+                {top}
+                """;
+        // The order is kept as a number, since the files are left out of what was found, sorted, before the limit.
+        return $"""
+            WITH {(with is null ? "" : with + ",")}
+            found AS MATERIALIZED (
+                SELECT {columns}, row_number() OVER (ORDER BY {order}) AS FoundOrder
+                FROM {from}
+                WHERE {where})
+            SELECT * FROM found f
+            WHERE NOT EXISTS (SELECT 1 FROM found c WHERE c.EntryKind = 'Part' AND c.ParentId = f.EntryId)
+            ORDER BY f.FoundOrder
+            {top}
+            """;
+    }
 
     static string Order(LibrarySort sort, string? relevance) => sort switch
     {
@@ -561,14 +709,21 @@ public sealed class LibraryQueries(IndexDatabase database)
         _ => "coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
     };
 
-    static List<LibraryEntry> ToEntries(IEnumerable<EntryRow> rows) =>
-        [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount, r.Cover, r.FolderHint,
+    /// <summary>
+    /// The cards of these rows. With <paramref name="partsInBooks"/>, an adventure found shows its file's cover rather
+    /// than its own first page, so it reads as part of that book.
+    /// </summary>
+    static List<LibraryEntry> ToEntries(IEnumerable<EntryRow> rows, bool partsInBooks = false) =>
+        [.. rows.Select(r => new LibraryEntry(new EntryId(r.EntryId), r.DocumentId, r.Title, r.Format, (int?)r.PageCount,
+            partsInBooks && r.EntryKind == nameof(EntryKind.Part) ? r.FileCover ?? r.Cover : r.Cover, r.FolderHint,
             r.AddedUtc.Length == 0 ? DateTime.MinValue : Utc(r.AddedUtc),
             r.Searchable != 0, r.SystemLabel, r.KindLabel, r.Publisher, DescribeLevels(r.LevelState, r.LevelMin, r.LevelMax),
             r.NeedsReview != 0, r.Suggested != 0, r.AiModel, (int)r.Copies, Enum.Parse<EntryKind>(r.EntryKind), (int)r.Members, r.MemberCovers,
             r.MatchedMember, r.MatchedDocumentId, r.AlsoOwn, r.Favorite != 0, r.OpenedUtc is { Length: > 0 } opened ? Utc(opened) : null,
-            Access(r))
+            // A pack shows its first file, whose lock or protection is that file's, not the pack's.
+            r.EntryKind == nameof(Core.EntryKind.Pack) ? TextAccess.Readable : Access(r))
         {
+            PdfMembers = (int)r.PdfMembers,
             ParentEntryId = r.ParentId is { } parent ? new EntryId(parent) : null,
             ParentTitle = r.ParentTitle,
             Pages = r.FirstPage is { } first && r.LastPage is { } last ? new PartPages((int)first, (int)last) : null,
@@ -577,6 +732,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             Parts = (int)r.Parts,
             OnlineLink = r.OnlineLink,
             OnlineLabel = r.OnlineLabel,
+            FoundInBook = partsInBooks && r.EntryKind == nameof(EntryKind.Part),
         })];
 
     /// <summary>
@@ -638,6 +794,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string EntryKind { get; init; } = nameof(Core.EntryKind.Whole);
         public long Members { get; init; }
         public string? MemberCovers { get; init; }
+        public long PdfMembers { get; init; }
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }
         public string? AlsoOwn { get; init; }
@@ -652,6 +809,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? ParentTitle { get; init; }
         public string? FirstLabel { get; init; }
         public string? LastLabel { get; init; }
+        public string? FileCover { get; init; }
     }
 
     sealed class HitRow
@@ -723,7 +881,12 @@ public sealed class LibraryQueries(IndexDatabase database)
 
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
             if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
+            // Kept inside their books, adventures show only when a search finds them; browsing lists them in their files.
+            else if (filter.PartsInBooks && plan.IsEmpty) _sql.Append(" AND e.kind <> 'Part'");
 
+            // A collection's whole scope is "collection:<id>"; its own-books scope ("collection-own:") is the same books or fewer.
+            if (filter.Collections != CollectionFilter.All)
+                _sql.Append($" AND e.entry_id {(filter.Collections == CollectionFilter.InOne ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_scope WHERE scope LIKE 'collection:%')");
             if (filter.Ai != AiFilter.All)
                 _sql.Append($" AND e.entry_id {(filter.Ai == AiFilter.Read ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_ai)");
 
@@ -754,6 +917,11 @@ public sealed class LibraryQueries(IndexDatabase database)
             if (filter.Styles is { Count: > 0 } styles) AddChoice("style", styles, "styles");
             if (filter.Durations is { Count: > 0 } durations) AddChoice("duration", durations, "durations");
             if (filter.Stores is { Count: > 0 } stores) AddChoice("store", stores, "stores");
+            if (filter.Picked is { } picked)
+            {
+                var i = 0;
+                foreach (var field in picked.Fields) AddPicked(field, picked[field], i++);
+            }
             if (filter.Players is { } players)
                 Add("EXISTS (SELECT 1 FROM entry_meta pm WHERE pm.entry_id = e.entry_id AND pm.players_min <= @players AND pm.players_max >= @players)",
                     "players", players);
@@ -780,23 +948,44 @@ public sealed class LibraryQueries(IndexDatabase database)
         }
 
         /// <summary>
+        /// Entries with any of the values picked in a field's type-ahead filter: a publisher by its name, anything else as
+        /// a term.
+        /// </summary>
+        void AddPicked(string field, IReadOnlyList<string> values, int i)
+        {
+            if (field != MetadataFields.Publisher.Key)
+            {
+                AddChoice(field, values, $"picked{i}");
+                return;
+            }
+            Add($"e.entry_id IN (SELECT entry_id FROM entry_meta WHERE publisher IN (SELECT value FROM json_each(@picked{i})))",
+                $"picked{i}", JsonSerializer.Serialize(values));
+        }
+
+        /// <summary>
         /// <c>type:adventure</c>: a value matches a term through any of its names (term_alias), its label, or its key;
         /// a prefix (<c>type:adv*</c>) through the start of its label or names.
         /// </summary>
         void AddFacet(FacetCondition facet, int i)
         {
             var fields = $"(SELECT value FROM json_each(@facetFields{i}))";
-            Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(facet.Fields));
             if (facet.IsUnknown)
             {
+                // A book with no setting of its own is still unknown, whatever its chapters have: unknown asks what the
+                // book is, and a field found only in chapters (creatures) asks for books with none found.
+                var own = facet.Fields.Where(f => !f.StartsWith(ChapterFields.InsidePrefix, StringComparison.Ordinal)).ToList();
+                Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(own.Count > 0 ? own : facet.Fields));
                 _sql.Append(" AND e.entry_id ").Append(facet.Negated ? "IN" : "NOT IN")
                     .Append($" (SELECT entry_id FROM entry_facet WHERE field IN {fields})");
                 return;
             }
+            Parameters.Add($"facetFields{i}", JsonSerializer.Serialize(facet.Fields));
             var normalized = MetadataText.Normalize(facet.Value);
+            // A chapter's value is a term of the same vocabulary as the book's field it is filed beside.
+            var vocabulary = $"(CASE WHEN f.field LIKE '{ChapterFields.InsidePrefix}%' THEN substr(f.field, {ChapterFields.InsidePrefix.Length + 1}) ELSE f.field END)";
             var matches = facet.Prefix
-                ? $"f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = f.field AND a.alias LIKE @facetLike{i} ESCAPE '\\')"
-                : $"f.value = @facetKey{i} OR f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = f.field AND a.alias = @facetAlias{i})";
+                ? $"f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = {vocabulary} AND a.alias LIKE @facetLike{i} ESCAPE '\\')"
+                : $"f.value = @facetKey{i} OR f.label LIKE @facetLike{i} ESCAPE '\\' OR f.value IN (SELECT a.value FROM term_alias a WHERE a.vocabulary = {vocabulary} AND a.alias = @facetAlias{i})";
             Add($"e.entry_id {(facet.Negated ? "NOT IN" : "IN")} (SELECT f.entry_id FROM entry_facet f WHERE f.field IN {fields} AND ({matches}))",
                 $"facetLike{i}", facet.Prefix ? Escape(normalized) + "%" : Contains(facet.Value));
             Parameters.Add($"facetKey{i}", facet.Value.ToLowerInvariant());

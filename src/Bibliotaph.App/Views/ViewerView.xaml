@@ -10,8 +10,8 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:ViewerViewModel}">
   <UserControl.InputBindings>
-    <KeyBinding Key="F3" Command="{Binding FindNextCommand}" />
-    <KeyBinding Key="F3" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
+    <KeyBinding Key="F3" Command="{Binding Find.NextCommand}" />
+    <KeyBinding Key="F3" Modifiers="Shift" Command="{Binding Find.PreviousCommand}" />
     <!-- Ctrl and the + or - key on the main keyboard (with or without Shift) or the number pad, as in browsers. -->
     <KeyBinding Key="OemPlus" Modifiers="Control" Command="NavigationCommands.IncreaseZoom" />
     <KeyBinding Key="OemPlus" Modifiers="Control+Shift" Command="NavigationCommands.IncreaseZoom" />
@@ -88,6 +88,11 @@
       <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+        <!-- A file whose first page is blank or a title sheet can show a better page on its card. -->
+        <Button x:Name="UseAsCover" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,0"
+                Command="{Binding UseAsCoverCommand}" ToolTip="Use this page as the cover" ToolTipService.ShowOnDisabled="True"
+                AutomationProperties.Name="Use this page as the cover"
+                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <!-- Mark as adventure (slice 5): pages of this file as an adventure with a card of its own. -->
         <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
                 Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"
@@ -157,7 +162,7 @@
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding NotesLabel}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
+          <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding Notes.Label}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                   Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
           <Border Style="{StaticResource Divider}" />
           <!-- Ask this book: only while AI is on (Ask plan, choice 12). -->
@@ -168,7 +173,7 @@
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
         </StackPanel>
-        <!-- An image from a pack: step through its images (F4 plan, choice 7). -->
+        <!-- A file from a pack, an image or a PDF: step through its files (F4 plan, choice 7). -->
         <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
           <StackPanel.Style>
             <Style TargetType="StackPanel">
@@ -181,15 +186,22 @@
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
                 </MultiDataTrigger>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPdf}" Value="True" />
+                    <Condition Binding="{Binding IsInPack}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
               </Style.Triggers>
             </Style>
           </StackPanel.Style>
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous image (Left arrow)"
-                  AutomationProperties.Name="Previous image" Command="{Binding PreviousImageCommand}" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="{Binding PreviousStepTip}"
+                  AutomationProperties.Name="{Binding PreviousStepName}" Command="{Binding PreviousImageCommand}" />
           <TextBlock Text="{Binding PackPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0"
-                     AutomationProperties.Name="Image in pack" />
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next image (Right arrow)"
-                  AutomationProperties.Name="Next image" Command="{Binding NextImageCommand}" />
+                     AutomationProperties.Name="Place in pack" />
+          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="{Binding NextStepTip}"
+                  AutomationProperties.Name="{Binding NextStepName}" Command="{Binding NextImageCommand}" />
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
@@ -218,23 +230,23 @@
         <!-- Find in book; what it found follows, and wraps on its own. -->
         <StackPanel Orientation="Horizontal" Margin="6,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <TextBox x:Name="FindBox" Style="{StaticResource ToolBox}" Width="180" Tag="Find in this book (Ctrl+F)"
-                   Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find in this book">
+                   Text="{Binding Find.Query, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find in this book">
             <TextBox.InputBindings>
-              <KeyBinding Key="Enter" Command="{Binding FindCommand}" />
-              <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
-              <KeyBinding Key="Escape" Command="{Binding ClearFindCommand}" />
+              <KeyBinding Key="Enter" Command="{Binding Find.FindCommand}" />
+              <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding Find.PreviousCommand}" />
+              <KeyBinding Key="Escape" Command="{Binding Find.ClearCommand}" />
             </TextBox.InputBindings>
           </TextBox>
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" Margin="4,0,0,0"
-                  ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding FindPreviousCommand}" />
+                  ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding Find.PreviousCommand}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
-                  ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding FindNextCommand}" />
+                  ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding Find.NextCommand}" />
           <!-- Reading an adventure inside the file, Find looks in its pages unless this is ticked (slice 5). -->
-          <CheckBox x:Name="FindWholeFile" Content="Whole file" IsChecked="{Binding FindWholeFile}" Foreground="{DynamicResource Bt.Text}" FontSize="11"
+          <CheckBox x:Name="FindWholeFile" Content="Whole file" IsChecked="{Binding Find.WholeFile}" Foreground="{DynamicResource Bt.Text}" FontSize="11"
                     VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Find in the whole file, not only this adventure's pages"
                     Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
-        <TextBlock Text="{Binding FindStatus}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="8,0,0,4"
+        <TextBlock Text="{Binding Find.Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="8,0,0,4"
                    Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
       </WrapPanel>
     </Border>
@@ -243,7 +255,7 @@
     <Border Grid.Row="2" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,1,1"
             Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
       <DockPanel>
-        <!-- Contents: the PDF's bookmarks. -->
+        <!-- Contents: the PDF's bookmarks, or the chapters the AI read when it has none, with what was found in each. -->
         <Border DockPanel.Dock="Left" Width="250" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,1,0"
                 Visibility="{Binding OutlineVisible, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <DockPanel>
@@ -267,8 +279,14 @@
                         </ContextMenu>
                       </DockPanel.ContextMenu>
                       <TextBlock DockPanel.Dock="Right" Text="{Binding Page}" Style="{StaticResource Text.Small}" Margin="8,5,6,5" VerticalAlignment="Top" />
-                      <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
-                                 Margin="6,5,0,5" />
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
+                                   Margin="6,5,0,5" />
+                        <!-- What the AI found reading this chapter: about the chapter, not the whole book. -->
+                        <TextBlock Text="{Binding Found}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="6,-3,0,5"
+                                   ToolTip="Found by the AI reading this chapter"
+                                   Visibility="{Binding HasFound, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                      </StackPanel>
                     </DockPanel>
                   </Border>
                   <DataTemplate.Triggers>
@@ -401,9 +419,9 @@
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="NOTES ON ITS PAGES" Style="{StaticResource Text.Eyebrow}" Margin="14,14,14,8" />
             <TextBlock DockPanel.Dock="Top" Text="No notes yet. Note adds one on the page in view." Style="{StaticResource Text.Small}" TextWrapping="Wrap"
-                       Margin="14,0,14,0" Visibility="{Binding HasPageNotes, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                       Margin="14,0,14,0" Visibility="{Binding Notes.HasNotes, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
             <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-              <ItemsControl x:Name="ReaderPageNotes" ItemsSource="{Binding PageNotes}" Focusable="False" AutomationProperties.Name="Notes on its pages"
+              <ItemsControl x:Name="ReaderPageNotes" ItemsSource="{Binding Notes.Items}" Focusable="False" AutomationProperties.Name="Notes on its pages"
                             KeyboardNavigation.TabNavigation="Continue" Margin="10,0,10,10">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate DataType="{x:Type vm:PageNoteRow}">
@@ -413,14 +431,14 @@
                           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button x:Name="EditNote" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" MinWidth="24" MinHeight="24" Padding="3"
                                     ToolTip="Change this note" AutomationProperties.Name="Change this note"
-                                    Command="{Binding DataContext.EditNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    Command="{Binding DataContext.Notes.EditCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                             <Button x:Name="DeleteNote" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" MinWidth="24" MinHeight="24" Padding="3"
                                     ToolTip="Delete this note" AutomationProperties.Name="Delete this note"
-                                    Command="{Binding DataContext.DeleteNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    Command="{Binding DataContext.Notes.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                           </StackPanel>
                           <Button x:Name="GoToNote" Style="{StaticResource Bt.Link}" Content="{Binding Pages}" HorizontalAlignment="Left" VerticalAlignment="Center"
                                   ToolTip="Go to these pages" AutomationProperties.Name="{Binding Pages, StringFormat='Go to {0}'}"
-                                  Command="{Binding DataContext.GoToNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                  Command="{Binding DataContext.Notes.GoToCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                         </DockPanel>
                         <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
                         <DockPanel Margin="0,6,0,0" Visibility="{Binding HasReason, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -522,27 +540,27 @@
               </DockPanel>
             </Border>
             <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="14,10"
-                    Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+                    Visibility="{Binding Sessions.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                         ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionMessageCommand}" />
                 <Button x:Name="UndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                        Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
-                        Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                        Command="{Binding Sessions.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
+                        Visibility="{Binding Sessions.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="SessionMessage" Text="{Binding Sessions.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                            VerticalAlignment="Center" />
               </DockPanel>
             </Border>
             <!-- What the last page note change did, with Undo. -->
             <Border Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,8,0,0"
-                    Visibility="{Binding NoteMessage, Converter={StaticResource Bt.VisibleWhenSet}}">
+                    Visibility="{Binding Notes.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
-                        ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissNoteMessageCommand}" />
+                        ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding Notes.DismissMessageCommand}" />
                 <Button x:Name="UndoNote" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                        Command="{Binding UndoNoteCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the note change" VerticalAlignment="Center"
-                        Visibility="{Binding HasNoteUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <TextBlock x:Name="NoteMessage" Text="{Binding NoteMessage}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                        Command="{Binding Notes.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the note change" VerticalAlignment="Center"
+                        Visibility="{Binding Notes.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="NoteMessage" Text="{Binding Notes.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                            VerticalAlignment="Center" />
               </DockPanel>
             </Border>
@@ -579,11 +597,11 @@
     </Grid>
 
     <!-- A note on pages (slice 3f), as a dialog over the reader. Esc or Cancel closes it. -->
-    <Grid Grid.RowSpan="4" Visibility="{Binding NoteDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <Grid Grid.RowSpan="4" Visibility="{Binding Notes.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Background="{DynamicResource Bt.Shadow}" />
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding NoteDialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+        <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding Notes.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
       </ScrollViewer>
     </Grid>
 

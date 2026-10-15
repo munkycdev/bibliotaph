@@ -15,7 +15,7 @@ public sealed record EntryMetadata(EntryId EntryId, IReadOnlyList<MetadataClaim>
 /// <summary>
 /// Metadata assertions in catalog.db. Sources add suggestions; the user's decisions change assertion states and add
 /// rejections. Nothing here overwrites a value: the effective metadata is always computed from these rows, so a
-/// reindex, a new rule or a new model can only add suggestions, never undo what the user said (A04).
+/// reindex, a new rule or a new model can only add suggestions, never undo what the user said.
 /// </summary>
 public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -30,8 +30,8 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 
     /// <summary>
     /// Metadata for <paramref name="entryIds"/>, or for every entry with any when it is null. An adventure inside a
-    /// file (slice 5 plan, choice 8) has its file's game system, edition, publisher, series, year and setting as well
-    /// as its own values, unless it has confirmed its own (<see cref="PartMetadata"/>).
+    /// file has its file's game system, edition, publisher, series, year and setting as well as its own values, unless
+    /// it has confirmed its own (<see cref="PartMetadata"/>).
     /// </summary>
     public async Task<IReadOnlyDictionary<EntryId, EntryMetadata>> GetManyAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct = default)
     {
@@ -68,6 +68,24 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         }
         return ((await assertions.ToListAsync(ct)).ToLookup(a => a.EntryId, ToClaim),
             (await rejections.Select(r => new { r.EntryId, r.Field, r.NormalizedValue }).ToListAsync(ct)).ToLookup(r => r.EntryId, r => (r.Field, r.NormalizedValue)));
+    }
+
+    /// <summary>
+    /// The cards with a suggested or confirmed value of <paramref name="field"/> among <paramref name="normalized"/>
+    /// (comparison forms): a rough cut, since another value may win, for the caller to check against what each card
+    /// shows. Cards joined into another and images in a pack aren't among them.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> FindAsync(MetadataField field, IReadOnlyCollection<string> normalized, CancellationToken ct = default)
+    {
+        if (normalized.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var values = normalized.ToList();
+        var ids = await db.Assertions.AsNoTracking()
+            .Where(a => a.Field == field.Key && values.Contains(a.NormalizedValue)
+                && (a.State == AssertionState.Provisional || a.State == AssertionState.Confirmed)
+                && a.Entry.MergedIntoEntryId == null && (a.Entry.ParentEntryId == null || a.Entry.Kind == EntryKind.Part))
+            .Select(a => a.EntryId).Distinct().ToListAsync(ct);
+        return [.. ids.Select(id => new EntryId(id))];
     }
 
     /// <summary>The entries with any value the user confirmed or set, whose books can show the user's conventions.</summary>
@@ -134,9 +152,9 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// "Forget its text" (slice 4i plan, choice 6): the AI's suggestions read from these copies of an entry's book go,
-    /// with the quotes from its pages they carried. What the user decided about one (kept, rejected, replaced) stays,
-    /// without its quote. Returns whether anything changed.
+    /// "Forget its text": the AI's suggestions read from these copies of an entry's book go, with the quotes from its
+    /// pages they carried. What the user decided about one (kept, rejected, replaced) stays, without its quote. Returns
+    /// whether anything changed.
     /// </summary>
     public async Task<bool> ForgetAiAsync(EntryId entryId, IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
     {
@@ -193,11 +211,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// Stores a classifier run's suggestions (slice 2c), replacing the undecided ones earlier runs of the same origin
-    /// left from the same copy (<paramref name="contentHash"/>): a value suggested again keeps its row and its age, with
-    /// this run's evidence; one not suggested again goes. What
-    /// the user decided stays as it is, a rejected value is never suggested again (A04), and a term value whose term is
-    /// pending is held until the user decides the term. Returns whether anything changed.
+    /// Stores a classifier run's suggestions, replacing the undecided ones earlier runs of the same origin left from
+    /// the same copy (<paramref name="contentHash"/>): a value suggested again keeps its row and its age, with this
+    /// run's evidence; one not suggested again goes. What the user decided stays as it is, a rejected value is never
+    /// suggested again, and a term value whose term is pending is held until the user decides the term. Returns
+    /// whether anything changed.
     /// </summary>
     public async Task<bool> ApplyRunAsync(EntryId entryId, string contentHash, string runId, AssertionOrigin origin, IReadOnlyList<MetadataProposal> proposals, CancellationToken ct = default)
     {
@@ -254,6 +272,87 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         return changed;
     }
 
+    /// <summary>
+    /// Sets the guesses of one of the user's tags (<paramref name="tag"/>, by name) across the whole library to exactly
+    /// <paramref name="guesses"/>: the books whose pages use its words often enough now. Returns the entries whose
+    /// tags changed, to project.
+    /// </summary>
+    public Task<IReadOnlyList<EntryId>> ReplaceTagGuessesAsync(string tag, IReadOnlyList<TagGuess> guesses, CancellationToken ct = default)
+    {
+        var normalized = MetadataValues.Normalize(MetadataFields.Tags, tag);
+        return ReplaceTagGuessesAsync(rows => rows.Where(a => a.NormalizedValue == normalized), g => g.Normalized == normalized, guesses, ct);
+    }
+
+    /// <summary>
+    /// Sets every tag guess on <paramref name="entryIds"/> to exactly <paramref name="guesses"/>, for books whose text
+    /// has just been read, or forgotten. Returns the entries whose tags changed, to project.
+    /// </summary>
+    public Task<IReadOnlyList<EntryId>> ReplaceTagGuessesAsync(IReadOnlyCollection<EntryId> entryIds, IReadOnlyList<TagGuess> guesses, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return Task.FromResult<IReadOnlyList<EntryId>>([]);
+        var ids = Raw(entryIds);
+        return ReplaceTagGuessesAsync(rows => rows.Where(a => ids.Contains(a.EntryId)), g => ids.Contains(g.EntryId.Value), guesses, ct);
+    }
+
+    /// <summary>
+    /// The tag guesses <paramref name="scope"/> covers become <paramref name="guesses"/>, as rule hints are replaced: a
+    /// guess made again keeps its row and its age, with fresh evidence, so nothing looks new; one not made again goes.
+    /// What the user decided about a guess (kept, rejected) stays as it is, and a value the user rejected for a book is
+    /// never guessed for it again. A card that joined another as a copy gets no guesses.
+    /// </summary>
+    async Task<IReadOnlyList<EntryId>> ReplaceTagGuessesAsync(Func<IQueryable<Assertion>, IQueryable<Assertion>> scope, Func<TagGuess, bool> inScope,
+        IReadOnlyList<TagGuess> guesses, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var field = MetadataFields.Tags.Key;
+        var rows = await scope(db.Assertions.Where(a => a.Origin == AssertionOrigin.UserTag && a.Field == field)).ToListAsync(ct);
+        var wanted = guesses.Where(g => g.Normalized.Length > 0 && inScope(g)).DistinctBy(g => (g.EntryId, g.Normalized)).ToList();
+        var ids = wanted.Select(g => g.EntryId.Value).Distinct().ToList();
+        var live = (await db.Entries.Where(e => ids.Contains(e.Id) && e.MergedIntoEntryId == null).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+        var rejected = (await db.Rejections.Where(r => ids.Contains(r.EntryId) && r.Field == field).Select(r => new { r.EntryId, r.NormalizedValue }).ToListAsync(ct))
+            .Select(r => (r.EntryId, r.NormalizedValue)).ToHashSet();
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var changed = new HashSet<long>();
+        var kept = new HashSet<long>();
+        var dirty = false;
+
+        foreach (var guess in wanted)
+        {
+            var id = guess.EntryId.Value;
+            if (!live.Contains(id) || rejected.Contains((id, guess.Normalized))) continue;
+            var same = rows.Where(r => r.EntryId == id && r.NormalizedValue == guess.Normalized).ToList();
+            kept.UnionWith(same.Select(r => r.Id));
+            // Decided by the user already: their word stands.
+            if (same.Any(r => r.State != AssertionState.Provisional)) continue;
+            var proposal = new MetadataProposal(MetadataFields.Tags, guess.Tag, AssertionOrigin.UserTag, guess.Quote, guess.Pages);
+            if (same.FirstOrDefault() is not { } row)
+            {
+                db.Assertions.Add(NewAssertion(guess.EntryId, guess.ContentHash, proposal, AssertionState.Provisional, now));
+                changed.Add(id);
+                continue;
+            }
+            var pages = Pages(proposal);
+            var value = JsonSerializer.Serialize(guess.Tag);
+            if (row.ValueJson == value && row.EvidenceQuote == proposal.Quote && row.EvidencePagesJson == pages && row.ContentHash == guess.ContentHash) continue;
+            // The tag's name as it reads now: a rename that only changed its capitals keeps the guess, and changes how it reads.
+            if (row.ValueJson != value) changed.Add(id);
+            row.ValueJson = value;
+            row.EvidenceQuote = proposal.Quote;
+            row.EvidencePagesJson = pages;
+            row.ContentHash = guess.ContentHash;
+            dirty = true;
+        }
+
+        foreach (var row in rows.Where(r => r.State == AssertionState.Provisional && !kept.Contains(r.Id)))
+        {
+            db.Assertions.Remove(row);
+            changed.Add(row.EntryId);
+        }
+
+        if (changed.Count > 0 || dirty) await db.SaveChangesAsync(ct);
+        return [.. changed.Select(id => new EntryId(id))];
+    }
+
     static string? Pages(MetadataProposal proposal) => proposal.Pages is { Count: > 0 } pages ? JsonSerializer.Serialize(pages) : null;
 
     static Assertion NewAssertion(EntryId entryId, string? contentHash, MetadataProposal proposal, AssertionState state, DateTime now, string? runId = null) => new()
@@ -291,7 +390,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 
     /// <summary>
     /// "Keep this": confirms the values a field shows now, so no later suggestion replaces them. A value an adventure
-    /// shows only because its file suggests it (slice 5) becomes the adventure's own.
+    /// shows only because its file suggests it becomes the adventure's own.
     /// </summary>
     public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
@@ -352,11 +451,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// What the user decided about a field on another PC, merged by library sync (library sync plan, choice 5): exactly
-    /// <paramref name="values"/> (stored form) are kept and exactly <paramref name="rejected"/> (normalised) are
-    /// rejected. A suggestion here with the same text is confirmed, keeping its evidence; otherwise the value becomes
-    /// the user's own. A value kept here that isn't kept there goes back to being a suggestion (the user's own is
-    /// superseded), and a rejection that isn't there is lifted. Returns whether anything changed.
+    /// What the user decided about a field on another PC, merged by library sync: exactly <paramref name="values"/>
+    /// (stored form) are kept and exactly <paramref name="rejected"/> (normalised) are rejected. A suggestion here with
+    /// the same text is confirmed, keeping its evidence; otherwise the value becomes the user's own. A value kept here
+    /// that isn't kept there goes back to being a suggestion (the user's own is superseded), and a rejection that isn't
+    /// there is lifted. Returns whether anything changed.
     /// </summary>
     public async Task<bool> ApplySyncedAsync(EntryId entryId, MetadataField field, IReadOnlyList<string> values, IReadOnlyList<string> rejected,
         CancellationToken ct = default)
@@ -445,14 +544,13 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// A bulk edit (slice 4e): the same changes to fields of many entries, in one transaction, by the inspector's
-    /// per-value rules. Set makes a single-value field's value the user's own, as <see cref="SetValuesAsync"/> does.
-    /// Add puts a value in a multi-value field and keeps the values it shows, as "Use this" does, which confirms them;
-    /// Remove rejects a value the field shows, from every source now and later, as "Not right" does, in a field with one
-    /// value too (a correction offered to look-alikes, scenario review, row 8). Reset is "Reset to
-    /// suggestion". A field with no change, and an entry a change makes no difference to, are left as they are.
-    /// Returns the snapshot, from before, of each field it changed, which <see cref="RestoreAsync(IReadOnlyCollection{FieldSnapshot}, CancellationToken)"/>
-    /// puts back.
+    /// A bulk edit: the same changes to fields of many entries, in one transaction, by the inspector's per-value rules.
+    /// Set makes a single-value field's value the user's own, as <see cref="SetValuesAsync"/> does. Add puts a value in
+    /// a multi-value field and keeps the values it shows, as "Use this" does, which confirms them; Remove rejects a
+    /// value the field shows, from every source now and later, as "Not right" does, in a field with one value too (a
+    /// correction offered to look-alikes). Reset is "Reset to suggestion". A field with no change, and an entry a
+    /// change makes no difference to, are left as they are. Returns the snapshot, from before, of each field it
+    /// changed, which <see cref="RestoreAsync(IReadOnlyCollection{FieldSnapshot}, CancellationToken)"/> puts back.
     /// </summary>
     public async Task<IReadOnlyList<FieldSnapshot>> ApplyBulkAsync(IReadOnlyCollection<EntryId> entryIds, IReadOnlyList<BulkChange> changes,
         CancellationToken ct = default)
@@ -489,11 +587,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
-    /// An import from an online library (online libraries plan, choices 4 to 7), in one transaction. Each book with no
-    /// <see cref="ImportedBook.EntryId"/> becomes a new book owned elsewhere whose values are the user's own, with
-    /// <paramref name="quote"/> ("Imported from your D&amp;D Beyond library on 11 Oct 2026") as their evidence. A book
-    /// with one gets its changes on that card, as a bulk edit makes them. Values are in stored form. Returns what Undo
-    /// needs: the cards added, and every field changed on cards that were already there.
+    /// An import from an online library, in one transaction. Each book with no <see cref="ImportedBook.EntryId"/>
+    /// becomes a new book owned elsewhere whose values are the user's own, with <paramref name="quote"/> ("Imported
+    /// from your D&amp;D Beyond library on 11 Oct 2026") as their evidence. A book with one gets its changes on that
+    /// card, as a bulk edit makes them. Values are in stored form. Returns what Undo needs: the cards added, and every
+    /// field changed on cards that were already there.
     /// </summary>
     public async Task<ImportReceipt> ImportAsync(IReadOnlyList<ImportedBook> books, string quote, CancellationToken ct = default)
     {
@@ -711,7 +809,16 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 }
 
-/// <summary>What a bulk edit does to a field on every selected entry (slice 4e plan, choices 3 and 4).</summary>
+/// <summary>
+/// One of the user's tags guessed for a book, because its pages use the tag's words often enough: the words, as the
+/// evidence quote, and the PDF pages (zero-based) of <paramref name="ContentHash"/>'s copy that use them.
+/// </summary>
+public sealed record TagGuess(EntryId EntryId, string Tag, string? ContentHash, string Quote, IReadOnlyList<int> Pages)
+{
+    public string Normalized => MetadataValues.Normalize(MetadataFields.Tags, Tag);
+}
+
+/// <summary>What a bulk edit does to a field on every selected entry.</summary>
 public enum BulkAction
 {
     /// <summary>Makes a single-value field's value the user's own.</summary>

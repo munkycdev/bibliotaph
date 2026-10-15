@@ -195,19 +195,26 @@
       <Setter.Value>
         <ControlTemplate TargetType="Button">
           <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6" Padding="10" MinHeight="38" SnapsToDevicePixels="True">
-            <DockPanel VerticalAlignment="Center">
+            <DockPanel x:Name="Row" VerticalAlignment="Center">
               <!-- .bt-count -->
-              <TextBlock DockPanel.Dock="Right" Text="{Binding (c:Ui.Count), RelativeSource={RelativeSource TemplatedParent}}"
+              <TextBlock x:Name="Count" DockPanel.Dock="Right" Text="{Binding (c:Ui.Count), RelativeSource={RelativeSource TemplatedParent}}"
                          FontSize="11" FontWeight="Normal" Foreground="{DynamicResource Bt.Muted}" MinWidth="20" TextAlignment="Center"
                          VerticalAlignment="Center" Margin="8,0,0,0" />
               <c:LucideIcon x:Name="Icon" Margin="0,0,10,0" VerticalAlignment="Center"
                             Data="{Binding (c:Ui.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
-              <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+              <ContentPresenter x:Name="Label" VerticalAlignment="Center" RecognizesAccessKey="True" />
             </DockPanel>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="c:Ui.Icon" Value="{x:Null}">
               <Setter TargetName="Icon" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <!-- The folded sidebar: the icon alone, centred. -->
+            <Trigger Property="c:Ui.Compact" Value="True">
+              <Setter TargetName="Count" Property="Visibility" Value="Collapsed" />
+              <Setter TargetName="Label" Property="Visibility" Value="Collapsed" />
+              <Setter TargetName="Icon" Property="Margin" Value="0" />
+              <Setter TargetName="Row" Property="HorizontalAlignment" Value="Center" />
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
@@ -222,6 +229,12 @@
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+    <Style.Triggers>
+      <!-- Folded, the label moves to a tooltip; a pin keeps its own. -->
+      <Trigger Property="c:Ui.Compact" Value="True">
+        <Setter Property="ToolTip" Value="{Binding Content, RelativeSource={RelativeSource Self}}" />
+      </Trigger>
+    </Style.Triggers>
   </Style>
 
   <!-- .bt-search: the top bar's search box, with placeholder and the Ctrl K hint, which gives way to a clear
@@ -813,6 +826,20 @@
             </StackPanel>
           </Border>
         </Viewbox>
+        <!--
+          An adventure a search found inside its book: the book's cover, with a ribbon saying the card is one of the
+          adventures in it rather than the whole book.
+        -->
+        <Viewbox x:Name="AdventureRibbon" StretchDirection="DownOnly" Margin="0,10,10,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                 Visibility="Collapsed" IsHitTestVisible="False">
+          <Border Padding="6,2,8,2" CornerRadius="0,3,3,0" Background="{DynamicResource Bt.Accent}" AutomationProperties.Name="Adventure">
+            <StackPanel Orientation="Horizontal">
+              <c:LucideIcon Data="{StaticResource Icon.BookOpen}" Size="10" StrokeThickness="2.2" Foreground="{DynamicResource Bt.AccentText}"
+                            VerticalAlignment="Center" Margin="0,0,4,0" />
+              <TextBlock Text="Adventure" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.AccentText}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Viewbox>
         <!-- A model has read this book (2c). -->
         <Border x:Name="AiBadge" Width="18" Height="18" CornerRadius="9" Margin="0,4,4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
                 Background="{DynamicResource Bt.Accent}" Visibility="Collapsed" ToolTip="{Binding AiTip}"
@@ -838,6 +865,10 @@
       </DataTrigger>
       <DataTrigger Binding="{Binding HasTextMark}" Value="True">
         <Setter TargetName="TextMark" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsFoundInBook}" Value="True">
+        <Setter TargetName="AdventureRibbon" Property="Visibility" Value="Visible" />
+        <Setter TargetName="TextMark" Property="Margin" Value="4,32,26,0" />
       </DataTrigger>
       <DataTrigger Binding="{Binding IsAway}" Value="True">
         <Setter TargetName="AwayMark" Property="Visibility" Value="Visible" />
@@ -993,5 +1024,9 @@
               Visibility="{Binding CanForgetText, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="Read it again" Command="{x:Static c:BookCommands.ReadTextAgain}" CommandParameter="{Binding}"
               Visibility="{Binding CanReadAgain, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
+    <!-- A book you added yourself, owned elsewhere: shown only where it can run, the Library. -->
+    <MenuItem Header="Remove from library" Command="{x:Static c:BookCommands.RemoveFromLibrary}" CommandParameter="{Binding}"
+              ToolTip="Takes the book you added out of your library. Undo brings it back."
+              Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
   </ContextMenu>
 </ResourceDictionary>

@@ -32,15 +32,16 @@ public sealed class NoApiKeys : IApiKeyStore
 }
 
 /// <summary>
-/// How AI is set up (choice 10): the endpoint and model, whether it is switched on, whether the user agreed to an
-/// endpoint off this computer, and the library folders never sent. <see cref="IsReady"/> says whether the Classify lane
-/// may send anything. With <see cref="BuiltIn"/>, Bibliotaph runs <see cref="BuiltInModel"/> itself (Built-in AI plan,
-/// choice 7), and the model server's endpoint and model are kept for a switch back. <see cref="EmbeddingModel"/> and
-/// <see cref="BuiltInEmbeddingModel"/> are what Ask this book finds pages by meaning with (choice 3), on the server or
-/// built in; without one, it finds them by their words.
+/// How AI is set up: the endpoint and model, whether it is switched on, whether the user agreed to an endpoint off
+/// this computer, and the library folders never sent. <see cref="IsReady"/> says whether the Classify lane may send
+/// anything. With <see cref="BuiltIn"/>, Bibliotaph runs <see cref="BuiltInModel"/> itself, and the model server's
+/// endpoint and model are kept for a switch back. <see cref="EmbeddingModel"/> and
+/// <see cref="BuiltInEmbeddingModel"/> are what Ask finds pages by meaning with, on the server or built in; without
+/// one, it finds them by their words. <see cref="LibraryVectors"/> says whether the whole library's pages are read for
+/// meaning in the background, for questions to the library.
 /// </summary>
 public sealed record AiSetup(string? Endpoint, string? Model, string Provider, bool Enabled, bool RemoteAllowed, IReadOnlySet<long> SkippedRoots,
-    bool BuiltIn = false, string? BuiltInModel = null, string? EmbeddingModel = null, string? BuiltInEmbeddingModel = null)
+    bool BuiltIn = false, string? BuiltInModel = null, string? EmbeddingModel = null, string? BuiltInEmbeddingModel = null, bool LibraryVectors = true)
 {
     /// <summary>The provider runs of the built-in AI are recorded under.</summary>
     public const string BuiltInProvider = "built-in";
@@ -73,6 +74,23 @@ public sealed record AiSetup(string? Endpoint, string? Model, string Provider, b
 }
 
 /// <summary>
+/// One AI setup and everything made from it. <see cref="AiSettings"/> swaps the whole of it at once, so work that takes
+/// <see cref="AiSettings.Current"/> once never pairs one setup's client with another's model name.
+/// </summary>
+/// <param name="Setup">The setup, as saved.</param>
+/// <param name="Classifier">The classifier, or null while AI isn't ready.</param>
+/// <param name="Interpreter">Ask's reader of requests in plain English, or null while AI isn't ready.</param>
+/// <param name="Chat">The client Ask this book's answers come from, or null while AI isn't ready.</param>
+/// <param name="Background">The same client for reading whole books, whose requests don't count as the user's.</param>
+/// <param name="Embedder">What makes page vectors, or null while AI isn't ready or there is no embedding model.</param>
+/// <param name="BackgroundEmbedder">The same embedder for vectors made in the background, whose requests don't count as the user's.</param>
+public sealed record AiState(AiSetup Setup, ModelClassifier? Classifier, ModelPlainSearchInterpreter? Interpreter, IModelClient? Chat,
+    IModelClient? Background, IEmbeddingClient? Embedder, IEmbeddingClient? BackgroundEmbedder)
+{
+    public static AiState Off { get; } = new(AiSetup.Off, null, null, null, null, null, null);
+}
+
+/// <summary>
 /// AI's settings in catalog.db, loaded once and kept, and the classifier, Ask's interpreter and the embedding client they
 /// make. A change raises <see cref="Changed"/>, which wakes or stops the Classify lane and shows or hides Ask this book.
 /// </summary>
@@ -80,55 +98,93 @@ public sealed record AiSetup(string? Endpoint, string? Model, string Provider, b
 /// <param name="keys">The model servers' keys, read when a request is made.</param>
 /// <param name="clients">The client for a model server's endpoint; tests and the smoke test pass stand-ins.</param>
 /// <param name="builtIn">The built-in AI's chat engine, or null where the app has none (tests).</param>
-/// <param name="builtInEmbedding">The built-in AI's second engine, in embedding mode, for finding pages by meaning.</param>
+/// <param name="builtInEmbedding">The built-in AI's second engine, in embedding mode, for finding pages by meaning, or null
+/// where the app has none (tests).</param>
+/// <param name="activity">Tracks every request a person waits on, so reading whole books gives way to them. Made here when
+/// not given, since everything that uses it reaches it through <see cref="Activity"/>; tests give one a shorter quiet period.</param>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null,
-    BuiltInEngine? builtInEmbedding = null)
+    BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null)
 {
     /// <summary>A local model can take minutes to load and read a long excerpt on a modest GPU.</summary>
     static readonly Lazy<HttpClient> Http = new(() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
 
     readonly Func<string, IModelClient> _clients = clients ?? (endpoint => ClientFor(endpoint, keys));
-    volatile AiSetup _setup = AiSetup.Off;
-    volatile IClassifier? _classifier;
-    volatile IPlainSearchInterpreter? _interpreter;
-    volatile IEmbeddingClient? _embedder;
-    volatile IModelClient? _chat;
+    volatile AiState _state = AiState.Off;
+    volatile bool _scanWholeBooks = true;
 
     /// <summary>The usual client for a model server: the shared HttpClient, with the endpoint's key read when a request is made.</summary>
     public static IModelClient ClientFor(string endpoint, IApiKeyStore keys) => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint));
 
     public event EventHandler? Changed;
 
-    public AiSetup Setup => _setup;
+    /// <summary>Raised when "Scan whole books" is switched on or off.</summary>
+    public event EventHandler? ScanWholeBooksChanged;
+
+    /// <summary>The setup and what it made, together. Work that uses more than one of them takes this once.</summary>
+    public AiState Current => _state;
+
+    public AiSetup Setup => _state.Setup;
+
+    /// <summary>When the AI is busy with something a person is waiting on. Every client made here counts its requests.</summary>
+    public ModelActivity Activity { get; } = activity ?? new ModelActivity();
+
+    /// <summary>
+    /// Whether books are read whole, chapter by chapter, once they are catalogued: on unless the user switched it off,
+    /// and only ever while AI itself is on.
+    /// </summary>
+    public bool ScanWholeBooks => _scanWholeBooks;
+
+    /// <summary>
+    /// The client reading whole books asks: the same model and server as the classifier, but its requests don't count
+    /// as the user's, since they are the ones that give way. Null while AI isn't ready.
+    /// </summary>
+    public IModelClient? Background => _state.Background;
 
     /// <summary>The classifier for the current setup, or null while AI isn't ready.</summary>
-    public IClassifier? Classifier => _classifier;
+    public ModelClassifier? Classifier => _state.Classifier;
 
     /// <summary>
-    /// What makes Ask this book's page vectors for the current setup (choice 3): the model server, when an embedding
-    /// model is set for it, or the built-in embedding engine. Null while AI isn't ready or there is no embedding model.
+    /// What makes Ask this book's page vectors for the current setup: the model server, when an embedding model is
+    /// set for it, or the built-in embedding engine. Null while AI isn't ready or there is no embedding model.
     /// </summary>
-    public IEmbeddingClient? Embedder => _embedder;
+    public IEmbeddingClient? Embedder => _state.Embedder;
 
     /// <summary>
-    /// The client Ask this book's answers come from (Ask plan, step 4): the model server, or the built-in AI, as the
-    /// classifier uses. Null while AI isn't ready.
+    /// The same embedder for vectors made in the background, whose requests don't count as the user's: they give way
+    /// on their own, and counting them would hold a whole-book scan off for as long as they run.
     /// </summary>
-    public IModelClient? Chat => _chat;
+    public IEmbeddingClient? BackgroundEmbedder => _state.BackgroundEmbedder;
+
+    /// <summary>
+    /// The client Ask this book's answers come from: the model server, or the built-in AI, as the classifier uses.
+    /// Null while AI isn't ready.
+    /// </summary>
+    public IModelClient? Chat => _state.Chat;
 
     /// <summary>Ask's reader of requests in plain English, over the same model, or null while AI isn't ready.</summary>
-    public IPlainSearchInterpreter? Interpreter => _interpreter;
+    public ModelPlainSearchInterpreter? Interpreter => _state.Interpreter;
 
-    public IModelClient ClientFor(string endpoint) => _clients(endpoint);
+    public IModelClient ClientFor(string endpoint) => Activity.Track(_clients(endpoint));
 
     /// <summary>The built-in AI's engine, or null where the app has none (tests).</summary>
     public BuiltInEngine? BuiltIn => builtIn;
 
     /// <summary>The client for the built-in AI on <paramref name="model"/>: a model's id from <see cref="BuiltInModels"/>, or a file's path.</summary>
-    public IModelClient BuiltInClientFor(string model)
+    public IModelClient BuiltInClientFor(string model) => Activity.Track(UntrackedBuiltInClientFor(model));
+
+    BuiltInModelClient UntrackedBuiltInClientFor(string model)
     {
         var engine = builtIn ?? throw new InvalidOperationException("This app has no built-in AI engine.");
         return new BuiltInModelClient(engine, Http.Value, BuiltInModels.PathFor(model, engine.Options.ModelsFolder));
+    }
+
+    /// <summary>Switches reading whole books on or off, and keeps the choice.</summary>
+    public async Task SetScanWholeBooksAsync(bool on, CancellationToken ct = default)
+    {
+        await settings.SetAsync(SettingKeys.AiScanWholeBooks, on.ToString(), ct);
+        if (_scanWholeBooks == on) return;
+        _scanWholeBooks = on;
+        ScanWholeBooksChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task LoadAsync(CancellationToken ct = default)
@@ -144,7 +200,9 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiBuiltIn, ct) == bool.TrueString,
             await settings.GetAsync(SettingKeys.AiBuiltInModel, ct),
             await settings.GetAsync(SettingKeys.AiEmbeddingModel, ct),
-            await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct)));
+            await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct),
+            await settings.GetAsync(SettingKeys.AiLibraryVectors, ct) != bool.FalseString));
+        _scanWholeBooks = await settings.GetAsync(SettingKeys.AiScanWholeBooks, ct) != bool.FalseString;
     }
 
     public async Task SaveAsync(AiSetup setup, CancellationToken ct = default)
@@ -159,11 +217,12 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
         await settings.SetAsync(SettingKeys.AiBuiltInModel, setup.BuiltInModel ?? "", ct);
         await settings.SetAsync(SettingKeys.AiEmbeddingModel, setup.EmbeddingModel ?? "", ct);
         await settings.SetAsync(SettingKeys.AiBuiltInEmbeddingModel, setup.BuiltInEmbeddingModel ?? "", ct);
+        await settings.SetAsync(SettingKeys.AiLibraryVectors, setup.LibraryVectors.ToString(), ct);
         Apply(setup);
     }
 
     /// <summary>Makes the classifier again for the same setup, and wakes the Classify lane: after a built-in model downloads, say.</summary>
-    public void Refresh() => Apply(_setup);
+    public void Refresh() => Apply(_state.Setup);
 
     void Apply(AiSetup setup)
     {
@@ -175,21 +234,22 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             EmbeddingModel = Blank(setup.EmbeddingModel),
             BuiltInEmbeddingModel = Blank(setup.BuiltInEmbeddingModel),
         };
-        _setup = setup;
-        var client = !setup.IsReady ? null
-            : setup.BuiltIn ? builtIn is null ? null : BuiltInClientFor(setup.BuiltInModel!)
+        var untracked = !setup.IsReady ? null
+            : setup.BuiltIn ? builtIn is null ? null : UntrackedBuiltInClientFor(setup.BuiltInModel!)
             : _clients(setup.Endpoint!);
-        _classifier = client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!);
-        _interpreter = client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!);
-        _chat = client;
-        // The same endpoint as the chat model, never another: pages go only where Settings says (choice 12).
+        var client = untracked is null ? null : Activity.Track(untracked);
+        // The same endpoint as the chat model, never another: pages go only where Settings says.
         // A built-in one is used once its file is here; the finished download refreshes this.
-        _embedder = !setup.IsReady ? null
+        var embedder = !setup.IsReady ? null
             : setup.BuiltIn
                 ? builtInEmbedding is null || setup.BuiltInEmbeddingModel is null
                     || BuiltInModels.PathFor(setup.BuiltInEmbeddingModel, builtInEmbedding.Options.ModelsFolder) is not { } path || !File.Exists(path) ? null
                     : new BuiltInEmbeddingClient(builtInEmbedding, Http.Value, path)
             : setup.EmbeddingModel is null ? null : _clients(setup.Endpoint!) as IEmbeddingClient;
+        _state = new AiState(setup,
+            client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!),
+            client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!),
+            client, untracked, embedder is null ? null : Activity.Track(embedder), embedder);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -197,8 +257,8 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
 }
 
 /// <summary>
-/// Finds the worked examples for a book (scenario review, row 8): the user's books with values they confirmed, the
-/// most alike first (<see cref="WorkedExamples"/>), never one with a file in a library folder kept from AI.
+/// Finds the worked examples for a book: the user's books with values they confirmed, the most alike first
+/// (<see cref="WorkedExamples"/>), never one with a file in a library folder kept from AI.
 /// </summary>
 public sealed class ExampleFinder(MetadataStore metadata, LibraryStore library)
 {
@@ -221,18 +281,17 @@ public sealed class ExampleFinder(MetadataStore metadata, LibraryStore library)
 }
 
 /// <summary>
-/// Builds what the classifier reads for a document from index.db, or says why there is nothing to read; with an
-/// <see cref="ExampleFinder"/>, the worked examples sent beside it too.
+/// Builds what the classifier reads for a document from index.db, or says why there is nothing to read, and the
+/// worked examples sent beside it.
 /// </summary>
-public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries, VocabularyStore vocabularies, EntryStore? entries = null,
-    ExampleFinder? examples = null)
+public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries, VocabularyStore vocabularies, EntryStore entries, ExampleFinder examples)
 {
     /// <param name="documentId">The book to read.</param>
     /// <param name="keptFromAi">The library folders kept from AI, whose books are never sent as examples.</param>
     /// <param name="withExamples">False for the model pilot, whose runs must read the same thing whatever the user has confirmed since.</param>
-    /// <param name="pages">The pages of an adventure inside it, read alone (slice 5 plan, choice 6): an excerpt of those
-    /// pages, chosen as a book's would be from its own opening, and only their text for the evidence check. Page
-    /// markers stay the file's, so evidence points at the file's pages.</param>
+    /// <param name="pages">The pages of an adventure inside it, read alone: an excerpt of those pages, chosen as a
+    /// book's would be from its own opening, and only their text for the evidence check. Page markers stay the file's,
+    /// so evidence points at the file's pages.</param>
     /// <param name="ct">Cancels the reading.</param>
     public async Task<(ClassifierInput? Input, string? Why)> BuildAsync(long documentId, IReadOnlySet<long>? keptFromAi = null, bool withExamples = true,
         PartPages? pages = null, CancellationToken ct = default)
@@ -255,15 +314,15 @@ public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries,
         var byPage = texts.ToDictionary(p => p.PdfPage, p => p.Text);
         var fileName = path is null ? "" : Path.GetFileName(path);
         var vocabulary = await vocabularies.GetAsync(ct);
-        IReadOnlyList<WorkedExample> worked = withExamples && examples is not null && entries is not null && await entries.GetEntryAsync(documentId, ct) is { } entry
+        IReadOnlyList<WorkedExample> worked = withExamples && await entries.GetEntryAsync(documentId, ct) is { } entry
             ? await examples.FindAsync(entry.EntryId, keptFromAi ?? new HashSet<long>(), vocabulary, ct)
             : [];
         return (new ClassifierInput(excerpt, fileName, page => byPage.GetValueOrDefault(page), vocabulary, worked), null);
     }
 
     /// <summary>
-    /// What a model reads to find the adventures in a document (slice 5 plan, choice 6), or null when its bookmarks
-    /// don't offer two candidates with text.
+    /// What a model reads to find the adventures in a document, or null when its bookmarks don't offer two candidates
+    /// with text.
     /// </summary>
     public async Task<PartFinderInput?> BuildPartFinderAsync(long documentId, CancellationToken ct = default)
     {
@@ -290,8 +349,8 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
         await StoreOnAsync(await EntryOfAsync(documentId, ct), contentHash, input, result, startedUtc, ct);
 
     /// <summary>
-    /// Stores a run over an adventure's own pages in one copy of its file, and its suggestions on the adventure's card
-    /// (slice 5 plan, choice 6). Returns the run's id.
+    /// Stores a run over an adventure's own pages in one copy of its file, and its suggestions on the adventure's card.
+    /// Returns the run's id.
     /// </summary>
     public async Task<string> StoreOnAsync(EntryId entry, string contentHash, ClassifierInput input, ClassifierResult result, DateTime startedUtc, CancellationToken ct = default)
     {
@@ -333,29 +392,32 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// Classify: sends a bounded excerpt of the book to the configured model and stores the values whose evidence checks
 /// out as AI suggestions. Runs in its own lane, one book at a time, only while AI is ready; waits for the book's OCR;
 /// skips books in a folder the user keeps from AI, and books this model and prompt have already read. When the
-/// endpoint can't be used, the lane waits with a notice instead of failing books (A14). A book the server fails on while
+/// endpoint can't be used, the lane waits with a notice instead of failing books. A book the server fails on while
 /// it still answers others fails like an unusable answer, so it can't hold up the books behind it.
 /// </summary>
 /// <remarks>
-/// Slice 5 (plan, choice 6): after a book's own values, the model is asked which of its bookmarks are self-contained
-/// adventures, when the rules proposed nothing; what passes the evidence check is a proposal for Needs review. Each
-/// adventure marked in the file is then classified on its own pages, onto its own card, once per model and prompt.
+/// After a book's own values, the model is asked which of its bookmarks are self-contained adventures, when the rules
+/// proposed nothing; what passes the evidence check is a proposal for Needs review. Each adventure marked in the file
+/// is then classified on its own pages, onto its own card, once per model and prompt.
 /// </remarks>
 public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
-    TimeProvider? clock = null, ILogger<ClassifyStage>? log = null, AiReadingFeed? feed = null, PartsService? parts = null,
-    PartProposalService? proposals = null) : IGatedStage
+    AiReadingFeed feed, PartsService parts, PartProposalService proposals, TimeProvider? clock = null, ILogger<ClassifyStage>? log = null) : IGatedStage
 {
-    /// <summary>
-    /// How long a book whose scanned pages are still being read waits before Classify looks again. It looks sooner when
-    /// OCR ends, since the job board wakes a book's deferred jobs when another of its stages finishes.
-    /// </summary>
-    public static readonly TimeSpan OcrWait = TimeSpan.FromMinutes(5);
-
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<ClassifyStage>.Instance;
 
     public Stage Stage => Stage.Classify;
+
+    /// <summary>One book at a time, and only while AI is set up and switched on.</summary>
+    public Lane Lane => Lane.Classify;
+
+    public Stage? After => Stage.Text;
+
+    /// <summary>Books read before classification existed get it too; they wait in the queue until AI is set up.</summary>
+    public bool Backfill => true;
+
+    public StageNames Names => new("Cataloguing with AI", "Reading with AI", "Asking the AI about");
 
     public bool IsReady => ai.Classifier is not null;
 
@@ -367,21 +429,23 @@ public sealed class ClassifyStage(
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
-        if (ai.Classifier is not { } classifier) return new StageOutcome.Unavailable("AI is switched off.");
-        if (ai.Setup.SkippedRoots.Count > 0 && (await library.GetRootIdsAsync(job.DocumentId, ct)).Any(ai.Setup.SkippedRoots.Contains))
+        var state = ai.Current;
+        if (state.Classifier is not { } classifier) return new StageOutcome.Unavailable("AI is switched off.");
+        var kept = state.Setup.SkippedRoots;
+        if (kept.Count > 0 && (await library.GetRootIdsAsync(job.DocumentId, ct)).Any(kept.Contains))
             return new StageOutcome.Done(StageStatus.Skipped, [], "Its library folder isn't sent to AI.");
         var read = await runs.HasRunAsync(job.ContentHash, classifier.Model, ClassifierPrompt.Version, ct);
         var unread = await UnreadPartsAsync(job.DocumentId, classifier.Model, ct);
         if (read && unread.Count == 0) return StageOutcome.Complete();
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
-            return new StageOutcome.Later(OcrWait, "Waiting for its scanned pages to be read.");
+            return new StageOutcome.Later(StageWaits.ForOcr, "Waiting for its scanned pages to be read.");
         // The rules' proposal of its adventures comes with the hints, and a model is asked only when they found none.
-        if (!read && proposals is not null && await queries.GetStageStatusAsync(job.DocumentId, Stage.RuleHints, ct) is StageStatus.Pending or StageStatus.Running)
-            return new StageOutcome.Later(MatchStage.HintsWait, "Waiting for its hints from names.");
+        if (!read && await queries.GetStageStatusAsync(job.DocumentId, Stage.RuleHints, ct) is StageStatus.Pending or StageStatus.Running)
+            return new StageOutcome.Later(StageWaits.ForHints, "Waiting for its hints from names.");
 
         if (!read)
         {
-            var (input, why) = await inputs.BuildAsync(job.DocumentId, ai.Setup.SkippedRoots, ct: ct);
+            var (input, why) = await inputs.BuildAsync(job.DocumentId, kept, ct: ct);
             if (input is null) return new StageOutcome.Done(StageStatus.Skipped, [], why);
             var title = await queries.GetTitleAsync(job.DocumentId, ct) ?? input.FileName;
             if (await ReadAsync(job, classifier, input, title, null, ct) is { } ended) return ended;
@@ -392,7 +456,7 @@ public sealed class ClassifyStage(
         StageOutcome? failed = null;
         foreach (var part in unread)
         {
-            var (input, _) = await inputs.BuildAsync(job.DocumentId, ai.Setup.SkippedRoots, pages: part.Pages, ct: ct);
+            var (input, _) = await inputs.BuildAsync(job.DocumentId, kept, pages: part.Pages, ct: ct);
             if (input is null) continue;
             switch (await ReadAsync(job, classifier, input, part.Title, part.EntryId, ct))
             {
@@ -410,11 +474,11 @@ public sealed class ClassifyStage(
     /// Sends one excerpt, the book's or an adventure's (<paramref name="part"/>), and stores what passes the evidence
     /// check on its card. Returns null once stored, or what the job ends with.
     /// </summary>
-    async Task<StageOutcome?> ReadAsync(JobRecord job, IClassifier classifier, ClassifierInput input, string title, EntryId? part, CancellationToken ct)
+    async Task<StageOutcome?> ReadAsync(JobRecord job, ModelClassifier classifier, ClassifierInput input, string title, EntryId? part, CancellationToken ct)
     {
         var started = _clock.GetUtcNow().UtcDateTime;
-        // The AI reading page follows the answer as it streams (Built-in AI plan, choice 12).
-        var progress = feed?.Start(job.DocumentId, title, classifier.Model);
+        // The AI reading page follows the answer as it streams.
+        var progress = feed.Start(job.DocumentId, title, classifier.Model);
         ClassifierResult result;
         try
         {
@@ -422,12 +486,12 @@ public sealed class ClassifyStage(
         }
         catch (ModelEndpointException ex)
         {
-            feed?.Abandon(job.DocumentId);
+            feed.Abandon(job.DocumentId);
             return new StageOutcome.Unavailable(ex.Message);
         }
         catch (ClassifierAnswerException ex)
         {
-            feed?.Fail(job.DocumentId, ex.Message);
+            feed.Fail(job.DocumentId, ex.Message);
             if (part is { } failedPart)
                 await results.RecordFailedOnAsync(failedPart, job.ContentHash, classifier.Provider, classifier.Model, input, started, ex.Message, CancellationToken.None);
             else
@@ -436,10 +500,10 @@ public sealed class ClassifyStage(
         }
         catch (OperationCanceledException)
         {
-            feed?.Abandon(job.DocumentId);
+            feed.Abandon(job.DocumentId);
             throw;
         }
-        feed?.Finish(job.DocumentId, result);
+        feed.Finish(job.DocumentId, result);
 
         // Quotes are book text, so only counts and reasons go to the log.
         _log.LogInformation("Classified document {DocumentId}{Part} with {Model} in {Seconds:0.0} s, {Examples} worked examples: {Accepted} values kept, {Dropped} dropped ({Reasons})",
@@ -454,7 +518,6 @@ public sealed class ClassifyStage(
     /// <summary>The adventures with pages in this document that this model and prompt haven't read on their own pages, from any copy.</summary>
     async Task<IReadOnlyList<(EntryId EntryId, string Title, PartPages Pages)>> UnreadPartsAsync(long documentId, string model, CancellationToken ct)
     {
-        if (parts is null) return [];
         var unread = new List<(EntryId, string, PartPages)>();
         foreach (var part in await parts.GetInDocumentAsync(documentId, ct))
             if (part.Pages is { } pages && !await runs.HasRunOnAsync(part.EntryId, model, ClassifierPrompt.Version, ct))
@@ -463,21 +526,21 @@ public sealed class ClassifyStage(
     }
 
     /// <summary>
-    /// Asks the model which of the book's bookmarks are self-contained adventures, when nothing has been proposed for
-    /// it; those that pass the evidence check wait in Needs review. A failure here costs only the proposal: the book's
+    /// Asks the model whether the book says it is a collection of separate adventures and which of its bookmarks they
+    /// are, when nothing has been proposed for it; those that pass the evidence check wait in Needs review. A failure here costs only the proposal: the book's
     /// own values are stored, and it is asked again when it is reclassified.
     /// </summary>
-    async Task FindPartsAsync(long documentId, IClassifier classifier, CancellationToken ct)
+    async Task FindPartsAsync(long documentId, ModelClassifier classifier, CancellationToken ct)
     {
-        if (proposals is null || classifier is not IPartFinder finder || !await proposals.WantsModelAsync(documentId, ct)) return;
+        if (!await proposals.WantsModelAsync(documentId, ct)) return;
         if (await inputs.BuildPartFinderAsync(documentId, ct) is not { } input) return;
         try
         {
-            var found = await finder.FindPartsAsync(input, ct);
+            var found = await classifier.FindPartsAsync(input, ct);
             _log.LogInformation("Asked {Model} for the adventures in document {DocumentId}: {Accepted} kept, {Dropped} dropped ({Reasons})",
                 classifier.Model, documentId, found.Accepted.Count, found.Dropped.Count,
                 string.Join("; ", found.Dropped.GroupBy(d => d.Reason).Select(g => $"{g.Count().ToString(CultureInfo.InvariantCulture)} × {g.Key}")));
-            await proposals.ProposeFromModelAsync(documentId, found.Accepted, CancellationToken.None);
+            await proposals.ProposeFromModelAsync(documentId, found.Compilation, CancellationToken.None);
         }
         catch (Exception ex) when (ex is ModelEndpointException or ClassifierAnswerException)
         {
@@ -507,10 +570,10 @@ public sealed record AiTestProgress(AiTestStep Step, string? Title);
 
 /// <summary>
 /// Settings > AI's work: connecting to an endpoint and listing its models, saving the setup, the Test button, and
-/// "Reclassify N documents". Nothing here reclassifies by itself (choice 10).
+/// "Reclassify N documents". Nothing here reclassifies by itself.
 /// </summary>
 public sealed class AiService(
-    AiSettings settings, IApiKeyStore keys, IndexingService indexing, ClassificationStore runs, ClassifierInputs inputs, IndexQueries queries,
+    AiSettings settings, IApiKeyStore keys, IJobControl indexing, ClassificationStore runs, ClassifierInputs inputs, IndexQueries queries,
     LibraryStore library, VocabularyStore vocabularies, TimeProvider? clock = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
@@ -561,12 +624,13 @@ public sealed class AiService(
     async Task<AiTestResult> TestAsync(Func<IModelClient> clientFor, string model, IProgress<AiTestProgress>? progress, CancellationToken ct)
     {
         progress?.Report(new AiTestProgress(AiTestStep.Choosing, null));
-        var skipped = await library.GetDocumentIdsInRootsAsync([.. settings.Setup.SkippedRoots], ct);
+        var kept = settings.Setup.SkippedRoots;
+        var skipped = await library.GetDocumentIdsInRootsAsync([.. kept], ct);
         if (await queries.FindSampleAsync(skipped, ct: ct) is not { } documentId)
             return new AiTestResult("", TimeSpan.Zero, null, "There's no book with text to try yet. Add a folder, or wait for its books to be read.");
         var title = await queries.GetTitleAsync(documentId, ct) ?? "a book";
         progress?.Report(new AiTestProgress(AiTestStep.Reading, title));
-        var (input, why) = await inputs.BuildAsync(documentId, settings.Setup.SkippedRoots, ct: ct);
+        var (input, why) = await inputs.BuildAsync(documentId, kept, ct: ct);
         if (input is null) return new AiTestResult(title, TimeSpan.Zero, null, why);
 
         var client = clientFor();

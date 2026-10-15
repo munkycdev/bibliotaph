@@ -1,9 +1,9 @@
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// The readers on real library pages saved on this computer (online libraries, O4), never committed (choice 18): set
-/// BIBLIOTAPH_REAL_PAGES to a folder of saved pages to run it. Each page must be read by exactly one reader, with books.
-/// What it says names the files and counts their books, never a book.
+/// The readers on real library pages saved on this computer, never committed: set BIBLIOTAPH_REAL_PAGES to a folder of
+/// saved pages to run it. Each page must be read by exactly one reader, with books. What it says names the files and
+/// counts their books, never a book.
 /// </summary>
 public sealed class RealLibraryPagesTests(ITestOutputHelper output)
 {

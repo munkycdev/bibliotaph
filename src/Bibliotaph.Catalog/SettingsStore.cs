@@ -14,7 +14,7 @@ public static class SettingKeys
     /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
     public const string ReviewAll = "review.all";
 
-    /// <summary>"True" when backups take the search index (index.db) too (slice 4j plan, choice 1).</summary>
+    /// <summary>"True" when backups take the search index (index.db) too.</summary>
     public const string BackupIncludeIndex = "backup.include-index";
 
     /// <summary>The model server's address, as "http://localhost:11434". No AI runs until there is one.</summary>
@@ -35,7 +35,7 @@ public static class SettingKeys
     /// <summary>Library folders whose books are never sent to AI, as a JSON array of source root ids.</summary>
     public const string AiSkippedRoots = "ai.skip-roots";
 
-    /// <summary>"True" when Bibliotaph runs the AI itself instead of asking a model server (Built-in AI plan, choice 7).</summary>
+    /// <summary>"True" when Bibliotaph runs the AI itself instead of asking a model server.</summary>
     public const string AiBuiltIn = "ai.built-in";
 
     /// <summary>The built-in AI's model, by its id in the list of models offered: "qwen3-8b".</summary>
@@ -50,32 +50,57 @@ public static class SettingKeys
     /// <summary>The built-in AI's embedding model, by its id: "nomic-embed-text-v1.5". Set when it is downloaded.</summary>
     public const string AiBuiltInEmbeddingModel = "ai.built-in.embedding";
 
+    /// <summary>
+    /// "False" stops the library's pages being read for meaning in the background, for questions to the whole library;
+    /// otherwise, with an embedding model set, they are.
+    /// </summary>
+    public const string AiLibraryVectors = "ai.embedding.library";
+
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
 
-    /// <summary>"False" keeps files that indexing downloaded on this device; otherwise they go back to online-only (Dale's review, row 2).</summary>
+    /// <summary>
+    /// "False" stops the AI reading whole books chapter by chapter once their cataloging is done; otherwise it reads
+    /// them, slowly and only while nothing else wants the AI.
+    /// </summary>
+    public const string AiScanWholeBooks = "ai.scan-whole-books";
+
+    /// <summary>
+    /// "False" keeps files that indexing downloaded on this device; otherwise they go back to online-only.
+    /// </summary>
     public const string ReturnOnlineOnly = "online-only.return";
 
     /// <summary>
-    /// "False" shows a plain mark instead of a site's own icon on books owned online, and fetches none (online libraries
-    /// plan, choice 12); otherwise icons show.
+    /// "False" shows a plain mark instead of a site's own icon on books owned online, and fetches none; otherwise icons
+    /// show.
     /// </summary>
     public const string SiteIcons = "library.site-icons";
 
-    /// <summary>Where a book owned online opens: "app" (the online reader, the default) or "browser" (online libraries, O2b).</summary>
+    /// <summary>Where a book owned online opens: "app" (the online reader, the default) or "browser".</summary>
     public const string OnlineReader = "library.online-reader";
 
-    /// <summary>"False" shows a service's pages in the online reader as the service draws them; otherwise Reading mode is on (choice 24).</summary>
+    /// <summary>
+    /// "False" shows a service's pages in the online reader as the service draws them; otherwise Reading mode is on.
+    /// </summary>
     public const string OnlineReadingMode = "library.online-reading-mode";
 
     /// <summary>
-    /// The folder a store's download goes to from Bibliotaph's browser (online libraries plan, O5): a library folder or
-    /// one inside it; empty or absent leaves downloads to the browser's own Downloads folder.
+    /// The folder a store's download goes to from Bibliotaph's browser: a library folder or one inside it; empty or
+    /// absent leaves downloads to the browser's own Downloads folder.
     /// </summary>
     public const string DownloadsFolder = "library.downloads-folder";
 
-    /// <summary>"Library" to start on the Library; otherwise the app starts on Home (slice 3 plan, choice 7).</summary>
+    /// <summary>"Library" to start on the Library; otherwise the app starts on Home.</summary>
     public const string StartPage = "start-page";
+
+    /// <summary>The Library's order while browsing: a <c>LibrarySort</c> name. Absent for Recently added.</summary>
+    public const string LibrarySort = "library.sort";
+
+    /// <summary>The Library's order while searching: a <c>LibrarySort</c> name. Absent for Best match.</summary>
+    public const string LibrarySearchSort = "library.search-sort";
+
+    /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
+    public const string SidebarCollapsed = "sidebar-collapsed";
 
     /// <summary>The folder library sync writes this PC's sync file to and reads the other PCs' from; empty or missing while sync is off.</summary>
     public const string SyncFolder = "sync.folder";

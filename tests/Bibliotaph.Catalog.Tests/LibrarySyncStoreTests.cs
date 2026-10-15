@@ -3,6 +3,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Sync;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Catalog.Tests;
 
@@ -19,8 +20,8 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
     {
         _first = new CatalogDatabase(Path.Combine(_dir, "first.db"), Path.Combine(_dir, "backups"));
         _second = new CatalogDatabase(Path.Combine(_dir, "second.db"), Path.Combine(_dir, "backups"));
-        await _first.MigrateAsync(Ct);
-        await _second.MigrateAsync(Ct);
+        await _first.MigrateFromTemplateAsync(Ct);
+        await _second.MigrateFromTemplateAsync(Ct);
     }
 
     public ValueTask DisposeAsync()
@@ -35,6 +36,36 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
         new(new Factory(database), new MetadataStore(new Factory(database)), new VocabularyStore(new Factory(database)));
 
     static string Hash(char c) => new(c, 64);
+
+    /// <summary>Keeps every warning, with its message as written.</summary>
+    sealed class Warnings : ILogger<LibrarySyncStore>
+    {
+        public List<string> All { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning) All.Add(formatter(state, exception));
+        }
+    }
+
+    [Fact]
+    public async Task A_record_that_cannot_be_applied_is_left_for_later_and_says_why_in_the_log()
+    {
+        var broken = SyncKeys.Collection + Guid.NewGuid().ToString("D");
+        var warnings = new Warnings();
+        var store = new LibrarySyncStore(new Factory(_second), new MetadataStore(new Factory(_second)), new VocabularyStore(new Factory(_second)),
+            log: warnings);
+
+        // A collection with no name: an older or damaged sync file.
+        var result = await store.ApplyAsync([new SyncChange(broken, new Dictionary<string, string>(), null)], _ => null, Ct);
+
+        Assert.Contains(broken, result.NotApplied);
+        Assert.Contains(warnings.All, w => w.Contains(broken, StringComparison.Ordinal));
+    }
 
     [Fact]
     public async Task A_book_is_named_by_the_lowest_hash_of_its_copies_and_answers_to_the_others()

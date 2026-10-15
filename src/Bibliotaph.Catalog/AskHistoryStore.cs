@@ -13,8 +13,8 @@ public sealed record AskTurnInfo(long Id, DateTime AskedUtc, string Question, st
     IReadOnlyList<int> CitedPages, string Model, bool NotAnswered);
 
 /// <summary>
-/// Ask this book's conversations (Ask plan, choice 10): one per book, kept on its entry in catalog.db, so a rebuilt
-/// index keeps them. Only the last <see cref="MaxTurns"/> turns of a book are kept.
+/// Ask this book's conversations: one per book, kept on its entry in catalog.db, so a rebuilt index keeps them. Only
+/// the last <see cref="MaxTurns"/> turns of a book are kept.
 /// </summary>
 public sealed class AskHistoryStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {

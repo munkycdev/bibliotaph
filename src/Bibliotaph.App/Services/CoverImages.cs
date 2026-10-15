@@ -13,7 +13,7 @@ namespace Bibliotaph.App.Services;
 /// </summary>
 public sealed class CoverImages(CoverCache cache, ILogger<CoverImages> log, SiteIconImages? sites = null)
 {
-    /// <summary>Site icons for the badges on books owned online (online libraries plan, choice 12); none in a test.</summary>
+    /// <summary>Site icons for the badges on books owned online; none in a test.</summary>
     public SiteIconImages? Sites => sites;
 
     /// <summary>Grid covers are about 150 px wide; twice that stays sharp at 200% scaling.</summary>

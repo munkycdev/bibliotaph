@@ -3,8 +3,8 @@ using Bibliotaph.Catalog;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// The sidebar's Pinned group (Pinned Views plan): pins and unpins, and says so. Pins also change when their targets
-/// are deleted or brought back, which the services for those targets report.
+/// The sidebar's Pinned group: pins and unpins, and says so. Pins also change when their targets are deleted or
+/// brought back, which the services for those targets report.
 /// </summary>
 public sealed class PinsService(PinStore pins)
 {

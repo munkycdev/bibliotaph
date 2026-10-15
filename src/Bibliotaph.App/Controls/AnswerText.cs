@@ -8,9 +8,9 @@ using Bibliotaph.Classification;
 namespace Bibliotaph.App.Controls;
 
 /// <summary>
-/// Shows an Ask answer, as checked, in a TextBlock (Ask plan, step 5): each citation a link that runs
-/// <see cref="CommandProperty"/> with its <see cref="AnswerPart"/>, a quotation that wasn't on its page in italics and
-/// without its marks, and a sentence whose citations were removed followed by a muted note saying so.
+/// Shows an Ask answer, as checked, in a TextBlock: each citation a link that runs <see cref="CommandProperty"/> with
+/// its <see cref="AnswerPart"/>, a quotation that wasn't on its page in italics and without its marks, and a sentence
+/// whose citations were removed followed by a muted note saying so.
 /// </summary>
 public static class AnswerText
 {
@@ -39,7 +39,10 @@ public static class AnswerText
                 case AnswerPartKind.Citation:
                     var link = new Hyperlink(new Run(part.Text)) { Command = command, CommandParameter = part, ToolTip = "Open this page" };
                     link.SetResourceReference(TextElement.ForegroundProperty, "Bt.Accent");
-                    AutomationProperties.SetName(link, $"Go to page {part.Text.Trim('[', ']').Replace("p. ", "", StringComparison.Ordinal)}");
+                    // A citation from the library names its book: "Open The Sunken Keep, p. 112".
+                    AutomationProperties.SetName(link, part.DocumentId is null
+                        ? $"Go to page {part.Text.Trim('[', ']').Replace("p. ", "", StringComparison.Ordinal)}"
+                        : $"Open {part.Text.Trim('[', ']')}");
                     block.Inlines.Add(link);
                     break;
                 case AnswerPartKind.Paraphrase:

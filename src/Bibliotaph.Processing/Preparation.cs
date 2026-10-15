@@ -4,8 +4,8 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Hearts on books (slice 3 plan, choice 5): each change goes to catalog.db, then the marks are projected, so the
-/// Library's Favourites and <c>favorite:yes</c> follow at once.
+/// Hearts on books: each change goes to catalog.db, then the marks are projected, so the Library's Favourites and
+/// <c>favorite:yes</c> follow at once.
 /// </summary>
 public sealed class FavoritesService(FavoriteStore favorites, EntryStore entries, MetadataProjector projector)
 {
@@ -24,9 +24,9 @@ public sealed class FavoritesService(FavoriteStore favorites, EntryStore entries
 }
 
 /// <summary>
-/// What the reader leaves behind (choice 6): when each book was opened, for Home and the Recently opened order, and
-/// the page it was left at after an ordinary open, where it opens next time. Left in one copy, the book opens another
-/// at the matching page (slice 4h plan, choice 5).
+/// What the reader leaves behind: when each book was opened, for Home and the Recently opened order, and the page
+/// it was left at after an ordinary open, where it opens next time. Left in one copy, the book opens another at the
+/// matching page.
 /// </summary>
 public sealed class ReadingService(ReadingStore reading, MetadataProjector projector, PagePlaces places)
 {
@@ -54,10 +54,12 @@ public sealed class ReadingService(ReadingStore reading, MetadataProjector proje
 }
 
 /// <summary>
-/// Collections (slice 3 plan, choices 8 to 10): each change goes to catalog.db, then the collections' names and the
-/// changed entries' marks are projected, so a scoped Library and <c>collection:"name"</c> follow at once.
+/// Collections: each change goes to catalog.db, then the collections' names and the changed entries' marks are
+/// projected, so a scoped Library and <c>collection:"name"</c> follow at once. Adding or removing books by hand stops
+/// a collection made from a folder following that folder (<see cref="FolderCollectionStore"/>); the books its folder
+/// and Needs review bring join with <see cref="JoinAsync"/>, which leaves it following.
 /// </summary>
-public sealed class CollectionsService(CollectionStore collections, MetadataProjector projector)
+public sealed class CollectionsService(CollectionStore collections, MetadataProjector projector, FolderCollectionStore folders)
 {
     /// <summary>Raised after any collection changed, on the thread that changed it.</summary>
     public event EventHandler? Changed;
@@ -95,6 +97,7 @@ public sealed class CollectionsService(CollectionStore collections, MetadataProj
     public async Task<IReadOnlyList<EntryId>> AddAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         var added = await collections.AddAsync(collectionId, entryIds, ct);
+        if (added.Count > 0) await folders.UnlinkAsync(collectionId, ct);
         // Even when every book was in it already: the collection was used, so it heads the recent ones.
         await ProjectAsync(added, ct);
         return added;
@@ -104,8 +107,30 @@ public sealed class CollectionsService(CollectionStore collections, MetadataProj
     public async Task<IReadOnlyList<EntryId>> RemoveAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         var removed = await collections.RemoveAsync(collectionId, entryIds, ct);
+        if (removed.Count > 0) await folders.UnlinkAsync(collectionId, ct);
         if (removed.Count > 0) await ProjectAsync(removed, ct);
         return removed;
+    }
+
+    /// <summary>
+    /// Adds books the user didn't pick one by one: those that landed in a collection's folder, or those Needs review
+    /// suggested and the user accepted. A collection made from a folder keeps following it. Returns those that weren't
+    /// in it already.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> JoinAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return [];
+        var added = await collections.AddAsync(collectionId, entryIds, ct);
+        if (added.Count > 0) await ProjectAsync(added, ct);
+        return added;
+    }
+
+    /// <summary>Undo for <see cref="JoinAsync"/>: takes those books out again, and a collection made from a folder keeps following it.</summary>
+    public async Task LeaveAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return;
+        var removed = await collections.RemoveAsync(collectionId, entryIds, ct);
+        if (removed.Count > 0) await ProjectAsync(removed, ct);
     }
 
     async Task ProjectAsync(IReadOnlyCollection<EntryId> changed, CancellationToken ct)

@@ -57,8 +57,8 @@ public sealed record EffectiveField(MetadataField Field, IReadOnlyList<Effective
 /// The effective-value policy (architecture, "Metadata and classification"): a document's metadata is computed from
 /// its assertions every time, never stored over them, so no source can overwrite another's claim or the user's word.
 /// <list type="bullet">
-/// <item>A confirmed value wins and is never replaced by a suggestion (A04). Rejected values never apply, from any
-/// source (a rejection is a document, field and normalised value).</item>
+/// <item>A confirmed value wins and is never replaced by a suggestion. Rejected values never apply, from any source (a
+/// rejection is a document, field and normalised value).</item>
 /// <item>A single-value field otherwise takes the highest-priority suggestion: a folder rule the user agreed to, then AI,
 /// then rule hints, and among hints the PDF's own information over folder names over the file name; the newest wins a
 /// tie.</item>
@@ -87,7 +87,7 @@ public sealed class EffectiveMetadata
     public static int Priority(AssertionOrigin origin) => origin switch
     {
         AssertionOrigin.User => 100,
-        AssertionOrigin.FolderRule => 60,
+        AssertionOrigin.FolderRule or AssertionOrigin.UserTag => 60,
         AssertionOrigin.Ai => 50,
         AssertionOrigin.Rule => 30,
         AssertionOrigin.Embedded => 20,

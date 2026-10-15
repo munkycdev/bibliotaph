@@ -1,3 +1,4 @@
+using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
@@ -18,16 +19,23 @@ public sealed partial class OwnOption(Term term) : ObservableObject
 }
 
 /// <summary>
-/// "Add a book I own elsewhere" (F5 plan, choice 1): a title, and optionally a game system, a type, a publisher and
-/// where it is owned. Save makes the card; the inspector then opens on it for everything else.
+/// "Add a book I own elsewhere": a title, and optionally a game system, a type, a publisher and where it is owned.
+/// Save makes the card; the inspector then opens on it for everything else.
 /// </summary>
 public sealed partial class AddElsewhereViewModel : ObservableObject
 {
     readonly ElsewhereService _elsewhere;
+    readonly ChosenCovers? _covers;
+    readonly IFilePicker _files;
 
-    AddElsewhereViewModel(ElsewhereService elsewhere, Vocabulary vocabulary)
+    /// <summary>The cover picked, already at cover size, kept once the book is made.</summary>
+    byte[]? _cover;
+
+    AddElsewhereViewModel(ElsewhereService elsewhere, IFilePicker files, ChosenCovers? covers, Vocabulary vocabulary)
     {
         _elsewhere = elsewhere;
+        _files = files;
+        _covers = covers;
         static IEnumerable<string> Labels(Vocabulary vocabulary, string name) =>
             vocabulary.InVocabulary(name).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase);
         // Editions are offered beside systems, by a name that finds them again: "D&D 5e" is how most people name what they play.
@@ -46,8 +54,8 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
         return names.FirstOrDefault(n => n is not null && vocabulary.Resolve("system", n) is null && vocabulary.Resolve("edition", n)?.Key == edition.Key);
     }
 
-    public static async Task<AddElsewhereViewModel> LoadAsync(ElsewhereService elsewhere) =>
-        new(elsewhere, await Task.Run(() => elsewhere.GetVocabularyAsync()));
+    public static async Task<AddElsewhereViewModel> LoadAsync(ElsewhereService elsewhere, IFilePicker files, ChosenCovers? covers = null) =>
+        new(elsewhere, files, covers, await Task.Run(() => elsewhere.GetVocabularyAsync()));
 
     /// <summary>Raised when the dialog closes: with the new card, or null when it was cancelled.</summary>
     public event EventHandler<EntryId?>? Closed;
@@ -76,10 +84,39 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
 
     /// <summary>
     /// Somewhere not in the list, typed: "Owlbear Rodeo", which becomes a term of the user's own; or the book's page
-    /// online, which opens it (online libraries, O1): "D&amp;D Beyond https://…", or the link alone.
+    /// online, which opens it: "D&amp;D Beyond https://…", or the link alone.
     /// </summary>
     [ObservableProperty]
     public partial string OtherOwn { get; set; } = "";
+
+    public bool CanChooseCover => _covers is not null;
+
+    /// <summary>The picked cover's file name, shown in place of the button that picks it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCover))]
+    public partial string? CoverName { get; private set; }
+
+    public bool HasCover => CoverName is not null;
+
+    /// <summary>"Choose a cover image…": read now, so a picture that can't be one says so before the book is made.</summary>
+    [RelayCommand]
+    async Task ChooseCover()
+    {
+        if (_covers is null) return;
+        if (_files.OpenFile("Choose a cover image", ChosenCovers.FileFilter) is not { } path) return;
+        var (jpeg, problem) = await Task.Run(() => _covers.ReadAsync(path));
+        Problem = problem;
+        if (jpeg is null) return;
+        _cover = jpeg;
+        CoverName = global::System.IO.Path.GetFileName(path);
+    }
+
+    [RelayCommand]
+    void ClearCover()
+    {
+        _cover = null;
+        CoverName = null;
+    }
 
     /// <summary>Why the book couldn't be saved, such as a year that isn't one.</summary>
     [ObservableProperty]
@@ -107,6 +144,7 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
                 Problem = problem.Message;
                 return;
             }
+            if (entryId is { } added && _cover is { } cover && _covers is not null) await Task.Run(() => _covers.KeepAsync(added, cover));
             Closed?.Invoke(this, entryId);
         }
         finally

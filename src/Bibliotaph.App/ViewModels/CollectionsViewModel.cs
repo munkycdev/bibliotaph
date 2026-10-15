@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Collections (slice 3 plan, choice 9): a card for each collection at the top level, pinned first, then by name. A
-/// card opens the Library scoped to it, where its sub-collections and its actions are; New collection makes one here.
+/// Collections: a card for each collection at the top level, pinned first, then by name. A card opens the Library
+/// scoped to it, where its sub-collections and its actions are; New collection makes one here.
 /// </summary>
 public sealed partial class CollectionsViewModel(CollectionActions actions, LibraryPages pages, LibraryActivity activity, ILogger<CollectionsViewModel> log)
     : PageViewModel

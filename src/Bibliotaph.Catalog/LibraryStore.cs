@@ -84,22 +84,22 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// <summary>
     /// Brings a root's locations in line with a completed scan of it. Unchanged files keep their hash; a file whose
     /// size or modified time changed loses it and is hashed again; files not seen are marked missing. Only call this
-    /// with a full listing of a reachable root: an offline root must never mark its files missing (A07). Files under
-    /// <paramref name="unreadFolders"/>, folders the scan couldn't list ("." for the root), keep their state for the same reason.
-    /// Files inside a ZIP follow it: missing with it, and listed again when it changes or comes back.
+    /// with a full listing of a reachable root: an offline root must never mark its files missing. Files under
+    /// <paramref name="unreadFolders"/>, folders the scan couldn't list ("." for the root), keep their state for the
+    /// same reason. Files inside a ZIP follow it: missing with it, and listed again when it changes or comes back.
     /// <para>
     /// A new path whose file ID, size and modified time match a location not seen at its own path, in this folder or
-    /// missing from another, is that file moved or renamed (A06, slice 4g plan, choice 2). The location moves with it and
-    /// keeps its id, hash and document, so nothing is read again and the card never leaves the library. Where there are
-    /// no IDs, as on FAT and exFAT drives, a file that left its path in this scan and one that arrived with the same
-    /// name, size and modified time are the same file when nothing else in the scan could be (<see cref="LikelyMoves"/>).
-    /// A moved ZIP keeps the files it held, and a split or proposed pack follows its folder or ZIP.
-    /// <paramref name="fileId"/> reads a file's ID by its relative path; it is asked only for new and changed paths and
-    /// for locations that don't have one yet, and is null where the volume has no lasting IDs. With
-    /// <paramref name="readKnownIds"/>, as on a local drive, it is asked of every path the scan lists, since a file
-    /// replaced by another of the same size and date is told apart only by its ID (slice 4h plan, choice 6). Missing locations of a
-    /// document whose content has turned up elsewhere are deleted. <paramref name="volumeSerial"/> is kept as the
-    /// root's the first time it is given, so a different disk in its drive later reads as offline.
+    /// missing from another, is that file moved or renamed. The location moves with it and keeps its id, hash and
+    /// document, so nothing is read again and the card never leaves the library. Where there are no IDs, as on FAT and
+    /// exFAT drives, a file that left its path in this scan and one that arrived with the same name, size and modified
+    /// time are the same file when nothing else in the scan could be (<see cref="LikelyMoves"/>). A moved ZIP keeps
+    /// the files it held, and a split or proposed pack follows its folder or ZIP. <paramref name="fileId"/> reads a
+    /// file's ID by its relative path; it is asked only for new and changed paths and for locations that don't have one
+    /// yet, and is null where the volume has no lasting IDs. With <paramref name="readKnownIds"/>, as on a local drive,
+    /// it is asked of every path the scan lists, since a file replaced by another of the same size and date is told
+    /// apart only by its ID. Missing locations of a document whose content has turned up elsewhere are deleted.
+    /// <paramref name="volumeSerial"/> is kept as the root's the first time it is given, so a different disk in its
+    /// drive later reads as offline.
     /// </para>
     /// </summary>
     public async Task<ReconcileResult> ReconcileRootAsync(
@@ -124,14 +124,14 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
                 continue;
             }
             // Another file at the same path, with the same size and date (copied over it keeping its date, or
-            // deleted and put back), has a different ID: new content as much as a changed size or date is
-            // (slice 4h plan, choice 6). Known paths are asked only where that is cheap.
+            // deleted and put back), has a different ID: new content as much as a changed size or date is. Known
+            // paths are asked only where that is cheap.
             var id = readKnownIds ? fileId?.Invoke(file.RelativePath) : null;
             var replaced = id is not null && location.NtfsFileId is not null && !string.Equals(id, location.NtfsFileId, StringComparison.Ordinal);
             if (location.SizeBytes != file.SizeBytes || location.ModifiedUtc != file.ModifiedUtc || replaced)
             {
                 // New content at a known path. The old document keeps its other locations; the new content joins
-                // its card as a new version once it is hashed (A08). An app that saves by replacing the file gives it
+                // its card as a new version once it is hashed. An app that saves by replacing the file gives it
                 // a new ID, so it is read again.
                 location.SizeBytes = file.SizeBytes;
                 location.ModifiedUtc = file.ModifiedUtc;
@@ -328,9 +328,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// Deletes the missing locations of documents whose content has turned up elsewhere (slice 4g plan, choice 1), as a
-    /// file moved to another drive is found again by its hash. Only those of <paramref name="documentId"/> when given.
-    /// Never one in a folder that is offline, and never a file inside a ZIP, which goes with its ZIP.
+    /// Deletes the missing locations of documents whose content has turned up elsewhere, as a file moved to another
+    /// drive is found again by its hash. Only those of <paramref name="documentId"/> when given. Never one in a folder
+    /// that is offline, and never a file inside a ZIP, which goes with its ZIP.
     /// </summary>
     static Task<int> ForgetReplacedAsync(CatalogDbContext db, long? documentId, CancellationToken ct)
     {
@@ -425,10 +425,10 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// Brings a ZIP's members in line with what it holds now (F3 plan, choices 3 and 4). A member with the same name,
-    /// size and CRC keeps its hash; a changed one is hashed again and, as a file replaced at its path, becomes a new
-    /// version of its book (A08); one no longer in the ZIP is missing. Returns the members to hash, or null when the
-    /// ZIP changed while it was read (the next scan picks it up).
+    /// Brings a ZIP's members in line with what it holds now. A member with the same name, size and CRC keeps its hash;
+    /// a changed one is hashed again and, as a file replaced at its path, becomes a new version of its book; one no
+    /// longer in the ZIP is missing. Returns the members to hash, or null when the ZIP changed while it was read (the
+    /// next scan picks it up).
     /// </summary>
     public async Task<IReadOnlyList<UnhashedFile>?> ReconcileArchiveAsync(UnhashedFile archive, IReadOnlyList<ArchiveMember> members, CancellationToken ct = default)
     {
@@ -491,7 +491,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Marks a file as downloaded by Bibliotaph's own reading, as the hasher does just before it reads a file that is
-    /// online-only, so it goes back to online-only once nothing needs its content any more (Dale's review, row 2).
+    /// online-only, so it goes back to online-only once nothing needs its content any more.
     /// </summary>
     public async Task MarkToReturnAsync(long locationId, CancellationToken ct = default)
     {
@@ -579,7 +579,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         {
             var now = _clock.GetUtcNow().UtcDateTime;
             document = db.Documents.Add(new Document { ContentHash = hash.Hex, Format = file.Format, CreatedUtc = now }).Entity;
-            // New content where another book's file was is a new version of that book (A08); anything else is a new card.
+            // New content where another book's file was is a new version of that book; anything else is a new card.
             if (location.PreviousDocumentId is not { } previous || await EntryStore.AddVersionAsync(db, document, previous, ct) is null)
                 db.EntrySources.Add(new EntrySource { Entry = new Entry { Kind = EntryKind.Whole, CreatedUtc = now }, Document = document, IsCurrent = true });
         }
@@ -606,8 +606,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// Marks documents' text as forgotten, for "Forget its text" (slice 4i plan, choice 6), or clears the mark for "Read
-    /// it again". A document already marked keeps the time it was first forgotten.
+    /// Marks documents' text as forgotten, for "Forget its text", or clears the mark for "Read it again". A document
+    /// already marked keeps the time it was first forgotten.
     /// </summary>
     public async Task SetTextForgottenAsync(IReadOnlyCollection<long> documentIds, bool forgotten, CancellationToken ct = default)
     {
@@ -620,6 +620,21 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             await documents.Where(d => d.TextForgottenUtc == null).ExecuteUpdateAsync(s => s.SetProperty(d => d.TextForgottenUtc, now), ct);
         }
         else await documents.ExecuteUpdateAsync(s => s.SetProperty(d => d.TextForgottenUtc, (DateTime?)null), ct);
+    }
+
+    /// <summary>Keeps the page the user chose as the document's cover; the first page, or null, goes back to the default.</summary>
+    public async Task SetCoverPageAsync(long documentId, int? page, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var chosen = page is > 0 ? page : null;
+        await db.Documents.Where(d => d.Id == documentId).ExecuteUpdateAsync(s => s.SetProperty(d => d.CoverPage, chosen), ct);
+    }
+
+    /// <summary>The page the user chose as the document's cover, or 0 when they haven't chosen one.</summary>
+    public async Task<int> GetCoverPageAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Documents.Where(d => d.Id == documentId).Select(d => d.CoverPage).SingleOrDefaultAsync(ct) ?? 0;
     }
 
     /// <summary>Whether the user chose "Forget its text" for this document, so the pipeline leaves it alone.</summary>
@@ -662,8 +677,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         (await GetHintPathAsync(documentId, ct))?.RelativePath;
 
     /// <summary>
-    /// <see cref="GetRelativePathAsync"/> with the library folder it is under, for the folder rules there (scenario
-    /// review, row 8). Null when every location is gone.
+    /// <see cref="GetRelativePathAsync"/> with the library folder it is under, for the folder rules there. Null when
+    /// every location is gone.
     /// </summary>
     public async Task<(long RootId, string RelativePath)?> GetHintPathAsync(long documentId, CancellationToken ct = default)
     {
@@ -677,9 +692,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// The folders the files of whole-book cards are in (scenario review, row 8): every location of each copy, in a
-    /// library folder the user hasn't removed, the current copy's present files first. A gone file is listed too,
-    /// marked, so a book once in a folder kept from AI stays kept. All cards' when <paramref name="entryIds"/> is null.
+    /// The folders the files of whole-book cards are in: every location of each copy, in a library folder the user
+    /// hasn't removed, the current copy's present files first. A gone file is listed too, marked, so a book once in a
+    /// folder kept from AI stays kept. All cards' when <paramref name="entryIds"/> is null.
     /// </summary>
     public async Task<IReadOnlyList<EntryFolder>> GetEntryFoldersAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
@@ -712,8 +727,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// The whole-book cards the library shows with a file directly in <paramref name="folder"/> (scenario review, row 8):
-    /// the books "from this folder". Images in a pack, and cards joined into another, aren't among them.
+    /// The whole-book cards the library shows with a file directly in <paramref name="folder"/>: the books "from this
+    /// folder". Images in a pack, and cards joined into another, aren't among them.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> GetEntriesInFolderAsync(FolderKey folder, CancellationToken ct = default)
     {
@@ -728,6 +743,24 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
                 && s.Entry.MergedIntoEntryId == null), (f, s) => new { f.RelativePath, s.EntryId })
             .ToListAsync(ct);
         return [.. rows.Where(r => FolderKey.Of(folder.RootId, r.RelativePath) == folder).Select(r => new EntryId(r.EntryId)).Distinct()];
+    }
+
+    /// <summary>
+    /// The books from every folder at once, as <see cref="GetEntriesInFolderAsync"/> finds them for one, with the path of
+    /// the library folder each is in. Files inside ZIPs don't count: a ZIP isn't a folder.
+    /// </summary>
+    public async Task<IReadOnlyList<(FolderKey Folder, string RootPath, IReadOnlyList<EntryId> Books)>> GetBooksByFolderAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId != null && f.ContainerId == null && f.State != FileLocationState.Missing
+                && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .SelectMany(f => f.Document!.Sources.Where(s => s.FirstPdfPage == null && s.Entry.Kind == EntryKind.Whole && s.Entry.ParentEntryId == null
+                && s.Entry.MergedIntoEntryId == null), (f, s) => new { f.SourceRootId, RootPath = f.SourceRoot.Path, f.RelativePath, s.EntryId })
+            .ToListAsync(ct);
+        return [.. rows
+            .GroupBy(r => FolderKey.Of(r.SourceRootId, r.RelativePath))
+            .Select(g => (g.Key, g.First().RootPath, (IReadOnlyList<EntryId>)[.. g.Select(r => new EntryId(r.EntryId)).Distinct()]))];
     }
 
     /// <summary>The relative path of every file the library shows, with its document, for the folder label list.</summary>
@@ -754,7 +787,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Whether new content has been found where this document's file was and isn't hashed yet: a new version still
-    /// being read, rather than a file that has gone (slice 4h plan, choice 1).
+    /// being read, rather than a file that has gone.
     /// </summary>
     public async Task<bool> IsBeingReplacedAsync(long documentId, CancellationToken ct = default)
     {
@@ -766,8 +799,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     /// <summary>
     /// The entries the library shows: those backed by a document with a file in a folder the user hasn't removed, and
     /// books owned elsewhere. An offline folder's books stay, and so does a book whose file has gone missing, marked as
-    /// such (<see cref="GetUnavailableAsync"/>), until its file turns up again (slice 4g plan, choice 1). With
-    /// <paramref name="rootId"/>, only that folder's.
+    /// such (<see cref="GetUnavailableAsync"/>), until its file turns up again. With <paramref name="rootId"/>, only
+    /// that folder's.
     /// </summary>
     public async Task<IReadOnlyList<EntryId>> GetVisibleEntryIdsAsync(long? rootId = null, CancellationToken ct = default)
     {
@@ -788,9 +821,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// The cards the library shows that can't be opened now, and why (slice 4g plan, choices 1 and 5): Offline while a
-    /// file of one is in a folder that can't be reached, otherwise Missing, every file it had being gone. A card with a
-    /// file it can open isn't listed, nor is a book owned elsewhere. A pack is unavailable when all its images are.
+    /// The cards the library shows that can't be opened now, and why: Offline while a file of one is in a folder that
+    /// can't be reached, otherwise Missing, every file it had being gone. A card with a file it can open isn't listed,
+    /// nor is a book owned elsewhere. A pack is unavailable when all its images are.
     /// </summary>
     public async Task<IReadOnlyDictionary<EntryId, EntryAvailability>> GetUnavailableAsync(CancellationToken ct = default)
     {
@@ -803,7 +836,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .Select(s => new
             {
                 s.EntryId,
-                // An image's pack; an adventure inside a file (slice 5) goes by its own pages, not its file's card.
+                // An image's pack; an adventure inside a file goes by its own pages, not its file's card.
                 ParentEntryId = s.Entry.ParentEntry != null && s.Entry.ParentEntry.Kind == EntryKind.Pack ? s.Entry.ParentEntryId : null,
                 Offline = s.Document.Locations.Any(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability == SourceRootAvailability.Offline),
             })
@@ -824,7 +857,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Whether the catalog knows a file in this folder that isn't missing, so a listing that comes back empty reads as a
-    /// disk that isn't there rather than every file deleted (slice 4g plan, choice 3).
+    /// disk that isn't there rather than every file deleted.
     /// </summary>
     public async Task<bool> HasFilesAsync(long rootId, CancellationToken ct = default)
     {
@@ -834,7 +867,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// The document with this content that has a file in a library folder, other than one gone missing; null when there
-    /// is none. Check a download asks it of each file it reads (F5 plan, choice 11).
+    /// is none. Check a download asks it of each file it reads.
     /// </summary>
     public async Task<long?> FindDocumentAsync(ContentHash hash, CancellationToken ct = default)
     {
@@ -847,7 +880,7 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
 
     /// <summary>
     /// Every document with a file in a folder the user hasn't removed, with its content hash: what index.db should know
-    /// about, so a new index.db can have them all read again (slice 4j plan, choice 6).
+    /// about, so a new index.db can have them all read again.
     /// </summary>
     public async Task<IReadOnlyList<(long DocumentId, string ContentHash)>> GetDocumentHashesAsync(CancellationToken ct = default)
     {

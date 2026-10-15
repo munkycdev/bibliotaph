@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Slice 4l: the sidebar's ready update, Start over only with --dev, and every shipped package's licence in About.</summary>
+/// <summary>The sidebar's ready update, Start over only with --dev, and every shipped package's licence in About.</summary>
 static partial class SmokeTest
 {
     /// <summary>
@@ -43,9 +43,9 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Settings > Start over (slice 4l plan, choice 7): without --dev, as the smoke test starts, Settings doesn't list it
-    /// and a link to it does nothing; with --dev it is last in the list and shows its button, in light and dark. The
-    /// button is never clicked: it deletes the library and restarts.
+    /// Settings > Start over: without --dev, as the smoke test starts, Settings doesn't list it and a link to it does
+    /// nothing; with --dev it is last in the list and shows its button, in light and dark. The button is never clicked: it
+    /// deletes the library and restarts.
     /// </summary>
     static async Task ShowStartOverOnlyWithDevAsync(IServiceProvider services, Window window)
     {

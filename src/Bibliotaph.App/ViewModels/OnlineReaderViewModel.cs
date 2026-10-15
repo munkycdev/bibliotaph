@@ -9,13 +9,13 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A book owned online, read in Bibliotaph (online libraries plan, O2b): the service's own page in the browser, with
-/// the reader's heart, pin, the book's own note, Pop out and Open in your browser around it. The view drives the
-/// browser and tells this model which page is in view. Links within the service's site (and the sites it signs in
-/// on) stay here; a link anywhere else opens in the everyday browser (choice 22).
+/// A book owned online, read in Bibliotaph: the service's own page in the browser, with the reader's heart, pin, the
+/// book's own note, Pop out and Open in your browser around it. The view drives the browser and tells this model
+/// which page is in view. Links within the service's site (and the sites it signs in on) stay here; a link anywhere
+/// else opens in the everyday browser.
 /// </summary>
 public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, OnlineReaders readers, IOnlineLibraryReader? service)
-    : PageViewModel
+    : PageViewModel, ISessionChoices
 {
     readonly string? _site = OnlineReaders.SiteOf(request.Link);
     string? _savedNote;
@@ -25,6 +25,8 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     /// <summary>Add this page and its binder menu, with the note of what it did and Undo.</summary>
     public SessionActions Sessions { get; } = readers.NewSessionActions();
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
 
     /// <summary>The title of the page in view, which labels it in a binder.</summary>
     [ObservableProperty]
@@ -92,7 +94,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
 
     public string NoteLabel => ShowNote ? "Hide note" : "Note";
 
-    /// <summary>Reading mode's stylesheet for the book's service (choice 24); null for a service without one.</summary>
+    /// <summary>Reading mode's stylesheet for the book's service; null for a service without one.</summary>
     public string? ReadingStyle => service?.ReadingStyle;
 
     public bool HasReadingMode => ReadingStyle is not null;
@@ -140,7 +142,7 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
     {
         Sessions.Close();
         readers.Pins.Changed -= OnPinsChanged;
-        _ = SaveNoteAsync();
+        SaveNoteAsync().FireAndForget();
     }
 
     void OnPinsChanged(object? sender, EventArgs e) => ShowPinned();
@@ -191,7 +193,9 @@ public sealed partial class OnlineReaderViewModel(OnlineReaderRequest request, O
         }
     }
 
-    /// <summary>Add this page (choice 20): the page in view, as a link item labelled with its title, to the current binder.</summary>
+    /// <summary>
+    /// Add this page: the page in view, as a link item labelled with its title, to the current binder.
+    /// </summary>
     [RelayCommand]
     void AddPage() => AddPageTo(null);
 

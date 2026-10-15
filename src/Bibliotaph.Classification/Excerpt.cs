@@ -26,9 +26,9 @@ public enum ExcerptPart
 public sealed record ExcerptPage(int PdfPage, string Text, ExcerptPart Part);
 
 /// <summary>
-/// The bounded part of a book the classifier reads (slice 2 plan, choice 9): its opening pages, its back cover, its
-/// contents, its introduction, its headings, then pages sampled evenly across the rest, each tagged with its PDF page
-/// number. Watermark lines are left out of every page (<see cref="Watermarks"/>).
+/// The bounded part of a book the classifier reads: its opening pages, its back cover, its contents, its introduction,
+/// its headings, then pages sampled evenly across the rest, each tagged with its PDF page number. Watermark lines are
+/// left out of every page (<see cref="Watermarks"/>).
 /// </summary>
 public sealed record Excerpt(IReadOnlyList<ExcerptPage> Pages, IReadOnlyList<BookHeading> Headings, int PageCount)
 {
@@ -44,12 +44,12 @@ public sealed record Excerpt(IReadOnlyList<ExcerptPage> Pages, IReadOnlyList<Boo
 
 public sealed record ExcerptOptions
 {
-    /// <summary>About 6,000 tokens of book text (choice 9), at roughly four characters a token.</summary>
+    /// <summary>About 6,000 tokens of book text, at roughly four characters a token.</summary>
     public int Budget { get; init; } = 24_000;
 
     public int OpeningPages { get; init; } = 3;
 
-    /// <summary>The last pages with text, always read: the back cover says who a book is for (scenario review, row 6).</summary>
+    /// <summary>The last pages with text, always read: the back cover says who a book is for.</summary>
     public int ClosingPages { get; init; } = 2;
 
     /// <summary>A page that opens the book, or holds its contents or introduction, gives at most this much.</summary>
@@ -79,7 +79,7 @@ public static partial class ExcerptBuilder
     public static Excerpt Build(IReadOnlyList<BookPage> pages, IReadOnlyList<BookHeading> outline, int pageCount, ExcerptOptions? options = null)
     {
         options ??= new ExcerptOptions();
-        // A watermark names the buyer and their order: it never goes to a model (scenario review, row 7).
+        // A watermark names the buyer and their order: it never goes to a model.
         var unmarked = Watermarks.Strip([.. pages.Select(p => p.Text)]);
         var texts = pages
             .Select((p, i) => (p.PdfPage, Text: Tidy(unmarked[i])))
@@ -130,6 +130,9 @@ public static partial class ExcerptBuilder
 
         return new Excerpt([.. chosen.Values.OrderBy(p => p.PdfPage)], headings, pageCount);
     }
+
+    /// <summary>A page that opens with an introduction's or a foreword's heading.</summary>
+    internal static bool LooksLikeIntroduction(string text) => IntroductionHeading().IsMatch(text[..Math.Min(200, text.Length)]);
 
     [GeneratedRegex(@"^(introduction|foreword|preface|overview|welcome|about this (book|adventure|module|supplement)|adventure (background|overview|summary)|background|running this adventure|using this book|how to use this book)\b", RegexOptions.IgnoreCase)]
     private static partial Regex IntroductionHeading();

@@ -6,19 +6,20 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Catalog;
 
 /// <summary>
-/// A proposal waiting in Needs review (slice 5 plan, choice 7): the copy it was read from, the file's card, and the
-/// adventures it proposes, in page order.
+/// A proposal waiting in Needs review: the copy it was read from, the file's card, the adventures it proposes, in page
+/// order, and where the book says it holds separate adventures.
 /// </summary>
-public sealed record PendingPartProposal(long Id, string ContentHash, long DocumentId, EntryId EntryId, PartProposalSource Source, IReadOnlyList<ProposedPart> Parts);
+public sealed record PendingPartProposal(long Id, string ContentHash, long DocumentId, EntryId EntryId, PartProposalSource Source, IReadOnlyList<ProposedPart> Parts,
+    CollectionEvidence? Evidence);
 
 /// <summary>What a proposal's answer was before the user answered, for Undo.</summary>
 public sealed record PartProposalState(string ContentHash, bool Existed, PartProposalAnswer? Answer);
 
 /// <summary>
-/// The adventures files seem to hold (slice 5 plan, choices 5 to 7), by the content hash of the copy they were read
-/// from. A proposal never makes cards by itself: it is one Needs review card for its file until the user accepts it
-/// or says the file is "Not split", and that answer is remembered for every copy of the file, by hash, so the file
-/// isn't proposed again whatever reads it later.
+/// The adventures files seem to hold, by the content hash of the copy they were read from. A proposal never makes
+/// cards by itself: it is one Needs review card for its file until the user accepts it or says the file is "Not
+/// split", and that answer is remembered for every copy of the file, by hash, so the file isn't proposed again
+/// whatever reads it later.
 /// </summary>
 public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -28,33 +29,39 @@ public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contex
 
     /// <summary>
     /// Records what a source proposes for the copy with <paramref name="contentHash"/>, replacing what it proposed
-    /// before, or drops its waiting proposal when it now proposes nothing. A copy already answered is left alone, and
-    /// so is a waiting proposal from the rules when a model proposes: the rules' come from the file's own bookmarks.
-    /// Returns whether anything changed.
+    /// before, or drops its waiting proposal when it now proposes nothing (<paramref name="found"/> is null). A copy
+    /// already answered is left alone, and so is a waiting proposal from the rules when a model proposes: the rules'
+    /// come from the file's own bookmarks. Returns whether anything changed.
     /// </summary>
-    public async Task<bool> SaveAsync(string contentHash, PartProposalSource source, IReadOnlyList<ProposedPart> parts, CancellationToken ct = default)
+    public async Task<bool> SaveAsync(string contentHash, PartProposalSource source, Compilation? found, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var row = await db.PartProposals.SingleOrDefaultAsync(p => p.ContentHash == contentHash, ct);
         if (row is { Answer: not null }) return false;
-        if (parts.Count == 0)
+        if (found is not { Parts.Count: > 0 })
         {
             if (row is null || row.Source != source) return false;
             db.PartProposals.Remove(row);
             await db.SaveChangesAsync(ct);
             return true;
         }
-        var json = Serialize(parts);
+        var json = Serialize(found.Parts);
+        var (evidence, page) = (found.Evidence.Quote, found.Evidence.PdfPage);
         if (row is null)
         {
-            db.PartProposals.Add(new PartProposal { ContentHash = contentHash, Source = source, PartsJson = json, CreatedUtc = _clock.GetUtcNow().UtcDateTime });
+            db.PartProposals.Add(new PartProposal
+            {
+                ContentHash = contentHash, Source = source, PartsJson = json, Evidence = evidence, EvidencePage = page, CreatedUtc = _clock.GetUtcNow().UtcDateTime,
+            });
         }
         else
         {
             if (row.Source == PartProposalSource.Rules && source != PartProposalSource.Rules) return false;
-            if (row.Source == source && row.PartsJson == json) return false;
+            if (row.Source == source && row.PartsJson == json && row.Evidence == evidence && row.EvidencePage == page) return false;
             row.Source = source;
             row.PartsJson = json;
+            row.Evidence = evidence;
+            row.EvidencePage = page;
         }
         await db.SaveChangesAsync(ct);
         return true;
@@ -70,7 +77,7 @@ public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contex
     /// <summary>
     /// Whether there is nothing left to propose for the copy with <paramref name="contentHash"/> of the file
     /// <paramref name="fileId"/>: a proposal was read from it already, or the file's proposal was answered for one of
-    /// its copies. A model isn't asked about such a file (choice 6).
+    /// its copies. A model isn't asked about such a file.
     /// </summary>
     public async Task<bool> IsSettledAsync(EntryId fileId, string contentHash, CancellationToken ct = default)
     {
@@ -95,7 +102,7 @@ public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contex
                 join s in db.EntrySources on d.Id equals s.DocumentId
                 where s.FirstPdfPage == null && s.Entry.Kind == EntryKind.Whole && s.Entry.ParentEntryId == null && s.Entry.MergedIntoEntryId == null
                     && !db.Entries.Any(part => part.ParentEntryId == s.EntryId && part.Kind == EntryKind.Part)
-                select new { p.Id, p.ContentHash, DocumentId = d.Id, s.EntryId, s.IsCurrent, p.Source, p.PartsJson })
+                select new { p.Id, p.ContentHash, DocumentId = d.Id, s.EntryId, s.IsCurrent, p.Source, p.PartsJson, p.Evidence, p.EvidencePage })
             .ToListAsync(ct);
         if (rows.Count == 0) return [];
         var entryIds = rows.Select(r => r.EntryId).Distinct().ToList();
@@ -110,7 +117,8 @@ public sealed class PartProposalStore(IDbContextFactory<CatalogDbContext> contex
             .GroupBy(r => r.EntryId)
             .Select(g => g.OrderByDescending(r => r.IsCurrent).ThenBy(r => r.Id).First())
             .OrderBy(r => r.Id)
-            .Select(r => new PendingPartProposal(r.Id, r.ContentHash, r.DocumentId, new EntryId(r.EntryId), r.Source, Deserialize(r.PartsJson)))];
+            .Select(r => new PendingPartProposal(r.Id, r.ContentHash, r.DocumentId, new EntryId(r.EntryId), r.Source, Deserialize(r.PartsJson),
+                r is { Evidence: { } quote, EvidencePage: { } page } ? new CollectionEvidence(page, quote) : null))];
     }
 
     /// <summary>

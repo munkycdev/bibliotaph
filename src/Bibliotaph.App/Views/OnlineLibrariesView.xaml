@@ -43,11 +43,11 @@
                Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
     <!-- What the last import or removal did, with Undo. -->
-    <DockPanel Margin="0,16,0,0" Visibility="{Binding Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+    <DockPanel Margin="0,16,0,0" Visibility="{Binding Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Button x:Name="UndoOnline" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-              Command="{Binding UndoCommand}" Visibility="{Binding CanUndo, Converter={StaticResource Bt.VisibleWhenTrue}}"
+              Command="{Binding Undo.UndoCommand}" IsEnabled="{Binding IsIdle}" Visibility="{Binding Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}"
               AutomationProperties.Name="Undo the import" Margin="16,0,0,0" />
-      <TextBlock x:Name="OnlineMessage" Text="{Binding Message}" FontSize="13" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      <TextBlock x:Name="OnlineMessage" Text="{Binding Undo.Message}" FontSize="13" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
     </DockPanel>
 
     <StackPanel Visibility="{Binding HasPlan, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,16,0,0">

@@ -290,6 +290,10 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal([Lairs, HauntedInn], (await DocumentsAsync("-collection:\"Winter campaign\"")).Order());
         Assert.Empty(await DocumentsAsync("collection:winter"));
         Assert.Equal([Gazetteer], (await _library.ListAsync(new LibraryFilter(Group: ScopeKeys.CollectionOwn(12)), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([Gazetteer, TavernMap],
+            (await _library.ListAsync(new LibraryFilter(Collections: CollectionFilter.InOne), ct: Ct)).Select(e => e.DocumentId).Order());
+        Assert.Equal([Lairs, HauntedInn],
+            (await _library.ListAsync(new LibraryFilter(Collections: CollectionFilter.NotInOne), ct: Ct)).Select(e => e.DocumentId).Order());
 
         var counts = await _library.CountGroupsAsync("collection:", null, Ct);
         Assert.Equal(2, counts[ScopeKeys.Collection(12)]);
@@ -480,7 +484,7 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal(4, Connection.ExecuteScalar<long>("SELECT count(*) FROM doc"));
     }
 
-    /// <summary>Marks pages 2 and 3 of the gazetteer as an adventure of its own, as the projection records one (slice 5).</summary>
+    /// <summary>Marks pages 2 and 3 of the gazetteer as an adventure of its own, as the projection records one.</summary>
     async Task<EntryId> AddPartAsync()
     {
         var store = new IndexStore(Writer, Clock);
@@ -526,6 +530,58 @@ public sealed class LibraryQueriesTests : IndexFixture
         var hidden = await _library.ListAsync(new LibraryFilter(HideParts: true), ct: Ct);
         Assert.DoesNotContain(hidden, e => e.IsPart);
         Assert.Equal(4, hidden.Count);
+    }
+
+    [Fact]
+    public async Task Kept_inside_their_books_adventures_leave_the_library_but_a_search_finds_them_on_their_files_cover()
+    {
+        var part = await AddPartAsync();
+        await new IndexStore(Writer, Clock).SetCoverAsync(Gazetteer, "hash1.jpg", Ct);
+        var inBooks = new LibraryFilter(PartsInBooks: true);
+
+        // Browsing: no adventure cards, and the file's card says it holds one; the menus count without them too.
+        var browsing = await _library.ListAsync(inBooks, ct: Ct);
+        Assert.DoesNotContain(browsing, e => e.IsPart);
+        Assert.Equal(1, browsing.Single(e => e.EntryId == EntryOf(Gazetteer)).Parts);
+        Assert.DoesNotContain(await _library.GetFacetCountsAsync("type", inBooks, ct: Ct), c => c.Value == "adventure");
+
+        // A search finds it, as an adventure on its file's cover; the file's own first-page cover stays its card's elsewhere.
+        var found = (await _library.SearchDocumentsAsync(Plan("mill dragon"), inBooks, ct: Ct)).Single();
+        Assert.Equal((part, "The Mill Dragon", "hash1.jpg", true, "in Gazetteer of the Marches · pp. 2–3"),
+            (found.EntryId, found.Title, found.Cover, found.FoundInBook, found.PartLine));
+        Assert.Equal([part], (await _library.ListAsync(inBooks, Plan("type:adventure level:3"), ct: Ct)).Select(e => e.EntryId));
+        var asCard = (await _library.SearchDocumentsAsync(Plan("mill dragon"), new LibraryFilter(), ct: Ct)).Single();
+        Assert.Equal(("hash1-p1.jpg", false), (asCard.Cover, asCard.FoundInBook));
+
+        // Page hits go to the adventure, shown the same way.
+        var pages = await _library.SearchPagesAsync(Plan("dragon"), inBooks, ct: Ct);
+        Assert.Equal(("hash1.jpg", true), pages.Entries.Select(e => e.Entry).Where(e => e.IsPart).Select(e => (e.Cover, e.FoundInBook)).Single());
+
+        // The file alone is still found by what is only its own.
+        Assert.Equal([EntryOf(Gazetteer)], (await _library.SearchDocumentsAsync(Plan("marches"), inBooks, ct: Ct)).Select(e => e.EntryId));
+    }
+
+    [Fact]
+    public async Task When_a_file_and_its_adventure_are_both_found_only_the_adventure_shows()
+    {
+        var part = await AddPartAsync();
+        await new IndexStore(Writer, Clock).SetMetadataAsync([new EntryMetaRow { EntryId = EntryOf(Gazetteer), Title = "Gazetteer of the Mill Marches" }], Ct);
+        var inBooks = new LibraryFilter(PartsInBooks: true);
+
+        // "mill" names both; the adventure stands in for its file, and the other books stay where they were.
+        Assert.Equal([part], (await _library.SearchDocumentsAsync(Plan("mill"), inBooks, ct: Ct)).Select(e => e.EntryId));
+        var dragons = (await _library.SearchDocumentsAsync(Plan("dragon"), inBooks, ct: Ct)).Select(e => e.EntryId).ToList();
+        Assert.Contains(part, dragons);
+        Assert.Contains(EntryOf(Lairs), dragons);
+        Assert.DoesNotContain(EntryOf(Gazetteer), dragons);
+        Assert.Equal([part], (await _library.SearchDocumentsAsync(Plan("mill"), inBooks, limit: 1, ct: Ct)).Select(e => e.EntryId));
+
+        // Fields that the adventure takes from its file find both, and still only the adventure shows.
+        Assert.DoesNotContain(EntryOf(Gazetteer), (await _library.ListAsync(inBooks, Plan("folder:setting"), ct: Ct)).Select(e => e.EntryId));
+
+        // As cards of their own, both show, as before.
+        Assert.Equal([part.Value, EntryOf(Gazetteer).Value],
+            (await _library.SearchDocumentsAsync(Plan("mill"), new LibraryFilter(), ct: Ct)).Select(e => e.EntryId.Value).Order());
     }
 
     [Fact]

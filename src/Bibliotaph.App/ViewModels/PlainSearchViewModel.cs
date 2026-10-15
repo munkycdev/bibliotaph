@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>Where Ask is: waiting for a request, without AI, reading one, showing its reading, or stuck.</summary>
+/// <summary>Where Ask is: waiting for a request, without AI, reading one, showing its reading, stuck, or answering a question from the library.</summary>
 public enum PlainSearchState
 {
     Waiting,
@@ -18,6 +18,7 @@ public enum PlainSearchState
     Reading,
     Interpreted,
     Problem,
+    Answering,
 }
 
 /// <summary>
@@ -46,13 +47,18 @@ public sealed partial class PlainSearchPartViewModel(InterpretedPart part) : Obs
 }
 
 /// <summary>
-/// Ask, beside the search box (scenario review, row 5): a request in plain English, read by AI as the search box's own
-/// fields and words and shown as chips with notes before anything runs. The chips can be changed or removed; Search
-/// puts them in the box as ordinary query text and runs it, so the syntax stays in view and can be changed too.
-/// Without AI, Ask says it needs it and links to Settings > AI, and the search box works as it always has.
+/// Ask, beside the search box: a request in plain English, read by AI as the search box's own fields and words and
+/// shown as chips with notes before anything runs. The chips can be changed or removed; Search puts them in the box
+/// as ordinary query text and runs it, so the syntax stays in view and can be changed too. Or a question, answered from
+/// the pages of the books the Library shows (<see cref="Library"/>). Without AI, Ask says it needs it and links to
+/// Settings > AI, and the search box works as it always has.
 /// </summary>
-public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch, SettingsLinks settings, ILogger<PlainSearchViewModel> log) : ObservableObject
+public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch, SettingsLinks settings, LibraryAskViewModel library,
+    ILogger<PlainSearchViewModel> log) : ObservableObject
 {
+    /// <summary>A question answered from the library's pages: the answer, its citations and the pages it was read from.</summary>
+    public LibraryAskViewModel Library { get; } = library;
+
     /// <summary>Stops the request being read, while one is.</summary>
     Action? _cancel;
 
@@ -95,7 +101,9 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
         PlainSearchState.Problem => Problem ?? "",
         PlainSearchState.Interpreted when Parts.Count == 0 => "Nothing in that could be searched for. Try saying it another way.",
         PlainSearchState.Interpreted => "Here's how that reads as a search. Change or remove anything, then press Search.",
-        _ => "Describe what you're looking for, such as “a one-shot heist for 4 players in a city”, and press Enter.",
+        PlainSearchState.Answering => Library.ScopeText,
+        _ => "Describe what you're looking for, such as “a one-shot heist for 4 players in a city”, and press Enter to search. "
+            + "Or ask your books a question, such as “how does grappling work?”, and press Ctrl+Enter or Answer from my books.",
     };
 
     /// <summary>Raised by Search with the query text to put in the box and run.</summary>
@@ -105,6 +113,7 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
     {
         Cancel();
         Clear();
+        Library.Clear();
         State = value && !plainSearch.IsReady ? PlainSearchState.NeedsAi : PlainSearchState.Waiting;
     }
 
@@ -129,6 +138,7 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
     {
         Cancel();
         Clear();
+        Library.Clear();
         if (!plainSearch.IsReady)
         {
             State = PlainSearchState.NeedsAi;
@@ -166,6 +176,34 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
             if (_cancel == cancel) _cancel = null;
         }
     }
+
+    /// <summary>
+    /// Ctrl+Enter in Ask mode, or Answer from my books: answers the question from the pages of the books the Library
+    /// shows, instead of reading it as a search.
+    /// </summary>
+    public async Task AnswerAsync(string question)
+    {
+        Cancel();
+        Clear();
+        Library.Clear();
+        if (!plainSearch.IsReady)
+        {
+            State = PlainSearchState.NeedsAi;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(question))
+        {
+            Problem = "Type a question first, then press Ctrl+Enter.";
+            State = PlainSearchState.Problem;
+            return;
+        }
+        State = PlainSearchState.Answering;
+        await Library.AskAsync(question);
+    }
+
+    /// <summary>Answer from my books, with the search box's text.</summary>
+    [RelayCommand]
+    Task Answer(string? question) => AnswerAsync(question ?? "");
 
     /// <summary>Stops reading a request.</summary>
     [RelayCommand]

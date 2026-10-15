@@ -5,7 +5,7 @@ using Bibliotaph.Core;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Reads ZIPs in a library folder through the read-only reader (F3): lists the PDFs and images inside and opens one for
+/// Reads ZIPs in a library folder through the read-only reader: lists the PDFs and images inside and opens one for
 /// reading. Nothing is ever written to a ZIP or beside it.
 /// </summary>
 public sealed class ArchiveReader(ISourceFileReader reader)

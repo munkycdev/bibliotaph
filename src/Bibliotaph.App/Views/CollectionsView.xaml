@@ -26,12 +26,12 @@
 
       <!-- What the last change did, with Undo: here, after a collection was deleted from its page. -->
       <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,20,42,0"
-              Visibility="{Binding Actions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+              Visibility="{Binding Actions.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
         <DockPanel>
           <Button x:Name="UndoCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                  Command="{Binding Actions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo"
-                  Visibility="{Binding Actions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock Text="{Binding Actions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  Command="{Binding Actions.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo"
+                  Visibility="{Binding Actions.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <TextBlock Text="{Binding Actions.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
         </DockPanel>
       </Border>
 

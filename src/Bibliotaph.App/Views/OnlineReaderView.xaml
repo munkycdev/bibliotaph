@@ -24,7 +24,18 @@
   -->
   <Grid>
   <DockPanel>
-    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+    <!-- The same frame as the file reader's, so the two line up in the main window. -->
+    <DockPanel.Style>
+      <Style TargetType="DockPanel">
+        <Setter Property="Margin" Value="0" />
+        <Style.Triggers>
+          <DataTrigger Binding="{Binding IsInMainWindow}" Value="True">
+            <Setter Property="Margin" Value="0,0,42,24" />
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
+    </DockPanel.Style>
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
       <!-- A wrap panel, so a binder's narrower middle keeps every button whole on a small window. -->
       <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
         <Button x:Name="OnlineBack" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ArrowLeft}" Click="Back_Click"
@@ -66,7 +77,8 @@
       </WrapPanel>
       <!-- In a binder, its header already names the page. -->
       <StackPanel VerticalAlignment="Center" Margin="0,0,16,0" Visibility="{Binding IsInBinder, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-        <TextBlock x:Name="OnlineTitle" Text="{Binding Title}" Style="{StaticResource Text.H2}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}" />
+        <TextBlock x:Name="OnlineTitle" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}"
+                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}" />
         <TextBlock Text="{Binding PlaceLine}" Style="{StaticResource Text.Small}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
       </StackPanel>
     </DockPanel>
@@ -76,14 +88,14 @@
 
     <!-- What Add this page did, with Undo. -->
     <Border DockPanel.Dock="Top" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6"
-            Padding="14,10" Margin="0,0,0,8" Visibility="{Binding Sessions.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+            Padding="14,10" Margin="0,0,0,8" Visibility="{Binding Sessions.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
       <DockPanel>
         <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                 ToolTip="Hide" AutomationProperties.Name="Hide" Command="{Binding DismissSessionMessageCommand}" />
         <Button x:Name="OnlineUndoSession" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                Command="{Binding Sessions.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
-                Visibility="{Binding Sessions.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <TextBlock x:Name="OnlineSessionMessage" Text="{Binding Sessions.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                Command="{Binding Sessions.Undo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo" VerticalAlignment="Center"
+                Visibility="{Binding Sessions.Undo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock x:Name="OnlineSessionMessage" Text="{Binding Sessions.Undo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
                    VerticalAlignment="Center" />
       </DockPanel>
     </Border>

@@ -13,7 +13,11 @@ public enum Lane
     Classify,
 }
 
-/// <summary>The stage versions and order of the processing pipeline.</summary>
+/// <summary>
+/// What the job queue in index.db needs to know about the processing pipeline, whichever stages an app runs: stage
+/// versions, which stages wait behind everything else, the first stage, and the stages Reprocess runs again. The rest
+/// of what a stage is, its lane and what follows it, each stage says about itself.
+/// </summary>
 public static class Pipeline
 {
     /// <summary>
@@ -25,21 +29,26 @@ public static class Pipeline
         Stage.Probe => 1,
         Stage.Text => 1,
         Stage.Covers => 1,
-        Stage.RuleHints => 1,
+        // 2: adventures are proposed only when the book says it is a collection of them.
+        Stage.RuleHints => 2,
         Stage.Ocr => 1,
         // Never bumped for a new prompt or model: those are recorded per run, and reclassifying is the user's call.
         Stage.Classify => 1,
-        // 2: new-version cards (F2b), so a library matched before gets them.
+        // 2: new-version cards, so a library matched before gets them.
         Stage.Match => 2,
+        // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
+        Stage.ChapterScan => 1,
         _ => 1,
     };
 
-    public static Lane LaneOf(Stage stage) => stage switch
-    {
-        Stage.Ocr => Lane.Ocr,
-        Stage.Classify => Lane.Classify,
-        _ => Lane.Index,
-    };
+    /// <summary>
+    /// The priority every chapter-scan job is queued at, below the default of 0, so a book waiting to be classified is
+    /// always leased first: reading whole books is a long, optional pass that should never hold anything up.
+    /// </summary>
+    public const int BackgroundPriority = -100;
+
+    /// <summary>Whether a stage is a long, optional pass that runs only when nothing else in its lane is waiting.</summary>
+    public static bool IsBackground(Stage stage) => stage == Stage.ChapterScan;
 
     /// <summary>
     /// The stage queued when a new document is found. Text, Covers and RuleHints follow from Probe; OCR, Classify and

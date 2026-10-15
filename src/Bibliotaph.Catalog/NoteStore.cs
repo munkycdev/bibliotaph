@@ -8,8 +8,8 @@ namespace Bibliotaph.Catalog;
 public sealed record PageNoteInfo(long Id, EntryId EntryId, PageRange Range, string Text, DateTime CreatedUtc, DateTime UpdatedUtc);
 
 /// <summary>
-/// Notes (slice 3 plan, choice 18): one plain-text note per entry, and notes on pages or page ranges of its documents.
-/// Blank text is no note: saving it deletes the note.
+/// Notes: one plain-text note per entry, and notes on pages or page ranges of its documents. Blank text is no note:
+/// saving it deletes the note.
 /// </summary>
 public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -99,7 +99,7 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
         note.UpdatedUtc = Now;
         if (range is not null && note.PageRef is { } kept && kept.CheckDocumentId == range.DocumentId)
         {
-            // Moved within the new version it was looked for in: the user has checked it there (slice 4h plan, choice 3).
+            // Moved within the new version it was looked for in: the user has checked it there.
             PageRefStore.Use(kept, range);
         }
         else if (range is not null)
@@ -115,8 +115,8 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
     }
 
     /// <summary>
-    /// "Use this page" on a note whose page changed (slice 4h plan, choice 2): the note is on these pages from now on,
-    /// checked by the user. Returns it as it is now, or null if it's gone.
+    /// "Use this page" on a note whose page changed: the note is on these pages from now on, checked by the user.
+    /// Returns it as it is now, or null if it's gone.
     /// </summary>
     public async Task<PageNoteInfo?> RepointAsync(long noteId, PageRange range, CancellationToken ct = default)
     {
@@ -157,7 +157,7 @@ public sealed class NoteStore(IDbContextFactory<CatalogDbContext> contexts, Time
         return Info(note);
     }
 
-    static PageNoteInfo Info(Note n) => new(n.Id, new EntryId(n.EntryId), PageRefStore.ToRange(n.PageRef!), n.Text, n.CreatedUtc, n.UpdatedUtc);
+    internal static PageNoteInfo Info(Note n) => new(n.Id, new EntryId(n.EntryId), PageRefStore.ToRange(n.PageRef!), n.Text, n.CreatedUtc, n.UpdatedUtc);
 
     static PageRef ToPageRef(PageRange range) => PageRefStore.ToPageRef(range);
 

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Slice 4j: backups, weekly backups and what they keep, refusing what can't be restored, the swap at startup, and CSV.</summary>
+/// <summary>Backups, weekly backups and what they keep, refusing what can't be restored, the swap at startup, and CSV.</summary>
 [Collection(SqlitePools.Name)]
 public sealed class BackupTests : IAsyncLifetime
 {

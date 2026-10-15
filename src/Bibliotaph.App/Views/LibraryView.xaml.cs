@@ -45,6 +45,7 @@ public partial class LibraryView
         AddBookCommand(BookCommands.ForgetText, m => m.ForgetTextCommand);
         AddBookCommand(BookCommands.ReadTextAgain, m => m.ReadTextAgainCommand);
         AddBookCommand(BookCommands.CatalogedWrong, m => m.CatalogedWrongCommand);
+        AddBookCommand(BookCommands.RemoveFromLibrary, m => m.RemoveFromLibraryCommand);
         CommandBindings.Add(new CommandBinding(BookCommands.AddToCollection,
             (_, e) =>
             {
@@ -225,7 +226,7 @@ public partial class LibraryView
         }
     }
 
-    /// <summary>The Saved searches list takes the keyboard on its first search as it opens (Pinned Views plan, choice 11).</summary>
+    /// <summary>The Saved searches list takes the keyboard on its first search as it opens.</summary>
     void SavedSearchesPopup_Opened(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => FindButton(SavedSearchList, "OpenSavedSearch")?.Focus());
 

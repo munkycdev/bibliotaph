@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 3f: a note on each book, notes on its pages, and what happens to them when cards join and split.</summary>
+/// <summary>A note on each book, notes on its pages, and what happens to them when cards join and split.</summary>
 public sealed class NoteStoreTests : IAsyncLifetime
 {
     static readonly DateTimeOffset Monday = new(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
@@ -20,7 +20,7 @@ public sealed class NoteStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         var contexts = new Factory(_database);
         _library = new LibraryStore(contexts);
         _entries = new EntryStore(contexts);

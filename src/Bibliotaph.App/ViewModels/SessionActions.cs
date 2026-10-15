@@ -4,16 +4,15 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// What a page does with session packs (slice 3 plan, choices 11 to 13): adding books or pages to one, the current pack,
-/// another or a new one, making, editing, duplicating and deleting packs, and naming sections. Each change says what it
-/// did in a note, with Undo where there is something to undo, until the next change or until the page is left. One per
-/// page; the page shows <see cref="Dialog"/> over itself.
+/// What a page does with session packs: adding books or pages to one, the current pack, another or a new one,
+/// making, editing, duplicating and deleting packs, and naming sections. Each change says what it did in a note, with
+/// Undo where there is something to undo, until the next change or until the page is left. One per page; the page
+/// shows <see cref="Dialog"/> over itself.
 /// </summary>
 public sealed partial class SessionActions(SessionsService sessions, SessionDirectory directory, ILogger<SessionActions> log) : ObservableObject
 {
@@ -22,15 +21,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     public partial SessionDialogViewModel? Dialog { get; private set; }
 
     /// <summary>"Added Warehouse ambush to The midnight bell.", beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? Message { get; private set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
-    public partial Func<Task>? UndoAction { get; private set; }
-
-    public bool HasUndo => UndoAction is not null;
+    public UndoSlot Undo { get; } = new(log);
 
     /// <summary>Raised on the UI thread after a change, so the page shows it.</summary>
     public event EventHandler? Done;
@@ -49,16 +40,16 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     }
 
     /// <summary>
-    /// Add page (choice 13): one page of the open book, called after the bookmark it sits under, or a whole image, to
-    /// the current pack or the one picked in the menu; before there is a pack, it asks for one first.
+    /// Add page: one page of the open book, called after the bookmark it sits under, or a whole image, to the current
+    /// pack or the one picked in the menu; before there is a pack, it asks for one first.
     /// </summary>
     public void AddPage(long documentId, int page, string what, SessionMenuChoice? choice = null, bool wholeFile = false) =>
         AddTo(choice ?? CurrentChoice(), what, async id =>
             await (wholeFile ? sessions.AddDocumentAsync(id, documentId) : sessions.AddPagesAsync(id, documentId, page, page)) is { } added ? [added] : []);
 
     /// <summary>
-    /// Add this page in the online reader (online libraries plan, O2b): the page of a book owned online at
-    /// <paramref name="link"/>, labelled <paramref name="label"/>, to the current binder or the one picked in the menu.
+    /// Add this page in the online reader: the page of a book owned online at <paramref name="link"/>, labelled
+    /// <paramref name="label"/>, to the current binder or the one picked in the menu.
     /// </summary>
     public void AddOnlinePage(EntryId book, string link, string? label, SessionMenuChoice? choice = null)
     {
@@ -74,7 +65,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         switch (choice.Kind)
         {
             case SessionMenuKind.Session when choice.PackId is { } id:
-                _ = AddToAsync(id, what, () => add(id));
+                AddToAsync(id, what, () => add(id)).FireAndForget();
                 break;
             case SessionMenuKind.New:
                 NewThen("Add to a new binder", "Create and add", pack => AddToAsync(pack.Id, what, () => add(pack.Id)));
@@ -89,8 +80,8 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     }
 
     /// <summary>
-    /// Add pages… (choice 13): From and To as typed (prefilled from the page in view or the selection), a label (from
-    /// the bookmark there), and which pack and section.
+    /// Add pages…: From and To as typed (prefilled from the page in view or the selection), a label (from the
+    /// bookmark there), and which pack and section.
     /// </summary>
     public async Task AddPagesAsync(long documentId, string from, string to, int firstPage, Func<string, int?> findPage)
     {
@@ -179,7 +170,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         if (removed is { Count: > 0 }) await FinishAsync($"Removed {what} from {pack}.", () => sessions.RestoreItemsAsync(removed));
     }
 
-    /// <summary>Duplicate (choice 11): a copy of the pack, without its date, which then opens.</summary>
+    /// <summary>Duplicate: a copy of the pack, without its date, which then opens.</summary>
     public async Task<SessionPackInfo?> DuplicateAsync(SessionPackInfo pack)
     {
         var copy = await Run(() => sessions.DuplicateAsync(pack.Id, $"{pack.Title} (copy)"), "Duplicating the session failed");
@@ -196,39 +187,14 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     }
 
     /// <summary>The note after a delete, on the page shown after it, with Undo bringing the pack back.</summary>
-    public void ShowDeleted(SessionPackSnapshot deleted)
-    {
-        Message = $"Deleted {deleted.Title}. Its books are still in your library.";
-        UndoAction = async () => await sessions.RestoreAsync(deleted);
-    }
-
-    /// <summary>A note with nothing to undo, such as why an item can't open.</summary>
-    public void Say(string message)
-    {
-        Message = message;
-        UndoAction = null;
-    }
-
-    [RelayCommand(CanExecute = nameof(HasUndo))]
-    async Task Undo()
-    {
-        if (UndoAction is not { } undo) return;
-        UndoAction = null;
-        Message = "Undoing…";
-        if (await Run(async () => { await undo(); return true; }, "Undoing a session change failed"))
-        {
-            Message = null;
-            await FinishAsync(null, null);
-        }
-        else Message = "That couldn't be undone.";
-    }
+    public void ShowDeleted(SessionPackSnapshot deleted) =>
+        Undo.Offer($"Deleted {deleted.Title}. Its books are still in your library.", Undoing(async () => await sessions.RestoreAsync(deleted)));
 
     /// <summary>Esc or Cancel closes the dialog; the note goes when the page is left.</summary>
     public void Close()
     {
         Dialog?.CancelCommand.Execute(null);
-        Message = null;
-        UndoAction = null;
+        Undo.Clear();
     }
 
     void Open(SessionDialogViewModel dialog, Func<SessionDialogResult, Task> then)
@@ -243,8 +209,20 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
 
     async Task FinishAsync(string? message, Func<Task>? undo)
     {
-        Message = message;
-        UndoAction = undo;
+        if (message is null) Undo.Clear();
+        else Undo.Offer(message, undo is null ? null : Undoing(undo));
+        await ShowChangeAsync();
+    }
+
+    /// <summary>What Undo runs: <paramref name="undo"/> off the UI thread, then the page shows the change.</summary>
+    Func<Task> Undoing(Func<Task> undo) => async () =>
+    {
+        await Task.Run(undo);
+        await ShowChangeAsync();
+    };
+
+    async Task ShowChangeAsync()
+    {
         await Directory.LoadAsync();
         Done?.Invoke(this, EventArgs.Empty);
     }
@@ -258,8 +236,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         catch (Exception ex)
         {
             log.LogError(ex, "{Failure}", failure);
-            Message = "That didn't work. The log has the details.";
-            UndoAction = null;
+            Undo.Say("That didn't work. The log has the details.");
             return default;
         }
     }

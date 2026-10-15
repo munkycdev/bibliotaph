@@ -16,11 +16,10 @@ using Microsoft.Web.WebView2.Core;
 namespace Bibliotaph.App.Views;
 
 /// <summary>
-/// The in-app browser's window for one service (online libraries, O2). It opens the service's library page once and
-/// never navigates, clicks or scrolls by itself (choice 3). As each page shows, the service's reader looks at it, and
-/// Read this page lights up when it lists the user's books; pressing it hands those books, and the cover images the
-/// page loaded, to Settings &gt; Online libraries. Nothing is fetched for them (choice 9). The site's icon is kept for the
-/// badge on its books (choice 12).
+/// The in-app browser's window for one service. It opens the service's library page once and never navigates, clicks
+/// or scrolls by itself. As each page shows, the service's reader looks at it, and Read this page lights up when it
+/// lists the user's books; pressing it hands those books, and the cover images the page loaded, to Settings &gt; Online
+/// libraries. Nothing is fetched for them. The site's icon is kept for the badge on its books.
 /// </summary>
 public partial class OnlineBrowserWindow
 {
@@ -333,7 +332,7 @@ public sealed partial class OnlineBrowserState(string serviceName) : ObservableO
     [ObservableProperty]
     public partial bool CanGoForward { get; set; }
 
-    /// <summary>This session's store downloads (O5), listed under the page.</summary>
+    /// <summary>This session's store downloads, listed under the page.</summary>
     public ObservableCollection<OnlineDownload> Downloads
     {
         get;

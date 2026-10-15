@@ -191,6 +191,44 @@ public class LocalModelClientTests
     static bool IsBook(JsonNode? body) =>
         body?["messages"]?[1]?["content"]?.GetValue<string>().Contains("<book-excerpt>", StringComparison.Ordinal) == true;
 
+    [Theory]
+    [InlineData("""{"error":{"code":400,"message":"request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":18366,"n_ctx":16384}}""")]
+    [InlineData("""{"error":{"code":400,"message":"request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it"}}""")]
+    public async Task A_prompt_longer_than_the_context_is_told_apart_with_the_servers_counts(string refusal)
+    {
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest, refusal),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ModelContextException>(() => client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+
+        Assert.Equal((18_366, 16_384), (ex.PromptTokens, ex.ContextTokens));
+        Assert.Equal("The text was too long for the model: 18,366 tokens, and it has room for 16,384.", ex.Message);
+        // Not taken for a refused schema: plain JSON mode would be just as long.
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
+    [Fact]
+    public async Task A_book_too_long_for_the_context_fails_by_itself_without_asking_the_server_again()
+    {
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest,
+                """{"error":{"code":400,"message":"request (9000 tokens) exceeds the available context size (8192 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":9000,"n_ctx":8192}}"""),
+            _ => NotFound,
+        });
+
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(
+            () => new ModelClassifier(client, "openai-compatible", "m").ClassifyAsync(Lantern(), ct: TestContext.Current.CancellationToken));
+
+        Assert.IsType<ModelContextException>(ex.InnerException);
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
     [Fact]
     public async Task A_server_that_fails_while_answering_is_told_apart_from_one_that_refuses()
     {
@@ -275,6 +313,59 @@ public class LocalModelClientTests
         Assert.Equal(32, chats[1]["options"]!["num_predict"]!.GetValue<int>());
         Assert.Equal(chats[0]["options"]!["num_ctx"]!.GetValue<int>(), chats[1]["options"]!["num_ctx"]!.GetValue<int>());
         Assert.Equal("model-a", chats[1]["model"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task An_empty_answer_is_a_failed_request_from_either_kind_of_server_streamed_or_not()
+    {
+        var (ollama, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""{"message":{"role":"assistant"},"done":true}"""),
+            _ => NotFound,
+        });
+        var (openAi, _) = Connect("http://127.0.0.1:1234", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok("""{"choices":[{"message":{"role":"assistant"}}]}"""),
+            _ => NotFound,
+        });
+        var (streaming, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""{"message":{"content":""},"done":true}"""),
+            _ => NotFound,
+        });
+        var ct = TestContext.Current.CancellationToken;
+
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => ollama.CompleteAsync(Request, ct));
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => openAi.CompleteAsync(Request, ct));
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => streaming.CompleteAsync(Request with { Progress = new Reports() }, ct));
+    }
+
+    [Fact]
+    public async Task An_empty_answer_to_a_book_is_that_books_problem_only_while_the_server_still_answers_a_check()
+    {
+        var checkAnswers = true;
+        var (client, server) = Connect("http://localhost:11434", (path, body) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" when IsBook(body) || !checkAnswers => Ok("""{"message":{"role":"assistant"},"done":true}"""),
+            "/api/chat" => Ok("""{"message":{"content":"{\"ok\":true}"}}"""),
+            _ => NotFound,
+        });
+        var classifier = new ModelClassifier(client, "ollama", "model-a");
+        var ct = TestContext.Current.CancellationToken;
+
+        var book = await Assert.ThrowsAsync<ClassifierAnswerException>(() => classifier.ClassifyAsync(Lantern(), ct: ct));
+        Assert.Contains("answer was empty", book.Message, StringComparison.Ordinal);
+        Assert.Equal(2, server.Requests.Count(r => r.Path == "/api/chat"));
+
+        checkAnswers = false;
+        await Assert.ThrowsAsync<ModelEmptyAnswerException>(() => classifier.ClassifyAsync(Lantern(), ct: ct));
     }
 
     [Fact]
@@ -484,5 +575,130 @@ public class LocalModelClientTests
 
         var chat = Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions").Body!;
         Assert.Null(chat["response_format"]);
+    }
+
+    [Fact]
+    public async Task Asks_ollama_and_openai_compatible_servers_not_to_think()
+    {
+        var (ollama, ollamaServer) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok("""{"message":{"content":"{}"},"done":true}"""),
+            _ => NotFound,
+        });
+        var (openAi, openAiServer) = Connect("http://127.0.0.1:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok("""{"choices":[{"message":{"content":"{}"}}]}"""),
+            _ => NotFound,
+        });
+
+        await ollama.CompleteAsync(Request, TestContext.Current.CancellationToken);
+        await openAi.CompleteAsync(Request, TestContext.Current.CancellationToken);
+
+        Assert.False(ollamaServer.Requests.Single(r => r.Path == "/api/chat").Body!["think"]!.GetValue<bool>());
+        var completion = openAiServer.Requests.Single(r => r.Path == "/v1/chat/completions").Body!;
+        Assert.False(completion["chat_template_kwargs"]!["enable_thinking"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task An_ollama_that_refuses_the_thinking_switch_is_asked_again_without_it_and_not_sent_it_again()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, body) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.6.0"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" when body!["think"] is not null => (HttpStatusCode.BadRequest, """{"error":"\"model-a\" does not support thinking"}"""),
+            "/api/chat" => Ok("""{"message":{"content":"{}"},"done":true}"""),
+            _ => NotFound,
+        });
+
+        Assert.Equal("{}", await client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+        Assert.Equal("{}", await client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+
+        var chats = server.Requests.Where(r => r.Path == "/api/chat").Select(r => r.Body!).ToList();
+        Assert.Equal(3, chats.Count);
+        Assert.NotNull(chats[0]["think"]);
+        Assert.Null(chats[1]["think"]);
+        Assert.Null(chats[2]["think"]);
+    }
+
+    [Fact]
+    public async Task An_ollama_refusal_for_another_reason_is_not_retried_without_the_thinking_switch()
+    {
+        var (client, server) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => (HttpStatusCode.BadRequest, """{"error":"invalid format"}"""),
+            _ => NotFound,
+        });
+
+        await Assert.ThrowsAsync<ModelEndpointException>(() => client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+
+        Assert.Single(server.Requests, r => r.Path == "/api/chat");
+    }
+
+    [Theory]
+    [InlineData("""{"error":{"message":"Unrecognized request argument supplied: chat_template_kwargs"}}""")]
+    [InlineData("""{"detail":"Bad Request"}""")]
+    public async Task An_openai_compatible_server_that_refuses_the_thinking_switch_is_asked_again_without_it_and_not_sent_it_again(string refusal)
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234/v1", (path, body) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" when body!["chat_template_kwargs"] is not null => (HttpStatusCode.BadRequest, refusal),
+            "/v1/chat/completions" => Ok("""{"choices":[{"message":{"content":"The mill."}}]}"""),
+            _ => NotFound,
+        });
+        var prose = Request with { SchemaJson = null };
+
+        Assert.Equal("The mill.", await client.CompleteAsync(prose, TestContext.Current.CancellationToken));
+        Assert.Equal("The mill.", await client.CompleteAsync(prose, TestContext.Current.CancellationToken));
+
+        var chats = server.Requests.Where(r => r.Path == "/v1/chat/completions").Select(r => r.Body!).ToList();
+        Assert.Equal(3, chats.Count);
+        Assert.NotNull(chats[0]["chat_template_kwargs"]);
+        Assert.All(chats.Skip(1), c => Assert.Null(c["chat_template_kwargs"]));
+    }
+
+    [Fact]
+    public async Task A_server_that_refuses_the_thinking_switch_and_then_the_schema_ends_in_json_mode()
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234", (path, body) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" when body!["chat_template_kwargs"] is not null
+                => (HttpStatusCode.BadRequest, """{"error":{"message":"property 'chat_template_kwargs' is unsupported"}}"""),
+            "/v1/chat/completions" when body!["response_format"]!["type"]!.GetValue<string>() == "json_schema"
+                => (HttpStatusCode.BadRequest, """{"error":{"message":"response_format json_schema is not supported"}}"""),
+            "/v1/chat/completions" => Ok("""{"choices":[{"message":{"content":"{\"year\":[]}"}}]}"""),
+            _ => NotFound,
+        });
+
+        var answer = await client.CompleteAsync(Request, TestContext.Current.CancellationToken);
+
+        Assert.Equal("""{"year":[]}""", answer);
+        Assert.Equal(3, server.Requests.Count(r => r.Path == "/v1/chat/completions"));
+    }
+
+    [Fact]
+    public async Task A_caller_that_sends_its_own_template_settings_gets_them_once_and_no_retry()
+    {
+        var server = new FakeServer((path, _) => path switch
+        {
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest, """{"error":{"message":"chat_template_kwargs: unknown field"}}"""),
+            _ => NotFound,
+        });
+        var extras = new JsonObject { ["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = false, ["reasoning"] = "low" } };
+#pragma warning disable CA2000 // The client owns the handler and the test owns neither for longer than it runs.
+        var client = new LocalModelClient(new HttpClient(server), "http://127.0.0.1:8080", kind: EndpointKind.OpenAiCompatible, extras: extras);
+#pragma warning restore CA2000
+
+        await Assert.ThrowsAsync<ModelEndpointException>(() => client.CompleteAsync(Request with { SchemaJson = null }, TestContext.Current.CancellationToken));
+
+        var chat = Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions").Body!;
+        Assert.Equal("low", chat["chat_template_kwargs"]!["reasoning"]!.GetValue<string>());
     }
 }

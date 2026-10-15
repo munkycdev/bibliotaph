@@ -13,11 +13,11 @@ public sealed record ExampleBook(EntryId EntryId, IReadOnlyCollection<FolderKey>
 public sealed record ExampleTarget(EntryId EntryId, IReadOnlyCollection<FolderKey> Folders, string? System = null, string? Publisher = null);
 
 /// <summary>
-/// Worked examples (scenario review, row 8): a few of the user's own books sent with each classification, so the model
-/// follows the user's conventions without any training. Only values the user confirmed are sent, as short
-/// "field: value" lines with no text from any book, and never a book with a file in a library folder kept from AI.
-/// Books are chosen by how alike they are: from the same folder first, then for the same game system, then from the
-/// same publisher; a book like none of these isn't sent, since an unrelated book teaches the model nothing about this one.
+/// Worked examples: a few of the user's own books sent with each classification, so the model follows the user's
+/// conventions without any training. Only values the user confirmed are sent, as short "field: value" lines with no
+/// text from any book, and never a book with a file in a library folder kept from AI. Books are chosen by how alike
+/// they are: from the same folder first, then for the same game system, then from the same publisher; a book like none
+/// of these isn't sent, since an unrelated book teaches the model nothing about this one.
 /// </summary>
 public static class WorkedExamples
 {

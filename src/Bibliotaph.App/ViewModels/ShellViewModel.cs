@@ -27,14 +27,14 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly SettingsStore _store;
     readonly LibrarySync _sync;
     readonly ILogger<ShellViewModel> _log;
-    readonly DispatcherTimer _searchDelay;
+    readonly UiTimer _searchDelay;
 
     /// <summary>The pin just moved, which gets the keyboard back once the sidebar shows it in its new place.</summary>
     PinTarget? _focusAfterMove;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
-        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, ILogger<ShellViewModel> log)
+        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, TimeProvider time, ILogger<ShellViewModel> log)
     {
         _sync = sync;
         PlainSearch = plainSearch;
@@ -62,8 +62,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _settings = settings;
         _log = log;
         // Search as you type, once typing pauses.
-        _searchDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Input, (_, _) => SubmitSearch(), Dispatcher.CurrentDispatcher);
-        _searchDelay.Stop();
+        _searchDelay = new UiTimer(time, TimeSpan.FromMilliseconds(300), repeat: false, SubmitSearch, DispatcherPriority.Input);
         _search.PropertyChanged += OnSearchChanged;
 
         NavItems =
@@ -98,7 +97,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public ObservableCollection<NavItemViewModel> NavItems { get; }
 
-    /// <summary>The sidebar's Pinned group (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order.</summary>
+    /// <summary>
+    /// The sidebar's Pinned group: books, Favorites, collections, binders and saved searches, in order.
+    /// </summary>
     public ObservableCollection<PinnedItemViewModel> Pinned => _pins.Items;
 
     public NavItemViewModel Settings { get; }
@@ -116,12 +117,12 @@ public sealed partial class ShellViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value)
     {
-        _searchDelay.Stop();
         // In Ask mode the box holds a request, which is read on Enter rather than searched as it is typed.
-        if (!PlainSearch.IsOn) _searchDelay.Start();
+        if (PlainSearch.IsOn) _searchDelay.Stop();
+        else _searchDelay.Start();
     }
 
-    /// <summary>Ask beside the search box (scenario review, row 5): a request in plain English read as a search.</summary>
+    /// <summary>Ask beside the search box: a request in plain English read as a search.</summary>
     public PlainSearchViewModel PlainSearch { get; }
 
     /// <summary>The empty box's hint, which says what it takes in Ask mode.</summary>
@@ -155,7 +156,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Indexing progress for the sidebar status line.</summary>
     public LibraryActivity Activity { get; }
 
-    /// <summary>An update downloaded in the background, which the sidebar offers once it is ready (slice 4l).</summary>
+    /// <summary>An update downloaded in the background, which the sidebar offers once it is ready.</summary>
     public IUpdateService Updates { get; }
 
     /// <summary>The sidebar's "Update ready: restart to update". Nothing restarts until it is clicked.</summary>
@@ -163,6 +164,27 @@ public sealed partial class ShellViewModel : ObservableObject
     void RestartToUpdate() => Updates.RestartToUpdate();
 
     public string AppearanceToggleLabel => _theme.IsDark ? "Switch to light appearance" : "Switch to dark appearance";
+
+    /// <summary>The sidebar folded to its icons, as it was last left on this PC. Its button or Ctrl+B folds and unfolds it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SidebarToggleLabel))]
+    public partial bool IsSidebarCollapsed { get; private set; }
+
+    public string SidebarToggleLabel => IsSidebarCollapsed ? "Expand the sidebar (Ctrl+B)" : "Collapse the sidebar (Ctrl+B)";
+
+    [RelayCommand]
+    async Task ToggleSidebar()
+    {
+        IsSidebarCollapsed = !IsSidebarCollapsed;
+        try
+        {
+            await _store.SetAsync(SettingKeys.SidebarCollapsed, IsSidebarCollapsed ? "1" : "");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Saving whether the sidebar is collapsed failed");
+        }
+    }
 
     async Task ReloadMergedAsync()
     {
@@ -182,7 +204,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public async Task StartAsync()
     {
         _theme.Changed += (_, _) => OnPropertyChanged(nameof(AppearanceToggleLabel));
-        // Settings > Library > Start on (slice 3 plan, choice 7): Home unless the Library was chosen.
+        // Settings > Library > Start on: Home unless the Library was chosen.
         // The pins show their targets' names, so those load first.
         await _views.LoadAsync();
         await _collections.LoadAsync();
@@ -191,9 +213,23 @@ public sealed partial class ShellViewModel : ObservableObject
         // Another PC's collections, binders, saved searches and pins, once merged in; the library refreshes on its own.
         var dispatcher = Dispatcher.CurrentDispatcher;
         _sync.Merged += (_, _) => dispatcher.InvokeAsync(ReloadMergedAsync);
+        IsSidebarCollapsed = await SidebarCollapsedAsync();
         var start = await StartPageAsync();
         _navigation.NavigateTo(start);
         Activity.Start();
+    }
+
+    async Task<bool> SidebarCollapsedAsync()
+    {
+        try
+        {
+            return await _store.GetAsync(SettingKeys.SidebarCollapsed) == "1";
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Reading whether the sidebar is collapsed failed");
+            return false;
+        }
     }
 
     async Task<Route> StartPageAsync()
@@ -221,7 +257,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     void Open(NavItemViewModel item) => Navigate(item.Route);
 
-    /// <summary>A pin (Pinned Views plan, choice 6).</summary>
+    /// <summary>A pin.</summary>
     [RelayCommand]
     Task OpenPin(PinnedItemViewModel item) => _opener.OpenAsync(item);
 
@@ -232,7 +268,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Raised after a pin moved, so the sidebar puts the keyboard back on it in its new place.</summary>
     public event EventHandler<PinTarget>? FocusPinRequested;
 
-    /// <summary>A pin's Move up, from its menu or Alt+Up (Pinned Views plan, choice 8).</summary>
+    /// <summary>A pin's Move up, from its menu or Alt+Up.</summary>
     [RelayCommand(CanExecute = nameof(CanMovePinUp))]
     Task MovePinUp(PinnedItemViewModel? item) => item is null ? Task.CompletedTask : MovePinAsync(item, Pinned.IndexOf(item) - 1);
 
@@ -255,20 +291,20 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     async Task RenameView(PinnedItemViewModel item)
     {
-        if (await ShowViewAsync(item) is { } page) page.RenameViewCommand.Execute(null);
+        if (await ShowViewAsync(item) is { } page) page.SmartViews.RenameViewCommand.Execute(null);
     }
 
     /// <summary>A saved search's right-click Delete: the search opens and is deleted there, where Undo is offered.</summary>
     [RelayCommand]
     async Task DeleteView(PinnedItemViewModel item)
     {
-        if (await ShowViewAsync(item) is { } page) page.DeleteViewCommand.Execute(null);
+        if (await ShowViewAsync(item) is { } page) page.SmartViews.DeleteViewCommand.Execute(null);
     }
 
     async Task<LibraryViewModel?> ShowViewAsync(PinnedItemViewModel item)
     {
         await OpenPin(item);
-        return CurrentPage is LibraryViewModel { ActiveView: { } shown } page && shown.Id == item.Target.Id ? page : null;
+        return CurrentPage is LibraryViewModel { SmartViews.ActiveView: { } shown } page && shown.Id == item.Target.Id ? page : null;
     }
 
     [RelayCommand]

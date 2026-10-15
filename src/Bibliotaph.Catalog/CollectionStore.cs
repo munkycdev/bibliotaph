@@ -14,16 +14,16 @@ public sealed record CollectionInfo(long Id, long? ParentId, string Name, string
 }
 
 /// <summary>
-/// What deleting a collection took away, for Undo: the row, the entries added to it, the sub-collections it held and
-/// where its pin stood.
+/// What deleting a collection took away, for Undo: the row, the entries added to it, the sub-collections it held,
+/// where its pin stood, and the folder it was made from (<see cref="FolderCollectionStore"/>), if any.
 /// </summary>
 public sealed record CollectionDeletion(long Id, long? ParentId, string Name, string? Description, int? PinPosition, DateTime CreatedUtc, DateTime UsedUtc,
-    IReadOnlyList<(long EntryId, DateTime AddedUtc)> Items, IReadOnlyList<long> Children);
+    IReadOnlyList<(long EntryId, DateTime AddedUtc)> Items, IReadOnlyList<long> Children, long? FolderId = null);
 
 /// <summary>
-/// Collections (slice 3 plan, choices 8 to 10): nested to any depth, holding entries only. Each change returns the
-/// entries whose collections changed, including those that are in a moved or deleted collection through a
-/// sub-collection, so the caller can project their marks.
+/// Collections: nested to any depth, holding entries only. Each change returns the entries whose collections changed,
+/// including those that are in a moved or deleted collection through a sub-collection, so the caller can project their
+/// marks.
 /// </summary>
 public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -82,8 +82,8 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
     }
 
     /// <summary>
-    /// Deletes a collection, never its books: its sub-collections move up a level (choice 8). Returns what Undo needs,
-    /// or null if it doesn't exist, and the entries whose collections changed.
+    /// Deletes a collection, never its books: its sub-collections move up a level. Returns what Undo needs, or null if
+    /// it doesn't exist, and the entries whose collections changed.
     /// </summary>
     public async Task<(CollectionDeletion? Deleted, IReadOnlyList<EntryId> Changed)> DeleteAsync(long collectionId, CancellationToken ct = default)
     {
@@ -94,13 +94,14 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         var items = await db.CollectionItems.AsNoTracking().Where(i => i.CollectionId == collectionId).Select(i => new { i.EntryId, i.AddedUtc }).ToListAsync(ct);
         var children = tree.Where(c => c.Value == collectionId).Select(c => c.Key).ToList();
         var pin = await PinStore.PositionAsync(db, PinTarget.Collection(collectionId), ct);
+        var folder = await db.CollectionFolders.Where(f => f.CollectionId == collectionId).Select(f => (long?)f.Id).FirstOrDefaultAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Collections.Where(c => c.ParentId == collectionId).ExecuteUpdateAsync(s => s.SetProperty(c => c.ParentId, collection.ParentId), ct);
         db.Collections.Remove(collection);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return (new CollectionDeletion(collection.Id, collection.ParentId, collection.Name, collection.Description, pin, collection.CreatedUtc,
-            collection.UsedUtc, [.. items.Select(i => (i.EntryId, i.AddedUtc))], children), changed);
+            collection.UsedUtc, [.. items.Select(i => (i.EntryId, i.AddedUtc))], children, folder), changed);
     }
 
     /// <summary>
@@ -130,6 +131,10 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         var children = deleted.Children.ToList();
         await db.Collections.Where(c => children.Contains(c.Id) && c.ParentId == deleted.ParentId)
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.ParentId, deleted.Id), ct);
+        // Made from a folder, it follows the folder again as it did, unless the folder has been answered anew.
+        if (deleted.FolderId is { } folder)
+            await db.CollectionFolders.Where(f => f.Id == folder && f.CollectionId == null && f.State != FolderCollectionState.Declined)
+                .ExecuteUpdateAsync(s => s.SetProperty(f => f.CollectionId, deleted.Id), ct);
         await transaction.CommitAsync(ct);
         var tree = await db.Collections.Select(c => new { c.Id, c.ParentId }).ToDictionaryAsync(c => c.Id, c => c.ParentId, ct);
         return await EntriesInAsync(db, Subtree(tree, deleted.Id), ct);
@@ -161,6 +166,46 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
         return [.. removed.Select(id => new EntryId(id))];
     }
 
+    /// <summary>The entries added to each collection itself, by collection; a collection with none isn't listed.</summary>
+    public async Task<IReadOnlyDictionary<long, IReadOnlySet<EntryId>>> GetItemsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.CollectionItems.AsNoTracking().Select(i => new { i.CollectionId, i.EntryId }).ToListAsync(ct);
+        return rows.GroupBy(r => r.CollectionId)
+            .ToDictionary(g => g.Key, g => (IReadOnlySet<EntryId>)g.Select(r => new EntryId(r.EntryId)).ToHashSet());
+    }
+
+    /// <summary>The books the user said Never to adding to each collection, as (collection, entry) pairs.</summary>
+    public async Task<IReadOnlySet<(long CollectionId, EntryId EntryId)>> GetDeclinedAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.CollectionDeclines.AsNoTracking().Select(d => new { d.CollectionId, d.EntryId }).ToListAsync(ct);
+        return rows.Select(r => (r.CollectionId, new EntryId(r.EntryId))).ToHashSet();
+    }
+
+    /// <summary>Never for these books in this collection. Returns those that weren't declined already, for Undo.</summary>
+    public async Task<IReadOnlyList<EntryId>> DeclineAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (!await db.Collections.AnyAsync(c => c.Id == collectionId, ct)) return [];
+        var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+        var already = await db.CollectionDeclines.Where(d => d.CollectionId == collectionId && ids.Contains(d.EntryId)).Select(d => d.EntryId).ToListAsync(ct);
+        var exists = await db.Entries.Where(e => ids.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct);
+        var added = exists.Except(already).ToList();
+        var now = Now;
+        db.CollectionDeclines.AddRange(added.Select(id => new CollectionDecline { CollectionId = collectionId, EntryId = id, CreatedUtc = now }));
+        await db.SaveChangesAsync(ct);
+        return [.. added.Select(id => new EntryId(id))];
+    }
+
+    /// <summary>Undo for <see cref="DeclineAsync"/>: those books can be suggested for the collection again.</summary>
+    public async Task UndeclineAsync(long collectionId, IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = entryIds.Select(e => e.Value).ToList();
+        await db.CollectionDeclines.Where(d => d.CollectionId == collectionId && ids.Contains(d.EntryId)).ExecuteDeleteAsync(ct);
+    }
+
     /// <summary>The collections an entry was added to directly, for the inspector's chips.</summary>
     public async Task<IReadOnlyList<long>> GetForEntryAsync(EntryId entryId, CancellationToken ct = default)
     {
@@ -170,7 +215,7 @@ public sealed class CollectionStore(IDbContextFactory<CatalogDbContext> contexts
 
     /// <summary>
     /// The scope rows for these entries, or for every entry when <paramref name="entryIds"/> is null: each collection
-    /// an entry was added to, and every collection above it (choice 9), plus the collection itself on its own.
+    /// an entry was added to, and every collection above it, plus the collection itself on its own.
     /// </summary>
     public async Task<IReadOnlyList<(EntryId EntryId, string Scope)>> GetScopesAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {

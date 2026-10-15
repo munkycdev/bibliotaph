@@ -140,7 +140,7 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
         return key;
     }
 
-    // New terms a classifier proposes (choice 4 (b)): pending until the user adds, maps or rejects them in Needs review.
+    // New terms a classifier proposes: pending until the user adds, maps or rejects them in Needs review.
 
     /// <summary>
     /// The term a classifier's <paramref name="label"/> stands for: an active term it names exactly, else the pending

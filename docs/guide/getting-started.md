@@ -87,11 +87,15 @@ The sidebar on the left has the main pages:
 | **Pinned** | Anything you've pinned: a book, Favorites, a collection, a binder or a saved search. |
 | **Settings** | At the bottom: processing, folders, online libraries, appearance, Needs review, vocabulary, AI, passwords and backups. |
 
+The **Collapse the sidebar** button beside Settings, or **Ctrl+B**, folds the sidebar down to its icons for more room;
+point at an icon for its name. The same button, now at the top (**Expand the sidebar**), opens it again. Bibliotaph
+remembers which way you left it.
+
 The search box at the top is always there. **Ctrl+K** jumps to it from anywhere.
 
-In the Library, click a cover to see its details on the right, then click **Open** there to read it. Click anywhere
-outside the details, or press **Esc**, to close them. Right-click a cover for everything else you can do with it,
-including **Open** and **Open in new window**.
+In the Library, double-click a cover to open the book. Click it once to see its details on the right, with **Open**
+and the rest of what you can do with it. Click anywhere outside the details, or press **Esc**, to close them.
+Right-click a cover for everything else you can do with it, including **Open** and **Open in new window**.
 
 **Ctrl+/** lists every keyboard shortcut. **Settings > Appearance** switches between light, dark and Windows'
 own setting, and **Settings > Library > Start on** chooses whether Bibliotaph opens on Home or the Library.

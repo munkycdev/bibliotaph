@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Ask this book, Q3: a book's conversation kept on its entry, oldest first, trimmed to the last turns, and cleared.</summary>
+/// <summary>Ask this book: a book's conversation kept on its entry, oldest first, trimmed to the last turns, and cleared.</summary>
 public sealed class AskHistoryStoreTests : IAsyncLifetime
 {
     static readonly DateTimeOffset Monday = new(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
@@ -21,7 +21,7 @@ public sealed class AskHistoryStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         var contexts = new Factory(_database);
         _library = new LibraryStore(contexts);
         _entries = new EntryStore(contexts);

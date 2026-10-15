@@ -36,19 +36,20 @@ It is made for a game master with a large, mixed collection across several game 
 
 - **First run**: add folders and start browsing at once; books appear as they are read, and Home asks **Fill in the catalog with AI?** Nothing has to be organized first.
 - **Find an adventure**: filter by system, type, level and players, add a word, open the right page, add it to a binder; or **Ask** in plain English.
+- **Look something up**: ask the library a question and get an answer citing the book and page, one click from the page itself.
 - **Find something inside a book**: search a phrase and open the matching page, with the words highlighted.
 - **Add a bundle**: copy it into a library folder; files already owned are recognized. **Check a download** says what's new before anything is copied.
 - **Prepare and run a session**: gather books and page ranges in a binder and step through them at the table.
 
 ## Screens
 
-The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), the **Pinned** group and **Settings**. The search box is always at the top (**Ctrl+K**).
+The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), the **Pinned** group and **Settings**. Its button beside Settings, or **Ctrl+B**, folds it to its icons, and it stays as it was left. The search box is always at the top (**Ctrl+K**).
 
 **Home** shows **Continue preparing** (the next binder), **Recently opened**, **Recently added** and the pins. **Settings > Library > Start on** can open the Library instead.
 
-**Library** shows every book, map and handout as covers or a list, with a details panel on the right. A cover shows its title and only the status that matters: a heart, a spark once AI has read it, a count of adventures inside, a badge saying where a book owned elsewhere lives. **Select** mode edits, groups, joins or exports many books at once; bulk editing shows mixed values as mixed and previews before saving. Almost every change in the app has **Undo**.
+**Library** shows every book, map and handout as covers or a list. A click shows a book's details on the right, and a double-click opens it. A cover shows its title and only the status that matters: a heart, a spark once AI has read it, a count of adventures inside, a badge saying where a book owned elsewhere lives. Lists are in name order: filter choices, collections, binders within each group and the **Add to collection** menu, while the sidebar's pins keep the order they were dragged into. The toolbar's order is remembered across restarts, one for browsing and one for searching. **Select** mode edits, groups, joins or exports many books at once; bulk editing shows mixed values as mixed and previews before saving. Almost every change in the app has **Undo**.
 
-**Collections** gathers books around a campaign, setting or idea. Collections nest, a book in an inner one counts in the outer one (**Only books added here** hides those), and a collection opens in the Library, ready to search and filter. Deleting one never removes a book.
+**Collections** gathers books around a campaign, setting or idea. Collections nest, a book in an inner one counts in the outer one (**Only books added here** hides those), and a collection opens in the Library, ready to search and filter. Deleting one never removes a book. Needs review offers to make a folder of three or more books a collection; one made that way gains the books that land in its folder later, until the user adds or removes a book by hand. It also suggests books for a collection that share its series, or its setting and system, with most of its books (at least three, and 60%).
 
 ## Search
 
@@ -56,19 +57,21 @@ The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with field
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
-**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. **Collection** shows the books in a collection, or those in none yet. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
 
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 
 **Ask** (the sparkle button, with AI set up) turns a request in plain English, such as "something creepy for four level-3 characters", into editable chips with notes on anything it changed and why. Nothing runs until **Search**, which puts the chips in the box as an ordinary search. Ask uses only the search box's own fields and the user's own words: it never adds a system, level or tag that wasn't asked for, and never fills in what isn't known.
 
+**Answer from my books** (Ctrl+Enter in Ask) answers a question from the pages of the whole library, or of the books the Library's filters and the search box's fields leave showing. Bibliotaph finds the best pages across those books by their words and, as the library is read for meaning, by meaning, takes no more than three from any one book, and the AI answers from them only. Each claim cites its book and page as a link that opens the book there; quotations are checked, and when the books don't cover the question it says so and names the closest pages. With an embedding model set, the whole library is read for meaning slowly in the background, pausing while the AI is in use and carrying on after a restart; Settings > AI shows how far it has got and can switch it off.
+
 ## Reading
 
-Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably.
+Bibliotaph's reader opens a book where it was left, or at the matching page from a search. It has bookmarks, thumbnails, find, and text selection and copy (scanned pages included), and shows printed and PDF page numbers where they differ. PDF links work, and on an index or contents page without links, printed page numbers become links when the book's numbering can be worked out reliably. **Use this page as the cover** makes the page in view the book's cover in the Library, and reading the file again keeps it.
 
-**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack.
+**Note** puts a note on a page or range; notes follow their pages into other copies and versions, and search finds books by their notes. **Pop out** and **Open in new window** give a book a window of its own, as many as wanted. Images open with zoom and pan, and the arrow keys step through an image pack; **Previous** and **Next** step through a pack with PDFs in it.
 
-**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model on a model server, by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
+**Ask this book** (with AI set up, for a PDF with text) answers questions from the open book. Bibliotaph finds the pages most likely to answer, by their words and, with an embedding model (built in or on a model server), by meaning, and the AI answers from those pages only. Each claim cites its page as a link, quotations are checked against the pages, anything unsupported is marked, and when the pages don't cover the question the answer says so and lists the closest pages. Follow-up questions work, and each book keeps its conversation.
 
 ## Binders
 
@@ -92,7 +95,7 @@ A binder marked **Keep at hand during games** holds rules and references; from a
 | Duration | One-shot, short (2–3 sessions), long (4 or more) or campaign, only when stated |
 | Style | The kind of adventure: heist, dungeon crawl, hexcrawl, investigation… |
 | Themes, environments, setting | Tone and subject; where it happens; named settings |
-| Your tags | The user's own labels, never filled by AI |
+| Your tags | The user's own labels, never filled by AI; a tag defined with its words is suggested for books whose pages use them |
 | Also own | Where else it's owned: print, a virtual tabletop, an online library, with an optional link |
 | Get it from | Where to get it again: a store, with an optional link, shared by every copy |
 
@@ -100,35 +103,37 @@ File facts (format, pages, files, copies) are shown, not edited. Unknown stays u
 
 ### Where values come from
 
-Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
+Suggestions come from folder and file names that match a vocabulary term, the PDF's own information, a store named in a folder or watermark (only the store is kept, never a buyer's name), folder rules the user agreed to, the words of the user's own tags, and AI. The user's own values always win and are never replaced. A **Suggested** mark opens to show a value's source, page and quote, with **Keep this**, **Use this**, **Not right** and **Reset to suggestion**.
 
 **Cataloged wrong…** shows every field with each guess marked **Guessed** and its evidence open. After a fix, Bibliotaph offers to fix the same guess on look-alike books in that folder; after the same value is set on three books in a folder, it offers a folder rule.
 
 **Settings > Vocabulary** holds the terms books are filed under, each with other names ("5e" for an edition, say), which folder names, searches, AI and typing all go through.
 
+**Your tags** there are the user's own, each with the words that signal it ("Undead": undead, zombie, lich). Saving one looks for the words in the pages already indexed, without reading any file again, and suggests the tag for each book whose pages use them on at least 3 pages and at least one page in 20, so a passing mention or a few pages of a thick rulebook don't count. New books are checked once their text is in. Changing a tag looks again, deleting one takes its suggestions away, and the user's own decisions win: a kept tag stays, and a rejected one never comes back to that book.
+
 ### Needs review
 
-Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer and proposed adventures. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
+Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer, proposed adventures, folders that could be collections and books that could join one. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
 
-A card shows the current value, the suggestion and its evidence. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
+A card shows the current value, the suggestion and its evidence. **Show** narrows the list to one kind of card, or to the suggestions for one field, with a count for each. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
 
 ### Copies, versions and packs
 
 Files with the same text on every page, such as copies stamped for different buyers, become one book; **Make current** chooses which opens and **Not the same book** splits one off. A file sharing most of its pages, or its title and publisher, with a book is asked about as a new version: nothing is joined without asking unless the text is identical. **Same book** joins cards by hand.
 
-A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand.
+A folder or ZIP of 20 or more images and no PDFs becomes one image pack; a smaller set is offered in Needs review. **Split into separate images** undoes it, and **Pack together** makes one by hand. Packs made by hand can hold PDFs too, such as character sheets and pregens: the card reads "Pack · 6 files", opening it steps through its files (PDFs open as PDFs), their pages are found under the pack, and **Split into separate files** gives each its card back. Only images are ever packed automatically.
 
 ### Adventures inside a file
 
-An anthology can hold several adventures, each with a card of its own: its own details, its first page as cover, and the file and pages it is in. It takes the file's system, edition, publisher, series, year and setting unless it has its own. The file is never split or changed. The user marks adventures from the reader, a bookmark or the details.
+An anthology can hold several adventures, each an entry of its own: its own details, its first page as cover when shown as a card of its own, and the file and pages it is in. It takes the file's system, edition, publisher, series, year and setting unless it has its own. The file is never split or changed. The user marks adventures from the reader, a bookmark or the details.
 
-Bibliotaph also proposes adventures from a file's bookmarks and the blurbs on their first pages ("for four characters of 3rd level"), and with AI on the model helps find them, quoting each one's own pages. A proposal never makes cards by itself: Needs review shows "This file looks like it holds 5 adventures." with a ticked list, **Accept** and **Not split**, and remembers the answer. With AI on, each adventure is then read on its own pages.
+Bibliotaph also proposes adventures, but only when the file says in its own words, before its first adventure or on its back cover, that it is a collection of separate adventures ("a collection of five adventures", "each can be run on its own", "six one-shots"). A campaign whose chapters each carry a level blurb isn't proposed. The bookmarks and the blurbs on their first pages ("for four characters of 3rd level") show where each adventure starts, and with AI on the model helps find them, quoting where the book calls itself a collection and each adventure's own pages. A proposal never makes cards by itself: Needs review shows "This file looks like it holds 5 adventures." with the book's words and their page, a ticked list, **Accept** and **Not split**, and remembers the answer. With AI on, each adventure is then read on its own pages.
 
-An adventure opens its file at its first page, says "page 3 of 19 of this adventure", and limits Find to it unless **Whole file** is ticked. Page hits are listed under the adventure they fall in, and **Adventures inside files** shows or hides these cards.
+An adventure opens its file at its first page, says "page 3 of 19 of this adventure", and limits Find to it unless **Whole file** is ticked. Browsing keeps adventures inside their book: the file's card counts them and its details list them. A search shows each adventure that matches as a card with the file's cover, an Adventure ribbon and its own title, in place of the file when both match; page hits are listed under the adventure they fall in. **Adventures inside files** in More filters shows them as cards of their own instead, or hides them, searches included; a saved search that hid them still does. **Remove adventure** in its details, or **Remove adventures** for several ticked in Select mode, takes the cards away with Undo.
 
 ### Books owned elsewhere
 
-**Add a book I own elsewhere…** makes a card with no file, for a book in print or on a virtual tabletop, so it turns up in searches, collections and binders. When a file with its title arrives, Needs review asks "Is this its file?".
+**Add a book I own elsewhere…** makes a card with no file, for a book in print or on a virtual tabletop, so it turns up in searches, collections and binders. **Choose a cover image…** gives it a cover from a picture of the user's own, kept as a copy on this PC. **Remove from library** is in its details and on its right-click menu. When a file with its title arrives, Needs review asks "Is this its file?".
 
 ## Online libraries
 
@@ -161,9 +166,11 @@ Bibliotaph never guesses passwords, removes DRM or bypasses permissions. Passwor
 
 ## AI and privacy
 
-AI is optional. With it, a model reads a bounded excerpt of each book (opening pages, contents, introduction, back cover and a sample of the rest) and suggests every field except tags, Also own and Get it from. The model runs either **Built in**, downloaded once and run on the PC with nothing sent anywhere, or on a **model server** the user runs, such as Ollama or LM Studio. A server off this computer's network needs **Send excerpts to this server** ticked, and Bibliotaph never switches to a cloud service by itself.
+AI is optional. With it, a model reads a bounded excerpt of each book (opening pages, contents, introduction, back cover and a sample of the rest) and suggests every field except tags, Also own and Get it from. The model runs either **Built in**, downloaded once and run on the PC with nothing sent anywhere (chosen from a list of pinned, hash-checked models grouped by whether they fit the graphics card: Qwen3 4B, 8B, 14B and 30B-A3B, Phi-4 mini, Llama 3.1 8B, Granite 3.3 8B and Mistral Small 3.2 24B, or a `.gguf` file already on the PC, used where it is), or on a **model server** the user runs, such as Ollama or LM Studio. Built in, **Download the embedding model** (nomic-embed-text, about 150 MB) lets Ask find pages by meaning; on a server, any embedding model it has does the same. A server off this computer's network needs **Send excerpts to this server** ticked, and Bibliotaph never switches to a cloud service by itself.
 
 Every AI value quotes the page it came from, and a quote that isn't on that page throws the value away. Book text is data, never instructions: it can't change a setting or a decision, and an answer can only fill in suggestions. The model sees a few books the user has already sorted out as examples, never watermark lines, and logs hold counts, never book text.
+
+**Scan whole books** (on by default) has the AI read every page once a book is catalogued, a few chapters at a time, from the PDF's bookmarks, else its printed contents page, else runs of about 25 pages. It notes each chapter's setting, environments, themes and creatures with their pages, under the same quote check, and never changes the book's own details: the details panel shows them under **Found inside the book**, with **Scan again**, and the reader's contents beside each chapter. `setting:`, `environment:` and `theme:` also match chapters, and `creature:` searches chapter creatures. The scan runs only while nothing else uses the AI, stops the moment the user asks it anything, resumes where it stopped after a restart, and is kept by file content, so it survives a rebuilt index, is redone only when the file changes or the user asks, and isn't synced.
 
 **Library folders sent to AI** keeps a folder away from the model. **See what the AI is reading** shows what the check kept and threw away. Changing the model never re-reads books unless the user asks (**Reclassify**). If the model stops answering, AI waits and everything else carries on.
 

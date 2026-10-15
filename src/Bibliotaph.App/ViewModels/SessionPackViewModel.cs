@@ -15,15 +15,14 @@ namespace Bibliotaph.App.ViewModels;
 public sealed record SectionMove(SessionItemRow Item, long SectionId, string Label);
 
 /// <summary>
-/// A binder's list page, for editing it (slice 3 plan, choices 11 to 15; Binders plan, choice 2): its title and date,
-/// its items in order, numbered, under their sections, and its notes beside them. Items are reordered by Move up and
-/// Move down (Alt+Up and Alt+Down) or by dragging; each opens at its pages, without moving the book's saved reading
-/// position. Done goes back to the binder's reader. Opening the page makes the binder the current one, which Add page
-/// adds to.
+/// A binder's list page, for editing it: its title and date, its items in order, numbered, under their sections, and
+/// its notes beside them. Items are reordered by Move up and Move down (Alt+Up and Alt+Down) or by dragging; each
+/// opens at its pages, without moving the book's saved reading position. Done goes back to the binder's reader.
+/// Opening the page makes the binder the current one, which Add page adds to.
 /// </summary>
 public sealed partial class SessionPackViewModel : PageViewModel
 {
-    /// <summary>The headings Add section suggests (choice 11).</summary>
+    /// <summary>The headings Add section suggests.</summary>
     public static IReadOnlyList<string> SuggestedSections { get; } = ["Adventure", "Maps", "Encounters", "Rules"];
 
     readonly SessionsService _sessions;
@@ -34,16 +33,20 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly ReaderWindows _readers;
     readonly OnlineReaders _online;
     readonly INavigationService _navigation;
+    readonly IDesktopShell _shell;
     readonly ILogger<SessionPackViewModel> _log;
-    readonly DispatcherTimer _notesTimer;
+    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly UiTimer _notesTimer;
     int _version;
     int _ownWrites;
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, ILogger<SessionPackViewModel> log)
+        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, TimeProvider time,
+        ILogger<SessionPackViewModel> log)
     {
         _online = online;
+        _shell = shell;
         Actions = actions;
         _sessions = sessions;
         _sessionPages = sessionPages;
@@ -54,8 +57,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         _navigation = navigation;
         _log = log;
         // Notes are saved as they are typed, once typing pauses.
-        _notesTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveNotesAsync(), Dispatcher.CurrentDispatcher);
-        _notesTimer.Stop();
+        _notesTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
     }
 
     public long PackId { get; set; }
@@ -102,7 +104,6 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (!IsLoaded) return;
         _notesDirty = true;
-        _notesTimer.Stop();
         _notesTimer.Start();
     }
 
@@ -125,7 +126,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         Actions.Done -= OnDone;
         _sessions.Changed -= OnSessionsChanged;
         Actions.Close();
-        if (_notesDirty) _ = SaveNotesAsync();
+        if (_notesDirty) SaveNotesAsync().FireAndForget();
     }
 
     async void OnDone(object? sender, EventArgs e) => await RefreshAsync();
@@ -137,7 +138,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     void OnSessionsChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _ownWrites) > 0) return;
-        _notesTimer.Dispatcher.InvokeAsync(async () =>
+        _dispatcher.InvokeAsync(async () =>
         {
             if (IsLoaded || IsMissing) await RefreshAsync();
         });
@@ -199,13 +200,15 @@ public sealed partial class SessionPackViewModel : PageViewModel
         await RunAsync(() => _sessions.SetNotesAsync(pack, notes), "Saving the session's notes failed");
     }
 
-    /// <summary>Opens an item at its pages in the main window (choice 14). The book's saved reading position stays as it was.</summary>
+    /// <summary>
+    /// Opens an item at its pages in the main window. The book's saved reading position stays as it was.
+    /// </summary>
     [RelayCommand]
     async Task OpenItem(SessionItemRow row)
     {
         if (SessionPackRows.OnlineRequest(row) is { } online)
         {
-            if (await _online.OpenAsync(online) is { } problem) Actions.Say(problem);
+            if (await _online.OpenAsync(online) is { } problem) Actions.Undo.Say(problem);
         }
         else if (await RequestAsync(row) is { } request) _readers.OpenInMainWindow(request);
     }
@@ -215,7 +218,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (SessionPackRows.OnlineRequest(row) is { } online)
         {
-            if (await _online.OpenInWindowAsync(online) is { } problem) Actions.Say(problem);
+            if (await _online.OpenInWindowAsync(online) is { } problem) Actions.Undo.Say(problem);
         }
         else if (await RequestAsync(row) is { } request) await _readers.OpenInNewWindowAsync(request);
     }
@@ -224,7 +227,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     {
         if (!row.CanOpen)
         {
-            Actions.Say(row.Reason ?? "This item can't be opened right now.");
+            Actions.Undo.Say(row.Reason ?? "This item can't be opened right now.");
             return null;
         }
         return await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
@@ -247,7 +250,9 @@ public sealed partial class SessionPackViewModel : PageViewModel
         if (await RunAsync(() => _sessions.MoveItemToAsync(move.Item.Id, move.SectionId, int.MaxValue), "Moving the item failed")) await RefreshAsync(focus: move.Item.Id);
     }
 
-    /// <summary>A drop (choice 12): the dragged item takes the place of the item it was dropped on, or goes first under a heading.</summary>
+    /// <summary>
+    /// A drop: the dragged item takes the place of the item it was dropped on, or goes first under a heading.
+    /// </summary>
     public async Task DropAsync(SessionItemRow dragged, object target)
     {
         var (section, index) = target switch
@@ -267,9 +272,9 @@ public sealed partial class SessionPackViewModel : PageViewModel
     void ShowInFolder(SessionItemRow row)
     {
         if (row.Target.LastPath is not { } path) return;
-        if (File.Exists(path)) DownloadCheckViewModel.ShowInFolder(path);
-        else if (Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder)) DownloadCheckViewModel.ShowInFolder(folder);
-        else Actions.Say($"{path} can't be reached right now.");
+        if (File.Exists(path)) _shell.ShowInFolder(path);
+        else if (Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder)) _shell.ShowInFolder(folder);
+        else Actions.Undo.Say($"{path} can't be reached right now.");
     }
 
     [RelayCommand]
@@ -341,7 +346,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "{Failure}", failure);
-            Actions.Say("That didn't work. The log has the details.");
+            Actions.Undo.Say("That didn't work. The log has the details.");
             return false;
         }
         finally

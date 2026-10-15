@@ -44,7 +44,32 @@ public sealed class SyntheticPdfs : IDisposable
         Compilation = Write("compilation.pdf", BuildPages(CompilationPages, CompilationOutline));
         QuietCompilation = Write("quiet-compilation.pdf", BuildPages(QuietCompilationPages, QuietCompilationOutline));
         Indexed = Write("indexed.pdf", Bibliotaph.App.Services.SmokePdfs.Indexed());
+        ChapterBook = Write("chapter-book.pdf", BuildPages(ChapterBookPages, ChapterBookOutline));
     }
+
+    /// <summary>
+    /// A made-up 50-page book with a title page, then a top-level bookmark for each of three chapters: a short one, one
+    /// too long to read in one go, and an appendix. Each chapter names what lives in it on its own pages.
+    /// </summary>
+    public string ChapterBook { get; }
+
+    public const string ChapterBookTitle = "The Hollow Crown";
+
+    public static readonly string[][] ChapterBookPages =
+    [
+        [ChapterBookTitle, "Written by Ana Ruiz"],
+        ["Chapter 1: The Drowned Road", "The road sinks into the marsh where bog goblins wait in the reeds."],
+        .. Enumerable.Range(2, 7).Select(i => (string[])[$"The party wades on through the black water of the marsh, day {i}."]),
+        ["Chapter 2: Halls of the Ash King", "Beneath the mountain the dwarven halls lie full of ash and silence."],
+        .. Enumerable.Range(10, 20).Select(i => (string[])[$"Ash drifts through the empty halls of the dwarves, hall {i}."]),
+        ["A red dragon sleeps on the hoard of the ash king in the deepest hall."],
+        .. Enumerable.Range(31, 14).Select(i => (string[])[$"Ash drifts through the empty halls of the dwarves, hall {i}."]),
+        ["Appendix: Creatures", "Bog goblins are small, cruel and always hungry."],
+        .. Enumerable.Range(46, 4).Select(i => (string[])[$"More notes on the creatures of the marsh, note {i}."]),
+    ];
+
+    static readonly (string Title, int Page)[] ChapterBookOutline =
+        [("Chapter 1: The Drowned Road", 1), ("Chapter 2: Halls of the Ash King", 9), ("Appendix: Creatures", 45)];
 
     /// <summary>The smoke test's four-page book whose index page is plain text, with no links.</summary>
     public string Indexed { get; }
@@ -119,7 +144,7 @@ public sealed class SyntheticPdfs : IDisposable
     public string Scanned { get; }
 
     /// <summary>
-    /// A small adventure whose second page is a prompt injection (A16): instructions to the model, a fake end of the
+    /// A small adventure whose second page is a prompt injection: instructions to the model, a fake end of the
     /// excerpt and a fake page marker. Its other pages carry a real title, level, author and copyright line.
     /// </summary>
     public string Injected { get; }
@@ -148,7 +173,7 @@ public sealed class SyntheticPdfs : IDisposable
 
     /// <summary>
     /// <see cref="BookPages"/> as a store watermarks it: every page names <see cref="WatermarkBuyer"/>, their order
-    /// <see cref="WatermarkOrder"/> and the store, Bundle of Holding (scenario review, row 7).
+    /// <see cref="WatermarkOrder"/> and the store, Bundle of Holding.
     /// </summary>
     public string WatermarkedByStore { get; }
 
@@ -255,14 +280,14 @@ public sealed class SyntheticPdfs : IDisposable
     }
 
     /// <summary>
-    /// A made-up compilation of two adventures (slice 5b): credits, each adventure with its blurb on its first page,
-    /// and an appendix, with a top-level bookmark for each.
+    /// A made-up compilation of two adventures: credits that say it is one, each adventure with its blurb on its first
+    /// page, and an appendix, with a top-level bookmark for each.
     /// </summary>
     public string Compilation { get; }
 
     public static readonly string[][] CompilationPages =
     [
-        ["Credits", "Written by Ana Ruiz and Dale Ito"],
+        ["Credits", "Written by Ana Ruiz and Dale Ito", "Two short adventures, each of which can be run on its own."],
         ["The Salt Mine", "An adventure for four characters of 1st level"],
         ["The mine's shafts run deep under the marsh, where the salt glows."],
         ["Lantern Night", "A festival adventure for characters of 3rd to 5th level"],
@@ -273,14 +298,15 @@ public sealed class SyntheticPdfs : IDisposable
     static readonly (string Title, int Page)[] CompilationOutline = [("Credits", 0), ("The Salt Mine", 1), ("Lantern Night", 3), ("Appendix: New Monsters", 5)];
 
     /// <summary>
-    /// Two adventures between credits and an appendix, bookmarked like <see cref="Compilation"/>, but with nothing on
-    /// their first pages that the rules read as a blurb: only a model can tell they are adventures.
+    /// Two adventures between credits that say it is a collection and an appendix, bookmarked like
+    /// <see cref="Compilation"/>, but with nothing on their first pages that the rules read as a blurb: only a model can
+    /// tell they are adventures.
     /// </summary>
     public string QuietCompilation { get; }
 
     public static readonly string[][] QuietCompilationPages =
     [
-        ["Credits", "Written by Ana Ruiz and Dale Ito for the Marsh Guild"],
+        ["Credits", "Written by Ana Ruiz and Dale Ito for the Marsh Guild", "Two stand-alone scenarios for one evening each."],
         ["The Bell Tower", "A scenario for heroes of modest experience.", "Recommended party: level 2"],
         ["The tower's bells ring at noon, and something answers from the deep water."],
         ["Fog Market", "A night of trading goes wrong in the harbour.", "Recommended party: levels 4 and 5"],
@@ -291,7 +317,7 @@ public sealed class SyntheticPdfs : IDisposable
     static readonly (string Title, int Page)[] QuietCompilationOutline = [("Credits", 0), ("The Bell Tower", 1), ("Fog Market", 3), ("Appendix: Fog Beasts", 5)];
 
     /// <summary>A page per entry, each line drawn as real text, with top-level bookmarks if any.</summary>
-    static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
+    public static byte[] BuildPages(string[][] pages, (string Title, int Page)[]? outline = null)
     {
         using var document = new PdfDocument();
         var font = new XFont(EmbeddedFontResolver.Family, 12);

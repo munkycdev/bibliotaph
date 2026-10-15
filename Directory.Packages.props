@@ -5,7 +5,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
 
     <!-- The .NET 11 band (runtime, EF Core, Extensions). Move to the GA version in November 2026. -->
-    <DotNetPackagesVersion Condition="'$(DotNetPackagesVersion)' == ''">11.0.0-rc.1.26425.128</DotNetPackagesVersion>
+    <DotNetPackagesVersion Condition="'$(DotNetPackagesVersion)' == ''">11.0.0-rc.2.26504.105</DotNetPackagesVersion>
   </PropertyGroup>
 
   <ItemGroup Label="Microsoft">
@@ -41,5 +41,8 @@
   <ItemGroup Label="Tests">
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <PackageVersion Include="PDFsharp" Version="6.2.4" />
+    <!-- PDFsharp brings 8.0.1, which has known vulnerabilities (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7); NuGet audit fails the
+         restore on them. Pinned to the .NET 11 band, which has the fix. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="$(DotNetPackagesVersion)" />
   </ItemGroup>
 </Project>

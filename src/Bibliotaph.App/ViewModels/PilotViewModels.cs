@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
 using Bibliotaph.App.Services;
 using Bibliotaph.Classification;
@@ -12,18 +11,20 @@ using CommunityToolkit.Mvvm.Input;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// The Pilot section of Settings > AI, shown only with --pilot (slice 2d): pick the books, run the models overnight,
-/// review the answers, and make the report.
+/// The Pilot section of Settings > AI, shown only with --pilot: pick the books, run the models overnight, review the
+/// answers, and make the report.
 /// </summary>
 public sealed partial class PilotPanelViewModel : ObservableObject
 {
     readonly PilotService _pilot;
     readonly INavigationService _navigation;
+    readonly IDesktopShell _shell;
 
-    public PilotPanelViewModel(PilotService pilot, PilotSession session, INavigationService navigation)
+    public PilotPanelViewModel(PilotService pilot, PilotSession session, INavigationService navigation, IDesktopShell shell)
     {
         _pilot = pilot;
         _navigation = navigation;
+        _shell = shell;
         Session = session;
     }
 
@@ -68,7 +69,7 @@ public sealed partial class PilotPanelViewModel : ObservableObject
         PickBooksCommand.NotifyCanExecuteChanged();
     }
 
-    void OnStopped(object? sender, EventArgs e) => _ = RefreshAsync();
+    void OnStopped(object? sender, EventArgs e) => RefreshAsync().FireAndForget();
 
     async Task RefreshAsync()
     {
@@ -97,7 +98,7 @@ public sealed partial class PilotPanelViewModel : ObservableObject
     bool HasBooks() => Books > 0;
 
     [RelayCommand(CanExecute = nameof(HasBooks))]
-    void OpenFolder() => Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_pilot.Store.Folder}\"") { UseShellExecute = false })?.Dispose();
+    void OpenFolder() => _shell.OpenFolder(_pilot.Store.Folder);
 
     bool CanStart() => Books > 0 && !Session.IsRunning;
 
@@ -120,8 +121,9 @@ public sealed partial class PilotPanelViewModel : ObservableObject
     async Task ReportAsync()
     {
         var path = await _pilot.WriteReportAsync();
-        Note = $"The report is {path}. It stays on this computer.";
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        Note = _shell.Open(path) is { } failed
+            ? $"The report is {path}. It stays on this computer. Windows couldn't open it: {failed.Message}"
+            : $"The report is {path}. It stays on this computer.";
     }
 }
 
@@ -197,9 +199,9 @@ public sealed partial class PilotFieldViewModel : ObservableObject
 }
 
 /// <summary>
-/// The Pilot review page (choice P5): one book at a time, the values the models kept and the catalog's, merged with no
-/// model's name on them, and the user's answer for each field. Answers are the pilot's answer key and, by default,
-/// the user's own values in the catalog too.
+/// The Pilot review page: one book at a time, the values the models kept and the catalog's, merged with no model's
+/// name on them, and the user's answer for each field. Answers are the pilot's answer key and, by default, the user's
+/// own values in the catalog too.
 /// </summary>
 public sealed partial class PilotReviewViewModel(PilotService pilot, PilotSession session, ReaderWindows readers) : PageViewModel
 {

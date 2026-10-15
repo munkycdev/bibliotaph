@@ -4,6 +4,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Sync;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Catalog;
 
@@ -19,11 +20,11 @@ public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Chang
 public sealed partial class LibrarySyncStore
 {
     /// <summary>
-    /// Makes the catalog agree with merged records (library sync plan, choice 6): terms first, then collections, saved
-    /// searches and binders, then cards, then what points at them (binder items, page notes, pins); deletions the other
-    /// way round. A record whose book, file or binder isn't in this catalog is left for later and named in the result;
-    /// a card is found with <paramref name="findCard"/>, which knows other PCs' names for it. Each record is its own
-    /// save, so one that can't be applied doesn't stop the rest. Writes made here don't count as the user's
+    /// Makes the catalog agree with merged records: terms first, then collections, saved searches and binders, then
+    /// cards, then what points at them (binder items, page notes, pins); deletions the other way round. A record whose
+    /// book, file or binder isn't in this catalog is left for later and named in the result; a card is found with
+    /// <paramref name="findCard"/>, which knows other PCs' names for it. Each record is its own save, so one that can't
+    /// be applied doesn't stop the rest. Writes made here don't count as the user's
     /// (<see cref="CatalogWrites.Quiet"/>).
     /// </summary>
     public async Task<SyncApplyResult> ApplyAsync(IReadOnlyList<SyncChange> changes, Func<string, long?> findCard, CancellationToken ct = default)
@@ -45,6 +46,8 @@ public sealed partial class LibrarySyncStore
             }
             catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or FormatException or KeyNotFoundException or System.Text.Json.JsonException)
             {
+                // Tried again on the next pass; the log is the only place a record that keeps failing shows up.
+                _log.LogWarning(ex, "Library sync couldn't apply {Key}; it will be tried again", change.Key);
                 notApplied.Add(change.Key);
             }
         }
@@ -58,8 +61,9 @@ public sealed partial class LibrarySyncStore
             {
                 changed |= await DeleteAsync(change.Key, Card, ct);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
+                _log.LogWarning(ex, "Library sync couldn't delete {Key}; it will be tried again", change.Key);
                 notApplied.Add(change.Key);
             }
         }

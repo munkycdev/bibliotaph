@@ -15,8 +15,8 @@ public sealed record CatalogCounts(int Books, int Documents, int Collections, in
 }
 
 /// <summary>
-/// A catalog.db that isn't the one the app runs on: the copy a backup is made from, or a backup being restored (slice
-/// 4j). Its connections aren't pooled, so the file can be zipped, moved or deleted as soon as the work on it is done.
+/// A catalog.db that isn't the one the app runs on: the copy a backup is made from, or a backup being restored. Its
+/// connections aren't pooled, so the file can be zipped, moved or deleted as soon as the work on it is done.
 /// </summary>
 public sealed class CatalogFile(string path) : IDbContextFactory<CatalogDbContext>
 {
@@ -68,8 +68,8 @@ public sealed class CatalogFile(string path) : IDbContextFactory<CatalogDbContex
     }
 
     /// <summary>
-    /// Applies the migrations it lacks, as startup does for catalog.db (slice 4j plan, choice 5). No copy is kept first:
-    /// this file is itself a copy, and the backup it came from is untouched.
+    /// Applies the migrations it lacks, as startup does for catalog.db. No copy is kept first: this file is itself a
+    /// copy, and the backup it came from is untouched.
     /// </summary>
     public async Task MigrateAsync(CancellationToken ct = default)
     {
@@ -100,13 +100,14 @@ public sealed class CatalogFile(string path) : IDbContextFactory<CatalogDbContex
     }
 
     /// <summary>
-    /// Readies a restored catalog for this computer (slice 4j plan, choice 4), before it replaces catalog.db. A folder
-    /// given a new place takes it as "Point to its new place" does (<see cref="SourceRootStore.RelocateAsync"/>), so its
-    /// files match by their paths under it and keep their hashes; one left without is offline until the user points it
-    /// somewhere. Every folder's volume serial and file IDs are forgotten, being another computer's or another disk's,
-    /// and read again at its first scan, and so is which files wait to go back to online-only. Window positions stay with the computer they were saved on. False when a new
-    /// place is already another folder's. <paramref name="found"/> are the folders found where the backup says they are;
-    /// <paramref name="places"/> gives others their new places, and one not in either is offline.
+    /// Readies a restored catalog for this computer, before it replaces catalog.db. A folder given a new place takes it
+    /// as "Point to its new place" does (<see cref="SourceRootStore.RelocateAsync"/>), so its files match by their
+    /// paths under it and keep their hashes; one left without is offline until the user points it somewhere. Every
+    /// folder's volume serial and file IDs are forgotten, being another computer's or another disk's, and read again
+    /// at its first scan, and so is which files wait to go back to online-only. Window positions stay with the
+    /// computer they were saved on. False when a new place is already another folder's. <paramref name="found"/> are
+    /// the folders found where the backup says they are; <paramref name="places"/> gives others their new places, and
+    /// one not in either is offline.
     /// </summary>
     public async Task<bool> PrepareRestoredAsync(IReadOnlyDictionary<long, string?> places, IReadOnlySet<long> found, CancellationToken ct = default)
     {

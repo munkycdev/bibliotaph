@@ -30,6 +30,8 @@ public interface IReviewActions
     Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item);
     void FixCorrection(CorrectionItem item);
     Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use);
+    Task<Func<Task>> AnswerFolderAsync(FolderCollectionProposal proposal, CollectionAnswer answer);
+    Task<Func<Task>> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer);
     void OpenPlace(RevisionItem item, RevisionPlace place);
     void ShowFolder(string path);
     void Open(ReviewItem item);
@@ -95,8 +97,8 @@ public abstract partial class DecidedCardViewModel(IReviewActions actions) : Obs
 }
 
 /// <summary>
-/// One field of one document (spec 5.5): what it shows now, what the card suggests, and the evidence, with Accept,
-/// Edit and Reject. "Accept all" takes every card that proposes the same values for the same field.
+/// One field of one document: what it shows now, what the card suggests, and the evidence, with Accept, Edit and
+/// Reject. "Accept all" takes every card that proposes the same values for the same field.
 /// </summary>
 public sealed partial class ReviewCardViewModel : DecidedCardViewModel
 {
@@ -276,8 +278,8 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
 }
 
 /// <summary>
-/// A name a classifier used that the vocabulary doesn't know (choice 4 (b)), once for all the books that wait on it:
-/// add it as a term, file it under an existing term, or reject it.
+/// A name a classifier used that the vocabulary doesn't know, once for all the books that wait on it: add it as a
+/// term, file it under an existing term, or reject it.
 /// </summary>
 public sealed partial class TermCardViewModel : DecidedCardViewModel
 {
@@ -323,9 +325,9 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
 }
 
 /// <summary>
-/// "Looks like a new version of" a book (F2 plan, choice 4): a file that shares most of its pages with a book in the
-/// library, or its title and publisher, but isn't the same text page for page. Make it current, keep it as another
-/// copy, or say it's a separate book.
+/// "Looks like a new version of" a book: a file that shares most of its pages with a book in the library, or its
+/// title and publisher, but isn't the same text page for page. Make it current, keep it as another copy, or say it's
+/// a separate book.
 /// </summary>
 public sealed partial class VersionCardViewModel(VersionItem item, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -371,8 +373,8 @@ public sealed partial class VersionCardViewModel(VersionItem item, IReviewAction
 }
 
 /// <summary>
-/// A smaller or mixed folder or ZIP of images (F4 plan, choice 3): "Make these 12 images one card?", with the first
-/// few images to show what they are.
+/// A smaller or mixed folder or ZIP of images: "Make these 12 images one card?", with the first few images to show
+/// what they are.
 /// </summary>
 public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyList<CoverTile> tiles, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -402,8 +404,8 @@ public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyLi
 }
 
 /// <summary>
-/// A new file with the title of a book owned elsewhere (F5 plan, choice 6): "You own X elsewhere. Is this its file?".
-/// Same book joins the file to the book's card, which keeps everything set on it.
+/// A new file with the title of a book owned elsewhere: "You own X elsewhere. Is this its file?". Same book joins the
+/// file to the book's card, which keeps everything set on it.
 /// </summary>
 public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -430,9 +432,9 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 }
 
 /// <summary>
-/// An adventure inside a file whose pages weren't found in the copy or new version the file opens now (slice 5 plan,
-/// choice 12). Set its pages types them as the file numbers them, starting from where they were; Remove adventure
-/// takes its card away. Until then its card opens the file at its first page.
+/// An adventure inside a file whose pages weren't found in the copy or new version the file opens now. Set its pages
+/// types them as the file numbers them, starting from where they were; Remove adventure takes its card away. Until
+/// then its card opens the file at its first page.
 /// </summary>
 public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOnlyList<string?> labels, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -481,8 +483,8 @@ public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOn
 }
 
 /// <summary>
-/// "You said this book was cataloged wrong" (scenario review, row 8): Cataloged wrong… was closed without a change.
-/// Fix it opens the editor again; the card goes once a correction is made there, or with It's fine now.
+/// "You said this book was cataloged wrong": Cataloged wrong… was closed without a change. Fix it opens the editor
+/// again; the card goes once a correction is made there, or with It's fine now.
 /// </summary>
 public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -508,15 +510,18 @@ public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReview
 }
 
 /// <summary>
-/// "This file looks like it holds 5 adventures" (slice 5 plan, choice 7): a ticked list of the adventures proposed,
-/// with their titles and pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not
-/// split" keeps the file as one book. Either is remembered, and can be undone.
+/// "This file looks like it holds 5 adventures": where the book says it is a collection, and a ticked list of the
+/// adventures proposed, with their titles and pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not split" keeps the file
+/// as one book. Either is remembered, and can be undone.
 /// </summary>
 public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
 {
+    readonly IReadOnlyList<string?> _labels;
+
     public PartProposalCardViewModel(PartProposalItem item, IReadOnlyList<string?> labels, IReviewActions actions) : base(actions)
     {
         Item = item;
+        _labels = labels;
         Rows = [.. item.Parts.Select(p => new ProposedPartRow(this, p, labels))];
     }
 
@@ -528,9 +533,19 @@ public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
 
     public string Chip => Item.Source == PartProposalSource.Ai ? "Adventures? Read with AI" : "Adventures?";
 
-    public string Detail => Item.Source == PartProposalSource.Ai
-        ? "A model read its contents and the first page of each. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed."
-        : "Its bookmarks and the blurbs on their first pages say so. Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+    public string Detail
+    {
+        get
+        {
+            var says = Item.Evidence is { } evidence
+                ? $"The book says “{evidence.Quote}” (p. {Bibliotaph.Core.Reading.PageNumbers.Display(evidence.PdfPage, _labels)}). "
+                : "";
+            var found = Item.Source == PartProposalSource.Ai
+                ? "A model read its contents and the first page of each to find them."
+                : "Its bookmarks and the blurbs on their first pages show where each starts.";
+            return $"{says}{found} Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+        }
+    }
 
     public IReadOnlyList<ProposedPartRow> Rows { get; }
 
@@ -615,9 +630,9 @@ public sealed partial class ProposedPartRow(PartProposalCardViewModel card, Prop
 }
 
 /// <summary>
-/// A proposed folder rule (scenario review, row 8): the user set the same value on several books from one folder, so
-/// every file there could get it as a suggestion. Use this rule switches it on; No thanks keeps it off, and it isn't
-/// proposed again. Settings > Library lists the answered ones with a switch each.
+/// A proposed folder rule: the user set the same value on several books from one folder, so every file there could
+/// get it as a suggestion. Use this rule switches it on; No thanks keeps it off, and it isn't proposed again.
+/// Settings > Library lists the answered ones with a switch each.
 /// </summary>
 public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabulary vocabulary, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -647,6 +662,91 @@ public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabul
     void ShowFolder() => Actions.ShowFolder(Path);
 }
 
+/// <summary>
+/// A folder that could be a collection: "Make a collection “X” from these 12 books?". Accept makes it, and books that
+/// land in the folder later join it until the user adds or removes one by hand; Not now puts the card away until the
+/// list is made again; Never isn't asked again.
+/// </summary>
+public sealed partial class FolderCollectionCardViewModel(FolderCollectionProposal proposal, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public FolderCollectionProposal Proposal { get; } = proposal;
+
+    public string Title => Proposal.Name;
+
+    string Books => Proposal.Books.Count.ToString("N0", CultureInfo.CurrentCulture);
+
+    public string Heading => $"Make a collection “{Proposal.Name}” from these {Books} books?";
+
+    public string Detail => "Books that land in this folder later join it too, until you add or remove a book by hand."
+        + (Proposal.ParentName is { } parent ? $" It goes inside “{parent}”, made from the folder above." : "");
+
+    public string Path => Proposal.FullPath;
+
+    [RelayCommand]
+    Task Accept() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Accept), $"Made the collection “{Proposal.Name}” with {Books} books.");
+
+    [RelayCommand]
+    Task NotNow() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.NotNow),
+        $"“{Proposal.Name}” can wait. It's asked about again the next time this list is made.");
+
+    [RelayCommand]
+    Task Never() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Never),
+        $"No collection from “{Proposal.Name}”. Bibliotaph won't ask about this folder again.");
+
+    [RelayCommand]
+    void ShowFolder() => Actions.ShowFolder(Path);
+}
+
+/// <summary>
+/// Books that could join a collection: "Add these 4 books to “X”?", because they share what most of its books share.
+/// Accept adds them; Not now puts the card away until the list is made again; Never isn't asked again for these books.
+/// </summary>
+public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggestion suggestion, Vocabulary vocabulary, IReviewActions actions)
+    : DecidedCardViewModel(actions)
+{
+    public CollectionSuggestion Suggestion { get; } = suggestion;
+
+    public string Title => Suggestion.Name;
+
+    public IReadOnlyList<SuggestedBook> Books => Suggestion.Books;
+
+    string What => Books.Count == 1 ? "this book" : $"these {Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
+
+    string Added => Books.Count == 1 ? "1 book" : $"{Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
+
+    public string Heading => $"Add {What} to “{Suggestion.Name}”?";
+
+    /// <summary>What most of the collection's books share, which these share too.</summary>
+    public string Detail
+    {
+        get
+        {
+            var reasons = new List<string>();
+            if (Suggestion.Series is { } series) reasons.Add($"are in the series “{series}”");
+            if (Suggestion.Setting is { } setting && Suggestion.System is { } system)
+                reasons.Add($"are set in {vocabulary.Label(MetadataFields.Settings.Vocabulary!, setting)} for {vocabulary.Label(MetadataFields.System.Vocabulary!, system)}");
+            return $"Most of the books in this collection {string.Join(", or ", reasons)}, and so {(Books.Count == 1 ? "is this one" : "are these")}.";
+        }
+    }
+
+    [RelayCommand]
+    Task Accept() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Accept), $"Added {Added} to “{Suggestion.Name}”.");
+
+    [RelayCommand]
+    Task NotNow() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.NotNow),
+        $"“{Suggestion.Name}” can wait. It's asked about again the next time this list is made.");
+
+    [RelayCommand]
+    Task Never() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Never),
+        $"Bibliotaph won't suggest {(Books.Count == 1 ? "this book" : "these books")} for “{Suggestion.Name}” again.");
+
+    [RelayCommand]
+    void OpenBook(SuggestedBook book)
+    {
+        if (book.DocumentId is { } id) Actions.OpenDocument(id, book.Title);
+    }
+}
+
 /// <summary>How a folder rule reads, on its Needs review card and in Settings > Library.</summary>
 public static class FolderRuleText
 {
@@ -662,9 +762,9 @@ public static class FolderRuleText
 }
 
 /// <summary>
-/// A new version of a book whose places need a look (slice 4h plan, choice 3): "New version of X: 12 places found
-/// their page, 2 need a look". Each that needs one opens at the page suggested for it, or takes it with Use this page;
-/// those found by themselves are listed and need nothing. The card is done once every place is checked.
+/// A new version of a book whose places need a look: "New version of X: 12 places found their page, 2 need a look".
+/// Each that needs one opens at the page suggested for it, or takes it with Use this page; those found by themselves
+/// are listed and need nothing. The card is done once every place is checked.
 /// </summary>
 public sealed partial class RevisionCardViewModel : DecidedCardViewModel
 {

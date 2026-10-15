@@ -24,8 +24,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public long DocumentId => Entry.DocumentId;
 
     /// <summary>
-    /// A book owned elsewhere, with no file here (F5 plan, choice 4): a placeholder cover with a badge saying where it
-    /// is, and no file to open; with an online link (online libraries, O1) it opens that.
+    /// A book owned elsewhere, with no file here: a placeholder cover with a badge saying where it is, and no file to
+    /// open; with an online link it opens that.
     /// </summary>
     public bool IsElsewhere => Entry.IsElsewhere;
 
@@ -50,8 +50,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public bool ShowOpenOnline => HasOnlineLink && !IsElsewhere;
 
     /// <summary>
-    /// The badge on a book owned elsewhere (online libraries plan, choice 12): where it is, its online place first
-    /// ("D&amp;D Beyond"), else the first place it is owned ("Print"), else "Elsewhere".
+    /// The badge on a book owned elsewhere: where it is, its online place first ("D&amp;D Beyond"), else the first
+    /// place it is owned ("Print"), else "Elsewhere".
     /// </summary>
     public string BadgeLabel => Entry.OnlineLabel ?? Entry.AlsoOwn?.Split(" · ")[0] ?? "Elsewhere";
 
@@ -70,7 +70,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
                     WeakEventManager<SiteIconImages, EventArgs>.AddHandler(sites, nameof(SiteIconImages.Changed), (_, _) => RefreshSiteIcon());
                 }
                 field = sites.TryGet(link);
-                if (field is null) _ = LoadSiteIconAsync(sites, link);
+                if (field is null) LoadSiteIconAsync(sites, link).FireAndForget();
             }
             return field;
         }
@@ -97,23 +97,28 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         SiteIcon = null;
     }
 
-    /// <summary>A PDF whose text Bibliotaph can read, so it can be asked a question (Ask plan, choice 11).</summary>
+    /// <summary>A PDF whose text Bibliotaph can read, so it can be asked a question.</summary>
     public bool CanAsk => CanOpen && !Entry.IsPack && string.Equals(Entry.Format, "pdf", StringComparison.OrdinalIgnoreCase) && TextAccess == TextAccess.Readable;
 
     public string Title => Entry.Title;
 
     /// <summary>
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
-    /// read" until its text is searchable, or why it won't be by itself (slice 4i plan, choices 3, 4 and 6). A pack a
-    /// search found by one of its images names that image (F4 plan, choice 8). An adventure inside a file says which
-    /// file and pages; a file holding adventures says how many (slice 5 plan, choice 9).
+    /// read" until its text is searchable, or why it won't be by itself. A pack a search found by one of its images
+    /// names that image. An adventure inside a file says which file and pages; a file holding adventures says how many.
     /// </summary>
     public string Meta => Entry.MatchedMember ?? Entry.PartLine ?? (Catalogued ?? Describe(Entry)) + PartsNote + TextNote;
 
     string PartsNote => PartsLabel.Length > 0 ? $" · {PartsLabel}" : "";
 
-    /// <summary>An adventure inside a file (slice 5): its card opens the file at its first page.</summary>
+    /// <summary>An adventure inside a file: its card opens the file at its first page.</summary>
     public bool IsPart => Entry.IsPart;
+
+    /// <summary>
+    /// An adventure a search found while adventures stay inside their books: its cover is its file's, with an
+    /// Adventure ribbon, so it reads as that book's.
+    /// </summary>
+    public bool IsFoundInBook => Entry.FoundInBook;
 
     /// <summary>"5 adventures", for a file with adventures marked in it; empty otherwise.</summary>
     public string PartsLabel => Entry.Parts > 0 ? Adventures(Entry.Parts) : "";
@@ -122,7 +127,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     /// <summary>
     /// What opens the card when it isn't a pack: an adventure inside a file opens that file at the adventure's first
-    /// page (slice 5 plan, choice 11); any other book at the page it was left at.
+    /// page; any other book at the page it was left at.
     /// </summary>
     public ViewerRequest BookRequest() => Entry is { IsPart: true, Pages: { } pages }
         ? PartOpen.Open(DocumentId, Title, EntryId, Entry.ParentTitle, pages)
@@ -159,7 +164,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>DRM Bibliotaph can't open: the file can go to the default PDF app instead.</summary>
     public bool CanOpenElsewhere => TextAccess == TextAccess.Protected;
 
-    /// <summary>A book's text can be forgotten (slice 4i plan, choice 6) unless it already is; a pack's images have none to forget.</summary>
+    /// <summary>A book's text can be forgotten unless it already is; a pack's images have none to forget.</summary>
     public bool CanForgetText => !IsElsewhere && !IsPack && TextAccess != TextAccess.Forgotten;
 
     public bool CanReadAgain => TextAccess == TextAccess.Forgotten;
@@ -180,16 +185,22 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// </summary>
     public string Byline => Entry.MatchedMember ?? Entry.PartLine ?? Entry.Publisher ?? Entry.FolderHint ?? "";
 
-    /// <summary>Pages for a PDF, the format for an image, "120 images" for a pack, "Print · Foundry VTT" for a book owned elsewhere.</summary>
-    public string SizeLabel => IsPack ? ImagesLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
+    /// <summary>
+    /// Pages for a PDF, the format for an image, "120 images" for a pack ("6 files" with PDFs in it), "Print · Foundry
+    /// VTT" for a book owned elsewhere.
+    /// </summary>
+    public string SizeLabel => IsPack ? MembersLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
 
-    /// <summary>Many images shown as one card (F4): its cover is a mosaic of its first four.</summary>
+    /// <summary>Many files shown as one card: its cover is a mosaic of its first four.</summary>
     public bool IsPack => Entry.IsPack;
 
-    /// <summary>"120 images", for a pack.</summary>
-    public string ImagesLabel => IsPack ? Images(Entry.Members) : "";
+    /// <summary>A pack with PDFs in it as well as images, such as a party's character sheets: it counts files, not images.</summary>
+    public bool HasPdfMembers => IsPack && Entry.PdfMembers > 0;
 
-    /// <summary>The covers of a pack's first four images, for its mosaic. Each loads the first time a cell asks for it.</summary>
+    /// <summary>"120 images", or "6 files" when PDFs are among them, for a pack.</summary>
+    public string MembersLabel => IsPack ? Members(Entry) : "";
+
+    /// <summary>The covers of a pack's first four files, for its mosaic. Each loads the first time a cell asks for it.</summary>
     public IReadOnlyList<CoverTile> Mosaic
     {
         get
@@ -209,7 +220,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string? AiTip => Entry.AiModel is { } model ? $"Catalogued with AI ({model})" : null;
 
-    /// <summary>"2 copies" when the book is in more than one file (F2), for the detail list; empty otherwise.</summary>
+    /// <summary>"2 copies" when the book is in more than one file, for the detail list; empty otherwise.</summary>
     public string CopiesLabel => Entry.Copies > 1 ? $"{Entry.Copies.ToString("N0", CultureInfo.CurrentCulture)} copies" : "";
 
     public string PagesLabel => Entry.PageCount is { } pages ? $"{pages.ToString("N0", CultureInfo.CurrentCulture)} pp." : "";
@@ -222,8 +233,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     bool? _favorite;
 
     /// <summary>
-    /// Marked with a heart (slice 3 plan, choice 5). A click shows the change at once; the next list from the index
-    /// that agrees with it takes over.
+    /// Marked with a heart. A click shows the change at once; the next list from the index that agrees with it takes
+    /// over.
     /// </summary>
     public bool IsFavorite => _favorite ?? Entry.Favorite;
 
@@ -239,8 +250,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     }
 
     /// <summary>
-    /// Whether the card's file can be opened now (slice 4g plan, choices 1 and 5). An offline or missing book stays in
-    /// the library with its cover dimmed and marked. The page that lists it sets it from the catalog.
+    /// Whether the card's file can be opened now. An offline or missing book stays in the library with its cover dimmed
+    /// and marked. The page that lists it sets it from the catalog.
     /// </summary>
     public EntryAvailability Availability { get; private set; }
 
@@ -290,7 +301,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
             {
                 _coverRequested = true;
                 field = covers.TryGet(name);
-                if (field is null) _ = LoadCoverAsync(name);
+                if (field is null) LoadCoverAsync(name).FireAndForget();
             }
             return field;
         }
@@ -336,7 +347,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(Initial));
         OnPropertyChanged(nameof(IsAiRead));
         OnPropertyChanged(nameof(AiTip));
-        OnPropertyChanged(nameof(ImagesLabel));
+        OnPropertyChanged(nameof(HasPdfMembers));
+        OnPropertyChanged(nameof(MembersLabel));
         OnPropertyChanged(nameof(Mosaic));
         OnPropertyChanged(nameof(IsFavorite));
         OnPropertyChanged(nameof(FavoriteAction));
@@ -349,6 +361,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(CanForgetText));
         OnPropertyChanged(nameof(CanReadAgain));
         OnPropertyChanged(nameof(PartsLabel));
+        OnPropertyChanged(nameof(IsFoundInBook));
         OnPropertyChanged(nameof(OnlineLink));
         OnPropertyChanged(nameof(HasOnlineLink));
         OnPropertyChanged(nameof(OnlineLabel));
@@ -360,8 +373,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";
 
+    public static string Files(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "file" : "files")}";
+
+    /// <summary>A pack's size: "120 images" while every file in it is an image, "6 files" once PDFs are among them.</summary>
+    public static string Members(LibraryEntry pack) => pack.PdfMembers > 0 ? Files(pack.Members) : Images(pack.Members);
+
     public static string Describe(LibraryEntry entry) =>
-        entry.IsPack ? $"Image pack · {Images(entry.Members)}"
+        entry.IsPack ? entry.PdfMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
         : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
         : entry.PageCount is { } pages ? $"PDF · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
@@ -383,7 +401,7 @@ public sealed class CoverTile(string name, CoverImages covers) : ObservableObjec
             {
                 _requested = true;
                 field = covers.TryGet(Name);
-                if (field is null) _ = LoadAsync();
+                if (field is null) LoadAsync().FireAndForget();
             }
             return field;
         }
@@ -396,12 +414,15 @@ public sealed class CoverTile(string name, CoverImages covers) : ObservableObjec
     }
 }
 
-/// <summary>An image in a pack's inspector grid: its name and cover. Clicking it opens it in the viewer.</summary>
+/// <summary>A file in a pack's inspector grid, an image or a PDF: its name and cover. Clicking it opens it in the viewer.</summary>
 public sealed class PackImageViewModel(PackImage image, CoverImages covers)
 {
     public PackImage Image { get; } = image;
 
     public string Name => Image.Name;
+
+    /// <summary>A PDF in the pack, marked as one on its cover, which is its first page.</summary>
+    public bool IsPdf => Image.Format == SourceFormats.Pdf;
 
     public CoverTile? Tile { get; } = image.Cover is { } cover ? new CoverTile(cover, covers) : null;
 }
@@ -414,7 +435,7 @@ public sealed class PageHitViewModel(PageHit hit)
     /// <summary>Text with hits between <see cref="LibraryQueries.HitStart"/> and <see cref="LibraryQueries.HitEnd"/>.</summary>
     public string Snippet => Hit.Snippet;
 
-    /// <summary>"Printed p. 12 · PDF page 16", or just the PDF page when the file has no labels of its own (A03).</summary>
+    /// <summary>"Printed p. 12 · PDF page 16", or just the PDF page when the file has no labels of its own.</summary>
     public string Where
     {
         get

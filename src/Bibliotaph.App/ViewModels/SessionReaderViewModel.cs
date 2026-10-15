@@ -16,13 +16,13 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A binder's page (Binders plan, choices 1 to 8): its pages listed down the left, numbered under their sections, where
-/// a book's chapters sit in the reader; the reader shows the page in hand, with every other page of the book still
-/// reachable; the binder's notes sit in a panel on the right that folds away. Next and Previous (Ctrl+Right and
-/// Ctrl+Left) step through the pages, which are renamed in the list (F2). Edit binder opens the list page for sections,
-/// order and notes. Pop out moves the whole binder to a window of its own, one window per binder. At hand (choices 10
-/// and 11) opens a page of a binder kept at hand in a reader window, so the page in hand stays put. When the next page is
-/// in another book, that book is opened ahead of time with the page drawn, so Next shows it at once.
+/// A binder's page: its pages listed down the left, numbered under their sections, where a book's chapters sit in the
+/// reader; the reader shows the page in hand, with every other page of the book still reachable; the binder's notes
+/// sit in a panel on the right that folds away. Next and Previous (Ctrl+Right and Ctrl+Left) step through the pages,
+/// which are renamed in the list (F2). Edit binder opens the list page for sections, order and notes. Pop out moves
+/// the whole binder to a window of its own, one window per binder. At hand opens a page of a binder kept at hand in a
+/// reader window, so the page in hand stays put. When the next page is in another book, that book is opened ahead of
+/// time with the page drawn, so Next shows it at once.
 /// </summary>
 public sealed partial class SessionReaderViewModel : PageViewModel
 {
@@ -35,7 +35,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
     readonly ILogger<SessionReaderViewModel> _log;
-    readonly DispatcherTimer _notesTimer;
+    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly UiTimer _notesTimer;
     int _version;
     int _ownWrites;
     bool _notesDirty;
@@ -44,7 +45,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        SessionDirectory directory, PinDirectory pins, OnlineReaders online, ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, PinDirectory pins, OnlineReaders online, TimeProvider time, ILogger<SessionReaderViewModel> log)
     {
         _online = online;
         _directory = directory;
@@ -55,8 +56,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _covers = covers;
         _readers = readers;
         _log = log;
-        _notesTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveNotesAsync(), Dispatcher.CurrentDispatcher);
-        _notesTimer.Stop();
+        _notesTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
     }
 
     public long PackId { get; set; }
@@ -73,7 +73,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
 
     public override string? PinKey => PinDirectory.BinderKey(PackId);
 
-    /// <summary>Pin or Unpin: the binder in the sidebar's Pinned group (Pinned Views plan, choice 7).</summary>
+    /// <summary>Pin or Unpin: the binder in the sidebar's Pinned group.</summary>
     public string PinLabel => _pins.PinLabel(PinTarget.Binder(PackId));
 
     [RelayCommand]
@@ -103,7 +103,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         var viewer = _readers.Create(null, poppedOut: IsPoppedOut, inBinder: true);
         viewer.PropertyChanged += OnViewerChanged;
-        viewer.PageNotes.CollectionChanged += (_, _) => RefreshItemNotes();
+        viewer.Notes.Items.CollectionChanged += (_, _) => RefreshItemNotes();
         return viewer;
     }
 
@@ -144,7 +144,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         ItemNotes.Clear();
         if (Current is { Target: { DocumentId: { } documentId } target } current)
         {
-            foreach (var note in Viewer.PageNotes)
+            foreach (var note in Viewer.Notes.Items)
                 if (note.Note.EntryId == current.Item.EntryId && (current.Item.Range is null || note.Overlaps(documentId, target.FirstPage, target.LastPage)))
                     ItemNotes.Add(note);
         }
@@ -181,7 +181,6 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     {
         if (_loadingNotes) return;
         _notesDirty = true;
-        _notesTimer.Stop();
         _notesTimer.Start();
     }
 
@@ -243,7 +242,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                 else if (again.CanOpen && Viewer.Here() is not null) await Viewer.LoadAsync();
                 else if (again.OpensOnline && Online is { } online) await ShowOnlineAsync(online.Here());
                 else await OpenAsync(again);
-                _ = ReadAheadAsync();
+                ReadAheadAsync().FireAndForget();
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
             else
@@ -299,7 +298,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _sessions.Changed -= OnSessionsChanged;
         Viewer.Unload();
         Online?.Unload();
-        if (_notesDirty) _ = SaveNotesAsync();
+        if (_notesDirty) SaveNotesAsync().FireAndForget();
     }
 
     public override async Task CloseWindowAsync()
@@ -321,7 +320,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     void OnSessionsChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _ownWrites) > 0) return;
-        _notesTimer.Dispatcher.InvokeAsync(async () =>
+        _dispatcher.InvokeAsync(async () =>
         {
             if (IsLoaded) await RefreshRowsAsync();
         });
@@ -354,7 +353,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                     if (moved && await SessionPackRows.RequestAsync(same, Pack?.Title ?? "", _queries) is { } request && Current == same)
                         await Viewer.FollowAsync(request);
                     // The page after it may have changed.
-                    _ = ReadAheadAsync();
+                    ReadAheadAsync().FireAndForget();
                 }
             }
             else if (items.Count > 0) await OpenAsync(items[0]);
@@ -387,8 +386,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     void OnDirectoryChanged(object? sender, EventArgs e) => HasAtHand = _directory.HasAtHandBesides(PackId);
 
     /// <summary>
-    /// At hand's list (choices 10 and 11): the other binders kept at hand with their pages, those for a game system of
-    /// this binder's books first, then those for any system, then the rest, each by title.
+    /// At hand's list: the other binders kept at hand with their pages, those for a game system of this binder's books
+    /// first, then those for any system, then the rest, each by title.
     /// </summary>
     public async Task<IReadOnlyList<AtHandGroup>> AtHandAsync()
     {
@@ -495,7 +494,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
             else await Viewer.ShowAsync(request);
         }
-        if (Current == row) _ = ReadAheadAsync();
+        if (Current == row) ReadAheadAsync().FireAndForget();
     }
 
     /// <summary>The online reader at <paramref name="request"/>'s page, in the reader's place.</summary>
@@ -538,14 +537,17 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         }
     }
 
-    /// <summary>A whole pack, or an image, opens in the image viewer, which is quick enough not to need opening ahead.</summary>
+    /// <summary>
+    /// An image, or a whole pack whose first file is one, opens in the image viewer, which is quick enough not to need
+    /// opening ahead. A pack's card shows its first file, so its format is that file's.
+    /// </summary>
     static bool OpensAsImage(SessionItemRow row) =>
-        row.Item.Range is null && row.Cover is { } cover && (cover.IsPack || SourceFormats.IsImage(cover.Entry.Format));
+        row.Item.Range is null && row.Cover is { } cover && SourceFormats.IsImage(cover.Entry.Format);
 
     [RelayCommand]
     void ToggleNotes() => ShowNotes = !ShowNotes;
 
-    /// <summary>Rename (choice 5): F2, a double-click or the pencil puts the item's name in a box to type over.</summary>
+    /// <summary>Rename: F2, a double-click or the pencil puts the item's name in a box to type over.</summary>
     [RelayCommand]
     void RenameItem(SessionItemRow row) => Rename(row, row.Label);
 
@@ -576,8 +578,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     }
 
     /// <summary>
-    /// Add this page (choice 6): the page in view, or the whole image, right after the item in hand, called after the
-    /// bookmark it sits under, with its name ready to type over.
+    /// Add this page: the page in view, or the whole image, right after the item in hand, called after the bookmark it
+    /// sits under, with its name ready to type over.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddPage))]
     async Task AddPage()
@@ -599,7 +601,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
 
     bool CanAddPage() => Pack is not null && Viewer.Mode is ViewerMode.Pdf or ViewerMode.Image;
 
-    /// <summary>Edit binder (choice 2): the list page, for sections, order, notes and the rest, in the main window.</summary>
+    /// <summary>Edit binder: the list page, for sections, order, notes and the rest, in the main window.</summary>
     [RelayCommand]
     void Edit() => _sessionPages.Edit(PackId);
 

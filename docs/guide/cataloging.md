@@ -26,7 +26,7 @@ Under the cover is a row of buttons for what you can do with the book:
   [Online libraries](online-libraries.md).
 - **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
 - **Open in another app**, for a protected book Bibliotaph can't read.
-- **Remove from library**, for a book you own elsewhere.
+- **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
 The **Details** tab shows:
@@ -39,6 +39,9 @@ The **Details** tab shows:
 - **Where it is**: the file's folder, with **Show in File Explorer**.
 - **Copies**, when the book is in more than one file.
 - Its collections, as chips you can remove.
+- **Found inside the book**, once the AI has [scanned the whole book](ai.md#scanning-whole-books): each chapter with
+  its pages and the settings, environments, themes and creatures found in it. These describe parts of the book, not the
+  whole book, so they never change its details. **Scan again** has the AI read it again.
 
 The **Notes** tab has a note for the whole book, saved as you type, and the notes on its pages.
 
@@ -84,6 +87,14 @@ usable while its card waits. It has two lists:
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
+- **Collection?** "Make a collection “Ashen Vale” from these 12 books?" for a folder with three or more books in it
+  (see [Collections from folders](organizing.md#collections-from-folders)): **Accept**, **Not now** or **Never**.
+- **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
+  share (see [Books for your collections](organizing.md#books-for-your-collections)).
+
+When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
+elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
+such as Setting or Type. Each entry says how many are waiting, and **Everything** shows the whole list again.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
 Files with the same problem share a card, and **Show the 12 files** lists them. Locked PDFs have **Open to unlock**,
@@ -106,27 +117,51 @@ version instead. Nothing is ever joined without asking unless the text is identi
 
 To join cards yourself, tick them in **Select** mode and click **Same book**. You choose which file opens.
 
-## Image packs
+## Packs
 
 A folder (or ZIP) of 20 or more images and no PDFs, such as a map pack or a set of handouts, becomes one card: an
 image pack, named after the folder. A smaller set is offered in Needs review instead. **Split into separate images**
 gives each image its own card again, and Bibliotaph remembers that. To make a pack by hand, tick images or packs in
 **Select** mode and click **Pack together**.
 
-A search for an image's file name finds its pack.
+Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
+portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
+**Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
+and its cover is still a mosaic of the first four. Opening the pack steps through its files with the arrows at the
+top (**Previous file** and **Next file**): PDFs open as PDFs and images as images. Its details list every file, PDFs
+shown by their first page, and **Split into separate files** gives each one its own card back, with everything you had
+set on it. A PDF with adventures marked in it can't go in a pack, since their cards name it.
+
+A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
+the pack's card.
 
 ## Adventures inside a file
 
-An anthology or a magazine can hold several adventures. Each can get a card of its own, with its own details, cover
-and page range, while the file stays one file. Mark one with **Mark as adventure** in the reader,
+An anthology or a magazine can hold several adventures. Each can be marked as an adventure of its own, with its own
+details, cover and page range, while the file stays one file. Mark one with **Mark as adventure** in the reader,
 **Index as its own adventure…** on a bookmark in the reader's Contents, or **Adventures in this file** in the details.
 
-When a file's bookmarks and first pages show it holds several adventures, Needs review says "This file looks like it
-holds 4 adventures." with a list you can tick, and **Edit**, **Accept** and **Not split**. With AI turned on, the AI
-helps find them too, and reads each adventure on its own pages to fill in its details.
+When a file says, in its own words, that it holds several separate adventures ("a collection of four adventures",
+"each can be run on its own", "six one-shots"), Needs review says "This file looks like it holds 4 adventures." with
+those words and their page, a list you can tick, and **Edit**, **Accept** and **Not split**. Its bookmarks and the blurbs
+on their first pages show where each adventure starts. A campaign whose chapters each say which level they're for
+isn't proposed, since it doesn't call itself a collection. With AI turned on, the AI helps find them too, quoting where
+the book says so, and reads each adventure on its own pages to fill in its details.
 
-The file's card says how many adventures it holds. **Adventures inside files** in the filters shows or hides their
-cards. Search results group page hits under the adventure they fall in.
+While you browse, adventures stay inside their book: the file's card says how many it holds ("3 adventures"), and
+its details list them under **Adventures in this file**, where clicking one shows its own details. A search finds
+them on their own: an adventure that matches shows as a card with its book's cover, an **Adventure** ribbon and the
+adventure's title. Click it for its details, or **Open** it to go straight to its first page. If both the book and
+one of its adventures match, only the adventure shows, since that's what you were looking for. Page hits are grouped
+under the adventure they fall in.
+
+To see every adventure as a card of its own, even while browsing, set **Adventures inside files** in the Library's
+**More filters** to **Show as cards**. **Hide** leaves them out altogether, searches included, so only their files
+show. A search you saved with adventures hidden keeps them hidden.
+
+**Remove adventure** in an adventure's details takes its card away; its pages are only the file's again, and the file
+itself is never changed. To remove several at once, tick their cards in **Select** mode and click
+**Remove adventures**. Either way, **Undo** brings them back.
 
 ## Books you own elsewhere
 
@@ -135,6 +170,11 @@ Own a book in print or on a virtual tabletop? In the Library, click **Owned else
 badge on its cover saying where it is. **Also own** records where (print, a VTT, or your own words) on any card, and
 can take the book's page online, such as "D&D Beyond https://…", which **Open** then opens. If a file with that title
 turns up later, Needs review asks whether it's that book's file.
+
+With no file there's no page to make a cover from. **Choose a cover image…**, in the Add dialog or the book's details,
+uses a JPG, PNG or WebP picture of your own: Bibliotaph keeps a cover-sized copy, so the picture itself can move or go.
+**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't part
+of the library sync file.
 
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
 with **Import from an online library…** on the same menu. See [Online libraries](online-libraries.md).
@@ -150,6 +190,25 @@ or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the 
 **Settings > Vocabulary** lists the game systems, types, themes and other terms your books are filed under, with the
 other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and add or remove other names. Folder names,
 searches and what you type all go through these names.
+
+### Your tags
+
+Your tags are your own labels, and **Your tags** in **Settings > Vocabulary** can find them for you. Give a tag a
+name and the words that signal it, separated by commas, and click **Add tag**: **Undead** with "undead, zombie, lich",
+say. Bibliotaph looks for the words in the pages it has already read, so nothing is read again, and a book whose
+pages use them often enough gets the tag, marked **Suggested** like any other guess. Open the mark to see the words
+and the pages they're on.
+
+- **Often enough** means the words are on at least 3 of the book's pages, and on at least one page in 20. A passing
+  mention, or a few pages in a thick rulebook, doesn't count.
+- A word also finds words that start with it, as in search: "zombie" finds "zombies". Several words together, such as
+  "old mill", are found only together. To see what a word would find first, search for it on the **Inside documents**
+  tab.
+- **Keep this** makes the tag yours on that book. **Not right** takes it off, and it never comes back to that book,
+  even if you change the tag's words or make the tag again.
+- Changing a tag's name or words looks through your books again. **Delete tag** takes its suggestions away; books
+  where you kept it keep it.
+- New books are checked once their text has been read, scanned pages included.
 
 ## Reading a book again
 

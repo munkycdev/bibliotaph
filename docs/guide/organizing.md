@@ -26,7 +26,38 @@ A collection gathers books around a campaign, a setting or an idea, such as "Win
 - **Tidy up**: **Rename**, **Move to…** and **Delete** are at the top of a collection's page. Deleting a collection
   never removes its books from your library. **Remove from collection** (in **Select** mode) takes books out.
 
-Every change shows **Undo** for a moment.
+Collections, the collections inside each one, and the **Add to collection** menu are in name order. Every change shows
+**Undo** for a moment.
+
+### Collections from folders
+
+If you already keep books together in folders, Needs review offers to make those folders collections: "Make a
+collection “Ashen Vale” from these 12 books?" for each folder with three or more books directly in it.
+
+- **Accept** makes the collection, named after the folder, with its books. Books that land in the folder later join it
+  by themselves, until you add or remove a book by hand; after that it's an ordinary collection. **Undo** takes it away
+  again.
+- A folder inside another that you made a collection from becomes a collection inside that one.
+- **Not now** puts the card away until Needs review makes its list again (when you click **Show the new list**, or the
+  next time you start Bibliotaph). **Never** means that folder isn't asked about again.
+- Folders named only after what the books are, such as "D&D 5e", "Pathfinder" or "Adventures", aren't offered: those
+  are already filters. Neither is a folder whose books are all in one collection already.
+- Bibliotaph remembers your answers by the folder's place inside your library folder, so they still hold when a drive
+  letter changes. The collections travel to your other PCs with library sync like any other; whether one follows its
+  folder is kept on each PC.
+
+### Books for your collections
+
+Needs review also looks for books that belong in a collection you have: "Add these 4 books to “Ashen Vale”?". It
+looks at what most of the collection's books share, meaning at least three of them and at least 60% of the books you
+added to it, and suggests the books outside it that share it too:
+
+- the same **series**, or
+- the same **setting** and **game system** together.
+
+**Accept** adds them, with **Undo**; it doesn't stop a collection made from a folder following that folder. **Not
+now** puts the card away until Needs review makes its list again. **Never** means those books aren't suggested for that
+collection again, though a book that fits later still can be. Never is kept on each PC.
 
 ## Pins
 

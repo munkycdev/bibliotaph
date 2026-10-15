@@ -49,9 +49,9 @@ public sealed class SmokeShellLauncher : IShellLauncher
 }
 
 /// <summary>
-/// Open in another app (slice 4i plan, choice 4), for a PDF whose protection Bibliotaph can't open: the file goes to
-/// the user's default PDF app, read where it is. A file inside a ZIP can't be opened by itself without being copied
-/// out, so its ZIP is opened instead, in whatever Windows opens ZIPs with.
+/// Open in another app, for a PDF whose protection Bibliotaph can't open: the file goes to the user's default PDF app,
+/// read where it is. A file inside a ZIP can't be opened by itself without being copied out, so its ZIP is opened
+/// instead, in whatever Windows opens ZIPs with.
 /// </summary>
 public sealed class OtherApps(LibraryStore library, IShellLauncher launcher)
 {
@@ -66,9 +66,8 @@ public sealed class OtherApps(LibraryStore library, IShellLauncher launcher)
 }
 
 /// <summary>
-/// Opens a book where the user owns it online (online libraries, O1): its Also own link, in the user's own browser.
-/// The link is one the user put there, so it opens without asking, unlike a link inside a PDF. Only http and https
-/// addresses open.
+/// Opens a book where the user owns it online: its Also own link, in the user's own browser. The link is one the user
+/// put there, so it opens without asking, unlike a link inside a PDF. Only http and https addresses open.
 /// </summary>
 public sealed class OnlineBooks(IShellLauncher launcher)
 {

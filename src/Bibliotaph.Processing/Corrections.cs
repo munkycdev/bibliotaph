@@ -7,9 +7,9 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// A correction offered to the books that look like the corrected one (scenario review, row 8): "Change 14 other books
-/// from this folder too?". <see cref="Before"/> and <see cref="After"/> are what the field showed before and after the
-/// correction, in stored form; <see cref="Changes"/> are the bulk edit that repeats it on <see cref="Books"/>.
+/// A correction offered to the books that look like the corrected one: "Change 14 other books from this folder
+/// too?". <see cref="Before"/> and <see cref="After"/> are what the field showed before and after the correction, in
+/// stored form; <see cref="Changes"/> are the bulk edit that repeats it on <see cref="Books"/>.
 /// </summary>
 public sealed record LookAlikeOffer(EntryId EntryId, MetadataField Field, FolderKey Folder, IReadOnlyList<EntryId> Books, IReadOnlyList<BulkChange> Changes,
     IReadOnlyList<string> Before, IReadOnlyList<string> After)
@@ -22,8 +22,8 @@ public sealed record LookAlikeOffer(EntryId EntryId, MetadataField Field, Folder
 public sealed record CorrectionItem(EntryId EntryId, long? DocumentId, string Title, DateTime CreatedUtc);
 
 /// <summary>
-/// Which books look like a corrected one, and what repeating the correction on them is (scenario review, row 8). Kept
-/// deliberately narrow, since a wrong guess about many books is worse than asking about none:
+/// Which books look like a corrected one, and what repeating the correction on them is. Kept deliberately narrow,
+/// since a wrong guess about many books is worse than asking about none:
 /// <list type="bullet">
 /// <item>A look-alike has a file directly in the same folder as the corrected book's current file. Subfolders don't count.</item>
 /// <item>The user hasn't settled the field on it (no value they set or kept there), so no decision of theirs is overridden.</item>
@@ -67,9 +67,9 @@ public static class LookAlikes
 }
 
 /// <summary>
-/// Easier corrections (scenario review, row 8): "Cataloged wrong…" left unfinished becomes a Needs review card that
-/// opens the editor again, and a correction is offered to the books from the same folder that look like the
-/// corrected one, through the bulk edit (slice 4e), whose Undo takes it all back.
+/// Easier corrections: "Cataloged wrong…" left unfinished becomes a Needs review card that opens the editor again,
+/// and a correction is offered to the books from the same folder that look like the corrected one, through the bulk
+/// edit, whose Undo takes it all back.
 /// </summary>
 public sealed class CorrectionService(CorrectionStore store, MetadataStore metadata, MetadataService edits, LibraryStore library, LibraryQueries cards)
 {
@@ -127,8 +127,8 @@ public sealed class CorrectionService(CorrectionStore store, MetadataStore metad
 }
 
 /// <summary>
-/// Folder rules (scenario review, row 8), built beside the folder labels: when the user sets the same value for a field
-/// on <see cref="Threshold"/> books from one folder, Needs review proposes a rule that gives it, as a suggestion, to
+/// Folder rules, built beside the folder labels: when the user sets the same value for a field on
+/// <see cref="Threshold"/> books from one folder, Needs review proposes a rule that gives it, as a suggestion, to
 /// every file in that folder and below, new files included. A rule is proposed once; Use this rule switches it on, No
 /// thanks off, and Settings > Library folders lists the rules with a switch each, as it lists the folder labels.
 /// </summary>
@@ -140,12 +140,13 @@ public sealed class FolderRules(CorrectionStore store, LibraryStore library, Met
     /// <summary>
     /// The values set on at least <paramref name="threshold"/> of these books for <paramref name="field"/>, with how
     /// many books each, most first. Every value the user decided counts: typed, chosen, set in bulk or kept, since a
-    /// typed value that matches a suggestion is stored as that suggestion kept. A value from a folder rule doesn't.
+    /// typed value that matches a suggestion is stored as that suggestion kept. A value from a folder rule doesn't, nor
+    /// one of the user's tags kept where its words found it: the tag already reaches every book that uses them.
     /// </summary>
     public static IReadOnlyList<(string Value, int Books)> RepeatedValues(IEnumerable<EntryMetadata> books, MetadataField field, int threshold = Threshold) =>
         [.. books
             .SelectMany(b => b.Claims
-                .Where(c => c.Field == field.Key && c.Origin != AssertionOrigin.FolderRule && c.State == AssertionState.Confirmed
+                .Where(c => c.Field == field.Key && c.Origin is not (AssertionOrigin.FolderRule or AssertionOrigin.UserTag) && c.State == AssertionState.Confirmed
                     && b.Rejections.All(r => r.Field != field.Key || r.Normalized != c.Normalized))
                 .DistinctBy(c => c.Normalized)
                 .Select(c => (b.EntryId, Claim: c)))

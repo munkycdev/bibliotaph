@@ -1,6 +1,6 @@
 namespace Bibliotaph.Processing.Tests;
 
-/// <summary>Where a store's download goes (online libraries, O5).</summary>
+/// <summary>Where a store's download goes.</summary>
 public sealed class DownloadPlacesTests
 {
     static readonly string Base = Path.Combine(Path.GetTempPath(), "bibliotaph-downloads");

@@ -5,6 +5,8 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Sync;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Catalog;
 
@@ -16,9 +18,9 @@ public sealed record SyncedPages(string Hash, int First, int Last, string? First
     string? LastFingerprint = null);
 
 /// <summary>
-/// The user's work in catalog.db as library sync records (library sync plan, choice 5): each record's fields by name,
-/// as compact JSON. <see cref="Cards"/> finds a card by any of its keys: a hash of any of its files, any of a pack's
-/// images, or the sync id of its entry ("e:…"). <see cref="Aliases"/> are a card's keys besides its own.
+/// The user's work in catalog.db as library sync records: each record's fields by name, as compact JSON.
+/// <see cref="Cards"/> finds a card by any of its keys: a hash of any of its files, any of a pack's images, or the sync
+/// id of its entry ("e:…"). <see cref="Aliases"/> are a card's keys besides its own.
 /// </summary>
 public sealed record SyncSnapshot(
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Records,
@@ -34,14 +36,15 @@ public sealed record SyncSnapshot(
 }
 
 /// <summary>
-/// What library sync reads and writes in catalog.db (library sync plan): the user's work as sync records, what this PC
-/// last knew of each record (sync_state), and merged records applied back to the catalog's own tables. It never touches
-/// file locations, documents, roots, pack decisions, runs or settings: those belong to this PC.
+/// What library sync reads and writes in catalog.db: the user's work as sync records, what this PC last knew of each
+/// record (sync_state), and merged records applied back to the catalog's own tables. It never touches file locations,
+/// documents, roots, pack decisions, runs or settings: those belong to this PC.
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
-    TimeProvider? clock = null)
+    TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
+    readonly ILogger _log = log ?? NullLogger<LibrarySyncStore>.Instance;
 
     DateTime Now => _clock.GetUtcNow().UtcDateTime;
 

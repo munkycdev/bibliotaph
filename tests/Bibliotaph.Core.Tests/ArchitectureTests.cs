@@ -25,8 +25,8 @@ public class ArchitectureTests
     }
 
     /// <summary>
-    /// Velopack installs into %LOCALAPPDATA%\&lt;pack id&gt; and deletes that folder on uninstall (slice 4l plan, choice 1):
-    /// were it the data folder, or either inside the other, uninstalling would delete the library.
+    /// Velopack installs into %LOCALAPPDATA%\&lt;pack id&gt; and deletes that folder on uninstall: were it the data
+    /// folder, or either inside the other, uninstalling would delete the library.
     /// </summary>
     [Fact]
     public void The_install_folder_is_apart_from_the_data_folder()

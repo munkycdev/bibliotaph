@@ -4,16 +4,15 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// What a page does with collections (slice 3 plan, choices 8 to 10): adding books to one, new or picked, taking them
-/// out, and making, renaming, moving, pinning and deleting collections. Each change says what it did in a note with
-/// Undo, until the next change or until the page is left. One per page; the page shows <see cref="Dialog"/> over
-/// itself and refreshes on <see cref="Done"/>.
+/// What a page does with collections: adding books to one, new or picked, taking them out, and making, renaming,
+/// moving, pinning and deleting collections. Each change says what it did in a note with Undo, until the next change
+/// or until the page is left. One per page; the page shows <see cref="Dialog"/> over itself and refreshes on
+/// <see cref="Done"/>.
 /// </summary>
 public sealed partial class CollectionActions(CollectionsService collections, CollectionDirectory directory, ILogger<CollectionActions> log) : ObservableObject
 {
@@ -22,15 +21,7 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
     public partial CollectionDialogViewModel? Dialog { get; private set; }
 
     /// <summary>"Added 3 books to Maps.", beside its Undo.</summary>
-    [ObservableProperty]
-    public partial string? Message { get; private set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUndo))]
-    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
-    public partial Func<Task>? UndoAction { get; private set; }
-
-    public bool HasUndo => UndoAction is not null;
+    public UndoSlot Undo { get; } = new(log);
 
     /// <summary>Raised on the UI thread after a change, so the page shows it.</summary>
     public event EventHandler? Done;
@@ -47,7 +38,7 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         switch (choice.Kind)
         {
             case CollectionMenuKind.Collection when choice.CollectionId is { } id:
-                _ = AddToAsync(books, what, id);
+                AddToAsync(books, what, id).FireAndForget();
                 break;
             case CollectionMenuKind.New:
                 Open(CollectionDialogViewModel.Naming("Add to a new collection", "Create and add"), async result =>
@@ -128,32 +119,15 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
     }
 
     /// <summary>The note after a delete, on the page shown after it, with Undo bringing the collection back.</summary>
-    public void ShowDeleted(CollectionDeletion deleted)
-    {
-        Message = $"Deleted {deleted.Name}. Its books are still in your library{(deleted.Children.Count > 0 ? ", and its collections moved up a level" : "")}.";
-        UndoAction = () => collections.RestoreAsync(deleted);
-    }
-
-    [RelayCommand(CanExecute = nameof(HasUndo))]
-    async Task Undo()
-    {
-        if (UndoAction is not { } undo) return;
-        UndoAction = null;
-        Message = "Undoing…";
-        if (await Run(async () => { await undo(); return true; }, "Undoing a collection change failed"))
-        {
-            Message = null;
-            await FinishAsync(null, null);
-        }
-        else Message = "That couldn't be undone.";
-    }
+    public void ShowDeleted(CollectionDeletion deleted) =>
+        Undo.Offer($"Deleted {deleted.Name}. Its books are still in your library{(deleted.Children.Count > 0 ? ", and its collections moved up a level" : "")}.",
+            Undoing(() => collections.RestoreAsync(deleted)));
 
     /// <summary>Esc or Cancel closes the dialog; the note goes when the page is left.</summary>
     public void Close()
     {
         Dialog?.CancelCommand.Execute(null);
-        Message = null;
-        UndoAction = null;
+        Undo.Clear();
     }
 
     void Open(CollectionDialogViewModel dialog, Func<CollectionDialogResult, Task> then)
@@ -168,8 +142,20 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
 
     async Task FinishAsync(string? message, Func<Task>? undo)
     {
-        Message = message;
-        UndoAction = undo;
+        if (message is null) Undo.Clear();
+        else Undo.Offer(message, undo is null ? null : Undoing(undo));
+        await ShowChangeAsync();
+    }
+
+    /// <summary>What Undo runs: <paramref name="undo"/> off the UI thread, then the page shows the change.</summary>
+    Func<Task> Undoing(Func<Task> undo) => async () =>
+    {
+        await Task.Run(undo);
+        await ShowChangeAsync();
+    };
+
+    async Task ShowChangeAsync()
+    {
         await Directory.LoadAsync();
         Done?.Invoke(this, EventArgs.Empty);
     }
@@ -183,8 +169,7 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         catch (Exception ex)
         {
             log.LogError(ex, "{Failure}", failure);
-            Message = "That didn't work. The log has the details.";
-            UndoAction = null;
+            Undo.Say("That didn't work. The log has the details.");
             return default;
         }
     }

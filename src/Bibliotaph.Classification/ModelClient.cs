@@ -1,21 +1,23 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Bibliotaph.Classification;
 
 /// <summary>What kind of server an endpoint turned out to be.</summary>
 public enum EndpointKind
 {
-    /// <summary>Ollama, talked to through its own chat call so the context window can be set per request (choice 8).</summary>
+    /// <summary>Ollama, talked to through its own chat call so the context window can be set per request.</summary>
     Ollama,
 
     /// <summary>Anything that speaks the OpenAI chat completions API: LM Studio, llama.cpp's server, vLLM and the rest.</summary>
     OpenAiCompatible,
 
-    /// <summary>The built-in AI: llama.cpp's server, which Bibliotaph runs itself (Built-in AI plan).</summary>
+    /// <summary>The built-in AI: llama.cpp's server, which Bibliotaph runs itself.</summary>
     BuiltIn,
 }
 
@@ -32,9 +34,9 @@ public sealed record EndpointInfo(EndpointKind Kind, string? Version, IReadOnlyL
 
 /// <summary>
 /// One request: the model, the two messages, the answer's schema and the context it needs, and at most how many tokens
-/// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is (Ask plan,
-/// choice 6). With <paramref name="Progress"/>, the answer is streamed and reported as it comes (Built-in AI plan,
-/// choice 12). <paramref name="SchemaName"/> names the schema for servers that want a name with it.
+/// to answer with when that should be capped. Without a schema the answer is prose, as Ask this book's is. With
+/// <paramref name="Progress"/>, the answer is streamed and reported as it comes. <paramref name="SchemaName"/> names
+/// the schema for servers that want a name with it.
 /// </summary>
 public sealed record ModelRequest(string Model, string System, string User, string? SchemaJson, int ContextTokens, int? MaxTokens = null,
     IProgress<ModelProgress>? Progress = null, string SchemaName = "book_metadata");
@@ -74,13 +76,53 @@ public class ModelEndpointException : Exception
 /// allowed. That can be the book or the server, so <see cref="ModelClassifier"/> asks the server something small to tell
 /// which. Callers that don't care treat it like any other <see cref="ModelEndpointException"/>.
 /// </summary>
-public sealed class ModelRequestException : ModelEndpointException
+public class ModelRequestException : ModelEndpointException
 {
     public ModelRequestException(string message, Exception? inner = null) : base(message, inner) { }
 
     public ModelRequestException() { }
 
     public ModelRequestException(string message) : base(message) { }
+}
+
+/// <summary>
+/// The server finished answering but the answer had nothing in it. Like any failed request this can be the book or the
+/// server, so it is told apart the same way; a caller that wants to say so plainly, as Ask does, can catch it alone.
+/// </summary>
+public sealed class ModelEmptyAnswerException : ModelRequestException
+{
+    public ModelEmptyAnswerException() : base("The model's answer was empty.") { }
+
+    public ModelEmptyAnswerException(string message) : base(message) { }
+
+    public ModelEmptyAnswerException(string message, Exception? inner = null) : base(message, inner) { }
+}
+
+/// <summary>
+/// The server refused the request because the prompt is longer than the model's context window, as llama.cpp's server
+/// does (the built-in AI among them). That is the request's fault, not the server's: the same server takes a shorter
+/// one, so a caller that can send less tries again with less, and one that can't fails that book alone. The token
+/// counts are the server's own, when it gave them.
+/// </summary>
+public sealed class ModelContextException : ModelRequestException
+{
+    public ModelContextException(string message, int? promptTokens, int? contextTokens) : base(message)
+    {
+        PromptTokens = promptTokens;
+        ContextTokens = contextTokens;
+    }
+
+    public ModelContextException(string message, Exception? inner = null) : base(message, inner) { }
+
+    public ModelContextException() { }
+
+    public ModelContextException(string message) : base(message) { }
+
+    /// <summary>How many tokens the server counted in the prompt.</summary>
+    public int? PromptTokens { get; }
+
+    /// <summary>How many tokens the model's context window holds.</summary>
+    public int? ContextTokens { get; }
 }
 
 /// <summary>A local model server, as the classifier needs it.</summary>
@@ -92,13 +134,16 @@ public interface IModelClient
 
     /// <summary>Asks the model for an answer, in the request's schema when it has one, and returns the answer's text.</summary>
     /// <exception cref="ModelEndpointException">The endpoint can't be reached or refused the request.</exception>
-    /// <exception cref="ModelRequestException">The endpoint took the request but failed while answering, or took too long.</exception>
+    /// <exception cref="ModelRequestException">
+    /// The endpoint took the request but failed while answering, took too long, or answered with nothing
+    /// (<see cref="ModelEmptyAnswerException"/>).
+    /// </exception>
     Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default);
 }
 
 /// <summary>
-/// A server that turns text into vectors (Ask this book, choice 3), so pages can be found by what they mean as well as by
-/// their words. The same endpoint as the chat model, with an embedding model of its own.
+/// A server that turns text into vectors, so pages can be found by what they mean as well as by their words. The same
+/// endpoint as the chat model, with an embedding model of its own.
 /// </summary>
 public interface IEmbeddingClient
 {
@@ -109,17 +154,21 @@ public interface IEmbeddingClient
 }
 
 /// <summary>
-/// One adapter over HttpClient and System.Text.Json, with no SDK (choice 8). It asks Ollama's own version call first;
-/// an endpoint that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
-/// OpenAI-compatible chat completions with a JSON-schema response format. It sends only what it is given: no tools,
-/// no functions, nothing from any other file. Embeddings go to Ollama's own embed call, or the OpenAI-compatible one.
+/// One adapter over HttpClient and System.Text.Json, with no SDK. It asks Ollama's own version call first; an endpoint
+/// that answers it is Ollama and gets Ollama's chat call with <c>num_ctx</c> set, and anything else gets
+/// OpenAI-compatible chat completions with a JSON-schema response format. Either way it asks the model not to think
+/// before it answers. It sends only what it is given: no tools, no functions, nothing from any other file. Embeddings
+/// go to Ollama's own embed call, or the OpenAI-compatible one.
 /// </summary>
-public sealed class LocalModelClient : IModelClient, IEmbeddingClient
+public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
 {
     readonly HttpClient _http;
     readonly Func<string?> _apiKey;
     readonly JsonObject? _extras;
     EndpointKind? _kind;
+
+    /// <summary>The server refused the switch that turns a model's thinking off, so this client no longer sends it.</summary>
+    bool _thinkingRefused;
 
     /// <param name="http">Shared; its timeout has to allow for a model loading and reading a long excerpt.</param>
     /// <param name="endpoint">As the user typed it: "http://localhost:11434", or ".../v1".</param>
@@ -256,11 +305,15 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             };
             if (schema is not null) body["format"] = schema;
             if (request.MaxTokens is { } ollamaMax) body["options"]!["num_predict"] = ollamaMax;
-            if (stream) return await StreamAsync(new Uri(Root, "api/chat"), body, request.Progress!, ollama: true, ct);
-            using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), body, ct);
-            var json = await ReadJsonAsync(response, ct);
-            return json?["message"]?["content"]?.GetValue<string>()
-                ?? throw new ClassifierAnswerException("The model's answer was empty.");
+            if (!_thinkingRefused) body[OllamaThink] = false;
+            return await ThinkingOffAsync(body, OllamaThink, async chat =>
+            {
+                if (stream) return await StreamAsync(new Uri(Root, "api/chat"), chat, request.Progress!, ollama: true, ct);
+                using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), chat, ct);
+                var json = await ReadJsonAsync(response, ct);
+                return json?["message"]?["content"]?.GetValue<string>()
+                    ?? throw new ModelEmptyAnswerException();
+            });
         }
 
         var request1 = new JsonObject
@@ -279,40 +332,101 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
             };
         }
         if (request.MaxTokens is { } max) request1["max_tokens"] = max;
+        // The caller's own fields win: the built-in AI already sends the switch, so it isn't sent twice or retried.
+        var ownSwitch = _extras?.ContainsKey(TemplateKwargs) != true && !_thinkingRefused;
+        if (ownSwitch) request1[TemplateKwargs] = new JsonObject { ["enable_thinking"] = false };
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
-        if (stream)
+        return await ThinkingOffAsync(request1, ownSwitch ? TemplateKwargs : null, async chat =>
         {
+            if (stream)
+            {
+                try
+                {
+                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), chat, request.Progress!, ollama: false, ct);
+                }
+                catch (ModelEndpointException ex) when (schema is not null && Refused(ex) is not null && !NamesThinkingSwitch(ex))
+                {
+                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), request.Progress!, ollama: false, ct);
+                }
+            }
+            HttpResponseMessage completion;
             try
             {
-                return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
+                completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), chat, ct);
             }
-            catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+            catch (ModelEndpointException ex) when (schema is not null && Refused(ex) is not null && !NamesThinkingSwitch(ex))
             {
-                request1 = (JsonObject)request1.DeepClone();
-                request1["response_format"] = new JsonObject { ["type"] = "json_object" };
-                return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), request1, request.Progress!, ollama: false, ct);
+                // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
+                // check doesn't care which.
+                completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), ct);
             }
-        }
-        HttpResponseMessage completion;
+            using (completion)
+            {
+                var json = await ReadJsonAsync(completion, ct);
+                return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
+                    ?? throw new ModelEmptyAnswerException();
+            }
+        });
+    }
+
+    /// <summary>Ollama's own switch for a model's thinking.</summary>
+    const string OllamaThink = "think";
+
+    /// <summary>
+    /// The OpenAI-compatible way to reach a chat template's own settings. Qwen3-style templates read
+    /// <c>enable_thinking</c> from it; servers and templates without such a setting ignore it.
+    /// </summary>
+    const string TemplateKwargs = "chat_template_kwargs";
+
+    static JsonObject JsonMode(JsonObject chat)
+    {
+        var copy = (JsonObject)chat.DeepClone();
+        copy["response_format"] = new JsonObject { ["type"] = "json_object" };
+        return copy;
+    }
+
+    /// <summary>
+    /// Sends a chat request that asks the model not to think first. A model that thinks spends its answer's tokens and
+    /// the reader's time on reasoning nobody sees, and answers the same question differently from one try to the next.
+    /// When the server refuses the switch (an older Ollama, a model without one, or a strict OpenAI-compatible server
+    /// that won't take fields it doesn't know), the request goes again once without it, and this client stops sending
+    /// it. An OpenAI-compatible server that refuses without saying why is tried without it too, but only forgets it
+    /// when that works. A refusal for some other reason, such as a context that is too long, isn't the switch's fault
+    /// and is left to the caller.
+    /// </summary>
+    /// <param name="body">The request.</param>
+    /// <param name="field">The field the switch is in, or null when the request hasn't this client's switch.</param>
+    /// <param name="send">Sends a request and reads its answer.</param>
+    async Task<string> ThinkingOffAsync(JsonObject body, string? field, Func<JsonObject, Task<string>> send)
+    {
+        if (field is null || !body.ContainsKey(field)) return await send(body);
         try
         {
-            completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), request1, ct);
+            return await send(body);
         }
-        catch (ModelEndpointException ex) when (schema is not null && ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest })
+        catch (ModelEndpointException ex) when (NamesThinkingSwitch(ex) || (field == TemplateKwargs && Refused(ex) is ""))
         {
-            // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
-            // check doesn't care which.
-            request1 = (JsonObject)request1.DeepClone();
-            request1["response_format"] = new JsonObject { ["type"] = "json_object" };
-            completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), request1, ct);
-        }
-        using (completion)
-        {
-            var json = await ReadJsonAsync(completion, ct);
-            return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
-                ?? throw new ClassifierAnswerException("The model's answer was empty.");
+            if (NamesThinkingSwitch(ex)) _thinkingRefused = true;
+            var without = (JsonObject)body.DeepClone();
+            without.Remove(field);
+            var answer = await send(without);
+            _thinkingRefused = true;
+            return answer;
         }
     }
+
+    /// <summary>The server's reason for refusing the request as malformed (400), "" when it gave none, or null for any other failure.</summary>
+    static string? Refused(ModelEndpointException ex) =>
+        ex.InnerException is HttpRequestException { StatusCode: HttpStatusCode.BadRequest } inner ? inner.Message : null;
+
+    /// <summary>
+    /// A 400 whose reason is the thinking switch: Ollama says the model "does not support thinking", and a strict
+    /// OpenAI-compatible server names the field it doesn't know ("Unrecognized request argument supplied:
+    /// chat_template_kwargs").
+    /// </summary>
+    static bool NamesThinkingSwitch(ModelEndpointException ex) =>
+        Refused(ex) is { Length: > 0 } reason
+        && (reason.Contains("think", StringComparison.OrdinalIgnoreCase) || reason.Contains(TemplateKwargs, StringComparison.OrdinalIgnoreCase));
 
     public async Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default)
     {
@@ -382,6 +496,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
                 if (chunk?["error"] is { } error)
                 {
                     var detail = error is JsonObject o ? o["message"]?.GetValue<string>() : error.GetValue<string>();
+                    if (TooLong(error as JsonObject, detail) is { } tooLong) throw tooLong;
                     throw new ModelRequestException($"The model server failed while answering. It said: {detail}");
                 }
                 if (chunk?["prompt_progress"] is JsonObject read && read["total"]?.GetValue<double>() is > 0 and var total)
@@ -406,7 +521,7 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
         {
             throw new ModelRequestException("The model server stopped part way through its answer.", ex);
         }
-        return answer.Length > 0 ? answer.ToString() : throw new ClassifierAnswerException("The model's answer was empty.");
+        return answer.Length > 0 ? answer.ToString() : throw new ModelEmptyAnswerException();
     }
 
     async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, JsonObject? body, CancellationToken ct,
@@ -433,9 +548,11 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
 
         using (response)
         {
-            var detail = await ErrorDetailAsync(response, ct);
+            var (detail, error) = await ErrorDetailAsync(response, ct);
+            if (TooLong(error, detail) is { } tooLong) throw tooLong;
             var status = (int)response.StatusCode;
-            var inner = new HttpRequestException(detail, null, response.StatusCode);
+            // The reason, "" when the server gave none, so a refusal can be told apart by what it is about.
+            var inner = new HttpRequestException(detail ?? "", null, response.StatusCode);
             if (status >= 500)
             {
                 var failed = $"The model server failed while answering ({status}).";
@@ -463,26 +580,56 @@ public sealed class LocalModelClient : IModelClient, IEmbeddingClient
         }
     }
 
-    /// <summary>The server's own error message, short, for the notice.</summary>
-    static async Task<string?> ErrorDetailAsync(HttpResponseMessage response, CancellationToken ct)
+    /// <summary>The server's own error message, short, for the notice, and its error object when it sent one.</summary>
+    static async Task<(string? Message, JsonObject? Error)> ErrorDetailAsync(HttpResponseMessage response, CancellationToken ct)
     {
         try
         {
             var text = await response.Content.ReadAsStringAsync(ct);
-            var json = JsonNode.Parse(text);
-            var message = json?["error"] switch
-            {
-                JsonValue value => value.GetValue<string>(),
-                JsonObject error => error["message"]?.GetValue<string>(),
-                _ => null,
-            };
-            return message is null ? null : message.Length > 200 ? message[..200] + "…" : message;
+            var error = JsonNode.Parse(text)?["error"];
+            return (Short(error), error as JsonObject);
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or HttpRequestException)
         {
-            return null;
+            return (null, null);
         }
     }
+
+    static string? Short(JsonNode? error)
+    {
+        var message = error switch
+        {
+            JsonValue value => value.GetValue<string>(),
+            JsonObject o => o["message"]?.GetValue<string>(),
+            _ => null,
+        };
+        return message is null ? null : message.Length > 200 ? message[..200] + "…" : message;
+    }
+
+    /// <summary>
+    /// llama.cpp's server refuses a prompt longer than its context with an "exceed_context_size_error" that gives both
+    /// counts ("request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it"). Older
+    /// builds say so only in the message, so that is read too.
+    /// </summary>
+    static ModelContextException? TooLong(JsonObject? error, string? detail)
+    {
+        var match = detail is null ? null : ContextExceeded().Match(detail);
+        if (error?["type"]?.GetValue<string>() != "exceed_context_size_error" && match is not { Success: true }) return null;
+        var prompt = Number(error?["n_prompt_tokens"]) ?? Count(match, 1);
+        var context = Number(error?["n_ctx"]) ?? Count(match, 2);
+        var message = prompt is { } p && context is { } c
+            ? string.Create(CultureInfo.InvariantCulture, $"The text was too long for the model: {p:N0} tokens, and it has room for {c:N0}.")
+            : $"The text was too long for the model. It said: {detail}";
+        return new ModelContextException(message, prompt, context);
+
+        static int? Number(JsonNode? node) => node is JsonValue value && value.TryGetValue<int>(out var n) ? n : null;
+    }
+
+    static int? Count(Match? match, int group) =>
+        match is { Success: true } && int.TryParse(match.Groups[group].ValueSpan, CultureInfo.InvariantCulture, out var n) ? n : null;
+
+    [GeneratedRegex(@"\((\d+) tokens\) exceeds the available context size \((\d+) tokens\)", RegexOptions.IgnoreCase)]
+    private static partial Regex ContextExceeded();
 
     /// <summary>Connection refused, a name that doesn't resolve, or a timeout that wasn't the caller cancelling.</summary>
     static bool Unreachable(Exception ex, CancellationToken ct) =>

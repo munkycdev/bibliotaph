@@ -10,11 +10,12 @@ namespace Bibliotaph.Processing;
 public sealed record PlainSearchResult(Interpretation? Interpretation, string? Problem);
 
 /// <summary>
-/// The search box's Ask (scenario review, row 5): a request in plain English read by AI as the search box's own fields
-/// and words, through whichever AI is set up (built in or a model server). It needs AI; without it the search box
-/// works as it always has. Nothing here searches: the reading is shown for the user to change and run.
+/// The search box's Ask: a request in plain English read by AI as the search box's own fields and words, through
+/// whichever AI is set up (built in or a model server). It needs AI; without it the search box works as it always
+/// has. Nothing here searches: the reading is shown for the user to change and run.
 /// </summary>
-public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabularies, IndexQueries queries, ILogger<PlainSearchService>? log = null)
+public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabularies, IndexQueries queries, AiUse use,
+    ILogger<PlainSearchService>? log = null)
 {
     readonly ILogger _log = log ?? NullLogger<PlainSearchService>.Instance;
 
@@ -29,6 +30,7 @@ public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabulari
     {
         if (ai.Interpreter is not { } interpreter) return new PlainSearchResult(null, PlainSearchText.NeedsAi);
         if (string.IsNullOrWhiteSpace(request)) return new PlainSearchResult(null, "Type what you're looking for first, then press Enter.");
+        using var busy = use.Begin();
         var context = new PlainSearchContext(await vocabularies.GetAsync(ct), await queries.GetSystemsWithoutLevelsAsync(ct));
         try
         {

@@ -1,6 +1,6 @@
 namespace Bibliotaph.App.Views;
 
-/// <summary>The bulk metadata editor, over the Library (slice 4e). The Library moves keyboard focus in and out of it.</summary>
+/// <summary>The bulk metadata editor, over the Library. The Library moves keyboard focus in and out of it.</summary>
 public partial class BulkEditView
 {
     public BulkEditView() => InitializeComponent();

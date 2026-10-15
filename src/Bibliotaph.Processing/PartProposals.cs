@@ -8,20 +8,21 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// "This file looks like it holds 5 adventures" (slice 5 plan, choice 7): the file's card, the copy the proposal was
-/// read from, and the adventures proposed, in page order.
+/// "This file looks like it holds 5 adventures": the file's card, the copy the proposal was read from, the adventures
+/// proposed, in page order, and where the book says it holds separate adventures.
 /// </summary>
-public sealed record PartProposalItem(EntryId FileEntryId, string FileTitle, long DocumentId, PartProposalSource Source, IReadOnlyList<ProposedPart> Parts);
+public sealed record PartProposalItem(EntryId FileEntryId, string FileTitle, long DocumentId, PartProposalSource Source, IReadOnlyList<ProposedPart> Parts,
+    CollectionEvidence? Evidence = null);
 
 /// <summary>What Accept did: the adventures it made and what undoes them, or why it couldn't, in words for the user.</summary>
 public sealed record ProposalAccepted(IReadOnlyList<EntryId> Parts, string? Problem = null, Func<Task>? Undo = null);
 
 /// <summary>
-/// Proposes the adventures inside compilation files and settles the proposals in Needs review (slice 5 plan, choices
-/// 5 and 7). The rules read a file's bookmarks and the blurbs on their first pages as Hints from names reads its
-/// names; a proposal never makes cards by itself. Accept makes a card for each ticked adventure, with the levels its
-/// blurb gave as a suggestion; "Not split" says the file is one book. Either answer is remembered for every copy of
-/// the file, by content hash, and can be undone.
+/// Proposes the adventures inside compilation files and settles the proposals in Needs review. The rules read a
+/// file's bookmarks and the blurbs on their first pages as Hints from names reads its names, and propose only when the
+/// book also says it is a collection of separate adventures; a proposal never makes cards by itself. Accept makes a card for each ticked adventure, with the levels its blurb gave as a suggestion;
+/// "Not split" says the file is one book. Either answer is remembered for every copy of the file, by content hash,
+/// and can be undone.
 /// </summary>
 public sealed class PartProposalService(PartProposalStore proposals, PartsService parts, EntryStore entries, IndexQueries queries,
     ILogger<PartProposalService>? log = null)
@@ -39,14 +40,14 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
         var pages = await queries.GetAllPageTextsAsync(documentId, ct);
         var proposed = PartRules.Propose([.. outline.Select(o => (o.Title, o.PdfPage, o.Depth))], pages);
         var changed = await proposals.SaveAsync(entry.ContentHash, PartProposalSource.Rules, proposed, ct);
-        if (changed && proposed.Count > 0) _log.LogInformation("Document {DocumentId} looks like it holds {Count} adventures", documentId, proposed.Count);
+        if (changed && proposed is not null) _log.LogInformation("Document {DocumentId} looks like it holds {Count} adventures", documentId, proposed.Parts.Count);
         return changed;
     }
 
     /// <summary>
-    /// Whether a model should be asked which of a document's bookmarks are adventures (choice 6): it is a copy of a
-    /// book's own file with no adventures marked, nothing was proposed from this copy yet, and no copy's proposal was
-    /// answered. The rules' proposal comes first, from the file's own words, and a model never replaces it.
+    /// Whether a model should be asked which of a document's bookmarks are adventures: it is a copy of a book's own
+    /// file with no adventures marked, nothing was proposed from this copy yet, and no copy's proposal was answered.
+    /// The rules' proposal comes first, from the file's own words, and a model never replaces it.
     /// </summary>
     public async Task<bool> WantsModelAsync(long documentId, CancellationToken ct = default)
     {
@@ -55,12 +56,15 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
         return !await proposals.IsSettledAsync(entry.EntryId, entry.ContentHash, ct);
     }
 
-    /// <summary>Records the adventures a model found in a document, checked against its pages, as a proposal for Needs review.</summary>
-    public async Task<bool> ProposeFromModelAsync(long documentId, IReadOnlyList<ProposedPart> found, CancellationToken ct = default)
+    /// <summary>
+    /// Records the adventures a model found in a document, checked against its pages, as a proposal for Needs review,
+    /// when it also showed where the book says it holds separate adventures.
+    /// </summary>
+    public async Task<bool> ProposeFromModelAsync(long documentId, Compilation? found, CancellationToken ct = default)
     {
-        if (found.Count == 0 || await entries.GetEntryAsync(documentId, ct) is not { } entry) return false;
+        if (found is not { Parts.Count: > 0 } || await entries.GetEntryAsync(documentId, ct) is not { } entry) return false;
         var changed = await proposals.SaveAsync(entry.ContentHash, PartProposalSource.Ai, found, ct);
-        if (changed) _log.LogInformation("AI found {Count} adventures in document {DocumentId}", found.Count, documentId);
+        if (changed) _log.LogInformation("AI found {Count} adventures in document {DocumentId}", found.Parts.Count, documentId);
         return changed;
     }
 
@@ -70,7 +74,7 @@ public sealed class PartProposalService(PartProposalStore proposals, PartsServic
         var pending = await proposals.GetPendingAsync(ct);
         if (pending.Count == 0) return [];
         var titles = await queries.GetEntryTitlesAsync([.. pending.Select(p => p.EntryId)], ct);
-        return [.. pending.Select(p => new PartProposalItem(p.EntryId, titles.GetValueOrDefault(p.EntryId) ?? "Untitled", p.DocumentId, p.Source, p.Parts))];
+        return [.. pending.Select(p => new PartProposalItem(p.EntryId, titles.GetValueOrDefault(p.EntryId) ?? "Untitled", p.DocumentId, p.Source, p.Parts, p.Evidence))];
     }
 
     public async Task<int> CountPendingAsync(CancellationToken ct = default) => (await proposals.GetPendingAsync(ct)).Count;

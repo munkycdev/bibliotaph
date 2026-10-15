@@ -16,23 +16,27 @@ public enum CollectionMenuKind
     Choose,
 }
 
-/// <summary>One of the Add to collection items in a menu (slice 3 plan, choice 10).</summary>
+/// <summary>One of the Add to collection items in a menu.</summary>
 public sealed record CollectionMenuChoice(CollectionMenuKind Kind, long? CollectionId, string Label, string? Path);
 
 /// <summary>What an Add to collection item runs with: the menu's context (a book, the details, the page) and the item.</summary>
 public sealed record CollectionRequest(object? Target, CollectionMenuChoice Choice);
 
+/// <summary>The Add to collection items a menu shows, in order: the collection directory's, through the page.</summary>
+public interface ICollectionChoices
+{
+    IReadOnlyList<CollectionMenuChoice> MenuChoices { get; }
+}
+
 /// <summary>
 /// Puts the Add to collection items at the end of a menu each time it opens, so they follow the collections as they
 /// change: the recent ones, then New and Choose. Set <c>CollectionMenu.Command</c> on a ContextMenu; each item runs it
-/// with a <see cref="CollectionRequest"/> carrying the menu's DataContext, so a card's menu knows its book.
+/// with a <see cref="CollectionRequest"/> carrying the menu's DataContext, so a card's menu knows its book. The items
+/// come from the nearest <see cref="ICollectionChoices"/> (see <see cref="MenuContext"/>), the page's view model.
 /// </summary>
 public static class CollectionMenu
 {
     static readonly MenuGroup Group = new(Order: 2);
-
-    /// <summary>The items every menu shows, kept current by the collection directory on the UI thread.</summary>
-    public static IReadOnlyList<CollectionMenuChoice> Choices { get; set; } = [];
 
     public static readonly DependencyProperty CommandProperty = DependencyProperty.RegisterAttached("Command", typeof(ICommand), typeof(CollectionMenu),
         new PropertyMetadata(null, OnCommandChanged));
@@ -52,7 +56,8 @@ public static class CollectionMenu
     {
         var menu = (ContextMenu)sender;
         var command = GetCommand(menu);
-        Group.Refill(menu, command is null ? [] : Choices.Select(choice => new MenuItem
+        var choices = command is null ? null : MenuContext.Find<ICollectionChoices>(menu);
+        Group.Refill(menu, choices is null ? [] : choices.MenuChoices.Select(choice => new MenuItem
         {
             Header = choice.Label,
             ToolTip = choice.Path,

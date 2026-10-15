@@ -81,6 +81,22 @@
       </DockPanel>
     </Border>
 
+    <!-- Reading whole books, chapter by chapter, after cataloging and only while nothing else wants the AI. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+      <StackPanel>
+        <CheckBox x:Name="ScanWholeBooks" IsChecked="{Binding ScanWholeBooks}" VerticalContentAlignment="Top"
+                  Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Scan whole books">
+          <StackPanel Margin="4,0,0,0">
+            <TextBlock Text="Scan whole books" FontSize="12" />
+            <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                       Text="Once a book is catalogued, the AI reads all of it, chapter by chapter, and notes each chapter's setting, environments, themes and creatures, with the page that shows them. It goes slowly, after everything else, and stops whenever you ask the AI something. The book's own details are never changed." />
+          </StackPanel>
+        </CheckBox>
+        <TextBlock Text="{Binding ScanProgressText}" Style="{StaticResource Note}" Margin="22,4,0,0"
+                   Visibility="{Binding ScanProgressText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </Border>
+
     <!-- Built in or a model server (Built-in AI plan, choice 7) -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <DockPanel>
@@ -104,30 +120,41 @@
       <TextBlock Text="Built-in model" Style="{StaticResource Text.Row}" Margin="0,18,0,4" />
       <TextBlock Text="{Binding EngineText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
       <TextBlock Text="{Binding GraphicsText}" Style="{StaticResource Note}" />
-      <ItemsControl ItemsSource="{Binding Models}" Focusable="False" Margin="0,10,0,0" AutomationProperties.Name="Built-in models">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="{x:Type vm:BuiltInModelItem}">
-            <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,9">
-              <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Text="{Binding StateText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="12,0,0,0" />
-                <RadioButton GroupName="BuiltInModel" IsChecked="{Binding IsChosen, Mode=OneWay}" Foreground="{DynamicResource Bt.Text}"
-                             Command="{Binding DataContext.ChooseCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                             AutomationProperties.Name="{Binding Name}">
-                  <StackPanel Margin="4,0,0,0">
-                    <TextBlock Text="{Binding Name}" FontSize="12" />
-                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
-                  </StackPanel>
-                </RadioButton>
+      <!-- One list for every model offered, grouped by whether it fits this computer's graphics card, and a file of your own. -->
+      <DockPanel Margin="0,10,0,0">
+        <Button DockPanel.Dock="Right" Content="Use a model file…" Command="{Binding ChooseFileCommand}" Margin="8,0,0,0" VerticalAlignment="Top"
+                AutomationProperties.Name="Use a model file on this computer" ToolTip="A .gguf model file already on this computer, used where it is" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ModelList}" SelectedItem="{Binding Chosen}" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Stretch" MaxDropDownHeight="420" AutomationProperties.Name="Built-in model">
+          <ComboBox.GroupStyle>
+            <GroupStyle>
+              <GroupStyle.HeaderTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Small}" FontWeight="Medium" Margin="8,8,8,2" />
+                </DataTemplate>
+              </GroupStyle.HeaderTemplate>
+            </GroupStyle>
+          </ComboBox.GroupStyle>
+          <ComboBox.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:BuiltInModelItem}">
+              <DockPanel MaxWidth="480">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding StateText}" Style="{StaticResource Text.Small}" VerticalAlignment="Top" Margin="12,0,0,0" />
+                <StackPanel>
+                  <TextBlock Text="{Binding Name}" FontSize="12" />
+                  <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+                </StackPanel>
               </DockPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+      </DockPanel>
 
-      <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0">
+      <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0" Visibility="{Binding IsListedChosen, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <Run Text="{Binding LicenceText, Mode=OneWay}" />
         <Hyperlink Command="{Binding OpenLicenceCommand}" Foreground="{DynamicResource Bt.Accent}">Read the licence</Hyperlink>
       </TextBlock>
+      <TextBlock Text="{Binding FileText}" Style="{StaticResource Note}" Margin="0,10,0,0" TextWrapping="Wrap"
+                 Visibility="{Binding FileText, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
       <StackPanel Visibility="{Binding IsDownloading, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,12,0,0">
         <ProgressBar Style="{StaticResource Bt.ProgressBar}" Value="{Binding DownloadPercent, Mode=OneWay}" Maximum="100" AutomationProperties.Name="Download progress" />
@@ -235,6 +262,19 @@
           <TextBlock Style="{StaticResource Note}" Text="Values you've accepted, typed or rejected stay as they are." />
         </StackPanel>
       </DockPanel>
+    </Border>
+
+    <!-- Reading the whole library for meaning, for questions to the library -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0"
+            Visibility="{Binding HasLibraryVectors, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel>
+        <TextBlock Text="Read the whole library for meaning" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Note}" Margin="0,5,0,8"
+                   Text="So a question to your whole library finds pages by what they mean, not only by their words. It runs slowly in the background, can take hours for a large library, pauses while you're using the AI, and carries on where it was after a restart." />
+        <CheckBox x:Name="ReadLibraryForMeaning" IsChecked="{Binding ReadLibrary}" Foreground="{DynamicResource Bt.Text}"
+                  Content="Read the library for meaning in the background" />
+        <TextBlock x:Name="LibraryVectorsProgress" Text="{Binding LibraryVectorsText}" Style="{StaticResource Note}" />
+      </StackPanel>
     </Border>
 
     <!-- Folders -->

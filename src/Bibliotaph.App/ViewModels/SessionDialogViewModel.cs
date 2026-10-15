@@ -29,8 +29,8 @@ public enum SessionDialogKind
 }
 
 /// <summary>
-/// The dialog over a page for session packs (slice 3 plan, choices 11 to 13): naming one, naming a section, picking a
-/// pack, or Add pages… from the reader.
+/// The dialog over a page for session packs: naming one, naming a section, picking a pack, or Add pages… from the
+/// reader.
 /// </summary>
 public sealed partial class SessionDialogViewModel : ObservableObject
 {
@@ -44,16 +44,16 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         Kind = kind;
         Heading = heading;
         ActionText = actionText;
-        _packs = packs;
+        _packs = [.. packs.OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase)];
         _findPage = findPage;
         _sections = sections;
-        Shown = packs;
+        Shown = _packs;
         PackChoices = [.. packs.Select(p => new Choice<long>(p.Id, p.Title))];
     }
 
     /// <summary>
     /// Asks for a title and an optional date, or whether it's kept at hand during games and for which of
-    /// <paramref name="systems"/> (Binders plan, choice 9), filled in for Edit.
+    /// <paramref name="systems"/>, filled in for Edit.
     /// </summary>
     public static SessionDialogViewModel Naming(string heading, string actionText, IReadOnlyList<Choice<string?>> systems, string title = "", DateOnly? date = null,
         bool keepAtHand = false, string? gameSystem = null)
@@ -81,7 +81,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         new(SessionDialogKind.Picking, heading, "", packs);
 
     /// <summary>
-    /// Add pages… (choice 13): From and To as the reader names pages (printed labels or PDF page numbers, read by
+    /// Add pages…: From and To as the reader names pages (printed labels or PDF page numbers, read by
     /// <paramref name="findPage"/>), a label, and which pack and section, the current pack's end first.
     /// </summary>
     public static SessionDialogViewModel Pages(IReadOnlyList<SessionPackInfo> packs, string from, string to, string label, Func<string, int?> findPage,

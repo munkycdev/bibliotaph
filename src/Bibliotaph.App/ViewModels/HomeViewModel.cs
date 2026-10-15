@@ -12,15 +12,14 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Home (slice 3 plan, choice 7): the books opened last and added last, a cover each, Continue preparing: the session
-/// pack worked on last (3c), and the sidebar's pins in the same order (Pinned Views plan, choice 12). Before any folder
-/// is added it explains what Bibliotaph does.
+/// Home: the books opened last and added last, a cover each, Continue preparing: the session pack worked on last, and
+/// the sidebar's pins in the same order. Before any folder is added it explains what Bibliotaph does.
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
     PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, ILogger<HomeViewModel> log)
-    : LibraryAwarePageViewModel(roots, activity)
+    : LibraryAwarePageViewModel(roots, activity), ICollectionChoices, ISessionChoices, IPinState
 {
     /// <summary>How many covers each row shows.</summary>
     public const int RowLength = 8;
@@ -39,14 +38,20 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     /// <summary>Add to session from a cover's menu, with its dialog and note.</summary>
     public SessionActions Sessions { get; } = sessions;
 
-    /// <summary>Continue preparing (3c): the session pack worked on last, as a card; null before there is one.</summary>
+    /// <summary>Continue preparing: the session pack worked on last, as a card; null before there is one.</summary>
     [ObservableProperty]
     public partial SessionCardViewModel? ContinuePreparing { get; private set; }
 
-    /// <summary>The sidebar's pins, in its order (Pinned Views plan, choice 12).</summary>
+    /// <summary>The sidebar's pins, in its order.</summary>
     public PinDirectory Pins { get; } = pins;
 
-    /// <summary>The first-run "AI now or later" step (choice 10): folders added, no endpoint, and not yet answered.</summary>
+    IReadOnlyList<CollectionMenuChoice> ICollectionChoices.MenuChoices => Collections.Directory.MenuChoices;
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
+
+    bool IPinState.IsPinned(object? context) => ((IPinState)Pins).IsPinned(context);
+
+    /// <summary>The first-run "AI now or later" step: folders added, no endpoint, and not yet answered.</summary>
     [ObservableProperty]
     public partial bool ShowAiStep { get; private set; }
 
@@ -151,7 +156,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand]
     void CatalogedWrong(LibraryItemViewModel item) => pages.ShowCorrection(item.EntryId);
 
-    /// <summary>Opens a book where it was left (choice 6), from a cover's menu or Enter on it; a book owned only online opens its page.</summary>
+    /// <summary>
+    /// Opens a book where it was left, from a cover's menu or Enter on it; a book owned only online opens its page.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanOpenCard))]
     async Task OpenBook(LibraryItemViewModel item)
     {
@@ -175,19 +182,19 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };
 
-    /// <summary>"Ask this book", from a cover's menu: opens the PDF with its Ask panel showing (Ask plan, choice 11).</summary>
+    /// <summary>"Ask this book", from a cover's menu: opens the PDF with its Ask panel showing.</summary>
     [RelayCommand(CanExecute = nameof(CanAskBook))]
     void AskBook(LibraryItemViewModel item) => readers.OpenInMainWindow(new ViewerRequest(item.DocumentId, item.Title) { Resume = true, Ask = true });
 
     bool CanAskBook(LibraryItemViewModel? item) => item is { CanAsk: true } && ask.IsOn;
 
-    /// <summary>Open in another app, from the menu of a cover whose file Bibliotaph can't read (slice 4i plan, choice 4).</summary>
+    /// <summary>Open in another app, from the menu of a cover whose file Bibliotaph can't read.</summary>
     [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(CanOpenElsewhere))]
     Task OpenElsewhere(LibraryItemViewModel item) => text.OpenElsewhereAsync(item.DocumentId);
 
     static bool CanOpenElsewhere(LibraryItemViewModel? item) => BookTextActions.HasFile(item);
 
-    /// <summary>Forget its text, from a cover's menu (slice 4i plan, choice 6).</summary>
+    /// <summary>Forget its text, from a cover's menu.</summary>
     [RelayCommand(CanExecute = nameof(CanForgetText))]
     async Task ForgetText(LibraryItemViewModel item)
     {
@@ -206,15 +213,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     static bool CanReadTextAgain(LibraryItemViewModel? item) => item is { CanReadAgain: true };
 
-    /// <summary>A book at the page it was left at; a pack at its first image, with the rest to step through.</summary>
-    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item)
-    {
-        if (!item.IsPack) return item.BookRequest();
-        var images = await Task.Run(() => queries.GetPackImagesAsync(item.EntryId));
-        if (images.Count == 0) return null;
-        var pack = images.Select(i => new PackStep(i.DocumentId, System.IO.Path.GetFileNameWithoutExtension(i.Name))).ToList();
-        return new ViewerRequest(pack[0].DocumentId, pack[0].Title) { Pack = pack, PackTitle = item.Title };
-    }
+    /// <summary>A book at the page it was left at; a pack at its first file, with the rest to step through.</summary>
+    async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item) =>
+        item.IsPack ? ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)), item.Title) : item.BookRequest();
 
     /// <summary>The heart on a cover or in its menu.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]

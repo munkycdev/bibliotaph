@@ -83,7 +83,7 @@ public partial class OnlineReaderView
         core.DocumentTitleChanged += (_, _) => model.PageTitle = core.DocumentTitle;
         core.DownloadStarting += async (_, e) =>
         {
-            // A store's Download button on the book's page (O5): the reader says how it goes.
+            // A store's Download button on the book's page: the reader says how it goes.
             var download = await model.Browsers.Downloads.TakeAsync(e, model.Request.Place ?? model.Title);
             model.Notice = $"{download.Name}: {download.Status}";
             download.PropertyChanged += (_, p) =>

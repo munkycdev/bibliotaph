@@ -17,7 +17,7 @@ namespace Bibliotaph.App;
 
 /// <summary>
 /// The composition root. Builds the Generic Host, prepares both databases, applies the theme and opens
-/// the shell. Closing the window stops the host, which stops all processing (product principle 7).
+/// the shell. Closing the window stops the host, which stops all processing.
 /// </summary>
 public partial class App : Application
 {
@@ -53,7 +53,7 @@ public partial class App : Application
         try
         {
             StartOver.FinishIfRequested(paths, e.Args);
-            // A restore chosen before the restart (slice 4j) swaps its catalog in now, before anything opens it.
+            // A restore chosen before the restart swaps its catalog in now, before anything opens it.
             var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
             if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
@@ -79,13 +79,14 @@ public partial class App : Application
 
             var theme = services.GetRequiredService<ThemeService>();
             await theme.InitializeAsync();
+            await services.GetRequiredService<LibrarySorts>().InitializeAsync();
 
             var window = services.GetRequiredService<MainWindow>();
             theme.Track(window);
             MainWindow = window;
             window.Show();
             await services.GetRequiredService<ShellViewModel>().StartAsync();
-            // Updates (slice 4l): checked once the window shows, in the background.
+            // Updates: checked once the window shows, in the background.
             services.GetRequiredService<IUpdateService>().Start();
             if (restored is not null && !_smokeTest) AppRestart.Tell(restored);
 
@@ -148,12 +149,14 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new MetadataStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new ClassificationStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new CorrectionStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(sp => new UserTagStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), sp.GetRequiredService<TimeProvider>()));
 
         // index.db: derived, rebuildable. One writer; reads on their own connections.
         builder.Services.AddSingleton(sp => IndexDatabase.ForFile(paths.IndexDatabase, sp.GetRequiredService<ILogger<IndexDatabase>>()));
         builder.Services.AddSingleton<IndexWriter>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexWriter>());
         builder.Services.AddSingleton<IndexQueries>();
+        builder.Services.AddSingleton<UserTagQueries>();
         builder.Services.AddSingleton<LibraryQueries>();
 
         // PDFium runs only in worker processes; none starts until something asks for a page.
@@ -174,11 +177,15 @@ public partial class App : Application
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
         builder.Services.AddSingleton<ElsewhereService>();
+        builder.Services.AddSingleton<ChosenCovers>();
         builder.Services.AddSingleton<FavoriteStore>();
         builder.Services.AddSingleton<ReadingStore>();
         builder.Services.AddSingleton<FavoritesService>();
         builder.Services.AddSingleton<CollectionStore>();
+        builder.Services.AddSingleton<FolderCollectionStore>();
         builder.Services.AddSingleton<CollectionsService>();
+        builder.Services.AddSingleton<FolderCollections>();
+        builder.Services.AddSingleton<CollectionSuggestions>();
         builder.Services.AddSingleton<PageRefStore>();
         builder.Services.AddSingleton<PagePlaces>();
         builder.Services.AddSingleton<SessionStore>();
@@ -201,7 +208,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PageThumbnailCache>();
         builder.Services.AddSingleton<WpfImageCodec>();
         builder.Services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
-        // The smoke test keeps remembered passwords in memory and opens no other app (slice 4i).
+        // The smoke test keeps remembered passwords in memory and opens no other app.
         if (smokeTest) builder.Services.AddSingleton<IPasswordVault, MemoryPasswordVault>();
         else builder.Services.AddSingleton<IPasswordVault, PasswordVault>();
         builder.Services.AddSingleton<UnlockedPasswords>();
@@ -227,16 +234,21 @@ public partial class App : Application
             new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInEngine>>()));
         // The smoke test has a stand-in model server of its own, for Ask this book (SmokeModel).
+        builder.Services.AddSingleton(sp => new ModelActivity(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new AiSettings(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IApiKeyStore>(),
             smokeTest ? SmokeModel.ClientsFor(sp.GetRequiredService<IApiKeyStore>()) : null,
-            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey)));
+            sp.GetRequiredService<BuiltInEngine>(), sp.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey),
+            sp.GetRequiredService<ModelActivity>()));
         builder.Services.AddSingleton<AskQueries>();
+        builder.Services.AddSingleton(sp => new AiUse(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<AskService>();
+        builder.Services.AddSingleton<LibraryAskQueries>();
+        builder.Services.AddSingleton<LibraryAskService>();
         builder.Services.AddSingleton<ExampleFinder>();
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();
         builder.Services.AddSingleton<StartOver>();
-        // Settings > Start over, shown only with --dev (slice 4l plan, choice 7).
+        // Settings > Start over, shown only with --dev.
         builder.Services.AddSingleton(new DevMode(dev));
         builder.Services.AddSingleton<CatalogExport>();
         builder.Services.AddSingleton<BackupService>();
@@ -249,6 +261,8 @@ public partial class App : Application
         builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
         builder.Services.AddSingleton<OnlineOnlyReturns>();
         builder.Services.AddSingleton<StageServices>();
+        // Every stage registered as an IStage is in it: lanes, startup and the screens that name stages all read it.
+        builder.Services.AddSingleton<IStageCatalog, StageCatalog>();
         builder.Services.AddSingleton<IStage, ProbeStage>();
         builder.Services.AddSingleton<IStage, TextStage>();
         builder.Services.AddSingleton<IStage, CoversStage>();
@@ -257,26 +271,43 @@ public partial class App : Application
         builder.Services.AddSingleton<AiReadingFeed>();
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
+        builder.Services.AddSingleton<ChapterScanStore>();
+        builder.Services.AddSingleton<ChapterQueries>();
+        builder.Services.AddSingleton<ChapterProjection>();
+        builder.Services.AddSingleton<IStage, ChapterScanStage>();
+        builder.Services.AddSingleton<ChapterScanService>();
+        builder.Services.AddSingleton<MarkStores>();
         builder.Services.AddSingleton<MetadataProjector>();
         builder.Services.AddSingleton<MetadataHints>();
         builder.Services.AddSingleton<FolderRules>();
         builder.Services.AddSingleton<MetadataService>();
         builder.Services.AddSingleton<CorrectionService>();
         builder.Services.AddSingleton<VocabularyService>();
+        builder.Services.AddSingleton<UserTagService>();
+        builder.Services.AddSingleton<ReviewCards>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
         builder.Services.AddSingleton<PlainSearchService>();
-        // The model pilot (slice 2d): its own pilot.db, shown only with --pilot.
+        // The model pilot: its own pilot.db, shown only with --pilot.
         builder.Services.AddSingleton(sp => new PilotStore(paths.Pilot, sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<PilotService>();
         builder.Services.AddSingleton(new PilotMode(pilot));
         builder.Services.AddSingleton<PilotSession>();
         builder.Services.AddSingleton(new IndexingOptions());
+        builder.Services.AddSingleton<IndexingFiles>();
         builder.Services.AddSingleton<IndexingService>();
+        // Both forward to the one service the host runs; registered with their own implementation type, each would get a
+        // second IndexingService that never starts.
+        builder.Services.AddSingleton<IJobControl>(sp => sp.GetRequiredService<IndexingService>());
+        builder.Services.AddSingleton<IIndexingStatus>(sp => sp.GetRequiredService<IndexingService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IndexingService>());
-        // Library sync (library sync plan): after indexing, so it stops first and writes this PC's file one last time.
+        // Reading the whole library for meaning, slowly and last of all.
+        builder.Services.AddSingleton<LibraryVectors>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryVectors>());
+        // Library sync: after indexing, so it stops first and writes this PC's file one last time.
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
-            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
         builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySync>>()));
@@ -285,10 +316,16 @@ public partial class App : Application
 
         // Shell
         builder.Services.AddSingleton<ThemeService>();
+        builder.Services.AddSingleton<LibrarySorts>();
+        builder.Services.AddSingleton<IFilePicker, WindowsFilePicker>();
+        builder.Services.AddSingleton<IUserPrompts, WpfUserPrompts>();
+        builder.Services.AddSingleton<IClipboard, WpfClipboard>();
+        builder.Services.AddSingleton<IDesktopShell, WindowsDesktopShell>();
         builder.Services.AddSingleton<SettingsLinks>();
         builder.Services.AddSingleton<LibraryFolders>();
         builder.Services.AddSingleton<LibraryActivity>(); // creates its timer on the UI thread, where the shell resolves it
         builder.Services.AddSingleton<SearchState>();
+        builder.Services.AddSingleton<LibraryAskScope>();
         builder.Services.AddSingleton<CoverImages>();
         // Site icons for books owned online, fetched once per site; the smoke test has a stand-in for the web.
         builder.Services.AddSingleton(sp => new SiteIcons(sp.GetRequiredService<AppPaths>(),
@@ -322,6 +359,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SmartViewDirectory>();
         builder.Services.AddSingleton<PinDirectory>();
         builder.Services.AddSingleton<PinOpener>();
+        builder.Services.AddSingleton<InspectorFactory>();
+        builder.Services.AddSingleton<LibrarySelectionFactory>();
         builder.Services.AddTransient<CollectionActions>();
         builder.Services.AddSingleton<SessionDirectory>();
         builder.Services.AddTransient<SessionActions>();
@@ -356,9 +395,12 @@ public partial class App : Application
         // One Settings > Online libraries, so a preview is still there after a look at the Library.
         builder.Services.AddSingleton<OnlineLibrariesViewModel>();
         builder.Services.AddSingleton<SearchGuideViewModel>();
+        builder.Services.AddSingleton<LibraryAskViewModel>();
         builder.Services.AddSingleton<PlainSearchViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
+        builder.Services.AddSingleton<CoverPages>();
+        builder.Services.AddSingleton<DocumentOpener>();
         builder.Services.AddSingleton<ViewerServices>();
         builder.Services.AddSingleton<ReaderWindows>();
         return builder.Build();
@@ -394,7 +436,7 @@ public partial class App : Application
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
-        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IndexingService>());
+        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IIndexingStatus>());
         services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
         services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
         services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);
@@ -416,6 +458,8 @@ public partial class App : Application
             try
             {
                 await services.GetRequiredService<MetadataProjector>().ProjectAllAsync();
+                // What the AI found in each chapter, kept in catalog.db, back into a rebuilt index.db.
+                await services.GetRequiredService<ChapterProjection>().RestoreAsync();
             }
             catch (Exception ex)
             {
@@ -424,8 +468,8 @@ public partial class App : Application
         });
 
     /// <summary>
-    /// The weekly automatic backup (slice 4j plan, choice 2), at the first start of the week: in the background, as
-    /// copying the catalog can take a moment and nothing waits on it.
+    /// The weekly automatic backup, at the first start of the week: in the background, as copying the catalog can take a
+    /// moment and nothing waits on it.
     /// </summary>
     static void BackUpWeeklyInBackground(IServiceProvider services) =>
         _ = Task.Run(async () =>
@@ -458,17 +502,29 @@ public partial class App : Application
             }
         });
 
+    /// <summary>
+    /// A failure of something outside the app, such as a file that went away, is shown and the app carries on. Anything
+    /// else may have stopped an action half way, so the app says so and closes cleanly, letting the databases close.
+    /// </summary>
     void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        Log.Error(e.Exception, "Unhandled UI exception");
+        var recoverable = UiFailures.IsRecoverable(e.Exception);
+        Log.Error(e.Exception, recoverable ? "Unhandled UI exception; carrying on" : "Unhandled UI exception; closing");
         e.Handled = true;
         if (_smokeTest)
         {
             Shutdown(1);
             return;
         }
-        MessageBox.Show($"Something went wrong: {e.Exception.Message}\n\nThe details are in the log.", "Bibliotaph",
-            MessageBoxButton.OK, MessageBoxImage.Warning);
+        if (recoverable)
+        {
+            MessageBox.Show($"Something went wrong: {e.Exception.Message}\n\nThe details are in the log.", "Bibliotaph",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        MessageBox.Show($"Bibliotaph ran into a problem it can't safely carry on from, so it will close. Your library is "
+            + $"saved.\n\n{e.Exception.Message}\n\nThe details are in the log.", "Bibliotaph", MessageBoxButton.OK, MessageBoxImage.Error);
+        Shutdown(1);
     }
 
     protected override void OnExit(ExitEventArgs e)

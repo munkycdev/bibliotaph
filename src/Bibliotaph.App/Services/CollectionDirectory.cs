@@ -11,11 +11,11 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Every collection, kept in memory for the pages and menus (slice 3 plan, choices 8 to 10): their tree, their names
-/// as paths ("Campaign › Maps"), the scope each opens the Library with, and the recent ones a book's menu offers. It
-/// reloads after any collection changes, on the UI thread.
+/// Every collection, kept in memory for the pages and menus: their tree, their names as paths ("Campaign › Maps"),
+/// the scope each opens the Library with, and the recent ones a book's menu offers. It reloads after any collection
+/// changes, on the UI thread.
 /// </summary>
-public sealed class CollectionDirectory
+public sealed class CollectionDirectory : ICollectionChoices
 {
     /// <summary>How many recent collections a book's menu offers before New collection… and Choose….</summary>
     const int RecentCount = 4;
@@ -47,19 +47,16 @@ public sealed class CollectionDirectory
 
     public bool Any => _byId.Count > 0;
 
+    /// <summary>A book menu's Add to collection items, as of the last reload.</summary>
+    public IReadOnlyList<CollectionMenuChoice> MenuChoices { get; private set; } = [];
+
     public async Task LoadAsync()
     {
         try
         {
             var all = await Task.Run(() => _collections.ListAsync());
             _byId = all.ToDictionary(c => c.Id);
-            CollectionMenu.Choices =
-            [
-                .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount)
-                    .Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, $"Add to {c.Name}", PathOf(c.Id))),
-                new(CollectionMenuKind.New, null, "Add to a new collection…", null),
-                .. all.Count > RecentCount ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, "Add to another collection…", null)] : Array.Empty<CollectionMenuChoice>(),
-            ];
+            MenuChoices = MenuChoicesFor(all, PathOf);
             Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -68,17 +65,26 @@ public sealed class CollectionDirectory
         }
     }
 
+    /// <summary>
+    /// The Add to collection items for these collections: the ones used last, by path, then New, then Choose when
+    /// there are more than those. <paramref name="pathOf"/> names each.
+    /// </summary>
+    public static IReadOnlyList<CollectionMenuChoice> MenuChoicesFor(IReadOnlyList<CollectionInfo> all, Func<long, string> pathOf) =>
+    [
+        .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount).OrderBy(c => pathOf(c.Id), StringComparer.CurrentCultureIgnoreCase)
+            .Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, $"Add to {c.Name}", pathOf(c.Id))),
+        new(CollectionMenuKind.New, null, "Add to a new collection…", null),
+        .. all.Count > RecentCount ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, "Add to another collection…", null)] : Array.Empty<CollectionMenuChoice>(),
+    ];
+
     public CollectionInfo? Find(long collectionId) => _byId.GetValueOrDefault(collectionId);
 
     /// <summary>The collections a book was added to itself, for the chips in its details.</summary>
     public Task<IReadOnlyList<long>> CollectionsOfAsync(EntryId entryId) => _collections.GetForEntryAsync(entryId);
 
-    /// <summary>
-    /// The collections inside <paramref name="parentId"/>, or at the top: pinned first, in the sidebar's order, then by
-    /// name (choice 9; Pinned Views plan, choice 5).
-    /// </summary>
+    /// <summary>The collections inside <paramref name="parentId"/>, or at the top, by name. Only the sidebar keeps the pinned ones' own order.</summary>
     public IReadOnlyList<CollectionInfo> ChildrenOf(long? parentId) =>
-        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.PinPosition ?? int.MaxValue).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
+        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
 
     /// <summary>"Campaign › Maps": the collection's name after those of the collections it sits in.</summary>
     public string PathOf(long collectionId)
@@ -118,8 +124,8 @@ public sealed class CollectionDirectory
     };
 
     /// <summary>
-    /// The cards for these collections (choice 9): each with how many books it holds, sub-collections included, and
-    /// the covers of the two added last. Only books in the library's shown folders count.
+    /// The cards for these collections: each with how many books it holds, sub-collections included, and the covers of
+    /// the two added last. Only books in the library's shown folders count.
     /// </summary>
     public async Task<IReadOnlyList<CollectionCardViewModel>> CardsAsync(IReadOnlyList<CollectionInfo> collections)
     {

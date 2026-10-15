@@ -14,8 +14,8 @@ public sealed record PendingElsewhere(long Id, EntryId EntryId, long DocumentId,
 public sealed record ElsewhereDecision(PendingElsewhere Match, ElsewhereAnswer Answer);
 
 /// <summary>
-/// Books owned elsewhere meeting their files (F5 plan, choice 6). Match proposes a new file whose title and publisher
-/// match a book owned elsewhere; "Same book" joins the file to it, and "Separate book" is remembered for the pair.
+/// Books owned elsewhere meeting their files. Match proposes a new file whose title and publisher match a book owned
+/// elsewhere; "Same book" joins the file to it, and "Separate book" is remembered for the pair.
 /// </summary>
 public sealed class ElsewhereStore(IDbContextFactory<CatalogDbContext> contexts, EntryStore entries, TimeProvider? clock = null)
 {

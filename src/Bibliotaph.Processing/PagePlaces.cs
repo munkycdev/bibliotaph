@@ -22,8 +22,8 @@ public enum PagePlaceState
     Changed,
 
     /// <summary>
-    /// A new version of the book is still being read, so its pages haven't been looked for yet (slice 4h plan, choice
-    /// 1): nothing is judged changed until they have. It opens at the same printed page meanwhile.
+    /// A new version of the book is still being read, so its pages haven't been looked for yet: nothing is judged
+    /// changed until they have. It opens at the same printed page meanwhile.
     /// </summary>
     Pending,
 
@@ -48,8 +48,8 @@ public sealed record RevisionPlace(PlacedPages Place, PageRefCheck Check, string
 }
 
 /// <summary>
-/// "New version of a book: 12 places found their page, 2 need a look" (slice 4h plan, choice 3): one Needs review card
-/// per version a book opens now, while any of the places looked for in it needs a look.
+/// "New version of a book: 12 places found their page, 2 need a look": one Needs review card per version a book
+/// opens now, while any of the places looked for in it needs a look.
 /// </summary>
 public sealed record RevisionItem(EntryId EntryId, long DocumentId, string BookTitle, string? Path, IReadOnlyList<RevisionPlace> Places)
 {
@@ -59,12 +59,12 @@ public sealed record RevisionItem(EntryId EntryId, long DocumentId, string BookT
 }
 
 /// <summary>
-/// Where the places in a book open (slice 3 plan, choice 14; slice 4h plan, choices 1 to 5): session items' pages and
-/// page notes alike. A place opens in its book's current copy; made in another copy or an earlier version, it opens at
-/// the pages whose fingerprints match, or failing that at the same printed page, marked "This page changed: check it",
-/// where Use this page points it at the right one. What was found is kept on the page reference when a new version has
-/// been read, so a session or a note shows it without looking again and Needs review lists the places that need a
-/// look. Until a new version has its fingerprints, nothing is judged. The reading position moves to the matching page too.
+/// Where the places in a book open: session items' pages and page notes alike. A place opens in its book's current
+/// copy; made in another copy or an earlier version, it opens at the pages whose fingerprints match, or failing that
+/// at the same printed page, marked "This page changed: check it", where Use this page points it at the right one.
+/// What was found is kept on the page reference when a new version has been read, so a session or a note shows it
+/// without looking again and Needs review lists the places that need a look. Until a new version has its
+/// fingerprints, nothing is judged. The reading position moves to the matching page too.
 /// </summary>
 public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibraryStore library, IndexQueries index, ReadingStore reading,
     ILogger<PagePlaces>? log = null)
@@ -75,8 +75,9 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     readonly ILogger _log = log ?? NullLogger<PagePlaces>.Instance;
 
     /// <summary>
-    /// Where each place opens now, in the order given. A place's pages are looked for in its book's current copy at most
-    /// once: what was found is kept, here for places made before slice 4h or in a copy no version check covered.
+    /// Where each place opens now, in the order given. A place's pages are looked for in its book's current copy at
+    /// most once: what was found is kept, here for places made before version checks existed or in a copy no version
+    /// check covered.
     /// </summary>
     public async Task<IReadOnlyList<PagePlace>> ResolveAsync(IReadOnlyList<(EntryId EntryId, PageRange Range)> places, CancellationToken ct = default)
     {
@@ -106,7 +107,7 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
         var check = range.Check is { } kept && kept.DocumentId == copy ? kept : null;
         if (check is null)
         {
-            // Nothing is judged before the copy's pages have their fingerprints (choice 1).
+            // Nothing is judged before the copy's pages have their fingerprints.
             if (!fingerprinted.Contains(copy))
             {
                 if (readable.Contains(range.DocumentId))
@@ -149,8 +150,8 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
         AwayFile.From(await library.GetLocationsAsync(documentId, ct), beingRead: await library.IsBeingReplacedAsync(documentId, ct));
 
     /// <summary>
-    /// The document each entry opens: the one its card shows, or for an image hidden in a pack, its own file (slice 3
-    /// plan, choice 19: those keep their items and still open). A book owned elsewhere has none.
+    /// The document each entry opens: the one its card shows, or for an image hidden in a pack, its own file (those
+    /// keep their items and still open). A book owned elsewhere has none.
     /// </summary>
     public async Task<Dictionary<EntryId, long?>> CurrentDocumentsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
@@ -161,8 +162,8 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     }
 
     /// <summary>
-    /// Looks for every place in a book in the version it opens now (choices 1 to 5), once that version's pages have
-    /// their fingerprints: as Match finishes reading a new version (<paramref name="fingerprinted"/>), or when a copy is
+    /// Looks for every place in a book in the version it opens now, once that version's pages have their
+    /// fingerprints: as Match finishes reading a new version (<paramref name="fingerprinted"/>), or when a copy is
     /// made current. What was found is kept, a place the user already checked there stays as they chose, and where the
     /// book was left moves to the matching page. Returns how many places need a look.
     /// </summary>
@@ -186,7 +187,7 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
         return look;
     }
 
-    /// <summary>Where a book was left, in another of its copies, moves to the matching page of the one it opens now (choice 5).</summary>
+    /// <summary>Where a book was left, in another of its copies, moves to the matching page of the one it opens now.</summary>
     async Task MoveReadingPlaceAsync(long documentId, CancellationToken ct)
     {
         if (await reading.GetPlaceAsync(documentId, ct) is not { } place || place.DocumentId == documentId) return;
@@ -225,8 +226,8 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     }
 
     /// <summary>
-    /// Looks for a place's pages in another copy (choice 2): the first page by its fingerprint, the one nearest where it
-    /// was when a page is repeated, and the last by its own; failing that, the same printed page, to be checked.
+    /// Looks for a place's pages in another copy: the first page by its fingerprint, the one nearest where it was
+    /// when a page is repeated, and the last by its own; failing that, the same printed page, to be checked.
     /// </summary>
     async Task<PageRefCheck> FindAsync(PageRange range, long copy, CancellationToken ct)
     {
@@ -262,8 +263,8 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     }
 
     /// <summary>
-    /// The Needs review cards (choice 3): for each version a book opens now, the places looked for in it, while any of
-    /// them needs a look. Those that need one come first, then those the user checked, then those found by themselves.
+    /// The Needs review cards: for each version a book opens now, the places looked for in it, while any of them
+    /// needs a look. Those that need one come first, then those the user checked, then those found by themselves.
     /// </summary>
     public async Task<IReadOnlyList<RevisionItem>> GetRevisionsAsync(CancellationToken ct = default)
     {
@@ -307,8 +308,8 @@ public sealed class PagePlaces(PageRefStore refs, EntryStore entries, LibrarySto
     }
 
     /// <summary>
-    /// Use this page on a card (choice 3): the place points at these pages of the version from now on, checked.
-    /// Returns what undoes it, or null when the place is gone.
+    /// Use this page on a card: the place points at these pages of the version from now on, checked. Returns what
+    /// undoes it, or null when the place is gone.
     /// </summary>
     public async Task<Func<Task>?> UseAsync(PlacedPages place, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {

@@ -32,7 +32,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
         await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
         var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
-        await WaitUntilAsync(window, () => viewer.IsPdf && viewer.HasPageNotes && Shown(window, "ToggleStrip"),
+        await WaitUntilAsync(window, () => viewer.IsPdf && viewer.Notes.HasNotes && Shown(window, "ToggleStrip"),
             () => $"The PDF didn't open with its page note and the Page thumbnails button (still {viewer.Mode}).");
         if (viewer.ShowStrip || Descendants<Border>(window).Any(b => b.Name == "StripPanel" && b.IsVisible))
             throw new InvalidOperationException("The thumbnail strip showed before it was asked for.");

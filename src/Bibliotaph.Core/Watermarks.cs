@@ -4,11 +4,11 @@ namespace Bibliotaph.Core;
 
 /// <summary>
 /// Watermark lines: what a store prints on a copy for its buyer, such as "Prepared exclusively for Ana Example (Order
-/// #1234)". They name a person and an order, so they never go to a model and are never kept (scenario review, row 7):
-/// the classifier's excerpt leaves them out, and Get it from keeps only the store a watermark names. A line is a
-/// watermark when it reads like one (who a copy was prepared, sold or licensed for, where it was downloaded from, an
-/// order or transaction number, an email address), or when it is short and repeats on half or more of the pages, as a
-/// watermark with only a name does, and as running headers do too (<see cref="PageFingerprints.Repeats"/>).
+/// #1234)". They name a person and an order, so they never go to a model and are never kept: the classifier's excerpt
+/// leaves them out, and Get it from keeps only the store a watermark names. A line is a watermark when it reads like
+/// one (who a copy was prepared, sold or licensed for, where it was downloaded from, an order or transaction number, an
+/// email address), or when it is short and repeats on half or more of the pages, as a watermark with only a name does,
+/// and as running headers do too (<see cref="PageFingerprints.Repeats"/>).
 /// </summary>
 public static partial class Watermarks
 {

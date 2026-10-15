@@ -4,11 +4,11 @@ using System.Text;
 namespace Bibliotaph.Core;
 
 /// <summary>
-/// Page-text fingerprints, which tell two files of the same book apart from two different books (foundation slice,
-/// F2). A page's fingerprint hashes its text with case, punctuation and spacing ignored, after dropping the lines that
-/// repeat on most of the file's pages. Those are running headers and watermarks ("Prepared exclusively for ...", an
-/// order number): a watermark repeats on every page of one copy and differs between copies, so dropping repeated lines
-/// makes two watermarked copies of a book fingerprint alike without knowing any store's wording.
+/// Page-text fingerprints, which tell two files of the same book apart from two different books. A page's fingerprint
+/// hashes its text with case, punctuation and spacing ignored, after dropping the lines that repeat on most of the
+/// file's pages. Those are running headers and watermarks ("Prepared exclusively for ...", an order number): a
+/// watermark repeats on every page of one copy and differs between copies, so dropping repeated lines makes two
+/// watermarked copies of a book fingerprint alike without knowing any store's wording.
 /// </summary>
 public static class PageFingerprints
 {

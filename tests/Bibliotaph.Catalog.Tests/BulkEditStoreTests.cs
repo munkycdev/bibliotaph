@@ -3,7 +3,7 @@ using Bibliotaph.Core.Metadata;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Bulk metadata edits (slice 4e) and their undo in a real catalog.db.</summary>
+/// <summary>Bulk metadata edits and their undo in a real catalog.db.</summary>
 public sealed class BulkEditStoreTests : IAsyncLifetime
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-bulk-").FullName;
@@ -22,7 +22,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _metadata = new MetadataStore(new Factory(_database), _clock);
         (_first, _second, _third) = (await TestEntries.AddAsync(_database, 'a'), await TestEntries.AddAsync(_database, 'b'), await TestEntries.AddAsync(_database, 'c'));
     }
@@ -188,7 +188,7 @@ public sealed class BulkEditStoreTests : IAsyncLifetime
             Assert.Equal(Describe(effective[i].Compute()), Describe(restored[i].Compute()));
     }
 
-    /// <summary>A look-alike's correction (scenario review, row 8) can repeat a rejected guess on a field with one value.</summary>
+    /// <summary>A look-alike's correction can repeat a rejected guess on a field with one value.</summary>
     [Fact]
     public async Task Removing_a_guess_from_a_one_value_field_rejects_it_so_the_next_suggestion_shows_and_undo_brings_it_back()
     {

@@ -1,17 +1,17 @@
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A page note as the reader, a binder's reader and the details list it: which pages, and the text, and where it opens in the
-/// book as it is now (slice 4h plan, choice 2), with why when that isn't simply its pages. The pages shown are where it is
-/// in the copy the list is about: the version the book opens, in the details, or the copy open in a reader.
+/// A page note as the reader, a binder's reader and the details list it: which pages, and the text, and where it
+/// opens in the book as it is now, with why when that isn't simply its pages. The pages shown are where it is in the
+/// copy the list is about: the version the book opens, in the details, or the copy open in a reader.
 /// </summary>
 public sealed class PageNoteRow(PageNoteInfo note, PageNotePages? shown = null)
 {
@@ -55,24 +55,23 @@ public sealed class PageNoteRow(PageNoteInfo note, PageNotePages? shown = null)
 }
 
 /// <summary>
-/// The Notes tab of the details (slice 3 plan, choice 18): the book's own note, saved as it is typed and found by
-/// search, and the notes on its pages, added in the reader, each opening the book at its pages.
+/// The Notes tab of the details: the book's own note, saved as it is typed and found by search, and the notes on its
+/// pages, added in the reader, each opening the book at its pages.
 /// </summary>
 public sealed partial class EntryNotesViewModel : ObservableObject
 {
     readonly NotesService _notes;
     readonly ILogger _log;
-    readonly DispatcherTimer _saveTimer;
+    readonly UiTimer _saveTimer;
     bool _loading;
     bool _dirty;
 
-    public EntryNotesViewModel(EntryId entryId, NotesService notes, ILogger log)
+    public EntryNotesViewModel(EntryId entryId, NotesService notes, TimeProvider time, ILogger log)
     {
         EntryId = entryId;
         _notes = notes;
         _log = log;
-        _saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background, async (_, _) => await SaveAsync(), Dispatcher.CurrentDispatcher);
-        _saveTimer.Stop();
+        _saveTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveAsync);
     }
 
     public EntryId EntryId { get; }
@@ -84,7 +83,6 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     {
         if (_loading) return;
         _dirty = true;
-        _saveTimer.Stop();
         _saveTimer.Start();
     }
 
@@ -125,7 +123,7 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     /// <summary>Saves what was typed now, as when the details close before the pause in typing.</summary>
     public void Flush()
     {
-        if (_dirty) _ = SaveAsync();
+        if (_dirty) SaveAsync().FireAndForget();
     }
 
     async Task SaveAsync()

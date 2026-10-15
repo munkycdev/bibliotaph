@@ -7,11 +7,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// "Return files to online-only after indexing" (Dale's review, row 2): reading an online-only OneDrive file downloads
-/// it, so a cloud library bigger than the disk would fill it. Each file that was online-only when Bibliotaph read it is
-/// marked, and goes back to online-only once its stages are done with it, so the space comes back and indexing carries
-/// on. Never a file that was already on this device, one the user chose to always keep there, or one open in the
-/// reader; opening a book afterwards downloads it, as Windows always does. On unless the user turns it off.
+/// "Return files to online-only after indexing": reading an online-only OneDrive file downloads it, so a cloud
+/// library bigger than the disk would fill it. Each file that was online-only when Bibliotaph read it is marked, and
+/// goes back to online-only once its stages are done with it, so the space comes back and indexing carries on. Never
+/// a file that was already on this device, one the user chose to always keep there, or one open in the reader;
+/// opening a book afterwards downloads it, as Windows always does. On unless the user turns it off.
 /// </summary>
 public sealed class OnlineOnlyReturns(LibraryStore library, JobBoard queue, SettingsStore settings, ICloudFiles cloud, SourceFiles sources,
     ILogger<OnlineOnlyReturns>? log = null)

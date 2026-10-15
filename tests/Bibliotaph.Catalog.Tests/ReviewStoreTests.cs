@@ -22,7 +22,7 @@ public sealed class ReviewStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         var contexts = new Factory(_database);
         _metadata = new MetadataStore(contexts, _clock);
         _vocabulary = new VocabularyStore(contexts, _clock);

@@ -5,6 +5,7 @@ using Bibliotaph.Index;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Bibliotaph.App.Services;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -52,10 +53,10 @@ public sealed class ValueSuggestionViewModel(SearchFieldInfo searchField, GuideV
 
 /// <summary>
 /// The panel under the search box that lists the fields you can search, and after a field's colon the values in your
-/// library (slice 4 plan, item 4b). It opens when the box gets focus while empty, narrows to the field names that
-/// start with the word at the cursor, and opens anywhere with Ctrl+Space. Picking a row raises <see cref="Edited"/>
-/// with the new text and cursor; the window applies it to the box, which keeps focus throughout. The logic of what
-/// to offer is <see cref="SearchGuide"/>'s; this keeps the state and loads the values.
+/// library. It opens when the box gets focus while empty, narrows to the field names that start with the word at the
+/// cursor, and opens anywhere with Ctrl+Space. Picking a row raises <see cref="Edited"/> with the new text and
+/// cursor; the window applies it to the box, which keeps focus throughout. The logic of what to offer is
+/// <see cref="SearchGuide"/>'s; this keeps the state and loads the values.
 /// </summary>
 public sealed partial class SearchGuideViewModel(LibraryQueries queries, LibraryStore library, ILogger<SearchGuideViewModel> log) : ObservableObject
 {
@@ -186,7 +187,7 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
                 {
                     Suggestions = [];
                     IsOpen = true;
-                    _ = LoadValuesAsync(field);
+                    LoadValuesAsync(field).FireAndForget();
                 }
                 break;
             default:
@@ -213,7 +214,8 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
                 var filter = new LibraryFilter(await library.GetVisibleEntryIdsAsync());
                 if (field.Kind == SearchFieldKind.Format)
                     return SearchGuide.FormatValues((await queries.GetFormatCountsAsync(filter)).Select(Value));
-                var counts = await queries.GetFacetCountsAsync(field.Metadata?.Vocabulary ?? field.Name, filter);
+                // A field with no vocabulary of its own, such as creatures found in chapters, lists what its facets hold.
+                var counts = await queries.GetFacetCountsAsync(field.Metadata?.Vocabulary ?? SearchPlan.FacetFields(field.Field)?[0] ?? field.Name, filter);
                 return (IReadOnlyList<GuideValue>)[.. counts.Select(Value)];
             });
             _values[field.Field] = values;

@@ -15,12 +15,11 @@ public sealed record RestoreOutcome(RestoreRequest? Request, string? Problem, st
 }
 
 /// <summary>
-/// The swap that finishes a restore (slice 4j plan, choice 4), done at the start after it was staged and before
-/// anything opens the databases, as Start over's purge is, because Windows won't replace an open SQLite file. The
-/// catalog in use is first copied to the backups folder ("before-restore"), then moved aside, and the restored one
-/// put in its place; index.db goes, to be rebuilt from the files unless the backup brought its own (choice 6). On any
-/// failure the catalog in use is put back as it was and the outcome says why: a restore never leaves the user without
-/// a catalog.
+/// The swap that finishes a restore, done at the start after it was staged and before anything opens the databases,
+/// as Start over's purge is, because Windows won't replace an open SQLite file. The catalog in use is first copied
+/// to the backups folder ("before-restore"), then moved aside, and the restored one put in its place; index.db goes,
+/// to be rebuilt from the files unless the backup brought its own. On any failure the catalog in use is put back as
+/// it was and the outcome says why: a restore never leaves the user without a catalog.
 /// </summary>
 public static class PendingRestore
 {

@@ -1,11 +1,10 @@
-using System.Windows;
 using Bibliotaph.App.Views;
 
 namespace Bibliotaph.App.Services;
 
 /// <summary>
 /// A password typed by the reader, whether to remember it, and whether indexing may use it this sitting to make the
-/// book's text searchable (slice 4i plan, choice 1). A remembered password always does.
+/// book's text searchable. A remembered password always does.
 /// </summary>
 public sealed record EnteredPassword(string Password, bool Remember, bool Searchable = true);
 
@@ -21,7 +20,7 @@ public sealed class PasswordPrompt : IPasswordPrompt
     public EnteredPassword? Ask(string title, bool retry)
     {
         // Over the window being read, which may be a pop-out.
-        var owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+        var owner = WpfUserPrompts.Owner();
         var dialog = new PasswordDialog(title, retry) { Owner = owner };
         return dialog.ShowDialog() == true ? new EnteredPassword(dialog.EnteredPassword, dialog.RememberPassword, dialog.MakeSearchable) : null;
     }

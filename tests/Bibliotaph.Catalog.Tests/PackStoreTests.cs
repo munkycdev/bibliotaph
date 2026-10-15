@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Image packs (F4a): which folders and ZIPs become one card, images joining later, and splitting.</summary>
+/// <summary>Packs: which folders and ZIPs become one card, images joining later, Pack together, and splitting.</summary>
 public sealed class PackStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);
@@ -22,7 +22,7 @@ public sealed class PackStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         var contexts = new Factory(_database);
         _library = new LibraryStore(contexts);
         _entries = new EntryStore(contexts);
@@ -203,11 +203,11 @@ public sealed class PackStoreTests : IAsyncLifetime
         var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack);
         Assert.Equal((together.PackId, (string?)null), (pack.EntryId, pack.Name));
         Assert.Equal(["Crypt.png", "Harbor.png", "Keep.jpg"], pack.Members!.Select(m => m.Name));
-        Assert.Equal([together.PackId, .. together.Images], together.Changed);
+        Assert.Equal([together.PackId, .. together.Files], together.Changed);
         Assert.Empty(await _packs.PlanAsync(Ct));
         Assert.Null(await _packs.GetPlaceAsync(together.PackId, Ct));
         var folders = await _packs.GetFoldersAsync(together.PackId, Ct);
-        Assert.Equal([("Handouts", 2), ("Maps", 1)], folders.Select(f => (Path.GetFileName(f.FullPath), f.Images)));
+        Assert.Equal([("Handouts", 2), ("Maps", 1)], folders.Select(f => (Path.GetFileName(f.FullPath), f.Files)));
 
         await _packs.UndoPackTogetherAsync(together, Ct);
 
@@ -227,10 +227,10 @@ public sealed class PackStoreTests : IAsyncLifetime
 
         Assert.NotNull(together);
         Assert.Equal((pack, false), (together.PackId, together.Created));
-        Assert.Equal([images["Extras/Lich.png"]], together.Images);
+        Assert.Equal([images["Extras/Lich.png"]], together.Files);
         Assert.Equal(21, Assert.Single(await _entries.GetCurrentAsync(ct: Ct)).Members!.Count);
         var folders = await _packs.GetFoldersAsync(pack, Ct);
-        Assert.Equal([("Undead", 20), ("Extras", 1)], folders.Select(f => (Path.GetFileName(f.FullPath), f.Images)));
+        Assert.Equal([("Undead", 20), ("Extras", 1)], folders.Select(f => (Path.GetFileName(f.FullPath), f.Files)));
 
         // Its folder still fills it.
         await AddAsync("Tokens/Undead/Ghoul.png");
@@ -293,17 +293,61 @@ public sealed class PackStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pack_together_refuses_books_single_cards_and_merged_packs()
+    public async Task Pack_together_refuses_files_with_adventures_single_cards_and_merged_packs()
     {
         var images = await AddAsync([.. Images("Tokens/Undead", 20), .. Images("Tokens/Beasts", 20), "Extras/Lich.png", "Extras/Guide.pdf"]);
         await _packs.PlanAsync(Ct);
         var packs = (await _entries.GetCurrentAsync(ct: Ct)).Where(c => c.Kind == EntryKind.Pack).Select(c => c.EntryId).OrderBy(e => e.Value).ToList();
+        var guide = images["Extras/Guide.pdf"];
+        var adventure = (await new PartStore(new Factory(_database)).AddAsync(guide,
+            new PartSource((await _entries.GetCurrentDocumentAsync(guide, Ct))!.Value, new PartPages(2, 3)), "The Salt Mine", Ct))!.Value;
 
         Assert.Null(await _packs.PackTogetherAsync([images["Extras/Lich.png"]], Ct));
-        Assert.Null(await _packs.PackTogetherAsync([images["Extras/Lich.png"], images["Extras/Guide.pdf"]], Ct));
+        // An adventure's card names its file, so neither goes in a pack.
+        Assert.Null(await _packs.PackTogetherAsync([images["Extras/Lich.png"], guide], Ct));
+        Assert.Null(await _packs.PackTogetherAsync([images["Extras/Lich.png"], adventure], Ct));
         Assert.Null(await _packs.PackTogetherAsync([images["Tokens/Undead/Zombie 1.png"], images["Extras/Lich.png"]], Ct));
         await _packs.PackTogetherAsync(packs, Ct);
         Assert.Null(await _packs.PackTogetherAsync([packs[1], images["Extras/Lich.png"]], Ct));
+    }
+
+    [Fact]
+    public async Task Pack_together_packs_pdfs_with_an_image_while_folders_beside_pdfs_are_only_ever_packed_of_their_images()
+    {
+        var files = await AddAsync([.. Images("Tokens/Undead", 20), "Tokens/Undead/Token Guide.pdf", "Party/Fighter.pdf", "Party/Wizard.pdf", "Party/Portrait.png"]);
+        await _packs.PlanAsync(Ct);
+        // A PDF beside the tokens keeps their folder from packing by itself: it is asked about, for its images.
+        Assert.DoesNotContain(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack);
+        var proposal = Assert.Single(await _packs.GetProposalsAsync(Ct));
+        Assert.Equal((true, 20), (proposal.BesidePdfs, proposal.Images.Count));
+
+        var together = await _packs.PackTogetherAsync([files["Party/Wizard.pdf"], files["Party/Fighter.pdf"], files["Party/Portrait.png"]], Ct);
+
+        Assert.NotNull(together);
+        Assert.True(together.Created);
+        var pack = Assert.Single(await _entries.GetCurrentAsync(ct: Ct), c => c.Kind == EntryKind.Pack);
+        var members = pack.Members!;
+        Assert.Equal(["Fighter.pdf", "Portrait.png", "Wizard.pdf"], members.Select(m => m.Name));
+        Assert.Equal(members[0].DocumentId, pack.DocumentId);
+        // The PDFs show only inside the pack, which is the card their documents show under.
+        Assert.DoesNotContain(await _entries.GetCurrentAsync(ct: Ct), c => c.EntryId == files["Party/Fighter.pdf"] || c.EntryId == files["Party/Wizard.pdf"]);
+        Assert.Equal(pack.EntryId, await _entries.GetCardAsync(members[2].DocumentId, Ct));
+        Assert.Equal([pack], await _entries.GetShownByAsync(members[2].DocumentId, Ct), new PackComparer());
+        // A pack made by hand doesn't grow, and a rescan leaves it as it is.
+        Assert.Empty(await _packs.PlanAsync(Ct));
+
+        // Making the tokens' folder a pack takes its images; the guide keeps its own card.
+        Assert.NotNull(await _packs.AnswerAsync(proposal.PackId, PackAnswer.Packed, PackAnswer.Proposed, Ct));
+        var cards = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.Equal(20, Assert.Single(cards, c => c.EntryId == proposal.PackId).Members!.Count);
+        Assert.Contains(cards, c => c.EntryId == files["Tokens/Undead/Token Guide.pdf"] && c.Kind == EntryKind.Whole);
+
+        var freed = await _packs.SplitAsync(together.PackId, Ct);
+
+        Assert.Equal([together.PackId, .. together.Files], freed);
+        cards = await _entries.GetCurrentAsync(ct: Ct);
+        Assert.All(together.Files, f => Assert.Contains(cards, c => c.EntryId == f && c.Kind == EntryKind.Whole));
+        Assert.Empty(await _entries.GetCurrentAsync([together.PackId], Ct));
     }
 
     /// <summary>

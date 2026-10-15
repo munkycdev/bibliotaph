@@ -3,7 +3,7 @@ using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>The fields the pilot asks about and scores (slice 2d, choice P5).</summary>
+/// <summary>The fields the pilot asks about and scores.</summary>
 public static class PilotFields
 {
     /// <summary>Every field the review page asks about, in its order.</summary>
@@ -16,8 +16,8 @@ public static class PilotFields
 }
 
 /// <summary>
-/// Picks the pilot's books (choice P1): spread across top folders and game systems, the same books every time for the
-/// same library and seed.
+/// Picks the pilot's books: spread across top folders and game systems, the same books every time for the same
+/// library and seed.
 /// </summary>
 public static class PilotSample
 {
@@ -111,7 +111,7 @@ public sealed record PilotFieldScore(string Field, int Proposed, int Correct, in
 public sealed record PilotMistake(long DocumentId, string Field, string Proposed, string Answer);
 
 /// <summary>
-/// One model's score (choice P6). <see cref="Precision"/> and <see cref="Coverage"/> count the gated fields;
+/// One model's score. <see cref="Precision"/> and <see cref="Coverage"/> count the gated fields;
 /// <see cref="CorrectionRate"/> is the share of answered books with any wrong core value the user would have to fix.
 /// </summary>
 public sealed record PilotModelScore(
@@ -134,7 +134,7 @@ public sealed record PilotModelScore(
     public bool Passes => Precision >= PrecisionGate && Coverage >= CoverageGate && CorrectionRate < CorrectionGate;
 }
 
-/// <summary>Scores each model's proposals against the user's answers (choice P6). Pure, so the arithmetic is tested alone.</summary>
+/// <summary>Scores each model's proposals against the user's answers. Pure, so the arithmetic is tested alone.</summary>
 public static class PilotScoring
 {
     public static IReadOnlyList<PilotModelScore> Score(
@@ -189,7 +189,7 @@ public static class PilotScoring
         return scores;
     }
 
-    /// <summary>The model to offer by default (choice P8): the most precise of those that pass, then the fastest.</summary>
+    /// <summary>The model to offer by default: the most precise of those that pass, then the fastest.</summary>
     public static PilotModelScore? Best(IReadOnlyList<PilotModelScore> scores) =>
         scores.Where(s => s.Passes).OrderByDescending(s => s.Precision).ThenBy(s => s.MedianSeconds).FirstOrDefault();
 

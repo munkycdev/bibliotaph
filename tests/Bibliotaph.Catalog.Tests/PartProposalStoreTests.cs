@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Slice 5b: the adventures a file seems to hold, one Needs review card per file, answered by content hash.</summary>
+/// <summary>The adventures a file seems to hold, one Needs review card per file, answered by content hash.</summary>
 public sealed class PartProposalStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);
@@ -25,10 +25,14 @@ public sealed class PartProposalStoreTests : IAsyncLifetime
         new("The Glass Tower", new PartPages(7, 8), "7-9", "levels 7-9"),
     ];
 
+    static readonly CollectionEvidence Said = new(1, "This book is a collection of three short adventures.");
+
+    static Compilation Found(params ProposedPart[] parts) => new(Said, parts);
+
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _contexts = new Factory(_database);
         _library = new LibraryStore(_contexts);
         _entries = new EntryStore(_contexts);
@@ -62,20 +66,23 @@ public sealed class PartProposalStoreTests : IAsyncLifetime
         var (backup, _) = await AddBookAsync("Backup/compilation.pdf", 'b');
         await _entries.JoinAsCopyAsync(core, backup, Ct);
 
-        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct));
-        Assert.False(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct));
-        Assert.True(await _proposals.SaveAsync(Hex('b'), PartProposalSource.Rules, Three[..2], Ct));
+        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Found(Three), Ct));
+        Assert.False(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Found(Three), Ct));
+        Assert.True(await _proposals.SaveAsync(Hex('b'), PartProposalSource.Rules, Found(Three[..2]), Ct));
 
         // Both copies proposed: the card is the one read from the copy the file opens.
         var pending = Assert.Single(await _proposals.GetPendingAsync(Ct));
         Assert.Equal((Hex('a'), core, file, PartProposalSource.Rules), (pending.ContentHash, pending.DocumentId, pending.EntryId, pending.Source));
         Assert.Equal(Three, pending.Parts);
+        Assert.Equal(Said, pending.Evidence);
+        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, new Compilation(Said with { PdfPage = 0 }, Three), Ct));
+        Assert.Equal(0, Assert.Single(await _proposals.GetPendingAsync(Ct)).Evidence!.PdfPage);
 
         // Not split, for every copy of the file; another reading of either copy doesn't ask again. Undo puts it back.
         var before = await _proposals.AnswerAsync(file, PartProposalAnswer.NotSplit, Ct);
         Assert.Empty(await _proposals.GetPendingAsync(Ct));
         Assert.True(await _proposals.IsAnsweredAsync(Hex('b'), Ct));
-        Assert.False(await _proposals.SaveAsync(Hex('b'), PartProposalSource.Rules, Three, Ct));
+        Assert.False(await _proposals.SaveAsync(Hex('b'), PartProposalSource.Rules, Found(Three), Ct));
         await _proposals.RestoreAsync(before, Ct);
         Assert.Equal(Hex('a'), Assert.Single(await _proposals.GetPendingAsync(Ct)).ContentHash);
         Assert.False(await _proposals.IsAnsweredAsync(Hex('b'), Ct));
@@ -85,7 +92,7 @@ public sealed class PartProposalStoreTests : IAsyncLifetime
     public async Task A_file_with_adventures_marked_or_a_copy_answered_is_not_asked_about()
     {
         var (document, file) = await AddBookAsync("Core/compilation.pdf", 'a');
-        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct);
+        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Found(Three), Ct);
 
         var heist = (await _parts.AddAsync(file, new PartSource(document, new PartPages(2, 3)), "The Salt Mine", Ct))!.Value;
         Assert.Empty(await _proposals.GetPendingAsync(Ct));
@@ -107,16 +114,16 @@ public sealed class PartProposalStoreTests : IAsyncLifetime
     public async Task Proposing_nothing_drops_a_waiting_proposal_and_a_model_never_replaces_the_rules()
     {
         await AddBookAsync("Core/compilation.pdf", 'a');
-        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct);
+        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Found(Three), Ct);
 
-        Assert.False(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Ai, Three[..2], Ct));
+        Assert.False(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Ai, Found(Three[..2]), Ct));
         Assert.Equal(3, Assert.Single(await _proposals.GetPendingAsync(Ct)).Parts.Count);
-        Assert.False(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Ai, [], Ct));
-        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, [], Ct));
+        Assert.False(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Ai, null, Ct));
+        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, null, Ct));
         Assert.Empty(await _proposals.GetPendingAsync(Ct));
 
-        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Ai, Three[..2], Ct));
-        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct));
+        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Ai, Found(Three[..2]), Ct));
+        Assert.True(await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Found(Three), Ct));
         Assert.Equal(PartProposalSource.Rules, Assert.Single(await _proposals.GetPendingAsync(Ct)).Source);
     }
 
@@ -128,7 +135,7 @@ public sealed class PartProposalStoreTests : IAsyncLifetime
         await _entries.JoinAsCopyAsync(core, backup, Ct);
         Assert.False(await _proposals.IsSettledAsync(file, Hex('a'), Ct));
 
-        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Three, Ct);
+        await _proposals.SaveAsync(Hex('a'), PartProposalSource.Rules, Found(Three), Ct);
         Assert.True(await _proposals.IsSettledAsync(file, Hex('a'), Ct));
         Assert.False(await _proposals.IsSettledAsync(file, Hex('b'), Ct));
 

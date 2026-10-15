@@ -22,12 +22,15 @@ public enum AnswerPartKind
     Unsupported,
 }
 
-/// <summary>A piece of a checked answer: its kind, its text, and for a citation the PDF page it opens and the words to mark there.</summary>
-public sealed record AnswerPart(AnswerPartKind Kind, string Text, int? PdfPage = null, string? Phrase = null);
+/// <summary>
+/// A piece of a checked answer: its kind, its text, and for a citation the PDF page it opens and the words to mark
+/// there, and, in an answer from the whole library, the book (document) that page is in.
+/// </summary>
+public sealed record AnswerPart(AnswerPartKind Kind, string Text, int? PdfPage = null, string? Phrase = null, long? DocumentId = null);
 
 /// <summary>
-/// An answer after the citation and quote checks (Ask plan, step 5): its pieces in order, whether the model said the
-/// pages don't answer the question, what the checks counted, and the pages it cites, in the order it first cites them.
+/// An answer after the citation and quote checks: its pieces in order, whether the model said the pages don't answer
+/// the question, what the checks counted, and the pages it cites, in the order it first cites them.
 /// </summary>
 public sealed record CheckedAnswer(IReadOnlyList<AnswerPart> Parts, bool NotAnswered, int Citations, int RemovedCitations, int Quotes, int Paraphrases,
     IReadOnlyList<int> CitedPages)
@@ -39,11 +42,11 @@ public sealed record CheckedAnswer(IReadOnlyList<AnswerPart> Parts, bool NotAnsw
 }
 
 /// <summary>
-/// Checks an Ask answer against the pages sent with the question (Ask plan, step 5). Each [p. N] to a page that was
-/// sent becomes a link; one to any other page is removed, and a sentence left with no citation it had is marked as
-/// unsupported. Each quotation is looked for on the page its sentence cites, compared as EvidenceCheck compares quotes
-/// (letters and digits only, after compatibility normalisation); one that isn't there is shown without its marks, as a
-/// paraphrase. It works on an answer still being written, so the panel can show it checked as it streams.
+/// Checks an Ask answer against the pages sent with the question. Each [p. N] to a page that was sent becomes a link;
+/// one to any other page is removed, and a sentence left with no citation it had is marked as unsupported. Each
+/// quotation is looked for on the page its sentence cites, compared as EvidenceCheck compares quotes (letters and
+/// digits only, after compatibility normalisation); one that isn't there is shown without its marks, as a paraphrase.
+/// It works on an answer still being written, so the panel can show it checked as it streams.
 /// </summary>
 public static partial class AskAnswerCheck
 {

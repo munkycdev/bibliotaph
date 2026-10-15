@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>What importing a book from an online library will do (online libraries plan, choice 6).</summary>
+/// <summary>What importing a book from an online library will do.</summary>
 public enum OnlineOutcome
 {
     /// <summary>A new book owned elsewhere.</summary>
@@ -17,7 +17,7 @@ public enum OnlineOutcome
     /// <summary>A card with its title is already in the library: it gets the place and the link instead of a second card.</summary>
     AddToCard,
 
-    /// <summary>Imported before (the same link): its empty fields are filled, and nothing the user set changes (choice 7).</summary>
+    /// <summary>Imported before (the same link): its empty fields are filled, and nothing the user set changes.</summary>
     Update,
 
     /// <summary>Imported before, and there is nothing to fill.</summary>
@@ -33,7 +33,7 @@ public sealed record OnlineImportRow(OnlineBook Book, OnlineOutcome Outcome, Ent
     public IReadOnlyList<MetadataField> Fills { get; init; } = [];
 }
 
-/// <summary>A book imported before from this service that the library page doesn't list any more (choice 7).</summary>
+/// <summary>A book imported before from this service that the library page doesn't list any more.</summary>
 public sealed record MissingBook(EntryId EntryId, string Title, string Link);
 
 /// <summary>
@@ -53,11 +53,11 @@ public sealed record OnlineImportResult(int Added, int Changed, ImportReceipt Un
 public sealed record SavedLibraryPage(IOnlineLibraryReader Reader, OnlinePage Page, string Images);
 
 /// <summary>
-/// Importing the books the user owns on an online service as books owned elsewhere (online libraries, O2). A reader
-/// turns a library page into books; the preview says what each becomes (choice 6); the import writes them all in one
-/// transaction, and Undo takes the whole import back. Every value is the user's own, with the import as its evidence
-/// (choice 4), and the link goes in Also own, where Open finds it and the next import knows the book by it (choice 5),
-/// or for a store whose books are files to download, in Get it from (O4).
+/// Importing the books the user owns on an online service as books owned elsewhere. A reader turns a library page
+/// into books; the preview says what each becomes; the import writes them all in one transaction, and Undo takes the
+/// whole import back. Every value is the user's own, with the import as its evidence, and the link goes in Also own,
+/// where Open finds it and the next import knows the book by it, or for a store whose books are files to download,
+/// in Get it from.
 /// </summary>
 public sealed class OnlineImports(MetadataStore store, MetadataService metadata, EntryStore entries,
     MetadataProjector projector, IndexQueries queries, ISourceFileReader files, IImageCodec images, CoverCache covers, TimeProvider? clock = null,
@@ -79,8 +79,8 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
 #pragma warning restore CA1822
 
     /// <summary>
-    /// A library page saved with Save as, Webpage complete (choice 1's fallback), read by whichever reader recognises
-    /// it, or null when none does. Its images are in the folder the browser saved beside it, "… _files".
+    /// A library page saved with Save as, Webpage complete, read by whichever reader recognises it, or null when none
+    /// does. Its images are in the folder the browser saved beside it, "… _files".
     /// </summary>
     public async Task<SavedLibraryPage?> ReadSavedPageAsync(string path, CancellationToken ct = default)
     {
@@ -95,8 +95,8 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     }
 
     /// <summary>
-    /// The preview (choice 6): each book on the page and what importing it does. A book whose link is already on a card
-    /// was imported before; else a card with its title, and no publisher that says otherwise, gets it; else it is new.
+    /// The preview: each book on the page and what importing it does. A book whose link is already on a card was
+    /// imported before; else a card with its title, and no publisher that says otherwise, gets it; else it is new.
     /// </summary>
     public async Task<OnlineImportPlan> PlanAsync(IOnlineLibraryReader reader, OnlinePage page, CancellationToken ct = default)
     {

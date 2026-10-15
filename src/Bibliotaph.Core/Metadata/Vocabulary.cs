@@ -73,10 +73,22 @@ public sealed class Vocabulary
     /// words, longest phrase first, and a word is used by at most one phrase: "D&amp;D 5e Adventures" gives the
     /// 5e edition (alias "D&amp;D 5e") and the Adventure type, not D&amp;D and 5e separately as well.
     /// </summary>
-    public IReadOnlyList<TermMatch> Match(string text)
+    public IReadOnlyList<TermMatch> Match(string text) => [.. Scan(text, out _).OrderBy(f => f.At).Select(f => f.Match)];
+
+    /// <summary>
+    /// Whether every word of a name such as a folder's belongs to a term it names: "D&amp;D 5e", "Pathfinder
+    /// Adventures". Such a name sorts books by what they are, which the fields already say.
+    /// </summary>
+    public bool NamesOnlyTerms(string text)
+    {
+        var found = Scan(text, out var used);
+        return found.Count > 0 && !used.AsSpan().Contains(false);
+    }
+
+    List<(int At, TermMatch Match)> Scan(string text, out bool[] used)
     {
         var words = MetadataText.Words(MetadataText.Normalize(text));
-        var used = new bool[words.Length];
+        used = new bool[words.Length];
         var found = new List<(int At, TermMatch Match)>();
         for (var length = Math.Min(MaxAliasWords, words.Length); length >= 1; length--)
         {
@@ -89,6 +101,6 @@ public sealed class Vocabulary
                 used.AsSpan(start, length).Fill(true);
             }
         }
-        return [.. found.OrderBy(f => f.At).Select(f => f.Match)];
+        return found;
     }
 }

@@ -38,7 +38,7 @@ public sealed class SettingsLinks(INavigationService navigation)
         navigation.NavigateTo(Route.Settings);
     }
 
-    /// <summary>AI reading, from Processing's and Settings > AI's "See what the AI is reading" (Built-in AI plan, choice 13).</summary>
+    /// <summary>AI reading, from Processing's and Settings > AI's "See what the AI is reading".</summary>
     public void OpenAiReading() => navigation.NavigateTo(Route.AiReading);
 
     bool _filesRequested;

@@ -45,10 +45,10 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
     /// <summary>A pack's name, from its folder or ZIP.</summary>
     public string? Name { get; init; }
 
-    /// <summary>A pack's images, in file name order.</summary>
+    /// <summary>A pack's files, in file name order.</summary>
     public IReadOnlyList<EntryMemberRow> Members { get; init; } = [];
 
-    /// <summary>For an adventure inside a file (slice 5), the file's entry.</summary>
+    /// <summary>For an adventure inside a file, the file's entry.</summary>
     public EntryId? ParentEntryId { get; init; }
 
     /// <summary>For an adventure inside a file, its first and last PDF pages in <see cref="DocumentId"/>.</summary>
@@ -61,7 +61,7 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
     public string? Cover { get; init; }
 }
 
-/// <summary>An image in a pack: the document it shows, its own entry and its file name.</summary>
+/// <summary>A file in a pack, an image or a PDF: the document it shows, its own entry and its file name.</summary>
 public sealed record EntryMemberRow(long DocumentId, EntryId MemberEntryId, string Name);
 
 /// <summary>One value of a vocabulary field: a term key and its label, and its web link when it has one (own, store).</summary>
@@ -279,17 +279,17 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     public Task SetCoverAsync(long documentId, string? cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute("UPDATE doc SET cover = @cover WHERE document_id = @documentId", new { documentId, cover }, t), ct);
 
-    /// <summary>Records the cover drawn from one page of a document: an adventure's first page (slice 5 plan, choice 9).</summary>
+    /// <summary>Records the cover drawn from one page of a document: an adventure's first page.</summary>
     public Task SetPageCoverAsync(long documentId, int pdfPage, string cover, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute(
             "INSERT INTO page_cover (document_id, pdf_page, cover) VALUES (@documentId, @pdfPage, @cover) ON CONFLICT DO UPDATE SET cover = excluded.cover",
             new { documentId, pdfPage, cover }, t), ct);
 
     /// <summary>
-    /// "Forget its text" (slice 4i plan, choice 6), the purge of derived content: a document's pages with their search
-    /// text and OCR words, its bookmarks and its cover go in one transaction, and so do its jobs and stage statuses, in
-    /// place of which a skipped Probe says why. Its doc row stays, so the card keeps its title, page count and the
-    /// file's own information. Returns false, changing nothing, while one of its stages is running.
+    /// "Forget its text", the purge of derived content: a document's pages with their search text and OCR words, its
+    /// bookmarks, its cover and what the AI found in its chapters go in one transaction, and so do its jobs and stage statuses, in place of which a
+    /// skipped Probe says why. Its doc row stays, so the card keeps its title, page count and the file's own
+    /// information. Returns false, changing nothing, while one of its stages is running.
     /// </summary>
     public Task<bool> ForgetTextAsync(long documentId, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
@@ -303,16 +303,19 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 DELETE FROM outline WHERE document_id = @documentId;
                 UPDATE doc SET cover = NULL WHERE document_id = @documentId;
                 DELETE FROM page_cover WHERE document_id = @documentId;
+                DELETE FROM chapter WHERE document_id = @documentId;
+                DELETE FROM chapter_tag WHERE document_id = @documentId;
                 DELETE FROM job WHERE document_id = @documentId;
                 DELETE FROM stage_status WHERE document_id = @documentId;
                 """, args, t);
+            RefreshDocumentInsideFacets(c, t, documentId);
             JobBoard.SetStatus(c, t, documentId, Pipeline.First, StageStatus.Skipped, TextAccessReasons.Forgotten, JobBoard.Timestamp(_clock.GetUtcNow()));
             return true;
         }, ct);
 
     /// <summary>
     /// Records which document each of these entries shows, and refreshes their entry_fts rows, which take the
-    /// document's file name, PDF information and folders. A pack's images and their names (member_fts) are replaced.
+    /// document's file name, PDF information and folders. A pack's files and their names (member_fts) are replaced.
     /// </summary>
     public Task SetEntriesAsync(IReadOnlyList<EntryDocRow> entries, CancellationToken ct = default) =>
         entries.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
@@ -348,13 +351,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     entry.Members.Select((m, ord) => new { entryId, ord, m.DocumentId, member = m.MemberEntryId.Value, m.Name }), t);
                 c.Execute("DELETE FROM member_fts WHERE rowid = @member; INSERT INTO member_fts (rowid, name) VALUES (@member, @name)",
                     entry.Members.Select(m => new { member = m.MemberEntryId.Value, name = Path.GetFileNameWithoutExtension(m.Name) }), t);
+                RefreshInsideFacets(c, t, entryId);
                 RefreshEntrySearch(c, t, entryId);
             }
         }, ct);
 
     /// <summary>
     /// Replaces the projected metadata of these entries: their entry_meta row (deleted when the entry has no
-    /// metadata), their facets, and their entry_fts row.
+    /// metadata), their facets, and their entry_fts row. The facets from what the AI found in their chapters are
+    /// filed again beside the book's own.
     /// </summary>
     public Task SetMetadataAsync(IReadOnlyList<EntryMetaRow> rows, CancellationToken ct = default) =>
         rows.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
@@ -400,6 +405,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     }, t);
                 c.Execute("INSERT INTO entry_facet (entry_id, field, value, label, confirmed, link) VALUES (@entryId, @Field, @Value, @Label, @Confirmed, @Link)",
                     row.Facets.DistinctBy(f => (f.Field, f.Value)).Select(f => new { entryId, f.Field, f.Value, f.Label, f.Confirmed, f.Link }), t);
+                RefreshInsideFacets(c, t, entryId);
                 RefreshEntrySearch(c, t, entryId);
             }
         }, ct);
@@ -499,7 +505,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             }
         }, ct);
 
-    /// <summary>Takes a pack's images, and their names in search, off it.</summary>
+    /// <summary>Takes a pack's files, and their names in search, off it.</summary>
     static void RemoveMembers(SqliteConnection c, SqliteTransaction t, long entryId) =>
         c.Execute(
             """
@@ -522,7 +528,34 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             {
                 c.Execute("DELETE FROM entry_meta WHERE entry_id = @id", new { id }, t);
                 c.Execute("DELETE FROM entry_facet WHERE entry_id = @id", new { id }, t);
+                RefreshInsideFacets(c, t, id);
                 RefreshEntrySearch(c, t, id);
+            }
+        }, ct);
+
+    /// <summary>
+    /// Replaces the chapters of each document, and what the AI found in them, with those of its content's scan: an
+    /// empty list takes them away. The cards that show the document find it through its chapters' values from then on.
+    /// </summary>
+    public Task SetChaptersAsync(IReadOnlyList<(long DocumentId, IReadOnlyList<ScannedChapter> Chapters)> documents, CancellationToken ct = default) =>
+        documents.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            foreach (var (documentId, chapters) in documents)
+            {
+                c.Execute("DELETE FROM chapter WHERE document_id = @documentId; DELETE FROM chapter_tag WHERE document_id = @documentId", new { documentId }, t);
+                c.Execute(
+                    """
+                    INSERT INTO chapter (document_id, ord, title, first_page, last_page, source, reading)
+                    VALUES (@documentId, @ord, @Title, @FirstPage, @LastPage, @source, @reading)
+                    """,
+                    chapters.Select((ch, ord) => new { documentId, ord, ch.Title, ch.FirstPage, ch.LastPage, source = ch.Source.ToString(), reading = ch.Reading.ToString() }), t);
+                c.Execute(
+                    """
+                    INSERT OR IGNORE INTO chapter_tag (document_id, ord, field, value, label, pdf_page, quote)
+                    VALUES (@documentId, @ord, @Field, @Value, @Label, @PdfPage, @Quote)
+                    """,
+                    chapters.SelectMany((ch, ord) => ch.Tags.Select(g => new { documentId, ord, g.Field, g.Value, g.Label, g.PdfPage, g.Quote })), t);
+                RefreshDocumentInsideFacets(c, t, documentId);
             }
         }, ct);
 
@@ -541,6 +574,30 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
         _ => "unknown",
     };
 
+    /// <summary>Files the chapters' values again for every card that shows <paramref name="documentId"/>.</summary>
+    static void RefreshDocumentInsideFacets(SqliteConnection c, SqliteTransaction t, long documentId)
+    {
+        foreach (var entryId in c.Query<long>("SELECT entry_id FROM entry_doc WHERE document_id = @documentId", new { documentId }, t).ToList())
+            RefreshInsideFacets(c, t, entryId);
+    }
+
+    /// <summary>
+    /// Replaces an entry's "inside:" facets with the values the AI found in its document's chapters; an adventure inside
+    /// a file takes only those found on its own pages. They are never confirmed: they say what is in the book, which the
+    /// user hasn't been asked about.
+    /// </summary>
+    static void RefreshInsideFacets(SqliteConnection c, SqliteTransaction t, long entryId) =>
+        c.Execute(
+            $"""
+            DELETE FROM entry_facet WHERE entry_id = @entryId AND field LIKE '{ChapterFields.InsidePrefix}%';
+            INSERT OR IGNORE INTO entry_facet (entry_id, field, value, label, confirmed, link)
+            SELECT e.entry_id, '{ChapterFields.InsidePrefix}' || g.field, g.value, min(g.label), 0, NULL
+            FROM entry_doc e JOIN chapter_tag g ON g.document_id = e.document_id
+            WHERE e.entry_id = @entryId AND (e.first_page IS NULL OR g.pdf_page BETWEEN e.first_page AND e.last_page)
+            GROUP BY g.field, g.value;
+            """,
+            new { entryId }, t);
+
     /// <summary>Rebuilds the entry_fts rows of the entries that show <paramref name="documentId"/>.</summary>
     static void RefreshDocumentSearch(SqliteConnection c, SqliteTransaction t, long documentId)
     {
@@ -551,8 +608,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
     /// <summary>
     /// Rebuilds an entry's entry_fts row from its document's doc row and its projected metadata. The effective title
     /// (or a pack's name) is the title; the file name's title, the PDF's own information and the folder names are
-    /// provisional text, except for an adventure inside a file (slice 5), which those describe less than its file. An
-    /// entry whose document Probe hasn't reached has no row yet; a book owned elsewhere has one from its metadata alone.
+    /// provisional text, except for an adventure inside a file, which those describe less than its file. An entry whose
+    /// document Probe hasn't reached has no row yet; a book owned elsewhere has one from its metadata alone.
     /// </summary>
     static void RefreshEntrySearch(SqliteConnection c, SqliteTransaction t, long entryId)
     {

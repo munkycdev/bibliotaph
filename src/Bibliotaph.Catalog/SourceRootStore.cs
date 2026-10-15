@@ -52,12 +52,12 @@ public sealed class SourceRootStore(IDbContextFactory<CatalogDbContext> contexts
     }
 
     /// <summary>
-    /// Points a folder at the place it moved to for good (slice 4g plan, choice 6). Its files keep their rows, matched
-    /// by their paths under it at its next scan, so each keeps its hash and document while its size and modified time
-    /// are the same, and every card, collection, session and note on it stays. It stays offline until that scan, and its
-    /// volume serial and its files' IDs are read again there, since it may be on another disk now; none of its files
-    /// waits to go back to online-only any more. False when the folder is gone or removed, or another
-    /// folder, even one removed from the library, has that path.
+    /// Points a folder at the place it moved to for good. Its files keep their rows, matched by their paths under it at
+    /// its next scan, so each keeps its hash and document while its size and modified time are the same, and every
+    /// card, collection, session and note on it stays. It stays offline until that scan, and its volume serial and its
+    /// files' IDs are read again there, since it may be on another disk now; none of its files waits to go back to
+    /// online-only any more. False when the folder is gone or removed, or another folder, even one removed from the
+    /// library, has that path.
     /// </summary>
     public async Task<bool> RelocateAsync(long id, string path, CancellationToken ct = default)
     {

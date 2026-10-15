@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>Where the built-in AI's engine is and how it is run (Built-in AI plan, choices 1 to 3 and 8 to 10).</summary>
+/// <summary>Where the built-in AI's engine is and how it is run.</summary>
 public sealed record BuiltInEngineOptions
 {
     /// <summary>llama.cpp's server, which the build puts in aiworker\ beside Bibliotaph.exe (build/fetch-engine.ps1).</summary>
@@ -45,8 +45,8 @@ public sealed record BuiltInEngineOptions
     public int MaxAnswerTokens { get; init; } = 2_048;
 
     /// <summary>
-    /// The engine turns text into vectors instead of answering (Ask this book, choice 3): llama-server's embedding mode,
-    /// run as a second, small engine beside the chat one, so finding pages by meaning never unloads the chat model.
+    /// The engine turns text into vectors instead of answering: llama-server's embedding mode, run as a second, small
+    /// engine beside the chat one, so finding pages by meaning never unloads the chat model.
     /// </summary>
     public bool Embedding { get; init; }
 }
@@ -149,9 +149,9 @@ public sealed class EngineProcess : IEngineProcess
 }
 
 /// <summary>
-/// The built-in AI's engine (Built-in AI plan): llama.cpp's server, started on the model when there is something to
-/// read, and stopped after a few idle minutes, when AI is paused or switched off, and with the app. It listens on this
-/// computer only, on a free port, with a key made for each start, so no other program can use it.
+/// The built-in AI's engine: llama.cpp's server, started on the model when there is something to read, and stopped
+/// after a few idle minutes, when AI is paused or switched off, and with the app. It listens on this computer only,
+/// on a free port, with a key made for each start, so no other program can use it.
 /// </summary>
 public sealed class BuiltInEngine : IAsyncDisposable
 {
@@ -436,8 +436,8 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
 }
 
 /// <summary>
-/// Ask this book's vectors from the built-in AI (choice 3): the embedding engine's OpenAI-compatible embeddings call.
-/// The server has one model loaded, so the model's name in the request doesn't matter.
+/// Ask this book's vectors from the built-in AI: the embedding engine's OpenAI-compatible embeddings call. The server
+/// has one model loaded, so the model's name in the request doesn't matter.
 /// </summary>
 public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http, string modelPath) : IEmbeddingClient
 {
@@ -449,8 +449,8 @@ public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http
 }
 
 /// <summary>
-/// A model the built-in AI can download (Built-in AI plan, choice 4): pinned to one revision of one file on Hugging
-/// Face, with its size and SHA-256, so what is downloaded is exactly what was tested.
+/// A model the built-in AI can download: pinned to one revision of one file on Hugging Face, with its size and
+/// SHA-256, so what is downloaded is exactly what was tested.
 /// </summary>
 /// <param name="Id">What settings store: "qwen3-8b".</param>
 /// <param name="Name">What people see, and with " (built in)" what runs are recorded under: "Qwen3 8B".</param>
@@ -462,8 +462,9 @@ public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http
 /// <param name="GraphicsBytes">The graphics memory it runs well in, with a book's worth of context.</param>
 /// <param name="Licence">The model's licence, by name.</param>
 /// <param name="LicenceUrl">Where the licence can be read, shown before the download starts.</param>
+/// <param name="Note">Anything else worth knowing before choosing it, or null.</param>
 public sealed record BuiltInModel(string Id, string Name, string Repo, string Revision, string File, long Bytes, string Sha256,
-    long GraphicsBytes, string Licence, Uri LicenceUrl)
+    long GraphicsBytes, string Licence, Uri LicenceUrl, string? Note = null)
 {
     public Uri DownloadUrl => new($"https://huggingface.co/{Repo}/resolve/{Revision}/{File}");
 
@@ -489,18 +490,56 @@ public static class BuiltInModels
         "Qwen3-4B-Q4_K_M.gguf", 2_497_280_256, "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5", 4 * GiB,
         "Apache-2.0", new("https://huggingface.co/Qwen/Qwen3-4B/blob/main/LICENSE"));
 
-    /// <summary>The models offered, the default first.</summary>
-    public static IReadOnlyList<BuiltInModel> All { get; } = [Qwen8B, Qwen4B];
+    /// <summary>Llama 3.1 8B, Meta's, under its own licence rather than an open-source one.</summary>
+    public static BuiltInModel Llama8B { get; } = new("llama-3.1-8b", "Llama 3.1 8B", "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+        "bf5b95e96dac0462e2a09145ec66cae9a3f12067", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf", 4_920_739_232,
+        "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c", 7 * GiB, "Llama 3.1 Community License", new("https://www.llama.com/llama3_1/license/"));
+
+    /// <summary>IBM's Granite 3.3 8B.</summary>
+    public static BuiltInModel Granite8B { get; } = new("granite-3.3-8b", "Granite 3.3 8B", "ibm-granite/granite-3.3-8b-instruct-GGUF",
+        "e40e9dd739c7be00fa965c16ce167088190ce114", "granite-3.3-8b-instruct-Q4_K_M.gguf", 4_942_873_344,
+        "77bcee066a76dcdd10d0d123c87e32c8ec2c74e31b6ffd87ebee49c9ac215dca", 7 * GiB, "Apache-2.0", new("https://huggingface.co/ibm-granite/granite-3.3-8b-instruct"));
+
+    /// <summary>Microsoft's Phi-4 mini, for small graphics cards.</summary>
+    public static BuiltInModel Phi4Mini { get; } = new("phi-4-mini", "Phi-4 mini", "bartowski/microsoft_Phi-4-mini-instruct-GGUF",
+        "7ff82c2aaa4dde30121698a973765f39be5288c0", "microsoft_Phi-4-mini-instruct-Q4_K_M.gguf", 2_491_874_688,
+        "01999f17c39cc3074afae5e9c539bc82d45f2dd7faa3917c66cbef76fce8c0c2", 4 * GiB, "MIT", new("https://huggingface.co/microsoft/Phi-4-mini-instruct/blob/main/LICENSE"));
+
+    /// <summary>Qwen3 14B, for 12 GB graphics cards.</summary>
+    public static BuiltInModel Qwen14B { get; } = new("qwen3-14b", "Qwen3 14B", "Qwen/Qwen3-14B-GGUF", "530227a7d994db8eca5ab5ced2fb692b614357fd",
+        "Qwen3-14B-Q4_K_M.gguf", 9_001_752_960, "500a8806e85ee9c83f3ae08420295592451379b4f8cf2d0f41c15dffeb6b81f0", 12 * GiB, "Apache-2.0", new("https://huggingface.co/Qwen/Qwen3-14B/blob/main/LICENSE"));
+
+    /// <summary>Mistral Small 3.2 24B, for 24 GB graphics cards.</summary>
+    public static BuiltInModel MistralSmall24B { get; } = new("mistral-small-3.2-24b", "Mistral Small 3.2 24B",
+        "bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF", "b3592d09be469bedab6be51f577824b3b6b76ba1",
+        "mistralai_Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf", 14_333_915_264, "80f5bda68f156f12650ca03a0a2dbfae06a215ac41caa773b8631a479f82415e",
+        20 * GiB, "Apache-2.0", new("https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506"));
 
     /// <summary>
-    /// nomic-embed-text v1.5 (Apache-2.0), which finds a book's pages by meaning for Ask this book (choice 3), run by a
-    /// second engine in embedding mode. Its file isn't pinned yet: the build that added it couldn't reach Hugging Face to
-    /// check the file, and a hash nobody checked is no check. Until <see cref="BuiltInModel.IsPinned"/>, the built-in AI
-    /// asks books by their words alone. To pin it, fill in the repository's commit, the file's size and its SHA-256
-    /// (from the file's LFS pointer on Hugging Face).
+    /// Qwen3 30B-A3B: a mixture of experts that reads only 3B of its weights for each word, so the experts that don't
+    /// fit on the graphics card can stay in the computer's memory and it still runs on a smaller card.
     /// </summary>
-    public static BuiltInModel Embedding { get; } = new("nomic-embed-text-v1.5", "nomic-embed-text v1.5", "nomic-ai/nomic-embed-text-v1.5-GGUF", "",
-        "nomic-embed-text-v1.5.Q8_0.gguf", 0, "", 1 * GiB, "Apache-2.0", new("https://huggingface.co/nomic-ai/nomic-embed-text-v1.5"));
+    public static BuiltInModel Qwen30BA3B { get; } = new("qwen3-30b-a3b", "Qwen3 30B-A3B", "Qwen/Qwen3-30B-A3B-GGUF", "e4d4bafdfb96a411a163846265362aceb0b9c63a",
+        "Qwen3-30B-A3B-Q4_K_M.gguf", 18_556_685_824, "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5", 24 * GiB, "Apache-2.0", new("https://huggingface.co/Qwen/Qwen3-30B-A3B/blob/main/LICENSE"),
+        "On a smaller card part of it runs on the processor, which is slower.");
+
+    /// <summary>Every model listed, by the graphics memory they need. Only those whose file is pinned are offered.</summary>
+    public static IReadOnlyList<BuiltInModel> All { get; } = [Qwen4B, Phi4Mini, Qwen8B, Llama8B, Granite8B, Qwen14B, MistralSmall24B, Qwen30BA3B];
+
+    /// <summary>The models offered: those whose file is pinned.</summary>
+    public static IReadOnlyList<BuiltInModel> Offered { get; } = [.. All.Where(m => m.IsPinned)];
+
+    /// <summary>The models suggested for a graphics card, largest first: the ones the classifier was tried with.</summary>
+    static readonly BuiltInModel[] Suggestions = [Qwen8B, Qwen4B];
+
+    /// <summary>
+    /// nomic-embed-text v1.5 (Apache-2.0), which finds a book's pages by meaning for Ask this book, run by a second
+    /// engine in embedding mode. Pinned like the chat models: the repository's commit, the file's size and its SHA-256
+    /// from the file's LFS pointer on Hugging Face.
+    /// </summary>
+    public static BuiltInModel Embedding { get; } = new("nomic-embed-text-v1.5", "nomic-embed-text v1.5", "nomic-ai/nomic-embed-text-v1.5-GGUF",
+        "0188c9bf409793f810680a5a431e7b899c46104c", "nomic-embed-text-v1.5.Q8_0.gguf", 146_146_432,
+        "3e24342164b3d94991ba9692fdc0dd08e3fd7362e0aacc396a9a5c54a544c3b7", 1 * GiB, "Apache-2.0", new("https://huggingface.co/nomic-ai/nomic-embed-text-v1.5"));
 
     public static BuiltInModel? Find(string? id) => All.FirstOrDefault(m => m.Id == id);
 
@@ -508,11 +547,21 @@ public static class BuiltInModels
     public static BuiltInModel? FindEmbedding(string? id) => Embedding.Id == id ? Embedding : null;
 
     /// <summary>
-    /// The model to suggest for a computer with <paramref name="graphicsBytes"/> of graphics memory (choice 5): the
-    /// largest that fits, or the smallest when the memory isn't known or nothing fits.
+    /// The model to suggest for a computer with <paramref name="graphicsBytes"/> of graphics memory: the largest that
+    /// fits, or the smallest when the memory isn't known or nothing fits.
     /// </summary>
     public static BuiltInModel Suggest(long? graphicsBytes) =>
-        All.FirstOrDefault(m => graphicsBytes >= m.GraphicsBytes) ?? All[^1];
+        Suggestions.FirstOrDefault(m => graphicsBytes >= m.GraphicsBytes) ?? Suggestions[^1];
+
+    /// <summary>
+    /// Whether <paramref name="model"/> fits a card with <paramref name="graphicsBytes"/> of graphics memory; when that
+    /// isn't known, whether it is no bigger than the model suggested then.
+    /// </summary>
+    public static bool Fits(BuiltInModel model, long? graphicsBytes) =>
+        model.GraphicsBytes <= (graphicsBytes ?? Suggest(null).GraphicsBytes);
+
+    /// <summary>A model file of the user's own, rather than one of the list: it is stored as its path.</summary>
+    public static bool IsFile(string model) => Find(model) is null && FindEmbedding(model) is null && Path.IsPathFullyQualified(model);
 
     /// <summary>
     /// "Qwen3 8B (built in)": a different model, in the records, from the same one on a model server. A model given by
@@ -532,11 +581,11 @@ public static class BuiltInEngineWatch
     /// Stops the engine as soon as the Classify lane is paused, or AI is switched off or moved to a model server, so the
     /// graphics memory goes back at once rather than after the idle minutes.
     /// </summary>
-    public static void StopWhenNotNeeded(this BuiltInEngine engine, AiSettings ai, IndexingService indexing)
+    public static void StopWhenNotNeeded(this BuiltInEngine engine, AiSettings ai, IIndexingStatus indexing)
     {
         void Check(object? sender, EventArgs e)
         {
-            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || !ai.Setup.IsReady || !ai.Setup.BuiltIn)) _ = engine.StopAsync();
+            if (engine.IsRunning && (indexing.IsPaused(Lane.Classify) || ai.Setup is not { IsReady: true, BuiltIn: true })) _ = engine.StopAsync();
         }
         ai.Changed += Check;
         indexing.Changed += Check;
@@ -549,6 +598,6 @@ public static class BuiltInEngineWatch
     public static void StopWhenNotNeededForAsk(this BuiltInEngine engine, AiSettings ai) =>
         ai.Changed += (_, _) =>
         {
-            if (engine.IsRunning && (!ai.Setup.IsReady || !ai.Setup.BuiltIn || ai.Setup.BuiltInEmbeddingModel is null)) _ = engine.StopAsync();
+            if (engine.IsRunning && ai.Setup is not { IsReady: true, BuiltIn: true, BuiltInEmbeddingModel: not null }) _ = engine.StopAsync();
         };
 }

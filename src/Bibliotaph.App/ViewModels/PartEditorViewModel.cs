@@ -5,10 +5,10 @@ using CommunityToolkit.Mvvm.Input;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Marks pages of a file as an adventure of its own, or changes an adventure's pages (slice 5 plan, choices 3 and 4):
-/// its title when it is new, and its first and last pages as the file numbers them (printed labels or PDF page
-/// numbers), To left blank for one page. Saving asks <paramref name="save"/>, which says what's wrong, if anything, so
-/// the editor stays open with that until it's fixed or cancelled.
+/// Marks pages of a file as an adventure of its own, or changes an adventure's pages: its title when it is new, and
+/// its first and last pages as the file numbers them (printed labels or PDF page numbers), To left blank for one
+/// page. Saving asks <paramref name="save"/>, which says what's wrong, if anything, so the editor stays open with
+/// that until it's fixed or cancelled.
 /// </summary>
 public sealed partial class PartEditorViewModel(string heading, string actionText, string? title, string from, string to, Func<string, int?> findPage,
     Func<string, PartPages, Task<string?>> save) : ObservableObject

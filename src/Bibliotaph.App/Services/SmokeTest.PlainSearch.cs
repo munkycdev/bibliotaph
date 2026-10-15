@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Ask beside the search box (scenario review, row 5), with no model server: what it does while AI is off.</summary>
+/// <summary>Ask beside the search box, with no model server: what it does while AI is off.</summary>
 static partial class SmokeTest
 {
     /// <summary>

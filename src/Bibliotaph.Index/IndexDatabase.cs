@@ -7,7 +7,7 @@ namespace Bibliotaph.Index;
 public static class IndexSchema
 {
     /// <summary>Must match the <c>PRAGMA user_version</c> at the end of Schema/index.sql.</summary>
-    public const int Version = 18;
+    public const int Version = 19;
 
     public static string Script { get; } = LoadScript("index") ?? throw new InvalidOperationException("index.sql is not embedded.");
 
@@ -40,7 +40,7 @@ public enum IndexOpenResult
 {
     Created,
     Opened,
-    /// <summary>The file had another schema version, or could not be read, and was deleted and recreated.</summary>
+    /// <summary>The file had another schema version, or was damaged, and was deleted and recreated.</summary>
     Rebuilt,
 
     /// <summary>The file had an older schema version with an upgrade path, and was brought up to date in place.</summary>
@@ -83,7 +83,7 @@ public sealed class IndexDatabase
         {
             version = await ReadVersionAsync(ct);
         }
-        catch (SqliteException ex) when (FilePath is not null)
+        catch (SqliteException ex) when (FilePath is not null && !IsTransient(ex))
         {
             _log.LogWarning(ex, "index.db could not be read; rebuilding it");
             version = -1;
@@ -104,7 +104,7 @@ public sealed class IndexDatabase
                 _log.LogInformation("Upgraded index.db from schema version {Found} to {Expected}", version, IndexSchema.Version);
                 return IndexOpenResult.Upgraded;
             }
-            catch (SqliteException ex)
+            catch (SqliteException ex) when (!IsTransient(ex))
             {
                 _log.LogWarning(ex, "index.db could not be upgraded from schema version {Found}; rebuilding it", version);
             }
@@ -114,6 +114,18 @@ public sealed class IndexDatabase
         await CreateAsync(ct);
         return IndexOpenResult.Rebuilt;
     }
+
+    /// <summary>
+    /// Whether a failure says something about the moment rather than the file: another process holds it, the disk is
+    /// full or unreadable, the file can't be opened or written. Deleting a healthy index for one of these would make the
+    /// whole library read again, and the new file would hit the same problem, so the failure is passed on instead.
+    /// </summary>
+    internal static bool IsTransient(SqliteException ex) => (ex.SqliteErrorCode & 0xFF) is
+        SqlitePerm or SqliteBusy or SqliteLocked or SqliteNoMem or SqliteReadOnly or SqliteInterrupt or SqliteIoErr
+        or SqliteFull or SqliteCantOpen;
+
+    const int SqlitePerm = 3, SqliteBusy = 5, SqliteLocked = 6, SqliteNoMem = 7, SqliteReadOnly = 8, SqliteInterrupt = 9,
+        SqliteIoErr = 10, SqliteFull = 13, SqliteCantOpen = 14;
 
     /// <summary>The schema version, or null for an empty database with nothing in it yet.</summary>
     async Task<int?> ReadVersionAsync(CancellationToken ct)

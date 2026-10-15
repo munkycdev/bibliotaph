@@ -8,27 +8,24 @@ using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Settings &gt; Online libraries (online libraries plan, choice 1): the services a library page can be read from, the
-/// preview of what importing it does (choice 6), the import with Undo, and the books from earlier imports the page no
-/// longer lists (choice 7). With them, how books owned online show and open (choices 12 and 19), which were in Settings
-/// &gt; Library, so everything about online libraries is in one place. One section for the whole app, so a preview is
-/// still here after a look at the Library.
+/// Settings &gt; Online libraries: the services a library page can be read from, the preview of what importing it
+/// does, the import with Undo, and the books from earlier imports the page no longer lists. With them, how books owned
+/// online show and open, which were in Settings &gt; Library, so everything about online libraries is in one place. One
+/// section for the whole app, so a preview is still here after a look at the Library.
 /// </summary>
 public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
-    INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders,
+    INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders, IFilePicker files,
     ILogger<OnlineLibrariesViewModel> log) : SettingsSectionViewModel
 {
     OnlinePage? _page;
 
-    /// <summary>The service whose browser read the page shown, so its next page adds to it (choice 1).</summary>
+    /// <summary>The service whose browser read the page shown, so its next page adds to it.</summary>
     string? _fromBrowser;
     Func<string, CancellationToken, Task<byte[]?>>? _covers;
-    Func<Task>? _undo;
 
     public override SettingsSection Section => SettingsSection.OnlineLibraries;
 
@@ -62,15 +59,15 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     public partial string? Problem { get; private set; }
 
     /// <summary>What the last import or removal did, with Undo beside it.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanUndo))]
-    public partial string? Message { get; private set; }
-
-    public bool CanUndo => Message is not null && _undo is not null;
+    public UndoSlot Undo { get; } = new(log);
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ImportCommand), nameof(UndoCommand))]
+    [NotifyPropertyChangedFor(nameof(IsIdle))]
+    [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
     public partial bool IsBusy { get; private set; }
+
+    /// <summary>Nothing is being read, imported or undone, so Undo can run.</summary>
+    public bool IsIdle => !IsBusy;
 
     /// <summary>"Import 12 books", for the books ticked.</summary>
     public string ImportLabel => Chosen.Count switch
@@ -83,15 +80,8 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     IReadOnlyList<OnlineImportRow> Chosen => [.. Groups.SelectMany(g => g.Items).Where(i => i.CanChoose && i.IsChosen).Select(i => i.Row)];
 
     [RelayCommand]
-    Task ImportSavedPageAsync()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Import a library page you saved",
-            Filter = "Web pages (*.html;*.htm)|*.html;*.htm",
-        };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? ReadSavedPageAsync(dialog.FileName) : Task.CompletedTask;
-    }
+    Task ImportSavedPageAsync() =>
+        files.OpenFile("Import a library page you saved", "Web pages (*.html;*.htm)|*.html;*.htm") is { } page ? ReadSavedPageAsync(page) : Task.CompletedTask;
 
     /// <summary>
     /// Reads a library page saved with Save as, Webpage complete, and shows what importing it does. Its covers are the
@@ -114,8 +104,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
             _page = saved.Page;
             _fromBrowser = null;
             _covers = imports.SavedCovers(saved.Images);
-            Message = null;
-            _undo = null;
+            Undo.Clear();
             await ShowPlanAsync(saved.Reader, saved.Page);
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
@@ -155,8 +144,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         _page = combined;
         _fromBrowser = reader.Key;
         _covers = covers;
-        Message = null;
-        _undo = null;
+        Undo.Clear();
         Problem = null;
         await ShowPlanAsync(reader, combined);
         if (navigation.Current is not SettingsViewModel || !IsSelected) links.Open(SettingsSection.OnlineLibraries);
@@ -165,7 +153,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         return $"Read {books}. Bibliotaph shows what importing them does; nothing is imported until you press Import there.";
     }
 
-    /// <summary>The folder store downloads go to (O5), or null for the browser's own Downloads folder.</summary>
+    /// <summary>The folder store downloads go to, or null for the browser's own Downloads folder.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DownloadsLine), nameof(HasDownloadsFolder))]
     public partial string? DownloadsFolder { get; private set; }
@@ -207,15 +195,15 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     bool _loadingSettings;
 
     /// <summary>
-    /// Show site icons (online libraries plan, choice 12): a book owned online shows its site's icon in its badge,
-    /// fetched once from the site. Off, it shows a plain cloud and nothing is fetched.
+    /// Show site icons: a book owned online shows its site's icon in its badge, fetched once from the site. Off, it
+    /// shows a plain cloud and nothing is fetched.
     /// </summary>
     [ObservableProperty]
     public partial bool ShowSiteIcons { get; set; } = true;
 
     /// <summary>
-    /// Read books owned online in Bibliotaph (online libraries plan, choice 19): Open shows the service's page in the
-    /// online reader. Off, it opens in the everyday browser.
+    /// Read books owned online in Bibliotaph: Open shows the service's page in the online reader. Off, it opens in the
+    /// everyday browser.
     /// </summary>
     [ObservableProperty]
     public partial bool ReadOnlineInApp { get; set; } = true;
@@ -250,7 +238,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     [RelayCommand]
     async Task ChooseDownloadsFolderAsync()
     {
-        if (LibraryFolders.PickOne("Choose where store downloads go") is not { } folder) return;
+        if (files.PickFolder("Choose where store downloads go") is not { } folder) return;
         await UseDownloadsFolderAsync(folder);
     }
 
@@ -283,7 +271,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         }
     }
 
-    /// <summary>Sign out of all services (choice 2): the browser forgets every sign-in it kept.</summary>
+    /// <summary>Sign out of all services: the browser forgets every sign-in it kept.</summary>
     [RelayCommand]
     async Task SignOutAsync()
     {
@@ -291,8 +279,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         try
         {
             await browsers.SignOutAsync();
-            _undo = null;
-            Message = "Bibliotaph's browser is signed out of every service.";
+            Undo.Say("Bibliotaph's browser is signed out of every service.");
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
         {
@@ -345,18 +332,17 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         {
             var chosen = Chosen;
             var result = await Task.Run(() => imports.ImportAsync(plan, chosen, _covers));
-            _undo = async () =>
-            {
-                await Task.Run(() => imports.UndoAsync(result.Undo));
-                await ShowPlanAsync(plan.Reader, page);
-            };
-            Message = (result.Added, result.Changed) switch
+            Undo.Offer((result.Added, result.Changed) switch
             {
                 (0, 0) => "Nothing needed changing.",
                 (var added, 0) => $"Added {Count(added, "book")} owned on {plan.Reader.Name}.",
                 (0, var changed) => $"Updated {Count(changed, "card")} already in your library.",
                 var (added, changed) => $"Added {Count(added, "book")} owned on {plan.Reader.Name} and updated {Count(changed, "card")} already in your library.",
-            };
+            }, () => WhileBusyAsync(async () =>
+            {
+                await Task.Run(() => imports.UndoAsync(result.Undo));
+                await ShowPlanAsync(plan.Reader, page);
+            }));
             await ShowPlanAsync(plan.Reader, page);
         }
         finally
@@ -367,16 +353,13 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
 
     static string Count(int n, string noun) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {noun}{(n == 1 ? "" : "s")}";
 
-    [RelayCommand(CanExecute = nameof(CanRunUndo))]
-    async Task UndoAsync()
+    /// <summary>Runs an Undo as busy, so Import waits for it.</summary>
+    async Task WhileBusyAsync(Func<Task> undo)
     {
-        if (_undo is not { } undo) return;
         IsBusy = true;
         try
         {
-            _undo = null;
             await undo();
-            Message = null;
         }
         finally
         {
@@ -384,21 +367,17 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         }
     }
 
-    bool CanRunUndo() => !IsBusy;
-
-    /// <summary>Removes a book the library page no longer lists, with Undo (choice 7: never on its own).</summary>
+    /// <summary>Removes a book the library page no longer lists, with Undo (never on its own).</summary>
     internal async Task RemoveAsync(MissingBookViewModel book)
     {
         if (await elsewhere.RemoveAsync(book.Book.EntryId) is not { } removed) return;
         Missing.Remove(book);
         OnPropertyChanged(nameof(HasMissing));
-        _undo = async () =>
+        Undo.Offer($"Removed {book.Title} from your library.", () => WhileBusyAsync(async () =>
         {
             await elsewhere.UndoRemoveAsync(removed);
             if (Plan is { } plan && _page is { } page) await ShowPlanAsync(plan.Reader, page);
-        };
-        Message = $"Removed {book.Title} from your library.";
-        OnPropertyChanged(nameof(CanUndo));
+        }));
     }
 
     /// <summary>A field's name as the preview says it: "Edition".</summary>

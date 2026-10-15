@@ -9,8 +9,11 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// What a Smart View shows (slice 3 plan, choice 17): the Library's search text, filters, scope, order, layout and
-/// tab, never a list of books. Stored as JSON with a version, so a later app can read an older view.
+/// What a Smart View shows: the Library's search text, filters, scope, order, layout and tab, never a list of books.
+/// Stored as JSON with a version, so a later app can read an older view; one saved before a filter existed reads with
+/// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips. <see cref="Adventures"/> says where the
+/// adventures inside files show; <see cref="HideParts"/> is how a view from before there was a choice of three said
+/// so, and is read only from those.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",
@@ -32,9 +35,13 @@ public sealed record SmartViewDefinition(
     string? Duration = null,
     int? Players = null,
     string? Store = null,
-    bool HideParts = false)
+    bool HideParts = false,
+    CollectionFilter Collections = CollectionFilter.All,
+    PickedValues? Picked = null,
+    AdventureCards Adventures = AdventureCards.InBooks)
 {
-    public const int CurrentVersion = 1;
+    /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
+    public const int CurrentVersion = 2;
 
     public int Version { get; init; } = CurrentVersion;
 
@@ -51,7 +58,11 @@ public sealed record SmartViewDefinition(
     {
         try
         {
-            return JsonSerializer.Deserialize<SmartViewDefinition>(json, Json) ?? new();
+            var view = JsonSerializer.Deserialize<SmartViewDefinition>(json, Json) ?? new();
+            // An older view that hid adventures keeps hiding them. Every other one stored "show" only because that was
+            // the default then, so it takes today's default and keeps them inside their books.
+            return view.Version >= 2 ? view
+                : view with { Adventures = view.HideParts ? AdventureCards.Hidden : AdventureCards.InBooks, HideParts = false, Version = CurrentVersion };
         }
         catch (JsonException)
         {
@@ -60,11 +71,32 @@ public sealed record SmartViewDefinition(
     }
 }
 
+/// <summary>Every saved Smart View, listed by name, and the changes the Library makes to them.</summary>
+public interface ISmartViewDirectory
+{
+    /// <summary>Raised on the UI thread after the views were reloaded.</summary>
+    event EventHandler? Changed;
+
+    IReadOnlyList<SmartViewInfo> All { get; }
+
+    SmartViewInfo? Find(long viewId);
+
+    Task<SmartViewInfo> CreateAsync(string name, SmartViewDefinition definition);
+
+    Task<bool> UpdateAsync(long viewId, SmartViewDefinition definition);
+
+    Task<bool> RenameAsync(long viewId, string name);
+
+    Task<SmartViewDeletion?> DeleteAsync(long viewId);
+
+    Task<SmartViewInfo> RestoreAsync(SmartViewDeletion deleted);
+}
+
 /// <summary>
 /// Every saved Smart View, kept in memory for the sidebar, Home and the Library, listed by name. Changes go through
 /// here, and <see cref="Changed"/> is raised on the UI thread after each.
 /// </summary>
-public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDirectory> log)
+public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDirectory> log) : ISmartViewDirectory
 {
     /// <summary>Raised on the UI thread after the views were reloaded.</summary>
     public event EventHandler? Changed;

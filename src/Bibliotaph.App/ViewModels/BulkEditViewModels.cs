@@ -26,9 +26,9 @@ public enum BulkEditStep
 }
 
 /// <summary>
-/// Edit metadata for the books ticked in Select mode (slice 4e): every field but the title, at once. A field nobody
-/// touches isn't changed; what is changed is confirmed on every book, by the inspector's rules. Review changes shows
-/// what will happen first, and calls out where it overrides values the user set themselves.
+/// Edit metadata for the books ticked in Select mode: every field but the title, at once. A field nobody touches
+/// isn't changed; what is changed is confirmed on every book, by the inspector's rules. Review changes shows what will
+/// happen first, and calls out where it overrides values the user set themselves.
 /// </summary>
 public sealed partial class BulkEditViewModel : ObservableObject
 {
@@ -97,7 +97,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
 
     bool CanReview => IsEditingStep && HasChanges;
 
-    /// <summary>Shows what will change, field by field, before anything is saved (plan choice 6).</summary>
+    /// <summary>Shows what will change, field by field, before anything is saved.</summary>
     [RelayCommand(CanExecute = nameof(CanReview))]
     void Review()
     {
@@ -180,7 +180,9 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
     [ObservableProperty]
     public partial string? Problem { get; protected set; }
 
-    /// <summary>2a's hint while typing a term: "“One shot” is another name for Adventure", or that it is new.</summary>
+    /// <summary>
+    /// The hint while typing a term: "“One shot” is another name for Adventure", or that it is new.
+    /// </summary>
     [ObservableProperty]
     public partial string Resolution { get; private set; } = "";
 
@@ -226,9 +228,9 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
 }
 
 /// <summary>
-/// A single-value field (system, edition, levels, publisher, series, year) across the selection (plan choice 3): the
-/// value they share, "Mixed (3 values)", or "Not set". Setting a value confirms it on every book; Back to suggestions
-/// forgets the user's own value on all of them.
+/// A single-value field (system, edition, levels, publisher, series, year) across the selection: the value they
+/// share, "Mixed (3 values)", or "Not set". Setting a value confirms it on every book; Back to suggestions forgets
+/// the user's own value on all of them.
 /// </summary>
 public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
 {
@@ -388,9 +390,9 @@ public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
 }
 
 /// <summary>
-/// A multi-value field (type, authors, setting, themes, environments, tags) across the selection (plan choice 4):
-/// every value any book has, as a chip with a count. Adding puts a value on every book, removing takes it off every
-/// book (rejected, so no source suggests it again), and clicking a partial chip puts it on all of them.
+/// A multi-value field (type, authors, setting, themes, environments, tags) across the selection: every value any
+/// book has, as a chip with a count. Adding puts a value on every book, removing takes it off every book (rejected,
+/// so no source suggests it again), and clicking a partial chip puts it on all of them.
 /// </summary>
 public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
 {

@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Whether the app started with --dev (slice 4l plan, choice 7), which shows Settings > Start over. Without it nothing
-/// leads there, so nobody else finds a button that deletes everything.
+/// Whether the app started with --dev, which shows Settings > Start over. Without it nothing leads there, so nobody
+/// else finds a button that deletes everything.
 /// </summary>
 public sealed class DevMode(bool on)
 {
@@ -26,10 +26,10 @@ public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault 
     /// <summary><c>--wait-for &lt;process id&gt;</c>: the app that asked to start over, which must exit first.</summary>
     public const string WaitForArgument = "--wait-for";
 
-    public static bool Confirm() => MessageBox.Show(Application.Current.MainWindow,
+    public static bool Confirm(IUserPrompts prompts) => prompts.Confirm(
         "Bibliotaph will forget your library folders, its index, covers, settings, remembered PDF passwords and AI keys, " +
         "then restart as if newly installed.\n\nYour books and other files are not touched.",
-        "Start over?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK;
+        "Start over?", PromptKind.Warning, okByDefault: false);
 
     public void Run()
     {

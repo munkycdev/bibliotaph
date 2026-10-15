@@ -1,16 +1,16 @@
 namespace Bibliotaph.Core.Sync;
 
 /// <summary>
-/// One field of a piece of user work in the library sync file (library sync plan): its value as compact JSON, or null
-/// when it was cleared (a heart taken off, a note emptied), and when that last changed. A cleared field keeps its time,
-/// so the clearing reaches the other PC instead of the old value coming back from it.
+/// One field of a piece of user work in the library sync file: its value as compact JSON, or null when it was cleared
+/// (a heart taken off, a note emptied), and when that last changed. A cleared field keeps its time, so the clearing
+/// reaches the other PC instead of the old value coming back from it.
 /// </summary>
 public readonly record struct SyncField(string? Value, DateTime ChangedUtc);
 
 /// <summary>
-/// A piece of user work as the library sync file carries it (library sync plan): a book by content hash, or something
-/// the user made (a collection, a binder, a saved search) by its sync id, with each field's value and change time.
-/// <see cref="DeletedUtc"/> is a tombstone: the record was deleted then, and stays deleted unless a field changed later.
+/// A piece of user work as the library sync file carries it: a book by content hash, or something the user made (a
+/// collection, a binder, a saved search) by its sync id, with each field's value and change time. <see
+/// cref="DeletedUtc"/> is a tombstone: the record was deleted then, and stays deleted unless a field changed later.
 /// <see cref="Aliases"/> are the other keys a book answers to (its other copies' hashes), so a PC that has only one of
 /// its copies still finds it.
 /// </summary>
@@ -37,9 +37,9 @@ public sealed record SyncRecord(string Key, IReadOnlyDictionary<string, SyncFiel
 }
 
 /// <summary>
-/// The rules that make two PCs agree (library sync plan, choice 3): per record and per field, the newer change wins; a
-/// deletion wins over every change made before it. Merging is commutative, associative and idempotent, so it doesn't
-/// matter in which order PCs read each other's files or how often.
+/// The rules that make two PCs agree: per record and per field, the newer change wins; a deletion wins over every
+/// change made before it. Merging is commutative, associative and idempotent, so it doesn't matter in which order PCs
+/// read each other's files or how often.
 /// </summary>
 public static class SyncMerge
 {

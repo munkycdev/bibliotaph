@@ -4,9 +4,8 @@ using Bibliotaph.App.Views;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Opens a binder (Binders plan, choices 1 to 3): its reader, from Binders, Home or a new binder; its list page for
-/// editing; and its pop-out window. A binder is in one place at a time: opening one that's popped out brings its
-/// window forward.
+/// Opens a binder: its reader, from Binders, Home or a new binder; its list page for editing; and its pop-out window. A
+/// binder is in one place at a time: opening one that's popped out brings its window forward.
 /// </summary>
 public sealed class SessionPages(INavigationService navigation, ReaderWindows windows, Func<SessionPackViewModel> createPack,
     Func<SessionReaderViewModel> createReader)

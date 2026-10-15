@@ -2,7 +2,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Catalog.Tests;
 
-/// <summary>Easier corrections in a real catalog.db (scenario review, row 8): waiting corrections, folder rules, and the books in a folder.</summary>
+/// <summary>Easier corrections in a real catalog.db: waiting corrections, folder rules, and the books in a folder.</summary>
 public sealed class CorrectionStoreTests : IAsyncLifetime
 {
     static readonly DateTime Monday = new(2026, 10, 5, 9, 30, 0, DateTimeKind.Utc);
@@ -17,7 +17,7 @@ public sealed class CorrectionStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _database = new CatalogDatabase(Path.Combine(_dir, "catalog.db"), Path.Combine(_dir, "backups"));
-        await _database.MigrateAsync();
+        await _database.MigrateFromTemplateAsync();
         _contexts = new Factory(_database);
         _store = new CorrectionStore(_contexts, _clock);
         _library = new LibraryStore(_contexts);

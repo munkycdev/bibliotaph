@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using Bibliotaph.Catalog;
 using Bibliotaph.App.Services;
@@ -17,7 +16,7 @@ public sealed record InspectorFact(string Label, string Value);
 /// Where a document's file is, and whether it can be read now. The first place carries the book's Reprocess button
 /// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all. For a file inside a ZIP,
 /// File Explorer selects the ZIP (<see cref="ExplorerPath"/>). A file that has gone missing offers its last location
-/// instead (slice 4g plan, choice 1): the folder it was in, or the nearest one above it that is still there.
+/// instead: the folder it was in, or the nearest one above it that is still there.
 /// </summary>
 public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null, bool IsMissing = false)
 {
@@ -52,11 +51,16 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     readonly MetadataService _metadata;
     readonly LibraryQueries _queries;
-    readonly IndexingService _indexing;
+    readonly IJobControl _indexing;
+    readonly IStageCatalog _stages;
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
     readonly CorrectionService? _corrections;
+    readonly ChosenCovers? _chosen;
+    readonly IFilePicker _files;
+    readonly IUserPrompts _prompts;
+    readonly IDesktopShell _shell;
     /// <summary>The metadata as last shown, so a correction can be compared with what the field held before it.</summary>
     EffectiveMetadata _shown = EffectiveMetadata.Empty;
     /// <summary>The user changed or kept a value since Cataloged wrong… opened the editor.</summary>
@@ -65,15 +69,22 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     bool _refreshAgain;
 
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
-        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IndexingService indexing, CopiesService copiesService,
-        PackService packs, ElsewhereService elsewhere, CorrectionService? corrections)
+        IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IJobControl indexing, IStageCatalog stages,
+        CopiesService copiesService, PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell,
+        CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log)
     {
+        PartUndo = new UndoSlot(log);
+        _files = files;
+        _prompts = prompts;
+        _shell = shell;
         _elsewhere = elsewhere;
+        _chosen = chosen;
         _corrections = corrections;
         Item = item;
         _metadata = metadata;
         _queries = queries;
         _indexing = indexing;
+        _stages = stages;
         _copies = copiesService;
         _packs = packs;
         Locations = locations;
@@ -82,24 +93,41 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         ShowProcessing(details?.Entry ?? item.Entry, details);
     }
 
-    /// <summary>A pack's images, for its grid (F4 plan, choice 7); empty for anything else.</summary>
+    /// <summary>A pack's files, images and PDFs, for its grid; empty for anything else.</summary>
     public IReadOnlyList<PackImageViewModel> PackImages { get; }
 
     public bool IsPack => Item.IsPack;
 
-    public string PackImagesHeading => $"IMAGES ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    /// <summary>A pack with PDFs among its images: it speaks of files, not images.</summary>
+    bool HasPdfs => Item.HasPdfMembers || PackImages.Any(i => i.IsPdf);
 
-    /// <summary>Raised after "Split into separate images", with the images that got their cards back.</summary>
+    public string PackImagesHeading => $"{(HasPdfs ? "FILES" : "IMAGES")} ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    /// <summary>The grid's name for screen readers.</summary>
+    public string PackImagesName => HasPdfs ? "Files in the pack" : "Images in the pack";
+
+    public string SplitPackLabel => HasPdfs ? "Split into separate files" : "Split into separate images";
+
+    public string SplitPackTip => HasPdfs
+        ? "Give every file its own card again. Bibliotaph won't pack this folder again."
+        : "Give every image its own card again. Bibliotaph won't pack this folder again.";
+
+    /// <summary>Raised after "Split into separate images" (or files), with the files that got their cards back.</summary>
     public event EventHandler<IReadOnlyList<EntryId>>? PackSplit;
 
-    /// <summary>"Split into separate images" (choice 4): every image gets its card back, and the folder isn't packed again.</summary>
+    /// <summary>
+    /// "Split into separate images", or "files" when PDFs are in the pack: every file gets its card back, and the
+    /// folder isn't packed again.
+    /// </summary>
     [RelayCommand]
     async Task SplitPack()
     {
-        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } images) PackSplit?.Invoke(this, images);
+        if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } files) PackSplit?.Invoke(this, files);
     }
 
-    /// <summary>A book owned elsewhere (F5 plan, choice 4): no file, so no Open, locations or processing, and Remove from library.</summary>
+    /// <summary>
+    /// A book owned elsewhere: no file, so no Open, locations or processing, and Remove from library.
+    /// </summary>
     public bool IsElsewhere => Item.IsElsewhere;
 
     public bool CanOpen => !IsElsewhere;
@@ -109,11 +137,46 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// <summary>Raised after "Remove from library", with what Undo needs.</summary>
     public event EventHandler<RemovedEntry>? Removed;
 
-    /// <summary>"Remove from library" (choice 5), for a book owned elsewhere only: a file's card goes when its file does.</summary>
+    /// <summary>
+    /// "Remove from library", for a book owned elsewhere only: a file's card goes when its file does.
+    /// </summary>
     [RelayCommand]
     async Task RemoveFromLibrary()
     {
         if (await Task.Run(() => _elsewhere.RemoveAsync(Item.EntryId)) is { } removed) Removed?.Invoke(this, removed);
+    }
+
+    /// <summary>A book owned elsewhere can have a picture of the user's own as its cover.</summary>
+    public bool CanChooseCover => IsElsewhere && _chosen is not null;
+
+    /// <summary>The book shows a cover the user chose, which Remove the cover takes away.</summary>
+    [ObservableProperty]
+    public partial bool HasChosenCover { get; private set; }
+
+    /// <summary>Why the picture picked can't be the cover.</summary>
+    [ObservableProperty]
+    public partial string? CoverProblem { get; private set; }
+
+    /// <summary>"Choose a cover image…": a picture from anywhere, shrunk to cover size and kept by Bibliotaph.</summary>
+    [RelayCommand]
+    async Task ChooseCover()
+    {
+        if (_chosen is null) return;
+        if (_files.OpenFile($"Choose a cover for {Item.Title}", ChosenCovers.FileFilter) is not { } path) return;
+        CoverProblem = await Task.Run(() => _chosen.ChooseAsync(Item.EntryId, path));
+        if (CoverProblem is not null) return;
+        HasChosenCover = true;
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    async Task RemoveCover()
+    {
+        if (_chosen is null) return;
+        await Task.Run(() => _chosen.RemoveAsync(Item.EntryId));
+        CoverProblem = null;
+        HasChosenCover = false;
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Raised after the user changed this document's metadata, so the library can show it.</summary>
@@ -125,7 +188,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// </summary>
     public event EventHandler<EntryId>? CopiesChanged;
 
-    /// <summary>The book's files when it has more than one (F2): which opens, the others, and earlier versions.</summary>
+    /// <summary>The book's files when it has more than one: which opens, the others, and earlier versions.</summary>
     public IReadOnlyList<InspectorCopy> Copies { get; }
 
     public bool HasCopies => Copies.Count > 0;
@@ -149,9 +212,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     }
 
     [RelayCommand]
-    static void ShowCopyInExplorer(InspectorCopy copy)
+    void ShowCopyInExplorer(InspectorCopy copy)
     {
-        if ((copy.ExplorerPath ?? copy.Path) is { } path) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+        if ((copy.ExplorerPath ?? copy.Path) is { } path) _shell.ShowInFolder(path);
     }
 
     static InspectorCopy ToCopy(CopyDetails details)
@@ -252,7 +315,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (await Task.Run(() => _corrections.FindLookAlikesAsync(Item.EntryId, before, after)) is { } offer) LookAlikeOffer = offer;
     }
 
-    // Easier corrections (scenario review, row 8).
+    // Easier corrections.
 
     /// <summary>
     /// Cataloged wrong…: the editor, with every field showing and the guesses marked and their evidence open, until Done
@@ -334,16 +397,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     void IMetadataEditor.OpenLink(string url)
     {
         if (StoreLink.WebAddress(url) is not { } address) return;
-        if (!WebLinks.AskAndOpen(address, out var failed) && failed is not null)
-            System.Windows.MessageBox.Show("Windows couldn't open that link.", "Open a web link", System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+        if (!WebLinkPrompt.ConfirmOpen(_prompts, address) || _shell.Open(address) is null) return;
+        _prompts.Tell("Windows couldn't open that link.", "Open a web link", PromptKind.Warning);
     }
 
     public LibraryItemViewModel Item { get; }
 
     public string Title => Item.Title;
 
-    /// <summary>The collections the book was added to (slice 3 plan, choice 10), as chips with ×.</summary>
+    /// <summary>The collections the book was added to, as chips with ×.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCollections))]
     public partial IReadOnlyList<CollectionChip> Collections { get; private set; } = [];
@@ -352,7 +414,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
+    public string Eyebrow => Item.IsPack ? HasPdfs ? "PACK" : "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
         : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
 
     [ObservableProperty]
@@ -386,7 +448,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool CanOcrEveryPage => PageCount > 0;
 
-    /// <summary>The Notes tab (slice 3f): the book's own note and its page notes. Set by the page once the details load.</summary>
+    /// <summary>The Notes tab: the book's own note and its page notes. Set once the details load, as they open.</summary>
     [ObservableProperty]
     public partial EntryNotesViewModel? Notes { get; set; }
 
@@ -395,7 +457,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [NotifyPropertyChangedFor(nameof(IsDetailsTab))]
     public partial bool IsNotesTab { get; set; }
 
-    /// <summary>Whether the book is in the sidebar's Pinned group (Pinned Views plan, choice 7), kept current by the Library.</summary>
+    /// <summary>Whether the book is in the sidebar's Pinned group, kept current by the Library.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PinLabel), nameof(PinAction))]
     public partial bool IsPinned { get; set; }
@@ -408,8 +470,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IndexingService indexing, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts,
-        Microsoft.Extensions.Logging.ILogger log, CorrectionService? corrections = null)
+        IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
+        PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
+        CorrectionService? corrections = null, ChosenCovers? chosen = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -418,14 +481,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (item.IsElsewhere) locations = [];
         else if (item.IsPack)
         {
-            // A pack is where its folder or ZIP is; its images are listed below, each with its own file. Images added by
-            // hand, or a pack made by hand, name the other folders they are in (multi-select plan, choice 10).
+            // A pack is where its folder or ZIP is; its files are listed below, each with its own file. Files added by
+            // hand, or a pack made by hand, name the other folders they are in.
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
+            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+            var noun = item.HasPdfMembers || images.Any(i => i.IsPdf) ? "files" : "images";
             locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
-                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Images.ToString("N0", CultureInfo.CurrentCulture)} of its images {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
-            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Files.ToString("N0", CultureInfo.CurrentCulture)} of its {noun} {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
         }
         else
         {
@@ -435,9 +499,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
-        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, copies, packs, elsewhere, corrections);
+        var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
+            files, prompts, shell, corrections, chosen, log);
+        if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
-        await inspector.LoadPartsAsync(parts, log);
+        await inspector.LoadPartsAsync(parts);
+        await inspector.LoadChaptersAsync(log);
         return inspector;
     }
 
@@ -452,7 +519,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [RelayCommand(CanExecute = nameof(CanReprocess))]
     async Task ReprocessWithOcr()
     {
-        if (PageCount == 0 || !Services.ReprocessPrompt.ConfirmOcrEveryPage(Title, PageCount)) return;
+        if (PageCount == 0 || !Services.ReprocessPrompt.ConfirmOcrEveryPage(_prompts, Title, PageCount)) return;
         await StartReprocessAsync(ocrEveryPage: true);
     }
 
@@ -498,7 +565,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var facts = BuildFacts(entry, details);
         if (!facts.SequenceEqual(Facts)) Facts = facts;
         // A pack's processing is its images', each read like any image.
-        IReadOnlyList<InspectorStage> stages = details is null || entry.IsPack ? [] : [.. details.Stages.Select(s => new InspectorStage(StageName(s.Stage), StatusText(s)))];
+        IReadOnlyList<InspectorStage> stages = details is null || entry.IsPack
+            ? []
+            : [.. details.Stages.Select(s => new InspectorStage(_stages.Find(s.Stage)?.Names.Label ?? s.Stage.ToString(), StatusText(s)))];
         if (!stages.SequenceEqual(Stages)) Stages = stages;
         // AI cataloguing isn't part of Reprocess and can wait for hours (AI off, a model server down), so only the
         // stages that read the file count.
@@ -511,17 +580,17 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// or the nearest one above it still there. Explorer only shows it; nothing is changed.
     /// </summary>
     [RelayCommand]
-    static void ShowInExplorer(InspectorLocation location)
+    void ShowInExplorer(InspectorLocation location)
     {
         var path = location.ExplorerPath ?? location.Path;
         if (!location.IsMissing)
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+            _shell.ShowInFolder(path);
             return;
         }
         var folder = System.IO.Path.GetDirectoryName(path);
         while (folder is not null && !System.IO.Directory.Exists(folder)) folder = System.IO.Path.GetDirectoryName(folder);
-        if (folder is not null) Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false });
+        if (folder is not null) _shell.OpenFolder(folder);
     }
 
     static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details)
@@ -537,11 +606,17 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         };
         if (!string.IsNullOrEmpty(entry.FolderHint)) facts.Add(new("Folders", entry.FolderHint));
         if (details is null) return facts;
+        // A pack's card shows its first file: what that file says of itself isn't the pack's.
+        if (entry.IsPack)
+        {
+            facts.Add(new("Search", entry.PdfMembers > 0 ? "Found by its files' names, and by the text of its PDFs" : "Found by its name"));
+            return facts;
+        }
 
         facts.Add(new("Search", SearchText(entry, details)));
         // From how its stages stopped, not the file's encryption flag: that is set on any PDF with a security handler,
         // most of which open without a password (only restricting copying or printing), and never on a locked one,
-        // which can't be opened to read it (slice 4i plan, choice 3).
+        // which can't be opened to read it.
         switch (entry.TextAccess)
         {
             case TextAccess.Locked:
@@ -551,7 +626,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
                 facts.Add(new("Protection", "A scheme Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default PDF app."));
                 break;
         }
-        // A file that forbids copying is still read for search; only copying text out stays off (slice 4i plan, choice 5).
+        // A file that forbids copying is still read for search; only copying text out stays off.
         if (entry.Format == SourceFormats.Pdf && entry.TextAccess is TextAccess.Readable or TextAccess.Forgotten)
             facts.Add(new("Copying text", details.CanCopy ? "Allowed"
                 : "Not allowed by the file. Search still finds its pages; copying text out of the reader stays off, as the file asks."));
@@ -590,23 +665,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _ => "",
     };
 
-    static string StageName(Stage stage) => stage switch
-    {
-        Stage.Probe => "Opening",
-        Stage.Text => "Reading text",
-        Stage.Covers => "Cover",
-        Stage.RuleHints => "Hints from names",
-        Stage.Ocr => "Reading scanned pages",
-        Stage.Classify => "Cataloguing with AI",
-        Stage.Match => "Looking for other copies",
-        _ => stage.ToString(),
-    };
-
     static string StatusText(StageState stage) => stage.Status switch
     {
         StageStatus.Complete => "Done",
         StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
-        StageStatus.Skipped => stage.Stage == Stage.Classify && stage.Reason is { } why ? why : "Not needed",
+        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan && stage.Reason is { } why ? why : "Not needed",
+        // A whole-book scan waits a long time, and says how far it has got or what it waits for.
+        StageStatus.Pending when stage.Stage == Stage.ChapterScan && stage.Reason is { } waiting => waiting,
         StageStatus.Pending => "Waiting",
         StageStatus.Running => "Working on it…",
         _ => stage.Reason ?? stage.Status.ToString(),

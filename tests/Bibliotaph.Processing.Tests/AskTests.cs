@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using Bibliotaph.Catalog;
+using Bibliotaph.Catalog.Tests;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Classification;
 using Bibliotaph.Core;
@@ -12,11 +13,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// Ask this book, Q1: pages found by words alone without an embedding model, by words and meaning with one, the
+/// Ask this book: pages found by words alone without an embedding model, by words and meaning with one, the
 /// book's vectors made on the first ask and made again when the model changes, the weak-signal guard, and the books
-/// and setups that can't be asked; Q2, answers written from those pages and checked; Q3, follow-ups rewritten and
-/// answered with the conversation, which is kept on the book's entry. The model server is a stand-in that counts what
-/// it is sent.
+/// and setups that can't be asked; answers written from those pages and checked; follow-ups rewritten and answered
+/// with the conversation, which is kept on the book's entry. The model server is a stand-in that counts what it is
+/// sent.
 /// </summary>
 [Collection(SqlitePools.Name)]
 public sealed class AskTests : IAsyncLifetime
@@ -96,7 +97,7 @@ public sealed class AskTests : IAsyncLifetime
         var paths = new AppPaths(Path.Combine(_dir, "data"));
         foreach (var directory in paths.Directories) Directory.CreateDirectory(directory);
         _catalog = new CatalogDatabase(paths.CatalogDatabase, paths.Backups);
-        await _catalog.MigrateAsync(Ct);
+        await _catalog.MigrateFromTemplateAsync(Ct);
         var contexts = new Factory(_catalog);
         _index = IndexDatabase.ForFile(paths.IndexDatabase);
         await _index.InitializeAsync(Ct);
@@ -105,7 +106,7 @@ public sealed class AskTests : IAsyncLifetime
         var store = new IndexStore(_writer);
         _ai = new AiSettings(new SettingsStore(contexts), new NoApiKeys(), _ => _server);
         _ask = new AskService(_ai, new LibraryStore(contexts), new AskQueries(_index), new IndexQueries(_index), store, new EntryStore(contexts),
-            new AskHistoryStore(contexts));
+            new AskHistoryStore(contexts), new AiUse());
 
         // An invented book in an invented folder: a page waiting for OCR, then three with text under two bookmarks.
         await using (var db = _catalog.CreateContext())
@@ -133,13 +134,14 @@ public sealed class AskTests : IAsyncLifetime
         await store.SetPageTextAsync(_book, [.. texts.Select((t, i) => new PageTextRow(i, t, "pdf", 1, t.Length == 0))], Ct);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        // Asking checks for missing vectors in the background; on Windows its open index.db would stop the delete.
+        if (_ask.FillOf(_book) is { Running: true }) await FilledAsync();
         _ask.Dispose();
         _writer.Dispose();
         SqliteConnection.ClearAllPools();
         Directory.Delete(_dir, recursive: true);
-        return ValueTask.CompletedTask;
     }
 
     Task SetUpAsync(string? embeddingModel, bool enabled = true, IReadOnlySet<long>? skipped = null) =>
@@ -206,6 +208,33 @@ public sealed class AskTests : IAsyncLifetime
         Assert.Equal(3, best.PdfPage);
         Assert.True(best.ByWords && best.ByMeaning);
         Assert.Null(second.MeaningProblem);
+    }
+
+    [Fact]
+    public async Task Opening_the_book_makes_its_vectors_before_it_is_asked_unless_ask_cant_use_them()
+    {
+        await SetUpAsync(null);
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+
+        await SetUpAsync("embed-a", skipped: new HashSet<long> { _rootId });
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+
+        await SetUpAsync("embed-a", enabled: false);
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Null(_ask.FillOf(_book));
+        Assert.Empty(_server.Embedded);
+
+        await SetUpAsync("embed-a");
+        await _ask.PrepareAsync(_book, Ct);
+        Assert.Equal(new AskFill(3, 3, false, null), await FilledAsync());
+        Assert.Equal(3, VectorsBy("embed-a"));
+
+        // The first question is found by meaning on every page.
+        var first = await _ask.FindAsync(_book, "Where does the dragon sleep?", Ct);
+        Assert.Equal(AskMeaning.On, first.Meaning);
+        Assert.True(first.Passages[0].ByMeaning);
     }
 
     [Fact]
@@ -283,6 +312,26 @@ public sealed class AskTests : IAsyncLifetime
 
         Assert.Empty(_server.Embedded);
         Assert.Null(_ask.FillOf(_book));
+    }
+
+    [Fact]
+    public async Task Work_that_took_the_setup_keeps_its_model_and_clients_together_when_the_setup_changes()
+    {
+        await SetUpAsync("embed-a");
+        var before = _ai.Current;
+
+        await _ai.SaveAsync(new AiSetup(Endpoint, "chat-14b", "ollama", true, false, new HashSet<long>(), EmbeddingModel: "embed-b"), Ct);
+        var after = _ai.Current;
+
+        Assert.Equal(("chat-8b", "chat-8b", "chat-8b", "embed-a"),
+            (before.Setup.ModelName, before.Classifier?.Model, before.Interpreter?.Model, before.Setup.EmbeddingName));
+        Assert.Equal(("chat-14b", "chat-14b", "chat-14b", "embed-b"),
+            (after.Setup.ModelName, after.Classifier?.Model, after.Interpreter?.Model, after.Setup.EmbeddingName));
+        Assert.NotNull(after.Chat);
+        Assert.NotNull(after.Embedder);
+
+        await _ai.SaveAsync(new AiSetup(Endpoint, "chat-14b", "ollama", false, false, new HashSet<long>()), Ct);
+        Assert.Equal(AiState.Off with { Setup = _ai.Setup }, _ai.Current);
     }
 
     [Fact]

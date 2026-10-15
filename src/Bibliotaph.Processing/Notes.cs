@@ -11,12 +11,43 @@ namespace Bibliotaph.Processing;
 public sealed record PageNotePages(PagePlace Place, PageRange Pages, bool Found = true);
 
 /// <summary>
-/// Notes (slice 3 plan, choice 18): each book's own note, and notes on pages of a book, which the reader lists and a
-/// binder's reader shows. Search finds a book by the words of either: they are projected to index.db after each change.
-/// A page note opens where its pages are in the book's current copy, found as a session item's are (slice 4h plan, choice
-/// 2), and lists at the pages it opens at, or in a reader at its pages in the copy open there.
+/// The notes on a book's pages as a reader lists and changes them. An interface so the reader's notes panel can be
+/// tried without a library.
 /// </summary>
-public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places)
+public interface IPageNotes
+{
+    /// <summary>Raised after a page note was added, changed, deleted or moved, with the book it is on, on the thread that changed it.</summary>
+    event EventHandler<EntryId>? PageNotesChanged;
+
+    /// <summary>The book a document shows under, whose page notes the reader lists.</summary>
+    Task<EntryId?> GetEntryAsync(long documentId, CancellationToken ct = default);
+
+    /// <summary>The page notes of the book a document belongs to, from all its copies.</summary>
+    Task<IReadOnlyList<PageNoteInfo>> GetPageNotesForDocumentAsync(long documentId, CancellationToken ct = default);
+
+    /// <summary>Each page note as a list shows it, by note; in a reader open on <paramref name="documentId"/>, at its pages in that copy.</summary>
+    Task<IReadOnlyDictionary<long, PageNotePages>> ListAsync(IReadOnlyList<PageNoteInfo> pageNotes, long? documentId = null, CancellationToken ct = default);
+
+    /// <summary>A note on pages of the document the reader has open. Null when the document is on no book.</summary>
+    Task<PageNoteInfo?> AddPageNoteAsync(long documentId, int firstPage, int lastPage, string text, CancellationToken ct = default);
+
+    /// <summary>New text for a page note and, when they changed, new pages of <paramref name="documentId"/>. Null when the note is gone.</summary>
+    Task<PageNoteInfo?> UpdatePageNoteAsync(PageNoteInfo note, string text, long documentId, int firstPage, int lastPage, CancellationToken ct = default);
+
+    /// <summary>Deletes a page note, giving back what it was so it can be put back. Null when it was already gone.</summary>
+    Task<PageNoteInfo?> DeletePageNoteAsync(long noteId, CancellationToken ct = default);
+
+    /// <summary>Puts back a page note that was deleted.</summary>
+    Task<PageNoteInfo?> RestorePageNoteAsync(PageNoteInfo deleted, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Notes: each book's own note, and notes on pages of a book, which the reader lists and a binder's reader shows.
+/// Search finds a book by the words of either: they are projected to index.db after each change. A page note opens
+/// where its pages are in the book's current copy, found as a session item's are, and lists at the pages it opens
+/// at, or in a reader at its pages in the copy open there.
+/// </summary>
+public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataProjector projector, PagePlaces places) : IPageNotes
 {
     EventHandler<EntryId>? _pageNotesChanged;
 
@@ -77,7 +108,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         return updated;
     }
 
-    /// <summary>Where each page note opens now, by note: in the book's current copy, as a session item would (choice 2).</summary>
+    /// <summary>Where each page note opens now, by note: in the book's current copy, as a session item would.</summary>
     public async Task<IReadOnlyDictionary<long, PagePlace>> ResolveAsync(IReadOnlyList<PageNoteInfo> pageNotes, CancellationToken ct = default)
     {
         var resolved = await places.ResolveAsync([.. pageNotes.Select(n => (n.EntryId, n.Range))], ct);
@@ -112,7 +143,7 @@ public sealed class NotesService(NoteStore notes, EntryStore entries, MetadataPr
         return result;
     }
 
-    /// <summary>"Use this page" on a note whose page changed (choice 2): the note is on these pages of the open document from now on.</summary>
+    /// <summary>"Use this page" on a note whose page changed: the note is on these pages of the open document from now on.</summary>
     public async Task<PageNoteInfo?> UsePageAsync(long noteId, long documentId, int firstPage, int lastPage, CancellationToken ct = default)
     {
         var used = await notes.RepointAsync(noteId, await MakeRangeAsync(documentId, firstPage, lastPage, ct), ct);
