@@ -13,6 +13,11 @@ spikes/pdf-feasibility/corpus/generated/*.pdf
 # For a deliberately synthetic file, use git add -f and say so in the PR.
 *.pdf
 *.epub
+*.mobi
+*.prc
+*.azw
+*.azw3
+*.kfx
 *.cbz
 *.cbr
 

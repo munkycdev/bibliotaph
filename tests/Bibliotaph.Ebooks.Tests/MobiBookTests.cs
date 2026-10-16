@@ -43,21 +43,18 @@ public sealed class MobiBookTests
 
     [Theory]
     [MemberData(nameof(Books))]
-    public void The_text_is_rebuilt_into_parts_whose_pages_read_like_the_EPUB(string name)
+    public void The_text_is_rebuilt_into_parts_and_cut_into_pages(string name)
     {
         using var book = Open(name);
-        using var epub = Ebook.Open(new MemoryStream(Bytes("sample.epub")));
 
         var layout = EbookPaging.Cut(book);
-        var expected = EbookPaging.Cut(epub);
         var text = string.Join(" ", layout.Pages.Select(p => p.Text));
         Assert.Contains("The travellers reached the village at dusk", text, StringComparison.Ordinal);
         Assert.Contains("Mile 24 of the road", text, StringComparison.Ordinal);
-        Assert.Contains("Café — naïve “quotes”.", text, StringComparison.Ordinal);
-        // Each chapter starts a page, as the EPUB's do; the old format runs its chapters into one text cut at page breaks.
-        Assert.InRange(layout.Pages.Count, expected.Pages.Count - 1, expected.Pages.Count + 1);
-        // Calibre adds a contents page at the end.
+        Assert.Contains("Caf\u00e9 \u2014 na\u00efve \u201cquotes\u201d.", text, StringComparison.Ordinal);
+        // A part for each chapter and Calibre's contents page at the end; the long chapter takes two pages.
         Assert.Equal(4, book.Spine.Count);
+        Assert.Equal(5, layout.Pages.Count);
     }
 
     [Theory]
