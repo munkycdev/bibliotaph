@@ -67,7 +67,7 @@ function Invoke-Smoke {
         return
     }
 
-    $exe = Join-Path $root 'src/Bibliotaph.App/bin/Debug/net11.0-windows/Bibliotaph.exe'
+    $exe = Join-Path $root 'src/Bibliotaph.App/bin/Debug/net11.0-windows10.0.19041.0/Bibliotaph.exe'
     if (-not (Test-Path $exe)) { throw "Build the Debug configuration first: $exe is missing." }
     # A fresh data root each run, so a library left by an earlier run can't change what the smoke test sees.
     $temp = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
@@ -130,7 +130,7 @@ function Invoke-Engine {
 function Invoke-Licenses {
     # Every package that ships gets licenses\packages\<id>.txt, which the About popup lists (the smoke test looks).
     # The release workflow runs the same tool on the published app.
-    $app = Join-Path $root 'src/Bibliotaph.App/bin/Debug/net11.0-windows'
+    $app = Join-Path $root 'src/Bibliotaph.App/bin/Debug/net11.0-windows10.0.19041.0'
     $tool = Join-Path $root 'tools/LicenseNotices/bin/Debug/net11.0/LicenseNotices.dll'
     if (-not (Test-Path $tool) -or -not (Test-Path (Join-Path $app 'Bibliotaph.deps.json'))) { throw 'Build the Debug configuration first.' }
     Invoke-Dotnet $tool $app

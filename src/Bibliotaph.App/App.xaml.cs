@@ -200,6 +200,7 @@ public partial class App : Application
         builder.Services.AddSingleton<DownloadCheck>();
         builder.Services.AddSingleton<OnlineImports>();
         builder.Services.AddSingleton<OnlineBrowsers>();
+        builder.Services.AddSingleton<EbookBrowser>();
         builder.Services.AddSingleton<OnlineReaders>();
         builder.Services.AddSingleton<OnlineDownloads>();
         builder.Services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));

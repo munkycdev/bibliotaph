@@ -5,7 +5,8 @@
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>$(BibTfm)-windows</TargetFramework>
+    <TargetFramework>$(BibTfm)-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <IsTestProject>true</IsTestProject>

@@ -99,8 +99,20 @@ a PDF. When the book marks where its printed pages began, as many publishers' EP
 pages, with their numbers. Otherwise each chapter starts a page and a page holds about as much text as a printed
 page of a novel. The same file always gives the same pages.
 
-Bibliotaph's reader doesn't show e-books yet. Opening one shows **Open in another app**, which opens it in your
-default e-book app.
+Opening an e-book shows it in Bibliotaph's reader as one long page of text in the app's colours, with the book's own
+pictures. The page box at the top says which page the top of the window is on, and the page box, the contents panel,
+**Find** (Ctrl+F, F3 for the next match), **Note**, **Add to binder** and **Ask this book** work as they do in a PDF.
+Search opens the book at the page it found, with the words marked. **Zoom in** and **Zoom out** (or Ctrl+plus,
+Ctrl+minus and Ctrl with the mouse wheel) make the text bigger or smaller, and **Usual size** sets it back. A link to
+another place in the book goes there, with **Back**; a web link opens in your browser after asking. You can select
+text and copy it.
+
+A fixed-layout book, such as a comic or a picture book, shows each of its pages as it was drawn, one under another,
+and **Fit page** or **Fit width** fits them to the window.
+
+The book's page is shown as a picture of its text, nothing more: anything in the book that would run a program, fill
+in a form or reach the internet is left out. The reader uses Microsoft Edge WebView2, which Windows 11 includes; on
+Windows 10 the reader says so if it's missing. The thumbnail strip and **Use this page as the cover** are for PDFs.
 
 ## Locked, protected and missing books
 

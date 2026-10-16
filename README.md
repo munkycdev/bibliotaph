@@ -164,6 +164,6 @@ Bibliotaph is free software: you can redistribute it and/or modify it under the 
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
 version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for
 details. SPDX: `GPL-3.0-or-later`, with one additional permission under section 7 so the app can ship Microsoft's
-Windows SDK projection, which it uses for Windows' text recognition; see [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md).
+Windows SDK projection, which it uses for Windows' text recognition and the e-book reader; see [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md).
 
 Fonts, icons and packages keep their own licences; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

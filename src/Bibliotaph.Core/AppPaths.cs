@@ -55,6 +55,12 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string Browser => Path.Combine(Root, "browser");
 
+    /// <summary>
+    /// The e-book reader's browser profile: nothing signed in, nothing kept but the browser's own cache, and apart from
+    /// <see cref="Browser"/> so a book's page never shares a site's sign-ins.
+    /// </summary>
+    public string EbookReader => Path.Combine(Root, "ebook-reader");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

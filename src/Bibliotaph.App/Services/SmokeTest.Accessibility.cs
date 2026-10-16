@@ -251,9 +251,10 @@ static partial class SmokeTest
             };
             if (!moved || Keyboard.FocusedElement is not DependencyObject next || ReferenceEquals(next, current))
             {
-                // A hosted window (the in-app browser's page) takes focus into its own controls, where WPF can't follow,
-                // and hands it back itself when Tab leaves its last one: the walk ends there.
-                if (Showing(scope).Any(e => e is System.Windows.Interop.HwndHost)) break;
+                // A hosted window (the in-app browser's page) or a web page drawn into the window (the e-book reader's)
+                // takes focus into its own controls, where WPF can't follow, and hands it back itself when Tab leaves
+                // its last one: the walk ends there.
+                if (Showing(scope).Any(e => e is System.Windows.Interop.HwndHost or Microsoft.Web.WebView2.Wpf.WebView2CompositionControl)) break;
                 broken = $"Tab stuck at {Describe(current, window)}";
                 break;
             }

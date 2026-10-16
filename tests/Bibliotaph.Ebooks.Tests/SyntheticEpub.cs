@@ -28,6 +28,9 @@ public sealed class SyntheticEpub
 
     public bool WriteContainer { get; set; } = true;
 
+    /// <summary>More of every chapter's head, as a fixed-layout page's viewport.</summary>
+    public string Head { get; set; } = "";
+
     public SyntheticEpub Chapter(string href, string body)
     {
         _chapters.Add(($"c{_chapters.Count + 1}", href, body));
@@ -92,10 +95,10 @@ public sealed class SyntheticEpub
                 """);
 
             var nav = NavBody ?? $"""<nav epub:type="toc"><ol>{string.Concat(_chapters.Select(c => $"""<li><a href="{c.Href}">{c.Id}</a></li>"""))}</ol></nav>""";
-            Write(zip, "OEBPS/nav.xhtml", Xhtml(nav));
+            Write(zip, "OEBPS/nav.xhtml", Xhtml(nav, ""));
             if (Ncx is not null)
                 Write(zip, "OEBPS/toc.ncx", $"""<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">{Ncx}</ncx>""");
-            foreach (var (_, href, body) in _chapters) Write(zip, "OEBPS/" + Uri.UnescapeDataString(href), Xhtml(body));
+            foreach (var (_, href, body) in _chapters) Write(zip, "OEBPS/" + Uri.UnescapeDataString(href), Xhtml(body, Head));
             foreach (var (_, path, bytes, _, _) in _files)
             {
                 using var stream = zip.CreateEntry("OEBPS/" + path).Open();
@@ -107,11 +110,11 @@ public sealed class SyntheticEpub
 
     public EpubBook Open(EbookLimits? limits = null) => EpubBook.Open(new MemoryStream(Build()), limits);
 
-    static string Xhtml(string body) => $$"""
+    static string Xhtml(string body, string head) => $$"""
         <?xml version="1.0" encoding="utf-8"?>
         <!DOCTYPE html>
         <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-        <head><title>Chapter</title><style>p { color: red; }</style></head>
+        <head><title>Chapter</title><style>p { color: red; }</style>{{head}}</head>
         <body>{{body}}</body>
         </html>
         """;
