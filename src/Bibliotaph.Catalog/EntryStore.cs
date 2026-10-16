@@ -26,6 +26,9 @@ public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind 
 
     public IReadOnlyList<PackMember>? Members { get; init; }
 
+    /// <summary>For a pack, the file in <see cref="Members"/> whose cover its card shows in place of the mosaic, if one was chosen.</summary>
+    public EntryId? CoverMember { get; init; }
+
     /// <summary>When a book owned elsewhere was added; a file's card goes by its document's.</summary>
     public DateTime? AddedUtc { get; init; }
 
@@ -315,6 +318,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             .ToDictionary(g => g.Key, g => g.Select(l => l.RelativePath).Min(StringComparer.Ordinal)!);
         var names = await db.PackDecisions.AsNoTracking().Where(d => packIds.Contains(d.EntryId))
             .ToDictionaryAsync(d => d.EntryId, d => PackStore.Name(d.FolderPath, d.IsArchive), ct);
+        var chosen = await db.Entries.AsNoTracking().Where(e => packIds.Contains(e.Id) && e.CoverEntryId != null)
+            .ToDictionaryAsync(e => e.Id, e => e.CoverEntryId!.Value, ct);
         return shown.GroupBy(s => s.ParentEntryId!.Value).Select(g =>
         {
             List<PackMember> members = [.. g.Select(s => new PackMember(new EntryId(s.EntryId), s.DocumentId,
@@ -324,6 +329,8 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             {
                 Name = names.GetValueOrDefault(g.Key),
                 Members = members,
+                // A chosen file that left the pack, or lost its file, gives the card its mosaic back.
+                CoverMember = chosen.TryGetValue(g.Key, out var cover) && members.Any(m => m.EntryId.Value == cover) ? new EntryId(cover) : null,
             };
         });
     }

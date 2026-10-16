@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **Pick a pack's cover.** A map or image pack can show one of its own images on its card instead of the mosaic of
+  its first four. Right-click an image in the pack's details and choose **Use as the pack's cover**, or click the
+  picture button in the reader while stepping through the pack. **Use the mosaic** in the details goes back, and the
+  card goes back by itself if that image is deleted or leaves the pack.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.544 (15 October 2026):

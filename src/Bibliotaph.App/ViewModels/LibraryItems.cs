@@ -193,8 +193,11 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// </summary>
     public string SizeLabel => IsPack ? MembersLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
 
-    /// <summary>Many files shown as one card: its cover is a mosaic of its first four.</summary>
+    /// <summary>Many files shown as one card: its cover is a mosaic of its first four, or the file chosen as its cover.</summary>
     public bool IsPack => Entry.IsPack;
+
+    /// <summary>A pack showing the mosaic of its first four files, rather than one file chosen as its cover.</summary>
+    public bool ShowsMosaic => IsPack && Entry.CoverMember is null;
 
     /// <summary>A pack with PDFs in it as well as images, such as a party's character sheets: it counts files, not images.</summary>
     public bool HasPdfMembers => IsPack && Entry.PdfMembers > 0;
@@ -353,6 +356,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(HasPdfMembers));
         OnPropertyChanged(nameof(MembersLabel));
         OnPropertyChanged(nameof(Mosaic));
+        OnPropertyChanged(nameof(ShowsMosaic));
         OnPropertyChanged(nameof(IsFavorite));
         OnPropertyChanged(nameof(FavoriteAction));
         OnPropertyChanged(nameof(OpenedUtc));
@@ -417,10 +421,20 @@ public sealed class CoverTile(string name, CoverImages covers) : ObservableObjec
     }
 }
 
-/// <summary>A file in a pack's inspector grid, an image or a PDF: its name and cover. Clicking it opens it in the viewer.</summary>
-public sealed class PackImageViewModel(PackImage image, CoverImages covers)
+/// <summary>
+/// A file in a pack's inspector grid, an image or a PDF: its name and cover, and whether it is the pack's cover. Clicking
+/// it opens it in the viewer.
+/// </summary>
+public sealed class PackImageViewModel(PackImage image, CoverImages covers, bool isCover = false) : ObservableObject
 {
     public PackImage Image { get; } = image;
+
+    /// <summary>The file chosen as the pack's cover: its card shows this file's cover in place of the mosaic.</summary>
+    public bool IsCover
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = isCover;
 
     public string Name => Image.Name;
 

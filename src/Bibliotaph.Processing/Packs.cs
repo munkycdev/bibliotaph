@@ -76,6 +76,17 @@ public sealed class PackService(PackStore packs, MetadataProjector projector, Me
         await ProjectAsync(changed, ct);
     }
 
+    /// <summary>
+    /// "Use as the pack's cover": the pack's card shows <paramref name="fileId"/>'s cover in place of the mosaic, or the
+    /// mosaic again for null. False when the entry isn't a pack or the file isn't in it.
+    /// </summary>
+    public async Task<bool> UseCoverAsync(EntryId packId, EntryId? fileId, CancellationToken ct = default)
+    {
+        if (!await packs.SetCoverAsync(packId, fileId, ct)) return false;
+        await projector.ProjectAsync([packId], ct);
+        return true;
+    }
+
     /// <summary>The folders and ZIPs a pack's files are in, for its details.</summary>
     public Task<IReadOnlyList<PackFolder>> GetFoldersAsync(EntryId packId, CancellationToken ct = default) => packs.GetFoldersAsync(packId, ct);
 

@@ -215,7 +215,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
 
     /// <summary>A book at the page it was left at; a pack at its first file, with the rest to step through.</summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item) =>
-        item.IsPack ? ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)), item.Title) : item.BookRequest();
+        item.IsPack ? ViewerRequest.ForPack(item.EntryId, await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)), item.Title) : item.BookRequest();
 
     /// <summary>The heart on a cover or in its menu.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]

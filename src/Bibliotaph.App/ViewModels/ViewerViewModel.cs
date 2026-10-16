@@ -67,7 +67,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     IJobControl Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
-    IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null);
+    IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -103,6 +103,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     readonly PartsService _parts;
     readonly ChapterScanService? _chapters;
     readonly CoverPages _covers;
+    readonly PackService? _packs;
     readonly LibraryActivity _activity;
 
     /// <summary>The page the open file's card shows as its cover.</summary>
@@ -161,6 +162,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _notes = services.Notes;
         _parts = services.Parts;
         _covers = services.Covers;
+        _packs = services.Packs;
         _activity = services.Activity;
         _places = services.Places;
         _chapters = services.Chapters;
@@ -227,6 +229,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         OnPropertyChanged(nameof(Title));
         ShowPart();
         OnPropertyChanged(nameof(IsInPack));
+        OnPropertyChanged(nameof(CanUseAsPackCover));
         OnPropertyChanged(nameof(PackPosition));
         OnPropertyChanged(nameof(PreviousStepName));
         OnPropertyChanged(nameof(NextStepName));
@@ -383,7 +386,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public event EventHandler<PageTarget>? GoToRequested;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible), nameof(StripVisible))]
+    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices), nameof(OutlineVisible), nameof(StripVisible),
+        nameof(CanUseAsPackCover))]
     [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
     public partial ViewerMode Mode { get; private set; }
 
@@ -1115,6 +1119,19 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _activity.Invalidate();
         ShowNotice(!drawn ? "The cover will change when the file is next read."
             : page == 0 ? "The first page is the cover again." : "This page is the cover now.");
+    }
+
+    /// <summary>An image opened from a pack can be the pack's cover in place of its mosaic.</summary>
+    public bool CanUseAsPackCover => IsImage && _packs is not null && _request?.PackEntryId is not null;
+
+    /// <summary>"Use as the pack's cover": the pack's card shows the image in view in place of its mosaic.</summary>
+    [RelayCommand]
+    async Task UseAsPackCover()
+    {
+        if (_packs is null || _request is not { PackEntryId: { } packId, Pack: { } pack } || PackIndex < 0 || pack[PackIndex].MemberEntryId is not { } file) return;
+        var used = await Task.Run(() => _packs.UseCoverAsync(packId, file));
+        if (used) _activity.Invalidate();
+        ShowNotice(used ? "This image is the pack's cover now." : "This image isn't in the pack any more.");
     }
 
     /// <summary>Mark as adventure: the page in view to start with, widened in the editor.</summary>

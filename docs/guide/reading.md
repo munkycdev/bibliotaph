@@ -86,7 +86,8 @@ can open a card's book in a window too, to check it before deciding (see
 
 Images open with zoom and pan. In an image pack, the **Left** and **Right** arrow keys (or the arrows on screen) go to
 the previous and next image. A pack with PDFs in it, such as a party's character sheets, steps the same way through
-its files with the arrows on screen: each PDF opens as a PDF, and each image as an image.
+its files with the arrows on screen: each PDF opens as a PDF, and each image as an image. To make the image in view
+the pack's cover in place of its mosaic, click the picture button at the top, **Use this image as the pack's cover**.
 
 WebP images need Microsoft's free WebP Image Extensions from the Microsoft Store. Without them, a WebP file shows in
 **Needs review** saying so.

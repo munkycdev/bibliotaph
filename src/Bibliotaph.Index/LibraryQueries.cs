@@ -15,7 +15,8 @@ namespace Bibliotaph.Index;
 /// cards show them; <see cref="Suggested"/> means some of it is unconfirmed. <see cref="AiModel"/> is the model that
 /// last read it, if one has. <see cref="Copies"/> counts the files of the book it has. A pack (<see cref="EntryKind"/>)
 /// shows its first file, counts its <see cref="Members"/> (and <see cref="PdfMembers"/>, the PDFs among them), and has
-/// the covers of its first four files for its mosaic (<see cref="MemberCovers"/>). A pack found by one of its files'
+/// the covers of its first four files for its mosaic (<see cref="MemberCovers"/>), unless one of its files was chosen
+/// as its cover (<see cref="CoverMember"/>). A pack found by one of its files'
 /// names carries that file (<see cref="MatchedMember"/>, <see cref="MatchedDocumentId"/>), which opening it shows. A book owned elsewhere (<see
 /// cref="IsElsewhere"/>) has no file: its <see cref="DocumentId"/> is 0 and its <see cref="Format"/> empty, and <see
 /// cref="AlsoOwn"/> says where it is owned ("Print · Foundry VTT"), as any card can. <see cref="Favorite"/> is a heart
@@ -42,7 +43,13 @@ public sealed record LibraryEntry(
     /// </summary>
     public int PdfMembers { get; init; }
 
-    /// <summary>The cover file names of a pack's first four files that have one.</summary>
+    /// <summary>
+    /// The file chosen as a pack's cover, while it is in the pack and its cover is drawn: the card shows that file's
+    /// cover (<see cref="Cover"/>) and has no mosaic.
+    /// </summary>
+    public EntryId? CoverMember { get; init; }
+
+    /// <summary>The cover file names of a pack's first four files that have one; none when <see cref="CoverMember"/> is set.</summary>
     public IReadOnlyList<string> MosaicCovers => MemberCovers is null ? [] : JsonSerializer.Deserialize<List<string>>(MemberCovers) ?? [];
 
     /// <summary>An adventure inside a file: a card of its own for some of the file's pages.</summary>
@@ -229,7 +236,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         CASE WHEN e.kind = 'Part' THEN e.last_page - e.first_page + 1 ELSE d.page_count END AS PageCount,
         CASE WHEN e.kind = 'Part' THEN coalesce(
             (SELECT pc.cover FROM page_cover pc WHERE pc.document_id = e.document_id AND pc.pdf_page = e.first_page),
-            CASE WHEN e.first_page = 0 THEN d.cover END) ELSE coalesce(d.cover, e.cover) END AS Cover,
+            CASE WHEN e.first_page = 0 THEN d.cover END) ELSE coalesce(cvd.cover, d.cover, e.cover) END AS Cover,
         d.folder_hint AS FolderHint, coalesce(d.added_utc, e.added_utc, '') AS AddedUtc,
         coalesce(s.status IN ('Complete', 'Partial', 'Skipped'), 0) AS Searchable, s.status AS TextStatus, s.reason AS TextReason,
         ps.status AS ProbeStatus, ps.reason AS ProbeReason,
@@ -237,10 +244,11 @@ public sealed class LibraryQueries(IndexDatabase database)
         coalesce(m.level_state, 'unknown') AS LevelState, m.players_min AS PlayersMin, m.players_max AS PlayersMax,
         coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
         ai.model AS AiModel, e.copies AS Copies, e.kind AS EntryKind, e.members AS Members,
-        CASE WHEN e.kind = 'Pack' THEN (
+        CASE WHEN e.kind = 'Pack' AND cvd.cover IS NULL THEN (
             SELECT json_group_array(cover) FROM (
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
+        CASE WHEN cvd.cover IS NOT NULL THEN e.cover_member END AS CoverMember,
         CASE WHEN e.kind = 'Pack' THEN (
             SELECT count(*) FROM entry_member em JOIN doc md ON md.document_id = em.document_id
             WHERE em.entry_id = e.entry_id AND md.format = 'pdf') ELSE 0 END AS PdfMembers,
@@ -270,6 +278,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         LEFT JOIN entry_meta m ON m.entry_id = e.entry_id
         LEFT JOIN entry_ai ai ON ai.entry_id = e.entry_id
         LEFT JOIN entry_opened o ON o.entry_id = e.entry_id
+        LEFT JOIN entry_member cvm ON cvm.entry_id = e.entry_id AND cvm.member_entry_id = e.cover_member
+        LEFT JOIN doc cvd ON cvd.document_id = cvm.document_id
         """;
 
     /// <summary>
@@ -728,6 +738,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             r.EntryKind == nameof(Core.EntryKind.Pack) ? TextAccess.Readable : Access(r))
         {
             PdfMembers = (int)r.PdfMembers,
+            CoverMember = r.CoverMember is { } coverMember ? new EntryId(coverMember) : null,
             ParentEntryId = r.ParentId is { } parent ? new EntryId(parent) : null,
             ParentTitle = r.ParentTitle,
             Pages = r.FirstPage is { } first && r.LastPage is { } last ? new PartPages((int)first, (int)last) : null,
@@ -802,6 +813,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         public long Members { get; init; }
         public string? MemberCovers { get; init; }
         public long PdfMembers { get; init; }
+        public long? CoverMember { get; init; }
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }
         public string? AlsoOwn { get; init; }
