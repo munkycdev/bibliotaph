@@ -5,6 +5,7 @@ using System.Windows;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
@@ -81,6 +82,53 @@ static partial class SmokeTest
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
         if (!surface.IsLoaded && surface.IsShowing) throw new InvalidOperationException("The e-book reader's page stayed open after Back.");
+    }
+
+    /// <summary>
+    /// A Kindle book (the AZW3 the e-book tests use, which verify.ps1 puts in a folder beside the data root), indexed
+    /// and read the same way: rebuilt from its records, shown in the reader, Find going to its matches and the
+    /// contents to their pages.
+    /// </summary>
+    static async Task ReadKindleBookAsync(IServiceProvider services, Window window)
+    {
+        const string Title = "The Sample Road";
+        var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(services.GetRequiredService<AppPaths>().Root)!, "kindle");
+        if (!System.IO.File.Exists(System.IO.Path.Combine(folder, "sample.azw3"))) throw new InvalidOperationException($"The Kindle book isn't in {folder}.");
+        var root = await services.GetRequiredService<SourceRootStore>().AddAsync(folder);
+        services.GetRequiredService<IJobControl>().RequestScan(root.Id);
+
+        var queries = services.GetRequiredService<LibraryQueries>();
+        var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 90;
+        LibraryEntry? book = null;
+        while ((book = (await Task.Run(() => queries.ListAsync(new LibraryFilter()))).FirstOrDefault(e => e.Title == Title)) is not { Searchable: true })
+        {
+            if (Stopwatch.GetTimestamp() > deadline) throw new InvalidOperationException($"The AZW3 wasn't indexed ({(book is null ? "no card" : "not searchable")}).");
+            await Settle(window);
+            await Task.Delay(200);
+        }
+
+        var shell = services.GetRequiredService<ShellViewModel>();
+        services.GetRequiredService<ReaderWindows>().OpenInMainWindow(new ViewerRequest(book.DocumentId, Title, 0));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The AZW3 didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsEbook || viewer.Mode == ViewerMode.Problem, () => $"The AZW3 didn't open (still {viewer.Mode}).");
+        if (!viewer.IsEbook) throw new InvalidOperationException($"The AZW3 didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        var surface = FindChild<EbookView>(window) ?? throw new InvalidOperationException("The viewer has no e-book surface.");
+        await WaitUntilAsync(window, () => surface.IsShowing || viewer.Mode == ViewerMode.Problem, () => "The AZW3's page didn't show.");
+        if (!viewer.Subtitle.Contains("AZW3", StringComparison.Ordinal)) throw new InvalidOperationException($"The AZW3's subtitle is {viewer.Subtitle}.");
+        if (viewer.Outline.FirstOrDefault(o => o.Title == "The Lighthouse") is not { } lighthouse || viewer.Outline.All(o => o.Title != "The Crossing"))
+            throw new InvalidOperationException($"The AZW3's contents panel shows {string.Join(", ", viewer.Outline.Select(o => o.Title))}.");
+
+        // The lantern is named in the first chapter's link and in the last chapter.
+        viewer.Find.Query = "lantern";
+        await viewer.Find.FindCommand.ExecuteAsync(null);
+        if (!viewer.Find.Status.StartsWith("1 of 2", StringComparison.Ordinal)) throw new InvalidOperationException($"Find in the AZW3 said {viewer.Find.Status}.");
+        viewer.Find.ClearCommand.Execute(null);
+        viewer.OpenOutlineEntryCommand.Execute(lighthouse);
+        await WaitUntilAsync(window, () => viewer.CurrentPageIndex == lighthouse.PageIndex,
+            () => $"The Lighthouse's contents entry left the AZW3 at page {viewer.CurrentPageIndex + 1}, not {lighthouse.PageIndex + 1}.");
+
+        services.GetRequiredService<INavigationService>().GoBack();
+        await Settle(window);
     }
 
     /// <summary>Three chapters: a short one, one long enough for several pages, and one with a word found nowhere else.</summary>

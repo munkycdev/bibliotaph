@@ -21,6 +21,10 @@
   and cover fill in the card. A book that marks its printed pages keeps those page numbers; otherwise Bibliotaph cuts
   it into pages of about a printed page each, the same way every time. `format:epub` finds them. A DRM-protected
   EPUB still gets a card with its title and author, and is listed in **Files needing attention**.
+- **Kindle books are read.** MOBI, AZW and AZW3 files are indexed in place and read in Bibliotaph's reader like
+  EPUBs, with their contents, pictures and links, and their title, authors, publisher, description and cover fill in
+  the card. Their pages are cut by length, as Kindle keeps printed page numbers in a separate file. `format:kindle`
+  finds them. A Kindle book with DRM, or in Amazon's newer KFX format, gets a card but its text isn't read.
 - **Read e-books in Bibliotaph.** An EPUB opens in the reader as flowing text in the app's colours, with its
   pictures. The page box, contents, Find, notes, binders and **Ask this book** work as in a PDF, search opens it at
   the page it found with the words marked, its links go to their place with **Back**, and zoom makes the text bigger.

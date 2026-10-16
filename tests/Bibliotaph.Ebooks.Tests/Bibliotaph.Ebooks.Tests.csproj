@@ -13,4 +13,8 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Kindle books made by Calibre from a made-up EPUB (see fixtures/ebooks/README.md). -->
+    <None Include="..\fixtures\ebooks\*.mobi;..\fixtures\ebooks\*.azw3;..\fixtures\ebooks\*.epub" Link="ebooks\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

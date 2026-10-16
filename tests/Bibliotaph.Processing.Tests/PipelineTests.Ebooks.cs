@@ -105,5 +105,48 @@ public abstract partial class PipelineTests
             Assert.Equal("Failed", StatusOf(c, "Broken", Stage.Probe));
             Assert.Contains(await _queries.GetAttentionAsync(Ct), a => a.Reason!.Contains("EPUB", StringComparison.Ordinal));
         }
+
+        static byte[] Kindle(string name) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "ebooks", name));
+
+        [Fact]
+        public async Task Kindle_books_are_read_in_place_into_pages_that_search_finds()
+        {
+            Write("Kindle/sample.azw3", Kindle("sample.azw3"));
+            Write("Kindle/old/sample.mobi", Kindle("sample-old.mobi"));
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            // Two files with different bytes: two documents, each with its own pages, contents and cover.
+            await using var c = _index.OpenRead();
+            Assert.Equal([SourceFormats.Azw3, SourceFormats.Mobi], c.Query<string>("SELECT format FROM doc ORDER BY format"));
+            Assert.All(c.Query<long>("SELECT page_count FROM doc"), pages => Assert.InRange(pages, 4, 6));
+            Assert.Equal(0, c.ExecuteScalar<long>("SELECT count(*) FROM stage_status WHERE status = 'Failed'"));
+            Assert.Equal(2, c.ExecuteScalar<long>("SELECT count(DISTINCT document_id) FROM outline WHERE title = 'The Crossing'"));
+
+            var search = new LibraryQueries(_index);
+            var filter = new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct));
+            var hits = (await search.SearchPagesAsync(SearchPlan.From(SearchQuery.Parse("lantern keeper")), filter, ct: Ct)).Entries;
+            Assert.Equal(2, hits.Sum(e => e.Pages.Count));
+            var cards = await search.SearchDocumentsAsync(SearchPlan.From(SearchQuery.Parse("format:kindle")), filter, ct: Ct);
+            Assert.Equal(2, cards.Count);
+            Assert.All(cards, card => Assert.Equal("The Sample Road", card.Title));
+            Assert.Equal(2, (await search.ListAsync(filter with { Kind = KindFilter.Books }, ct: Ct)).Count);
+            var fields = (await _metadataStore.GetAsync(cards[0].EntryId, Ct)).Compute();
+            Assert.Contains(fields[MetadataFields.Authors].Values, a => (a.Value, a.Origin) == ("Ann Writer", AssertionOrigin.Embedded));
+        }
+
+        [Fact]
+        public async Task A_KFX_book_keeps_a_card_and_says_it_cant_be_read()
+        {
+            Write("Kindle/locked.kfx", [0xEA, (byte)'D', (byte)'R', (byte)'M', (byte)'I', (byte)'O', (byte)'N', 0xEE, 1, 2, 3, 4]);
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            await using var c = _index.OpenRead();
+            Assert.Equal("Failed", StatusOf(c, "Locked", Stage.Probe));
+            Assert.Contains(await _queries.GetAttentionAsync(Ct), a => a.Reason!.Contains("KFX", StringComparison.Ordinal));
+        }
     }
 }

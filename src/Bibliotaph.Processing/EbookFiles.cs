@@ -19,7 +19,7 @@ static class EbookFiles
     public const double PageWidth = 432, PageHeight = 648;
 
     /// <summary>What <paramref name="read"/> takes from the source's book, or the outcome that says why it couldn't be read.</summary>
-    public static async Task<(T? Value, StageOutcome? Outcome)> ReadAsync<T>(StageServices s, DocumentSource source, Func<EpubBook, CancellationToken, T> read,
+    public static async Task<(T? Value, StageOutcome? Outcome)> ReadAsync<T>(StageServices s, DocumentSource source, Func<IEbook, CancellationToken, T> read,
         CancellationToken ct)
     {
         var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
@@ -29,7 +29,7 @@ static class EbookFiles
             try
             {
                 await using var stream = s.Reader.OpenRead(file.Path);
-                using var book = EpubBook.Open(stream);
+                using var book = Ebook.Open(stream);
                 return (read(book, ct), null);
             }
             catch (EbookException ex)

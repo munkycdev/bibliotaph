@@ -51,7 +51,7 @@ public static class EbookPaging
     const int MinPrintPages = 3;
 
     /// <summary>Reads every chapter of <paramref name="book"/> and cuts it into pages.</summary>
-    public static EbookLayout Cut(EpubBook book, CancellationToken ct = default)
+    public static EbookLayout Cut(IEbook book, CancellationToken ct = default)
     {
         var chapters = new List<HtmlChapter>(book.Spine.Count);
         foreach (var item in book.Spine)
