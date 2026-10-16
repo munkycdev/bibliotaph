@@ -46,7 +46,7 @@ it, notes follow their page by its text, even when the page number has changed.
 
 With AI set up, **Ask** in the reader's toolbar opens a panel where you can ask the open book a question, such as
 "What does the miller know about the cult?". **Ask this book** on a card's menu, or in a book's details, opens the book
-with the panel showing. It's offered for PDFs with text.
+with the panel showing. It's offered for PDFs with text and for e-books.
 
 Bibliotaph finds the pages most likely to answer, and the AI answers from those pages only:
 

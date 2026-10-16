@@ -35,7 +35,7 @@ the middle, and the binder's notes are on the right.
 - **Next** and **Previous** (or **Ctrl+Right** and **Ctrl+Left**) open each item at its first page. The next item in
   the same book shows at once, and the next book is opened in the background so it's ready when you get there.
 - A page you read online opens in the online reader, right there in the binder, signed in as you. **Next** and
-  **Previous** step between PDFs and pages online alike. If you've chosen to read online books in your everyday
+  **Previous** step between PDFs, e-books and pages online alike. If you've chosen to read online books in your everyday
   browser, the binder says so: open the page from **Edit binder** or **At hand** instead.
 - The reader's header shows where you are, such as "p. 42–44 · 1 of 3". Wander off into the rest of the book, and
   **Back to this item's pages** brings you back. In the page thumbnails, the item's pages are marked.
