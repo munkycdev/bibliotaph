@@ -9,8 +9,12 @@ namespace Bibliotaph.Classification;
 public sealed record ClassifierInput(Excerpt Excerpt, string FileName, Func<int, string?> PageText, Vocabulary Vocabulary,
     IReadOnlyList<WorkedExample>? Examples = null);
 
-/// <summary>What one classification produced: the claims that passed the evidence check, and those that didn't.</summary>
-public sealed record ClassifierResult(string Provider, string Model, IReadOnlyList<CheckedClaim> Accepted, IReadOnlyList<DroppedClaim> Dropped);
+/// <summary>
+/// What one classification produced: the claims that passed the evidence check, and those that didn't. <paramref
+/// name="CutOff"/> when the model ran out of tokens part way and only what it finished was read.
+/// </summary>
+public sealed record ClassifierResult(string Provider, string Model, IReadOnlyList<CheckedClaim> Accepted, IReadOnlyList<DroppedClaim> Dropped,
+    bool CutOff = false);
 
 /// <summary>
 /// Classifies a book over a model server, the built-in AI's included: the prompt and schema from <see
@@ -35,9 +39,10 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
         var system = ClassifierPrompt.SystemMessage(input.Vocabulary);
         var user = ClassifierPrompt.UserMessage(input.Excerpt, input.FileName, input.Examples);
         var request = new ModelRequest(Model, system, user, ClassifierPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user), Progress: progress);
-        var claims = ClassifierPrompt.ParseAnswer(await CompleteAsync(request, ct));
+        var (answer, cutOff) = await CompleteAsync(request, ct);
+        var claims = ClassifierPrompt.ParseAnswer(answer);
         var checkedClaims = EvidenceCheck.Check(claims, input.Excerpt, input.PageText, input.Vocabulary);
-        return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped);
+        return new ClassifierResult(Provider, Model, checkedClaims.Accepted, checkedClaims.Dropped, cutOff);
     }
 
     /// <summary>
@@ -51,14 +56,21 @@ public sealed class ModelClassifier(IModelClient client, string provider, string
         var system = PartFinderPrompt.SystemMessage();
         var user = PartFinderPrompt.UserMessage(input);
         var request = new ModelRequest(Model, system, user, PartFinderPrompt.SchemaJson, ClassifierPrompt.ContextTokens(system, user));
-        return PartCheck.Check(PartFinderPrompt.ParseAnswer(await CompleteAsync(request, ct)), input);
+        return PartCheck.Check(PartFinderPrompt.ParseAnswer((await CompleteAsync(request, ct)).Answer), input);
     }
 
-    async Task<string> CompleteAsync(ModelRequest request, CancellationToken ct)
+    /// <summary>The answer, and whether the model ran out of tokens and it is only what the model finished.</summary>
+    async Task<(string Answer, bool CutOff)> CompleteAsync(ModelRequest request, CancellationToken ct)
     {
         try
         {
-            return await client.CompleteAsync(request, ct);
+            return (await client.CompleteAsync(request, ct), false);
+        }
+        catch (ModelAnswerCutOffException ex)
+        {
+            // The server answered, so there is nothing to check. What the model finished goes through the evidence check
+            // like any answer; with nothing finished, this book fails alone.
+            return PartialAnswer.Close(ex.Answer) is { } finished ? (finished, true) : throw new ClassifierAnswerException(ex.Message, ex);
         }
         catch (ModelContextException ex)
         {

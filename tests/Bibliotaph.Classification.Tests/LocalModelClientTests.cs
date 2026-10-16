@@ -479,6 +479,141 @@ public class LocalModelClientTests
     public void Reads_the_fields_of_an_answer_still_being_written(string answer, string expected) =>
         Assert.Equal(expected, string.Join("|", PartialAnswer.Read(answer).Select(f => $"{f.Name}:{string.Join(",", f.Values)}")));
 
+    [Theory]
+    [InlineData("{\"title\":[],\"year\":[]}", "{\"title\":[],\"year\":[]}")]
+    [InlineData("{\"title\":[],\"setting\":[{\"value\":\"Ashfall\",\"page\":1,\"quote\":\"Ashfall Reach\"},{\"value\":\"Cinder\",\"page\":1,\"quote\":\"Cindermoor Ashfall Reach Glasswater",
+        "{\"title\":[],\"setting\":[{\"value\":\"Ashfall\",\"page\":1,\"quote\":\"Ashfall Reach\"}]}")]
+    [InlineData("{\"title\":[],\"year\":[", "{\"title\":[]}")]
+    [InlineData("{\"chapters\":[{\"chapter\":1,\"creature\":[\"goblin\",\"ogre\",\"tro", "{\"chapters\":[{\"chapter\":1,\"creature\":[\"goblin\",\"ogre\"]}]}")]
+    [InlineData("```json\n{\"title\":[{\"value\":\"Ashfall\",\"page\":1,\"quote\":\"Ashfall Reach\"}],\"year\":[{\"val",
+        "{\"title\":[{\"value\":\"Ashfall\",\"page\":1,\"quote\":\"Ashfall Reach\"}]}")]
+    [InlineData("{\"title\":[{\"value\":\"Ashf", null)]
+    [InlineData("Sorry, I can't", null)]
+    [InlineData("", null)]
+    public void Cuts_an_answer_that_stopped_part_way_back_to_what_it_finished(string answer, string? expected) =>
+        Assert.Equal(expected, PartialAnswer.Close(answer));
+
+    /// <summary>
+    /// A page of place names and no sentences, the shape that made a model quote the whole page again and again until its
+    /// answer ran out of tokens.
+    /// </summary>
+    const string MapPage = "Ashfall Reach\nCindermoor\nGlasswater\nThe Hollow Crown\nSaltmere Sea\nIronvale Mountains\nFenwick Marsh";
+
+    const string CutOffAnswer = """
+        {"title":[],"type":[{"value":"Map","page":1,"quote":"Ashfall Reach Cindermoor"}],"setting":[{"value":"Hollow Crown","page":1,"quote":"Ashfall Reach Cindermoor Glasswater The Hollow Crown Saltmere Sea Ironvale Mountains Fenwick Marsh Ashfall Reach Cindermoor Glasswater The Hollow Crown Saltmere
+        """;
+
+    [Fact]
+    public async Task An_answer_that_must_be_json_and_runs_out_of_tokens_is_cut_off_from_any_kind_of_server_streamed_or_not()
+    {
+        var piece = JsonValue.Create(CutOffAnswer.TrimEnd())!.ToJsonString();
+        var (openAi, _) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok($$$"""{"choices":[{"finish_reason":"length","message":{"content":{{{piece}}}}}]}"""),
+            _ => NotFound,
+        });
+        var (streamed, _) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok($$"""
+                data: {"choices":[{"delta":{"content":{{piece}}},"finish_reason":null}]}
+
+                data: {"choices":[{"delta":{},"finish_reason":"length"}]}
+
+                data: [DONE]
+
+                """),
+            _ => NotFound,
+        });
+        var (ollama, _) = Connect("http://localhost:11434", (path, _) => path switch
+        {
+            "/api/version" => Ok("""{"version":"0.12.3"}"""),
+            "/api/tags" => Ok("""{"models":[]}"""),
+            "/api/chat" => Ok($$"""
+                {"message":{"content":{{piece}}},"done":false}
+                {"message":{"content":""},"done":true,"done_reason":"length"}
+                """),
+            _ => NotFound,
+        });
+        var ct = TestContext.Current.CancellationToken;
+        var capped = Request with { MaxTokens = 2_048 };
+
+        var ex = await Assert.ThrowsAsync<ModelAnswerCutOffException>(() => openAi.CompleteAsync(capped, ct));
+        Assert.Equal(CutOffAnswer.TrimEnd(), ex.Answer);
+        Assert.Contains("limit of 2,048 tokens", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(CutOffAnswer.TrimEnd(), (await Assert.ThrowsAsync<ModelAnswerCutOffException>(() =>
+            streamed.CompleteAsync(capped with { Progress = new Reports() }, ct))).Answer);
+        Assert.Equal(CutOffAnswer.TrimEnd(), (await Assert.ThrowsAsync<ModelAnswerCutOffException>(() =>
+            ollama.CompleteAsync(Request with { Progress = new Reports() }, ct))).Answer);
+
+        // Prose that runs out is still an answer.
+        Assert.Equal(CutOffAnswer.TrimEnd(), await openAi.CompleteAsync(capped with { SchemaJson = null }, ct));
+    }
+
+    static ClassifierInput Map() =>
+        new(new Excerpt([new ExcerptPage(0, MapPage, ExcerptPart.Opening)], [], 1), "world-map.pdf", p => p == 0 ? MapPage : null,
+            new Core.Metadata.Vocabulary([new Core.Metadata.Term("type", "map", "Map")]));
+
+    [Fact]
+    public async Task A_book_whose_answer_is_cut_off_keeps_what_the_model_finished_without_asking_the_server_again()
+    {
+        var piece = JsonValue.Create(CutOffAnswer.TrimEnd())!.ToJsonString();
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok($$$"""{"choices":[{"finish_reason":"length","message":{"content":{{{piece}}}}}]}"""),
+            _ => NotFound,
+        });
+        var classifier = new ModelClassifier(client, "openai-compatible", "model-a");
+
+        var result = await classifier.ClassifyAsync(Map(), ct: TestContext.Current.CancellationToken);
+
+        Assert.True(result.CutOff);
+        var kept = Assert.Single(result.Accepted);
+        Assert.Equal(("type", "map"), (kept.Field.Key, kept.Value));
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
+    [Fact]
+    public async Task A_book_whose_answer_is_cut_off_before_it_finished_anything_fails_by_itself_and_says_why()
+    {
+        var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"model-a"}]}"""),
+            "/v1/chat/completions" => Ok("""{"choices":[{"finish_reason":"length","message":{"content":"{\"title\":[{\"value\":\"Ashfall Reach Cindermoor Glasswater"}}]}"""),
+            _ => NotFound,
+        });
+        var classifier = new ModelClassifier(client, "openai-compatible", "model-a");
+
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(() => classifier.ClassifyAsync(Map(), ct: TestContext.Current.CancellationToken));
+
+        Assert.Contains("cut off", ex.Message, StringComparison.Ordinal);
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
+    [Fact]
+    public void Every_string_a_model_writes_has_a_longest_length_so_it_cant_write_until_its_answer_runs_out()
+    {
+        foreach (var schema in new[] { ClassifierPrompt.SchemaJson, ChapterPrompt.SchemaJson, PartFinderPrompt.SchemaJson })
+        {
+            var strings = Strings(JsonNode.Parse(schema)!).ToList();
+            Assert.NotEmpty(strings);
+            Assert.All(strings, s => Assert.InRange(s["maxLength"]!.GetValue<int>(), 1, EvidenceCheck.MaxQuoteLength));
+        }
+        var quote = JsonNode.Parse(ClassifierPrompt.SchemaJson)!["properties"]!["title"]!["items"]!["properties"]!["quote"]!;
+        Assert.Equal(EvidenceCheck.MaxQuoteLength, quote["maxLength"]!.GetValue<int>());
+
+        static IEnumerable<JsonObject> Strings(JsonNode node) => node switch
+        {
+            // A schema's "type" is a word; the classifier's own "type" field, under "properties", is a schema.
+            JsonObject o when o["type"] is JsonValue type && type.GetValue<string>() == "string" => [o],
+            JsonObject o => o.SelectMany(p => p.Value is null ? [] : Strings(p.Value)),
+            JsonArray a => a.SelectMany(n => n is null ? [] : Strings(n)),
+            _ => [],
+        };
+    }
+
     [Fact]
     public async Task Embeds_with_ollamas_own_call_asking_it_to_cut_long_texts()
     {

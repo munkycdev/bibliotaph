@@ -99,6 +99,31 @@ public sealed class ModelEmptyAnswerException : ModelRequestException
 }
 
 /// <summary>
+/// The model ran out of tokens before it finished an answer that had to be JSON, so what it wrote stops part way, often
+/// inside a string, and can't be read as it is. <see cref="Answer"/> is what it wrote, which <see
+/// cref="PartialAnswer.Close"/> can cut back to what it finished. A prose answer that runs out is returned as it is.
+/// </summary>
+public sealed class ModelAnswerCutOffException : ModelRequestException
+{
+    public ModelAnswerCutOffException(string answer, int? maxTokens)
+        : base(maxTokens is { } max
+            ? string.Create(CultureInfo.InvariantCulture, $"The model's answer was cut off: it reached its limit of {max:N0} tokens before it finished.")
+            : "The model's answer was cut off before it finished.")
+    {
+        Answer = answer;
+    }
+
+    public ModelAnswerCutOffException(string message, Exception? inner = null) : base(message, inner) { }
+
+    public ModelAnswerCutOffException() { }
+
+    public ModelAnswerCutOffException(string message) : base(message) { }
+
+    /// <summary>What the model wrote before it stopped.</summary>
+    public string Answer { get; } = "";
+}
+
+/// <summary>
 /// The server refused the request because the prompt is longer than the model's context window, as llama.cpp's server
 /// does (the built-in AI among them). That is the request's fault, not the server's: the same server takes a shorter
 /// one, so a caller that can send less tries again with less, and one that can't fails that book alone. The token
@@ -136,7 +161,8 @@ public interface IModelClient
     /// <exception cref="ModelEndpointException">The endpoint can't be reached or refused the request.</exception>
     /// <exception cref="ModelRequestException">
     /// The endpoint took the request but failed while answering, took too long, or answered with nothing
-    /// (<see cref="ModelEmptyAnswerException"/>).
+    /// (<see cref="ModelEmptyAnswerException"/>), or the model ran out of tokens part way through JSON
+    /// (<see cref="ModelAnswerCutOffException"/>).
     /// </exception>
     Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default);
 }
@@ -308,11 +334,10 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
             if (!_thinkingRefused) body[OllamaThink] = false;
             return await ThinkingOffAsync(body, OllamaThink, async chat =>
             {
-                if (stream) return await StreamAsync(new Uri(Root, "api/chat"), chat, request.Progress!, ollama: true, ct);
+                if (stream) return await StreamAsync(new Uri(Root, "api/chat"), chat, request, ollama: true, ct);
                 using var response = await SendAsync(HttpMethod.Post, new Uri(Root, "api/chat"), chat, ct);
                 var json = await ReadJsonAsync(response, ct);
-                return json?["message"]?["content"]?.GetValue<string>()
-                    ?? throw new ModelEmptyAnswerException();
+                return Finished(request, json?["message"]?["content"]?.GetValue<string>() ?? throw new ModelEmptyAnswerException(), Reason(json?["done_reason"]));
             });
         }
 
@@ -342,11 +367,11 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
             {
                 try
                 {
-                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), chat, request.Progress!, ollama: false, ct);
+                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), chat, request, ollama: false, ct);
                 }
                 catch (ModelEndpointException ex) when (schema is not null && Refused(ex) is not null && !NamesThinkingSwitch(ex))
                 {
-                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), request.Progress!, ollama: false, ct);
+                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), request, ollama: false, ct);
                 }
             }
             HttpResponseMessage completion;
@@ -363,8 +388,8 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
             using (completion)
             {
                 var json = await ReadJsonAsync(completion, ct);
-                return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
-                    ?? throw new ModelEmptyAnswerException();
+                var choice = json?["choices"]?[0];
+                return Finished(request, choice?["message"]?["content"]?.GetValue<string>() ?? throw new ModelEmptyAnswerException(), Reason(choice?["finish_reason"]));
             }
         });
     }
@@ -377,6 +402,15 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
     /// <c>enable_thinking</c> from it; servers and templates without such a setting ignore it.
     /// </summary>
     const string TemplateKwargs = "chat_template_kwargs";
+
+    /// <summary>
+    /// The answer, unless it had to be JSON and the server says the model stopped because it ran out of tokens: Ollama's
+    /// <c>done_reason</c> and the OpenAI-compatible <c>finish_reason</c> are both "length" then.
+    /// </summary>
+    static string Finished(ModelRequest request, string answer, string? reason) =>
+        request.SchemaJson is not null && reason == "length" ? throw new ModelAnswerCutOffException(answer, request.MaxTokens) : answer;
+
+    static string? Reason(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
     static JsonObject JsonMode(JsonObject chat)
     {
@@ -465,8 +499,10 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
     /// per line; OpenAI-compatible servers send server-sent events ("data: {...}", then "data: [DONE]"), and llama.cpp's
     /// server adds how far it has read the prompt. The whole answer has the client's usual time to arrive.
     /// </summary>
-    async Task<string> StreamAsync(Uri uri, JsonObject body, IProgress<ModelProgress> progress, bool ollama, CancellationToken ct)
+    async Task<string> StreamAsync(Uri uri, JsonObject body, ModelRequest request, bool ollama, CancellationToken ct)
     {
+        var progress = request.Progress!;
+        string? reason = null;
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         if (_http.Timeout != Timeout.InfiniteTimeSpan) limit.CancelAfter(_http.Timeout);
         progress.Report(new ModelProgress(ModelStep.Waiting, ""));
@@ -505,6 +541,7 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
                     continue;
                 }
                 var piece = ollama ? chunk?["message"]?["content"]?.GetValue<string>() : chunk?["choices"]?[0]?["delta"]?["content"]?.GetValue<string>();
+                reason = Reason(ollama ? chunk?["done_reason"] : chunk?["choices"]?[0]?["finish_reason"]) ?? reason;
                 if (piece is { Length: > 0 })
                 {
                     answer.Append(piece);
@@ -521,7 +558,7 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
         {
             throw new ModelRequestException("The model server stopped part way through its answer.", ex);
         }
-        return answer.Length > 0 ? answer.ToString() : throw new ModelEmptyAnswerException();
+        return answer.Length > 0 ? Finished(request, answer.ToString(), reason) : throw new ModelEmptyAnswerException();
     }
 
     async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, JsonObject? body, CancellationToken ct,

@@ -1,5 +1,14 @@
 # Changes
 
+## Unreleased
+
+- **Fixed: a book with only names on its pages could fail the AI every time with "The model's answer wasn't valid
+  JSON".** On a map, with nothing but place names, the built-in AI quoted the whole page over and over until its
+  answer ran out of room and stopped part way. Each value and quote the AI writes now has a length limit, and an
+  answer that still runs out keeps what the model finished, checked like any other. A book cut off before the model
+  finished anything says so: "The model's answer was cut off". Books that failed this way are read again when they're
+  next tried, or press **Try all again** in **Files needing attention**.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.544 (15 October 2026):

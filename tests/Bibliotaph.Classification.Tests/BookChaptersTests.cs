@@ -259,6 +259,33 @@ public class ChapterPromptTests
         }
     }
 
+    /// <summary>A server whose model runs out of tokens part way through every answer.</summary>
+    sealed class CutOffServer : IModelClient
+    {
+        public List<ModelRequest> Requests { get; } = [];
+
+        public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default) => Task.FromResult(new EndpointInfo(EndpointKind.BuiltIn, null, ["m"]));
+
+        public Task<string> CompleteAsync(ModelRequest request, CancellationToken ct = default)
+        {
+            Requests.Add(request);
+            throw new ModelAnswerCutOffException("""{"chapters":[{"chapter":1,"creature":[{"value":"ogre","page":1,"quote":"an ogre bars the""", 2_048);
+        }
+    }
+
+    [Fact]
+    public async Task Chapters_whose_answer_is_cut_off_fail_by_themselves_and_say_why()
+    {
+        var server = new CutOffServer();
+
+        var ex = await Assert.ThrowsAsync<ClassifierAnswerException>(
+            () => new ChapterReader(server, "m").ReadAsync(DenseBatch(), _ => null, Vocabulary, TestContext.Current.CancellationToken));
+
+        Assert.Contains("cut off", ex.Message, StringComparison.Ordinal);
+        // No check request: the server answered.
+        Assert.Single(server.Requests);
+    }
+
     static ChapterBatch DenseBatch()
     {
         var page = string.Join(' ', Enumerable.Repeat("AC 15, HP 22 (4d8+4), Str 14 (+2), Dex 12 (+1).", 60));

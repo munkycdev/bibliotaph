@@ -149,7 +149,7 @@ public static class PartFinderPrompt
                 ["properties"] = new JsonObject
                 {
                     ["page"] = new JsonObject { ["type"] = "integer" },
-                    ["quote"] = new JsonObject { ["type"] = "string" },
+                    ["quote"] = ClassifierPrompt.Text(EvidenceCheck.MaxQuoteLength),
                 },
                 ["required"] = new JsonArray("page", "quote"),
                 ["additionalProperties"] = false,
@@ -164,10 +164,10 @@ public static class PartFinderPrompt
                     ["properties"] = new JsonObject
                     {
                         ["candidate"] = new JsonObject { ["type"] = "integer" },
-                        ["title"] = new JsonObject { ["type"] = "string" },
-                        ["levels"] = new JsonObject { ["type"] = "string" },
+                        ["title"] = ClassifierPrompt.Text(ClassifierPrompt.MaxValueLength),
+                        ["levels"] = ClassifierPrompt.Text(ClassifierPrompt.MaxValueLength),
                         ["page"] = new JsonObject { ["type"] = "integer" },
-                        ["quote"] = new JsonObject { ["type"] = "string" },
+                        ["quote"] = ClassifierPrompt.Text(EvidenceCheck.MaxQuoteLength),
                     },
                     ["required"] = new JsonArray("candidate", "title", "levels", "page", "quote"),
                     ["additionalProperties"] = false,
