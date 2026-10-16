@@ -506,9 +506,9 @@ public sealed class ClassifyStage(
         feed.Finish(job.DocumentId, result);
 
         // Quotes are book text, so only counts and reasons go to the log.
-        _log.LogInformation("Classified document {DocumentId}{Part} with {Model} in {Seconds:0.0} s, {Examples} worked examples: {Accepted} values kept, {Dropped} dropped ({Reasons})",
+        _log.LogInformation("Classified document {DocumentId}{Part} with {Model} in {Seconds:0.0} s, {Examples} worked examples{CutOff}: {Accepted} values kept, {Dropped} dropped ({Reasons})",
             job.DocumentId, part is { } p ? $" (adventure {p.Value.ToString(CultureInfo.InvariantCulture)})" : "", classifier.Model, (_clock.GetUtcNow().UtcDateTime - started).TotalSeconds,
-            input.Examples?.Count ?? 0, result.Accepted.Count, result.Dropped.Count,
+            input.Examples?.Count ?? 0, result.CutOff ? ", answer cut off and only what it finished read" : "", result.Accepted.Count, result.Dropped.Count,
             string.Join("; ", result.Dropped.GroupBy(d => d.Reason).Select(g => $"{g.Count().ToString(CultureInfo.InvariantCulture)} × {g.Key}")));
         if (part is { } partId) await results.StoreOnAsync(partId, job.ContentHash, input, result, started, CancellationToken.None);
         else await results.StoreAsync(job.DocumentId, job.ContentHash, input, result, started, CancellationToken.None);

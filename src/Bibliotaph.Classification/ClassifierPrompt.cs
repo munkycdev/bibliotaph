@@ -30,7 +30,8 @@ public static partial class ClassifierPrompt
     /// <summary>2: players, duration and style, and the back cover in the excerpt.</summary>
     public const int Version = 2;
 
-    public const int SchemaVersion = 2;
+    /// <summary>3: values and quotes have a longest length.</summary>
+    public const int SchemaVersion = 3;
 
     /// <summary>Opens and closes the book's text, which is data and never instructions.</summary>
     public const string ExcerptTag = "book-excerpt";
@@ -49,6 +50,9 @@ public static partial class ClassifierPrompt
 
     /// <summary>A value in an example is cut to this, so one long title can't take the others' room.</summary>
     const int ExampleValueCharacters = 100;
+
+    /// <summary>The longest value a model may write: a title with its subtitle fits, a paragraph doesn't.</summary>
+    public const int MaxValueLength = 200;
 
     /// <summary>
     /// The fields the model fills. Your tags are yours alone, so the model never fills them, and neither does it fill
@@ -99,9 +103,9 @@ public static partial class ClassifierPrompt
                     ["type"] = "object",
                     ["properties"] = new JsonObject
                     {
-                        ["value"] = new JsonObject { ["type"] = "string" },
+                        ["value"] = Text(MaxValueLength),
                         ["page"] = new JsonObject { ["type"] = "integer" },
-                        ["quote"] = new JsonObject { ["type"] = "string" },
+                        ["quote"] = Text(EvidenceCheck.MaxQuoteLength),
                     },
                     ["required"] = new JsonArray("value", "page", "quote"),
                     ["additionalProperties"] = false,
@@ -116,6 +120,13 @@ public static partial class ClassifierPrompt
             ["additionalProperties"] = false,
         };
     }
+
+    /// <summary>
+    /// A string with a longest length. Without one a model can write on inside a string until its answer runs out of
+    /// tokens and stops part way: given a page of place names and no sentences, one quoted the whole page again and again.
+    /// A quote longer than the evidence check takes would be dropped anyway.
+    /// </summary>
+    internal static JsonObject Text(int maxLength) => new() { ["type"] = "string", ["maxLength"] = maxLength };
 
     /// <summary>The rules, the field definitions and the names to use. Holds nothing from the book.</summary>
     public static string SystemMessage(Vocabulary vocabulary)
