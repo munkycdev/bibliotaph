@@ -93,6 +93,11 @@
                 Command="{Binding UseAsCoverCommand}" ToolTip="Use this page as the cover" ToolTipService.ShowOnDisabled="True"
                 AutomationProperties.Name="Use this page as the cover"
                 Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <!-- An image in a pack can stand for the pack on its card, in place of the mosaic. -->
+        <Button x:Name="UseAsPackCover" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,0"
+                Command="{Binding UseAsPackCoverCommand}" ToolTip="Use this image as the pack's cover"
+                AutomationProperties.Name="Use this image as the pack's cover"
+                Visibility="{Binding CanUseAsPackCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <!-- Mark as adventure (slice 5): pages of this file as an adventure with a card of its own. -->
         <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
                 Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"

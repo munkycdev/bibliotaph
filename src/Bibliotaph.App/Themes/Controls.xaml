@@ -776,7 +776,7 @@
           </Viewbox>
         </Grid>
         <Image x:Name="SingleCover" Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-        <!-- A pack (F4): its first four images' covers, two by two. -->
+        <!-- A pack (F4): its first four images' covers, two by two, unless one of its files was chosen as its cover. -->
         <ItemsControl x:Name="Mosaic" ItemsSource="{Binding Mosaic}" Focusable="False" Visibility="Collapsed" IsHitTestVisible="False">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -876,7 +876,7 @@
         <Setter TargetName="SingleCover" Property="Opacity" Value="0.4" />
         <Setter TargetName="Mosaic" Property="Opacity" Value="0.4" />
       </DataTrigger>
-      <DataTrigger Binding="{Binding IsPack}" Value="True">
+      <DataTrigger Binding="{Binding ShowsMosaic}" Value="True">
         <Setter TargetName="Mosaic" Property="Visibility" Value="Visible" />
         <Setter TargetName="SingleCover" Property="Visibility" Value="Collapsed" />
         <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />

@@ -773,7 +773,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             return PartOpen.Open(page.Hit.DocumentId, title, part.EntryId, part.ParentTitle, pages) with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         // A page of a PDF in a pack opens in the pack, so Previous and Next step through its other files.
         if (item is { IsPack: true }
-            && ViewerRequest.ForPack(await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), title, page.Hit.DocumentId) is { } inPack
+            && ViewerRequest.ForPack(item.EntryId, await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), title, page.Hit.DocumentId) is { } inPack
             && inPack.DocumentId == page.Hit.DocumentId)
             return inPack with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
@@ -900,7 +900,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
     {
         if (!item.Entry.IsPack) return item.BookRequest();
-        return ViewerRequest.ForPack(await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), item.Title, documentId ?? item.Entry.MatchedDocumentId);
+        return ViewerRequest.ForPack(item.EntryId, await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), item.Title, documentId ?? item.Entry.MatchedDocumentId);
     }
 
     /// <summary>
