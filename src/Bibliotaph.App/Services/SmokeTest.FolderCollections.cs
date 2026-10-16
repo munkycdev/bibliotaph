@@ -81,6 +81,15 @@ static partial class SmokeTest
             await suggestion.UndoCommand.ExecuteAsync(null);
             if (suggestion.IsDone || (await collections.ListAsync()).SingleOrDefault(c => c.Name == Folder) is not { OwnCount: 3 })
                 throw new InvalidOperationException("Undo didn't take the suggested book out of the collection.");
+
+            // Its × gives Never, and Undo asks again.
+            await Settle(window);
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "DismissSuggestion" && b.DataContext == suggestion), "Close the suggestion");
+            await WaitUntilAsync(window, () => suggestion.IsDone, () => "The × didn't close the suggestion.");
+            if (!suggestion.DoneText.StartsWith("Bibliotaph won't suggest", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The × closed the suggestion with “{suggestion.DoneText}”, not Never.");
+            await suggestion.UndoCommand.ExecuteAsync(null);
+            if (suggestion.IsDone) throw new InvalidOperationException("Undo didn't bring the closed suggestion back.");
         }
         finally
         {

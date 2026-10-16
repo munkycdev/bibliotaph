@@ -100,6 +100,22 @@ public abstract partial class DecidedCardViewModel(IReviewActions actions) : Obs
 }
 
 /// <summary>
+/// A card that offers to make something (a collection, a pack, a rule, cards for adventures) rather than asking whether
+/// a value is right. Its × closes it with the card's own "don't ask again" answer, so closing it is remembered like
+/// that answer is, and a new offer can still come.
+/// </summary>
+public abstract partial class OfferCardViewModel(IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    /// <summary>What the card is about, for the × button's spoken name.</summary>
+    public abstract string Title { get; }
+
+    protected abstract Task DismissAsync();
+
+    [RelayCommand]
+    Task Dismiss() => DismissAsync();
+}
+
+/// <summary>
 /// One field of one document: what it shows now, what the card suggests, and the evidence, with Accept, Edit and
 /// Reject. "Accept all" takes every card that proposes the same values for the same field.
 /// </summary>
@@ -388,11 +404,11 @@ public sealed partial class VersionCardViewModel(VersionItem item, IReviewAction
 /// A smaller or mixed folder or ZIP of images: "Make these 12 images one card?", with the first few images to show
 /// what they are.
 /// </summary>
-public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyList<CoverTile> tiles, IReviewActions actions) : DecidedCardViewModel(actions)
+public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyList<CoverTile> tiles, IReviewActions actions) : OfferCardViewModel(actions)
 {
     public PackProposal Proposal { get; } = proposal;
 
-    public string Title => Proposal.Name;
+    public override string Title => Proposal.Name;
 
     public string Heading => $"Make these {LibraryItemViewModel.Images(Proposal.Images.Count)} one card?";
 
@@ -410,6 +426,8 @@ public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyLi
 
     [RelayCommand]
     Task KeepSeparate() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Split), $"Kept the images in {Title} as separate cards.");
+
+    protected override Task DismissAsync() => KeepSeparate();
 
     [RelayCommand]
     void ShowFolder() => Actions.ShowFolder(Path);
@@ -535,7 +553,7 @@ public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReview
 /// adventures proposed, with their titles and pages, which Edit lets the user change. Accept gives each ticked one a card of its own; "Not split" keeps the file
 /// as one book. Either is remembered, and can be undone.
 /// </summary>
-public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
+public sealed partial class PartProposalCardViewModel : OfferCardViewModel
 {
     readonly IReadOnlyList<string?> _labels;
 
@@ -548,7 +566,7 @@ public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
 
     public PartProposalItem Item { get; }
 
-    public string Title => Item.FileTitle;
+    public override string Title => Item.FileTitle;
 
     public string Heading => $"This file looks like it holds {LibraryItemViewModel.Adventures(Item.Parts.Count)}.";
 
@@ -608,6 +626,8 @@ public sealed partial class PartProposalCardViewModel : DecidedCardViewModel
     [RelayCommand]
     Task NotSplit() => DecideAsync(() => Actions.NotSplitAsync(Item), $"Kept {Item.FileTitle} as one book.");
 
+    protected override Task DismissAsync() => NotSplit();
+
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.DocumentId, Item.FileTitle);
 
@@ -661,14 +681,14 @@ public sealed partial class ProposedPartRow(PartProposalCardViewModel card, Prop
 /// get it as a suggestion. Use this rule switches it on; No thanks keeps it off, and it isn't proposed again.
 /// Settings > Library lists the answered ones with a switch each.
 /// </summary>
-public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabulary vocabulary, IReviewActions actions) : DecidedCardViewModel(actions)
+public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabulary vocabulary, IReviewActions actions) : OfferCardViewModel(actions)
 {
     public FolderRuleInfo Rule { get; } = rule;
 
     /// <summary>The folder's own name, or the library folder's for a rule on the whole of one.</summary>
     public string FolderName => FolderRuleText.FolderName(Rule);
 
-    public string Title => $"A rule for “{FolderName}”";
+    public override string Title => $"A rule for “{FolderName}”";
 
     public string Heading => $"You set {FolderRuleText.Describe(Rule, vocabulary)} on {Rule.Books.ToString("N0", CultureInfo.CurrentCulture)} books in this folder. "
         + "Suggest it for every file in it?";
@@ -685,6 +705,8 @@ public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabul
     [RelayCommand]
     Task NoRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, false), $"No rule for “{FolderName}”. Bibliotaph won't suggest this one again.");
 
+    protected override Task DismissAsync() => NoRule();
+
     [RelayCommand]
     void ShowFolder() => Actions.ShowFolder(Path);
 }
@@ -694,11 +716,11 @@ public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabul
 /// land in the folder later join it until the user adds or removes one by hand; Not now puts the card away until the
 /// list is made again; Never isn't asked again.
 /// </summary>
-public sealed partial class FolderCollectionCardViewModel(FolderCollectionProposal proposal, IReviewActions actions) : DecidedCardViewModel(actions)
+public sealed partial class FolderCollectionCardViewModel(FolderCollectionProposal proposal, IReviewActions actions) : OfferCardViewModel(actions)
 {
     public FolderCollectionProposal Proposal { get; } = proposal;
 
-    public string Title => Proposal.Name;
+    public override string Title => Proposal.Name;
 
     string Books => Proposal.Books.Count.ToString("N0", CultureInfo.CurrentCulture);
 
@@ -720,6 +742,8 @@ public sealed partial class FolderCollectionCardViewModel(FolderCollectionPropos
     Task Never() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Never),
         $"No collection from “{Proposal.Name}”. Bibliotaph won't ask about this folder again.");
 
+    protected override Task DismissAsync() => Never();
+
     [RelayCommand]
     void ShowFolder() => Actions.ShowFolder(Path);
 }
@@ -729,11 +753,11 @@ public sealed partial class FolderCollectionCardViewModel(FolderCollectionPropos
 /// Accept adds them; Not now puts the card away until the list is made again; Never isn't asked again for these books.
 /// </summary>
 public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggestion suggestion, Vocabulary vocabulary, IReviewActions actions)
-    : DecidedCardViewModel(actions)
+    : OfferCardViewModel(actions)
 {
     public CollectionSuggestion Suggestion { get; } = suggestion;
 
-    public string Title => Suggestion.Name;
+    public override string Title => Suggestion.Name;
 
     public IReadOnlyList<SuggestedBook> Books => Suggestion.Books;
 
@@ -766,6 +790,8 @@ public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggesti
     [RelayCommand]
     Task Never() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Never),
         $"Bibliotaph won't suggest {(Books.Count == 1 ? "this book" : "these books")} for “{Suggestion.Name}” again.");
+
+    protected override Task DismissAsync() => Never();
 
     [RelayCommand]
     void OpenBook(SuggestedBook book)
