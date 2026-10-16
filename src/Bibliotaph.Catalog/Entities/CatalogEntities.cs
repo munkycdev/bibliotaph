@@ -110,6 +110,11 @@ public sealed class Entry
     /// but keeps its id and anything that stayed behind, so "Not the same book" can bring it back.
     /// </summary>
     public long? MergedIntoEntryId { get; set; }
+    /// <summary>
+    /// For a pack, the file whose cover its card shows in place of the mosaic: that file's own entry, which follows it
+    /// through rescans and moves. The mosaic comes back while that file isn't in the pack.
+    /// </summary>
+    public long? CoverEntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
     /// <summary>
     /// Names a book owned elsewhere in the library sync file, which has no content hash to be named by; a book with

@@ -2,12 +2,26 @@
 
 ## Unreleased
 
+- **Pick a pack's cover.** A map or image pack can show one of its own images on its card instead of the mosaic of
+  its first four. Right-click an image in the pack's details and choose **Use as the pack's cover**, or click the
+  picture button in the reader while stepping through the pack. **Use the mosaic** in the details goes back, and the
+  card goes back by itself if that image is deleted or leaves the pack.
+- **Close a suggestion with its ×.** The Needs review cards that offer to make a collection, add books to one, make
+  an image pack, start a folder rule or give a file's adventures cards of their own now have a × in the corner. It
+  gives the card's "don't ask again" answer, so that suggestion stays closed after a restart or a rescan, while a new
+  one can still come. **Undo** brings it back.
+- **Fixed: a book with only names on its pages could fail the AI every time with "The model's answer wasn't valid
+  JSON".** On a map, with nothing but place names, the built-in AI quoted the whole page over and over until its
+  answer ran out of room and stopped part way. Each value and quote the AI writes now has a length limit, and an
+  answer that still runs out keeps what the model finished, checked like any other. A book cut off before the model
+  finished anything says so: "The model's answer was cut off". Books that failed this way are read again when they're
+  next tried, or press **Try all again** in **Files needing attention**.
 - **EPUB books are read.** EPUB files in your library folders, and inside ZIPs, are indexed in place like PDFs: their
   text is searchable page by page, the AI can catalogue them, and their own title, authors, publisher, description
   and cover fill in the card. A book that marks its printed pages keeps those page numbers; otherwise Bibliotaph cuts
   it into pages of about a printed page each, the same way every time. `format:epub` finds them. A DRM-protected
-  EPUB gets a card with its title and author and **Open in another app**. Bibliotaph's reader doesn't show e-books
-  yet, so opening one offers **Open in another app**.
+  EPUB still gets a card with its title and author, and is listed in **Files needing attention**. Bibliotaph's
+  reader doesn't show e-books yet, so opening one offers **Open in another app**.
 
 ## 1.2 · 13 October 2026
 

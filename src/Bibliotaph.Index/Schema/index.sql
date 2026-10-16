@@ -124,7 +124,8 @@ CREATE TABLE entry_doc (
     first_page   INTEGER,                        -- and its first and last PDF pages in document_id
     last_page    INTEGER,
     parts        INTEGER NOT NULL DEFAULT 0,     -- a file's adventures: "5 adventures"
-    cover        TEXT                            -- a book owned elsewhere's cover, from its online library (cache/covers)
+    cover        TEXT,                           -- a book owned elsewhere's cover, from its online library (cache/covers)
+    cover_member INTEGER                         -- a pack's file whose cover its card shows instead of the mosaic (entry_member.member_entry_id)
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
@@ -323,4 +324,4 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 19;
+PRAGMA user_version = 20;

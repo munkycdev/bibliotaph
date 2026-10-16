@@ -125,6 +125,25 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (await Task.Run(() => _packs.SplitAsync(Item.EntryId)) is { } files) PackSplit?.Invoke(this, files);
     }
 
+    /// <summary>One of the pack's files is its cover: "Use the mosaic" shows the mosaic again.</summary>
+    public bool HasPackCover => PackImages.Any(i => i.IsCover);
+
+    /// <summary>"Use as the pack's cover", from a file's menu in the grid: the card shows that file's cover in place of the mosaic.</summary>
+    [RelayCommand]
+    Task UsePackCover(PackImageViewModel image) => ShowPackCoverAsync(image);
+
+    /// <summary>"Use the mosaic": the card shows the pack's first four files again.</summary>
+    [RelayCommand]
+    Task UseMosaic() => ShowPackCoverAsync(null);
+
+    async Task ShowPackCoverAsync(PackImageViewModel? cover)
+    {
+        if (!await Task.Run(() => _packs.UseCoverAsync(Item.EntryId, cover?.Image.MemberEntryId))) return;
+        foreach (var image in PackImages) image.IsCover = image == cover;
+        OnPropertyChanged(nameof(HasPackCover));
+        MetadataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// A book owned elsewhere: no file, so no Open, locations or processing, and Remove from library.
     /// </summary>
@@ -494,7 +513,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             // hand, or a pack made by hand, name the other folders they are in.
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
-            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId))).Select(i => new PackImageViewModel(i, covers))];
+            images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)))
+                .Select(i => new PackImageViewModel(i, covers, isCover: i.MemberEntryId == item.Entry.CoverMember))];
             var noun = item.HasPdfMembers || images.Any(i => i.IsPdf) ? "files" : "images";
             locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))

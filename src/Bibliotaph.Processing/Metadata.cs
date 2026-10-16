@@ -162,6 +162,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         Name = entry.Name,
         AddedUtc = entry.AddedUtc,
         Members = entry.Members is { } members ? [.. members.Select(m => new EntryMemberRow(m.DocumentId, m.EntryId, m.Name))] : [],
+        CoverMember = entry.CoverMember,
         ParentEntryId = entry.ParentEntryId,
         Pages = entry.Pages,
         Parts = entry.Parts,

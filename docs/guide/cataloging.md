@@ -92,6 +92,11 @@ usable while its card waits. It has two lists:
 - **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
   share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
+The cards that offer to make something (a collection, books for a collection, an image pack, a folder rule, or cards
+for a file's adventures) have a **×** in their top right corner. It closes the card with its "don't ask again" answer,
+the same as **Never**, **Keep separate**, **No thanks** or **Not split**, so that suggestion doesn't come back, though
+a new one can (a book that fits the collection later, say). **Undo** on the closed card brings it back.
+
 To check a book before you answer, click the window button beside its title (or middle-click the title, or press
 **Shift+Enter** on it). The book opens in a window of its own, at the page the suggestion's evidence is on, and Needs
 review stays where it was, so you can read and decide side by side, on a second monitor too. The window is shared:
@@ -137,6 +142,12 @@ and its cover is still a mosaic of the first four. Opening the pack steps throug
 top (**Previous file** and **Next file**): PDFs open as PDFs and images as images. Its details list every file, PDFs
 shown by their first page, and **Split into separate files** gives each one its own card back, with everything you had
 set on it. A PDF with adventures marked in it can't go in a pack, since their cards name it.
+
+A pack's cover is a mosaic of its first four files until you pick one to stand for it, such as the overview of a map
+pack. Right-click a file in the pack's details and choose **Use as the pack's cover**, or, while stepping through the
+pack in the reader, click the picture button at the top. The file you chose is marked **Cover** in the details, and
+**Use the mosaic** there goes back. Your choice is kept when the library is read again; if that file is deleted or
+leaves the pack, the card shows the mosaic again.
 
 A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
 the pack's card.

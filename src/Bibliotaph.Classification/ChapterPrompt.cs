@@ -75,9 +75,9 @@ public static class ChapterPrompt
                     ["type"] = "object",
                     ["properties"] = new JsonObject
                     {
-                        ["value"] = new JsonObject { ["type"] = "string" },
+                        ["value"] = ClassifierPrompt.Text(ClassifierPrompt.MaxValueLength),
                         ["page"] = new JsonObject { ["type"] = "integer" },
-                        ["quote"] = new JsonObject { ["type"] = "string" },
+                        ["quote"] = ClassifierPrompt.Text(EvidenceCheck.MaxQuoteLength),
                     },
                     ["required"] = new JsonArray("value", "page", "quote"),
                     ["additionalProperties"] = false,
@@ -358,6 +358,12 @@ public sealed class ChapterReader(IModelClient client, string model)
         }
         catch (ModelContextException ex)
         {
+            throw new ClassifierAnswerException($"The model couldn't read these chapters. {ex.Message}", ex);
+        }
+        catch (ModelAnswerCutOffException ex)
+        {
+            // The server answered, so there is nothing to check. Not read in part: a chapter missing from what the model
+            // finished would count as read with nothing found.
             throw new ClassifierAnswerException($"The model couldn't read these chapters. {ex.Message}", ex);
         }
         catch (ModelRequestException ex)

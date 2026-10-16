@@ -270,6 +270,21 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     }
 
     /// <summary>
+    /// "Use as the pack's cover": the card shows <paramref name="fileId"/>'s cover in place of the mosaic, or the mosaic
+    /// again for null. False when the entry isn't a pack or the file isn't in it.
+    /// </summary>
+    public async Task<bool> SetCoverAsync(EntryId packId, EntryId? fileId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var pack = await db.Entries.SingleOrDefaultAsync(e => e.Id == packId.Value && e.Kind == EntryKind.Pack && e.MergedIntoEntryId == null, ct);
+        if (pack is null) return false;
+        if (fileId is { } file && !await db.Entries.AnyAsync(e => e.Id == file.Value && e.ParentEntryId == packId.Value, ct)) return false;
+        pack.CoverEntryId = fileId?.Value;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    /// <summary>
     /// Undoes <see cref="SplitAsync"/>: its folders and ZIPs are packed again, with the images in them now, and
     /// <paramref name="files"/> (what the split freed) are back in the pack unless they have joined another card since.
     /// </summary>

@@ -1186,8 +1186,9 @@ static partial class SmokeTest
 
     /// <summary>
     /// Image packs: twenty token images in a ZIP become one card with a mosaic; its inspector lists them, one opens in
-    /// the viewer, which steps to the next; Split gives them their cards back and Undo packs them again; searching for
-    /// one image's name finds the pack, which opens at that image.
+    /// the viewer, which steps to the next and makes it the pack's cover, until Use the mosaic in the details; Split
+    /// gives them their cards back and Undo packs them again; searching for one image's name finds the pack, which
+    /// opens at that image.
     /// </summary>
     static async Task UsePackAsync(IServiceProvider services, Window window)
     {
@@ -1242,10 +1243,22 @@ static partial class SmokeTest
         if (viewer.PackPosition != "2 of 20" || viewer.Title != "Token 2") throw new InvalidOperationException($"The viewer shows {viewer.Title}, {viewer.PackPosition}.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == viewer.NextImageCommand), "Next image");
         await WaitUntilAsync(window, () => viewer is { PackPosition: "3 of 20", IsImage: true, Image: not null }, () => $"Next image didn't step ({viewer.PackPosition}, {viewer.Mode}).");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == viewer.UseAsPackCoverCommand), "Use this image as the pack's cover");
+        await WaitUntilAsync(window, () => viewer.Notice == "This image is the pack's cover now.", () => $"Using the image as the pack's cover said {viewer.Notice}.");
         navigation.GoBack();
         await Settle(window);
 
         library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
+        // The card shows the chosen image in place of its mosaic; its details mark it, and Use the mosaic undoes it.
+        await library.RefreshAsync();
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == pack.EntryId && i is { ShowsMosaic: false, HasCover: true }),
+            () => "The pack's card didn't show the image chosen as its cover.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
+        await WaitUntilAsync(window, () => library.Inspector is { IsPack: true, HasPackCover: true } chosen && chosen.PackImages[2].IsCover,
+            () => "The pack's details don't mark Token 3 as its cover.");
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Inspector!.UseMosaicCommand), "Use the mosaic");
+        await WaitUntilAsync(window, () => library.Inspector is { HasPackCover: false } && library.Items.Any(i => i.EntryId == pack.EntryId && i is { ShowsMosaic: true, Mosaic.Count: 4 }),
+            () => "Use the mosaic didn't bring the pack's mosaic back.");
         if (library.Inspector is not { IsPack: true }) await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
         await WaitUntilAsync(window, () => library.Inspector is { IsPack: true }, () => "The pack's inspector didn't open again.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == library.Inspector!.SplitPackCommand), "Split into separate images");

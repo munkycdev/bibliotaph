@@ -1036,6 +1036,10 @@
                 <Button x:Name="SplitPack" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding SplitPackLabel}"
                         ToolTip="{Binding SplitPackTip}"
                         Command="{Binding SplitPackCommand}" />
+                <!-- A file chosen as the pack's cover (right-click one below): the card can go back to its mosaic. -->
+                <Button x:Name="UseMosaic" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Use the mosaic" Margin="0,0,16,0"
+                        ToolTip="Show the pack's first four files on its card again" Command="{Binding UseMosaicCommand}"
+                        Visibility="{Binding HasPackCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <TextBlock Text="{Binding PackImagesHeading}" Style="{StaticResource DrawerHead}" VerticalAlignment="Center" />
               </DockPanel>
               <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="{Binding PackImagesName}"
@@ -1050,7 +1054,18 @@
                     <Button Width="88" Margin="0,0,8,10" Padding="0" Cursor="Hand" ToolTip="{Binding Name}"
                             AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}"
                             Command="{Binding DataContext.OpenPackImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                            CommandParameter="{Binding}">
+                            CommandParameter="{Binding}" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                      <!-- Any file can be the pack's cover in place of the mosaic; the menu key opens this too. -->
+                      <Button.ContextMenu>
+                        <ContextMenu Style="{StaticResource Bt.Menu}">
+                          <MenuItem Header="Use as the pack's cover" CommandParameter="{Binding}"
+                                    Visibility="{Binding IsCover, Converter={StaticResource Bt.CollapsedWhenTrue}}"
+                                    Command="{Binding PlacementTarget.Tag.UsePackCoverCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                          <MenuItem Header="Use the mosaic"
+                                    Visibility="{Binding IsCover, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                    Command="{Binding PlacementTarget.Tag.UseMosaicCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu>
+                      </Button.ContextMenu>
                       <Button.Template>
                         <ControlTemplate TargetType="Button">
                           <StackPanel Background="Transparent">
@@ -1063,6 +1078,12 @@
                                         Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
                                         Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
                                   <TextBlock Text="PDF" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+                                </Border>
+                                <!-- The file the pack's card shows in place of its mosaic. -->
+                                <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                        Background="{DynamicResource Bt.Accent}" AutomationProperties.Name="The pack's cover"
+                                        Visibility="{Binding IsCover, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                  <TextBlock Text="Cover" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.AccentText}" />
                                 </Border>
                               </Grid>
                             </Border>

@@ -43,5 +43,5 @@ public sealed class PinOpener(LibraryPages library, SessionPages binders, Reader
     }
 
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel book) =>
-        book.IsPack ? ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(book.EntryId)), book.Title) : book.BookRequest();
+        book.IsPack ? ViewerRequest.ForPack(book.EntryId, await Task.Run(() => queries.GetPackImagesAsync(book.EntryId)), book.Title) : book.BookRequest();
 }

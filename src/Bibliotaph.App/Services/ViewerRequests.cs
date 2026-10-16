@@ -20,16 +20,19 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     /// <summary>The pack's title, under the file's.</summary>
     public string? PackTitle { get; init; }
 
+    /// <summary>The pack's own entry, whose cover an image in it can become.</summary>
+    public EntryId? PackEntryId { get; init; }
+
     /// <summary>
     /// A pack opened at one of its files, <paramref name="at"/> when it is one of them and the first otherwise, with
     /// every file to step through: images open as images and PDFs as PDFs. Null for a pack with no file to show.
     /// </summary>
-    public static ViewerRequest? ForPack(IReadOnlyList<PackImage> files, string packTitle, long? at = null)
+    public static ViewerRequest? ForPack(EntryId packId, IReadOnlyList<PackImage> files, string packTitle, long? at = null)
     {
         if (files.Count == 0) return null;
-        List<PackStep> steps = [.. files.Select(f => new PackStep(f.DocumentId, System.IO.Path.GetFileNameWithoutExtension(f.Name), f.Format))];
+        List<PackStep> steps = [.. files.Select(f => new PackStep(f.DocumentId, System.IO.Path.GetFileNameWithoutExtension(f.Name), f.Format, f.MemberEntryId))];
         var index = at is { } id ? Math.Max(0, steps.FindIndex(p => p.DocumentId == id)) : 0;
-        return new ViewerRequest(steps[index].DocumentId, steps[index].Title) { Pack = steps, PackTitle = packTitle };
+        return new ViewerRequest(steps[index].DocumentId, steps[index].Title) { Pack = steps, PackTitle = packTitle, PackEntryId = packId };
     }
 
     /// <summary>
@@ -85,7 +88,7 @@ public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.P
 public sealed record PageNoteOpen(long NoteId, Bibliotaph.Processing.PagePlaceState State, string? Reason, int FirstPage, int LastPage);
 
 /// <summary>A file of a pack the viewer can step to: an image, or a PDF packed with them.</summary>
-public sealed record PackStep(long DocumentId, string Title, string Format = "")
+public sealed record PackStep(long DocumentId, string Title, string Format = "", EntryId? MemberEntryId = null)
 {
     public bool IsImage => SourceFormats.IsImage(Format);
 }

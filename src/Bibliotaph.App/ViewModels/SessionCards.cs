@@ -213,7 +213,7 @@ public static class SessionPackRows
     {
         if (!row.CanOpen || row.Target.DocumentId is not { } documentId) return null;
         if (row.Cover is { IsPack: true } pack && row.Item.Range is null)
-            return ViewerRequest.ForPack(await Task.Run(() => queries.GetPackImagesAsync(pack.EntryId)), pack.Title);
+            return ViewerRequest.ForPack(pack.EntryId, await Task.Run(() => queries.GetPackImagesAsync(pack.EntryId)), pack.Title);
         return new ViewerRequest(documentId, row.Heading, row.Target.FirstPage)
         {
             SessionItem = new SessionItemOpen(row.Id, packTitle, row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage)
