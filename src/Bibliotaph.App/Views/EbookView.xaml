@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              Focusable="False">
-  <Grid>
+  <Grid x:Name="Surface">
     <!--
       Drawn into the window like any other control (not a window of its own over it), so the reader's notices and
       dialogs show over the book as they do over a PDF.

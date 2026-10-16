@@ -20,8 +20,11 @@
   text is searchable page by page, the AI can catalogue them, and their own title, authors, publisher, description
   and cover fill in the card. A book that marks its printed pages keeps those page numbers; otherwise Bibliotaph cuts
   it into pages of about a printed page each, the same way every time. `format:epub` finds them. A DRM-protected
-  EPUB still gets a card with its title and author, and is listed in **Files needing attention**. Bibliotaph's
-  reader doesn't show e-books yet, so opening one offers **Open in another app**.
+  EPUB still gets a card with its title and author, and is listed in **Files needing attention**.
+- **Read e-books in Bibliotaph.** An EPUB opens in the reader as flowing text in the app's colours, with its
+  pictures. The page box, contents, Find, notes, binders and **Ask this book** work as in a PDF, search opens it at
+  the page it found with the words marked, its links go to their place with **Back**, and zoom makes the text bigger.
+  A comic or picture book shows its pages as drawn. Nothing in a book can run a program or reach the internet.
 
 ## 1.2 · 13 October 2026
 

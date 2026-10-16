@@ -4,10 +4,12 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Ebooks;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 
 namespace Bibliotaph.App.Views;
 
@@ -39,12 +41,24 @@ public partial class EbookView
         InitializeComponent();
         Unloaded += (_, _) =>
         {
-            // A reader page is made again each time it shows, so its browser goes with it.
+            // The browser is let go as soon as the reader isn't shown, and a new one is made if it shows again.
             _gone = true;
             _version++;
             _ready.TrySetResult(false);
             Web.Dispose();
         };
+    }
+
+    void Revive()
+    {
+        if (!_gone) return;
+        var web = new WebView2CompositionControl();
+        AutomationProperties.SetName(web, AutomationProperties.GetName(Web));
+        Surface.Children.Remove(Web);
+        Surface.Children.Insert(0, web);
+        Web = web;
+        _starting = null;
+        _gone = false;
     }
 
     static TaskCompletionSource<bool> NewReady() => new(TaskCreationOptions.None);
@@ -87,6 +101,7 @@ public partial class EbookView
         _current = page;
         SelectionPageIndex = null;
         Message.Visibility = Visibility.Collapsed;
+        Revive();
         var core = await StartAsync();
         if (core is null || version != _version || _gone) return;
         _page = content.Page(ThemeCss());

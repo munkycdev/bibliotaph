@@ -91,7 +91,7 @@ Everything lives in `%LOCALAPPDATA%\Bibliotaph\`, never in a synced folder. Both
 | `index.db` | Everything derived from files or projected from `catalog.db` | An additive change runs its embedded `upgrade-N.sql` in a transaction (schema version 19); anything else, or a failed upgrade, drops the file and rebuilds it, re-queuing documents by content hash |
 | `cache\` | Covers by content hash; page thumbnails per book (`cache\pages\`, trimmed past 256 MB, least recently opened first); files extracted from ZIPs (`cache\extract\`, trimmed past 5 GB); site icons | Deleted freely; never backed up |
 
-Beside them are `backups\`, `logs\`, the covers users chose for books owned elsewhere (`covers\`, which nothing could rebuild), the WebView2 profile (`browser\`), the built-in AI's downloaded engine (`engine\`) and models (`models\`).
+Beside them are `backups\`, `logs\`, the covers users chose for books owned elsewhere (`covers\`, which nothing could rebuild), the WebView2 profiles (`browser\` for online libraries, `ebook-reader\` for the e-book reader), the built-in AI's downloaded engine (`engine\`) and models (`models\`).
 
 ### catalog.db
 
@@ -135,7 +135,8 @@ An EPUB is a document like a PDF: hashed, joined by content, found in ZIPs (an `
 - **Limits.** Bytes actually decompressed are counted, whatever the archive claims: at most 64 MB an entry, 512 MB a book and 20,000 entries. XML is read with DTDs ignored, no resolver and no entity expansion.
 - **DRM.** An EPUB whose spine is listed in `META-INF/encryption.xml` under anything but font obfuscation (IDPF or Adobe), or whose encryption list can't be read, is protected: Probe records its package (so the card has its title and authors) with protection Unsupported, and Text fails with `TextAccessReasons.ProtectedEbook`, which the library reads as Protected.
 
-The reader doesn't show e-books yet: opening one shows **Open in another app**.
+- **Reader.** The viewer cuts the book again on open (the same rule, so the same pages) and `EbookReaderDocument` builds one HTML page of it: a `<section>` per spine item and an empty `<bt-page>` marker where each page starts, placed from the page's locator (splitting a text node for a page that starts inside a block). The book's HTML is cleaned on the way: scripts, styles, frames, forms, objects and media are dropped, attributes are an allowlist, ids are prefixed per chapter and internal links rewritten to them, web links kept for the app to open, and images point at `/res/` paths. A fixed-layout book gets a sandboxed `<iframe>` per page, sized from its viewport, whose page is cleaned the same way and keeps its stylesheets.
+- **Browser.** `EbookView` shows that page in WebView2 (`WebView2CompositionControl`, so the reader's notices draw over it) with a profile of its own (`ebook-reader\`), at `https://book.bibliotaph.invalid/book.html`. Every request the page makes goes through `WebResourceRequested`: the page, the book's pictures, fonts and stylesheets from the open archive (`EbookContent`), or a 404. The page's Content-Security-Policy allows only the app's own style and script by a nonce made per open; nothing is cached, navigation, new windows, downloads, permissions and external schemes are refused, and the context menu keeps Copy and Select all. `reader.js` and `reader.css` (embedded in the app) report the page in view (the last marker above a reading line), find text, mark search terms with the CSS Custom Highlight API, and pass links, selection, keys and zoom to the app as web messages.
 
 ### Online-only files
 
@@ -201,7 +202,7 @@ Jobs run in three lanes, each with its own concurrency and pause: Index (probe, 
 7. **Links.** Link annotations are read when the pointer reaches a page; page links jump with Back, web links open in the browser after asking (http, https, mailto). A contents or index page with no links of its own gets links made from the printed page numbers it lists (`PageReferences`), mapped through page labels or, failing that, through the page numbers printed in the book's own text; with neither, no links are made, since a wrong jump is worse than none.
 8. **Windows.** Any number of pop-out reader windows, each with its own viewer worker up to the cap. A binder's reader opens the next item's book ahead of time on the same worker and draws its first page, so Next shows it at once.
 
-JPG, PNG and WebP open in an image view with zoom and pan, decoded at a capped size; WebP uses Windows' own decoder. An e-book shows a problem screen with **Open in another app** for now.
+JPG, PNG and WebP open in an image view with zoom and pan, decoded at a capped size; WebP uses Windows' own decoder. An e-book opens in the e-book reader (see E-books).
 
 ## Metadata and classification
 
