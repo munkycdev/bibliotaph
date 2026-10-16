@@ -92,6 +92,11 @@ usable while its card waits. It has two lists:
 - **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
   share (see [Books for your collections](organizing.md#books-for-your-collections)).
 
+The cards that offer to make something (a collection, books for a collection, an image pack, a folder rule, or cards
+for a file's adventures) have a **×** in their top right corner. It closes the card with its "don't ask again" answer,
+the same as **Never**, **Keep separate**, **No thanks** or **Not split**, so that suggestion doesn't come back, though
+a new one can (a book that fits the collection later, say). **Undo** on the closed card brings it back.
+
 To check a book before you answer, click the window button beside its title (or middle-click the title, or press
 **Shift+Enter** on it). The book opens in a window of its own, at the page the suggestion's evidence is on, and Needs
 review stays where it was, so you can read and decide side by side, on a second monitor too. The window is shared:

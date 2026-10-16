@@ -115,7 +115,7 @@ Suggestions come from folder and file names that match a vocabulary term, the PD
 
 Review never blocks browsing. **Metadata suggestions** holds disagreements, missing titles, new terms, possible new versions and image packs, possible files for books owned elsewhere, moved pages, folder rules on offer, proposed adventures, folders that could be collections and books that could join one. **Files needing attention** holds files that couldn't be read, grouped by reason, with a way forward for each.
 
-A card shows the current value, the suggestion and its evidence. **Show** narrows the list to one kind of card, or to the suggestions for one field, with a count for each. Every decision has **Undo**, and a rejected value is never suggested again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
+A card shows the current value, the suggestion and its evidence. **Show** narrows the list to one kind of card, or to the suggestions for one field, with a count for each. Every decision has **Undo**, and a rejected value is never suggested again. A card that offers to make something (a collection from a folder, books for a collection, an image pack, a folder rule, a file's adventures) has a **×** that gives its "don't ask again" answer, so it closes like any other decision and that same offer isn't made again. **Settings > Needs review** chooses between **When unsure** and **All suggestions**.
 
 Each card's book can open in a window beside the page (its window button, or middle-click or **Shift+Enter** on the title), at the evidence's page, so it can be checked before deciding. The cards share that one window: the next book opened shows in it, and a new one opens only once it is closed.
 
