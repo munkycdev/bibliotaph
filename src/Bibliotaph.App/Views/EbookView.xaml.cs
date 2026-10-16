@@ -44,7 +44,7 @@ public partial class EbookView
             // The browser is let go as soon as the reader isn't shown, and a new one is made if it shows again.
             _gone = true;
             _version++;
-            _ready.TrySetResult(false);
+            NotShowing();
             Web.Dispose();
         };
     }
@@ -62,6 +62,14 @@ public partial class EbookView
     }
 
     static TaskCompletionSource<bool> NewReady() => new(TaskCreationOptions.None);
+
+    /// <summary>Lets anything waiting for the page go, and says from now on that no page is showing.</summary>
+    void NotShowing()
+    {
+        _ready.TrySetResult(false);
+        _ready = NewReady();
+        _ready.TrySetResult(false);
+    }
 
     /// <summary>Set by the reader view: the browser the page is shown in.</summary>
     public EbookBrowser? Browser { get; set; }
@@ -121,7 +129,7 @@ public partial class EbookView
     public void Unload()
     {
         _version++;
-        _ready.TrySetResult(false);
+        NotShowing();
         _content = null;
         _page = "";
         SelectionPageIndex = null;
