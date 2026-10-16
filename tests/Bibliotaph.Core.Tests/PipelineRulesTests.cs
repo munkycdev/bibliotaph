@@ -58,6 +58,11 @@ public class SourceFormatsTests
     [InlineData("handout.png", "png")]
     [InlineData("Harbor.WebP", "webp")]
     [InlineData("Novel.EPUB", "epub")]
+    [InlineData("Novel.mobi", "mobi")]
+    [InlineData("Novel.prc", "mobi")]
+    [InlineData("Novel.azw", "azw")]
+    [InlineData("Novel.AZW3", "azw3")]
+    [InlineData("Novel.kfx", "kfx")]
     [InlineData("notes.docx", null)]
     [InlineData("README", null)]
     public void Recognises_the_indexed_types(string name, string? expected) =>

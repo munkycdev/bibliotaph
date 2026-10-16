@@ -83,6 +83,9 @@ function Invoke-Smoke {
     Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-sync.json') (Join-Path $sync 'SMOKE-PC-2.json')
     # A made-up online library page saved with its images, which the smoke test imports (beside the data root, never in it).
     Copy-Item (Join-Path $root 'tests/fixtures/online') (Join-Path $run 'online') -Recurse
+    # A made-up Kindle book, which the smoke test adds as a library folder of its own (beside the data root, never in it).
+    New-Item -ItemType Directory -Force (Join-Path $run 'kindle') | Out-Null
+    Copy-Item (Join-Path $root 'tests/fixtures/ebooks/sample.azw3') (Join-Path $run 'kindle')
 
     $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test', '--data-root', "`"$data`"", '--smoke-files', "`"$files`"" -PassThru
     # The checks take about two minutes on a developer's PC and grow with each feature, so the limit leaves room: it is

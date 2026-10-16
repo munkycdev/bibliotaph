@@ -23,5 +23,6 @@
     <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
     <!-- Made-up online library pages, saved as a browser saves them, with their images beside them. -->
     <None Include="..\fixtures\online\**\*" Link="online\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\ebooks\*.mobi;..\fixtures\ebooks\*.azw3" Link="ebooks\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -52,7 +52,7 @@ public static partial class EbookReaderDocument
     /// The reader's page for <paramref name="book"/> cut into <paramref name="layout"/>'s pages. <paramref name="head"/>
     /// goes in the page's head (the reader's stylesheet) and <paramref name="script"/> at the end of its body.
     /// </summary>
-    public static string Build(EpubBook book, EbookLayout layout, string head, string script, CancellationToken ct = default)
+    public static string Build(IEbook book, EbookLayout layout, string head, string script, CancellationToken ct = default)
     {
         var fixedLayout = book.Spine.Count > 0 && book.Spine.All(s => s.FixedLayout);
         var chapterOf = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -106,7 +106,7 @@ public static partial class EbookReaderDocument
         $"<{MarkerName} id=\"bt-p{page.ToString(CultureInfo.InvariantCulture)}\" data-page=\"{page.ToString(CultureInfo.InvariantCulture)}\"></{MarkerName}>";
 
     /// <summary>One chapter's body, cleaned, its ids and links made to work on the one page, with its pages' markers.</summary>
-    static string Chapter(EpubBook book, int chapter, List<EbookPage> pages, Dictionary<string, int> chapterOf)
+    static string Chapter(IEbook book, int chapter, List<EbookPage> pages, Dictionary<string, int> chapterOf)
     {
         var item = book.Spine[chapter];
         if (book.IsEncrypted(item.Path)) return string.Concat(pages.Select(p => Marker(p.Index)));
@@ -216,7 +216,7 @@ public static partial class EbookReaderDocument
     };
 
     /// <summary>The size a fixed-layout page was drawn at, from its viewport, else a 2:3 page.</summary>
-    static (int Width, int Height) Viewport(EpubBook book, string path)
+    static (int Width, int Height) Viewport(IEbook book, string path)
     {
         try
         {
@@ -241,7 +241,7 @@ public static partial class EbookReaderDocument
     /// A fixed-layout page as its frame shows it: its own stylesheets and layout kept, anything that runs, embeds or
     /// asks taken out, and nothing linked.
     /// </summary>
-    public static string FixedPage(EpubBook book, string path)
+    public static string FixedPage(IEbook book, string path)
     {
         var document = HtmlText.Parse(book.ReadText(path));
         foreach (var element in document.QuerySelectorAll("*").ToList())
@@ -288,7 +288,7 @@ public static partial class EbookReaderDocument
     /// list; ids are made unique to the chapter; pictures point at the book's files; links within the book go to
     /// the chapter and place they name, and web links keep their address.
     /// </summary>
-    sealed class Cleaner(EpubBook book, string path, int chapter, Dictionary<string, int> chapterOf, HashSet<IElement> markers)
+    sealed class Cleaner(IEbook book, string path, int chapter, Dictionary<string, int> chapterOf, HashSet<IElement> markers)
     {
         readonly string _prefix = "bt-c" + chapter.ToString(CultureInfo.InvariantCulture) + "-";
 

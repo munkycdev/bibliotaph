@@ -40,7 +40,7 @@ public sealed record EpubNavPoint(string Title, string Path, string? Fragment, i
 /// list, cover and protection. Every entry is read through <see cref="EbookLimits"/>, and no XML it reads may load a
 /// DTD or an external entity.
 /// </summary>
-public sealed partial class EpubBook : IDisposable
+public sealed partial class EpubBook : IEbook
 {
     const string ContainerPath = "META-INF/container.xml";
     const string EncryptionPath = "META-INF/encryption.xml";

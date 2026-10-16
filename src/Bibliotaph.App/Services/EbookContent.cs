@@ -18,12 +18,12 @@ public sealed class EbookContent : IDisposable
     readonly Lock _gate = new();
     readonly LocalFile _file;
     readonly Stream _stream;
-    readonly EpubBook _book;
+    readonly IEbook _book;
     readonly HashSet<string> _pageFiles;
     readonly string _page;
     bool _disposed;
 
-    EbookContent(LocalFile file, Stream stream, EpubBook book, EbookLayout layout, string page, string nonce)
+    EbookContent(LocalFile file, Stream stream, IEbook book, EbookLayout layout, string page, string nonce)
     {
         _file = file;
         _stream = stream;
@@ -57,10 +57,10 @@ public sealed class EbookContent : IDisposable
     public static EbookContent Open(LocalFile file, ISourceFileReader files, CancellationToken ct = default)
     {
         var stream = files.OpenRead(file.Path);
-        EpubBook? book = null;
+        IEbook? book = null;
         try
         {
-            book = EpubBook.Open(stream);
+            book = Ebook.Open(stream);
             var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18));
             if (book.IsProtected) return new EbookContent(file, stream, book, new EbookLayout([], [], false), "", nonce);
             var layout = EbookPaging.Cut(book, ct);

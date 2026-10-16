@@ -10,6 +10,18 @@ public static class SourceFormats
 
     /// <summary>An e-book whose text flows to fit the window; Bibliotaph cuts it into pages of its own (see the Ebooks project).</summary>
     public const string Epub = "epub";
+
+    /// <summary>A Mobipocket book (.mobi, .prc), which may also hold a KF8 version; read like an EPUB.</summary>
+    public const string Mobi = "mobi";
+
+    /// <summary>A Kindle book: Mobipocket inside, or KFX, which Bibliotaph can't read.</summary>
+    public const string Azw = "azw";
+
+    /// <summary>A Kindle KF8 book.</summary>
+    public const string Azw3 = "azw3";
+
+    /// <summary>A Kindle KFX book, which Bibliotaph lists but can't read.</summary>
+    public const string Kfx = "kfx";
     public const string Jpeg = "jpg";
     public const string Png = "png";
 
@@ -19,17 +31,24 @@ public static class SourceFormats
     /// <summary>Every image format, for "format:image" and the Images kind.</summary>
     public static IReadOnlyList<string> Images { get; } = [Jpeg, Png, Webp];
 
+    /// <summary>Every Kindle format, for "format:kindle".</summary>
+    public static IReadOnlyList<string> Kindle { get; } = [Mobi, Azw, Azw3, Kfx];
+
     /// <summary>Every e-book format, for "format:ebook".</summary>
-    public static IReadOnlyList<string> Ebooks { get; } = [Epub];
+    public static IReadOnlyList<string> Ebooks { get; } = [Epub, .. Kindle];
 
     /// <summary>The formats with pages of text: what the library calls books, and what search, notes and binders point into.</summary>
-    public static IReadOnlyList<string> Paged { get; } = [Pdf, Epub];
+    public static IReadOnlyList<string> Paged { get; } = [Pdf, .. Ebooks];
 
     /// <summary>The format for a file name, or null when Bibliotaph doesn't index that type.</summary>
     public static string? FromFileName(string name) => Path.GetExtension(name).ToLowerInvariant() switch
     {
         ".pdf" => Pdf,
         ".epub" => Epub,
+        ".mobi" or ".prc" => Mobi,
+        ".azw" => Azw,
+        ".azw3" => Azw3,
+        ".kfx" => Kfx,
         ".jpg" or ".jpeg" => Jpeg,
         ".png" => Png,
         ".webp" => Webp,
@@ -38,7 +57,7 @@ public static class SourceFormats
 
     public static bool IsImage(string format) => format is Jpeg or Png or Webp;
 
-    public static bool IsEbook(string format) => format is Epub;
+    public static bool IsEbook(string format) => format is Epub or Mobi or Azw or Azw3 or Kfx;
 
     /// <summary>Whether a format has pages of text, as a PDF or an e-book does.</summary>
     public static bool HasPages(string format) => format is Pdf || IsEbook(format);

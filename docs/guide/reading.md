@@ -99,6 +99,10 @@ a PDF. When the book marks where its printed pages began, as many publishers' EP
 pages, with their numbers. Otherwise each chapter starts a page and a page holds about as much text as a printed
 page of a novel. The same file always gives the same pages.
 
+Kindle books (MOBI, AZW and AZW3) are read the same way, with their contents, pictures and links. Kindle keeps a
+book's printed page numbers in a separate file, which Bibliotaph doesn't read, so their pages are always cut by
+length. A Kindle book with DRM, or one in Amazon's newer KFX format, gets a card but can't be read.
+
 Opening an e-book shows it in Bibliotaph's reader as one long page of text in the app's colours, with the book's own
 pictures. The page box at the top says which page the top of the window is on, and the page box, the contents panel,
 **Find** (Ctrl+F, F3 for the next match), **Note**, **Add to binder** and **Ask this book** work as they do in a PDF.
@@ -120,8 +124,8 @@ Windows 10 the reader says so if it's missing. The thumbnail strip and **Use thi
   Credential Manager, never in Bibliotaph's own files. **Make its text searchable** (ticked unless you untick it) lets
   Bibliotaph read the book for search. **Settings > Passwords** lists remembered passwords, with **Forget**.
 - **A protected (DRM) book** that Bibliotaph can't read still gets a card you can fill in, and
-  **Open in another app** opens it in the app that can. A protected EPUB's card takes the title, authors and
-  publisher the book gives about itself, which aren't protected; its text isn't read.
+  **Open in another app** opens it in the app that can. A protected EPUB's or Kindle book's card takes the title, authors
+  and publisher the book gives about itself, which aren't protected; its text isn't read.
 - **A book on a drive that isn't plugged in** says so, naming the folder and drive. Plug it in and click
   **Try again**.
 - **A book whose file has gone** offers **Find it**, which looks through every library folder, and
