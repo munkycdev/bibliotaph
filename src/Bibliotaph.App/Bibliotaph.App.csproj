@@ -2,7 +2,12 @@
   <!-- Shell, screens, view models, theme and DI composition. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>$(BibTfm)-windows</TargetFramework>
+    <!--
+      The Windows SDK projection is what WebView2's composition control is built on, which lets the e-book reader's
+      notices and dialogs draw over the book.
+    -->
+    <TargetFramework>$(BibTfm)-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Bibliotaph</AssemblyName>

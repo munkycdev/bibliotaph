@@ -149,7 +149,7 @@ again, fetch the books (the first time), then run a Release build with an empty 
 
 ```powershell
 .\tools\Screenshots\get-books.ps1 -Folder $env:TEMP\bibliotaph-demo\books
-.\src\Bibliotaph.App\bin\Release\net11.0-windows\Bibliotaph.exe --screenshots docs\images `
+.\src\Bibliotaph.App\bin\Release\net11.0-windows10.0.19041.0\Bibliotaph.exe --screenshots docs\images `
     --screenshot-files $env:TEMP\bibliotaph-demo\books --data-root $env:TEMP\bibliotaph-demo\data `
     --screenshot-open "Treasure Island|1"
 ```

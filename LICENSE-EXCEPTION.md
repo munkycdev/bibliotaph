@@ -10,7 +10,7 @@ Microsoft Windows SDK licence terms, the licensors of this Program grant you add
 resulting work.
 
 This permission is there so that Bibliotaph can use Windows' own text recognition (`Windows.Media.Ocr`) for scanned
-pages. You may remove it from your copies of this Program, as section 7 allows; if you do, a version you convey must
+pages, and WebView2's composition control, which is built on the projection, for its e-book reader. You may remove it from your copies of this Program, as section 7 allows; if you do, a version you convey must
 not include that projection.
 
 Copyright (C) 2026 munkycdev.
