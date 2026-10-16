@@ -60,6 +60,23 @@ public sealed class HtmlTextTests
     public void Very_deep_nesting_is_read_without_overflowing()
     {
         var html = string.Concat(Enumerable.Repeat("<span>", 50_000)) + "deep" + string.Concat(Enumerable.Repeat("</span>", 50_000));
-        Assert.Equal("deep", HtmlText.Read("<p>" + html + "</p>").Blocks.Single().Text);
+        // On a thread with a small stack, as Windows gives, so a recursion that a large default stack hides still fails.
+        string? text = null;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                text = HtmlText.Read("<p>" + html + "</p>").Blocks.Single().Text;
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        }, 512 * 1024);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+        Assert.Equal("deep", text);
     }
 }

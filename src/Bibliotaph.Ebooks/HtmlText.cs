@@ -79,8 +79,46 @@ public static partial class HtmlText
     /// Parses XHTML or HTML. An HTML5 parser reads <c>&lt;a id="x"/&gt;</c> as an element left open, which would swallow
     /// the text after it, so XHTML's self-closed elements are closed first.
     /// </summary>
-    internal static IHtmlDocument Parse(string html) =>
-        new HtmlParser(new HtmlParserOptions { IsScripting = false }).ParseDocument(CloseSelfClosed(html));
+    internal static IHtmlDocument Parse(string html)
+    {
+        var document = new HtmlParser(new HtmlParserOptions { IsScripting = false }).ParseDocument(CloseSelfClosed(html));
+        Flatten(document);
+        return document;
+    }
+
+    /// <summary>
+    /// Replaces each element nested deeper than <see cref="MaxDepth"/> with its text, without recursion: the parser
+    /// keeps any depth, and walking, reading text from or writing out a tree thousands deep overflows the stack.
+    /// </summary>
+    static void Flatten(IHtmlDocument document)
+    {
+        if (document.DocumentElement is not { } root) return;
+        var open = new Stack<(INode Node, int Depth)>();
+        open.Push((root, 0));
+        while (open.TryPop(out var at))
+        {
+            foreach (var child in at.Node.ChildNodes.OfType<IElement>().ToList())
+            {
+                if (at.Depth + 1 < MaxDepth) open.Push((child, at.Depth + 1));
+                else at.Node.ReplaceChild(document.CreateTextNode(TextOf(child)), child);
+            }
+        }
+    }
+
+    /// <summary>The text in a node, in reading order, gathered without recursion.</summary>
+    static string TextOf(INode node)
+    {
+        var text = new StringBuilder();
+        var next = new Stack<INode>();
+        next.Push(node);
+        while (next.TryPop(out var at))
+        {
+            if (at is IText t) text.Append(t.Data);
+            else if (at is IElement { LocalName: not ("script" or "style") })
+                for (var i = at.ChildNodes.Length - 1; i >= 0; i--) next.Push(at.ChildNodes[i]);
+        }
+        return text.ToString();
+    }
 
     internal static string CloseSelfClosed(string html) => SelfClosed().Replace(html, m =>
         Void.Contains(m.Groups[1].Value.ToLowerInvariant()) ? m.Value : $"<{m.Groups[1].Value}{m.Groups[2].Value}></{m.Groups[1].Value}>");
@@ -161,7 +199,8 @@ public static partial class HtmlText
             }
 
             if (name == "pre") _pre++;
-            if (depth >= MaxDepth) Append(element.TextContent);
+            // Parse leaves no element deeper than this; the check keeps a walk of any other tree bounded too.
+            if (depth >= MaxDepth) Append(TextOf(element));
             else Walk(element, depth);
             if (name == "pre") _pre--;
             if (block) Flush(heading: name is "h1" or "h2" or "h3");
