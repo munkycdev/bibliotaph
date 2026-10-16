@@ -94,14 +94,16 @@ public static class SearchGuide
     }
 
     /// <summary>
-    /// The formats to offer after <c>format:</c>: those in the library, most first, then <c>image</c> for either picture
-    /// format when the library has both.
+    /// The formats to offer after <c>format:</c>: those in the library, most first, then <c>image</c> for any picture
+    /// format and <c>ebook</c> for any e-book format when the library has more than one of them.
     /// </summary>
     public static IReadOnlyList<GuideValue> FormatValues(IEnumerable<GuideValue> formats)
     {
         var values = formats.ToList();
         var pictures = values.Where(v => SourceFormats.IsImage(v.Value)).ToList();
         if (pictures.Count > 1) values.Add(new GuideValue("image", "Any picture", pictures.Sum(p => p.Count)));
+        var ebooks = values.Where(v => SourceFormats.IsEbook(v.Value)).ToList();
+        if (ebooks.Count > 1) values.Add(new GuideValue("ebook", "Any e-book", ebooks.Sum(p => p.Count)));
         return values;
     }
 

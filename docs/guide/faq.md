@@ -45,7 +45,8 @@ No. Bibliotaph is a Windows app, for Windows 10 (version 1809 or later) and Wind
 No. It's free and open source, under the GNU General Public License.
 
 **Which files does it read?**
-PDF, JPG, PNG and WebP, including those inside ZIP files. Other formats, such as EPUB, aren't read.
+PDF, EPUB, JPG, PNG and WebP, including those inside ZIP files. EPUB books are searchable and catalogued like PDFs,
+and for now open in your own e-book app to read. Other formats, such as MOBI, aren't read yet.
 
 **Do I have to tidy my folders first?**
 No. Point it at what you have. Folder names help, so a folder called "Adventures" or named after a game system gives

@@ -7,6 +7,9 @@ namespace Bibliotaph.Core;
 public static class SourceFormats
 {
     public const string Pdf = "pdf";
+
+    /// <summary>An e-book whose text flows to fit the window; Bibliotaph cuts it into pages of its own (see the Ebooks project).</summary>
+    public const string Epub = "epub";
     public const string Jpeg = "jpg";
     public const string Png = "png";
 
@@ -16,10 +19,17 @@ public static class SourceFormats
     /// <summary>Every image format, for "format:image" and the Images kind.</summary>
     public static IReadOnlyList<string> Images { get; } = [Jpeg, Png, Webp];
 
+    /// <summary>Every e-book format, for "format:ebook".</summary>
+    public static IReadOnlyList<string> Ebooks { get; } = [Epub];
+
+    /// <summary>The formats with pages of text: what the library calls books, and what search, notes and binders point into.</summary>
+    public static IReadOnlyList<string> Paged { get; } = [Pdf, Epub];
+
     /// <summary>The format for a file name, or null when Bibliotaph doesn't index that type.</summary>
     public static string? FromFileName(string name) => Path.GetExtension(name).ToLowerInvariant() switch
     {
         ".pdf" => Pdf,
+        ".epub" => Epub,
         ".jpg" or ".jpeg" => Jpeg,
         ".png" => Png,
         ".webp" => Webp,
@@ -28,7 +38,15 @@ public static class SourceFormats
 
     public static bool IsImage(string format) => format is Jpeg or Png or Webp;
 
-    /// <summary>Whether a file is a ZIP, whose PDFs and images Bibliotaph reads in place.</summary>
+    public static bool IsEbook(string format) => format is Epub;
+
+    /// <summary>Whether a format has pages of text, as a PDF or an e-book does.</summary>
+    public static bool HasPages(string format) => format is Pdf || IsEbook(format);
+
+    /// <summary>
+    /// Whether a file is a ZIP, whose PDFs, e-books and images Bibliotaph reads in place. An EPUB is a ZIP too, but is
+    /// read as a book, never listed as a ZIP of files.
+    /// </summary>
     public static bool IsArchive(string name) => Path.GetExtension(name).Equals(".zip", StringComparison.OrdinalIgnoreCase);
 }
 

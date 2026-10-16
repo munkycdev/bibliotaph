@@ -92,13 +92,24 @@ the pack's cover in place of its mosaic, click the picture button at the top, **
 WebP images need Microsoft's free WebP Image Extensions from the Microsoft Store. Without them, a WebP file shows in
 **Needs review** saying so.
 
+## E-books
+
+EPUB books are read into pages of their own, so search, the AI, notes and binders can point at a page as they do in
+a PDF. When the book marks where its printed pages began, as many publishers' EPUBs do, its pages are those printed
+pages, with their numbers. Otherwise each chapter starts a page and a page holds about as much text as a printed
+page of a novel. The same file always gives the same pages.
+
+Bibliotaph's reader doesn't show e-books yet. Opening one shows **Open in another app**, which opens it in your
+default e-book app.
+
 ## Locked, protected and missing books
 
 - **A PDF with a password** opens with a box asking for it. **Remember it on this PC** keeps the password in Windows
   Credential Manager, never in Bibliotaph's own files. **Make its text searchable** (ticked unless you untick it) lets
   Bibliotaph read the book for search. **Settings > Passwords** lists remembered passwords, with **Forget**.
 - **A protected (DRM) book** that Bibliotaph can't read still gets a card you can fill in, and
-  **Open in another app** opens it in the app that can.
+  **Open in another app** opens it in the app that can. A protected EPUB's card takes the title, authors and
+  publisher the book gives about itself, which aren't protected; its text isn't read.
 - **A book on a drive that isn't plugged in** says so, naming the folder and drive. Plug it in and click
   **Try again**.
 - **A book whose file has gone** offers **Find it**, which looks through every library folder, and

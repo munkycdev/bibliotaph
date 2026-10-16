@@ -29,6 +29,8 @@ public class SearchQueryTests
     [InlineData("format:PDF", "format:pdf")]
     [InlineData("format:jpeg", "format:jpg")]
     [InlineData("format:images maps", "AND(format:image, maps)")]
+    [InlineData("format:EPUB", "format:epub")]
+    [InlineData("format:e-books", "format:ebook")]
     [InlineData("folder:\"Monster Manuals\"", "folder:\"Monster Manuals\"")]
     [InlineData("http://example.com", "http://example.com")]
     [InlineData("or nor", "AND(or, nor)")]

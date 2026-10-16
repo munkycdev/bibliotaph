@@ -86,10 +86,10 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Complete', 'Partial', 'Skipped')) AS Classified,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status = 'Failed') AS ClassifyFailed,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE stage IN ('Probe', 'Text') AND (
-                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason = @protected) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld,
+                    (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason IN (@protected, @protectedEbook)) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld,
                 (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Pending', 'Running')) AS ToScanWhole,
                 (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Complete', 'Partial')) AS ScannedWhole
-            """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, forgotten = TextAccessReasons.Forgotten },
+            """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, protectedEbook = TextAccessReasons.ProtectedEbook, forgotten = TextAccessReasons.Forgotten },
             cancellationToken: ct));
     }
 

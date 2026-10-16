@@ -19,6 +19,7 @@
     <Compile Include="..\Bibliotaph.Pdf.Host.Tests\GlyphOutlines.cs" Link="GlyphOutlines.cs" />
     <Compile Include="..\..\src\Bibliotaph.App\Services\SmokePdfs.cs" Link="SmokePdfs.cs" />
     <Compile Include="..\Bibliotaph.Catalog.Tests\MigratedCatalog.cs" Link="MigratedCatalog.cs" />
+    <Compile Include="..\Bibliotaph.Ebooks.Tests\SyntheticEpub.cs" Link="SyntheticEpub.cs" />
     <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
     <!-- Made-up online library pages, saved as a browser saves them, with their images beside them. -->
     <None Include="..\fixtures\online\**\*" Link="online\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Ebooks;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
@@ -314,6 +315,7 @@ public sealed class ProbeStage(StageServices s) : IStage
 
         // The document is in the library from here, by its file name, even if it turns out not to open.
         var basic = new DocRow { DocumentId = job.DocumentId, ContentHash = job.ContentHash, Format = source.Format, DisplayTitle = title, FolderHint = source.FolderHint };
+        if (EbookFiles.Is(source)) return await ProbeEbookAsync(job, source, basic, ct);
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
         if (session is null)
         {
@@ -346,6 +348,31 @@ public sealed class ProbeStage(StageServices s) : IStage
             var capabilities = JsonSerializer.Serialize(new { canCopy = doc.CanCopy, canPrint = doc.CanPrint, encrypted = doc.IsEncrypted });
             await s.Library.SetProbeResultAsync(job.DocumentId, doc.PageCount, protection, capabilities, ct);
         }
+        return StageOutcome.Complete();
+    }
+
+    /// <summary>
+    /// An e-book's package and pages. A book whose text is protected by DRM still has its package, so it is listed with
+    /// the title, authors and publisher it gives, and its Text stage says why it can't be read.
+    /// </summary>
+    async Task<StageOutcome> ProbeEbookAsync(JobRecord job, DocumentSource source, DocRow basic, CancellationToken ct)
+    {
+        var (read, failed) = await EbookFiles.ReadAsync(s, source,
+            (book, token) => (book.Metadata, book.IsProtected, book.FixedLayout, Layout: book.IsProtected ? null : EbookPaging.Cut(book, token)), ct);
+        if (failed is not null)
+        {
+            if (await s.Queries.GetTitleAsync(job.DocumentId, ct) is null) await StageHelpers.UpsertDocumentAsync(s, basic, [], [], ct);
+            return failed;
+        }
+        var layout = read.Layout;
+        await StageHelpers.UpsertDocumentAsync(s, EbookFiles.WithMetadata(basic with { PageCount = layout?.Pages.Count, Encrypted = read.IsProtected }, read.Metadata),
+            layout is null ? [] : EbookFiles.Pages(layout), layout is null ? [] : EbookFiles.Outline(layout), ct);
+        var capabilities = JsonSerializer.Serialize(new
+        {
+            canCopy = true, canPrint = true, encrypted = read.IsProtected, fixedLayout = read.FixedLayout, printPages = layout?.PrintPages == true,
+            paging = EbookPaging.Version,
+        });
+        await s.Library.SetProbeResultAsync(job.DocumentId, layout?.Pages.Count, read.IsProtected ? ProtectionType.Unsupported : ProtectionType.None, capabilities, ct);
         return StageOutcome.Complete();
     }
 
@@ -400,6 +427,7 @@ public sealed class TextStage(StageServices s) : IStage
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         if (SourceFormats.IsImage(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Images have no text layer.");
+        if (EbookFiles.Is(source)) return await ReadEbookAsync(job, source, ct);
 
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
         if (session is null) return failed!;
@@ -424,6 +452,16 @@ public sealed class TextStage(StageServices s) : IStage
                 ? new StageOutcome.Done(StageStatus.Complete, next)
                 : new StageOutcome.Done(StageStatus.Partial, next, $"{failedPages} page(s) could not be read.");
         }
+    }
+
+    /// <summary>An e-book's pages, cut again as Probe cut them: the same file always gives the same pages.</summary>
+    async Task<StageOutcome> ReadEbookAsync(JobRecord job, DocumentSource source, CancellationToken ct)
+    {
+        var (layout, failed) = await EbookFiles.ReadAsync(s, source, (book, token) => book.IsProtected ? null : EbookPaging.Cut(book, token), ct);
+        if (failed is not null) return failed;
+        if (layout is null) return new StageOutcome.Failed(TextAccessReasons.ProtectedEbook, Retry: false);
+        await s.Index.SetPageTextAsync(job.DocumentId, EbookFiles.Text(layout), ct);
+        return StageOutcome.Complete();
     }
 
     static PageTextRow Score(PageText page)
@@ -468,8 +506,8 @@ public sealed class TextStage(StageServices s) : IStage
 }
 
 /// <summary>
-/// Covers: the first page, or the page the user chose, or the image itself, as a JPEG in the cover cache. A missing
-/// cover is not an error.
+/// Covers: the first page, or the page the user chose, or the image itself, or an e-book's cover image, as a JPEG in the
+/// cover cache. A missing cover is not an error.
 /// </summary>
 public sealed class CoversStage(StageServices s) : IStage
 {
@@ -496,6 +534,14 @@ public sealed class CoversStage(StageServices s) : IStage
             if (file is null) return unreadable!;
             await using (file)
             await using (var stream = s.Reader.OpenRead(file.Path)) jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
+        }
+        else if (EbookFiles.Is(source))
+        {
+            var (image, failed) = await EbookFiles.ReadAsync(s, source, (book, _) => book.ReadCover(), ct);
+            if (failed is not null) return failed;
+            if (image is null) return new StageOutcome.Done(StageStatus.Skipped, [], "The e-book has no cover image.");
+            using var stream = new MemoryStream(image, writable: false);
+            jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
         }
         else
         {

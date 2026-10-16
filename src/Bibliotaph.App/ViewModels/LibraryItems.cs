@@ -389,8 +389,11 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         entry.IsPack ? entry.PdfMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
         : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
-        : entry.PageCount is { } pages ? $"PDF · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
-        : "PDF";
+        : entry.PageCount is { } pages ? $"{FormatName(entry.Format)} · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
+        : FormatName(entry.Format);
+
+    /// <summary>What a book's file is called on its card: "PDF", or an e-book's format ("EPUB").</summary>
+    public static string FormatName(string format) => format.ToUpperInvariant();
 }
 
 /// <summary>One image's cover in a pack's mosaic or grid, loaded the first time it is asked for.</summary>

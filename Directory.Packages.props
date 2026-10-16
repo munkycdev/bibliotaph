@@ -22,6 +22,7 @@
   <ItemGroup Label="App">
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
+    <PackageVersion Include="AngleSharp" Version="1.8.3" />
     <PackageVersion Include="PDFiumCore" Version="156.0.8076" />
     <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />

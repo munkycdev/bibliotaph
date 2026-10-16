@@ -41,7 +41,7 @@ public sealed partial class InspectorViewModel
     {
         _chapters = _metadata.Chapters;
         _chaptersLog = log;
-        if (_chapters is not { } chapters || Item.IsElsewhere || Item.IsPack || Item.Entry.Format != SourceFormats.Pdf) return;
+        if (_chapters is not { } chapters || Item.IsElsewhere || Item.IsPack || !SourceFormats.HasPages(Item.Entry.Format)) return;
         try
         {
             var found = await Task.Run(() => chapters.GetChaptersAsync(Item.DocumentId, Item.IsPart ? Item.Entry.Pages : null));

@@ -28,13 +28,15 @@ public static class TextAccessReasons
 
     public const string Protected = "This PDF uses a protection scheme Bibliotaph can't open.";
 
+    public const string ProtectedEbook = "This e-book is protected by DRM, which Bibliotaph can't open.";
+
     public const string Forgotten = "Its text was forgotten. Read it again to search it.";
 
     /// <summary>What a stage that stopped with <paramref name="status"/> and <paramref name="reason"/> says about the file's text.</summary>
     public static TextAccess Of(StageStatus? status, string? reason) => (status, reason) switch
     {
         (StageStatus.Blocked, Locked) => TextAccess.Locked,
-        (StageStatus.Failed, Protected) => TextAccess.Protected,
+        (StageStatus.Failed, Protected or ProtectedEbook) => TextAccess.Protected,
         (StageStatus.Skipped, Forgotten) => TextAccess.Forgotten,
         _ => TextAccess.Readable,
     };

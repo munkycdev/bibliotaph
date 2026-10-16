@@ -4,7 +4,7 @@ This describes the design of Bibliotaph 1.2. For what the app does, see [feature
 
 ## At a glance
 
-Bibliotaph is one WPF app on .NET 11. PDFium runs in a small pool of isolated worker processes. The user's work lives in one SQLite file and a rebuildable search index in another, searched with FTS5, and an in-process durable job queue reads the library in the background. Bibliotaph catalogs files where they are and never writes to a source file.
+Bibliotaph is one WPF app on .NET 11. PDFium runs in a small pool of isolated worker processes; e-books are read by managed code in the app. The user's work lives in one SQLite file and a rebuildable search index in another, searched with FTS5, and an in-process durable job queue reads the library in the background. Bibliotaph catalogs files where they are and never writes to a source file.
 
 ```mermaid
 flowchart LR
@@ -37,6 +37,7 @@ flowchart LR
 | Two SQLite files: `catalog.db` (user work) and `index.db` (derived) | "Rebuilding the index never touches the user's work" is a physical fact, not a convention. |
 | EF Core for `catalog.db`; Microsoft.Data.Sqlite with Dapper and prepared commands for `index.db` | FTS5's `MATCH`, `bm25()`, `snippet()` and `highlight()` have no LINQ translation, bulk page inserts need prepared commands in batched transactions, and `index.db` has no migrations. |
 | SQLite FTS5 for search (bm25, unicode61, diacritics removed) | Fast enough for a large personal collection, with no second storage engine. |
+| E-books cut into pages by a fixed rule over their content, read in the app process by managed code | Search, evidence, notes and binders all point at pages, so an e-book needs pages that never move: a rule over the file's content gives the same pages on every PC, unlike pages laid out by a renderer. There is no native library to contain, so no worker process; size limits guard against hostile archives instead. |
 | Windows.Media.Ocr, inside the index worker | Ships with Windows, so no native binaries or language data to package; in a comparison it was as accurate as Tesseract and 7 to 14 times faster. |
 | An in-process, durable job queue in `index.db` | Processing runs only while the app is open; a small scheduler is easier to reason about than a framework. |
 | WPF with CommunityToolkit.Mvvm and the generic host; a custom theme, no control suite | The design is a bespoke editorial look, not Fluent. |
@@ -67,8 +68,9 @@ The worker opens a PDF through `FPDF_LoadCustomDocument` over a read-only .NET s
 | `Bibliotaph.Core` | Domain types and enums, the search query parser and field list, effective metadata, page fingerprints, watermark detection, part rules, sync file format and merge; no I/O | Nothing |
 | `Bibliotaph.Catalog` | EF Core context and migrations for `catalog.db`, the stores for user work, backup files, JSON and CSV export, applying library sync records | Core |
 | `Bibliotaph.Index` | `index.db` schema and upgrades, page and FTS5 writers, search, facet and library queries, the job board | Core |
+| `Bibliotaph.Ebooks` | The EPUB reader (package, contents, page list, cover, DRM check), HTML to text blocks with AngleSharp, and the page cut; reads only from a stream | AngleSharp |
 | `Bibliotaph.Classification` | `ModelClassifier`, model client, prompts and schemas, excerpt builder, evidence check, rule hints, Ask's prompts and checks | Core |
-| `Bibliotaph.Processing` | Scanner, watcher, reconcile, hashing, ZIPs, the pipeline and its stages, metadata projection, built-in AI engine and downloads, Ask, online library readers, backups, library sync | Core, Catalog, Index, Classification, Pdf.Host |
+| `Bibliotaph.Processing` | Scanner, watcher, reconcile, hashing, ZIPs, the pipeline and its stages, metadata projection, built-in AI engine and downloads, Ask, online library readers, backups, library sync | Core, Catalog, Index, Classification, Ebooks, Pdf.Host |
 | `Bibliotaph.Pdf.Contracts` | Worker messages and framing | Nothing |
 | `Bibliotaph.Pdf.Host` | Worker pool, job objects, shared sections, restarts, poison tracking | Pdf.Contracts |
 | `Bibliotaph.PdfWorker` | PDFium and Windows OCR (console exe) | Pdf.Contracts |
@@ -122,6 +124,19 @@ An unreachable root, or one whose volume serial changed, goes offline as a whole
 
 A ZIP is read in place through the read-only reader with System.IO.Compression and never unpacked beside itself. The ZIP is a location with a hash and no document; each PDF or image inside is a location of its own, hashed as it is decompressed, and joins documents by hash like any file, so a book both loose and zipped is one document and the loose file is preferred. A ZIP saved again keeps the hashes of members with the same name, size and CRC, and a moved ZIP isn't read again. Stages and the viewer get a member extracted to `cache\extract\` and checked against its hash. A member that can't be read (a nested ZIP, a password, too big, damaged) is listed in Files needing attention.
 
+### E-books
+
+An EPUB is a document like a PDF: hashed, joined by content, found in ZIPs (an `.epub` is itself a ZIP, but is never listed as an archive of members) and never written to. Probe, Text and Covers read it in the app process through `EbookFiles` (Processing) and `EpubBook` (Ebooks), over the read-only reader's stream; OCR never runs on it.
+
+- **Package.** `META-INF/container.xml` names the package; its metadata, manifest and spine give the title (the one refined as main), authors, publisher, date, ISBN (by check digit), subjects, description, reading order and fixed layout. The contents come from the EPUB 3 navigation document, else the EPUB 2 NCX, and become the outline. The cover is the manifest's `cover-image`, else EPUB 2's `<meta name="cover">`, else the first image of the guide's cover page or the first chapter.
+- **Pages.** `EbookPaging` cuts the book into pages, which `page` stores as it stores a PDF's (`pdf_page` is the page's index, `text_source` is `pdf`, the file's own text, and the size is a nominal 6 by 9 inches). A fixed-layout book has a page per spine item. A book that marks its printed pages (a page list whose entries resolve, else `epub:type="pagebreak"` or `role="doc-pagebreak"` markers, at least 3) has those pages with their labels, what comes before the first cut as below. Otherwise each spine item starts a page, and a page ends before the block (paragraph, heading, list item, table row) that would take it past 2,500 characters, or before a heading once it holds 1,250; a longer block is split after a sentence. Each page starts at a locator (chapter, block, character), which the reader will use to show it. The rule depends only on the file, so page numbers are the same on every PC; `EbookPaging.Version` records it, and changing it would move every place that points into an e-book.
+- **Text.** AngleSharp's HTML5 parser reads each chapter, after closing XHTML's self-closed elements (`<a id="x"/>`), which an HTML parser would otherwise leave open. Scripts, styles and SVG are skipped, nesting deeper than 256 is read as plain text, and the regular expression that closes elements doesn't backtrack.
+- **Metadata.** The package's title and authors fill the fields a PDF's document information does, its publisher and subjects go with the keywords (matched against the vocabulary) and its description is the subject (where levels and party sizes are looked for), so rule hints treat both formats alike.
+- **Limits.** Bytes actually decompressed are counted, whatever the archive claims: at most 64 MB an entry, 512 MB a book and 20,000 entries. XML is read with DTDs ignored, no resolver and no entity expansion.
+- **DRM.** An EPUB whose spine is listed in `META-INF/encryption.xml` under anything but font obfuscation (IDPF or Adobe), or whose encryption list can't be read, is protected: Probe records its package (so the card has its title and authors) with protection Unsupported, and Text fails with `TextAccessReasons.ProtectedEbook`, which the library reads as Protected.
+
+The reader doesn't show e-books yet: opening one shows **Open in another app**.
+
 ### Online-only files
 
 Files in OneDrive and other cloud-files folders are always indexed, which downloads each as the queue reaches it. Local files go first, and online-only files wait while downloading the next would leave less than 2 GB free. Once a file that was online-only has been read by every stage that reads files, Bibliotaph returns it to online-only with `CfSetPinState(CF_PIN_STATE_UNPINNED)`, which is what Explorer's "Free up space" does; content, path and timestamps don't change. A file the user pinned to the device, one open in the reader, or one the platform refuses stays. This lets a library larger than the disk be indexed in turns, and Settings can switch it off. `CloudFiles`, behind `ICloudFiles`, is the only caller of the cloud files API. Sync apps that stream through their own drive and cache rather than placeholders are left alone.
@@ -131,9 +146,9 @@ Files in OneDrive and other cloud-files folders are always indexed, which downlo
 Each stage has its own status per document (pending, running, complete, partial, blocked, failed, skipped) and a version; bumping a version re-runs that stage, and only that one, everywhere.
 
 1. **Fingerprint.** SHA-256; a known hash attaches the path to the existing document and stops. ZIPs are listed here.
-2. **Probe.** Page count, protection, permissions, page labels, outline, embedded metadata, capabilities.
+2. **Probe.** Page count, protection, permissions, page labels, outline, embedded metadata, capabilities. An e-book is cut into pages here.
 3. **Text.** Per-page text and text quality; pages with no or garbage text are flagged for OCR. The book is searchable from here.
-4. **Covers.**
+4. **Covers.** A PDF's first or chosen page, an image itself, or an e-book's cover image.
 5. **Rule hints.** Folder names, the file name and the PDF's own information become provisional assertions (see Metadata).
 6. **OCR.** Flagged pages only, page numbering kept.
 7. **Match.** Fingerprints each page from stored text and finds copies and new versions (see Copies and versions), then checks the book against the user's tags (see User tags).
@@ -186,7 +201,7 @@ Jobs run in three lanes, each with its own concurrency and pause: Index (probe, 
 7. **Links.** Link annotations are read when the pointer reaches a page; page links jump with Back, web links open in the browser after asking (http, https, mailto). A contents or index page with no links of its own gets links made from the printed page numbers it lists (`PageReferences`), mapped through page labels or, failing that, through the page numbers printed in the book's own text; with neither, no links are made, since a wrong jump is worse than none.
 8. **Windows.** Any number of pop-out reader windows, each with its own viewer worker up to the cap. A binder's reader opens the next item's book ahead of time on the same worker and draws its first page, so Next shows it at once.
 
-JPG, PNG and WebP open in an image view with zoom and pan, decoded at a capped size; WebP uses Windows' own decoder.
+JPG, PNG and WebP open in an image view with zoom and pan, decoded at a capped size; WebP uses Windows' own decoder. An e-book shows a problem screen with **Open in another app** for now.
 
 ## Metadata and classification
 

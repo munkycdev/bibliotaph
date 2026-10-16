@@ -549,6 +549,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             PrioritizeAsync(request.DocumentId).FireAndForget();
             _coverPage = await _covers.GetAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
+            else if (SourceFormats.IsEbook(_source.Format)) ShowEbookElsewhere();
             else await OpenPdfAsync(_source, request, version);
             // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
             if (version == _version && request.SessionItem is not null && !InBinder) await FollowSessionItemAsync();
@@ -1488,7 +1489,18 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         Mode = ViewerMode.Problem;
     }
 
-    /// <summary>Open in another app, from the problem screen of a PDF Bibliotaph can't open: the user's default PDF app.</summary>
+    /// <summary>
+    /// An e-book: its pages are searchable and catalogued, but the reader shows only PDFs and images so far, so it
+    /// offers the user's own e-book app.
+    /// </summary>
+    void ShowEbookElsewhere()
+    {
+        Subtitle = DescribeSource(_source!, _source!.Format.ToUpperInvariant());
+        Problem("Bibliotaph can't show e-books yet.", "Its pages are searchable and in your library. Open it in your e-book app to read it.",
+            "Open in another app", OpenElsewhereCommand);
+    }
+
+    /// <summary>Open in another app, from the problem screen of a file Bibliotaph can't show: the user's default app for it.</summary>
     [RelayCommand]
     async Task OpenElsewhere()
     {
