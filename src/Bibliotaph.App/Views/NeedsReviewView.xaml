@@ -54,6 +54,17 @@
       <Setter Property="Margin" Value="8,-4,0,0" />
     </Style>
 
+    <!-- An offer card's ×: the card's own "don't ask again" answer, folded to its line with Undo like any answer. -->
+    <Style x:Key="DismissButton" TargetType="Button" BasedOn="{StaticResource Bt.IconButton}">
+      <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.X}" />
+      <Setter Property="Command" Value="{Binding DismissCommand}" />
+      <Setter Property="ToolTip" Value="Close. Bibliotaph won't suggest this again, and Undo brings it back." />
+      <Setter Property="AutomationProperties.Name" Value="{Binding Title, StringFormat='Close the suggestion for {0}'}" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="DockPanel.Dock" Value="Right" />
+      <Setter Property="Margin" Value="8,-8,-10,0" />
+    </Style>
+
     <!-- A decided card: what happened, and Undo. -->
     <DataTemplate x:Key="Decided" DataType="{x:Type vm:DecidedCardViewModel}">
       <DockPanel>
@@ -395,6 +406,7 @@
                             Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
             <DockPanel>
+              <Button x:Name="DismissRule" Style="{StaticResource DismissButton}" />
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Folder rule?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
@@ -424,6 +436,7 @@
                             Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
             <DockPanel>
+              <Button x:Name="DismissFolderCollection" Style="{StaticResource DismissButton}" />
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Collection?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
@@ -453,6 +466,7 @@
                             Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
             <DockPanel>
+              <Button x:Name="DismissSuggestion" Style="{StaticResource DismissButton}" />
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Add to collection?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
@@ -495,6 +509,7 @@
                             Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
             <DockPanel>
+              <Button x:Name="DismissParts" Style="{StaticResource DismissButton}" />
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="{Binding Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
@@ -595,6 +610,7 @@
                             Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
             <DockPanel>
+              <Button x:Name="DismissPack" Style="{StaticResource DismissButton}" />
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
                 <TextBlock Text="Image pack?" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>

@@ -116,6 +116,43 @@ public class OtherReviewCardTests
         Assert.Equal("The Sunken Bell and Ashes of Varn share a page.", card.Problem);
     }
 
+    public static TheoryData<string, string> Offers => new()
+    {
+        { "folder collection", "folder Never" },
+        { "collection suggestion", "suggestion Never" },
+        { "image pack", "pack Split" },
+        { "folder rule", "rule False" },
+        { "adventures", "not split" },
+    };
+
+    OfferCardViewModel Offer(string kind) => kind switch
+    {
+        "folder collection" => new FolderCollectionCardViewModel(new FolderCollectionProposal(new FolderKey(1, "Mill Road"), @"X:\Books", [new EntryId(1), new EntryId(2)]), _actions),
+        "collection suggestion" => new CollectionSuggestionCardViewModel(
+            new CollectionSuggestion(7, "Mill Road", [new SuggestedBook(new EntryId(3), "Ashes of Varn", 30)], Series: "Mill Road"), Values.Terms, _actions),
+        "image pack" => new PackCardViewModel(new PackProposal(new EntryId(4), new PackPlace(@"X:\Books", "Tokens", false, PackAnswer.Proposed), "Tokens", [41, 42], false), [], _actions),
+        "folder rule" => new FolderRuleCardViewModel(new FolderRuleInfo(5, new FolderKey(1, "Maps"), @"X:\Books", "system", "dnd5e", FolderRuleState.Proposed, 4,
+            new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc)), Values.Terms, _actions),
+        _ => Proposal(),
+    };
+
+    [Theory]
+    [MemberData(nameof(Offers))]
+    public async Task Closing_an_offer_gives_its_dont_ask_again_answer_and_Undo_brings_it_back(string kind, string answer)
+    {
+        var card = Offer(kind);
+
+        await card.DismissCommand.ExecuteAsync(null);
+
+        Assert.Equal([answer], _actions.Calls);
+        Assert.True(card.IsDone);
+
+        await card.UndoCommand.ExecuteAsync(null);
+
+        Assert.False(card.IsDone);
+        Assert.Equal(1, _actions.Undone);
+    }
+
     static RevisionPlace Place(PageCheck outcome, int page, string text) =>
         new(new PlacedPages(PlaceKind.SessionItem, page, new EntryId(3001), new PageRange(31, page, page), text, "Session 4"),
             new PageRefCheck(outcome, 32, page, page), null);

@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **Close a suggestion with its ×.** The Needs review cards that offer to make a collection, add books to one, make
+  an image pack, start a folder rule or give a file's adventures cards of their own now have a × in the corner. It
+  gives the card's "don't ask again" answer, so that suggestion stays closed after a restart or a rescan, while a new
+  one can still come. **Undo** brings it back.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.544 (15 October 2026):
