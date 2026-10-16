@@ -293,10 +293,13 @@ public sealed class CatalogDatabaseTests : IDisposable
             context.VocabularyTerms.AddRange(
                 Term("theme", "heist", "Heist", "caper"), Term("theme", "horror", "Horror"), Term("theme", "exploration", "Exploration", "hexcrawl", "sandbox"),
                 Term("theme", "mystery", "Mystery", "investigation", "whodunit"), Term("environment", "forest", "Forest", "jungle", "woods"));
-            var entry = new Entities.Entry { Kind = Core.EntryKind.Whole, CreatedUtc = now };
+            // Written as SQL, since today's Entry has columns this older schema doesn't.
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO entry (id, kind, created_utc, sync_id) VALUES (1, 'Whole', '2026-10-08 12:00:00', '6F1C2A9E-0B7D-4E52-9C1A-3D2B8E4F5A60')", ct);
+            const long entryId = 1;
             Entities.Assertion Theme(string key, Core.AssertionOrigin origin, Core.AssertionState state) => new()
             {
-                Entry = entry,
+                EntryId = entryId,
                 Field = "theme",
                 ValueJson = $"\"{key}\"",
                 NormalizedValue = key,
@@ -306,7 +309,7 @@ public sealed class CatalogDatabaseTests : IDisposable
             };
             context.Assertions.AddRange(
                 Theme("heist", Core.AssertionOrigin.Ai, Core.AssertionState.Provisional), Theme("horror", Core.AssertionOrigin.User, Core.AssertionState.Confirmed));
-            context.Rejections.Add(new Entities.Rejection { Entry = entry, Field = "theme", NormalizedValue = "exploration", CreatedUtc = now });
+            context.Rejections.Add(new Entities.Rejection { EntryId = entryId, Field = "theme", NormalizedValue = "exploration", CreatedUtc = now });
             context.IgnoredFolderLabels.Add(new Entities.IgnoredFolderLabel { Folder = "capers", Vocabulary = "theme", TermKey = "heist", CreatedUtc = now });
             context.SmartViews.Add(new Entities.SmartView { Name = "Capers", Definition = """{"query":"theme:heist level:3"}""", CreatedUtc = now, UpdatedUtc = now });
             context.Settings.Add(new Entities.Setting { Key = VocabularyStore.SeedVersionKey, Value = "2" });
