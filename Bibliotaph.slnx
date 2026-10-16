@@ -14,6 +14,7 @@
     <Project Path="src/Bibliotaph.Catalog/Bibliotaph.Catalog.csproj" />
     <Project Path="src/Bibliotaph.Classification/Bibliotaph.Classification.csproj" />
     <Project Path="src/Bibliotaph.Core/Bibliotaph.Core.csproj" />
+    <Project Path="src/Bibliotaph.Ebooks/Bibliotaph.Ebooks.csproj" />
     <Project Path="src/Bibliotaph.Index/Bibliotaph.Index.csproj" />
     <Project Path="src/Bibliotaph.Pdf.Contracts/Bibliotaph.Pdf.Contracts.csproj" />
     <Project Path="src/Bibliotaph.Pdf.Host/Bibliotaph.Pdf.Host.csproj" />
@@ -26,6 +27,7 @@
     <Project Path="tests/Bibliotaph.Catalog.Tests/Bibliotaph.Catalog.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Classification.Tests/Bibliotaph.Classification.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Core.Tests/Bibliotaph.Core.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Ebooks.Tests/Bibliotaph.Ebooks.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Index.Tests/Bibliotaph.Index.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Pdf.Host.TestHost/Bibliotaph.Pdf.Host.TestHost.csproj" />
     <Project Path="tests/Bibliotaph.Pdf.Host.Tests/Bibliotaph.Pdf.Host.Tests.csproj" />

@@ -552,13 +552,13 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     /// <summary>
     /// The pages a question to the library may read among the cards the library shows for <paramref name="filter"/> and
-    /// <paramref name="plan"/>: each PDF's pages, or an adventure's own pages in its file. Images, packs and books owned
+    /// <paramref name="plan"/>: each PDF's or e-book's pages, or an adventure's own pages in its file. Images, packs and books owned
     /// elsewhere have no pages to read. A file gives way to its found adventure as it does in the Library.
     /// </summary>
     public async Task<IReadOnlyList<PageSpan>> GetPageSpansAsync(LibraryFilter filter, SearchPlan plan, CancellationToken ct = default)
     {
         var where = new Where(filter, plan, titleAsFilter: true);
-        where.Parameters.Add("spanFormat", SourceFormats.Pdf);
+        where.Parameters.Add("spanFormats", JsonSerializer.Serialize(SourceFormats.Paged));
         var giveWay = filter.PartsInBooks && !plan.IsEmpty
             ? "WHERE NOT EXISTS (SELECT 1 FROM found c WHERE c.Kind = 'Part' AND c.ParentId = f.EntryId)"
             : "";
@@ -567,7 +567,7 @@ public sealed class LibraryQueries(IndexDatabase database)
                 SELECT e.entry_id AS EntryId, e.parent_id AS ParentId, e.document_id AS DocumentId, e.kind AS Kind,
                     e.first_page AS FirstPage, e.last_page AS LastPage
                 FROM {Entries}
-                WHERE {where.Sql} AND e.document_id IS NOT NULL AND e.kind <> 'Pack' AND d.format = @spanFormat)
+                WHERE {where.Sql} AND e.document_id IS NOT NULL AND e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@spanFormats)))
             SELECT f.DocumentId, f.Kind, f.FirstPage, f.LastPage FROM found f {giveWay}
             """;
         await using var connection = database.OpenRead();
@@ -868,7 +868,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             switch (filter.Kind)
             {
                 case KindFilter.Books:
-                    Add("e.kind <> 'Pack' AND d.format = @formatPdf", "formatPdf", SourceFormats.Pdf);
+                    Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@bookFormats))", "bookFormats", JsonSerializer.Serialize(SourceFormats.Paged));
                     break;
                 case KindFilter.Images:
                     Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@imageFormats))", "imageFormats", JsonSerializer.Serialize(SourceFormats.Images));

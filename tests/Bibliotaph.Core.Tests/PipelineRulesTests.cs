@@ -57,8 +57,18 @@ public class SourceFormatsTests
     [InlineData("map.JPG", "jpg")]
     [InlineData("handout.png", "png")]
     [InlineData("Harbor.WebP", "webp")]
+    [InlineData("Novel.EPUB", "epub")]
     [InlineData("notes.docx", null)]
     [InlineData("README", null)]
     public void Recognises_the_indexed_types(string name, string? expected) =>
         Assert.Equal(expected, SourceFormats.FromFileName(name));
+
+    [Fact]
+    public void An_EPUB_is_a_book_with_pages_and_never_a_ZIP_of_files()
+    {
+        Assert.True(SourceFormats.HasPages(SourceFormats.Epub));
+        Assert.True(SourceFormats.HasPages(SourceFormats.Pdf));
+        Assert.False(SourceFormats.HasPages(SourceFormats.Png));
+        Assert.False(SourceFormats.IsArchive("Novel.epub"));
+    }
 }

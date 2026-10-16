@@ -459,13 +459,13 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
                 var (rootId, folder, isArchive, _, _, _) = g.First();
                 var images = g.Where(l => SourceFormats.IsImage(l.Format)).DistinctBy(l => l.DocumentId)
                     .OrderBy(l => l.Name, NaturalOrder.Instance).Select(l => (l.DocumentId, l.Name)).ToList();
-                return new FolderGroup(rootId, folder, isArchive, images, g.Any(l => l.Format == SourceFormats.Pdf));
+                return new FolderGroup(rootId, folder, isArchive, images, g.Any(l => SourceFormats.HasPages(l.Format)));
             });
     }
 
     static (long, string) Key(long rootId, string folder) => (rootId, folder.ToUpperInvariant());
 
-    /// <summary>The files a pack would hold: its images, and whether PDFs sit beside them.</summary>
+    /// <summary>The files a pack would hold: its images, and whether books (PDFs or e-books) sit beside them.</summary>
     sealed record FolderGroup(long RootId, string Folder, bool IsArchive, List<(long DocumentId, string Name)> Images, bool HasPdf);
 
     /// <summary>Where a pack's images are, for the inspector; null for an entry that isn't a pack.</summary>

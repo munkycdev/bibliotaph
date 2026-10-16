@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows.Threading;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
@@ -40,7 +41,8 @@ static class ViewerMeasurement
         try
         {
             var visible = await library.GetVisibleEntryIdsAsync();
-            var pdfs = await Task.Run(() => queries.ListAsync(new LibraryFilter(visible, KindFilter.Books, LibrarySort.RecentlyAdded)));
+            var books = await Task.Run(() => queries.ListAsync(new LibraryFilter(visible, KindFilter.Books, LibrarySort.RecentlyAdded)));
+            var pdfs = books.Where(b => b.Format == SourceFormats.Pdf).ToList();
             Log.Information("Measuring the viewer on up to {Documents} of {Pdfs} PDFs, {Pages} pages each", MaxDocuments, pdfs.Count, PagesPerDocument);
 
             await using var renderer = new PdfRenderer(worker, Dispatcher.CurrentDispatcher);

@@ -424,7 +424,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
     public string Eyebrow => Item.IsPack ? HasPdfs ? "PACK" : "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
-        : Item.Entry.Format == SourceFormats.Pdf ? "PDF" : "IMAGE";
+        : SourceFormats.HasPages(Item.Entry.Format) ? LibraryItemViewModel.FormatName(Item.Entry.Format) : "IMAGE";
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -581,7 +581,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         // AI cataloguing isn't part of Reprocess and can wait for hours (AI off, a model server down), so only the
         // stages that read the file count.
         IsReprocessing = !entry.IsPack && details?.Stages.Any(s => Pipeline.FileStages.Contains(s.Stage) && s.Status is StageStatus.Pending or StageStatus.Running) == true;
-        PageCount = entry.Format == SourceFormats.Pdf ? entry.PageCount ?? 0 : 0;
+        PageCount = SourceFormats.HasPages(entry.Format) ? entry.PageCount ?? 0 : 0;
     }
 
     /// <summary>
@@ -632,7 +632,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
                 facts.Add(new("Password", "Needs a password to open. Open it to enter it; its text becomes searchable once it's unlocked."));
                 break;
             case TextAccess.Protected:
-                facts.Add(new("Protection", "A scheme Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default PDF app."));
+                facts.Add(new("Protection", "A scheme Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default app for the file."));
                 break;
         }
         // A file that forbids copying is still read for search; only copying text out stays off.

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- E-book files (EPUB) read from a stream: package, contents, text cut into pages, cover. No file I/O of its own. -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AngleSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bibliotaph.Ebooks.Tests" />
+  </ItemGroup>
+</Project>

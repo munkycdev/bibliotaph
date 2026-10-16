@@ -36,10 +36,10 @@ The first time Bibliotaph opens, Home says **Welcome to Bibliotaph**.
 
 1. Click **Add a folder** and pick a folder that holds RPG files. Pick the top folder: everything under it is
    included.
-2. Bibliotaph counts what's inside (PDFs, images, ZIPs) and shows it. Click **Add to library**.
+2. Bibliotaph counts what's inside (PDFs, e-books, images, ZIPs) and shows it. Click **Add to library**.
 3. Add more folders the same way. You can add or remove folders later in **Settings > Library**.
 
-Bibliotaph reads PDF, JPG, PNG and WebP files, including ones inside ZIPs, which are never unpacked next to
+Bibliotaph reads PDF, EPUB, JPG, PNG and WebP files, including ones inside ZIPs, which are never unpacked next to
 themselves. Folders on USB drives, network drives and OneDrive all work; see
 [OneDrive, drives and other PCs](onedrive-and-other-pcs.md).
 

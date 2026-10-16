@@ -84,8 +84,8 @@ Bibliotaph.
 
 ## What it does
 
-**Indexes what you have, where it is.** Add your folders and Bibliotaph reads every PDF, JPG, PNG and WebP in them,
-ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
+**Indexes what you have, where it is.** Add your folders and Bibliotaph reads every PDF, EPUB, JPG, PNG and WebP in
+them, ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
 network drives and OneDrive, and notices when files are added, moved or changed.
 
 **Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while

@@ -1,5 +1,14 @@
 # Changes
 
+## Unreleased
+
+- **EPUB books are read.** EPUB files in your library folders, and inside ZIPs, are indexed in place like PDFs: their
+  text is searchable page by page, the AI can catalogue them, and their own title, authors, publisher, description
+  and cover fill in the card. A book that marks its printed pages keeps those page numbers; otherwise Bibliotaph cuts
+  it into pages of about a printed page each, the same way every time. `format:epub` finds them. A DRM-protected
+  EPUB gets a card with its title and author and **Open in another app**. Bibliotaph's reader doesn't show e-books
+  yet, so opening one offers **Open in another app**.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.544 (15 October 2026):

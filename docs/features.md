@@ -6,7 +6,7 @@ What Bibliotaph does and why. For how it's built, see [architecture.md](architec
 
 Bibliotaph helps a game master find and use the RPG material they already own, without cataloging every file by hand or reorganizing their folders. The question it answers is: **"What do I own that would help me prepare or run this session?"**
 
-It is a Windows desktop library that indexes PDFs, maps and handouts where they already are, fills in useful RPG details by itself, and finds both books and the pages inside them. It works only while it is open, needs no server, and is fully usable without AI.
+It is a Windows desktop library that indexes PDFs, e-books, maps and handouts where they already are, fills in useful RPG details by itself, and finds both books and the pages inside them. It works only while it is open, needs no server, and is fully usable without AI.
 
 It is made for a game master with a large, mixed collection across several game systems and editions, who wants to prepare a game, track down a half-remembered passage, browse what they own, add a new bundle, run a session from prepared pages, and fix the odd mistake without becoming a full-time librarian.
 
@@ -152,7 +152,9 @@ A **Downloads** folder inside a library folder receives files the user downloads
 
 ## Files and processing
 
-Bibliotaph reads PDF, JPG, PNG and WebP files, including inside ZIPs, which are never unpacked. Files are known by their content: a moved or renamed file keeps its card and everything attached to it, and a deleted one stays, marked missing. A folder on an unplugged drive shows as offline and its books stay searchable; opening one names the drive, with **Try again**. Network folders are best effort.
+Bibliotaph reads PDF, EPUB, JPG, PNG and WebP files, including inside ZIPs, which are never unpacked. Files are known by their content: a moved or renamed file keeps its card and everything attached to it, and a deleted one stays, marked missing. A folder on an unplugged drive shows as offline and its books stay searchable; opening one names the drive, with **Try again**. Network folders are best effort.
+
+An EPUB is cut into pages so that search hits, AI evidence, notes and binders can point at a page: the book's printed pages when it marks them (its page list or page-break markers), else a new page at each chapter and about 2,500 characters a page, ended between paragraphs or before a heading. A fixed-layout EPUB has a page per spine item. The cut depends only on the file, so the same file always has the same pages. Its title, authors, publisher, subjects and description become suggestions as a PDF's own information does, its cover is the image the book names, and its contents are its bookmarks. A DRM-protected EPUB keeps a card with what its package says, with **Open in another app**; its text isn't read. The reader doesn't show e-books yet, so opening one offers **Open in another app**. `format:epub` and `format:ebook` find them, and the Books filter counts them as books.
 
 When a file's content changes, it becomes the new version of its book. Binder items and page notes follow their pages into it by the pages' text; one that can't be found opens at the same printed page marked "This page changed: check it", with **Use this page**. Bibliotaph never silently jumps to an unrelated page.
 
