@@ -22,7 +22,7 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
 {
     const int MaxHits = 2000;
 
-    Func<string, int, Task<IReadOnlyList<SearchHit>>>? _search;
+    Func<string, int, Task<IReadOnlyList<PageHighlight>>>? _search;
     long _documentId;
     // Moves on as a book opens or closes, so a find that finishes after it is dropped.
     int _version;
@@ -51,7 +51,11 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
 
     /// <summary>The marks on the pages: what Find found, or the words of the search the book was opened from.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsTerms))]
     public partial HighlightSet Highlights { get; private set; } = HighlightSet.None;
+
+    /// <summary>The marks are the words of the search the book was opened from, not what Find found.</summary>
+    public bool ShowsTerms => ReferenceEquals(Highlights.Items, _terms) && _terms.Count > 0;
 
     /// <summary>The pages Find looks in: the adventure's, unless the reader asked for the whole file.</summary>
     PartPages? Scope => WholeFile ? null : partPages();
@@ -60,7 +64,15 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
     /// A PDF is open: <paramref name="search"/> finds every match of some text in it, up to the number of matches
     /// given, in page order.
     /// </summary>
-    public void Attach(long documentId, Func<string, int, Task<IReadOnlyList<SearchHit>>> search)
+    public void Attach(long documentId, Func<string, int, Task<IReadOnlyList<SearchHit>>> search) =>
+        AttachMatches(documentId, async (text, most) =>
+            [.. (await search(text, most)).Where(h => h.Rects.Count > 0).Select(h => new PageHighlight(h.PageIndex, [.. h.Rects.Select(PdfRenderer.ToPageRect)]))]);
+
+    /// <summary>
+    /// A book is open whose matches are known by their page alone, as an e-book's are: its page shows where on the
+    /// page each one is.
+    /// </summary>
+    public void AttachMatches(long documentId, Func<string, int, Task<IReadOnlyList<PageHighlight>>> search)
     {
         _version++;
         _documentId = documentId;
@@ -191,7 +203,7 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
         if (_search is not { } search) return false;
         Status = "Searching…";
         var version = _version;
-        IReadOnlyList<SearchHit> hits;
+        IReadOnlyList<PageHighlight> hits;
         try
         {
             hits = await search(text, MaxHits);
@@ -206,7 +218,7 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
         }
         if (version != _version) return false;
         _found = text;
-        _hits = [.. hits.Where(h => h.Rects.Count > 0).Select(h => new PageHighlight(h.PageIndex, [.. h.Rects.Select(PdfRenderer.ToPageRect)]))];
+        _hits = hits;
         return true;
     }
 
@@ -217,6 +229,6 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
         Highlights = new HighlightSet(_hits, index);
         var count = _hits.Count.ToString("N0", CultureInfo.CurrentCulture);
         Status = $"{(index + 1).ToString("N0", CultureInfo.CurrentCulture)} of {count}{(_hits.Count >= MaxHits ? "+" : "")}";
-        goTo(hit.PageIndex, hit.Rects[0].Top);
+        goTo(hit.PageIndex, hit.Rects.Count > 0 ? hit.Rects[0].Top : null);
     }
 }

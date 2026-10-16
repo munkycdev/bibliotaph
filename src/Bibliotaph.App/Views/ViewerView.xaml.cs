@@ -12,7 +12,8 @@ namespace Bibliotaph.App.Views;
 /// <summary>
 /// Connects the page surface, which is driven by calls rather than bindings, to the viewer's view model: it loads the
 /// open PDF, shows the highlights, scrolls where the model asks and reports the page in view. It draws a book opened
-/// ahead of time at the size the pages show at, and tells the thumbnail strip which thumbnails are in view.
+/// ahead of time at the size the pages show at, and tells the thumbnail strip which thumbnails are in view. An
+/// e-book's page surface is driven the same way.
 /// </summary>
 public partial class ViewerView
 {
@@ -20,6 +21,7 @@ public partial class ViewerView
     PageStripViewModel? _strip;
     FindViewModel? _find;
     OpenPdf? _shown;
+    OpenEbook? _shownEbook;
     ScrollViewer? _stripScroll;
     bool _drawQueued;
 
@@ -29,6 +31,21 @@ public partial class ViewerView
         PagesView.CurrentPageChanged += (_, _) => _model?.CurrentPageIndex = PagesView.CurrentPageIndex;
         PagesView.Notice += (_, text) => _model?.ShowNotice(text);
         PagesView.LinkClicked += (_, link) => _model?.FollowLink(link);
+        EbookSurface.CurrentPageChanged += (_, page) =>
+        {
+            if (_model is { IsEbook: true } model) model.CurrentPageIndex = page;
+        };
+        EbookSurface.LinkFollowed += (_, from) => _model?.LinkFollowed(from);
+        EbookSurface.WebLinkClicked += (_, address) => _model?.FollowLink(new Bibliotaph.Viewer.PageLink(default, -1, null, address));
+        EbookSurface.ZoomRequested += (_, step) => _model?.StepEbookZoom(step);
+        EbookSurface.Failed += (_, message) => _model?.ShowEbookProblem(message);
+        EbookSurface.KeyPressed += (_, key) =>
+        {
+            if (_model is not { IsEbook: true } model) return;
+            if (key == "find") FocusFind();
+            else if (key == "next") model.Find.NextCommand.Execute(null);
+            else if (key == "previous") model.Find.PreviousCommand.Execute(null);
+        };
         DataContextChanged += (_, _) => Attach(DataContext as ViewerViewModel);
         Loaded += (_, _) => Attach(DataContext as ViewerViewModel);
         Unloaded += (_, _) => Attach(null);
@@ -45,6 +62,8 @@ public partial class ViewerView
             _model.PropertyChanged -= OnModelChanged;
             _model.GoToRequested -= OnGoToRequested;
             _model.DrawAhead = null;
+            _model.EbookFind = null;
+            _model.EbookTerms = null;
         }
         _strip?.PropertyChanged -= OnStripChanged;
         _find?.PropertyChanged -= OnFindChanged;
@@ -54,14 +73,19 @@ public partial class ViewerView
         if (model is null)
         {
             ShowPdf(null);
+            ShowEbook(null);
             return;
         }
         model.PropertyChanged += OnModelChanged;
         model.GoToRequested += OnGoToRequested;
         model.DrawAhead = (renderer, doc, page) => PagesView.PrerenderAsync(renderer, doc, page);
+        model.EbookFind = EbookSurface.FindAsync;
+        model.EbookTerms = EbookSurface.MarkTermsAsync;
+        EbookSurface.Browser = model.EbookBrowser;
         _strip!.PropertyChanged += OnStripChanged;
         _find!.PropertyChanged += OnFindChanged;
         ShowPdf(model.Pdf);
+        ShowEbook(model.Ebook);
         ShowHighlights();
         KeepCurrentThumbnailInView();
     }
@@ -73,6 +97,12 @@ public partial class ViewerView
             case nameof(ViewerViewModel.Pdf):
                 ShowPdf(_model?.Pdf);
                 break;
+            case nameof(ViewerViewModel.Ebook):
+                ShowEbook(_model?.Ebook);
+                break;
+            case nameof(ViewerViewModel.Zoom) when _model is { IsEbook: true }:
+                ZoomEbook();
+                break;
             case nameof(ViewerViewModel.IsPdf) when _model?.IsPdf == true:
                 // The pages take keyboard focus once they're shown, so Ctrl+A and the arrow keys work straight away.
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PagesView.Focus());
@@ -82,7 +112,7 @@ public partial class ViewerView
                 // Opening Ask is for typing a question.
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => AskBox.Focus());
                 break;
-            case nameof(ViewerViewModel.IsPdf) or nameof(ViewerViewModel.IsImage):
+            case nameof(ViewerViewModel.IsPdf) or nameof(ViewerViewModel.IsImage) or nameof(ViewerViewModel.IsEbook):
                 // The zoom buttons and keys follow what's open.
                 CommandManager.InvalidateRequerySuggested();
                 break;
@@ -167,19 +197,52 @@ public partial class ViewerView
         else PagesView.Load(pdf.Renderer, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop, pdf.Seed, pdf.Numbering);
     }
 
-    void ShowHighlights()
+    void ShowEbook(OpenEbook? ebook)
     {
-        if (_find?.Highlights is { } highlights) PagesView.ShowHighlights(highlights.Items, highlights.Current);
+        if (ReferenceEquals(_shownEbook, ebook)) return;
+        _shownEbook = ebook;
+        if (ebook is null) EbookSurface.Unload();
+        else
+        {
+            ZoomEbook();
+            EbookSurface.Show(ebook.Content, ebook.PageIndex);
+        }
     }
 
-    void OnGoToRequested(object? sender, PageTarget target) => PagesView.GoToPage(target.PageIndex, target.PdfTop);
+    void ZoomEbook()
+    {
+        if (_model is not { } model) return;
+        EbookSurface.SetZoom(model.Zoom > 0 ? model.Zoom : 1, fitPage: model.Zoom == Bibliotaph.Viewer.PdfPagesView.FitPage);
+    }
+
+    void ShowHighlights()
+    {
+        if (_find?.Highlights is not { } highlights) return;
+        // An e-book's page keeps the matches it found; it is told which list to mark and which match stands out.
+        if (_shownEbook is not null) EbookSurface.ShowMatches(highlights.Items.Count == 0 ? null : _find!.ShowsTerms ? "terms" : "find", highlights.Current);
+        else PagesView.ShowHighlights(highlights.Items, highlights.Current);
+    }
+
+    void OnGoToRequested(object? sender, PageTarget target)
+    {
+        if (_model?.IsEbook == true || _shownEbook is not null) EbookSurface.GoTo(target.PageIndex);
+        else PagesView.GoToPage(target.PageIndex, target.PdfTop);
+    }
+
+    void FocusFind()
+    {
+        FindBox.Focus();
+        FindBox.SelectAll();
+    }
+
+    /// <summary>The page with selected text on it, on whichever surface shows the book.</summary>
+    int? SelectionPage => _model?.IsEbook == true ? EbookSurface.SelectionPageIndex : PagesView.SelectionPageIndex;
 
     void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control && _model?.IsPdf == true)
+        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control && _model?.HasPages == true)
         {
-            FindBox.Focus();
-            FindBox.SelectAll();
+            FocusFind();
             e.Handled = true;
         }
         // In a pack, the arrow keys step through its images, ahead of the image's scroll bars.
@@ -197,9 +260,10 @@ public partial class ViewerView
     {
         if (_model?.IsPdf == true) PagesView.StepZoom(up);
         else if (_model?.IsImage == true) ImageSurface.StepZoom(up);
+        else _model?.StepEbookZoom(up ? 1 : -1);
     }
 
-    void CanZoom(object sender, CanExecuteRoutedEventArgs e) => e.CanExecute = _model is { IsPdf: true } or { IsImage: true };
+    void CanZoom(object sender, CanExecuteRoutedEventArgs e) => e.CanExecute = _model is { IsPdf: true } or { IsImage: true } or { IsEbook: true };
 
     void PageBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => PageBox.SelectAll();
 
@@ -209,7 +273,7 @@ public partial class ViewerView
     void AddPageMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { ContextMenu: { } menu } button) return;
-        _selectionPage = PagesView.SelectionPageIndex;
+        _selectionPage = SelectionPage;
         menu.PlacementTarget = button;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
@@ -218,7 +282,7 @@ public partial class ViewerView
     void AddPages_Click(object sender, RoutedEventArgs e) => _model?.AddPagesCommand.Execute(_selectionPage);
 
     /// <summary>Note: on the page with selected text, if there is a selection, else the page in view.</summary>
-    void AddNote_Click(object sender, RoutedEventArgs e) => _model?.Notes.AddCommand.Execute(PagesView.SelectionPageIndex);
+    void AddNote_Click(object sender, RoutedEventArgs e) => _model?.Notes.AddCommand.Execute(SelectionPage);
 
     /// <summary>A bookmark's Index as its own adventure: the menu's row is the bookmark.</summary>
     void IndexBookmark_Click(object sender, RoutedEventArgs e) => _model?.IndexBookmarkCommand.Execute((sender as FrameworkElement)?.DataContext as OutlineEntry);

@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
     <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
     <ProjectReference Include="..\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Ebooks\Bibliotaph.Ebooks.csproj" />
     <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Contracts\Bibliotaph.Pdf.Contracts.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
@@ -44,6 +45,8 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
+    <!-- The e-book reader page's own stylesheet and script, served to it from memory. -->
+    <EmbeddedResource Include="Assets\Ebook\*" LogicalName="Bibliotaph.App.Ebook.%(Filename)%(Extension)" />
     <Resource Include="Assets\Bibliotaph.ico" />
     <!-- Link, not LinkBase: LinkBase applies only to files outside the project folder, so these landed in Fonts\. -->
     <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\fonts\%(Filename)%(Extension)" />

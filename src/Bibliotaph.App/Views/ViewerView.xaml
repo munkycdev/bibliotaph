@@ -102,11 +102,11 @@
         <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
                 Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"
                 AutomationProperties.Name="Mark pages as an adventure"
-                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <!-- Note (slice 3f): a note on the page in view, or on the page with selected text. -->
         <Button x:Name="AddNote" Content="Note" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Click="AddNote_Click"
                 ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
-                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <Button x:Name="AddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add page" c:Ui.Icon="{StaticResource Icon.Plus}"
                 Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current binder"
                 AutomationProperties.Name="Add page to binder" />
@@ -134,22 +134,24 @@
         Find comes last: on a wide window it sits at the end of the one row.
       -->
       <WrapPanel Margin="0,0,0,-4">
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <StackPanel Orientation="Horizontal" Visibility="{Binding HasOutline, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.List}" ToolTip="Show or hide the contents"
                     AutomationProperties.Name="Contents" Command="{Binding ToggleOutlineCommand}" />
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
-          <!-- Page thumbnails along the bottom of the pages; hidden at launch, then kept as last left for the sitting. -->
-          <Button x:Name="ToggleStrip" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelBottom}" c:Ui.IsActive="{Binding ShowStrip}"
-                  ToolTip="{Binding StripAction}" AutomationProperties.Name="Page thumbnails" Command="{Binding ToggleStripCommand}" />
-          <Border Style="{StaticResource Divider}" />
+          <!-- Page thumbnails along the bottom of the pages; hidden at launch, then kept as last left for the sitting. A PDF's only. -->
+          <StackPanel Orientation="Horizontal" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <Button x:Name="ToggleStrip" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.PanelBottom}" c:Ui.IsActive="{Binding ShowStrip}"
+                    ToolTip="{Binding StripAction}" AutomationProperties.Name="Page thumbnails" Command="{Binding ToggleStripCommand}" />
+            <Border Style="{StaticResource Divider}" />
+          </StackPanel>
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page"
                   AutomationProperties.Name="Previous page" Command="{Binding PreviousPageCommand}" />
           <TextBlock Text="Page" FontSize="11" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" Margin="6,0" />
           <TextBox x:Name="PageBox" Style="{StaticResource ToolBox}" Width="54" HorizontalContentAlignment="Center"
                    Text="{Binding PageEntry, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Page"
-                   ToolTip="A printed page number, or a PDF page number" GotKeyboardFocus="PageBox_GotKeyboardFocus">
+                   ToolTip="A printed page number, or the page's place in the book" GotKeyboardFocus="PageBox_GotKeyboardFocus">
             <TextBox.InputBindings>
               <KeyBinding Key="Enter" Command="{Binding GoToPageCommand}" />
             </TextBox.InputBindings>
@@ -166,7 +168,7 @@
                   Visibility="{Binding HasLinkBack, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding Notes.Label}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                   Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
           <Border Style="{StaticResource Divider}" />
@@ -193,7 +195,7 @@
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                   <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsPdf}" Value="True" />
+                    <Condition Binding="{Binding HasPages}" Value="True" />
                     <Condition Binding="{Binding IsInPack}" Value="True" />
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
@@ -233,7 +235,7 @@
                   Visibility="{Binding ShowsReturn, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
         <!-- Find in book; what it found follows, and wraps on its own. -->
-        <StackPanel Orientation="Horizontal" Margin="6,0,0,4" Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <StackPanel Orientation="Horizontal" Margin="6,0,0,4" Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <TextBox x:Name="FindBox" Style="{StaticResource ToolBox}" Width="180" Tag="Find in this book (Ctrl+F)"
                    Text="{Binding Find.Query, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Find in this book">
             <TextBox.InputBindings>
@@ -251,8 +253,8 @@
                     VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Find in the whole file, not only this adventure's pages"
                     Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
-        <TextBlock Text="{Binding Find.Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="8,0,0,4"
-                   Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock x:Name="FindStatus" Text="{Binding Find.Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="8,0,0,4"
+                   Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
       </WrapPanel>
     </Border>
 
@@ -319,7 +321,7 @@
                 <MultiDataTrigger>
                   <MultiDataTrigger.Conditions>
                     <Condition Binding="{Binding DataContext.AskVisible, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                    <Condition Binding="{Binding DataContext.IsPdf, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                    <Condition Binding="{Binding DataContext.HasPages, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
                     <Condition Binding="{Binding IsOn}" Value="True" />
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
@@ -414,7 +416,7 @@
                 <MultiDataTrigger>
                   <MultiDataTrigger.Conditions>
                     <Condition Binding="{Binding NotesVisible}" Value="True" />
-                    <Condition Binding="{Binding IsPdf}" Value="True" />
+                    <Condition Binding="{Binding HasPages}" Value="True" />
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
                 </MultiDataTrigger>
@@ -527,6 +529,8 @@
         <Grid>
           <viewer:PdfPagesView x:Name="PagesView" Zoom="{Binding Zoom}" CanCopy="{Binding CanCopy}"
                                Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <!-- An e-book's reader page: its text and pictures in a column, its pages marked in it. -->
+          <v:EbookView x:Name="EbookSurface" Visibility="{Binding IsEbook, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <viewer:ImageView x:Name="ImageSurface" Source="{Binding Image}" Zoom="{Binding Zoom}"
                             Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"

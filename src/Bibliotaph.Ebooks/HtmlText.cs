@@ -146,10 +146,25 @@ public static partial class HtmlText
     [GeneratedRegex(@"[ \t\f\v ]+")]
     private static partial Regex InlineSpaces();
 
-    sealed class Walker
+    /// <summary>
+    /// The text nodes each block's text came from, in order, read the same way as <see cref="Read"/> reads the blocks:
+    /// so the reader can find where a page starts in the chapter as it shows it.
+    /// </summary>
+    internal static (List<HtmlBlock> Blocks, List<List<IText>> Sources) Sources(IHtmlDocument document)
+    {
+        var walker = new Walker(track: true);
+        walker.Walk(document.Body ?? (INode?)document.DocumentElement, 0);
+        walker.Flush(heading: false);
+        return (walker.Blocks, walker.Sources!);
+    }
+
+    sealed class Walker(bool track = false)
     {
         readonly StringBuilder _text = new();
+        readonly List<IText>? _pending = track ? [] : null;
         int _pre;
+
+        public List<List<IText>>? Sources { get; } = track ? [] : null;
 
         public List<HtmlBlock> Blocks { get; } = [];
 
@@ -166,6 +181,7 @@ public static partial class HtmlText
                 {
                     case IText text:
                         Append(text.Data);
+                        _pending?.Add(text);
                         break;
                     case IElement element:
                         Visit(element, depth + 1);
@@ -224,11 +240,20 @@ public static partial class HtmlText
 
         public void Flush(bool heading)
         {
-            if (_text.Length == 0) return;
+            if (_text.Length == 0)
+            {
+                _pending?.Clear();
+                return;
+            }
             var lines = _text.ToString().Split('\n').Select(l => InlineSpaces().Replace(l, " ").Trim()).Where(l => l.Length > 0);
             var text = string.Join('\n', lines);
             _text.Clear();
-            if (text.Length > 0) Blocks.Add(new HtmlBlock(text, heading));
+            if (text.Length > 0)
+            {
+                Blocks.Add(new HtmlBlock(text, heading));
+                Sources?.Add([.. _pending!]);
+            }
+            _pending?.Clear();
         }
     }
 }

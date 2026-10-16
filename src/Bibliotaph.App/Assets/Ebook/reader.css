@@ -1,0 +1,142 @@
+/* The e-book reader's page: the book's text and pictures in Bibliotaph's colours, in a column easy to read. The
+   book's own stylesheets are left out (a fixed-layout book's pages keep theirs, in their frames). The colours come
+   from the app's theme, set as variables before this. */
+html {
+  background: var(--bt-side);
+  scroll-padding-top: 16px;
+}
+
+body {
+  margin: 0;
+  background: var(--bt-side);
+  color: var(--bt-text);
+  font: 17px/1.6 Georgia, "Times New Roman", serif;
+  overflow-wrap: break-word;
+}
+
+body:not(.bt-shown) #bt-book {
+  visibility: hidden;
+}
+
+#bt-book {
+  box-sizing: border-box;
+  max-width: 44em;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 44px 72px;
+  background: var(--bt-bg);
+}
+
+/* A chapter out of view isn't drawn until it comes near, so a long book scrolls as quickly as a short one. */
+section.bt-chapter {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1200px;
+}
+
+section.bt-chapter + section.bt-chapter {
+  margin-top: 2.5em;
+  padding-top: 2em;
+  border-top: 1px solid var(--bt-line);
+}
+
+body.bt-fixed #bt-book {
+  max-width: none;
+  padding: 16px;
+  background: none;
+}
+
+body.bt-fixed section.bt-chapter {
+  content-visibility: visible;
+  margin: 0 auto 16px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+}
+
+iframe.bt-sheet {
+  display: block;
+  border: 0;
+  background: #fff;
+  transform-origin: 0 0;
+}
+
+bt-page {
+  display: inline;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  line-height: 1.25;
+  margin: 1.4em 0 0.6em;
+}
+
+p {
+  margin: 0 0 0.9em;
+}
+
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+}
+
+svg {
+  max-height: 90vh;
+}
+
+figure {
+  margin: 1.2em 0;
+}
+
+figcaption {
+  color: var(--bt-muted);
+  font-size: 0.9em;
+}
+
+a {
+  color: var(--bt-accent);
+}
+
+blockquote {
+  margin: 1em 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--bt-line);
+}
+
+pre {
+  white-space: pre-wrap;
+  font-size: 0.9em;
+}
+
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.92em;
+}
+
+td, th {
+  padding: 0.3em 0.55em;
+  border: 1px solid var(--bt-line);
+  vertical-align: top;
+  text-align: left;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--bt-line);
+}
+
+::selection {
+  background: var(--bt-accent);
+  color: var(--bt-accent-text);
+}
+
+::highlight(bt-hit) {
+  background-color: var(--bt-hit);
+}
+
+::highlight(bt-current) {
+  background-color: var(--bt-accent);
+  color: var(--bt-accent-text);
+}

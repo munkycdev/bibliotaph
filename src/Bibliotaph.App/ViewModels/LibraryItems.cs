@@ -98,7 +98,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     }
 
     /// <summary>A PDF whose text Bibliotaph can read, so it can be asked a question.</summary>
-    public bool CanAsk => CanOpen && !Entry.IsPack && string.Equals(Entry.Format, "pdf", StringComparison.OrdinalIgnoreCase) && TextAccess == TextAccess.Readable;
+    public bool CanAsk => CanOpen && !Entry.IsPack && SourceFormats.HasPages(Entry.Format) && TextAccess == TextAccess.Readable;
 
     public string Title => Entry.Title;
 
