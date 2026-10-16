@@ -28,7 +28,7 @@ year, setting, themes and environments.
   [Reading](reading.md#ask-this-book).
 - **It answers questions from your whole library**, citing the book and page of each claim. See
   [Searching](searching.md#ask-your-library-a-question).
-- **Book text can't give it orders.** Text in a PDF is treated as text to read, never as instructions, and an answer
+- **Book text can't give it orders.** Text in a book is treated as text to read, never as instructions, and an answer
   can only fill in suggestions.
 
 ## What it sends, and where
@@ -88,8 +88,8 @@ Cataloging reads only a few pages of each book. With **Scan whole books** on (in
 it off), the AI then goes back and reads every page, a few chapters at a time, and notes the setting, environments,
 themes and creatures in each chapter, with the pages they're on.
 
-- **Chapters come from the book.** Bibliotaph uses the PDF's bookmarks, else its printed contents page, else runs of
-  about 25 pages. Long chapters are read in parts.
+- **Chapters come from the book.** Bibliotaph uses the book's bookmarks (an e-book's contents), else its printed
+  contents page, else runs of about 25 pages. Long chapters are read in parts.
 - **It waits its turn.** It starts only after a book is catalogued, and stops the moment you use the AI for anything
   else (cataloging, **Ask**, **Ask this book**), carrying on half a minute after you've finished. Closing Bibliotaph
   doesn't lose its place.

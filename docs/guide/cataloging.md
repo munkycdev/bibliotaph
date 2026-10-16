@@ -8,8 +8,8 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 ## Where suggestions come from
 
 - **Folder and file names**: a folder called "Adventures" or "D&D 5e" suggests the type or system of the books in it.
-- **The file itself**: the title, author and other details a PDF carries, and party sizes and levels in the file
-  name.
+- **The file itself**: the title, author and other details a PDF or e-book carries (an e-book's description and
+  cover too), and party sizes and levels in the file name.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
   the page it came from, or it's thrown away. See [AI](ai.md).
 - **You**: anything you type, accept or reject.
