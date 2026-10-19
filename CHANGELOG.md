@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased
+## 1.3 · 19 October 2026
+
+New in 1.3.590 (19 October 2026):
 
 - **See each file in a pack.** Two new buttons beside covers and list switch the Library between showing each pack as
   one card (as before) and showing every image and PDF inside packs on a card of its own. A file's card says which
