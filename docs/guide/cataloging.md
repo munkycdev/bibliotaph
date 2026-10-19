@@ -150,7 +150,8 @@ pack in the reader, click the picture button at the top. The file you chose is m
 leaves the pack, the card shows the mosaic again.
 
 A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
-the pack's card.
+the pack's card. To see the files in packs on cards of their own, click **Each file** in the Library's toolbar (see
+[Searching](searching.md)); the packs stay packs.
 
 ## Adventures inside a file
 

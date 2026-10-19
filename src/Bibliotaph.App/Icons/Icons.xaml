@@ -60,4 +60,6 @@
   <Geometry x:Key="Icon.PanelBottom">M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z M 3 15 h 18</Geometry>
   <Geometry x:Key="Icon.Cloud">M 17.5 19 H 9 a 7 7 0 1 1 6.71 -9 h 1.79 a 4.5 4.5 0 1 1 0 9 Z</Geometry>
   <Geometry x:Key="Icon.PanelLeft">M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z M 9 3 v 18</Geometry>
+  <Geometry x:Key="Icon.Package">M 11 21.73 a 2 2 0 0 0 2 0 l 7 -4 A 2 2 0 0 0 21 16 V 8 a 2 2 0 0 0 -1 -1.73 l -7 -4 a 2 2 0 0 0 -2 0 l -7 4 A 2 2 0 0 0 3 8 v 8 a 2 2 0 0 0 1 1.73 Z M 12 22 V 12 M 3.29 7 L 12 12 L 20.71 7 M 7.5 4.27 l 9 5.15</Geometry>
+  <Geometry x:Key="Icon.Files">M 15 2 h -4 a 2 2 0 0 0 -2 2 v 11 a 2 2 0 0 0 2 2 h 8 a 2 2 0 0 0 2 -2 V 8 M 16.706 2.706 A 2.4 2.4 0 0 0 15 2 v 5 a 1 1 0 0 0 1 1 h 5 a 2.4 2.4 0 0 0 -0.706 -1.706 Z M 5 7 a 2 2 0 0 0 -2 2 v 11 a 2 2 0 0 0 2 2 h 8 a 2 2 0 0 0 1.732 -1</Geometry>
 </ResourceDictionary>

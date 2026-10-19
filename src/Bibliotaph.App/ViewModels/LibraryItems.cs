@@ -106,8 +106,24 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
     /// read" until its text is searchable, or why it won't be by itself. A pack a search found by one of its images
     /// names that image. An adventure inside a file says which file and pages; a file holding adventures says how many.
+    /// A file in a pack on a card of its own says which pack.
     /// </summary>
-    public string Meta => Entry.MatchedMember ?? Entry.PartLine ?? (Catalogued ?? Describe(Entry)) + PartsNote + TextNote;
+    public string Meta => Entry.MatchedMember ?? Entry.PartLine ?? PackLine ?? (Catalogued ?? Describe(Entry)) + PartsNote + TextNote;
+
+    /// <summary>"in Dungeon Maps", for a file in a pack on a card of its own; null for any other card.</summary>
+    public string? PackLine => IsPackFile ? $"in {Entry.PackTitle ?? "its pack"}" : null;
+
+    /// <summary>
+    /// A file in a pack on a card of its own, while the Library shows each file: it opens in its pack, and its details,
+    /// marks and collections are its pack's.
+    /// </summary>
+    public bool IsPackFile => Entry.IsPackFile;
+
+    /// <summary>A pack's card, or one of its files' own: either way what Select mode ticks, joins or packs is the pack.</summary>
+    public bool StandsForPack => IsPack || IsPackFile;
+
+    /// <summary>The pack's title, for a pack's card or one of its files' own.</summary>
+    public string PackName => Entry.PackTitle ?? Title;
 
     string PartsNote => PartsLabel.Length > 0 ? $" · {PartsLabel}" : "";
 
@@ -164,10 +180,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>DRM Bibliotaph can't open: the file can go to the default PDF app instead.</summary>
     public bool CanOpenElsewhere => TextAccess == TextAccess.Protected;
 
-    /// <summary>A book's text can be forgotten unless it already is; a pack's images have none to forget.</summary>
-    public bool CanForgetText => !IsElsewhere && !IsPack && TextAccess != TextAccess.Forgotten;
+    /// <summary>
+    /// A book's text can be forgotten unless it already is; a pack's images have none to forget, and a file in a pack
+    /// on a card of its own leaves that to its pack.
+    /// </summary>
+    public bool CanForgetText => !IsElsewhere && !IsPack && !IsPackFile && TextAccess != TextAccess.Forgotten;
 
-    public bool CanReadAgain => TextAccess == TextAccess.Forgotten;
+    public bool CanReadAgain => TextAccess == TextAccess.Forgotten && !IsPackFile;
 
     string? Catalogued => Entry.System is null && Entry.Kind is null ? null : string.Join(" · ", new[] { Entry.System, Entry.Kind }.OfType<string>());
 
@@ -185,7 +204,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// The publisher, or the folders when there isn't one, under the title in the list; for a pack a search found by an
     /// image, that image's name.
     /// </summary>
-    public string Byline => Entry.MatchedMember ?? Entry.PartLine ?? Entry.Publisher ?? Entry.FolderHint ?? "";
+    public string Byline => Entry.MatchedMember ?? Entry.PartLine ?? PackLine ?? Entry.Publisher ?? Entry.FolderHint ?? "";
 
     /// <summary>
     /// Pages for a PDF, the format for an image, "120 images" for a pack ("6 files" with PDFs in it), "Print · Foundry

@@ -99,6 +99,9 @@ public static class SettingKeys
     /// <summary>The Library's order while searching: a <c>LibrarySort</c> name. Absent for Best match.</summary>
     public const string LibrarySearchSort = "library.search-sort";
 
+    /// <summary>"files" while the Library shows each file in a pack on a card of its own; "packs", or absent, for a card per pack.</summary>
+    public const string LibraryPackView = "library.pack-view";
+
     /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
     public const string SidebarCollapsed = "sidebar-collapsed";
 

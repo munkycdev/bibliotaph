@@ -140,6 +140,15 @@ The toolbar also has the order (**Best match**, **Recently added**, **Recently o
 closes: one for browsing and one for searching, since **Best match** only makes sense with a search. A saved search
 opens in its own order.
 
+Beside them, **Packs** and **Each file** choose how packs show. **Packs**, the usual way, gives each map or image pack
+one card. **Each file** gives every image and PDF inside a pack a card of its own, so you can browse a pack's maps
+among everything else or search for one handout by its name. A file's card says which pack it's in ("in Dungeon
+Tiles"), and opening it opens the pack at that file, so the arrows still step through the rest. Filters and searches
+treat a file as its pack: a search for the pack's name finds all its files, one for a file's name finds only that
+file, and **Kind: Packs** shows the files that are in packs. Its pages are found under its own card. Its details,
+heart, collections and **Select** mode are the pack's, while **Add to binder** adds just that file. The choice is
+remembered, for browsing and searching alike.
+
 ## Saved searches
 
 When you've got a search, filter or order you'll want again, click **Save search** and give it a name. It keeps the
