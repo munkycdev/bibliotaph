@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- **One Add button in the Library.** **Owned elsewhere** and **Check a download** are now one **Add** button, styled
+  like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhere…**, **Import from an
+  online library…** and **Check a download…**, which work as before.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.573 (15 October 2026):
