@@ -24,6 +24,10 @@ jobs:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with
+      # dotnet-quality ga then.
+      DOTNET_SDK: '11.0.100-rc.2.26504.105'
+      DOTNET_INSTALL_DIR: D:\dotnet
 
     steps:
       # Real-time scanning inspects every file restore, build and the tests write, which costs minutes on a hosted
@@ -34,11 +38,16 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with
-      # dotnet-quality ga then.
+      # The runner image has no .NET 11, and downloading it took about 40 seconds a run. The SDK lives in its own folder
+      # so it can be cached; setup-dotnet finds it there and only puts it on the path.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.DOTNET_INSTALL_DIR }}
+          key: dotnet-${{ runner.os }}-${{ env.DOTNET_SDK }}
+
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '11.0.100-rc.2.26504.105'
+          dotnet-version: ${{ env.DOTNET_SDK }}
 
       - uses: actions/cache@v4
         with:

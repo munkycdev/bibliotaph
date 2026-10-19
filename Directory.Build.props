@@ -34,4 +34,13 @@
     -->
     <Version>1.2.0</Version>
   </PropertyGroup>
+  <!--
+    WPF compiles a XAML project twice: a throwaway assembly so the markup compiler can see the project's own types, then
+    the real one. Analyzers on the throwaway pass repeat what the real pass reports and cost the App about ten seconds.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <RunAnalyzers>false</RunAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
 </Project>
