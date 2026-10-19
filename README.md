@@ -17,7 +17,7 @@ handouts spread over folders, and you keep thinking "I own something for this, b
   levels, quoting the page it found them on. Bibliotaph can download and run one itself (Qwen3, Llama 3.1, Mistral and
   others, or a model file you already have), or use Ollama, LM Studio or another model server you already have. Without it, everything else still works.
 
-This is version 1.2. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
+This is version 1.3. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
 
 <p align="center">
   <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
