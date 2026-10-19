@@ -33,7 +33,7 @@ static partial class SmokeTest
         navigation.NavigateTo(Route.Library);
         await Settle(window);
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library route didn't open the Library.");
-        await ChooseAsync(window, "OwnedElsewhere", library.OpenOnlineLibrariesCommand, "Import from an online library");
+        await ChooseAsync(window, "AddMenu", library.OpenOnlineLibrariesCommand, "Import from an online library");
         var page = (OnlineLibrariesViewModel)(await ExpectSettingsAsync(window, shell, SettingsSection.OnlineLibraries, "The Library's Import from an online library")).Selected;
         // How books owned online show and open is here, not in Settings > Library, so everything online is in one place.
         await Settle(window);

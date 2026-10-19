@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **One Add button in the Library.** **Owned elsewhere** and **Check a download** are now one **Add** button, styled
+  like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhere…**, **Import from an
+  online library…** and **Check a download…**, which work as before.
 - The Library's **Select** button shows a stack of ticked boxes instead of a plain tick, so it reads as choosing
   several books.
 

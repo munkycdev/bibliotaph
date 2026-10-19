@@ -25,7 +25,7 @@ library as books owned elsewhere, so they turn up in searches, collections and b
 
 ## Import your library
 
-1. In the Library, click **Owned elsewhere** and choose **Import from an online library…**. It opens
+1. In the Library, click **Add** and choose **Import from an online library…**. It opens
    **Settings > Online libraries**.
 2. Click **Open D&D Beyond** (or the service you want). Bibliotaph's browser opens at your library.
 3. Sign in if the site asks, and open your library. **Read this page** lights up when the page lists your books, and
