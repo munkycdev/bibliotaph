@@ -241,12 +241,16 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
 
     bool IsIdle() => !IsBusy;
 
-    /// <summary>Back up now: a ZIP saved where the user picks.</summary>
+    /// <summary>
+    /// Back up now: a ZIP saved where the user picks, starting in the backups folder beside the weekly ones, where
+    /// Open backups folder and Choose a backup look too. The picker can't open in a folder that doesn't exist yet.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(IsIdle))]
     async Task BackUpNow()
     {
-        if (files.SaveFile("Back up your library", $"Bibliotaph backup {clock.GetLocalNow():yyyy-MM-dd}.zip", "Bibliotaph backups (*.zip)|*.zip", ".zip")
-            is { } path) await BackUpToAsync(path);
+        Directory.CreateDirectory(backups.BackupsFolder);
+        if (files.SaveFile("Back up your library", $"Bibliotaph backup {clock.GetLocalNow():yyyy-MM-dd}.zip", "Bibliotaph backups (*.zip)|*.zip", ".zip",
+            backups.BackupsFolder) is { } path) await BackUpToAsync(path);
     }
 
     /// <summary>Backs up to <paramref name="path"/>: what Back up now does once a place is picked.</summary>
