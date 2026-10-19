@@ -36,6 +36,14 @@ jobs:
         shell: pwsh
         run: Set-MpPreference -DisableRealtimeMonitoring $true
 
+      # The tests and the smoke test make their folders and SQLite files under %TEMP%, which is on C:, the runner's
+      # slower disk. RUNNER_TEMP is on D:.
+      - name: Keep temporary files on drive D
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+
       - uses: actions/checkout@v4
 
       # The runner image has no .NET 11, and downloading it took about 40 seconds a run. The SDK lives in its own folder
