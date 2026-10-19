@@ -38,7 +38,7 @@ It is made for a game master with a large, mixed collection across several game 
 - **Find an adventure**: filter by system, type, level and players, add a word, open the right page, add it to a binder; or **Ask** in plain English.
 - **Look something up**: ask the library a question and get an answer citing the book and page, one click from the page itself.
 - **Find something inside a book**: search a phrase and open the matching page, with the words highlighted.
-- **Add a bundle**: copy it into a library folder; files already owned are recognized. **Check a download** says what's new before anything is copied.
+- **Add a bundle**: copy it into a library folder; files already owned are recognized. **Check a download** says what's new before anything is copied. It, **Add a book I own elsewhere…** and **Import from an online library…** share the Library's **Add** button, beside **Add folder**.
 - **Prepare and run a session**: gather books and page ranges in a binder and step through them at the table.
 
 ## Screens

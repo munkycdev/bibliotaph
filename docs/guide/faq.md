@@ -76,7 +76,7 @@ screen works, though.
 
 **Does it work with my virtual tabletop?**
 There's no connection to any VTT. You can note that you own a book on one with **Also own**, and add books you only
-own there with **Add a book I own elsewhere…** under the Library's **Owned elsewhere** button.
+own there with **Add a book I own elsewhere…** under the Library's **Add** button.
 
 **Can it read my D&D Beyond books?**
 Yes, on D&D Beyond's own pages: import your library, and each book opens in Bibliotaph's online reader, signed in as
