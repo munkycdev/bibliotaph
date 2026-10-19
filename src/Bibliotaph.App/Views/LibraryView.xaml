@@ -221,7 +221,7 @@
             </Grid.ColumnDefinitions>
             <WrapPanel Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,0,-8">
               <Border Margin="0,0,0,8" Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                <Button Content="Select" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding Selection.StartSelectingCommand}" Margin="0,0,8,0"
+                <Button Content="Select" c:Ui.Icon="{StaticResource Icon.CopyCheck}" Command="{Binding Selection.StartSelectingCommand}" Margin="0,0,8,0"
                         ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
                         Visibility="{Binding Selection.Books.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
               </Border>

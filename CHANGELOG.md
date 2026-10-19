@@ -7,6 +7,8 @@
   online library…** and **Check a download…**, which work as before.
 - **Back up now starts in the backups folder.** The save dialog opens in the backups folder in Bibliotaph's data
   folder, beside the weekly backups, instead of wherever Windows last saved a file. You can still pick anywhere else.
+- The Library's **Select** button shows a stack of ticked boxes instead of a plain tick, so it reads as choosing
+  several books.
 
 ## 1.2 · 13 October 2026
 
