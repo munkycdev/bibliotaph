@@ -27,10 +27,10 @@ public sealed partial class PackTogetherDialogViewModel : ObservableObject
     {
         _packs = packs;
         _cards = [.. cards.Select(c => c.EntryId)];
-        var packItems = cards.Where(c => c.IsPack).OrderBy(c => c.EntryId.Value).ToList();
+        var packItems = cards.Where(c => c.StandsForPack).OrderBy(c => c.EntryId.Value).ToList();
         _packCount = packItems.Count;
         _files = cards.Count - _packCount;
-        _pdfsTicked = cards.Any(c => !c.IsPack && c.Entry.Format == SourceFormats.Pdf);
+        _pdfsTicked = cards.Any(c => !c.StandsForPack && c.Entry.Format == SourceFormats.Pdf);
         var withPdfs = _pdfsTicked || packItems.Any(p => p.HasPdfMembers);
         Eyebrow = withPdfs ? "PACK" : "IMAGE PACK";
         Name = name;
@@ -40,9 +40,9 @@ public sealed partial class PackTogetherDialogViewModel : ObservableObject
         {
             0 => ($"Make a pack of {files}",
                 $"They show as one card. A pack you make doesn't grow by itself, and {split} gives each its card back."),
-            1 => ($"Add {files} to {packItems[0].Title}", "They show inside the pack. New images in its folder still join it."),
+            1 => ($"Add {files} to {packItems[0].PackName}", "They show inside the pack. New images in its folder still join it."),
             _ => ($"Merge {_packCount.ToString("N0", CultureInfo.CurrentCulture)} packs{(_files > 0 ? $" and {files}" : "")}",
-                $"The newer packs join {packItems[0].Title} with their {(withPdfs ? "files" : "images")}, hearts, collections, binder items and notes. New images in their folders join it too."),
+                $"The newer packs join {packItems[0].PackName} with their {(withPdfs ? "files" : "images")}, hearts, collections, binder items and notes. New images in their folders join it too."),
         };
     }
 
@@ -52,7 +52,7 @@ public sealed partial class PackTogetherDialogViewModel : ObservableObject
     /// </summary>
     public static async Task<PackTogetherDialogViewModel> LoadAsync(PackService packs, LibraryStore library, IReadOnlyList<LibraryItemViewModel> cards)
     {
-        if (cards.Where(c => c.IsPack).MinBy(c => c.EntryId.Value) is { } oldest) return new PackTogetherDialogViewModel(packs, cards, oldest.Title);
+        if (cards.Where(c => c.StandsForPack).MinBy(c => c.EntryId.Value) is { } oldest) return new PackTogetherDialogViewModel(packs, cards, oldest.PackName);
         var folders = new List<string>();
         foreach (var file in cards)
             if ((await Task.Run(() => library.GetLocationsAsync(file.DocumentId))).FirstOrDefault(l => l.State != FileLocationState.Missing) is { } place)

@@ -206,6 +206,52 @@ public sealed class LibraryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task Each_file_in_a_pack_can_have_a_card_of_its_own_filtered_and_found_as_its_pack()
+    {
+        var store = new IndexStore(Writer, Clock);
+        await AddAsync(store, 10, "Kraken", "png", "Tokens / Sea");
+        await AddAsync(store, 11, "Sea Serpent", "png", "Tokens / Sea");
+        await AddAsync(store, 12, "Ship Deck", "pdf", "Tokens / Sea", "The deck of a sinking galleon.");
+        await store.SetCoverAsync(11, "serpent.webp", Ct);
+        long[] files = [10, 11, 12];
+        await store.RemoveEntriesAsync([.. files.Select(EntryOf)], Ct);
+        var pack = new EntryId(50);
+        await store.SetEntriesAsync([new EntryDocRow(pack, 10, EntryKind.Pack)
+        {
+            Name = "Sea",
+            Members = [.. files.Select(id => new EntryMemberRow(id, EntryOf(id), id == 12 ? "Ship Deck.pdf" : $"{(id == 10 ? "Kraken" : "Sea Serpent")}.png"))],
+        }], Ct);
+        var each = new LibraryFilter(Sort: LibrarySort.Title, PackFiles: true);
+
+        // The pack's card gives way to its files', each with its own title, cover and format, under the pack's entry.
+        var cards = await _library.ListAsync(each, ct: Ct);
+        Assert.DoesNotContain(cards, c => c.IsPack);
+        var serpent = cards.Single(c => c.DocumentId == 11);
+        Assert.Equal((pack, EntryOf(11), "Sea Serpent", "png", "serpent.webp", "Sea"),
+            (serpent.EntryId, serpent.PackFile, serpent.Title, serpent.Format, serpent.Cover, serpent.PackTitle));
+        Assert.Equal(cards.Count, cards.Select(c => c.CardId).Distinct().Count());
+        Assert.Equal(["Kraken", "Sea Serpent", "Ship Deck"], cards.Where(c => c.IsPackFile).Select(c => c.Title));
+        Assert.Equal(3, (await _library.ListAsync(each with { Kind = KindFilter.Packs }, ct: Ct)).Count);
+        long[] images = [10, 11, TavernMap];
+        Assert.Equal(images.Order(), (await _library.ListAsync(each with { Kind = KindFilter.Images }, ct: Ct)).Select(c => c.DocumentId).Order());
+        Assert.Contains(12L, (await _library.ListAsync(each with { Kind = KindFilter.Books }, ct: Ct)).Select(c => c.DocumentId));
+        // Shown as packs, nothing changes.
+        Assert.Equal(pack, Assert.Single(await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Packs), ct: Ct)).EntryId);
+
+        // A file's own name finds only it; the pack's name finds every file.
+        Assert.Equal(11L, Assert.Single(await DocumentsAsync("serpent", each)));
+        long[] all = [10, 11, 12];
+        Assert.Equal(all, (await DocumentsAsync("sea", each)).Order());
+        Assert.Contains(new FacetCount(SearchQuery.Unknown, "Unknown", 1), await _library.GetFacetCountsAsync("type", each, Plan("serpent"), Ct));
+
+        // A PDF's pages are its own card's.
+        var found = Assert.Single((await _library.SearchPagesAsync(Plan("galleon"), each, ct: Ct)).Entries);
+        Assert.Equal((EntryOf(12), 12L), (found.Entry.CardId, found.Entry.DocumentId));
+        Assert.Equal(EntryOf(12), Assert.Single(found.Pages).EntryId);
+        Assert.Equal(pack, Assert.Single((await _library.SearchPagesAsync(Plan("galleon"), new LibraryFilter(), ct: Ct)).Entries).Entry.EntryId);
+    }
+
+    [Fact]
     public async Task WebP_images_are_images()
     {
         await AddAsync(new IndexStore(Writer, Clock), 20, "Harbor", "webp", "Maps");

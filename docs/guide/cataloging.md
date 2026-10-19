@@ -150,7 +150,8 @@ pack in the reader, click the picture button at the top. The file you chose is m
 leaves the pack, the card shows the mosaic again.
 
 A search for a file's name finds its pack, and a search inside documents finds the pages of the PDFs in a pack under
-the pack's card.
+the pack's card. To see the files in packs on cards of their own, click **Each file** in the Library's toolbar (see
+[Searching](searching.md)); the packs stay packs.
 
 ## Adventures inside a file
 
@@ -186,8 +187,8 @@ itself is never changed. To remove several at once, tick their cards in **Select
 
 ## Books you own elsewhere
 
-Own a book in print or on a virtual tabletop? In the Library, click **Owned elsewhere** and choose
-**Add a book I own elsewhere…**. It gets a card with no file, so it shows up in searches alongside the rest, with a
+Own a book in print or on a virtual tabletop? In the Library, click **Add** and choose **Add a book I
+own elsewhere…**. It gets a card with no file, so it shows up in searches alongside the rest, with a
 badge on its cover saying where it is. **Also own** records where (print, a VTT, or your own words) on any card, and
 can take the book's page online, such as "D&D Beyond https://…", which **Open** then opens. If a file with that title
 turns up later, Needs review asks whether it's that book's file.
@@ -198,12 +199,12 @@ uses a JPG, PNG or WebP picture of your own: Bibliotaph keeps a cover-sized copy
 of the library sync file.
 
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
-with **Import from an online library…** on the same menu. See [Online libraries](online-libraries.md).
+with **Import from an online library…** on the same **Add** menu. See [Online libraries](online-libraries.md).
 
 ## Check a download
 
-Before copying a new bundle into your library, **Check a download** in the Library tells you which files you already
-have: **Check a folder…** or **Check a ZIP…**. Each file is marked as already owned, another copy, maybe a new version,
+Before copying a new bundle into your library, **Check a download…** under the Library's **Add** button tells you
+which files you already have: **Check a folder…** or **Check a ZIP…**. Each file is marked as already owned, another copy, maybe a new version,
 or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the results to paste somewhere else.
 
 ## Vocabulary

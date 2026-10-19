@@ -2454,7 +2454,7 @@ static partial class SmokeTest
             ?? throw new InvalidOperationException("The Library route didn't open the Library.");
         await WaitUntilAsync(window, () => page.Items.Count == books, () => $"The Library shows {page.Items.Count} books, not {books}.");
 
-        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
+        await ChooseAsync(window, "AddMenu", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog.");
         var dialog = page.AddElsewhereDialog!;
         dialog.Title = Title;
@@ -2521,7 +2521,7 @@ static partial class SmokeTest
             .First(p => p.RelativePath.EndsWith("Gazetteer of the Marches.pdf", StringComparison.Ordinal)).DocumentId;
         var file = page.Items.FirstOrDefault(i => !i.IsPack && !i.IsElsewhere && i.DocumentId == gazetteer)
             ?? throw new InvalidOperationException("The gazetteer's card isn't in the Library.");
-        await ChooseAsync(window, "OwnedElsewhere", page.AddElsewhereCommand, "Add a book I own elsewhere");
+        await ChooseAsync(window, "AddMenu", page.AddElsewhereCommand, "Add a book I own elsewhere");
         await WaitUntilAsync(window, () => page.AddElsewhereDialog is not null, () => "Add a book I own elsewhere didn't open its dialog again.");
         var second = page.AddElsewhereDialog!;
         second.Title = file.Title;
@@ -2697,7 +2697,7 @@ static partial class SmokeTest
     }
 
     /// <summary>
-    /// Check a download from the Library's button: a ZIP with a new map, a ZIP inside it, and the smoke PDF when there
+    /// Check a download from the Library's Add menu: a ZIP with a new map, a ZIP inside it, and the smoke PDF when there
     /// is one, which the index worker reads from a temporary copy. The results are grouped, the list copies, and the library is as it was.
     /// </summary>
     static async Task CheckDownloadAsync(IServiceProvider services, Window window, int books, string? smokeFiles)
@@ -2718,7 +2718,9 @@ static partial class SmokeTest
 
         services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
         await Settle(window);
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CheckDownload"), "Check a download");
+        var library = services.GetRequiredService<ShellViewModel>().CurrentPage as LibraryViewModel
+            ?? throw new InvalidOperationException("The Library route didn't open the Library.");
+        await ChooseAsync(window, "AddMenu", library.CheckDownloadCommand, "Check a download");
         await WaitUntilAsync(window, () => services.GetRequiredService<ShellViewModel>().CurrentPage is DownloadCheckViewModel,
             () => "Check a download didn't open its page.");
         var page = (DownloadCheckViewModel)services.GetRequiredService<ShellViewModel>().CurrentPage!;

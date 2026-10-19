@@ -195,7 +195,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     /// Packs aren't offered: a pack is many files, not a copy of a book.
     /// </summary>
     public bool CanJoinSelected => SameBookDialog is null && Books.Count >= 2 && Books.Items is var cards
-        && !cards.Any(c => c.IsPack) && cards.Count(c => c.IsElsewhere) <= 1;
+        && !cards.Any(c => c.StandsForPack) && cards.Count(c => c.IsElsewhere) <= 1;
 
     /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
     [RelayCommand(CanExecute = nameof(CanJoinSelected))]
@@ -239,7 +239,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     /// name it.
     /// </summary>
     public bool CanPackSelected => PackDialog is null && Books.Count >= 2
-        && Books.Items.All(c => c.IsPack || c is { IsElsewhere: false, IsPart: false, Entry.Parts: 0 }
+        && Books.Items.All(c => c.StandsForPack || c is { IsElsewhere: false, IsPart: false, Entry.Parts: 0 }
             && (SourceFormats.IsImage(c.Entry.Format) || c.Entry.Format == SourceFormats.Pdf));
 
     /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
