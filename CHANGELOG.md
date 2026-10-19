@@ -13,6 +13,9 @@
   folder, beside the weekly backups, instead of wherever Windows last saved a file. You can still pick anywhere else.
 - The Library's **Select** button shows a stack of ticked boxes instead of a plain tick, so it reads as choosing
   several books.
+- **The sidebar's status stays inside the sidebar.** A long status, such as indexing a big library, wraps to a second
+  line instead of running past the sidebar's edge and being cut off. Pointing at it shows all of it, also with the
+  sidebar folded.
 
 ## 1.2 · 13 October 2026
 
