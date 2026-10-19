@@ -186,7 +186,7 @@ There is no account, tracking or cloud service. Bibliotaph goes online only for 
 
 The catalog lives on the PC, apart from the books. The user's work (corrections, notes, collections, binders, saved searches, pins) is kept separate from what can be rebuilt (text, covers, search index), so a rebuild never touches it.
 
-- **Backups**: made on demand and weekly (the last four kept), without books, passwords, keys or sign-ins; optionally with the search index. Restoring lets moved folders be pointed to their new place.
+- **Backups**: made on demand (saved where the user picks, starting in the backups folder) and weekly (the last four kept), without books, passwords, keys or sign-ins; optionally with the search index. Restoring lets moved folders be pointed to their new place.
 - **Sync with another PC**: each PC writes its own small file to a folder the user picks, such as one in OneDrive, and merges the other's. The user's work travels; folders, reading places, settings and sign-ins don't. Books are matched by content, the newer change wins, and deletions carry across. There is no sync service, and the catalog itself never goes in that folder.
 - **Export**: CSV (a row per book) and JSON (the whole catalog).
 
