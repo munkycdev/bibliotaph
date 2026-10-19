@@ -13,6 +13,7 @@ public sealed class BookSelection : ObservableObject
 {
     readonly Dictionary<EntryId, LibraryItemViewModel> _ticked = [];
     HashSet<EntryId> _shown = [];
+    IReadOnlyList<LibraryItemViewModel> _shownItems = [];
     LibraryItemViewModel? _anchor;
 
     /// <summary>Raised when the ticks change, or Select mode starts or ends.</summary>
@@ -61,7 +62,7 @@ public sealed class BookSelection : ObservableObject
     {
         var wasTicked = _ticked.Remove(item.EntryId);
         if (!wasTicked) _ticked[item.EntryId] = item;
-        item.IsSelected = !wasTicked;
+        Mark(item, !wasTicked);
         _anchor = item;
         Notify();
     }
@@ -98,20 +99,33 @@ public sealed class BookSelection : ObservableObject
     /// <summary>The books the results show now, so ticked books outside them are counted as not shown.</summary>
     public void SetShown(IEnumerable<LibraryItemViewModel> shown)
     {
-        _shown = [.. shown.Select(i => i.EntryId)];
+        _shownItems = [.. shown];
+        _shown = [.. _shownItems.Select(i => i.EntryId)];
+        foreach (var item in _shownItems.Where(i => _ticked.ContainsKey(i.EntryId))) item.IsSelected = true;
         if (Count > 0) Notify();
     }
 
     void Tick(LibraryItemViewModel item)
     {
         _ticked[item.EntryId] = item;
-        item.IsSelected = true;
+        Mark(item, true);
     }
 
     void Untick(List<LibraryItemViewModel> items)
     {
-        foreach (var item in items) item.IsSelected = false;
+        foreach (var item in items) Mark(item, false);
         _ticked.Clear();
+    }
+
+    /// <summary>
+    /// Ticks or unticks a card, and every card shown for the same entry: the files of a pack, each on a card of its
+    /// own, are ticked as their pack.
+    /// </summary>
+    void Mark(LibraryItemViewModel item, bool selected)
+    {
+        item.IsSelected = selected;
+        foreach (var other in _shownItems)
+            if (other.EntryId == item.EntryId) other.IsSelected = selected;
     }
 
     static int IndexOf(IReadOnlyList<LibraryItemViewModel> shown, LibraryItemViewModel item)

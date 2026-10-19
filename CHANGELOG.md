@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **See each file in a pack.** Two new buttons beside covers and list switch the Library between showing each pack as
+  one card (as before) and showing every image and PDF inside packs on a card of its own. A file's card says which
+  pack it is in, opens in its pack so the arrows still step through the rest, and finds its pages under its own card.
+  Filters, saved searches and its details are its pack's. The choice is remembered, for browsing and searching alike.
 - **One Add button in the Library.** **Owned elsewhere** and **Check a download** are now one **Add** button, styled
   like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhere…**, **Import from an
   online library…** and **Check a download…**, which work as before.

@@ -92,6 +92,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     bool _stale;
     bool _holdRefresh;
     readonly LibrarySorts _sorts;
+    readonly LibraryPackView _packView;
     // Whether the order shown was chosen for a search, so the order changes only when searching starts or stops.
     bool _sortSearching;
 
@@ -100,7 +101,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
-        LibrarySorts sorts, TimeProvider time, ILogger<LibraryViewModel> log)
+        LibrarySorts sorts, LibraryPackView packView, TimeProvider time, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _files = files;
@@ -129,6 +130,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _log = log;
         _text = text;
         _sorts = sorts;
+        _packView = packView;
+        ShowPackFiles = packView.ShowFiles;
         Selection = selection.Create(this);
         SmartViews = new SmartViewsViewModel(views, this, log);
         _sortSearching = IsSearching;
@@ -239,6 +242,24 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     public bool IsDocumentsTab { get => Tab == ResultsTab.Documents; set { if (value) Tab = ResultsTab.Documents; } }
 
     public bool IsPagesTab { get => Tab == ResultsTab.Pages; set { if (value) Tab = ResultsTab.Pages; } }
+
+    /// <summary>
+    /// Each file in a pack on a card of its own, instead of a card per pack: remembered, and the same while browsing
+    /// and searching.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPacksView), nameof(IsFilesView))]
+    public partial bool ShowPackFiles { get; set; }
+
+    public bool IsPacksView { get => !ShowPackFiles; set { if (value) ShowPackFiles = false; } }
+
+    public bool IsFilesView { get => ShowPackFiles; set { if (value) ShowPackFiles = true; } }
+
+    partial void OnShowPackFilesChanged(bool value)
+    {
+        _ = _packView.RememberAsync(value);
+        Refresh();
+    }
 
     public bool IsGridLayout { get => Layout == LibraryLayout.Grid; set { if (value) Layout = LibraryLayout.Grid; } }
 
@@ -440,7 +461,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         {
             var scope = await _library.GetVisibleEntryIdsAsync(Filters.FolderChoice.Value);
             var away = await _library.GetUnavailableAsync();
-            var filter = Filters.ToFilter(scope, SortChoice.Value, Group);
+            var filter = Filters.ToFilter(scope, SortChoice.Value, Group) with { PackFiles = ShowPackFiles };
             // A question to the library is about the books shown here.
             _askScope.Set(filter, IsSearching ? Search.Query : SearchQuery.Parse(""), Filters.ActiveFilters.Select(c => c.Label));
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
@@ -571,8 +592,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     LibraryItemViewModel Item(LibraryEntry entry)
     {
-        if (_known.TryGetValue(entry.EntryId, out var item)) item.Update(entry);
-        else item = _known[entry.EntryId] = new LibraryItemViewModel(entry, _covers);
+        if (_known.TryGetValue(entry.CardId, out var item)) item.Update(entry);
+        else item = _known[entry.CardId] = new LibraryItemViewModel(entry, _covers);
         item.ShowAvailability(_away.GetValueOrDefault(entry.EntryId));
         return item;
     }
@@ -623,6 +644,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         try
         {
+            // A file in a pack on a card of its own is catalogued as its pack, so its details are the pack's.
+            if (item.IsPackFile) item = (await Task.Run(() => _queries.GetEntriesAsync([item.EntryId]))).Select(Item).FirstOrDefault() ?? item;
             var inspector = await _inspectors.LoadAsync(item);
             inspector.Removed += async (_, removed) => await ShowRemovedAsync(item, removed);
             inspector.MetadataChanged += async (_, _) => await RefreshAsync();
@@ -772,8 +795,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (item?.Entry is { IsPart: true, Pages: { } pages } part && part.DocumentId == page.Hit.DocumentId)
             return PartOpen.Open(page.Hit.DocumentId, title, part.EntryId, part.ParentTitle, pages) with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         // A page of a PDF in a pack opens in the pack, so Previous and Next step through its other files.
-        if (item is { IsPack: true }
-            && ViewerRequest.ForPack(item.EntryId, await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), title, page.Hit.DocumentId) is { } inPack
+        if (item is { IsPack: true } or { IsPackFile: true }
+            && ViewerRequest.ForPack(item.EntryId, await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), item.Entry.PackTitle ?? title, page.Hit.DocumentId) is { } inPack
             && inPack.DocumentId == page.Hit.DocumentId)
             return inPack with { PageIndex = page.Hit.PdfPage, Query = Search.Query };
         return new ViewerRequest(page.Hit.DocumentId, title, page.Hit.PdfPage, Search.Query);
@@ -895,10 +918,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     /// <summary>
     /// What opens a card: its document, or for a pack one of its files with all of them to step through. The file is
-    /// <paramref name="documentId"/>, else the one a search found the pack by, else the first.
+    /// <paramref name="documentId"/>, else the one a search found the pack by, else the first. A file in a pack on a
+    /// card of its own opens in its pack too.
     /// </summary>
     async Task<ViewerRequest?> RequestAsync(LibraryItemViewModel item, long? documentId = null)
     {
+        if (item.IsPackFile)
+            return ViewerRequest.ForPack(item.EntryId, await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), item.Entry.PackTitle ?? item.Title, documentId ?? item.DocumentId);
         if (!item.Entry.IsPack) return item.BookRequest();
         return ViewerRequest.ForPack(item.EntryId, await Task.Run(() => _queries.GetPackImagesAsync(item.EntryId)), item.Title, documentId ?? item.Entry.MatchedDocumentId);
     }
@@ -1196,7 +1222,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             InspectorViewModel details => details.Item,
             _ => null,
         };
-        if (item is not null) Collections.Add([item.EntryId], item.Title, request.Choice);
+        if (item is not null) Collections.Add([item.EntryId], item.Entry.PackTitle ?? item.Title, request.Choice);
     }
 
     /// <summary>Select mode's Add to collection: every ticked book, shown or not.</summary>
@@ -1238,7 +1264,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             InspectorViewModel details => details.Item,
             _ => null,
         };
-        if (item is not null) Sessions.Add([item.EntryId], item.Title, request.Choice);
+        // A file in a pack on a card of its own goes in on its own: a binder can hold one map from a pack.
+        if (item is not null) Sessions.Add([item.Entry.PackFile ?? item.EntryId], item.Title, request.Choice);
     }
 
     /// <summary>Select mode's Add to session: every ticked book, shown or not.</summary>

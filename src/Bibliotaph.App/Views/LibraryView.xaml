@@ -291,6 +291,17 @@
                   </RadioButton>
                 </StackPanel>
               </Border>
+              <!-- Packs as one card each, or every file in them on a card of its own; the matching pages follow it too. -->
+              <Border Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center" Margin="8,0,0,8">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="PacksViewButton" Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsPacksView}" ToolTip="Packs" AutomationProperties.Name="Show packs">
+                    <c:LucideIcon Data="{StaticResource Icon.Package}" Size="15" />
+                  </RadioButton>
+                  <RadioButton x:Name="FilesViewButton" Style="{StaticResource Bt.Segment}" IsChecked="{Binding IsFilesView}" ToolTip="Each file" AutomationProperties.Name="Show each file">
+                    <c:LucideIcon Data="{StaticResource Icon.Files}" Size="15" />
+                  </RadioButton>
+                </StackPanel>
+              </Border>
             </WrapPanel>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0" AutomationProperties.Name="Results"
                         Visibility="{Binding IsSearching, Converter={StaticResource Bt.VisibleWhenTrue}}">

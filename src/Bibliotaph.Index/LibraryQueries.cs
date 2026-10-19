@@ -55,6 +55,21 @@ public sealed record LibraryEntry(
     /// <summary>An adventure inside a file: a card of its own for some of the file's pages.</summary>
     public bool IsPart => EntryKind == EntryKind.Part;
 
+    /// <summary>
+    /// A file in a pack, shown on a card of its own while the Library shows each file (<see
+    /// cref="LibraryFilter.PackFiles"/>): the file's own entry. <see cref="EntryId"/> stays its pack's, whose metadata,
+    /// marks and details the card has, while <see cref="DocumentId"/>, the title, cover and format are the file's.
+    /// </summary>
+    public EntryId? PackFile { get; init; }
+
+    public bool IsPackFile => PackFile is not null;
+
+    /// <summary>For a file in a pack on a card of its own, the pack's title.</summary>
+    public string? PackTitle { get; init; }
+
+    /// <summary>What tells cards apart: the entry, or for a file in a pack on a card of its own, the file's entry.</summary>
+    public EntryId CardId => PackFile ?? EntryId;
+
     /// <summary>For an adventure inside a file, the file's entry.</summary>
     public EntryId? ParentEntryId { get; init; }
 
@@ -159,7 +174,8 @@ public enum CollectionFilter
 /// publishers): books with any of a field's values, in every field with some. <see cref="PartsInBooks"/> keeps the
 /// adventures inside files in their books instead of hiding them: the library without a search leaves them out, as
 /// their files' cards and details list them, while a search shows those it finds, each on its file's cover and in
-/// place of its file's card when both are found.
+/// place of its file's card when both are found. <see cref="PackFiles"/> shows each file in a pack on a card of its own
+/// instead of the pack's card; a file is filtered and found as its pack is, and by its own name.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -181,7 +197,8 @@ public sealed record LibraryFilter(
     bool HideParts = false,
     CollectionFilter Collections = CollectionFilter.All,
     PickedValues? Picked = null,
-    bool PartsInBooks = false);
+    bool PartsInBooks = false,
+    bool PackFiles = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -231,8 +248,11 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// <summary>A file's name in a pack weighs as a title does: you look for "kraken", not for the pack's name.</summary>
     const string MemberRank = "bm25(member_fts, 10.0)";
 
-    const string EntryColumns = """
-        e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, coalesce(m.title, e.name, d.display_title, '') AS Title, coalesce(d.format, '') AS Format,
+    /// <summary>A card's title: its effective title, or the one from its file name; a file in a pack on a card of its own has its file's.</summary>
+    const string Title = "coalesce(CASE WHEN e.pack_file IS NOT NULL THEN d.display_title END, m.title, e.name, d.display_title, '')";
+
+    const string EntryColumns = $"""
+        e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, {Title} AS Title, coalesce(d.format, '') AS Format,
         CASE WHEN e.kind = 'Part' THEN e.last_page - e.first_page + 1 ELSE d.page_count END AS PageCount,
         CASE WHEN e.kind = 'Part' THEN coalesce(
             (SELECT pc.cover FROM page_cover pc WHERE pc.document_id = e.document_id AND pc.pdf_page = e.first_page),
@@ -263,14 +283,32 @@ public sealed class LibraryQueries(IndexDatabase database)
             WHERE pe.entry_id = e.parent_id) END AS ParentTitle,
         CASE WHEN e.kind = 'Part' THEN (SELECT fp.label FROM page fp WHERE fp.document_id = e.document_id AND fp.pdf_page = e.first_page) END AS FirstLabel,
         CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel,
-        CASE WHEN e.kind = 'Part' THEN d.cover END AS FileCover
+        CASE WHEN e.kind = 'Part' THEN d.cover END AS FileCover,
+        e.pack_file AS PackFile, CASE WHEN e.pack_file IS NOT NULL THEN coalesce(m.title, e.name) END AS PackTitle
         """;
 
     /// <summary>
     /// Library cards: each entry with the document it shows, or none for a book owned elsewhere. <see cref="Where"/>
     /// leaves out a file's card until Probe has its document.
     /// </summary>
-    const string Entries = "entry_doc e LEFT JOIN doc d ON d.document_id = e.document_id";
+    static string Entries(bool packFiles) => $"{Cards(packFiles)} e LEFT JOIN doc d ON d.document_id = e.document_id";
+
+    /// <summary>
+    /// The cards, as <c>e</c>: entry_doc, with <c>pack_file</c> null. With <paramref name="packFiles"/>, each pack's card
+    /// gives way to a card per file: the pack's entry and name, the file's document and its own entry as
+    /// <c>pack_file</c>. Keeping the pack's entry is what lets every filter, field and mark treat a file as its pack.
+    /// </summary>
+    static string Cards(bool packFiles) => packFiles
+        ? """
+            (SELECT entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover, cover_member,
+                    NULL AS pack_file
+             FROM entry_doc WHERE kind <> 'Pack'
+             UNION ALL
+             SELECT p.entry_id, em.document_id, 'Whole', 1, p.name, 0, p.added_utc, NULL, NULL, NULL, 0, NULL, NULL, em.member_entry_id
+             FROM entry_doc p JOIN entry_member em ON em.entry_id = p.entry_id
+             WHERE p.kind = 'Pack')
+            """
+        : "(SELECT *, NULL AS pack_file FROM entry_doc)";
 
     const string EntryJoin = """
         LEFT JOIN stage_status s ON s.document_id = d.document_id AND s.stage = 'Text'
@@ -291,7 +329,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         plan ??= new SearchPlan();
         var where = new Where(filter, plan, titleAsFilter: true);
         if (limit is { } count) where.Parameters.Add("limit", count);
-        var sql = Found(null, EntryColumns, $"{Entries} {EntryJoin}", where.Sql, Order(filter.Sort, relevance: null), limit is not null,
+        var sql = Found(null, EntryColumns, $"{Entries(filter.PackFiles)} {EntryJoin}", where.Sql, Order(filter.Sort, relevance: null), limit is not null,
             filesGiveWay: filter.PartsInBooks && !plan.IsEmpty);
         await using var connection = database.OpenRead();
         return ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(sql, where.Parameters, cancellationToken: ct)), filter.PartsInBooks);
@@ -299,7 +337,8 @@ public sealed class LibraryQueries(IndexDatabase database)
 
     /// <summary>
     /// The Documents tab: titles and metadata, and the names of the files in packs. A pack found by a file's name
-    /// says which (the best match). With no words or title: to find, this is the filtered library.
+    /// says which (the best match). With no words or title: to find, this is the filtered library. While each file in a
+    /// pack has a card of its own, a file is found by its own name or by its pack's.
     /// </summary>
     public async Task<IReadOnlyList<LibraryEntry>> SearchDocumentsAsync(SearchPlan plan, LibraryFilter filter, int limit = 1000, CancellationToken ct = default)
     {
@@ -315,18 +354,36 @@ public sealed class LibraryQueries(IndexDatabase database)
             FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid
             WHERE member_fts MATCH @match
             """ : "";
-        // One row per card, its best hit: SQLite takes the bare columns from the row min() picks. The hits are
-        // materialized, since bm25() can't run once flattened into the grouping.
-        var sql = Found(
-            $"""
+        var hits = $"""
             hit AS MATERIALIZED (
                 SELECT rowid AS entry_id, {DocRank} AS rank, NULL AS member, NULL AS member_document FROM entry_fts WHERE entry_fts MATCH @match
                 {members})
-            """,
+            """;
+        if (filter.PackFiles)
+        {
+            // A pack's own hits find all its files, a file's name only that file; each card keeps its best hit.
+            var fileSql = Found(
+                $"""
+                {hits},
+                card AS (
+                    SELECT c.*, h.rank, row_number() OVER (PARTITION BY coalesce(c.pack_file, c.entry_id) ORDER BY h.rank) AS best
+                    FROM {Cards(true)} c JOIN hit h ON h.entry_id = c.entry_id AND (h.member_document IS NULL OR h.member_document = c.document_id))
+                """,
+                $"{EntryColumns}, NULL AS MatchedMember, NULL AS MatchedDocumentId",
+                $"(SELECT * FROM card WHERE best = 1) e LEFT JOIN doc d ON d.document_id = e.document_id {EntryJoin}",
+                where.Sql, Order(filter.Sort, relevance: "e.rank"), limit: true, filesGiveWay: filter.PartsInBooks);
+            await using var files = database.OpenRead();
+            return ToEntries(await files.QueryAsync<EntryRow>(new CommandDefinition(fileSql, where.Parameters, cancellationToken: ct)), filter.PartsInBooks);
+        }
+
+        // One row per card, its best hit: SQLite takes the bare columns from the row min() picks. The hits are
+        // materialized, since bm25() can't run once flattened into the grouping.
+        var sql = Found(
+            hits,
             $"{EntryColumns}, h.member AS MatchedMember, h.member_document AS MatchedDocumentId",
             $"""
             (SELECT entry_id, min(rank) AS rank, member, member_document FROM hit GROUP BY entry_id) h
-            JOIN entry_doc e ON e.entry_id = h.entry_id LEFT JOIN doc d ON d.document_id = e.document_id {EntryJoin}
+            JOIN {Cards(false)} e ON e.entry_id = h.entry_id LEFT JOIN doc d ON d.document_id = e.document_id {EntryJoin}
             """,
             where.Sql, Order(filter.Sort, relevance: "h.rank"), limit: true, filesGiveWay: filter.PartsInBooks);
         await using var connection = database.OpenRead();
@@ -346,14 +403,14 @@ public sealed class LibraryQueries(IndexDatabase database)
         var counts = (await connection.QueryAsync<(string Value, string Label, long Count)>(new CommandDefinition(
             $"""
             SELECT f.value, min(f.label), count(*)
-            FROM {Entries} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
+            FROM {Entries(filter.PackFiles)} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
             WHERE {where.Sql}
             GROUP BY f.value
             ORDER BY min(f.label) COLLATE NOCASE
             """, where.Parameters, cancellationToken: ct))).Select(c => new FacetCount(c.Value, c.Label, c.Count)).ToList();
         var unknown = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"""
-            SELECT count(*) FROM {Entries}
+            SELECT count(*) FROM {Entries(filter.PackFiles)}
             WHERE {where.Sql} AND e.entry_id NOT IN (SELECT entry_id FROM entry_facet WHERE field = @countField)
             """, where.Parameters, cancellationToken: ct));
         if (unknown > 0) counts.Add(new FacetCount(SearchQuery.Unknown, "Unknown", unknown));
@@ -374,7 +431,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         var sql = field == MetadataFields.Publisher.Key
             ? $"""
                 SELECT m.publisher, m.publisher, count(*), ''
-                FROM {Entries} JOIN entry_meta m ON m.entry_id = e.entry_id
+                FROM {Entries(filter.PackFiles)} JOIN entry_meta m ON m.entry_id = e.entry_id
                 WHERE {where.Sql} AND m.publisher IS NOT NULL
                 GROUP BY m.publisher
                 ORDER BY count(*) DESC, m.publisher COLLATE NOCASE
@@ -382,7 +439,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             : $"""
                 SELECT f.value, min(f.label), count(*),
                        coalesce((SELECT group_concat(a.alias, ' · ') FROM term_alias a WHERE a.vocabulary = @countVocabulary AND a.value = f.value), '')
-                FROM {Entries} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
+                FROM {Entries(filter.PackFiles)} JOIN entry_facet f ON f.entry_id = e.entry_id AND f.field = @countField
                 WHERE {where.Sql}
                 GROUP BY f.value
                 ORDER BY count(*) DESC, min(f.label) COLLATE NOCASE
@@ -392,16 +449,24 @@ public sealed class LibraryQueries(IndexDatabase database)
         return [.. counts.Select(c => new ValueCount(c.Value, c.Label, c.Count, c.Names))];
     }
 
-    /// <summary>The entries a count covers: those the library shows, found as the Documents tab finds them, packs by their images' names too.</summary>
+    /// <summary>
+    /// The entries a count covers: those the library shows, found as the Documents tab finds them, packs by their
+    /// images' names too, and a file on a card of its own by its own name.
+    /// </summary>
     static Where CountWhere(LibraryFilter filter, SearchPlan? plan)
     {
         plan ??= new SearchPlan();
         var where = new Where(filter, plan, titleAsFilter: true);
         if (plan.TextMatch is { } match)
-            where.Also("""
-                e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
-                    UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
-                """, "countMatch", match);
+            where.Also(filter.PackFiles
+                ? """
+                    (e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch)
+                        OR e.pack_file IN (SELECT rowid FROM member_fts WHERE member_fts MATCH @countMatch))
+                    """
+                : """
+                    e.entry_id IN (SELECT rowid FROM entry_fts WHERE entry_fts MATCH @countMatch
+                        UNION SELECT em.entry_id FROM member_fts JOIN entry_member em ON em.member_entry_id = member_fts.rowid WHERE member_fts MATCH @countMatch)
+                    """, "countMatch", match);
         return where;
     }
 
@@ -417,7 +482,7 @@ public sealed class LibraryQueries(IndexDatabase database)
         var counts = await connection.QueryAsync<(string Format, long Count)>(new CommandDefinition(
             $"""
             SELECT d.format, count(*)
-            FROM {Entries}
+            FROM {Entries(filter.PackFiles)}
             WHERE {where.Sql} AND d.format IS NOT NULL
             GROUP BY d.format
             ORDER BY count(*) DESC, d.format
@@ -482,6 +547,16 @@ public sealed class LibraryQueries(IndexDatabase database)
         var where = new Where(filter, plan, titleAsFilter: true);
         where.Parameters.Add("match", match);
         where.Parameters.Add("perDocument", pagesPerDocument);
+        // While each file has a card of its own, its pages are its own card's; otherwise they are the pack's.
+        var inPacks = filter.PackFiles ? "" : $"""
+            UNION ALL
+            SELECT e.entry_id, e.kind, m.page_id, m.score
+            FROM matched m
+            JOIN entry_member em ON em.document_id = m.doc
+            JOIN {Cards(false)} e ON e.entry_id = em.entry_id
+            JOIN doc d ON d.document_id = e.document_id
+            WHERE {where.Sql}
+            """;
         var sql = $"""
             WITH matched AS (
                 SELECT p.document_id AS doc, p.pdf_page AS pdf_page, p.id AS page_id, page_fts.rank AS score
@@ -489,18 +564,12 @@ public sealed class LibraryQueries(IndexDatabase database)
                 WHERE page_fts MATCH @match
             ),
             owned AS (
-                SELECT e.entry_id AS entry, e.kind AS kind, m.page_id, m.score
+                SELECT coalesce(e.pack_file, e.entry_id) AS entry, e.kind AS kind, m.page_id, m.score
                 FROM matched m
-                JOIN entry_doc e ON e.document_id = m.doc AND e.kind <> 'Pack' AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
+                JOIN {Cards(filter.PackFiles)} e ON e.document_id = m.doc AND e.kind <> 'Pack' AND (e.kind <> 'Part' OR m.pdf_page BETWEEN e.first_page AND e.last_page)
                 JOIN doc d ON d.document_id = e.document_id
                 WHERE {where.Sql}
-                UNION ALL
-                SELECT e.entry_id, e.kind, m.page_id, m.score
-                FROM matched m
-                JOIN entry_member em ON em.document_id = m.doc
-                JOIN entry_doc e ON e.entry_id = em.entry_id
-                JOIN doc d ON d.document_id = e.document_id
-                WHERE {where.Sql}
+                {inPacks}
             ),
             claimed AS (
                 SELECT entry, page_id, score,
@@ -548,7 +617,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             },
             cancellationToken: ct))).ToDictionary(h => h.PageId);
 
-        var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct, filter.PartsInBooks)).ToDictionary(e => e.EntryId.Value);
+        var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct, filter.PartsInBooks, filter.PackFiles)).ToDictionary(e => e.CardId.Value);
         var found = shown
             .Where(b => entries.ContainsKey(b.Entry))
             .Select(b => new EntryHits(
@@ -576,7 +645,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             WITH found AS MATERIALIZED (
                 SELECT e.entry_id AS EntryId, e.parent_id AS ParentId, e.document_id AS DocumentId, e.kind AS Kind,
                     e.first_page AS FirstPage, e.last_page AS LastPage
-                FROM {Entries}
+                FROM {Entries(filter.PackFiles)}
                 WHERE {where.Sql} AND e.document_id IS NOT NULL AND e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@spanFormats)))
             SELECT f.DocumentId, f.Kind, f.FirstPage, f.LastPage FROM found f {giveWay}
             """;
@@ -672,13 +741,17 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await GetEntriesAsync(connection, entryIds.Select(e => e.Value), ct);
     }
 
+    /// <summary>
+    /// Cards by <see cref="LibraryEntry.CardId"/>: entries, or with <paramref name="packFiles"/> also files in packs by
+    /// their own entries.
+    /// </summary>
     static async Task<IReadOnlyList<LibraryEntry>> GetEntriesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, IEnumerable<long> entryIds, CancellationToken ct,
-        bool partsInBooks = false) =>
+        bool partsInBooks = false, bool packFiles = false) =>
         ToEntries(await connection.QueryAsync<EntryRow>(new CommandDefinition(
             $"""
             SELECT {EntryColumns}
-            FROM {Entries} {EntryJoin}
-            WHERE e.entry_id IN (SELECT value FROM json_each(@ids))
+            FROM {Entries(packFiles)} {EntryJoin}
+            WHERE coalesce(e.pack_file, e.entry_id) IN (SELECT value FROM json_each(@ids))
             """,
             new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct)), partsInBooks);
 
@@ -714,14 +787,15 @@ public sealed class LibraryQueries(IndexDatabase database)
             """;
     }
 
-    static string Order(LibrarySort sort, string? relevance) => sort switch
+    /// <summary>The order of the cards; the files of one pack, which share its entry, are kept in a steady order by their own.</summary>
+    static string Order(LibrarySort sort, string? relevance) => (sort switch
     {
-        LibrarySort.Title => "coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
-        LibrarySort.Publisher => "m.publisher IS NULL, m.publisher COLLATE NOCASE, coalesce(m.title, e.name, d.display_title) COLLATE NOCASE, e.entry_id",
+        LibrarySort.Title => $"{Title} COLLATE NOCASE, e.entry_id",
+        LibrarySort.Publisher => $"m.publisher IS NULL, m.publisher COLLATE NOCASE, {Title} COLLATE NOCASE, e.entry_id",
         LibrarySort.RecentlyOpened => "o.opened_utc IS NULL, o.opened_utc DESC, coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
         LibrarySort.Relevance when relevance is not null => $"{relevance}, e.entry_id",
         _ => "coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
-    };
+    }) + ", e.pack_file";
 
     /// <summary>
     /// The cards of these rows. With <paramref name="partsInBooks"/>, an adventure found shows its file's cover rather
@@ -749,6 +823,8 @@ public sealed class LibraryQueries(IndexDatabase database)
             OnlineLabel = r.OnlineLabel,
             FoundInBook = partsInBooks && r.EntryKind == nameof(EntryKind.Part),
             Players = r.PlayersMin is { } fewest && r.PlayersMax is { } most ? new PlayerRange((int)fewest, (int)most).Describe() : null,
+            PackFile = r.PackFile is { } file ? new EntryId(file) : null,
+            PackTitle = r.PackTitle,
         })];
 
     /// <summary>
@@ -829,6 +905,8 @@ public sealed class LibraryQueries(IndexDatabase database)
         public string? FirstLabel { get; init; }
         public string? LastLabel { get; init; }
         public string? FileCover { get; init; }
+        public long? PackFile { get; init; }
+        public string? PackTitle { get; init; }
     }
 
     sealed class HitRow
@@ -842,7 +920,7 @@ public sealed class LibraryQueries(IndexDatabase database)
     }
 
     /// <summary>
-    /// The WHERE clause shared by the library and both tabs, over <c>entry_doc e</c> and <c>doc d</c>, the document each
+    /// The WHERE clause shared by the library and both tabs, over the cards <c>e</c> (<see cref="Cards"/>) and <c>doc d</c>, the document each
     /// entry shows, joined optionally. It always keeps a file's card out until Probe has its document. Built from fixed
     /// fragments with parameter names it numbers itself; values go into <see cref="Parameters"/>.
     /// </summary>
@@ -886,7 +964,8 @@ public sealed class LibraryQueries(IndexDatabase database)
                     Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@imageFormats))", "imageFormats", JsonSerializer.Serialize(SourceFormats.Images));
                     break;
                 case KindFilter.Packs:
-                    _sql.Append(" AND e.kind = 'Pack'");
+                    // While each file has a card of its own, Packs keeps the files in packs.
+                    _sql.Append(filter.PackFiles ? " AND e.pack_file IS NOT NULL" : " AND e.kind = 'Pack'");
                     break;
                 case KindFilter.Here:
                     _sql.Append(" AND e.kind <> 'Elsewhere'");
