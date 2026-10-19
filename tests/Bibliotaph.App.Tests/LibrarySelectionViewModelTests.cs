@@ -45,7 +45,7 @@ public class LibrarySelectionViewModelTests
     {
         public string? OpenFile(string title, string filter, string? initialFolder = null) => null;
 
-        public string? SaveFile(string title, string suggestedName, string filter, string defaultExtension) => null;
+        public string? SaveFile(string title, string suggestedName, string filter, string defaultExtension, string? initialFolder = null) => null;
 
         public string? PickFolder(string title) => null;
 

@@ -153,21 +153,26 @@
         <DockPanel Margin="0,0,42,24">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
                       Visibility="{Binding ShowsLibraryActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <!-- Books with no file here: one added by hand, or a whole online library imported (online libraries, O2). -->
-            <Button x:Name="OwnedElsewhere" Content="Owned elsewhere" c:Ui.Icon="{StaticResource Icon.Cloud}" Margin="0,0,8,0" Click="DropDown_Click"
-                    ToolTip="Books you own in print, on a virtual tabletop or on an online service, with no file here">
+            <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0" Command="{Binding AddFolderCommand}" />
+            <!--
+              One button for the ways in other than a folder, so the toolbar stays short: a book with no file here (by hand, or
+              a whole online library), and a download checked against the library before it is copied in.
+            -->
+            <Button x:Name="AddMenu" Style="{StaticResource Bt.Button.Primary}" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}"
+                    Click="DropDown_Click" ToolTip="Add a book you own elsewhere, or check a download">
               <Button.ContextMenu>
                 <ContextMenu Style="{StaticResource Bt.Menu}">
                   <MenuItem x:Name="AddElsewhere" Header="Add a book I own elsewhere…" Command="{Binding AddElsewhereCommand}"
+                            ToolTip="A book you own in print, on a virtual tabletop or on an online service, with no file here"
                             AutomationProperties.Name="Add a book I own elsewhere" />
                   <MenuItem x:Name="OnlineLibraries" Header="Import from an online library…" Command="{Binding OpenOnlineLibrariesCommand}"
                             AutomationProperties.Name="Import from an online library" />
+                  <MenuItem x:Name="CheckDownload" Header="Check a download…" Command="{Binding CheckDownloadCommand}"
+                            ToolTip="See which files in a folder or ZIP you already have, without adding them"
+                            AutomationProperties.Name="Check a download" />
                 </ContextMenu>
               </Button.ContextMenu>
             </Button>
-            <Button x:Name="CheckDownload" Content="Check a download" c:Ui.Icon="{StaticResource Icon.Search}"
-                    Margin="0,0,8,0" Command="{Binding CheckDownloadCommand}" ToolTip="See which files in a folder or ZIP you already have, without adding them" />
-            <Button Content="Add folder" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
           </StackPanel>
           <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->
           <StackPanel x:Name="CollectionActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
@@ -216,7 +221,7 @@
             </Grid.ColumnDefinitions>
             <WrapPanel Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,0,-8">
               <Border Margin="0,0,0,8" Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                <Button Content="Select" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding Selection.StartSelectingCommand}" Margin="0,0,8,0"
+                <Button Content="Select" c:Ui.Icon="{StaticResource Icon.CopyCheck}" Command="{Binding Selection.StartSelectingCommand}" Margin="0,0,8,0"
                         ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
                         Visibility="{Binding Selection.Books.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
               </Border>

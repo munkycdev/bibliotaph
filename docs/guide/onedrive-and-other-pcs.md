@@ -52,8 +52,10 @@ drops, the folder goes offline like an unplugged drive.
 
 **Settings > Backup** has everything:
 
-- **Back up now…** saves a backup file wherever you choose. Bibliotaph also makes one by itself at the first start of
-  each week, and keeps the last four. **Open backups folder** shows them.
+- **Back up now…** saves a backup file wherever you choose. It starts in the backups folder in Bibliotaph's data
+  folder, where **Choose a backup…** looks too. Bibliotaph also makes one by itself at the first start of each week,
+  in the same folder, and keeps the last four automatic ones; the ones you save are never deleted. **Open backups
+  folder** shows them. A copy on another drive, or in OneDrive, survives a failed disk too.
 - A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay
   where they are. Passwords for protected PDFs and AI keys aren't in it either; Bibliotaph asks again when it needs
   them. Nor are the sign-ins of Bibliotaph's browser: sign in to your online libraries again after a restore on a new

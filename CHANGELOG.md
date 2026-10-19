@@ -6,6 +6,13 @@
   one card (as before) and showing every image and PDF inside packs on a card of its own. A file's card says which
   pack it is in, opens in its pack so the arrows still step through the rest, and finds its pages under its own card.
   Filters, saved searches and its details are its pack's. The choice is remembered, for browsing and searching alike.
+- **One Add button in the Library.** **Owned elsewhere** and **Check a download** are now one **Add** button, styled
+  like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhere…**, **Import from an
+  online library…** and **Check a download…**, which work as before.
+- **Back up now starts in the backups folder.** The save dialog opens in the backups folder in Bibliotaph's data
+  folder, beside the weekly backups, instead of wherever Windows last saved a file. You can still pick anywhere else.
+- The Library's **Select** button shows a stack of ticked boxes instead of a plain tick, so it reads as choosing
+  several books.
 
 ## 1.2 · 13 October 2026
 
