@@ -3094,7 +3094,8 @@ static partial class SmokeTest
                 var bounds = summary.TransformToAncestor(sidebar).TransformBounds(new Rect(summary.RenderSize));
                 if (bounds.Right > sidebar.ActualWidth)
                     throw new InvalidOperationException($"The sidebar status ends at {bounds.Right:0}, past the sidebar's width of {sidebar.ActualWidth:0}.");
-                if (summary.ActualHeight > summary.MaxHeight)
+                // Layout rounding at 125% scaling can add a fraction of a pixel to the cap.
+                if (summary.ActualHeight > summary.MaxHeight + 1)
                     throw new InvalidOperationException($"The sidebar status is {summary.ActualHeight:0} high, more than two lines.");
             }
         }
