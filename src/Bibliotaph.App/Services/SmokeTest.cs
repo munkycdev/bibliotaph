@@ -84,6 +84,7 @@ static partial class SmokeTest
             }
 
             await Check("the sidebar status opened Settings > Processing", () => OpenProcessingFromStatusAsync(services, window));
+            await Check("a long sidebar status kept inside the sidebar, at most two lines", () => ShowLongStatusAsync(window));
             await Check("the password dialog's Make its text searchable tick, on to start with and locked on by Remember", () => ShowPasswordDialogAsync(window));
             await Check("an update ready to apply shown in the sidebar, never clicked", () => ShowUpdateReadyAsync(services, window));
             await Check("Settings > Start over listed only with --dev", () => ShowStartOverOnlyWithDevAsync(services, window));
@@ -3072,6 +3073,35 @@ static partial class SmokeTest
         if (!ReferenceEquals(shell.CurrentPage, settings)) throw new InvalidOperationException("The sidebar status opened a second Settings page.");
         services.GetRequiredService<INavigationService>().GoBack();
         await Settle(window);
+    }
+
+    /// <summary>
+    /// A status longer than the sidebar is wide, such as a big library's indexing count, wraps to a second line and
+    /// trims after that, rather than running past the sidebar's edge.
+    /// </summary>
+    static async Task ShowLongStatusAsync(Window window)
+    {
+        var sidebar = window.FindName("Sidebar") as FrameworkElement ?? throw new InvalidOperationException("The sidebar wasn't found.");
+        var summary = window.FindName("StatusSummary") as TextBlock ?? throw new InvalidOperationException("The sidebar status wasn't found.");
+        var binding = System.Windows.Data.BindingOperations.GetBinding(summary, TextBlock.TextProperty);
+        try
+        {
+            foreach (var text in new[] { "Indexing · 123,456 of 234,567 searchable", string.Join(" ", Enumerable.Repeat("Indexing · 123,456 of 234,567 searchable", 4)) })
+            {
+                summary.Text = text;
+                await Settle(window);
+                if (!summary.IsVisible) throw new InvalidOperationException("The sidebar status isn't showing.");
+                var bounds = summary.TransformToAncestor(sidebar).TransformBounds(new Rect(summary.RenderSize));
+                if (bounds.Right > sidebar.ActualWidth)
+                    throw new InvalidOperationException($"The sidebar status ends at {bounds.Right:0}, past the sidebar's width of {sidebar.ActualWidth:0}.");
+                if (summary.ActualHeight > summary.MaxHeight)
+                    throw new InvalidOperationException($"The sidebar status is {summary.ActualHeight:0} high, more than two lines.");
+            }
+        }
+        finally
+        {
+            if (binding is not null) summary.SetBinding(TextBlock.TextProperty, binding);
+        }
     }
 
     /// <summary>

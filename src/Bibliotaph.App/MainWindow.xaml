@@ -216,7 +216,7 @@
           <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding OpenProcessingCommand}"
                   AutomationProperties.Name="{Binding Activity.StatusName, StringFormat='{}{0}. Open processing in Settings'}"
-                  ToolTip="Open processing in Settings">
+                  ToolTip="{Binding Activity.StatusName, StringFormat='{}{0}. Open processing in Settings'}">
             <Button.Template>
               <ControlTemplate TargetType="Button">
                 <Border x:Name="Chrome" Background="Transparent" CornerRadius="5" Padding="6">
@@ -229,9 +229,11 @@
                 </ControlTemplate.Triggers>
               </ControlTemplate>
             </Button.Template>
-            <StackPanel Orientation="Horizontal">
+            <!-- A DockPanel, not a horizontal StackPanel: that measures the text at infinite width, so it never
+                 wraps or trims and runs past the sidebar's edge. -->
+            <DockPanel>
               <!-- Beside the first line, which a second one (folders offline) may follow. -->
-              <Ellipse Width="6" Height="6" VerticalAlignment="Top" Margin="0,5,0,0">
+              <Ellipse DockPanel.Dock="Left" Width="6" Height="6" VerticalAlignment="Top" Margin="0,5,0,0">
                 <Ellipse.Style>
                   <Style TargetType="Ellipse">
                     <Setter Property="Fill" Value="{DynamicResource Bt.StatusOk}" />
@@ -245,12 +247,14 @@
                 </Ellipse.Style>
               </Ellipse>
               <StackPanel Margin="8,0,0,0" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-                <TextBlock Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" />
+                <!-- Two lines at most, so a long count can't push Settings down; the tooltip has it all. -->
+                <TextBlock x:Name="StatusSummary" Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}"
+                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" LineStackingStrategy="BlockLineHeight" LineHeight="15" MaxHeight="30" />
                 <!-- Folders that can't be reached (4g): their books stay, dimmed and marked Offline. -->
                 <TextBlock x:Name="OfflineFolders" Text="{Binding Activity.OfflineText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
                            TextTrimming="CharacterEllipsis" Visibility="{Binding Activity.HasOfflineFolders, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </StackPanel>
-            </StackPanel>
+            </DockPanel>
           </Button>
           <!-- Open, the fold button sits beside Settings; folded, it moves up to where the brand was. -->
           <DockPanel>

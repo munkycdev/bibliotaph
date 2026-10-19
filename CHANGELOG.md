@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- **The sidebar's status stays inside the sidebar.** A long status, such as indexing a big library, wraps to a second
+  line instead of running past the sidebar's edge and being cut off. Pointing at it shows all of it, also with the
+  sidebar folded.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.573 (15 October 2026):

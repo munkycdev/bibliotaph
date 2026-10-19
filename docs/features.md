@@ -160,7 +160,7 @@ Kindle books (MOBI and AZW, including ones holding a KF8 version, and AZW3) are 
 
 When a file's content changes, it becomes the new version of its book. Binder items and page notes follow their pages into it by the pages' text; one that can't be found opens at the same printed page marked "This page changed: check it", with **Use this page**. Bibliotaph never silently jumps to an unrelated page.
 
-Processing runs in steps (finding files, text, covers, hints from names, text recognition on scanned pages, matching copies, AI), each with its own status. Indexing, text recognition and AI pause separately. A damaged file fails alone, without stopping the queue. **Reprocess** reads a file again, keeping the user's work, and can recognize text on every page of a bad scan.
+Processing runs in steps (finding files, text, covers, hints from names, text recognition on scanned pages, matching copies, AI), each with its own status. The bottom of the sidebar shows the current step in at most two lines, with the whole of it in its tooltip, and opens Settings > Processing. Indexing, text recognition and AI pause separately. A damaged file fails alone, without stopping the queue. **Reprocess** reads a file again, keeping the user's work, and can recognize text on every page of a bad scan.
 
 OneDrive's online-only files are indexed too, local files first, pausing while a download would leave less than 2 GB free. A file Bibliotaph downloaded is returned to online-only once read, so a cloud library bigger than the disk can be indexed; only the local copy goes, and a setting turns this off.
 
