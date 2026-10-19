@@ -5,6 +5,8 @@
 - **One Add button in the Library.** **Owned elsewhere** and **Check a download** are now one **Add** button, styled
   like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhere…**, **Import from an
   online library…** and **Check a download…**, which work as before.
+- **Back up now starts in the backups folder.** The save dialog opens in the backups folder in Bibliotaph's data
+  folder, beside the weekly backups, instead of wherever Windows last saved a file. You can still pick anywhere else.
 
 ## 1.2 · 13 October 2026
 

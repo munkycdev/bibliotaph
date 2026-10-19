@@ -12,7 +12,7 @@ public interface IFilePicker
     string? OpenFile(string title, string filter, string? initialFolder = null);
 
     /// <summary>Where to save a file, offering <paramref name="suggestedName"/>; null when cancelled.</summary>
-    string? SaveFile(string title, string suggestedName, string filter, string defaultExtension);
+    string? SaveFile(string title, string suggestedName, string filter, string defaultExtension, string? initialFolder = null);
 
     /// <summary>One folder; null when cancelled.</summary>
     string? PickFolder(string title);
@@ -30,9 +30,10 @@ public sealed class WindowsFilePicker : IFilePicker
         return dialog.ShowDialog(WpfUserPrompts.Owner()) == true ? dialog.FileName : null;
     }
 
-    public string? SaveFile(string title, string suggestedName, string filter, string defaultExtension)
+    public string? SaveFile(string title, string suggestedName, string filter, string defaultExtension, string? initialFolder = null)
     {
         var dialog = new SaveFileDialog { Title = title, FileName = suggestedName, DefaultExt = defaultExtension, Filter = filter };
+        if (initialFolder is not null) dialog.InitialDirectory = initialFolder;
         return dialog.ShowDialog(WpfUserPrompts.Owner()) == true ? dialog.FileName : null;
     }
 
