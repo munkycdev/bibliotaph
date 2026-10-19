@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+- The Library's **Select** button shows a stack of ticked boxes instead of a plain tick, so it reads as choosing
+  several books.
+
 ## 1.2 · 13 October 2026
 
 New in 1.2.573 (15 October 2026):
