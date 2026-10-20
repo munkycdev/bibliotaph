@@ -157,6 +157,20 @@ function Invoke-BannedApi {
     $global:LASTEXITCODE = 0
 }
 
+function Show-SlowestTests([string] $results, [datetime] $since) {
+    # The test step's time is mostly a few long tests; naming them shows where a speed-up would come from.
+    $tests = foreach ($file in Get-ChildItem $results -Filter *.trx | Where-Object LastWriteTime -GE $since) {
+        $trx = [xml](Get-Content $file -Raw)
+        foreach ($result in $trx.TestRun.Results.UnitTestResult) {
+            [pscustomobject]@{ Seconds = [TimeSpan]::Parse($result.duration).TotalSeconds; Test = $result.testName }
+        }
+    }
+    if (-not $tests) { return }
+    Write-Host 'Slowest tests:'
+    $tests | Sort-Object Seconds -Descending | Select-Object -First 15 |
+        ForEach-Object { Write-Host ('  {0,6:N1}s  {1}' -f $_.Seconds, $_.Test) }
+}
+
 $order = 'Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
 # From the repository root wherever it's started: dotnet finds global.json, which picks the SDK and the test runner,
 # by looking up from the current folder.
@@ -171,7 +185,9 @@ try {
             'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
             'Licenses' { Invoke-Licenses }
             'Test' {
-                $options = '--configuration', 'Debug', '--no-build', '--report-xunit-trx', '--results-directory', (Join-Path $root 'TestResults')
+                $results = Join-Path $root 'TestResults'
+                $started = Get-Date
+                $options = '--configuration', 'Debug', '--no-build', '--report-xunit-trx', '--results-directory', $results
                 if ($IsWindows) { Invoke-Dotnet test --solution $solution @options }
                 else {
                     # The app's tests need WPF, which runs only on Windows; the Build step still compiled them.
@@ -181,6 +197,7 @@ try {
                         Where-Object { $_ -like 'tests/*.Tests.csproj' -and $_ -notlike '*/Bibliotaph.App.Tests.csproj' }
                     foreach ($project in $projects) { Invoke-Dotnet test --project (Join-Path $root $project) @options }
                 }
+                Show-SlowestTests $results $started
             }
             'Smoke' { Invoke-Smoke }
             'BannedApi' { Invoke-BannedApi }

@@ -46,7 +46,8 @@ Before pushing, run the same checks as CI (in PowerShell 7):
 
 CI runs each step of this script, so a green run here should mean a green run there. To keep pull requests quick,
 their CI runs skip the smoke test and the Release build; pushes to main run every step. Run the smoke test yourself
-before pushing a change to what the app shows. Off Windows the Engine and Smoke steps are skipped.
+before pushing a change to what the app shows. Off Windows the Engine and Smoke steps are skipped. The Test step ends
+with the fifteen slowest tests, which is where to look when it gets slow.
 
 ## Layout
 
