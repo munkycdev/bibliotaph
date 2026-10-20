@@ -7,6 +7,8 @@
       Restore    dotnet restore
       Engine     downloads the built-in AI's engine and the engine test's model (fetch-engine.ps1; Windows only)
       Build      Debug build; warnings are errors
+      AppBuild   Debug build of just the app and the licence tool, which is all Licenses and Smoke need; not run by
+                 default, as Build covers it
       Licenses   writes licenses\packages beside the Debug build; fails on a licence that isn't GPL-3.0-compatible
       Test       every test project; off Windows, all but the app's
       Smoke      the app's --smoke-test on the real window (Windows only)
@@ -22,10 +24,12 @@
     ./build/verify.ps1 -SkipSmoke
 .EXAMPLE
     ./build/verify.ps1 -Step Build, Test
+.EXAMPLE
+    ./build/verify.ps1 -Step Restore, AppBuild, Licenses, Smoke
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release')]
+    [ValidateSet('Restore', 'Engine', 'Build', 'AppBuild', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release')]
     [string[]] $Step = @('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'),
 
     # Leaves out the smoke test, which opens the app's window for a few minutes.
@@ -171,7 +175,7 @@ function Show-SlowestTests([string] $results, [datetime] $since) {
         ForEach-Object { Write-Host ('  {0,6:N1}s  {1}' -f $_.Seconds, $_.Test) }
 }
 
-$order = 'Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
+$order = 'Restore', 'Engine', 'Build', 'AppBuild', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
 # From the repository root wherever it's started: dotnet finds global.json, which picks the SDK and the test runner,
 # by looking up from the current folder.
 Push-Location $root
@@ -183,6 +187,11 @@ try {
             'Engine' { Invoke-Engine }
             # Debug builds contain the worker's fault-injection requests that the isolation tests use.
             'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
+            'AppBuild' {
+                foreach ($project in 'src/Bibliotaph.App/Bibliotaph.App.csproj', 'tools/LicenseNotices/LicenseNotices.csproj') {
+                    Invoke-Dotnet build (Join-Path $root $project) --configuration Debug --no-restore
+                }
+            }
             'Licenses' { Invoke-Licenses }
             'Test' {
                 $results = Join-Path $root 'TestResults'

@@ -31,8 +31,8 @@ The app keeps its databases and logs in `%LOCALAPPDATA%\Bibliotaph`. To try it a
 dotnet run --project src\Bibliotaph.App -- --data-root $env:TEMP\bibliotaph-scratch
 ```
 
-`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it on pushes to
-main, which every release waits for.
+`--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it on every pull
+request and every push to main, and every release waits for it.
 
 ## The verify script
 
@@ -42,12 +42,15 @@ Before pushing, run the same checks as CI (in PowerShell 7):
 ./build/verify.ps1             # restore, engine, build, licences, test, smoke test, banned-API probe, Release build
 ./build/verify.ps1 -SkipSmoke  # the same without opening the app's window
 ./build/verify.ps1 -Step Build, Test
+./build/verify.ps1 -Step Restore, AppBuild, Licenses, Smoke  # just the smoke test, building only the app
 ```
 
-CI runs each step of this script, so a green run here should mean a green run there. To keep pull requests quick,
-their CI runs skip the smoke test and the Release build; pushes to main run every step. Run the smoke test yourself
-before pushing a change to what the app shows. Off Windows the Engine and Smoke steps are skipped. The Test step ends
-with the fifteen slowest tests, which is where to look when it gets slow.
+CI runs each step of this script, so a green run here should mean a green run there. It runs two jobs side by side:
+**Build and test (Windows)** (build, licences, tests, banned-API probe) and **App smoke test (Windows)** (just the app's
+build, licences and the smoke test). Pull requests skip the Release build, which pushes to main run. CI's runner draws
+at 100% scaling, so a change to layout under other scaling is still worth a smoke run on your own PC. Off Windows the
+Engine and Smoke steps are skipped. The Test step ends with the fifteen slowest tests, which is where to look when it
+gets slow.
 
 ## Layout
 
