@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Two jobs side by side: the smoke test takes about as long as the tests, so running it beside them, rather than
+  # after, puts it on every pull request for no more wall time than the slower of the two.
   build-and-test:
     name: Build and test (Windows)
     runs-on: windows-latest
@@ -30,58 +32,12 @@ jobs:
       DOTNET_INSTALL_DIR: D:\dotnet
 
     steps:
-      # Real-time scanning inspects every file restore, build and the tests write, which costs minutes on a hosted
-      # runner. The runner is thrown away after the job.
-      - name: Turn off Defender real-time scanning
-        shell: pwsh
-        run: Set-MpPreference -DisableRealtimeMonitoring $true
-
-      # The tests and the smoke test make their folders and SQLite files under %TEMP%, which is on C:, the runner's
-      # slower disk. RUNNER_TEMP is on D:.
-      - name: Keep temporary files on drive D
-        shell: pwsh
-        run: |
-          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-
       - uses: actions/checkout@v4
 
-      # The runner image has no .NET 11, and downloading it took about 40 seconds a run. The SDK lives in its own folder
-      # so it can be cached; setup-dotnet finds it there and only puts it on the path.
-      - uses: actions/cache@v4
-        with:
-          path: ${{ env.DOTNET_INSTALL_DIR }}
-          key: dotnet-${{ runner.os }}-${{ env.DOTNET_SDK }}
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK }}
-
-      - uses: actions/cache@v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: nuget-${{ runner.os }}-
-
-      - name: Show SDK
-        run: dotnet --info
-
       # Each step runs build/verify.ps1, the same script developers run before pushing, so the two can't drift apart.
-      - name: Restore
-        shell: pwsh
-        run: ./build/verify.ps1 -Step Restore
-
-      # llama.cpp's server for the built-in AI, and the tiny model its test runs; both pinned in build/engine.json.
-      - uses: actions/cache@v4
+      - uses: ./.github/actions/setup
         with:
-          path: artifacts/cache
-          key: engine-${{ hashFiles('build/engine.json') }}
-
-      - name: Built-in AI engine
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./build/verify.ps1 -Step Engine
+          github-token: ${{ github.token }}
 
       - name: Build (Debug, warnings as errors)
         shell: pwsh
@@ -95,14 +51,6 @@ jobs:
       - name: Test
         shell: pwsh
         run: ./build/verify.ps1 -Step Test
-
-      # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
-      # exception or binding error. It is the slowest step, so pull requests skip it and main runs it; a release waits
-      # for CI on its tagged commit, so no release ships without it.
-      - name: App smoke test
-        if: github.event_name != 'pull_request'
-        shell: pwsh
-        run: ./build/verify.ps1 -Step Smoke
 
       # Source files are read-only by construction: a write API in Core must fail the build.
       - name: Banned file APIs fail the build
@@ -122,3 +70,39 @@ jobs:
           name: test-results
           path: TestResults
           if-no-files-found: ignore
+
+  # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
+  # exception or binding error. A release waits for it on its tagged commit, so no release ships without it.
+  smoke:
+    name: App smoke test (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with
+      # dotnet-quality ga then.
+      DOTNET_SDK: '11.0.100-rc.2.26504.105'
+      DOTNET_INSTALL_DIR: D:\dotnet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+        with:
+          github-token: ${{ github.token }}
+
+      # Only the app and the licence tool: the tests and the other tools would only slow this job down.
+      - name: Build the app (Debug, warnings as errors)
+        shell: pwsh
+        run: ./build/verify.ps1 -Step AppBuild
+
+      # The smoke test checks the About popup lists the packages' licences.
+      - name: Licences
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Licenses
+
+      - name: App smoke test
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Smoke
