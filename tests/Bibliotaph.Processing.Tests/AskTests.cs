@@ -140,8 +140,21 @@ public sealed class AskTests : IAsyncLifetime
         if (_ask.FillOf(_book) is { Running: true }) await FilledAsync();
         _ask.Dispose();
         _writer.Dispose();
-        SqliteConnection.ClearAllPools();
-        Directory.Delete(_dir, recursive: true);
+        // Windows lets go of a closed SQLite file a moment later when the machine is busy, so the delete tries again.
+        for (var attempt = 1; ; attempt++)
+        {
+            _index.ClearPools();
+            SqliteConnection.ClearAllPools();
+            try
+            {
+                Directory.Delete(_dir, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < 20)
+            {
+                await Task.Delay(100);
+            }
+        }
     }
 
     Task SetUpAsync(string? embeddingModel, bool enabled = true, IReadOnlySet<long>? skipped = null) =>
