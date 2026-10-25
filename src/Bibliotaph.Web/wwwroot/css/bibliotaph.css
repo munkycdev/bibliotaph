@@ -642,3 +642,55 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-binderactions{grid-column:4;justify-content:flex-end}
 .bt-toolbarspace{display:none}}
 .bt-hitline{display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* Needs review, as the Windows app's page: the tabs, a column of cards 720 wide, and the files needing attention. */
+.bt-reviewtabs{margin-bottom:0}
+.bt-reviewpage{max-width:720px}
+.bt-reviewshow{display:flex;align-items:center;gap:10px;margin-top:18px}
+.bt-reviewshow .bt-select{min-width:200px}
+.bt-reviewpage .bt-banner{margin-top:18px;align-items:center}
+.bt-banner.side{background:var(--bt-side)}
+.bt-banner.side .bt-bannertext{color:var(--bt-muted)}
+.bt-reviewbook{font-size:14px;font-weight:600;color:var(--bt-text);text-decoration:none}
+.bt-reviewbook:hover{text-decoration:underline}
+.bt-reviewtitle{align-items:flex-start}
+.bt-reviewtitle .bt-chip{flex-shrink:0;margin:0}
+.bt-reviewreason{margin-top:4px}
+.bt-reviewcompare{grid-template-columns:1fr 32px 1fr;margin:16px 0 12px;align-items:stretch}
+.bt-reviewcompare>div{color:var(--bt-text);overflow-wrap:anywhere}
+.bt-reviewcompare .bt-reviewsource{font-size:10px;margin:5px 0 0}
+.bt-reviewarrow{display:flex;justify-content:center;align-items:center;color:var(--bt-muted)}
+.bt-reviewevidence{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:18px;color:var(--bt-muted);margin:0 0 16px}
+.bt-reviewevidence svg{flex-shrink:0;margin-top:2px}
+.bt-reviewevidence strong{font-weight:600;color:var(--bt-text)}
+.bt-reviewedit{margin-bottom:4px}
+.bt-reviewedit .bt-input{width:100%}
+.bt-reviewedit .bt-resolution{font-size:11px;color:var(--bt-text);margin-top:5px}
+.bt-reviewedit .bt-edithint{margin-top:5px}
+.bt-reviewpick{margin-top:10px;min-width:240px}
+.bt-reviewedit .bt-inline{margin-top:12px}
+.bt-reviewitem .bt-problem{margin:0 0 10px}
+.bt-reviewterm{margin-top:16px}
+.bt-termfile{display:inline-flex;gap:8px;align-items:center}
+.bt-termfile .bt-select{min-width:180px}
+.bt-reviewdonetitle{font-size:12px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-decided{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--bt-muted)}
+.bt-decided span{flex:1}
+.bt-decided .bt-link{padding:0 0 0 12px}
+.bt-reviewmore{margin-top:18px}
+.bt-retryall{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px}
+.bt-attention{display:flex;gap:10px;align-items:flex-start;background:var(--bt-side);border-radius:6px;padding:15px;margin-top:12px}
+.bt-attention>svg{flex-shrink:0}
+.bt-attentionbody{flex:1;min-width:0}
+.bt-attentionbody .bt-row{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-attentionbody>.bt-small{margin-top:5px}
+.bt-attentionlinks{display:flex;gap:16px;flex-wrap:wrap;margin-top:4px}
+.bt-attentionfiles{list-style:none;padding:0;margin:6px 0 0}
+.bt-attentionfiles li{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:6px}
+.bt-attentionfiles li .bt-small{color:var(--bt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-reassure{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:24px;font-size:10px;color:var(--bt-muted)}
+@media(max-width:620px){
+.bt-reviewcompare{grid-template-columns:1fr}
+.bt-reviewarrow{transform:rotate(90deg)}
+.bt-retryall{flex-direction:column;align-items:flex-start}
+.bt-attention{flex-wrap:wrap}
+}

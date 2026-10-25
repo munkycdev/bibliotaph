@@ -243,6 +243,36 @@ public sealed class ApiClient(HttpClient http)
     public Task<BinderList> BindersAsync(DateOnly today, CancellationToken ct = default) =>
         SendAsync<BinderList>(HttpMethod.Get, $"api/binders?today={today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
 
+    // Needs review.
+
+    public Task<ReviewSuggestions> ReviewAsync(CancellationToken ct = default) => SendAsync<ReviewSuggestions>(HttpMethod.Get, "api/review", null, ct);
+
+    public Task<ActionResult> AcceptSuggestionAsync(ReviewFieldDecision decision, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/fields/accept", decision, ct);
+
+    public Task<ActionResult> RejectSuggestionAsync(ReviewFieldDecision decision, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/fields/reject", decision, ct);
+
+    public Task<ActionResult> EditSuggestionAsync(ReviewFieldEdit edit, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/fields/edit", edit, ct);
+
+    public Task<ReviewAcceptedAll> AcceptAllSuggestionsAsync(ReviewAcceptAll request, CancellationToken ct = default) =>
+        SendAsync<ReviewAcceptedAll>(HttpMethod.Post, "api/review/fields/accept-all", request, ct);
+
+    public Task<ActionResult> AddTermAsync(long id, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/review/terms/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}/add", null, ct);
+
+    public Task<ActionResult> RejectTermAsync(long id, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/review/terms/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}/reject", null, ct);
+
+    public Task<ActionResult> FileTermAsync(long id, string target, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/review/terms/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}/map", new ReviewTermMap(target), ct);
+
+    public Task<ReviewFiles> AttentionAsync(CancellationToken ct = default) => SendAsync<ReviewFiles>(HttpMethod.Get, "api/review/files", null, ct);
+
+    public Task<ReviewFiles> RetryAsync(IReadOnlyList<long> documents, CancellationToken ct = default) =>
+        SendAsync<ReviewFiles>(HttpMethod.Post, "api/review/files/retry", new ReviewRetry(documents), ct);
+
     /// <summary>Add to binder's menu: the binder worked on last first, then another and a new one.</summary>
     public Task<BinderMenu> BinderMenuAsync(CancellationToken ct = default) => SendAsync<BinderMenu>(HttpMethod.Get, "api/binders/menu", null, ct);
 

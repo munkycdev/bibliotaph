@@ -6,11 +6,12 @@ namespace Bibliotaph.Server.Libraries;
 /// <summary>
 /// What the web client can ask for once, by a token it was given: an Undo, or Change them on an offer to correct the
 /// look-alikes of a book. The Windows app keeps these in its view models; the browser keeps only the token, so the
-/// action itself stays on the server, for a while, with the most recent few.
+/// action itself stays on the server, for a while, with the most recent. Needs review holds one for each card decided,
+/// a page of them at once after Accept all, so a few hundred are kept.
 /// </summary>
 public sealed class HeldActions(TimeProvider clock)
 {
-    const int Most = 50;
+    const int Most = 300;
     static readonly TimeSpan Life = TimeSpan.FromMinutes(30);
 
     readonly Lock _gate = new();

@@ -62,3 +62,8 @@ window.bibliotaphSave = function (name, type, text) {
   link.remove();
   setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 };
+// Copy details: a bug's report text on the clipboard. False when the browser refuses, as it may without a click.
+window.bibliotaphCopy = function (text) {
+  if (!navigator.clipboard) return Promise.resolve(false);
+  return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
+};

@@ -117,6 +117,20 @@ public sealed class ReviewService(
             await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct));
     }
 
+    /// <summary>One entry's card for a field, as the queue would make it now; null when it isn't waiting any more.</summary>
+    public async Task<ReviewIssue?> FindAsync(EntryId entryId, string fieldKey, ReviewKind kind, CancellationToken ct = default)
+    {
+        var all = await metadata.GetManyAsync([entryId], ct);
+        if (!all.TryGetValue(entryId, out var entry)) return null;
+        return MetadataReview.Find(entry.Compute(), await GetReviewAllAsync(ct)).FirstOrDefault(i => i.Field.Key == fieldKey && i.Kind == kind);
+    }
+
+    /// <summary>A new term still waiting for a decision, or null.</summary>
+    public async Task<PendingTerm?> FindTermAsync(long id, CancellationToken ct = default) =>
+        (await vocabularies.GetPendingAsync(ct)).FirstOrDefault(t => t.Id == id);
+
+    public Task<Vocabulary> GetVocabularyAsync(CancellationToken ct = default) => vocabularies.GetAsync(ct);
+
     /// <summary>
     /// Answers "Make a collection from these books?": Accept, Not now or Never. Returns what undoes it, or null when the
     /// folder isn't waiting any more.

@@ -14,22 +14,6 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A file Bibliotaph couldn't fully process, and why, in words the user can act on. Trying again can't help a locked
-/// file or one with DRM, so those offer opening it to unlock, or in another app.
-/// </summary>
-public sealed record AttentionRow(long? DocumentId, string Title, string Detail, TextAccess Access = TextAccess.Readable, string? Error = null)
-{
-    public bool CanRetry => DocumentId is not null && Access == TextAccess.Readable;
-
-    public bool CanUnlock => DocumentId is not null && Access == TextAccess.Locked;
-
-    public bool CanOpenElsewhere => DocumentId is not null && Access == TextAccess.Protected;
-
-    /// <summary>A stage threw something nothing expected: a bug to report, with <see cref="Error"/> as what to paste.</summary>
-    public bool IsBug => Error is not null;
-}
-
-/// <summary>
 /// Files that need attention for the same reason, as one card: one bug can fail hundreds of books, and a card each would
 /// bury everything else. A group of one reads as that file's own card; a bigger one lists its files when opened.
 /// </summary>
@@ -43,7 +27,7 @@ public sealed partial class AttentionGroup(IReadOnlyList<AttentionRow> rows) : O
 
     public bool IsMany => Rows.Count > 1;
 
-    public string Heading => IsSingle ? First.Title : $"{Rows.Count:N0} files";
+    public string Heading => ReviewText.GroupHeading(Rows);
 
     public string Detail => First.Detail;
 
@@ -61,17 +45,16 @@ public sealed partial class AttentionGroup(IReadOnlyList<AttentionRow> rows) : O
     [NotifyPropertyChangedFor(nameof(CopyLabel))]
     public partial bool Copied { get; set; }
 
-    public string CopyLabel => Copied ? "Copied" : "Copy details";
+    public string CopyLabel => Copied ? ReviewText.Copied : ReviewText.CopyDetails;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleLabel))]
     public partial bool IsExpanded { get; set; }
 
-    public string ToggleLabel => IsExpanded ? "Hide the files" : $"Show the {Rows.Count:N0} files";
+    public string ToggleLabel => ReviewText.ShowFiles(Rows.Count, IsExpanded);
 
     /// <summary>Rows with the same reason and access go together, in the order the first of each was listed.</summary>
-    public static List<AttentionGroup> Of(IEnumerable<AttentionRow> rows) =>
-        [.. rows.GroupBy(r => (r.Detail, r.Access)).Select(g => new AttentionGroup([.. g]))];
+    public static List<AttentionGroup> Of(IEnumerable<AttentionRow> rows) => [.. ReviewText.Group(rows).Select(g => new AttentionGroup(g))];
 
     /// <summary>The same files for the same reason, so a refresh that changes nothing leaves the cards, and what's open, alone.</summary>
     public bool SameAs(AttentionGroup other) => Rows.SequenceEqual(other.Rows);
@@ -91,7 +74,7 @@ public sealed partial class ReviewShowChoice(string key, string name) : Observab
     [NotifyPropertyChangedFor(nameof(Label))]
     public partial int Count { get; set; }
 
-    public string Label => $"{Name} · {Count:N0}";
+    public string Label => ReviewText.ShowLabel(Name, Count);
 
     public override string ToString() => Label;
 }
@@ -121,17 +104,6 @@ public sealed partial class NeedsReviewViewModel(
     IDesktopShell shell,
     ILogger<NeedsReviewViewModel> log) : PageViewModel, IReviewActions
 {
-    /// <summary>Cards shown at a time; more on request, so thousands of suggestions don't build thousands of cards.</summary>
-    const int PageSize = 60;
-
-    /// <summary>The Show menu's kinds of card, in the order the page lists them; field suggestions follow, by field.</summary>
-    static readonly (string Key, string Name)[] Kinds =
-    [
-        ("terms", "New terms"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"),
-        ("revisions", "Places to check"), ("parts", "Adventures"), ("corrections", "Corrections"), ("rules", "Folder rules"),
-        ("folders", "Collections from folders"), ("suggestions", "Books for collections"),
-    ];
-
     /// <summary>Every card that isn't a field suggestion, made once per load so a decided one keeps its Undo whatever is shown.</summary>
     List<DecidedCardViewModel> _cards = [];
 
@@ -193,17 +165,11 @@ public sealed partial class NeedsReviewViewModel(
     [NotifyPropertyChangedFor(nameof(FilesTabLabel), nameof(Subtitle))]
     public partial bool HasFiles { get; set; }
 
-    public string SuggestionsTabLabel => $"Metadata suggestions  {Remaining:N0}";
+    public string SuggestionsTabLabel => ReviewText.SuggestionsTab(Remaining);
 
-    public string FilesTabLabel => $"Files needing attention · {FileCount:N0}";
+    public string FilesTabLabel => ReviewText.FilesTab(FileCount);
 
-    public string Subtitle => (Remaining, FileCount) switch
-    {
-        (0, 0) => "Nothing needs a second look. Everything is ready to use.",
-        (1, _) => "One suggestion worth a second look. The rest is ready to use.",
-        (0, _) => "No suggestions to look at, but some files need attention.",
-        _ => $"{Remaining:N0} suggestions worth a second look. The rest is ready to use.",
-    };
+    public string Subtitle => ReviewText.Subtitle(Remaining, FileCount);
 
     public bool HasCards => Cards.Count > 0;
 
@@ -227,7 +193,7 @@ public sealed partial class NeedsReviewViewModel(
 
     public bool HasHidden => Hidden > 0;
 
-    public string MoreLabel => $"Show {Math.Min(PageSize, Hidden):N0} more ({Hidden:N0} not shown)";
+    public string MoreLabel => ReviewText.MoreLabel(Hidden);
 
     /// <summary>The library's suggestions changed since the page loaded them (new books, a reindex).</summary>
     [ObservableProperty]
@@ -308,8 +274,8 @@ public sealed partial class NeedsReviewViewModel(
     void ShowMore()
     {
         var matching = _items.Where(i => IsShown(FieldKey(i))).ToList();
-        foreach (var item in matching.Skip(_shown).Take(PageSize)) Cards.Add(CardFor(item));
-        _shown = Math.Min(matching.Count, _shown + PageSize);
+        foreach (var item in matching.Skip(_shown).Take(ReviewText.PageSize)) Cards.Add(CardFor(item));
+        _shown = Math.Min(matching.Count, _shown + ReviewText.PageSize);
         Hidden = matching.Count - _shown;
         OnPropertyChanged(nameof(HasCards));
         OnPropertyChanged(nameof(ShowEmpty));
@@ -348,7 +314,7 @@ public sealed partial class NeedsReviewViewModel(
         _ => "",
     };
 
-    static string FieldKey(ReviewItem item) => "field:" + item.Issue.Field.Key;
+    static string FieldKey(ReviewItem item) => ReviewText.FieldKey(item);
 
     /// <summary>The Show menu for what was loaded, keeping what was picked when it's still there.</summary>
     void ListChoices()
@@ -360,7 +326,7 @@ public sealed partial class NeedsReviewViewModel(
             ShowChoices.Clear();
             ShowChoices.Add(new ReviewShowChoice(ReviewShowChoice.Everything, "Everything"));
             var kinds = _cards.Select(KindOf).ToHashSet();
-            foreach (var (key, name) in Kinds.Where(k => kinds.Contains(k.Key))) ShowChoices.Add(new ReviewShowChoice(key, name));
+            foreach (var (key, name) in ReviewText.Kinds.Where(k => kinds.Contains(k.Key))) ShowChoices.Add(new ReviewShowChoice(key, name));
             foreach (var item in _items.DistinctBy(i => i.Issue.Field.Key).OrderBy(i => i.Issue.Field.Label, StringComparer.CurrentCultureIgnoreCase))
                 ShowChoices.Add(new ReviewShowChoice(FieldKey(item), item.Issue.Field.Label));
             Show = ShowChoices.FirstOrDefault(c => c.Key == picked) ?? ShowChoices[0];
@@ -395,8 +361,8 @@ public sealed partial class NeedsReviewViewModel(
         {
             var rows = (await queries.GetAttentionAsync())
                 .Select(Row)
-                .Concat(indexing.Unreadable.Select(u => new AttentionRow(null, Path.GetFileName(u.Path), $"Couldn't be read: {u.Reason}")))
-                .Concat((await library.GetProblemsAsync()).Select(p => new AttentionRow(null, Path.GetFileName(p.FullPath), $"Not read: {p.Problem} ({p.FullPath})")))
+                .Concat(indexing.Unreadable.Select(u => ReviewText.Unreadable(Path.GetFileName(u.Path), u.Reason)))
+                .Concat((await library.GetProblemsAsync()).Select(p => ReviewText.Problem(Path.GetFileName(p.FullPath), p.Problem, p.FullPath)))
                 .ToList();
             var groups = AttentionGroup.Of(rows);
             if (groups.Count == Files.Count && groups.Zip(Files).All(p => p.First.SameAs(p.Second))) return;
@@ -419,16 +385,7 @@ public sealed partial class NeedsReviewViewModel(
         }
     }
 
-    /// <summary>A failed or blocked stage in words: a bug says so, and keeps what to paste into a report.</summary>
-    AttentionRow Row(AttentionItem item)
-    {
-        var step = stages.Find(item.Stage)?.Names.Step ?? item.Stage.ToString();
-        var reason = item.Reason ?? "something went wrong";
-        if (reason.StartsWith(IndexingService.UnexpectedError, StringComparison.Ordinal))
-            return new AttentionRow(item.DocumentId, item.Title, $"{step}: Bibliotaph hit a bug ({reason[IndexingService.UnexpectedError.Length..]})",
-                Error: $"{item.Stage}: {reason}");
-        return new AttentionRow(item.DocumentId, item.Title, $"{step}: {reason}", TextAccessReasons.Of(item.Status, item.Reason));
-    }
+    AttentionRow Row(AttentionItem item) => ReviewText.Row(item, stages);
 
     [RelayCommand]
     async Task Retry(AttentionRow row)
@@ -465,10 +422,7 @@ public sealed partial class NeedsReviewViewModel(
     [RelayCommand]
     void CopyDetails(AttentionGroup group)
     {
-        var details = string.Join(Environment.NewLine,
-            $"Bibliotaph {AboutInfo.ForThisApp().VersionText}",
-            group.First.Error,
-            $"Files: {group.Rows.Count:N0}");
+        var details = ReviewText.BugDetails(AboutInfo.ForThisApp().VersionText, group.Rows);
         try
         {
             clipboard.SetText(details);
@@ -532,11 +486,11 @@ public sealed partial class NeedsReviewViewModel(
         for (var i = 0; i < cards.Count; i++)
         {
             var snapshot = undo[i];
-            cards[i].MarkDone($"{cards[i].FieldLabel} is now {cards[i].SuggestedText}.", () => review.UndoAsync([snapshot]));
+            cards[i].MarkDone(new FieldCardText(cards[i].Item, _vocabulary).Accepted, () => review.UndoAsync([snapshot]));
         }
         CountChoices();
         // Undo all lists the cards again, since some of them weren't shown.
-        BulkUndo.Offer(group.Count == 1 ? "Accepted one suggestion." : $"Accepted {group.Count:N0} suggestions.", async () =>
+        BulkUndo.Offer(ReviewText.AcceptedAll(group.Count), async () =>
         {
             await review.UndoAsync(undo);
             activity.Invalidate();

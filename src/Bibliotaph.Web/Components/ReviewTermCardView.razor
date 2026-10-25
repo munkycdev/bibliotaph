@@ -1,0 +1,65 @@
+@* A new term, once for every book that waits on it, as the Windows app's card: add it, reject it, or file it under a
+   term the vocabulary has. Decided, it folds to one line with Undo. *@
+@inject ApiClient Api
+
+<article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Label}")">
+    @if (State.IsDone)
+    {
+        <div class="bt-decided">
+            <Icon Name="Check" Size="14" />
+            <span>@State.Done</span>
+            @if (State.Undo is not null)
+            {
+                <button class="bt-link" disabled="@State.Busy" @onclick="UndoAsync">Undo</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bt-reviewtitle">
+            <h3>@Card.Label</h3>
+            <span class="bt-chip">@Card.Chip</span>
+        </div>
+        <div class="bt-small bt-reviewreason">@Card.Detail</div>
+        @if (Card.Example is { } example)
+        {
+            <div class="bt-reviewevidence"><Icon Name="TextSearch" Size="13" /><span>@example</span></div>
+        }
+        @if (State.Problem is { } problem)
+        {
+            <div class="bt-problem" role="alert">@problem</div>
+        }
+        <div class="bt-inline bt-reviewterm">
+            <button class="bt-button primary" disabled="@State.Busy" @onclick="() => DecideAsync(() => Api.AddTermAsync(Card.Id))"><Icon Name="Plus" />@Card.AddLabel</button>
+            <button class="bt-button" disabled="@State.Busy" title="Not a useful name; it won't be suggested again"
+                    @onclick="() => DecideAsync(() => Api.RejectTermAsync(Card.Id))">Reject</button>
+            <span class="bt-termfile">
+                <select class="bt-select" aria-label="@($"File {Card.Label} under")" title="Another name for an existing term" @bind="_target">
+                    <option value=""></option>
+                    @foreach (var target in Card.Targets)
+                    {
+                        <option value="@target.Key">@target.Label</option>
+                    }
+                </select>
+                <button class="bt-button" disabled="@(State.Busy || _target.Length == 0)" @onclick="FileAsync">File under it</button>
+            </span>
+        </div>
+    }
+</article>
+
+@code {
+    string _target = "";
+
+    [Parameter, EditorRequired] public ReviewTermCard Card { get; set; } = default!;
+
+    [Parameter, EditorRequired] public ReviewCardState State { get; set; } = default!;
+
+    /// <summary>Raised with -1 when the card is decided and +1 when that's undone, so the page counts what's waiting.</summary>
+    [Parameter] public EventCallback<int> Decided { get; set; }
+
+    Task DecideAsync(Func<Task<ActionResult>> decide) => State.DecideAsync(decide, Decided.InvokeAsync);
+
+    Task FileAsync() => _target.Length == 0 ? Task.CompletedTask : DecideAsync(() => Api.FileTermAsync(Card.Id, _target));
+
+    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+}
