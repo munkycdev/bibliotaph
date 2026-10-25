@@ -45,38 +45,13 @@ public sealed class MetadataValueViewModel(MetadataField field, EffectiveValue v
     /// <summary>"From the folder name “D&amp;D 5e”", "You set this", one line per source that agrees.</summary>
     public IReadOnlyList<string> Sources { get; } = [.. value.Support.Select(c => Describe(c)).Distinct()];
 
-    public static string Display(MetadataField field, string value, Vocabulary vocabulary) => field.Kind switch
-    {
-        FieldKind.Term => vocabulary.Label(field.Vocabulary!, value),
-        FieldKind.Levels when LevelRange.TryParse(value, out var range) => range.Describe(),
-        FieldKind.Players when PlayerRange.TryParse(value, out var players) => players.Describe(),
-        FieldKind.Store => vocabulary.Label(field.Vocabulary!, StoreLink.Parse(value).Store),
-        _ => value,
-    };
+    public static string Display(MetadataField field, string value, Vocabulary vocabulary) => FieldText.Display(field, value, vocabulary);
 
     /// <summary>As a value reads where its link has to show too, as on a bulk edit chip: "DriveThruRPG · drivethrurpg.com/…".</summary>
-    public static string DisplayWithLink(MetadataField field, string value, Vocabulary vocabulary) =>
-        field.Kind == FieldKind.Store && StoreLink.Parse(value) is { ShortUrl: { } link } ? $"{Display(field, value, vocabulary)} · {link}" : Display(field, value, vocabulary);
+    public static string DisplayWithLink(MetadataField field, string value, Vocabulary vocabulary) => FieldText.DisplayWithLink(field, value, vocabulary);
 
     /// <summary>Where one claim came from, in words: "From the folder name “D&amp;D 5e”", with its pages unless told not to.</summary>
-    public static string Describe(MetadataClaim claim, bool pages = true)
-    {
-        var quote = string.IsNullOrWhiteSpace(claim.Quote) ? "" : $" “{claim.Quote}”";
-        var source = claim.Origin switch
-        {
-            AssertionOrigin.User => "You set this",
-            AssertionOrigin.Folder => "From the folder name" + quote,
-            AssertionOrigin.Filename => "From the file name" + quote,
-            AssertionOrigin.Embedded => "From the PDF's own information" + quote,
-            AssertionOrigin.Rule => (claim.Field == MetadataFields.GetItFrom.Key ? "Named in the file's watermark" : "Written in the file's name or title") + quote,
-            AssertionOrigin.FolderRule => string.IsNullOrWhiteSpace(claim.Quote) ? "From your rule for this library folder" : $"From your rule for the folder “{claim.Quote}”",
-            AssertionOrigin.Ai => "Suggested by the AI model" + quote + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
-            AssertionOrigin.UserTag => "Your words for this tag are on its pages" + quote
-                + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
-            _ => claim.Origin.ToString(),
-        };
-        return claim.Origin != AssertionOrigin.User && claim.State == AssertionState.Confirmed ? $"You kept this. {source}" : source;
-    }
+    public static string Describe(MetadataClaim claim, bool pages = true) => FieldText.Source(claim, pages);
 }
 
 /// <summary>
@@ -114,7 +89,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     public bool IsKnown => Values.Count > 0;
 
-    public string Display => IsKnown ? string.Join(", ", Values.Select(v => v.Text)) : "Not set";
+    public string Display => FieldText.Join([.. Values.Select(v => v.Text)]);
 
     /// <summary>The values with a web link (Get it from), shown as links under the field.</summary>
     public IReadOnlyList<MetadataValueViewModel> Links => [.. Values.Where(v => v.HasLink)];
@@ -132,7 +107,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     public bool CanReset => Values.Any(v => v.Confirmed);
 
     /// <summary>"Suggested" or "Sources disagree", on the link that opens the evidence.</summary>
-    public string EvidenceLabel => NeedsReview ? "Sources disagree" : IsSuggested ? "Suggested" : "Sources";
+    public string EvidenceLabel => FieldText.EvidenceLabel(NeedsReview, IsSuggested);
 
     public bool HasEvidence => IsKnown || HasAlternatives;
 

@@ -41,7 +41,7 @@ public sealed partial class InspectorViewModel
 
     public bool HasParts => Parts.Count > 0;
 
-    public string PartsHeading => HasParts ? $"ADVENTURES IN THIS FILE ({Parts.Count.ToString("N0", CultureInfo.CurrentCulture)})" : "ADVENTURES IN THIS FILE";
+    public string PartsHeading => DetailsText.PartsHeading(Parts.Count);
 
     /// <summary>Adding an adventure, or changing one's pages, in the details.</summary>
     [ObservableProperty]
@@ -64,7 +64,7 @@ public sealed partial class InspectorViewModel
         if (_parts is not { } parts) return;
         var all = await Task.Run(() => parts.GetAsync(Item.EntryId));
         Parts = [.. all.Select(p => new InspectorPart(p.EntryId, p.Title, p.Pages,
-            p.Pages is { } pages ? pages.Describe(_labels) : "Its pages weren't found in this copy"))];
+            DetailsText.PartPages(p.Pages, _labels)))];
     }
 
     int? FindPage(string text) => PageNumbers.Find(text, _labels, _labels.Count);

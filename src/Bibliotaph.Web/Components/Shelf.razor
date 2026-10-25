@@ -1,0 +1,22 @@
+@* A row of Home's covers, as the Windows app's: cover, title and a line about the book; a click opens its details. *@
+<div class="bt-books bt-shelf" aria-label="@Label">
+    @foreach (var book in Books)
+    {
+        <div class="bt-book" @key="book.Id" title="@book.Title">
+            <button class="bt-bookbutton" aria-label="Details for @book.Title" @onclick="() => Open.InvokeAsync(book)">
+                <div class="bt-coverarea">
+                    <BookCover Book="book" />
+                    @if (book.Favorite) { <span class="bt-heart cover on" role="img" aria-label="Favorite"><Icon Name="Heart" Size="13" /></span> }
+                </div>
+                <div class="bt-booktitle">@book.Title</div>
+                <div class="bt-bookmeta">@book.Meta</div>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BookCard> Books { get; set; } = [];
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public EventCallback<BookCard> Open { get; set; }
+}

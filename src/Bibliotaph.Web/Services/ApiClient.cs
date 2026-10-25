@@ -96,6 +96,18 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<LibraryResults>(ct))!;
     }
 
+    public async Task<HomeShelves> HomeAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<HomeShelves>("api/home", ct) ?? new HomeShelves([], [], "");
+
+    /// <summary>A book's details, or null when it isn't in the library (any more).</summary>
+    public async Task<BookDetails?> BookAsync(long entryId, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/library/books/{entryId.ToString(System.Globalization.CultureInfo.InvariantCulture)}", ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        await EnsureAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<BookDetails>(ct);
+    }
+
     /// <summary>A refused call becomes an <see cref="ApiProblemException"/> carrying the server's own words, when it gave any.</summary>
     static async Task EnsureAsync(HttpResponseMessage response, CancellationToken ct)
     {

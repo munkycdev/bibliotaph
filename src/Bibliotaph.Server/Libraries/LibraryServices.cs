@@ -10,11 +10,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Server.Libraries;
 
 /// <summary>
-/// What every library shares with the server: logging, the clock, the way to reach a user's drives, and the PDF
-/// worker and image codec, so one worker reads for every user in turn rather than one each.
+/// What every library shares with the server: logging, the clock, the way to reach a user's drives, the PDF worker
+/// and image codec, so one worker reads for every user in turn rather than one each, and where covers are kept.
 /// </summary>
 public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
-    IImageCodec Images);
+    IImageCodec Images, ICoverStore Covers);
 
 /// <summary>
 /// One library's services: the same stores, queries and indexing the Windows app composes in its own host, built once
@@ -96,6 +96,7 @@ public static class LibraryServices
         services.AddSingleton<SessionStore>();
         services.AddSingleton<NoteStore>();
         services.AddSingleton<CoverCache>();
+        services.AddSingleton(sp => new CoverMirror(userId, sp.GetRequiredService<CoverCache>(), host.Covers, sp.GetRequiredService<ILogger<CoverMirror>>()));
         services.AddSingleton<FileHasher>();
         services.AddSingleton<ArchiveReader>();
         services.AddSingleton(sp => new SourceFiles(paths, sp.GetRequiredService<ArchiveReader>(), sp.GetRequiredService<IDiskSpace>(),

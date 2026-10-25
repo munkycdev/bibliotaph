@@ -24,13 +24,19 @@ public static class LibraryApi
             return await ResultsAsync(lease.Library, Query(request.Query), ct);
         });
 
+        api.MapGet("/home", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await HomeAsync(lease.Library, ct);
+        });
+
         api.MapGet("/library/covers/{name}", async (string name, HttpContext context, ClaimsPrincipal principal, UserLibraries libraries,
             CancellationToken ct) =>
         {
             if (!IsCoverName(name)) return Results.NotFound();
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var path = lease.Library.Get<CoverCache>().PathFor(name);
-            if (!File.Exists(path)) return Results.NotFound();
+            if (!await lease.Library.Get<CoverMirror>().RestoreAsync(name, ct)) return Results.NotFound();
             // A cover's name changes with its image, except a book owned elsewhere's, which importing again redraws.
             context.Response.Headers.CacheControl = name.StartsWith("elsewhere-", StringComparison.Ordinal)
                 ? "private, no-cache"
@@ -39,6 +45,22 @@ public static class LibraryApi
             return Results.File(path, "image/jpeg", lastModified: modified,
                 entityTag: new EntityTagHeaderValue($"\"{modified.Ticks.ToString(CultureInfo.InvariantCulture)}\""));
         });
+    }
+
+    /// <summary>How many covers each of Home's rows shows.</summary>
+    const int HomeRow = 8;
+
+    /// <summary>Home's rows: the books opened last, newest first, and those that joined the library last.</summary>
+    public static async Task<HomeShelves> HomeAsync(UserLibrary library, CancellationToken ct)
+    {
+        var store = library.Get<LibraryStore>();
+        var queries = library.Get<LibraryQueries>();
+        var scope = await store.GetVisibleEntryIdsAsync(ct: ct);
+        var away = await store.GetUnavailableAsync(ct);
+        var opened = await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: HomeRow, ct: ct);
+        var added = await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: HomeRow, ct: ct);
+        BookCard Card(LibraryEntry entry) => ToCard(entry, away.GetValueOrDefault(entry.EntryId));
+        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], (await StorageApi.StatusAsync(library, ct)).Text);
     }
 
     /// <summary>The Library page's query string. Anything missing or unreadable is "any", never a refusal.</summary>
@@ -180,7 +202,7 @@ public static class LibraryApi
             hasCollections || !string.IsNullOrEmpty(query.Collections));
     }
 
-    static BookCard ToCard(LibraryEntry e, EntryAvailability availability) => new(
+    internal static BookCard ToCard(LibraryEntry e, EntryAvailability availability) => new(
         e.CardId.ToString(), e.EntryId.Value, e.DocumentId, e.Title, CardText.Meta(e), CardText.Byline(e), CardText.Size(e), CardText.Format(e),
         e.System ?? "", e.Kind ?? "", e.Levels ?? "", e.Players ?? "", CardText.Copies(e), e.Cover,
         e.IsPack && e.CoverMember is null ? e.MosaicCovers : [], CardText.Initial(e.Title), e.Favorite, CardText.AiTip(e), CardText.TextMark(e),

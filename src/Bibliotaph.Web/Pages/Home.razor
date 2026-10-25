@@ -1,5 +1,8 @@
 @page "/"
+@implements IDisposable
 @inject ApiClient Api
+@inject NavigationManager Navigation
+@inject LibraryActivity Activity
 
 <PageTitle>Bibliotaph</PageTitle>
 @if (_summary is null)
@@ -27,10 +30,70 @@ else
     <span class="bt-eyebrow bt-eyebrow-block">YOUR NEXT GOOD STORY</span>
     <h1 tabindex="-1">Welcome back.</h1>
     <div class="bt-subtitle">A familiar shelf. A few places you haven't been.</div>
+    @if (_shelves is { } shelves)
+    {
+        @if (shelves.Added.Count == 0)
+        {
+            <EmptyState Title="Indexing your library." Message="@($"{shelves.Status}. Books appear here and in the Library as they are read.")"
+                        ActionText="Manage folders" ActionIcon="Folder" ActionHref="settings#library" />
+        }
+        else
+        {
+            @if (shelves.Opened.Count > 0)
+            {
+                <div class="bt-sectionline">
+                    <strong>Recently opened</strong>
+                    <a class="bt-link bt-inline" href="library">Browse your library<Icon Name="ArrowRight" Size="13" /></a>
+                </div>
+                <Shelf Books="shelves.Opened" Label="Recently opened" Open="ShowDetails" />
+            }
+            <div class="bt-sectionline">
+                <strong>Recently added</strong>
+                @if (shelves.Opened.Count == 0)
+                {
+                    <a class="bt-link bt-inline" href="library">Browse your library<Icon Name="ArrowRight" Size="13" /></a>
+                }
+            </div>
+            <Shelf Books="shelves.Added" Label="Recently added" Open="ShowDetails" />
+        }
+    }
 }
 
 @code {
     LibrarySummary? _summary;
+    HomeShelves? _shelves;
+    bool _wasBusy;
+    DateTime _loaded;
 
-    protected override async Task OnInitializedAsync() => _summary = await Api.LibrarySummaryAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await Api.LibrarySummaryAsync();
+        if (_summary.Folders > 0) await LoadAsync();
+        Activity.Changed += OnActivityChanged;
+    }
+
+    async Task LoadAsync()
+    {
+        _shelves = await Api.HomeAsync();
+        _loaded = DateTime.UtcNow;
+    }
+
+    /// <summary>The rows follow the books being read, as the Library's cards do: every so often, and once more when it's done.</summary>
+    void OnActivityChanged()
+    {
+        var busy = Activity.Current?.Busy == true;
+        var finished = _wasBusy && !busy;
+        _wasBusy = busy;
+        if (_summary is not { Folders: > 0 } || !finished && !(busy && DateTime.UtcNow - _loaded > TimeSpan.FromSeconds(15))) return;
+        InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>A cover: the Library with that book's details open, as on Windows.</summary>
+    void ShowDetails(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}");
+
+    public void Dispose() => Activity.Changed -= OnActivityChanged;
 }

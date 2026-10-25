@@ -1,11 +1,13 @@
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host.Tests;
 using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Indexing;
+using Bibliotaph.Server.Libraries;
 using Bibliotaph.Storage.OneDrive;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
@@ -93,6 +95,35 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         Assert.Contains($"for “{word}”", pages.CountLabel, StringComparison.Ordinal);
         var nothing = await LibraryApi.ResultsAsync(library, new LibraryQuery { Q = "zzyzxnotaword" }, Ct);
         Assert.Equal("clear-search", nothing.Empty?.Action);
+
+        // Home: the books added last; none opened yet.
+        var home = await LibraryApi.HomeAsync(library, Ct);
+        Assert.Equal(2, home.Added.Count);
+        Assert.Empty(home.Opened);
+
+        // A book's details: its fields with their sources, what is known of its file, where it is, and its processing.
+        var pdf = all.Books.Single(b => b.Format == "PDF");
+        var details = await DetailsApi.DetailsAsync(library, new EntryId(pdf.EntryId), Ct);
+        Assert.NotNull(details);
+        Assert.Equal("PDF", details.Eyebrow);
+        Assert.Contains(details.Fields, f => f.Key == MetadataFields.Title.Key && f.Primary);
+        Assert.Contains(details.Facts, f => f.Label == "Search" && f.Value.StartsWith("Text searchable", StringComparison.Ordinal));
+        Assert.Equal("ABOUT THE FILE", details.FactsHeading);
+        var location = Assert.Single(details.Locations);
+        Assert.EndsWith("RPG › known.pdf", location.Path, StringComparison.Ordinal);
+        Assert.Contains(details.Stages, s => s.Value == "Done");
+        Assert.Empty(details.Copies);
+        Assert.Null(await DetailsApi.DetailsAsync(library, new EntryId(long.MaxValue), Ct));
+
+        // Covers outlive the server's disk: each is kept as indexing draws it, and one the disk lost comes back.
+        var cover = all.Books[0].Cover!;
+        await WaitAsync(() => Task.FromResult(all.Books.All(b => Fixture.Covers.Names.Contains($"{userId}/{b.Cover}")) ? "" : null));
+        var path = library.Get<CoverCache>().PathFor(cover);
+        var bytes = await File.ReadAllBytesAsync(path, Ct);
+        File.Delete(path);
+        Assert.True(await library.Get<CoverMirror>().RestoreAsync(cover, Ct));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path, Ct));
+        Assert.False(await library.Get<CoverMirror>().RestoreAsync("nothere.jpg", Ct));
     }
 
     [Fact]

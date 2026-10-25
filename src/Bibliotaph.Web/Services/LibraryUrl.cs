@@ -43,7 +43,11 @@ public static class LibraryUrl
     }
 
     /// <summary>The search and filters in a Library address; anything it doesn't know is left out.</summary>
-    public static LibraryQuery Parse(string uri)
+    /// <summary>The book whose details Home asked the Library to open: library?book=12.</summary>
+    public static long? Book(string uri) =>
+        long.TryParse(Values(uri).GetValueOrDefault("book"), NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
+
+    static Dictionary<string, string> Values(string uri)
     {
         var query = new Uri(uri).Query.TrimStart('?');
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -53,6 +57,12 @@ public static class LibraryUrl
             var key = Uri.UnescapeDataString(equals < 0 ? pair : pair[..equals]);
             values[key] = equals < 0 ? "" : Uri.UnescapeDataString(pair[(equals + 1)..].Replace('+', ' '));
         }
+        return values;
+    }
+
+    public static LibraryQuery Parse(string uri)
+    {
+        var values = Values(uri);
         string? Text(string key) => values.TryGetValue(key, out var v) && v.Length > 0 ? v : null;
         int? Number(string key) => int.TryParse(Text(key), NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : null;
         return new LibraryQuery

@@ -60,5 +60,5 @@
         _failed = false;
     }
 
-    static string CoverUrl(string name) => $"api/library/covers/{Uri.EscapeDataString(name)}";
+    public static string CoverUrl(string name) => $"api/library/covers/{Uri.EscapeDataString(name)}";
 }

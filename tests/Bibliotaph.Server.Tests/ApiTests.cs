@@ -103,6 +103,18 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task A_book_that_isnt_in_the_library_has_no_details()
+    {
+        var user = await AddUserAsync(admin: false);
+
+        using var missing = await Client(user).GetAsync("/api/library/books/42", TestContext.Current.CancellationToken);
+        using var stranger = await Client().GetAsync("/api/library/books/42", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, stranger.StatusCode);
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

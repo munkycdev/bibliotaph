@@ -1,4 +1,5 @@
 using Azure.Identity;
+using Azure.Storage.Blobs;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Auth;
@@ -32,19 +33,21 @@ public static class ServerSetup
         services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
-            new SkiaImageCodec()));
+            new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>()));
         services.AddSingleton<UserLibraries>();
         services.AddHostedService<IdleLibraries>();
         services.AddBibliotaphStorage(configuration);
 
+        var credential = new Lazy<ManagedIdentityCredential>(() => new ManagedIdentityCredential(options.ManagedIdentityClientId is { Length: > 0 } clientId
+            ? ManagedIdentityId.FromUserAssignedClientId(clientId)
+            : ManagedIdentityId.SystemAssigned));
+        if (options.CoverContainer is { Length: > 0 } covers)
+            services.AddSingleton<ICoverStore>(new BlobCoverStore(new BlobContainerClient(new Uri(covers), credential.Value)));
+        else services.AddSingleton<ICoverStore, NoCoverStore>();
+
         var keys = services.AddDataProtection().SetApplicationName("bibliotaph");
         if (options.KeyRingBlob is { Length: > 0 } blob && options.KeyRingKey is { Length: > 0 } key)
-        {
-            var credential = new ManagedIdentityCredential(options.ManagedIdentityClientId is { Length: > 0 } clientId
-                ? ManagedIdentityId.FromUserAssignedClientId(clientId)
-                : ManagedIdentityId.SystemAssigned);
-            keys.PersistKeysToAzureBlobStorage(new Uri(blob), credential).ProtectKeysWithAzureKeyVault(new Uri(key), credential);
-        }
+            keys.PersistKeysToAzureBlobStorage(new Uri(blob), credential.Value).ProtectKeysWithAzureKeyVault(new Uri(key), credential.Value);
         else keys.PersistKeysToFileSystem(new DirectoryInfo(paths.Keys));
 
         services.AddBibliotaphAuth(configuration);

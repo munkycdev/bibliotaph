@@ -30,6 +30,7 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" />
+    <PackageReference Include="Azure.Storage.Blobs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Bibliotaph.Server.Tests" />

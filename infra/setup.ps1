@@ -8,16 +8,20 @@
     the app's settings.
 
     It makes, in its own resource group: a user-assigned identity the app runs as, a storage account (Litestream's
-    replica and the Data Protection key ring), a Key Vault (the key that wraps the key ring, and the sign-in secrets),
+    replica, the Data Protection key ring and covers), a Key Vault (the key that wraps the key ring, and the sign-in secrets),
     the Microsoft sign-in app registration, the container app (one replica, never scaled), and the app registration
     GitHub Actions deploys with. It reuses an existing Container Apps environment and container registry.
 
+    The names of the existing registry and environment are listed by:
+        az acr list --query "[].{name:name, group:resourceGroup}" -o table
+        az containerapp env list --query "[].{name:name, group:resourceGroup}" -o table
+
 .EXAMPLE
-    ./infra/setup.ps1 -Registry nornisacr -Environment nornis-env -EnvironmentResourceGroup rg-nornis
+    ./infra/setup.ps1 -Registry <registry> -Environment <environment> -EnvironmentResourceGroup <environment's group>
 
 .EXAMPLE
     # Once the DNS records it printed have propagated:
-    ./infra/setup.ps1 -Registry nornisacr -Environment nornis-env -EnvironmentResourceGroup rg-nornis -BindDomain
+    ./infra/setup.ps1 -Registry <registry> -Environment <environment> -EnvironmentResourceGroup <environment's group> -BindDomain
 #>
 #Requires -Version 7.3
 [CmdletBinding()]
@@ -92,13 +96,13 @@ az group create -n $ResourceGroup -l $location -o none
 Step 'Identity the app runs as'
 $id = Json (az identity create -n $Identity -g $ResourceGroup -l $location --query '{id:id, clientId:clientId, principalId:principalId}' -o json)
 
-Step 'Storage: database replicas and the key ring'
+Step 'Storage: database replicas, the key ring and covers'
 if (-not (Find storage account show -n $StorageAccount -g $ResourceGroup)) {
     az storage account create -n $StorageAccount -g $ResourceGroup -l $location --sku Standard_LRS --kind StorageV2 `
         --min-tls-version TLS1_2 --allow-blob-public-access false --allow-shared-key-access false -o none
 }
 $storageId = az storage account show -n $StorageAccount -g $ResourceGroup --query id -o tsv
-foreach ($container in 'replica', 'keys') {
+foreach ($container in 'replica', 'keys', 'covers') {
     az storage container-rm create --storage-account $storageId -n $container -o none
 }
 Grant $id.principalId ServicePrincipal 'Storage Blob Data Contributor' $storageId
@@ -167,6 +171,7 @@ $settings = @(
     "Server__ManagedIdentityClientId=$($id.clientId)"
     "Server__KeyRingBlob=https://$StorageAccount.blob.core.windows.net/keys/keyring.xml"
     "Server__KeyRingKey=https://$KeyVault.vault.azure.net/keys/dataprotection"
+    "Server__CoverContainer=https://$StorageAccount.blob.core.windows.net/covers"
     "Server__PublicOrigin=https://$Domain"
 ) + $providers
 

@@ -45,10 +45,6 @@ public sealed record InspectorCopy(long DocumentId, string Heading, string Detai
 /// </summary>
 public sealed partial class InspectorViewModel : ObservableObject, IMetadataEditor
 {
-    /// <summary>The fields shown even when nothing is known about them.</summary>
-    static readonly HashSet<MetadataField> PrimaryFields =
-        [MetadataFields.Title, MetadataFields.System, MetadataFields.Edition, MetadataFields.Types, MetadataFields.Levels, MetadataFields.Publisher];
-
     readonly MetadataService _metadata;
     readonly LibraryQueries _queries;
     readonly IJobControl _indexing;
@@ -101,7 +97,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// <summary>A pack with PDFs among its images: it speaks of files, not images.</summary>
     bool HasPdfs => Item.HasPdfMembers || PackImages.Any(i => i.IsPdf);
 
-    public string PackImagesHeading => $"{(HasPdfs ? "FILES" : "IMAGES")} ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    public string PackImagesHeading => DetailsText.PackFilesHeading(PackImages.Count, HasPdfs);
 
     /// <summary>The grid's name for screen readers.</summary>
     public string PackImagesName => HasPdfs ? "Files in the pack" : "Images in the pack";
@@ -151,7 +147,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool CanOpen => !IsElsewhere;
 
-    public string FactsHeading => IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
+    public string FactsHeading => DetailsText.FactsHeading(Item.Entry);
 
     /// <summary>Raised after "Remove from library", with what Undo needs.</summary>
     public event EventHandler<RemovedEntry>? Removed;
@@ -212,7 +208,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool HasCopies => Copies.Count > 0;
 
-    public string CopiesHeading => $"COPIES ({Copies.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    public string CopiesHeading => DetailsText.CopiesHeading(Copies.Count);
 
     /// <summary>Opens this copy instead: its cover, page count and page hits become the card's. Nothing on disk changes.</summary>
     [RelayCommand]
@@ -241,13 +237,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var copy = details.Copy;
         var location = details.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing);
         var path = location?.FullPath;
-        var heading = copy.IsCurrent ? "Current copy" : path is null ? "Earlier version, no file" : "Copy";
-        var parts = new List<string>();
-        if (copy.PageCount is { } pages) parts.Add($"{pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}");
-        parts.Add($"added {copy.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture)}");
-        if (copy.Joined) parts.Add("joined from a card of its own");
-        if (copy.IsCurrent && !copy.IsShown) parts.Add("its file is missing, so another copy opens");
-        return new InspectorCopy(copy.DocumentId, heading, string.Join(" · ", parts), path, copy.IsCurrent, location?.ExplorerPath);
+        return new InspectorCopy(copy.DocumentId, DetailsText.CopyHeading(copy, path is not null), DetailsText.CopyDetail(copy), path, copy.IsCurrent,
+            location?.ExplorerPath);
     }
 
     [ObservableProperty]
@@ -271,8 +262,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// An adventure, marked in a file or typed as one: who it is written for matters as much as its levels, so Players
     /// shows even before anyone has said.
     /// </summary>
-    bool IsAdventure(EffectiveMetadata metadata) =>
-        Item.IsPart || metadata[MetadataFields.Types].Values.Any(v => v.Value == PartStore.AdventureType);
+    bool IsAdventure(EffectiveMetadata metadata) => DetailsText.IsAdventure(Item.Entry, metadata);
 
     async Task ReloadMetadataAsync(bool changed)
     {
@@ -283,7 +273,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var fields = IsElsewhere ? metadata.Fields.OrderBy(f => f.Field != MetadataFields.AlsoOwn) : metadata.Fields;
         var adventure = IsAdventure(metadata);
         Fields = [.. fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this,
-            PrimaryFields.Contains(f.Field) || IsElsewhere && f.Field == MetadataFields.AlsoOwn || adventure && f.Field == MetadataFields.Players)
+            DetailsText.IsPrimary(f.Field, IsElsewhere, adventure))
         {
             ShowEvidence = open.Contains(f.Field),
             MarksGuesses = IsCorrecting,
@@ -442,8 +432,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? HasPdfs ? "PACK" : "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
-        : SourceFormats.HasPages(Item.Entry.Format) ? LibraryItemViewModel.FormatName(Item.Entry.Format) : "IMAGE";
+    public string Eyebrow => DetailsText.Eyebrow(Item.Entry, HasPdfs);
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -515,10 +504,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
             images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)))
                 .Select(i => new PackImageViewModel(i, covers, isCover: i.MemberEntryId == item.Entry.CoverMember))];
-            var noun = item.HasPdfMembers || images.Any(i => i.IsPdf) ? "files" : "images";
-            locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
+            var pdfs = item.HasPdfMembers || images.Any(i => i.IsPdf);
+            locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, DetailsText.PackPlaceState(place)) },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
-                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Files.ToString("N0", CultureInfo.CurrentCulture)} of its {noun} {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
+                    .Select(f => new InspectorLocation(f.FullPath, DetailsText.PackFolderState(f, pdfs)))];
         }
         else
         {
@@ -622,89 +611,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (folder is not null) _shell.OpenFolder(folder);
     }
 
-    static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details)
-    {
-        if (entry.IsElsewhere)
-            return [new("File", "No file in your library"), new("Added", entry.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture))];
-        var facts = new List<InspectorFact>
-        {
-            new("Format", details is { WidthPx: { } w, HeightPx: { } h } && !entry.IsPack
-                ? $"{LibraryItemViewModel.Describe(entry)} · {w.ToString("N0", CultureInfo.CurrentCulture)} × {h.ToString("N0", CultureInfo.CurrentCulture)} px"
-                : LibraryItemViewModel.Describe(entry)),
-            new("Added", entry.AddedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture)),
-        };
-        if (!string.IsNullOrEmpty(entry.FolderHint)) facts.Add(new("Folders", entry.FolderHint));
-        if (details is null) return facts;
-        // A pack's card shows its first file: what that file says of itself isn't the pack's.
-        if (entry.IsPack)
-        {
-            facts.Add(new("Search", entry.PdfMembers > 0 ? "Found by its files' names, and by the text of its PDFs" : "Found by its name"));
-            return facts;
-        }
+    static List<InspectorFact> BuildFacts(LibraryEntry entry, DocumentDetails? details) =>
+        [.. DetailsText.Facts(entry, details).Select(f => new InspectorFact(f.Label, f.Value))];
 
-        facts.Add(new("Search", SearchText(entry, details)));
-        // From how its stages stopped, not the file's encryption flag: that is set on any PDF with a security handler,
-        // most of which open without a password (only restricting copying or printing), and never on a locked one,
-        // which can't be opened to read it.
-        switch (entry.TextAccess)
-        {
-            case TextAccess.Locked:
-                facts.Add(new("Password", "Needs a password to open. Open it to enter it; its text becomes searchable once it's unlocked."));
-                break;
-            case TextAccess.Protected:
-                facts.Add(new("Protection", "A scheme Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default app for the file."));
-                break;
-        }
-        // A file that forbids copying is still read for search; only copying text out stays off.
-        if (entry.Format == SourceFormats.Pdf && entry.TextAccess is TextAccess.Readable or TextAccess.Forgotten)
-            facts.Add(new("Copying text", details.CanCopy ? "Allowed"
-                : "Not allowed by the file. Search still finds its pages; copying text out of the reader stays off, as the file asks."));
-        // The PDF's own information is often wrong ("Microsoft Word - final2.doc"), so it is labelled as the file's.
-        if (!string.IsNullOrWhiteSpace(details.MetaTitle)) facts.Add(new("Title in the file", details.MetaTitle));
-        if (!string.IsNullOrWhiteSpace(details.MetaAuthor)) facts.Add(new("Author in the file", details.MetaAuthor));
-        if (!string.IsNullOrWhiteSpace(details.MetaSubject)) facts.Add(new("Subject in the file", details.MetaSubject));
-        return facts;
-    }
+    static string LocationState(DocumentLocation location) => DetailsText.LocationState(location);
 
-    static string SearchText(LibraryEntry entry, DocumentDetails details)
-    {
-        if (entry.IsPack || SourceFormats.IsImage(entry.Format)) return "Found by its name";
-        switch (entry.TextAccess)
-        {
-            case TextAccess.Locked: return "Locked: open it to unlock, and its text becomes searchable";
-            case TextAccess.Protected: return "Can't be read here, so it's found by its name and details only";
-            case TextAccess.Forgotten: return "Its text was forgotten. Read it again, from its card's menu, to search it";
-        }
-        if (!entry.Searchable) return "Its text is still being read";
-        var text = details.OcrPages > 0
-            ? $"Text searchable, {details.OcrPages.ToString("N0", CultureInfo.CurrentCulture)} scanned {(details.OcrPages == 1 ? "page" : "pages")} read"
-            : "Text searchable";
-        return details.PagesAwaitingOcr > 0
-            ? $"{text}; {details.PagesAwaitingOcr.ToString("N0", CultureInfo.CurrentCulture)} scanned {(details.PagesAwaitingOcr == 1 ? "page" : "pages")} still to read"
-            : text;
-    }
-
-    static string LocationState(DocumentLocation location) => (location.State, location.RootAvailability) switch
-    {
-        (_, SourceRootAvailability.Offline) => "Folder can't be reached right now",
-        (FileLocationState.Missing, _) => "No longer here",
-        (FileLocationState.OnlineOnly, _) when location.ArchivePath is not null => "Inside an online-only ZIP",
-        (FileLocationState.OnlineOnly, _) => "Online-only",
-        _ when location.ArchivePath is not null => "Inside a ZIP",
-        _ => "",
-    };
-
-    static string StatusText(StageState stage) => stage.Status switch
-    {
-        StageStatus.Complete => "Done",
-        StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
-        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan && stage.Reason is { } why ? why : "Not needed",
-        // A whole-book scan waits a long time, and says how far it has got or what it waits for.
-        StageStatus.Pending when stage.Stage == Stage.ChapterScan && stage.Reason is { } waiting => waiting,
-        StageStatus.Pending => "Waiting",
-        StageStatus.Running => "Working on it…",
-        _ => stage.Reason ?? stage.Status.ToString(),
-    };
+    static string StatusText(StageState stage) => DetailsText.Progress(stage);
 }
 
 /// <summary>A collection the book in the details was added to: its chip opens it, and its × takes the book out.</summary>
