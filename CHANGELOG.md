@@ -35,6 +35,8 @@
 - **Select mode on the web.** Select in the Library ticks books, with Shift+click and Ctrl+A, and the Select bar adds
   them to a collection or takes them out, joins them as the Same book, packs them together, removes adventures and
   exports them as a CSV, as in the Windows app, with Undo. See [Select mode](docs/guide/web.md#select-mode).
+- **Edit metadata on the web.** In Select mode, Edit metadata sets, adds or removes values on every ticked book at
+  once, with Review changes first and Undo after, as in the Windows app. See [Select mode](docs/guide/web.md#select-mode).
 
 ## 1.3 · 19 October 2026
 

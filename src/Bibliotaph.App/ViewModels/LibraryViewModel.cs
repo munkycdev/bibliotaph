@@ -700,7 +700,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
                 var books = undo?.Select(s => s.EntryId).Distinct().Count() ?? 0;
                 Selection.SayDone(DetailsText.LookAlikesChanged(books, offer.FolderName),
                     books > 0 && undo is not null && ReferenceEquals(_navigation.Current, this) ? () => _metadata.UndoManyAsync(undo) : null,
-                    "The edit couldn't be undone.");
+                    BulkEditText.UndoFailed);
             }
         }
         catch (Exception ex)
@@ -1185,7 +1185,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>Select mode's Add to collection: every ticked book, shown or not.</summary>
     [RelayCommand]
     void AddSelectedToCollection(CollectionRequest request) =>
-        Collections.Add(Selection.Books.EntryIds, BulkEditViewModel.Books(Selection.Books.Count), request.Choice);
+        Collections.Add(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), request.Choice);
 
     bool CanRemoveSelected => IsCollection && Selection.Books.HasAny;
 
@@ -1194,7 +1194,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     async Task RemoveSelectedFromCollection()
     {
         if (Scope?.CollectionId is not { } id) return;
-        await Collections.RemoveAsync(Selection.Books.EntryIds, BulkEditViewModel.Books(Selection.Books.Count), id);
+        await Collections.RemoveAsync(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), id);
         Selection.Books.Clear();
     }
 
@@ -1228,7 +1228,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>Select mode's Add to session: every ticked book, shown or not.</summary>
     [RelayCommand]
     void AddSelectedToSession(SessionRequest request) =>
-        Sessions.Add(Selection.Books.EntryIds, BulkEditViewModel.Books(Selection.Books.Count), request.Choice);
+        Sessions.Add(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), request.Choice);
 
     /// <summary>A matching page's Add: that page to the current session pack.</summary>
     [RelayCommand]

@@ -1,6 +1,7 @@
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Processing;
 using static Bibliotaph.App.Tests.Values;
 
 namespace Bibliotaph.App.Tests;

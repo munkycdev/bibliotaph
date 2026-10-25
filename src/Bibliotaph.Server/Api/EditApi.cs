@@ -237,7 +237,7 @@ public static class EditApi
         var books = undo?.Select(s => s.EntryId).Distinct().Count() ?? 0;
         var metadata = library.Get<MetadataService>();
         return new ActionResult(DetailsText.LookAlikesChanged(books, offer.FolderName),
-            books > 0 && undo is not null ? Hold(library, () => metadata.UndoManyAsync(undo, ct: CancellationToken.None), "The edit couldn't be undone.") : null);
+            books > 0 && undo is not null ? Hold(library, () => metadata.UndoManyAsync(undo, ct: CancellationToken.None), BulkEditText.UndoFailed) : null);
     }
 
     /// <summary>

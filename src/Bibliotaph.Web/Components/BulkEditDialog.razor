@@ -1,0 +1,483 @@
+@* .bt-dialog: Edit metadata for the ticked books, as the Windows app's bulk editor: every field but the title with
+   what the books have in it, then Review changes, then Apply. Esc goes back from the review, or closes it. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed bt-dialogback"></div>
+<div class="bt-dialog bt-wide" role="dialog" aria-modal="true" aria-label="@Form.Heading" @onkeydown="KeyDown">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">@Form.Eyebrow</span>
+            <h2 class="bt-dialogtitle">@Form.Heading</h2>
+            @if (_step == Step.Editing) { <div class="bt-small bt-dialogintro">@Form.Intro</div> }
+            else if (_step == Step.Summary) { <div class="bt-small bt-dialogintro">@Form.ReviewIntro</div> }
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close without changing anything" disabled="@(_step == Step.Applying)" @onclick="Cancel"><Icon Name="X" /></button>
+    </div>
+
+    <div class="bt-bulkbody">
+        @if (_step == Step.Editing)
+        {
+            <div aria-label="Fields">
+                @foreach (var field in _fields)
+                {
+                    <div class="bt-bulkfield" @key="field.Form.Key" aria-label="@field.Form.Label">
+                        @if (field.Form.Multiple) { @Chips(field) } else { @Value(field) }
+                    </div>
+                }
+            </div>
+        }
+        else if (_step == Step.Summary)
+        {
+            <div aria-label="What will change">
+                @foreach (var line in _summary)
+                {
+                    <div class="bt-bulksumline">
+                        <div><strong>@line.Field</strong>: @line.Text</div>
+                        @if (line.Warning is { } warning)
+                        {
+                            <div class="bt-bulkwarn"><Icon Name="TriangleAlert" Size="13" />@warning</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="bt-bulkapplying" role="status">
+                <div class="bt-busybar" aria-label="Applying"><span></span></div>
+                <div class="bt-small">Saving…</div>
+            </div>
+        }
+    </div>
+
+    <div class="bt-bulkfoot">
+        @if (_problem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+        <div class="bt-boxactions end">
+            @if (_step == Step.Editing)
+            {
+                <button class="bt-button" @onclick="Cancel">Cancel</button>
+                <button class="bt-button primary" title="See what will change before anything is saved" disabled="@(!HasChanges || _working)"
+                        @onclick="ReviewAsync"><Icon Name="ArrowRight" />Review changes</button>
+            }
+            else if (_step == Step.Summary)
+            {
+                <button class="bt-button" @onclick="Back"><Icon Name="ArrowLeft" />Back</button>
+                <button class="bt-button primary" @onclick="ApplyAsync" @ref="_apply"><Icon Name="Check" />@Form.ApplyLabel</button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    enum Step
+    {
+        Editing,
+        Summary,
+        Applying,
+    }
+
+    /// <summary>A field as the dialog holds it: the change typed or picked, and what is being typed.</summary>
+    sealed class FieldState(BulkFieldForm form)
+    {
+        public BulkFieldForm Form { get; } = form;
+
+        public List<ChipState> Chips { get; } = [.. form.Chips.Select(c => new ChipState(c))];
+
+        public bool Editing { get; set; }
+
+        public string Text { get; set; } = "";
+
+        public BulkChipForm? Set { get; set; }
+
+        public bool Reset { get; set; }
+
+        public string Pending { get; set; } = "";
+
+        public string? Problem { get; set; }
+
+        public string Resolution { get; set; } = "";
+
+        public bool HasChange => Form.Multiple ? Chips.Any(c => c.Change is not null) : Set is not null || Reset;
+    }
+
+    sealed class ChipState(BulkChipForm chip)
+    {
+        public BulkChipForm Chip { get; } = chip;
+
+        public BulkEditAction? Change { get; set; }
+
+        public BulkChipLook Look => Change switch
+        {
+            BulkEditAction.Add => Chip.Adding,
+            BulkEditAction.Remove => Chip.Removing,
+            _ => Chip.Idle,
+        };
+    }
+
+    List<FieldState> _fields = [];
+    IReadOnlyList<BulkSummaryItem> _summary = [];
+    Step _step;
+    string? _problem;
+    bool _working;
+    FieldState? _focus;
+    bool _focusApply;
+    ElementReference _editor;
+    ElementReference _apply;
+    CancellationTokenSource? _resolving;
+
+    // A list goes back to blank after a pick, as the Windows one does; a new key makes a new element.
+    int _picks;
+
+    [Parameter, EditorRequired] public BulkEditForm Form { get; set; } = default!;
+
+    [Parameter, EditorRequired] public IReadOnlyList<long> Books { get; set; } = [];
+
+    /// <summary>Raised when the dialog closes: with what applying did, or null when it was cancelled.</summary>
+    [Parameter] public EventCallback<ActionResult?> Closed { get; set; }
+
+    bool HasChanges => _fields.Any(f => f.HasChange);
+
+    protected override void OnInitialized() => _fields = [.. Form.Fields.Select(f => new FieldState(f))];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focus is not null)
+        {
+            _focus = null;
+            await _editor.FocusAsync();
+        }
+        if (_focusApply)
+        {
+            _focusApply = false;
+            await _apply.FocusAsync();
+        }
+    }
+
+    RenderFragment Value(FieldState field) => __builder =>
+    {
+        <div class="bt-bulkline">
+            <div class="bt-bulkwhat">
+                <div class="bt-fieldlabel">@field.Form.Label</div>
+                <div class="bt-fieldvalue @(field.Form.IsKnown ? "" : "unknown")">@field.Form.Current</div>
+                @if (field.Form.Breakdown.Length > 0) { <div class="bt-small bt-bulkbreakdown">@field.Form.Breakdown</div> }
+                @if (field.Pending.Length > 0) { <div class="bt-bulkpending">@field.Pending</div> }
+            </div>
+            @if (field.HasChange)
+            {
+                <button class="bt-link" aria-label="Leave @field.Form.Label as it is" @onclick="() => Undo(field)">Undo change</button>
+            }
+            else if (!field.Editing)
+            {
+                @if (field.Form.CanReset)
+                {
+                    <button class="bt-link bt-inline" title="Forget what you set here on every book and go back to what the sources suggest"
+                            aria-label="@field.Form.Label: back to suggestions on every book" @onclick="() => ResetField(field)"><Icon Name="Undo2" Size="12" />Back to suggestions</button>
+                }
+                <button class="bt-icon" title="Set on every book" aria-label="Set @field.Form.Label on every book" @onclick="() => StartEdit(field)"><Icon Name="Pencil" Size="14" /></button>
+            }
+        </div>
+        @if (field.Editing)
+        {
+            <div class="bt-fieldedit">
+                <input class="bt-input" aria-label="@field.Form.Label for every book" value="@field.Text" @oninput="e => TypedAsync(field, e)"
+                       @onkeydown="e => EditKeyDownAsync(field, e)" @onkeydown:stopPropagation="true" @ref="_editor" />
+                @if (field.Form.EditHint.Length > 0) { <div class="bt-small bt-edithint">@field.Form.EditHint</div> }
+                @if (field.Resolution.Length > 0) { <div class="bt-row bt-resolution">@field.Resolution</div> }
+                @if (field.Form.Choices.Count > 0)
+                {
+                    <label class="bt-field bt-choices">
+                        <span>Or pick from the list</span>
+                        <select aria-label="Pick a @field.Form.Label" value="" @key="_picks" @onchange="e => PickValueAsync(field, e)">
+                            <option value=""></option>
+                            @foreach (var choice in field.Form.Choices) { <option value="@choice">@choice</option> }
+                        </select>
+                    </label>
+                }
+                @if (field.Problem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+                <div class="bt-boxactions">
+                    <button class="bt-button primary" disabled="@_working" @onclick="() => SaveAsync(field)"><Icon Name="Check" Size="14" />Set on every book</button>
+                    <button class="bt-button" @onclick="() => CancelEdit(field)">Cancel</button>
+                </div>
+            </div>
+        }
+    };
+
+    RenderFragment Chips(FieldState field) => __builder =>
+    {
+        <div class="bt-fieldlabel">@field.Form.Label</div>
+        @if (field.Chips.Count > 0)
+        {
+            <div class="bt-bulkchips" aria-label="@field.Form.Label on these books">
+                @foreach (var chip in field.Chips)
+                {
+                    var look = chip.Look;
+                    <span class="bt-bulkchip @(chip.Change switch { BulkEditAction.Add => "adding", BulkEditAction.Remove => "removing", _ => "" })" @key="(chip.Chip.Normalized, chip.Chip.NewNote is null)">
+                        <button class="bt-bulkchipbody" title="@look.Description" aria-label="@look.Description" @onclick="() => ToggleAll(chip)">
+                            <span class="bt-bulkchiptext">@chip.Chip.Text</span>
+                            @if (chip.Chip.NewNote is { } note) { <span class="bt-bulknew">@note</span> }
+                            <span class="bt-bulkcount">@look.Count</span>
+                        </button>
+                        <button class="bt-chipx" title="@look.RemoveName" aria-label="@look.RemoveName" @onclick="() => RemoveChip(field, chip)"><Icon Name="X" Size="11" /></button>
+                    </span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="bt-fieldvalue unknown">Not set on any of these books</div>
+        }
+        <div class="bt-bulkadd">
+            <input class="bt-input" aria-label="@field.Form.AddLabel" title="@field.Form.AddHint" value="@field.Text" @oninput="e => TypedAsync(field, e)"
+                   @onkeydown="e => AddKeyDownAsync(field, e)" />
+            <button class="bt-button" aria-label="@field.Form.AddLabel" disabled="@_working" @onclick="() => AddTypedAsync(field)"><Icon Name="Plus" Size="14" />Add</button>
+        </div>
+        @if (field.Resolution.Length > 0) { <div class="bt-row bt-resolution">@field.Resolution</div> }
+        @if (field.Problem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+        @if (field.Form.Choices.Count > 0)
+        {
+            <select class="bt-bulkpick" @key="_picks" title="Add from the list" aria-label="@field.Form.AddLabel from the list" value="" @onchange="e => PickChipAsync(field, e)">
+                <option value=""></option>
+                @foreach (var choice in field.Form.Choices) { <option value="@choice">@choice</option> }
+            </select>
+        }
+    };
+
+    void StartEdit(FieldState field)
+    {
+        foreach (var other in _fields.Where(f => f.Editing)) CancelEdit(other);
+        field.Text = field.Form.StartText;
+        field.Problem = null;
+        field.Resolution = "";
+        field.Editing = true;
+        _focus = field;
+    }
+
+    void CancelEdit(FieldState field)
+    {
+        _resolving?.Cancel();
+        field.Editing = false;
+        field.Problem = null;
+        field.Resolution = "";
+    }
+
+    void ResetField(FieldState field)
+    {
+        field.Reset = true;
+        field.Set = null;
+        field.Pending = field.Form.ResetPending;
+    }
+
+    void Undo(FieldState field)
+    {
+        field.Set = null;
+        field.Reset = false;
+        field.Pending = "";
+    }
+
+    async Task SaveAsync(FieldState field)
+    {
+        if (string.IsNullOrWhiteSpace(field.Text))
+        {
+            field.Problem = field.Form.Blank;
+            return;
+        }
+        if (await ReadAsync(field, field.Text, whole: true) is not { } read) return;
+        field.Set = read.Values[0];
+        field.Reset = false;
+        field.Pending = read.Pending;
+        CancelEdit(field);
+    }
+
+    async Task EditKeyDownAsync(FieldState field, KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CancelEdit(field);
+        else if (e.Key == "Enter") await SaveAsync(field);
+    }
+
+    async Task PickValueAsync(FieldState field, ChangeEventArgs e)
+    {
+        if (e.Value is not string { Length: > 0 } picked) return;
+        _picks++;
+        field.Text = picked;
+        await ResolveAsync(field);
+    }
+
+    async Task AddTypedAsync(FieldState field)
+    {
+        if (string.IsNullOrWhiteSpace(field.Text)) return;
+        if (await ReadAsync(field, field.Text, whole: false) is not { } read) return;
+        foreach (var value in read.Values) Add(field, value);
+        _resolving?.Cancel();
+        field.Text = "";
+        field.Resolution = "";
+    }
+
+    async Task AddKeyDownAsync(FieldState field, KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddTypedAsync(field);
+    }
+
+    /// <summary>A label picked from the list is added straight away.</summary>
+    async Task PickChipAsync(FieldState field, ChangeEventArgs e)
+    {
+        if (e.Value is not string { Length: > 0 } picked) return;
+        _picks++;
+        if (await ReadAsync(field, picked, whole: true) is { } read)
+            foreach (var value in read.Values) Add(field, value);
+    }
+
+    /// <summary>Typing a value some books have already is the same as clicking its chip.</summary>
+    static void Add(FieldState field, BulkChipForm value)
+    {
+        var chip = field.Chips.FirstOrDefault(c => c.Chip.Normalized == value.Normalized && (c.Chip.NewNote is null) == (value.NewNote is null));
+        if (chip is null) field.Chips.Add(chip = new ChipState(value));
+        chip.Change = BulkEditAction.Add;
+    }
+
+    /// <summary>Clicking a chip on only some books puts it on all of them; clicking again takes that back.</summary>
+    static void ToggleAll(ChipState chip)
+    {
+        if (chip.Chip.Typed) return;
+        if (chip.Change == BulkEditAction.Add) chip.Change = null;
+        else if (chip.Chip.Partial) chip.Change = BulkEditAction.Add;
+    }
+
+    /// <summary>× removes the value from every book; on a removed chip it takes that back, and a typed one goes away.</summary>
+    static void RemoveChip(FieldState field, ChipState chip)
+    {
+        if (chip.Chip.Typed) field.Chips.Remove(chip);
+        else chip.Change = chip.Change == BulkEditAction.Remove ? null : BulkEditAction.Remove;
+    }
+
+    /// <summary>What was typed as it will be filed, or null with the field's problem shown.</summary>
+    async Task<BulkReadResult?> ReadAsync(FieldState field, string text, bool whole)
+    {
+        _working = true;
+        try
+        {
+            var read = await Api.BulkReadAsync(new BulkReadRequest(field.Form.Key, text, Form.Books, whole));
+            field.Problem = read.Problem;
+            return read.Problem is null && read.Values.Count > 0 ? read : null;
+        }
+        catch (ApiProblemException e)
+        {
+            field.Problem = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            field.Problem = "That didn't work. Check your connection and try again.";
+        }
+        finally
+        {
+            _working = false;
+        }
+        return null;
+    }
+
+    async Task TypedAsync(FieldState field, ChangeEventArgs e)
+    {
+        field.Text = e.Value as string ?? "";
+        await ResolveAsync(field);
+    }
+
+    /// <summary>For a term field, how what is typed will be filed: "“One shot” is another name for Adventure".</summary>
+    async Task ResolveAsync(FieldState field)
+    {
+        if (field.Form.Choices.Count == 0) return;
+        _resolving?.Cancel();
+        if (string.IsNullOrWhiteSpace(field.Text))
+        {
+            field.Resolution = "";
+            return;
+        }
+        var resolving = _resolving = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, resolving.Token);
+            var text = await Api.ResolutionAsync(field.Form.Key, field.Text, resolving.Token);
+            if (resolving != _resolving) return;
+            field.Resolution = text;
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ApiProblemException)
+        {
+        }
+    }
+
+    IReadOnlyList<BulkFieldChange> Changes() => [.. _fields.SelectMany(FieldChanges)];
+
+    static IEnumerable<BulkFieldChange> FieldChanges(FieldState field)
+    {
+        var key = field.Form.Key;
+        foreach (var chip in field.Chips.Where(c => c.Change is not null))
+            yield return new BulkFieldChange(key, chip.Change!.Value, chip.Chip.Value, chip.Chip.Text, chip.Chip.Normalized, chip.Chip.NewNote is not null);
+        if (field.Set is { } set) yield return new BulkFieldChange(key, BulkEditAction.Set, set.Value, set.Text, set.Normalized, set.NewNote is not null);
+        else if (field.Reset) yield return new BulkFieldChange(key, BulkEditAction.Reset);
+    }
+
+    /// <summary>Shows what will change, field by field, before anything is saved.</summary>
+    async Task ReviewAsync()
+    {
+        if (!HasChanges || _working) return;
+        _working = true;
+        try
+        {
+            _summary = await Api.BulkReviewAsync(new BulkEditRequest(Books, Changes()));
+            _problem = null;
+            _step = Step.Summary;
+            _focusApply = true;
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _problem = "That didn't work. Check your connection and try again.";
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    void Back() => _step = Step.Editing;
+
+    async Task ApplyAsync()
+    {
+        if (_step != Step.Summary) return;
+        _step = Step.Applying;
+        try
+        {
+            var result = await Api.BulkApplyAsync(new BulkEditRequest(Books, Changes()));
+            if (result.Done is { } done)
+            {
+                await Closed.InvokeAsync(done);
+                return;
+            }
+            _problem = result.Problem;
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _problem = "That didn't work. Check your connection and try again.";
+        }
+        _step = Step.Editing;
+    }
+
+    Task Cancel() => _step == Step.Applying ? Task.CompletedTask : Closed.InvokeAsync(null);
+
+    /// <summary>Esc: from the review back to editing; otherwise closes the dialog, unless it is applying.</summary>
+    async Task KeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape") return;
+        if (_step == Step.Summary) Back();
+        else if (_step == Step.Editing) await Cancel();
+    }
+}

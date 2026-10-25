@@ -401,6 +401,75 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Edit_metadata_sets_adds_and_removes_on_every_ticked_book_with_review_and_undo()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/harbor.png", Png());
+        _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two && two.All(b => b.Cover is not null) ? two : null, ct);
+        List<long> ids = [.. books.Select(b => b.EntryId)];
+
+        var form = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks([.. ids, 999_999]));
+        var system = await PostAsync<BulkReadResult>("/api/library/selection/edit/read", new BulkReadRequest("system", "PF", 2, true));
+        var tags = await PostAsync<BulkReadResult>("/api/library/selection/edit/read", new BulkReadRequest("tags", "heist, harbor", 2, false));
+        var year = await PostAsync<BulkReadResult>("/api/library/selection/edit/read", new BulkReadRequest("year", "soon", 2, true));
+        var set = system.Values[0];
+        List<BulkFieldChange> changes =
+        [
+            new("system", BulkEditAction.Set, set.Value, set.Text, set.Normalized, set.NewNote is not null),
+            .. tags.Values.Select(t => new BulkFieldChange("tags", BulkEditAction.Add, t.Value, t.Text, t.Normalized, t.NewNote is not null)),
+        ];
+        var review = await PostAsync<List<BulkSummaryItem>>("/api/library/selection/edit/review", new BulkEditRequest(ids, changes));
+        var applied = await PostAsync<BulkApplyResult>("/api/library/selection/edit/apply", new BulkEditRequest(ids, changes));
+        var after = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks(ids));
+        var heist = after.Fields.Single(f => f.Key == "tags").Chips.Single(c => c.Text == "heist");
+        BulkEditRequest removing = new(ids, [new("tags", BulkEditAction.Remove, heist.Value, heist.Text, heist.Normalized), new("system", BulkEditAction.Reset)]);
+        var reviewRemove = await PostAsync<List<BulkSummaryItem>>("/api/library/selection/edit/review", removing);
+        var removed = await PostAsync<BulkApplyResult>("/api/library/selection/edit/apply", removing);
+        var afterRemove = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks(ids));
+        await PostAsync<ActionResult>($"/api/library/held/{removed.Done!.Undo}", null);
+        var undone = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks(ids));
+
+        // A ticked book no longer in the library is left out.
+        Assert.Equal(("EDIT METADATA", "Edit 2 books", "Apply to 2 books", 2), (form.Eyebrow, form.Heading, form.ApplyLabel, form.Books));
+        Assert.DoesNotContain(form.Fields, f => f.Key == "title");
+        var before = form.Fields.Single(f => f.Key == "system");
+        Assert.Equal(("Not set", false, false), (before.Current, before.IsKnown, before.CanReset));
+        Assert.Equal((null, "Will be Pathfinder on every book"), (system.Problem, system.Pending));
+        Assert.Equal(["heist", "harbor"], tags.Values.Select(v => v.Text));
+        Assert.All(tags.Values, v => Assert.True(v.Typed));
+        Assert.Equal("Don't add heist", tags.Values[0].Adding.RemoveName);
+        Assert.Equal("A year looks like 2019.", year.Problem);
+        Assert.Equal(["Game system: Set to Pathfinder on 2 books.", "Your tags: Add heist to 2 books.", "Your tags: Add harbor to 2 books."],
+            review.Select(l => $"{l.Field}: {l.Text}"));
+        Assert.Equal((null, "Edited 2 books."), (applied.Problem, applied.Done?.Message));
+        Assert.NotNull(applied.Done!.Undo);
+        var system2 = after.Fields.Single(f => f.Key == "system");
+        Assert.Equal(("Pathfinder", true), (system2.Current, system2.CanReset));
+        Assert.Equal(("2 of 2", "0 of 2"), (heist.Idle.Count, heist.Removing.Count));
+        Assert.Equal(["Your tags: Remove heist from 2 books.", "Game system: Back to suggestions on 2 books."],
+            reviewRemove.Select(l => $"{l.Field}: {l.Text}").OrderBy(l => l.StartsWith("Game", StringComparison.Ordinal)));
+        Assert.Contains(reviewRemove, l => l.Warning == "Takes away your own heist on 2 books.");
+        Assert.Equal(["harbor"], afterRemove.Fields.Single(f => f.Key == "tags").Chips.Select(c => c.Text));
+        Assert.Equal("Not set", afterRemove.Fields.Single(f => f.Key == "system").Current);
+        Assert.Equal(["harbor", "heist"], undone.Fields.Single(f => f.Key == "tags").Chips.Select(c => c.Text).Order());
+        Assert.Equal("Pathfinder", undone.Fields.Single(f => f.Key == "system").Current);
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

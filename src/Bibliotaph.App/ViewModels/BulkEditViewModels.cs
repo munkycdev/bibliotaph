@@ -12,12 +12,6 @@ namespace Bibliotaph.App.ViewModels;
 /// <summary>What a bulk edit changed: the fields' snapshots from before, which undo it, and how many books changed.</summary>
 public sealed record BulkEditResult(IReadOnlyList<FieldSnapshot> Undo, int Books);
 
-/// <summary>A line of the summary shown before a bulk edit applies, with a warning when it overrides the user's own values.</summary>
-public sealed record BulkSummaryLine(string Field, string Text, string? Warning)
-{
-    public bool HasWarning => Warning is not null;
-}
-
 public enum BulkEditStep
 {
     Editing,
@@ -35,33 +29,30 @@ public sealed partial class BulkEditViewModel : ObservableObject
     readonly MetadataService _metadata;
     readonly IReadOnlyList<EntryId> _documents;
 
-    BulkEditViewModel(IReadOnlyList<EntryId> documents, IReadOnlyDictionary<EntryId, EffectiveMetadata> metadata, Vocabulary vocabulary, MetadataService service)
+    BulkEditViewModel(BulkEditPlan plan, MetadataService service)
     {
-        _documents = documents;
+        _documents = plan.Books;
         _metadata = service;
-        Fields = [.. MetadataFields.All.Where(f => f != MetadataFields.Title).Select(field =>
+        Heading = plan.Heading;
+        ApplyLabel = plan.ApplyLabel;
+        Fields = [.. plan.Fields.Select(field => field switch
         {
-            IReadOnlyList<EffectiveField> values = [.. documents.Select(id => metadata[id][field])];
-            return field.Multiple
-                ? (BulkFieldViewModel)new BulkChipsFieldViewModel(field, values, vocabulary, OnFieldChanged)
-                : new BulkValueFieldViewModel(field, values, vocabulary, OnFieldChanged);
+            BulkChipsField chips => (BulkFieldViewModel)new BulkChipsFieldViewModel(chips, plan.Vocabulary, OnFieldChanged),
+            _ => new BulkValueFieldViewModel((BulkValueField)field, plan.Vocabulary, OnFieldChanged),
         })];
     }
 
     /// <summary>Raised when the dialog closes: with what was changed, or null when it was cancelled.</summary>
     public event EventHandler<BulkEditResult?>? Closed;
 
-    public static async Task<BulkEditViewModel> LoadAsync(IReadOnlyList<EntryId> documents, MetadataService metadata)
-    {
-        var (all, vocabulary) = await Task.Run(() => metadata.GetManyAsync(documents));
-        return new BulkEditViewModel(documents, all, vocabulary, metadata);
-    }
+    public static async Task<BulkEditViewModel> LoadAsync(IReadOnlyList<EntryId> documents, MetadataService metadata) =>
+        new(await Task.Run(() => BulkEditPlan.LoadAsync(metadata, documents)), metadata);
 
     public int BookCount => _documents.Count;
 
-    public string Heading => $"Edit {Books(BookCount)}";
+    public string Heading { get; }
 
-    public string ApplyLabel => $"Apply to {Books(BookCount)}";
+    public string ApplyLabel { get; }
 
     public IReadOnlyList<BulkFieldViewModel> Fields { get; }
 
@@ -115,7 +106,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
         Step = BulkEditStep.Applying;
         Progress = "Saving…";
         var progress = new Progress<(int Done, int Total)>(p =>
-            Progress = $"Updating search: {p.Done.ToString("N0", CultureInfo.CurrentCulture)} of {Books(p.Total)}");
+            Progress = BulkEditText.Updating(p.Done, p.Total));
         IReadOnlyList<BulkChange> changes = [.. Fields.SelectMany(f => f.Changes())];
         try
         {
@@ -130,8 +121,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            // One transaction: when saving fails, nothing was changed.
-            Problem = $"The changes couldn't be saved: {ex.Message}";
+            Problem = BulkEditText.SaveFailed(ex.Message);
             Step = BulkEditStep.Editing;
         }
     }
@@ -148,19 +138,15 @@ public sealed partial class BulkEditViewModel : ObservableObject
         if (IsSummaryStep) Step = BulkEditStep.Editing;
         else if (IsEditingStep) Cancel();
     }
-
-    internal static string Books(int count) => SelectionRules.Books(count);
 }
 
+
 /// <summary>A field in the bulk editor: what the selected books have in it, and the change to make.</summary>
-public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary vocabulary, Action changed) : ObservableObject
+public abstract partial class BulkFieldViewModel(BulkField model, Vocabulary vocabulary, Action changed) : ObservableObject
 {
-    public MetadataField Field { get; } = field;
+    public MetadataField Field => model.Field;
 
-    public string Label => Field.Label;
-
-    /// <summary>The field's name inside a sentence: "game system", "type".</summary>
-    protected string Lower => Field.Label.ToLower(CultureInfo.CurrentCulture);
+    public string Label => model.Label;
 
     protected Vocabulary Vocabulary { get; } = vocabulary;
 
@@ -173,7 +159,7 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
     public abstract IEnumerable<BulkSummaryLine> Describe();
 
     /// <summary>Vocabulary labels to pick from, for a term field.</summary>
-    public IReadOnlyList<string> Choices { get; } = MetadataFieldViewModel.ChoicesFor(field, vocabulary);
+    public IReadOnlyList<string> Choices => model.Choices;
 
     public bool UsesChoices => Choices.Count > 0;
 
@@ -192,39 +178,15 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
         changed();
     }
 
-    protected void Resolve(string? typed) => Resolution = MetadataFieldViewModel.DescribeResolution(Field, typed, Vocabulary);
+    protected void Resolve(string? typed) => Resolution = FieldText.Resolution(Field, typed, Vocabulary);
 
-    /// <summary>How a value reads: a term's label, "Levels 1–5", a store with its link, the text itself.</summary>
-    protected string Display(string value) => MetadataValueViewModel.DisplayWithLink(Field, value, Vocabulary);
-
-    /// <summary>
-    /// A typed value as the bulk edit will file it: a known term's key and label, or the name of a new term; text
-    /// tidied, with a publisher's usual spelling. Null with <see cref="Problem"/> set when it can't be stored.
-    /// </summary>
-    protected (string Value, string Text, bool IsNew)? Read(string typed)
+    /// <summary>A typed value as the bulk edit will file it; null with <see cref="Problem"/> set when it can't be stored.</summary>
+    protected BulkValue? Read(string typed)
     {
-        if (MetadataService.Check(Field, typed) is { } problem)
-        {
-            Problem = problem.Message;
-            return null;
-        }
-        Problem = null;
-        if (Field.Kind == FieldKind.Store)
-        {
-            // Filed as the inspector files it when applied: a known store by key with its link, a new one as typed.
-            var (store, name, url) = StoreLink.Read(typed, Vocabulary, Field);
-            return store is null ? (MetadataText.Tidy(typed), url is null ? name : $"{name} · {url}", true)
-                : (new StoreLink(store.Key, url).ToString(), Display(new StoreLink(store.Key, url).ToString()), false);
-        }
-        if (Field.Kind == FieldKind.Term)
-            return Vocabulary.Resolve(Field.Vocabulary!, typed) is { } term ? (term.Key, term.Label, false) : (MetadataText.Tidy(typed), MetadataText.Tidy(typed), true);
-        var value = MetadataValues.Parse(Field, typed).Value!;
-        if (Field.Vocabulary is { } aliases && Vocabulary.Resolve(aliases, value) is { } known) value = known.Label;
-        return (value, Display(value), false);
+        var (value, problem) = BulkField.Read(Field, typed, Vocabulary);
+        Problem = problem;
+        return value;
     }
-
-    /// <summary>"new type", "new setting": how a name the vocabulary doesn't know is shown until it is added.</summary>
-    protected string NewNote => $"new {(Field == MetadataFields.AlsoOwn ? "place" : Field.Vocabulary)}";
 }
 
 /// <summary>
@@ -234,58 +196,35 @@ public abstract partial class BulkFieldViewModel(MetadataField field, Vocabulary
 /// </summary>
 public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
 {
-    readonly IReadOnlyList<EffectiveField> _books;
-    (string Value, string Text, bool IsNew)? _set;
+    readonly BulkValueField _model;
+    BulkValue? _set;
     bool _reset;
 
+    public BulkValueFieldViewModel(BulkValueField model, Vocabulary vocabulary, Action changed) : base(model, vocabulary, changed) => _model = model;
+
     public BulkValueFieldViewModel(MetadataField field, IReadOnlyList<EffectiveField> books, Vocabulary vocabulary, Action changed)
-        : base(field, vocabulary, changed)
+        : this(new BulkValueField(field, books, vocabulary), vocabulary, changed)
     {
-        _books = books;
-        var groups = books.Where(b => b.IsKnown).GroupBy(b => b.First!.Normalized)
-            .Select(g => (Text: Display(g.First().First!.Value), Count: g.Count())).OrderByDescending(g => g.Count).ToList();
-        var unset = books.Count(b => !b.IsKnown);
-        IsKnown = groups.Count > 0;
-        Current = groups.Count switch
-        {
-            0 => "Not set",
-            1 when unset == 0 => groups[0].Text,
-            1 => $"{groups[0].Text} on {groups[0].Count.ToString("N0", CultureInfo.CurrentCulture)} of {BulkEditViewModel.Books(books.Count)}",
-            _ => $"Mixed ({groups.Count.ToString("N0", CultureInfo.CurrentCulture)} values)",
-        };
-        Breakdown = groups.Count < 2 ? "" : string.Join(" · ", groups.Select(g => $"{g.Text} {g.Count.ToString("N0", CultureInfo.CurrentCulture)}")
-            .Append(unset > 0 ? $"not set {unset.ToString("N0", CultureInfo.CurrentCulture)}" : null).OfType<string>());
-        Own = books.Count(b => b.HasConfirmed);
     }
 
     /// <summary>What the books have now: the shared value, "Dungeons &amp; Dragons on 5 of 12 books", "Mixed (3 values)", "Not set".</summary>
-    public string Current { get; }
+    public string Current => _model.Current;
 
     /// <summary>For a mixed field, each value with how many books have it.</summary>
-    public string Breakdown { get; }
+    public string Breakdown => _model.Breakdown;
 
-    public bool IsKnown { get; }
-
-    /// <summary>Books whose value here is the user's own (or one they kept), which Back to suggestions would forget.</summary>
-    int Own { get; }
+    public bool IsKnown => _model.IsKnown;
 
     public override bool HasChange => _set is not null || _reset;
 
     /// <summary>"Will be Pathfinder on every book", "Back to suggestions on every book".</summary>
-    public string PendingText => _set is { } set ? $"Will be {set.Text}{(set.IsNew ? $" ({NewNote})" : "")} on every book"
-        : _reset ? "Back to suggestions on every book" : "";
+    public string PendingText => _set is { } set ? _model.WillBe(set) : _reset ? BulkValueField.ResetPending : "";
 
     public bool ShowEdit => !HasChange && !IsEditing;
 
-    public bool ShowReset => Own > 0 && !HasChange && !IsEditing;
+    public bool ShowReset => _model.Own > 0 && !HasChange && !IsEditing;
 
-    public string EditHint => Field.Kind switch
-    {
-        FieldKind.Levels => "3, 1-5 or n/a",
-        FieldKind.Players => "4 or 3-5",
-        FieldKind.Year => "2019",
-        _ => "",
-    };
+    public string EditHint => _model.EditHint;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEdit), nameof(ShowReset))]
@@ -310,7 +249,7 @@ public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
     [RelayCommand]
     void Edit()
     {
-        EditText = IsKnown && Breakdown.Length == 0 && _books.All(b => b.IsKnown) ? Current : "";
+        EditText = _model.StartText;
         Problem = null;
         IsEditing = true;
     }
@@ -327,7 +266,7 @@ public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
     {
         if (string.IsNullOrWhiteSpace(EditText))
         {
-            Problem = $"Type a value, or Cancel to leave the {Lower} as it is.";
+            Problem = _model.Blank;
             return;
         }
         if (Read(EditText) is not { } set) return;
@@ -362,31 +301,9 @@ public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
         Changed();
     }
 
-    public override IEnumerable<BulkChange> Changes()
-    {
-        if (_set is { } set) yield return new BulkChange(Field, BulkAction.Set, set.Value);
-        else if (_reset) yield return new BulkChange(Field, BulkAction.Reset);
-    }
+    public override IEnumerable<BulkChange> Changes() => _model.Changes(_set, _reset);
 
-    public override IEnumerable<BulkSummaryLine> Describe()
-    {
-        if (_reset)
-        {
-            yield return new BulkSummaryLine(Label, $"Back to suggestions on {BulkEditViewModel.Books(Own)}.",
-                $"Forgets your own {Lower} on {BulkEditViewModel.Books(Own)}.");
-            yield break;
-        }
-        if (_set is not { } set) yield break;
-        // A new term matches nothing yet, so it changes every book.
-        var normalized = set.IsNew ? null : MetadataValues.Normalize(Field, set.Value);
-        var touched = _books.Count(b => b.First is not { Confirmed: true } first || first.Normalized != normalized);
-        var replaced = _books.Count(b => b.HasConfirmed && b.First!.Normalized != normalized);
-        var text = set.IsNew ? $"{set.Text} ({NewNote})" : set.Text;
-        yield return touched == 0
-            ? new BulkSummaryLine(Label, $"Already {text} on every book; nothing changes.", null)
-            : new BulkSummaryLine(Label, $"Set to {text} on {BulkEditViewModel.Books(touched)}.",
-                replaced > 0 ? $"Replaces your own {Lower} on {BulkEditViewModel.Books(replaced)}." : null);
-    }
+    public override IEnumerable<BulkSummaryLine> Describe() => _model.Describe(_set, _reset);
 }
 
 /// <summary>
@@ -396,15 +313,18 @@ public sealed partial class BulkValueFieldViewModel : BulkFieldViewModel
 /// </summary>
 public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
 {
-    readonly int _books;
+    readonly BulkChipsField _model;
+
+    public BulkChipsFieldViewModel(BulkChipsField model, Vocabulary vocabulary, Action changed) : base(model, vocabulary, changed)
+    {
+        _model = model;
+        foreach (var chip in model.Chips) Chips.Add(new BulkChipViewModel(this, chip, model.Books));
+        Chips.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasChips));
+    }
 
     public BulkChipsFieldViewModel(MetadataField field, IReadOnlyList<EffectiveField> books, Vocabulary vocabulary, Action changed)
-        : base(field, vocabulary, changed)
+        : this(new BulkChipsField(field, books, vocabulary), vocabulary, changed)
     {
-        _books = books.Count;
-        foreach (var group in books.SelectMany(b => b.Values).GroupBy(v => v.Normalized).OrderByDescending(g => g.Count()).ThenBy(g => Display(g.First().Value), StringComparer.CurrentCultureIgnoreCase))
-            Chips.Add(new BulkChipViewModel(this, group.First().Value, group.Key, Display(group.First().Value), null, group.Count(), group.Count(v => v.Confirmed), _books));
-        Chips.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasChips));
     }
 
     public ObservableCollection<BulkChipViewModel> Chips { get; } = [];
@@ -413,10 +333,10 @@ public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
 
     public override bool HasChange => Chips.Any(c => c.Change is not null);
 
-    public string AddLabel => $"Add to {Lower}";
+    public string AddLabel => _model.AddLabel;
 
     /// <summary>How to type values to add: "Separate values with commas", or how a store and its link go.</summary>
-    public string AddHint => Field.Kind == FieldKind.Store ? MetadataFieldViewModel.LinkHint(Field) : "Separate values with commas";
+    public string AddHint => _model.AddHint;
 
     [ObservableProperty]
     public partial string AddText { get; set; } = "";
@@ -430,7 +350,7 @@ public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
     partial void OnPickedChoiceChanged(string? value)
     {
         if (value is null) return;
-        Add(value);
+        if (Read(value) is { } picked) Add(picked);
         PickedChoice = null;
     }
 
@@ -438,26 +358,18 @@ public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
     [RelayCommand]
     void AddTyped()
     {
-        var parts = MetadataValues.Split(Field, AddText ?? "");
-        if (parts.Count == 0) return;
-        foreach (var part in parts)
-            if (MetadataService.Check(Field, part) is { } problem)
-            {
-                Problem = problem.Message;
-                return;
-            }
-        foreach (var part in parts) Add(part);
+        var (values, problem) = BulkChipsField.ReadMany(Field, AddText ?? "", Vocabulary);
+        Problem = problem;
+        if (problem is not null || values.Count == 0) return;
+        foreach (var value in values) Add(value);
         AddText = "";
     }
 
-    void Add(string typed)
+    void Add(BulkValue value)
     {
-        if (Read(typed) is not { } value) return;
-        var normalized = value.IsNew ? MetadataText.Normalize(value.Value) : MetadataValues.Normalize(Field, value.Value);
-        var chip = Chips.FirstOrDefault(c => c.Normalized == normalized && c.IsNew == value.IsNew);
+        var chip = Chips.FirstOrDefault(c => c.Normalized == value.Normalized && c.IsNew == value.IsNew);
         // Typing a value some books have already is the same as clicking its chip.
-        if (chip is null)
-            Chips.Add(chip = new BulkChipViewModel(this, value.Value, normalized, value.Text, value.IsNew ? NewNote : null, 0, 0, _books));
+        if (chip is null) Chips.Add(chip = new BulkChipViewModel(this, BulkChipsField.Typed(Field, value), _model.Books));
         chip.Change = BulkAction.Add;
     }
 
@@ -469,51 +381,42 @@ public sealed partial class BulkChipsFieldViewModel : BulkFieldViewModel
 
     internal void ChipChanged() => Changed();
 
-    public override IEnumerable<BulkChange> Changes() =>
-        Chips.Where(c => c.Change is not null).Select(c => new BulkChange(Field, c.Change!.Value, c.Value));
+    IEnumerable<(BulkChip, BulkAction)> Changing => Chips.Where(c => c.Change is not null).Select(c => (c.Chip, c.Change!.Value));
 
-    public override IEnumerable<BulkSummaryLine> Describe()
-    {
-        foreach (var chip in Chips)
-        {
-            var name = chip.IsNew ? $"{chip.Text} ({chip.NewNote})" : chip.Text;
-            if (chip.Change == BulkAction.Add)
-                yield return new BulkSummaryLine(Label, $"Add {name} to {BulkEditViewModel.Books(_books - chip.Confirmed)}.", null);
-            else if (chip.Change == BulkAction.Remove)
-                yield return new BulkSummaryLine(Label, $"Remove {name} from {BulkEditViewModel.Books(chip.Count)}.",
-                    chip.Confirmed > 0 ? $"Takes away your own {name} on {BulkEditViewModel.Books(chip.Confirmed)}." : null);
-        }
-    }
+    public override IEnumerable<BulkChange> Changes() => _model.Changes(Changing);
+
+    public override IEnumerable<BulkSummaryLine> Describe() => _model.Describe(Changing);
 }
 
 /// <summary>
 /// A value of a multi-value field in the bulk editor: on how many of the books it is, and whether applying adds it
 /// to all of them or removes it from all of them.
 /// </summary>
-public sealed partial class BulkChipViewModel(BulkChipsFieldViewModel owner, string value, string normalized, string text, string? newNote,
-    int count, int confirmed, int total) : ObservableObject
+public sealed partial class BulkChipViewModel(BulkChipsFieldViewModel owner, BulkChip chip, int total) : ObservableObject
 {
-    /// <summary>The stored value (a term's key, text as written), or a new term's name.</summary>
-    public string Value { get; } = value;
+    public BulkChip Chip { get; } = chip;
 
-    public string Normalized { get; } = normalized;
+    /// <summary>The stored value (a term's key, text as written), or a new term's name.</summary>
+    public string Value => Chip.Value;
+
+    public string Normalized => Chip.Normalized;
 
     /// <summary>As it reads: the term it will be filed as.</summary>
-    public string Text { get; } = text;
+    public string Text => Chip.Text;
 
     /// <summary>"new type", for a name the vocabulary doesn't know yet; null otherwise.</summary>
-    public string? NewNote { get; } = newNote;
+    public string? NewNote => Chip.NewNote;
 
-    public bool IsNew => NewNote is not null;
+    public bool IsNew => Chip.IsNew;
 
     /// <summary>Typed in the editor: no book has it yet, so applying can only add it.</summary>
-    public bool IsTyped => Count == 0;
+    public bool IsTyped => Chip.IsTyped;
 
     /// <summary>Books it shows on now.</summary>
-    public int Count { get; } = count;
+    public int Count => Chip.Count;
 
     /// <summary>Books where it is the user's own, or one they kept.</summary>
-    public int Confirmed { get; } = confirmed;
+    public int Confirmed => Chip.Confirmed;
 
     /// <summary>Add, Remove, or null to leave it as it is on each book.</summary>
     [ObservableProperty]
@@ -527,19 +430,12 @@ public sealed partial class BulkChipViewModel(BulkChipsFieldViewModel owner, str
     public bool IsRemoving => Change == BulkAction.Remove;
 
     /// <summary>"3 of 12", or what it will be: "12 of 12" when added, "0 of 12" when removed.</summary>
-    public string CountText => $"{(IsAdding ? total : IsRemoving ? 0 : Count).ToString("N0", CultureInfo.CurrentCulture)} of {total.ToString("N0", CultureInfo.CurrentCulture)}";
+    public string CountText => BulkChipsField.CountText(Chip, Change, total);
 
     /// <summary>For screen readers and the tooltip.</summary>
-    public string Description => Change switch
-    {
-        BulkAction.Add when IsTyped => $"{Text}{(IsNew ? $", {NewNote}," : "")} will be added to every book",
-        BulkAction.Add => $"{Text}, on {Count:N0} of {total:N0} books, will be added to every book",
-        BulkAction.Remove => $"{Text}, will be removed from {Count:N0} books",
-        _ when Count < total => $"{Text}, on {Count:N0} of {total:N0} books. Click to add it to every book",
-        _ => $"{Text}, on every book",
-    };
+    public string Description => BulkChipsField.Description(Chip, Change, total);
 
-    public string RemoveName => IsTyped ? $"Don't add {Text}" : IsRemoving ? $"Keep {Text} as it is" : $"Remove {Text} from every book";
+    public string RemoveName => BulkChipsField.RemoveName(Chip, Change);
 
     /// <summary>Clicking a chip on only some books puts it on all of them; clicking again takes that back.</summary>
     [RelayCommand]

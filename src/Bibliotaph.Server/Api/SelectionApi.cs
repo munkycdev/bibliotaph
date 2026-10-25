@@ -3,6 +3,7 @@ using System.Text;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
@@ -119,6 +120,134 @@ public static class SelectionApi
                 csv.Append(Csv.Row(row.Select((value, i) => i == row.Count - 1 && value is not null ? FolderText.Location(value, drives) : value))).Append("\r\n");
             return new ExportedCsv(SelectionRules.ExportName, csv.ToString(), SelectionRules.Exported(rows.Count, SelectionRules.ExportName));
         });
+
+        selection.MapPost("/edit", async (SelectedBooks books, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var plan = await PlanAsync(lease.Library, books.EntryIds, ct);
+            if (plan.Books.Count == 0) return Results.NotFound();
+            return Results.Ok(new BulkEditForm(BulkEditText.Eyebrow, plan.Heading, plan.ApplyLabel, BulkEditText.Intro, BulkEditText.ReviewIntro,
+                plan.Books.Count, [.. plan.Fields.Select(f => FieldForm(f, plan.Books.Count))]));
+        });
+
+        selection.MapPost("/edit/read", async (BulkReadRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (MetadataFields.Find(request.Field) is not { } field || field == MetadataFields.Title) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var vocabulary = await lease.Library.Get<VocabularyStore>().GetAsync(ct);
+            IReadOnlyList<BulkValue> values;
+            string? problem;
+            if (field.Multiple && !request.Whole) (values, problem) = BulkChipsField.ReadMany(field, request.Text, vocabulary);
+            else
+            {
+                (var one, problem) = BulkField.Read(field, request.Text, vocabulary);
+                values = one is null ? [] : [one];
+            }
+            return Results.Ok(new BulkReadResult(problem, !field.Multiple && values.Count == 1 ? BulkValueField.WillBe(field, values[0]) : "",
+                [.. values.Select(v => ChipForm(BulkChipsField.Typed(field, v), request.Books))]));
+        });
+
+        selection.MapPost("/edit/review", async (BulkEditRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var plan = await PlanAsync(lease.Library, request.EntryIds, ct);
+            IReadOnlyList<BulkSummaryItem> lines = [.. Edit(plan, request.Changes).Summary.Select(l => new BulkSummaryItem(l.Field, l.Text, l.Warning))];
+            return lines;
+        });
+
+        selection.MapPost("/edit/apply", async (BulkEditRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            var plan = await PlanAsync(library, request.EntryIds, ct);
+            var metadata = library.Get<MetadataService>();
+            MetadataProblem? problem;
+            IReadOnlyList<FieldSnapshot>? undo;
+            try
+            {
+                // Not cancelled once started: the edit is one transaction, and search should follow all of it.
+                (problem, undo) = await metadata.EditManyAsync(plan.Books, Edit(plan, request.Changes).Changes, ct: CancellationToken.None);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                library.Get<ILogger<HeldActions>>().LogError(e, "A bulk edit of {Count} books failed", plan.Books.Count);
+                return new BulkApplyResult(BulkEditText.SaveFailed(e.Message), null);
+            }
+            if (problem is not null) return new BulkApplyResult(problem.Message, null);
+            var books = undo!.Select(s => s.EntryId).Distinct().Count();
+            return new BulkApplyResult(null, new ActionResult(SelectionRules.Edited(books),
+                books > 0 ? EditApi.Hold(library, () => metadata.UndoManyAsync(undo!, ct: CancellationToken.None), BulkEditText.UndoFailed) : null));
+        });
+    }
+
+    /// <summary>The bulk editor for the ticked books still in the library.</summary>
+    static async Task<BulkEditPlan> PlanAsync(UserLibrary library, IReadOnlyList<long> entryIds, CancellationToken ct) =>
+        await BulkEditPlan.LoadAsync(library.Get<MetadataService>(), [.. (await CardsAsync(library, entryIds, ct)).Select(c => c.EntryId)], ct);
+
+    static BulkFieldForm FieldForm(BulkField field, int books) => field switch
+    {
+        BulkValueField value => new BulkFieldForm(field.Field.Key, field.Label, false, value.Current, value.Breakdown, value.IsKnown, value.Own > 0,
+            value.StartText, value.EditHint, value.Blank, BulkValueField.ResetPending, "", "", field.Choices, []),
+        BulkChipsField chips => new BulkFieldForm(field.Field.Key, field.Label, true, "", "", chips.Chips.Count > 0, false, "", "", "", "",
+            chips.AddLabel, chips.AddHint, field.Choices, [.. chips.Chips.Select(c => ChipForm(c, books))]),
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    static BulkChipForm ChipForm(BulkChip chip, int books) => new(chip.Value, chip.Normalized, chip.Text, chip.NewNote, chip.IsTyped, chip.Count < books,
+        Look(chip, null, books), Look(chip, BulkAction.Add, books), Look(chip, BulkAction.Remove, books));
+
+    static BulkChipLook Look(BulkChip chip, BulkAction? change, int books) =>
+        new(BulkChipsField.CountText(chip, change, books), BulkChipsField.Description(chip, change, books), BulkChipsField.RemoveName(chip, change));
+
+    /// <summary>
+    /// The browser's changes on the editor's fields, as the Windows dialog holds them: the last set or reset of a
+    /// single-value field, and each value added or removed, in the order the chips show.
+    /// </summary>
+    static (IReadOnlyList<BulkChange> Changes, IReadOnlyList<BulkSummaryLine> Summary) Edit(BulkEditPlan plan, IReadOnlyList<BulkFieldChange> requested)
+    {
+        var changes = new List<BulkChange>();
+        var summary = new List<BulkSummaryLine>();
+        foreach (var field in plan.Fields)
+        {
+            var mine = requested.Where(c => c.Field == field.Field.Key).ToList();
+            if (mine.Count == 0) continue;
+            if (field is BulkValueField value)
+            {
+                var last = mine[^1];
+                var set = last.Action == BulkEditAction.Set && last.Value is { } v ? BulkField.Given(field.Field, v, last.Text ?? v, last.IsNew) : null;
+                var reset = last.Action == BulkEditAction.Reset;
+                changes.AddRange(value.Changes(set, reset));
+                summary.AddRange(value.Describe(set, reset));
+            }
+            else if (field is BulkChipsField chips)
+            {
+                var chipped = mine.Where(c => c.Action is BulkEditAction.Add or BulkEditAction.Remove && c.Value is not null)
+                    .Select(c => (Chip: chips.ChipFor(Given(field.Field, c)),
+                        Change: c.Action == BulkEditAction.Add ? BulkAction.Add : BulkAction.Remove))
+                    // A typed value can only be added.
+                    .Where(c => !c.Chip.IsTyped || c.Change == BulkAction.Add)
+                    .DistinctBy(c => (c.Chip.Normalized, c.Chip.IsNew))
+                    .OrderBy(c => IndexOf(chips.Chips, c.Chip))
+                    .ToList();
+                changes.AddRange(chips.Changes(chipped));
+                summary.AddRange(chips.Describe(chipped));
+            }
+        }
+        return (changes, summary);
+    }
+
+    /// <summary>A value as the editor gave it, matched to its chip by what the chip's own normal form is.</summary>
+    static BulkValue Given(MetadataField field, BulkFieldChange change)
+    {
+        var value = BulkField.Given(field, change.Value!, change.Text ?? change.Value!, change.IsNew);
+        return change.Normalized is { } normalized ? value with { Normalized = normalized } : value;
+    }
+
+    static int IndexOf(IReadOnlyList<BulkChip> chips, BulkChip chip)
+    {
+        for (var i = 0; i < chips.Count; i++)
+            if (ReferenceEquals(chips[i], chip)) return i;
+        return int.MaxValue;
     }
 
     /// <summary>The ticked books still in the library, in the order they were ticked.</summary>

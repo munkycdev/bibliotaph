@@ -166,7 +166,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         // the fields held before.
         SayDone(SelectionRules.Edited(result.Books),
             result.Books > 0 && _page.IsCurrent ? () => _metadata.UndoManyAsync(result.Undo) : null,
-            "The edit couldn't be undone.");
+            BulkEditText.UndoFailed);
         await _page.RefreshAsync();
     }
 
