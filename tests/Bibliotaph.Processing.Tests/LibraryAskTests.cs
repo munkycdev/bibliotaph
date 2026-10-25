@@ -170,7 +170,24 @@ public sealed class LibraryAskTests : IAsyncLifetime
         _bookAsk.Dispose();
         _writer.Dispose();
         SqliteConnection.ClearAllPools();
-        Directory.Delete(_dir, recursive: true);
+        // A reader that finished a moment ago can still hold index.db on Windows; the temp folder is cleaned up
+        // eventually if it outlasts the retries.
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Delete(_dir, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < 10)
+            {
+                await Task.Delay(100);
+            }
+            catch (IOException)
+            {
+                return;
+            }
+        }
     }
 
     Task SetUpAsync(string? embeddingModel, bool keep = true, bool libraryVectors = true)
