@@ -198,6 +198,10 @@ The look comes from [bibliotaph-ui-mockups.html](bibliotaph-ui-mockups.html): a 
 
 Everything works from the keyboard, with visible focus, named controls for screen readers, no hover-only actions, layouts that hold at 200% scaling, Windows contrast themes, and no animation when Windows turns animations off. **Ctrl+/** lists every shortcut.
 
+## On the web
+
+[bibliotaph.online](https://bibliotaph.online) is the web version being built for libraries kept in cloud storage, with a server that holds each user's catalog and index and never a copy of their books. It looks like the Windows app: the same sidebar, type, colours and icons, in light and dark. It is invite-only. So far it has accounts and invitations: a one-time link that expires after 14 days makes an account, signed in through Microsoft or Google (name, email and an account ID only), and more sign-ins can be linked to the same account. Admins make invitations in Settings. Connecting OneDrive, the library, the reader, and OCR and AI with the user's own key follow, and then the Windows app can use the same library. Its [privacy policy](https://bibliotaph.online/privacy) is published with it.
+
 ## Out of scope
 
-Bibliotaph is a Windows app for Windows 10 (1809 or later) and 11, with no phone, tablet, web, macOS or Linux version. It has no sync service, accounts, player-facing display, virtual tabletop connection, campaign authoring, character sheets, ebook conversion, plugins, background service or tray mode, and no store or recommendations. It never changes source files, never removes DRM, and never reads an online library on its own.
+Bibliotaph is a Windows app for Windows 10 (1809 or later) and 11, with no phone, tablet, macOS or Linux version; the web version below is still being built. The Windows app has no sync service, accounts, player-facing display, virtual tabletop connection, campaign authoring, character sheets, ebook conversion, plugins, background service or tray mode, and no store or recommendations. It never changes source files, never removes DRM, and never reads an online library on its own.

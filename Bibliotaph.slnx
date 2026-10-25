@@ -10,6 +10,7 @@
     <File Path=".github/workflows/release.yml" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Bibliotaph.Api.Contracts/Bibliotaph.Api.Contracts.csproj" />
     <Project Path="src/Bibliotaph.App/Bibliotaph.App.csproj" />
     <Project Path="src/Bibliotaph.Catalog/Bibliotaph.Catalog.csproj" />
     <Project Path="src/Bibliotaph.Classification/Bibliotaph.Classification.csproj" />
@@ -20,7 +21,9 @@
     <Project Path="src/Bibliotaph.Pdf.Host/Bibliotaph.Pdf.Host.csproj" />
     <Project Path="src/Bibliotaph.PdfWorker/Bibliotaph.PdfWorker.csproj" />
     <Project Path="src/Bibliotaph.Processing/Bibliotaph.Processing.csproj" />
+    <Project Path="src/Bibliotaph.Server/Bibliotaph.Server.csproj" />
     <Project Path="src/Bibliotaph.Viewer/Bibliotaph.Viewer.csproj" />
+    <Project Path="src/Bibliotaph.Web/Bibliotaph.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Bibliotaph.App.Tests/Bibliotaph.App.Tests.csproj" />
@@ -32,6 +35,7 @@
     <Project Path="tests/Bibliotaph.Pdf.Host.TestHost/Bibliotaph.Pdf.Host.TestHost.csproj" />
     <Project Path="tests/Bibliotaph.Pdf.Host.Tests/Bibliotaph.Pdf.Host.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Processing.Tests/Bibliotaph.Processing.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Server.Tests/Bibliotaph.Server.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/IconGen/IconGen.csproj" />

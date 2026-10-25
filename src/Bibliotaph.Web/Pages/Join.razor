@@ -1,0 +1,9 @@
+@page "/join"
+@layout PublicLayout
+@* An invitation link: /join?invite=<code>. The code goes with the sign-in, which makes the account. *@
+
+<SignInCard Invite="@Invite" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "invite")] public string? Invite { get; set; }
+}

@@ -1,0 +1,122 @@
+@page "/settings"
+@inject ApiClient Api
+@inject Session Session
+@inject NavigationManager Navigation
+
+<PageHeading Title="Settings" />
+
+@if (Problem == "taken")
+{
+    <div class="bt-message" role="status">That sign-in already belongs to another Bibliotaph account, so it wasn't linked to this one.</div>
+}
+
+@if (_me is not null)
+{
+    <section class="bt-section" aria-labelledby="account">
+        <h2 id="account">Account</h2>
+        <div class="bt-settingrow">
+            <div>@_me.Name<small>@(_me.Email ?? "No email address from your sign-in")</small></div>
+            <button class="bt-button" @onclick="SignOut"><Icon Name="ArrowUpRight" />Sign out</button>
+        </div>
+        <table class="bt-table">
+            <thead><tr><th>SIGN-IN</th><th>ACCOUNT</th><th>ADDED</th></tr></thead>
+            <tbody>
+                @foreach (var signIn in _me.SignIns)
+                {
+                    <tr><td>@ProviderName(signIn.Provider)</td><td>@(signIn.Email ?? "")</td><td>@signIn.Added.ToString("d MMM yyyy")</td></tr>
+                }
+            </tbody>
+        </table>
+        @if (Unlinked.Any())
+        {
+            <div class="bt-actions">
+                @foreach (var provider in Unlinked)
+                {
+                    <ServerLink Href="@($"auth/signin/{provider.Id}?returnUrl=%2Fsettings")"><Icon Name="Plus" />Link a @provider.Name sign-in</ServerLink>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="bt-section" id="storage" aria-labelledby="storage-heading">
+        <h2 id="storage-heading">Storage</h2>
+        <p class="bt-copy">Connect the storage where your books are, then add folders from it to your library. Bibliotaph reads them
+            there and never changes them; books you import are saved to one folder of its own.</p>
+        <div class="bt-source">OneDrive<small>Connecting storage is the next part being built.</small></div>
+    </section>
+
+    @if (_me.IsAdmin)
+    {
+        <section class="bt-section" aria-labelledby="invites">
+            <h2 id="invites">Invitations</h2>
+            <p class="bt-copy">Bibliotaph is invite-only. Each link makes one account and expires after 14 days.</p>
+            <div class="bt-filterbar">
+                <label class="bt-field">Who it's for (only you see this)<input @bind="_note" maxlength="100" /></label>
+                <label class="bt-check"><input type="checkbox" @bind="_admin" />Can invite others</label>
+                <button class="bt-button primary bt-end" @onclick="CreateInvite"><Icon Name="Plus" />New invitation</button>
+            </div>
+            @if (_created is not null)
+            {
+                <div class="bt-linkbox" role="status"><Icon Name="Copy" Size="15" /><span>@_created.Link</span></div>
+                <p class="bt-sample bt-shown-once">Copy it now: it's shown only once.</p>
+            }
+            @if (_invites is { Count: > 0 })
+            {
+                <table class="bt-table">
+                    <thead><tr><th>FOR</th><th>MADE</th><th>STATE</th></tr></thead>
+                    <tbody>
+                        @foreach (var invite in _invites)
+                        {
+                            <tr>
+                                <td>@(invite.Note ?? "—")@(invite.Admin ? " (can invite)" : "")</td>
+                                <td>@invite.Created.ToString("d MMM yyyy")</td>
+                                <td>@State(invite)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+}
+
+@code {
+    CurrentUser? _me;
+    IReadOnlyList<SignInProvider> _providers = [];
+    IReadOnlyList<InviteInfo>? _invites;
+    CreatedInvite? _created;
+    string? _note;
+    bool _admin;
+
+    [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
+
+    IEnumerable<SignInProvider> Unlinked => _providers.Where(p => _me?.SignIns.All(s => s.Provider != p.Id) == true);
+
+    string ProviderName(string id) => _providers.FirstOrDefault(p => p.Id == id)?.Name ?? id;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _me = await Session.MeAsync();
+        _providers = await Api.ProvidersAsync();
+        if (_me?.IsAdmin == true) _invites = await Api.InvitesAsync();
+    }
+
+    async Task CreateInvite()
+    {
+        _created = await Api.CreateInviteAsync(new CreateInvite(_note, _admin));
+        _note = null;
+        _admin = false;
+        _invites = await Api.InvitesAsync();
+    }
+
+    async Task SignOut()
+    {
+        await Session.SignOutAsync();
+        Navigation.NavigateTo("", forceLoad: true);
+    }
+
+    static string State(InviteInfo invite) =>
+        invite.Redeemed is { } used ? $"Used {used:d MMM yyyy}"
+        : invite.Expires <= DateTimeOffset.UtcNow ? "Expired"
+        : $"Open until {invite.Expires:d MMM yyyy}";
+}

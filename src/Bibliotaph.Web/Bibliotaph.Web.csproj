@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <!--
+    The web client: Blazor WebAssembly, served by Bibliotaph.Server from the same origin. It talks only to the server's
+    API with the session cookie, and looks like the Windows app: the same bt-* colour tokens, fonts and Lucide icons.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <!-- WebAssembly has no x64; the repo-wide setting is for the Windows app. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Api.Contracts\Bibliotaph.Api.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The Windows app's icon set, read by Icons/LucideIcons.cs, so the two never drift apart. -->
+    <EmbeddedResource Include="..\Bibliotaph.App\Icons\Icons.xaml" LogicalName="Bibliotaph.Web.Icons.xaml" Link="Icons\Icons.xaml" />
+  </ItemGroup>
+</Project>

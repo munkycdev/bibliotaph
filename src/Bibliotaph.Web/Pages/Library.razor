@@ -1,0 +1,25 @@
+@page "/library"
+@inject ApiClient Api
+
+<PageHeading Title="Library" Subtitle="@Subtitle">
+    <Actions>
+        <a class="bt-button" href="settings#storage"><Icon Name="FolderPlus" />Add folder</a>
+    </Actions>
+</PageHeading>
+@if (_summary is { Folders: 0 })
+{
+    <EmptyState Title="No folders yet." Message="Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are."
+                ActionText="Add a folder" ActionIcon="FolderPlus" ActionHref="settings#storage" />
+}
+else if (_summary is not null)
+{
+    <EmptyState Title="Indexing your library." Message="Books appear here as they are read." />
+}
+
+@code {
+    LibrarySummary? _summary;
+
+    string? Subtitle => _summary is null ? null : _summary.Books == 1 ? "1 book" : $"{_summary.Books:N0} books";
+
+    protected override async Task OnInitializedAsync() => _summary = await Api.LibrarySummaryAsync();
+}

@@ -32,3 +32,6 @@ artifacts/
 
 # WPF writes a temporary project beside the real one while it compiles XAML.
 *_wpftmp.csproj
+
+# The web server's local data folder in development (accounts.db, libraries, keys).
+src/Bibliotaph.Server/App_Data/

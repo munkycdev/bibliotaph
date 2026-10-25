@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The web API's requests and responses, shared by the server, the web client and later the Windows app's API client.
+    Plain records only: nothing here may depend on the server, a database or the browser.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+</Project>

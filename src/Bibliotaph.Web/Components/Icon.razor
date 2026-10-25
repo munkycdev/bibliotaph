@@ -1,0 +1,9 @@
+@* A Lucide icon, drawn from the Windows app's own Icons.xaml. Decorative: the label is beside it. *@
+<svg viewBox="0 0 24 24" width="@Size" height="@Size" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="@(Icons.LucideIcons.Paths.GetValueOrDefault(Name, ""))" /></svg>
+
+@code {
+    /// <summary>The Lucide name without the Icon. prefix, as in Icons.xaml: LibraryBig, Settings2.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    [Parameter] public int Size { get; set; } = 17;
+}

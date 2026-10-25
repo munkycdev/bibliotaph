@@ -1,0 +1,59 @@
+@* Sign-in, shown in place of the shell when nobody is signed in. With an invitation code, it's also how an account starts. *@
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Bibliotaph</PageTitle>
+<div class="bt-signin">
+    <div class="bt-signin-card">
+        <div class="bt-brand"><span class="bt-monogram">b.</span><span>Bibliotaph</span></div>
+        <span class="bt-eyebrow bt-eyebrow-block">@(Invite is null ? "WELCOME BACK" : "YOU'RE INVITED")</span>
+        <h1 tabindex="-1">@(Invite is null ? "Sign in to your library." : "Start your library.")</h1>
+        <p class="bt-copy">
+            @if (Invite is null)
+            {
+                <text>Bibliotaph keeps a catalog of the RPG books, maps and handouts in your own storage. Sign in with the account you used before.</text>
+            }
+            else
+            {
+                <text>Choose how you'll sign in. You'll use the same account each time; you can link another later in Settings.</text>
+            }
+        </p>
+        @if (_providers is null)
+        {
+            <p class="bt-copy">Loading…</p>
+        }
+        else if (_providers.Count == 0)
+        {
+            <div class="bt-message">Sign-in isn't set up on this server yet.</div>
+        }
+        else
+        {
+            @foreach (var provider in _providers)
+            {
+                <ServerLink Class="bt-button" Href="@SignInUrl(provider)">Continue with @provider.Name</ServerLink>
+            }
+        }
+        @if (Problem is not null)
+        {
+            <div class="bt-message" role="status">@Problem</div>
+        }
+        <p class="bt-note"><Icon Name="ShieldCheck" Size="13" />Your books stay in your storage. <a href="privacy.html">Privacy</a></p>
+    </div>
+</div>
+
+@code {
+    IReadOnlyList<SignInProvider>? _providers;
+
+    [Parameter] public string? Invite { get; set; }
+    [Parameter] public string? Problem { get; set; }
+
+    protected override async Task OnInitializedAsync() => _providers = await Api.ProvidersAsync();
+
+    string SignInUrl(SignInProvider provider)
+    {
+        var returnUrl = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (Invite is not null) returnUrl = "/";
+        var url = $"auth/signin/{Uri.EscapeDataString(provider.Id)}?returnUrl={Uri.EscapeDataString(returnUrl)}";
+        return Invite is null ? url : $"{url}&invite={Uri.EscapeDataString(Invite)}";
+    }
+}

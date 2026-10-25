@@ -9,3 +9,4 @@
 *.png    binary
 *.webp   binary
 *.ttf    binary
+*.sh     text eol=lf

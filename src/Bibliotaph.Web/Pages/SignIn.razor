@@ -1,0 +1,7 @@
+@page "/signin"
+@inject NavigationManager Navigation
+@* Reached only when already signed in (the shell shows the sign-in card otherwise), so there's nothing to do here. *@
+
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("", replace: true);
+}

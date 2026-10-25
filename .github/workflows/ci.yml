@@ -71,6 +71,75 @@ jobs:
           path: TestResults
           if-no-files-found: ignore
 
+  # The web server's image, built on Linux like the container it runs in. Pull requests only build it; main pushes it
+  # to the registry for the deploy job.
+  server-image:
+    name: Server image (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PUSH: ${{ github.event_name == 'push' && vars.AZURE_CLIENT_ID != '' }}
+      IMAGE: ${{ vars.AZURE_REGISTRY }}.azurecr.io/bibliotaph-server:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -f src/Bibliotaph.Server/Container/Dockerfile -t bibliotaph-server .
+
+      - name: Starts and answers
+        run: |
+          docker run -d --name server -p 8080:8080 bibliotaph-server
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/healthz; then exit 0; fi
+            sleep 1
+          done
+          docker logs server
+          exit 1
+
+      - uses: azure/login@v2
+        if: env.PUSH == 'true'
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Push
+        if: env.PUSH == 'true'
+        run: |
+          az acr login -n ${{ vars.AZURE_REGISTRY }}
+          docker tag bibliotaph-server "$IMAGE"
+          docker push "$IMAGE"
+
+  # Every push to main that passes the Windows build and tests goes live. infra/setup.ps1 makes the app and prints
+  # the repository variables this needs; until they're set, nothing deploys.
+  deploy-server:
+    name: Deploy bibliotaph.online
+    needs: [build-and-test, server-image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    # Deploys go out in order and none is cut short; a later one simply follows.
+    concurrency:
+      group: deploy-server
+      cancel-in-progress: false
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Roll out
+        run: |
+          az containerapp update -n ${{ vars.AZURE_CONTAINER_APP }} -g ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --image ${{ vars.AZURE_REGISTRY }}.azurecr.io/bibliotaph-server:${{ github.sha }} -o none
+
   # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
   # exception or binding error. A release waits for it on its tagged commit, so no release ships without it.
   smoke:

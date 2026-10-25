@@ -1,0 +1,115 @@
+using Bibliotaph.Server.Accounts;
+
+namespace Bibliotaph.Server.Tests;
+
+public sealed class AccountServiceTests : IDisposable
+{
+    readonly TempFolder _folder = new();
+    readonly ManualClock _clock = new(new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero));
+    readonly AccountsDatabase _database;
+    readonly AccountService _accounts;
+
+    static readonly ExternalIdentity Dana = new("microsoft", "oid-1@tenant-1", "Dana", "dana@example.com");
+    static readonly ExternalIdentity DanaOnGoogle = new("google", "google-sub-1", "Dana", "dana@example.org");
+
+    public AccountServiceTests()
+    {
+        _database = new AccountsDatabase(Path.Combine(_folder.Path, "accounts.db"));
+        _database.MigrateAsync().GetAwaiter().GetResult();
+        _accounts = new AccountService(_database, _clock);
+    }
+
+    public void Dispose()
+    {
+        _database.ClearPool();
+        _folder.Dispose();
+    }
+
+    [Fact]
+    public async Task An_invitation_makes_an_account_once()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, "Dana", admin: false);
+
+        var first = await _accounts.SignInAsync(Dana, code, null);
+        var again = await _accounts.SignInAsync(DanaOnGoogle, code, null);
+
+        Assert.Equal(SignInResult.Created, first.Result);
+        Assert.Equal("Dana", first.User!.Name);
+        Assert.False(first.User.IsAdmin);
+        Assert.Equal(SignInResult.InviteNotValid, again.Result);
+    }
+
+    [Fact]
+    public async Task A_known_sign_in_needs_no_invitation()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var created = await _accounts.SignInAsync(Dana, code, null);
+
+        var later = await _accounts.SignInAsync(Dana, null, null);
+
+        Assert.Equal(SignInResult.SignedIn, later.Result);
+        Assert.Equal(created.User!.Id, later.User!.Id);
+    }
+
+    [Fact]
+    public async Task Without_an_invitation_a_stranger_is_turned_away()
+    {
+        Assert.Equal(SignInResult.NeedsInvite, (await _accounts.SignInAsync(Dana, null, null)).Result);
+        Assert.Equal(SignInResult.InviteNotValid, (await _accounts.SignInAsync(Dana, "not-a-code", null)).Result);
+    }
+
+    [Fact]
+    public async Task An_invitation_expires_after_two_weeks()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        _clock.Advance(AccountService.InviteLifetime + TimeSpan.FromMinutes(1));
+
+        Assert.Equal(SignInResult.InviteNotValid, (await _accounts.SignInAsync(Dana, code, null)).Result);
+    }
+
+    [Fact]
+    public async Task An_admin_invitation_makes_an_admin()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: true);
+
+        Assert.True((await _accounts.SignInAsync(Dana, code, null)).User!.IsAdmin);
+    }
+
+    [Fact]
+    public async Task A_second_sign_in_links_to_the_account_signed_in()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var user = (await _accounts.SignInAsync(Dana, code, null)).User!;
+
+        var linked = await _accounts.SignInAsync(DanaOnGoogle, null, user.Id);
+        var viaGoogle = await _accounts.SignInAsync(DanaOnGoogle, null, null);
+
+        Assert.Equal(SignInResult.Linked, linked.Result);
+        Assert.Equal(user.Id, viaGoogle.User!.Id);
+        Assert.Equal(2, (await _accounts.LoginsAsync(user.Id)).Count);
+    }
+
+    [Fact]
+    public async Task A_sign_in_that_belongs_to_someone_else_is_not_moved()
+    {
+        var (first, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var (second, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var dana = (await _accounts.SignInAsync(Dana, first, null)).User!;
+        var other = (await _accounts.SignInAsync(DanaOnGoogle, second, null)).User!;
+
+        var outcome = await _accounts.SignInAsync(DanaOnGoogle, null, dana.Id);
+
+        Assert.Equal(SignInResult.BelongsToSomeoneElse, outcome.Result);
+        Assert.Single(await _accounts.LoginsAsync(other.Id));
+    }
+
+    [Fact]
+    public async Task Only_a_hash_of_the_code_is_kept()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+
+        var stored = Assert.Single(await _accounts.InvitesAsync());
+        Assert.DoesNotContain(code, stored.CodeHash, StringComparison.Ordinal);
+        Assert.Equal(64, stored.CodeHash.Length);
+    }
+}
