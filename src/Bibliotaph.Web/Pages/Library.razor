@@ -274,6 +274,8 @@
             @* Select mode: how many are ticked, and what can be done to them all. *@
             <div class="bt-selectbar" role="toolbar" aria-label="Selection">
                 <span class="bt-selectsummary" role="status">@(_selection?.Summary ?? "")</span>
+                <button class="bt-button primary" title="Change fields on every selected book at once" disabled="@(_ticked.Count == 0 || _working)"
+                        @onclick="EditSelectedAsync"><Icon Name="Pencil" />Edit metadata</button>
                 <div class="bt-menuanchor">
                     <button class="bt-button" title="Add every selected book to a collection" aria-haspopup="menu" aria-expanded="@(_selectionMenu is not null)"
                             disabled="@(_ticked.Count == 0)" @onclick="ToggleCollectionMenuAsync"><Icon Name="FolderPlus" />Add to collection</button>
@@ -424,6 +426,10 @@ else
 {
     <SameBookDialog Preview="sameBook" Books="_ticked" Closed="SameBookClosedAsync" />
 }
+@if (_bulk is { } bulk)
+{
+    <BulkEditDialog Form="bulk" Books="_ticked" Closed="BulkClosedAsync" />
+}
 @if (_packing is { } packing)
 {
     <PackTogetherDialog Preview="packing" Books="_ticked" Closed="PackClosedAsync" />
@@ -473,6 +479,7 @@ else
     IReadOnlyList<CollectionMenuItem>? _selectionMenu;
     SameBookPreview? _sameBook;
     PackTogetherPreview? _packing;
+    BulkEditForm? _bulk;
     bool _working;
 
     /// <summary>A saved search keeps its own order; elsewhere the order is the browser's to remember.</summary>
@@ -943,6 +950,22 @@ else
         _ticked.Clear();
         await ShowDone(result);
         await UpdateSelectionAsync();
+    }
+
+    /// <summary>Edit metadata: the bulk editor for the ticked books, shown or not.</summary>
+    async Task EditSelectedAsync()
+    {
+        CloseDetails();
+        _working = true;
+        _bulk = await SearchActionAsync(() => Api.BulkEditAsync([.. _ticked]));
+        _working = false;
+    }
+
+    /// <summary>As in the Windows app, the books stay ticked after an edit, so another can follow.</summary>
+    async Task BulkClosedAsync(ActionResult? result)
+    {
+        _bulk = null;
+        if (result is not null) await ShowDone(result);
     }
 
     /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>

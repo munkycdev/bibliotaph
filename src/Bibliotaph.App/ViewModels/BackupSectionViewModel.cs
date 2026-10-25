@@ -419,7 +419,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     /// <summary>Export: a CSV with one row per book, for a spreadsheet.</summary>
     [RelayCommand(CanExecute = nameof(IsIdle))]
     Task ExportCsv() => ExportAsync("Export your library for a spreadsheet", $"Bibliotaph library {clock.GetLocalNow():yyyy-MM-dd}.csv", "CSV (*.csv)|*.csv",
-        async path => $"Exported {BulkEditViewModel.Books(await export.WriteCsvAsync(path))} to {System.IO.Path.GetFileName(path)}.");
+        async path => $"Exported {SelectionRules.Books(await export.WriteCsvAsync(path))} to {System.IO.Path.GetFileName(path)}.");
 
     /// <summary>Export: everything in the catalog as JSON.</summary>
     [RelayCommand(CanExecute = nameof(IsIdle))]

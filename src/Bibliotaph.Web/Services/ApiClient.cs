@@ -225,6 +225,18 @@ public sealed class ApiClient(HttpClient http)
     public Task<ExportedCsv> ExportAsync(IReadOnlyList<long> books, CancellationToken ct = default) =>
         SendAsync<ExportedCsv>(HttpMethod.Post, "api/library/selection/export", new SelectedBooks(books), ct);
 
+    public Task<BulkEditForm> BulkEditAsync(IReadOnlyList<long> books, CancellationToken ct = default) =>
+        SendAsync<BulkEditForm>(HttpMethod.Post, "api/library/selection/edit", new SelectedBooks(books), ct);
+
+    public Task<BulkReadResult> BulkReadAsync(BulkReadRequest request, CancellationToken ct = default) =>
+        SendAsync<BulkReadResult>(HttpMethod.Post, "api/library/selection/edit/read", request, ct);
+
+    public Task<IReadOnlyList<BulkSummaryItem>> BulkReviewAsync(BulkEditRequest request, CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<BulkSummaryItem>>(HttpMethod.Post, "api/library/selection/edit/review", request, ct);
+
+    public Task<BulkApplyResult> BulkApplyAsync(BulkEditRequest request, CancellationToken ct = default) =>
+        SendAsync<BulkApplyResult>(HttpMethod.Post, "api/library/selection/edit/apply", request, ct);
+
     static string Collection(long id) => $"api/collections/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
     public Task<CollectionList> CollectionsAsync(CancellationToken ct = default) => SendAsync<CollectionList>(HttpMethod.Get, "api/collections", null, ct);
