@@ -29,8 +29,10 @@ public static class ReviewApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var list = await lease.Library.Get<ReviewService>().GetQueueAsync(ct);
-            return ListOf(list);
+            return ListOf(list, await ReviewOffers.CardsAsync(lease.Library, list, ct));
         });
+
+        review.MapReviewOffers();
 
         review.MapPost("/fields/accept", (ReviewFieldDecision decision, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
             DecideAsync(libraries, principal, decision.Id, decision.GroupKey, async (library, item, text) =>
@@ -124,12 +126,14 @@ public static class ReviewApi
         return true;
     }
 
-    static ReviewSuggestions ListOf(ReviewList list)
+    static ReviewSuggestions ListOf(ReviewList list, IReadOnlyList<ReviewOfferCard> offers)
     {
         var fields = list.Items.Select(i => FieldCard(i, list.Vocabulary)).ToList();
+        var shown = offers.Select(o => o.Kind).ToHashSet(StringComparer.Ordinal);
+        if (list.Terms.Count > 0) shown.Add("terms");
         IReadOnlyList<ReviewShowKind> kinds =
         [
-            .. ReviewText.Kinds.Where(k => k.Key == "terms" && list.Terms.Count > 0).Select(k => new ReviewShowKind(k.Key, k.Name)),
+            .. ReviewText.Kinds.Where(k => shown.Contains(k.Key)).Select(k => new ReviewShowKind(k.Key, k.Name)),
             .. list.Items.DistinctBy(i => i.Issue.Field.Key).OrderBy(i => i.Issue.Field.Label, StringComparer.CurrentCultureIgnoreCase)
                 .Select(i => new ReviewShowKind(ReviewText.FieldKey(i), i.Issue.Field.Label)),
         ];
@@ -138,7 +142,7 @@ public static class ReviewApi
         var choices = list.Items.Select(i => i.Issue.Field).DistinctBy(f => f.Key)
             .Select(f => (f.Key, Values: FieldText.Choices(f, list.Vocabulary))).Where(c => c.Values.Count > 0)
             .ToDictionary(c => c.Key, c => c.Values);
-        return new ReviewSuggestions(terms, fields, kinds, list.Count, choices);
+        return new ReviewSuggestions(terms, fields, kinds, list.Count, choices, offers);
     }
 
     static ReviewFieldCard FieldCard(ReviewItem item, Vocabulary vocabulary)

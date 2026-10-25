@@ -8,10 +8,13 @@ namespace Bibliotaph.Web.Services;
 /// </summary>
 public sealed class ReviewCardState
 {
+    List<string> _undos = [];
+
     /// <summary>What deciding did, once decided: the card folds to this line.</summary>
     public string? Done { get; private set; }
 
-    public string? Undo { get; private set; }
+    /// <summary>Whether the decision can be undone.</summary>
+    public string? Undo => _undos.Count > 0 ? _undos[0] : null;
 
     public bool IsDone => Done is not null;
 
@@ -20,10 +23,18 @@ public sealed class ReviewCardState
     /// <summary>Why the last try didn't work, shown on the card.</summary>
     public string? Problem { get; set; }
 
-    public void MarkDone(ActionResult result)
+    /// <summary>
+    /// The places a new version's card checked with Use this page, each with what undoes it, until every place is
+    /// checked and the card's own Undo takes them all back.
+    /// </summary>
+    public Dictionary<string, string?> Places { get; } = new(StringComparer.Ordinal);
+
+    public void MarkDone(ActionResult result) => MarkDone(result.Message, result.Undo is { } undo ? [undo] : []);
+
+    public void MarkDone(string message, IEnumerable<string> undos)
     {
-        Done = result.Message;
-        Undo = result.Undo;
+        Done = message;
+        _undos = [.. undos];
         Problem = null;
     }
 
@@ -55,14 +66,20 @@ public sealed class ReviewCardState
     /// <summary>Undo: the card is back, and <paramref name="decided"/> hears +1. What couldn't be undone says so on it.</summary>
     public async Task UndoAsync(ApiClient api, Func<int, Task> decided)
     {
-        if (Undo is not { } token || Busy) return;
+        if (_undos.Count == 0 || Busy) return;
         Busy = true;
         try
         {
-            var result = await api.RunHeldAsync(token);
+            var problems = new List<string>();
+            foreach (var token in _undos)
+            {
+                var result = await api.RunHeldAsync(token);
+                if (result.Message.Length > 0) problems.Add(result.Message);
+            }
             Done = null;
-            Undo = null;
-            Problem = result.Message.Length > 0 ? result.Message : null;
+            _undos = [];
+            Places.Clear();
+            Problem = problems.Count > 0 ? problems[0] : null;
             await decided(+1);
         }
         catch (ApiProblemException e)

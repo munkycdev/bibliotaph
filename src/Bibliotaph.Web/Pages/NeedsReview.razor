@@ -61,6 +61,10 @@
                     <ReviewTermCardView @key="term.Id" Card="term" State="StateOf(TermKey(term))" Decided="Decided" />
                 }
             }
+            @foreach (var offer in _list.Offers.Where(o => Shows(o.Kind)))
+            {
+                <ReviewOfferCardView @key="offer.Id" Card="offer" State="StateOf(offer.Id)" Decided="Decided" />
+            }
             @foreach (var card in ShownFields)
             {
                 <ReviewFieldCardView @key="card.Id" Card="card" State="StateOf(card.Id)" Choices="ChoicesFor(card)" Decided="Decided" AcceptAll="AcceptAllAsync" />
@@ -69,7 +73,7 @@
             {
                 <button class="bt-button bt-reviewmore" @onclick="() => _shown += ReviewWords.PageSize">@ReviewWords.MoreLabel(Hidden)</button>
             }
-            @if (_list.Terms.Count == 0 && _fields.Count == 0)
+            @if (_list.Terms.Count == 0 && _list.Offers.Count == 0 && _fields.Count == 0)
             {
                 <EmptyState Title="Everything in its place." Message="No suggestions need your attention." ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
             }
@@ -173,7 +177,8 @@ else
     readonly HashSet<string> _openFiles = [];
     readonly HashSet<string> _copied = [];
 
-    int Remaining => _list is null ? 0 : _list.Terms.Count(t => !StateOf(TermKey(t)).IsDone) + _fields.Count(f => !StateOf(f.Id).IsDone);
+    int Remaining => _list is null ? 0
+        : _list.Terms.Count(t => !StateOf(TermKey(t)).IsDone) + _list.Offers.Count(o => !StateOf(o.Id).IsDone) + _fields.Count(f => !StateOf(f.Id).IsDone);
 
     int FileCount => _files?.Cards.Sum(c => c.Files.Count) ?? 0;
 
@@ -203,7 +208,7 @@ else
             _show = [("", ReviewWords.Everything), .. list.Show.Select(s => (s.Key, s.Name))];
             if (_show.All(s => s.Key != _picked)) _picked = "";
             _shown = ReviewWords.PageSize;
-            _loadedWaiting = list.Terms.Count + list.Fields.Count;
+            _loadedWaiting = list.Terms.Count + list.Offers.Count + list.Fields.Count;
             _loadedCount = list.Count;
             _problem = null;
         }
@@ -245,7 +250,8 @@ else
 
     int Waiting(string key) => key.Length == 0
         ? Remaining
-        : key == "terms" ? _list!.Terms.Count(t => !StateOf(TermKey(t)).IsDone) : _fields.Count(f => f.Show == key && !StateOf(f.Id).IsDone);
+        : key == "terms" ? _list!.Terms.Count(t => !StateOf(TermKey(t)).IsDone)
+        : _list!.Offers.Count(o => o.Kind == key && !StateOf(o.Id).IsDone) + _fields.Count(f => f.Show == key && !StateOf(f.Id).IsDone);
 
     IReadOnlyList<string> ChoicesFor(ReviewFieldCard card) => _list!.Choices.GetValueOrDefault(card.FieldKey) ?? [];
 

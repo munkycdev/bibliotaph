@@ -21,5 +21,10 @@ public sealed class ReviewWordsTests
         Assert.Equal(ReviewText.MoreLabel(remaining), ReviewWords.MoreLabel(remaining));
         Assert.Equal(ReviewText.ShowFiles(files, remaining > 0), ReviewWords.ShowFiles(files, remaining > 0));
         Assert.Equal(ReviewText.PageSize, ReviewWords.PageSize);
+        Assert.Equal(RevisionCardText.Heading("Tomb", remaining, files), ReviewWords.RevisionHeading("Tomb", remaining, files));
+        Assert.Equal(RevisionCardText.AllChecked("Tomb"), ReviewWords.AllChecked("Tomb"));
+        Assert.Equal(RevisionCardText.FoundHeading, ReviewWords.FoundHeading);
+        Assert.Equal(RevisionCardText.UseHint, ReviewWords.UseHint);
+        Assert.Equal(ReviewCardText.DismissHint, ReviewWords.DismissHint);
     }
 }

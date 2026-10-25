@@ -1,0 +1,223 @@
+@* .bt-reviewitem: a card that asks one question, as the Windows app's new version, image pack, owned elsewhere, places
+   to check, cataloged wrong, folder rule and collection cards: what it is about, the evidence, and its answers.
+   Answered, it folds to one line with Undo. A new version's places are checked one by one, and the card is done once
+   none needs a look. *@
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Title}")">
+    @if (State.IsDone)
+    {
+        <div class="bt-reviewdonetitle">@Card.Title</div>
+        <div class="bt-decided">
+            <Icon Name="Check" Size="14" />
+            <span>@State.Done</span>
+            @if (State.Undo is not null)
+            {
+                <button class="bt-link" disabled="@State.Busy" @onclick="UndoAsync">Undo</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bt-reviewtitle">
+            @if (Card.Book is { } book)
+            {
+                <a class="bt-reviewbook" href="@($"library?book={book.EntryId}")" title="@book.Hint" aria-label="@($"Open {Card.Title}")">@Card.Title</a>
+            }
+            else
+            {
+                <span class="bt-reviewbook">@Card.Title</span>
+            }
+            <span class="bt-reviewchips">
+                <span class="bt-chip">@Card.Chip</span>
+                @if (Card.Dismiss is { } dismiss)
+                {
+                    <button class="bt-icon" title="@ReviewWords.DismissHint"
+                            aria-label="@($"Close the suggestion for {Card.Title}")" disabled="@State.Busy" @onclick="() => AnswerAsync(dismiss)"><Icon Name="X" Size="14" /></button>
+                }
+            </span>
+        </div>
+        <div class="bt-small bt-reviewreason">@Heading</div>
+        @if (Card.Path is { } path)
+        {
+            <div class="bt-small bt-path bt-reviewpath" title="@path">@path</div>
+        }
+        @if (Card.Tiles.Count > 0)
+        {
+            <div class="bt-reviewtiles" aria-hidden="true">
+                @foreach (var tile in Card.Tiles)
+                {
+                    <img src="@BookCover.CoverUrl(tile)" alt="" loading="lazy" />
+                }
+            </div>
+        }
+        @if (Card.Evidence is { } evidence)
+        {
+            <div class="bt-reviewevidence bt-reviewoffer">
+                <Icon Name="TextSearch" Size="13" />
+                <div>
+                    <div>@evidence</div>
+                    <div class="bt-reviewdetail">@Card.Detail</div>
+                    @foreach (var link in Card.Links)
+                    {
+                        <a class="bt-link" href="@($"library?book={link.EntryId}")" title="@link.Hint">@link.Label</a>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="bt-reviewevidence bt-reviewoffer">
+                @if (Card.Kind == "packs")
+                {
+                    <Icon Name="LayoutGrid" Size="13" />
+                }
+                <span>@Card.Detail</span>
+            </div>
+            @if (Card.Links.Count > 0)
+            {
+                <ul class="bt-reviewbooks" aria-label="Books suggested">
+                    @foreach (var link in Card.Links)
+                    {
+                        <li><a class="bt-link" href="@($"library?book={link.EntryId}")" title="@link.Hint" aria-label="@($"Open {link.Label}")">@link.Label</a></li>
+                    }
+                </ul>
+            }
+        }
+        @if (Card.Places.Count > 0)
+        {
+            <ul class="bt-reviewplaces" aria-label="Places to check">
+                @foreach (var place in Card.Places)
+                {
+                    var isChecked = IsChecked(place);
+                    <li class="bt-reviewplace @(isChecked ? "checked" : "")" aria-label="@place.Heading">
+                        <Icon Name="@(isChecked ? "Check" : "TriangleAlert")" Size="13" />
+                        <div class="bt-reviewplacetext">
+                            <div class="bt-reviewplacename">@place.Heading</div>
+                            <div class="bt-small">@(isChecked ? place.CheckedWhere : place.Where)</div>
+                        </div>
+                        @if (!isChecked)
+                        {
+                            <button class="bt-link" title="@ReviewWords.UseHint" aria-label="@($"Use the suggested page for {place.Heading}")"
+                                    disabled="@State.Busy" @onclick="() => UseAsync(place)">Use this page</button>
+                        }
+                        else if (State.Places.GetValueOrDefault(place.Key) is { } undo)
+                        {
+                            <button class="bt-link" aria-label="@($"Undo the page for {place.Heading}")" disabled="@State.Busy"
+                                    @onclick="() => UndoPlaceAsync(place, undo)"><Icon Name="Undo2" Size="13" />Undo</button>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (Card.Found.Count > 0)
+        {
+            <div class="bt-reviewfound">
+                <div class="bt-small">@ReviewWords.FoundHeading</div>
+                <ul>
+                    @foreach (var found in Card.Found)
+                    {
+                        <li><Icon Name="Check" Size="11" /><span>@found</span></li>
+                    }
+                </ul>
+                @if (Card.FoundMore.Length > 0)
+                {
+                    <div class="bt-small bt-reviewfoundmore">@Card.FoundMore</div>
+                }
+            </div>
+        }
+        @if (State.Problem is { } problem)
+        {
+            <div class="bt-problem" role="alert">@problem</div>
+        }
+        @if (Card.Choices.Count > 0)
+        {
+            <div class="bt-inline bt-reviewchoices">
+                @foreach (var choice in Card.Choices)
+                {
+                    <button class="bt-button @(choice.Primary ? "primary" : "")" title="@choice.Hint" disabled="@State.Busy"
+                            aria-label="@(choice.Key == "fix" ? $"Fix {Card.Title}" : null)" @onclick="() => AnswerAsync(choice.Key)">
+                        @if (choice.Primary)
+                        {
+                            <Icon Name="@(choice.Key == "fix" ? "Pencil" : "Check")" />
+                        }
+                        @choice.Label
+                    </button>
+                }
+            </div>
+        }
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ReviewOfferCard Card { get; set; } = default!;
+
+    [Parameter, EditorRequired] public ReviewCardState State { get; set; } = default!;
+
+    /// <summary>Raised with -1 when the card is decided and +1 when that's undone, so the page counts what's waiting.</summary>
+    [Parameter] public EventCallback<int> Decided { get; set; }
+
+    /// <summary>A new version's heading counts the places that still need a look.</summary>
+    string Heading => Card.Kind == "revisions" ? ReviewWords.RevisionHeading(Card.Title, Card.FoundCount, Card.Places.Count(p => !IsChecked(p))) : Card.Heading;
+
+    bool IsChecked(ReviewPlace place) => place.Checked || State.Places.ContainsKey(place.Key);
+
+    Task AnswerAsync(string choice)
+    {
+        // Fix it opens the book's details for Cataloged wrong… again; the card goes once a correction is made there.
+        if (choice == "fix" && Card.Fix is { } entryId)
+        {
+            Navigation.NavigateTo($"library?book={entryId}&correct=true");
+            return Task.CompletedTask;
+        }
+        return State.DecideAsync(() => Api.AnswerOfferAsync(new ReviewOfferAnswer(Card.Id, Card.Stamp, choice)), Decided.InvokeAsync);
+    }
+
+    async Task UseAsync(ReviewPlace place)
+    {
+        if (State.Busy) return;
+        State.Busy = true;
+        try
+        {
+            var result = await Api.UsePlaceAsync(new ReviewPlaceUse(Card.Id, Card.Stamp, place.Key));
+            State.Places[place.Key] = result.Undo;
+            State.Problem = null;
+        }
+        catch (ApiProblemException e)
+        {
+            State.Problem = e.Message;
+        }
+        finally
+        {
+            State.Busy = false;
+        }
+        if (Card.Places.All(IsChecked))
+        {
+            State.MarkDone(ReviewWords.AllChecked(Card.Title), State.Places.Values.OfType<string>());
+            await Decided.InvokeAsync(-1);
+        }
+    }
+
+    async Task UndoPlaceAsync(ReviewPlace place, string undo)
+    {
+        if (State.Busy) return;
+        State.Busy = true;
+        try
+        {
+            var result = await Api.RunHeldAsync(undo);
+            State.Places.Remove(place.Key);
+            State.Problem = result.Message.Length > 0 ? result.Message : null;
+        }
+        catch (ApiProblemException e)
+        {
+            State.Problem = e.Message;
+        }
+        finally
+        {
+            State.Busy = false;
+        }
+    }
+
+    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+}

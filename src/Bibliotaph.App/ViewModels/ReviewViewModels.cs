@@ -320,35 +320,28 @@ public sealed partial class VersionCardViewModel(VersionItem item, IReviewAction
 
     PendingVersion Version => Item.Version;
 
+    VersionCardText Text => new(Item);
+
     public string Title => Item.Title;
 
-    public string Heading => $"Looks like a new version of {Item.BookTitle}";
+    public string Heading => Text.Heading;
 
-    public string Evidence => Version.Evidence == VersionEvidence.SharedPages
-        ? $"{Version.SharedPages.ToString("N0", CultureInfo.CurrentCulture)} of {Version.ComparedPages.ToString("N0", CultureInfo.CurrentCulture)} pages are the same as the book's; the rest differ."
-        : "It has the book's title and publisher.";
+    public string Evidence => Text.Evidence;
 
-    public string Detail => $"This file: {Pages(Version.PageCount)}. The book: {Pages(Version.MatchedPageCount)}.";
+    public string Detail => Text.Detail;
 
     public string Path => Item.Path ?? "";
 
     public string BookPath => Item.BookPath ?? "";
 
-    static string Pages(int? count) => count switch
-    {
-        null => "pages unknown",
-        1 => "1 page",
-        _ => $"{count.Value.ToString("N0", CultureInfo.CurrentCulture)} pages",
-    };
+    [RelayCommand]
+    Task MakeCurrent() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.MakeCurrent), Text.MadeCurrent);
 
     [RelayCommand]
-    Task MakeCurrent() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.MakeCurrent), $"{Title} is now the copy {Item.BookTitle} opens.");
+    Task KeepAsCopy() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.KeepAsCopy), Text.KeptAsCopy);
 
     [RelayCommand]
-    Task KeepAsCopy() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.KeepAsCopy), $"{Title} is now another copy of {Item.BookTitle}.");
-
-    [RelayCommand]
-    Task SeparateBook() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.SeparateBook), $"Kept {Title} as a separate book.");
+    Task SeparateBook() => DecideAsync(() => Actions.AnswerVersionAsync(Item, VersionAnswer.SeparateBook), Text.KeptSeparate);
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Version.DocumentId, Title);
@@ -371,13 +364,13 @@ public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyLi
 {
     public PackProposal Proposal { get; } = proposal;
 
+    PackCardText Text => new(Proposal);
+
     public override string Title => Proposal.Name;
 
-    public string Heading => $"Make these {LibraryItemViewModel.Images(Proposal.Images.Count)} one card?";
+    public string Heading => Text.Heading;
 
-    public string Detail => Proposal.BesidePdfs
-        ? "They sit beside PDFs, so they may be a book's handouts rather than a set of their own."
-        : "A pack shows as one card, with its images a click away. Nothing on disk changes.";
+    public string Detail => Text.Detail;
 
     public string Path => Proposal.Place.FullPath;
 
@@ -385,10 +378,10 @@ public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyLi
     public IReadOnlyList<CoverTile> Tiles { get; } = tiles;
 
     [RelayCommand]
-    Task MakePack() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Packed), $"{Title} is now one card.");
+    Task MakePack() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Packed), Text.Packed);
 
     [RelayCommand]
-    Task KeepSeparate() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Split), $"Kept the images in {Title} as separate cards.");
+    Task KeepSeparate() => DecideAsync(() => Actions.AnswerPackAsync(Proposal, PackAnswer.Split), Text.KeptSeparate);
 
     protected override Task DismissAsync() => KeepSeparate();
 
@@ -404,21 +397,21 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 {
     public ElsewhereItem Item { get; } = item;
 
+    ElsewhereCardText Text => new(Item);
+
     public string Title => Item.FileTitle;
 
-    public string Heading => Item.AlsoOwn is { } owned
-        ? $"You own {Item.BookTitle} elsewhere ({owned}). Is this its file?"
-        : $"You own {Item.BookTitle} elsewhere. Is this its file?";
+    public string Heading => Text.Heading;
 
-    public string Detail => $"Same book puts this file on the card for {Item.BookTitle}, keeping everything you set on it. Nothing on disk changes.";
+    public string Detail => Text.Detail;
 
     public string Path => Item.Path ?? "";
 
     [RelayCommand]
-    Task SameBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SameBook), $"{Item.BookTitle} now opens {Title}.");
+    Task SameBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SameBook), Text.SameBook);
 
     [RelayCommand]
-    Task SeparateBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SeparateBook), $"Kept {Title} as a separate book.");
+    Task SeparateBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SeparateBook), Text.KeptSeparate);
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
@@ -491,15 +484,15 @@ public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReview
 
     public string Title => Item.Title;
 
-    public string Heading { get; } = "You said this book was cataloged wrong.";
+    public string Heading { get; } = CorrectionCardText.Heading;
 
-    public string Detail { get; } = "Its details were closed without a change. Fix it opens them again, with the values Bibliotaph guessed marked.";
+    public string Detail { get; } = CorrectionCardText.Detail;
 
     [RelayCommand]
     void FixIt() => Actions.FixCorrection(Item);
 
     [RelayCommand]
-    Task ItsFine() => DecideAsync(() => Actions.DismissCorrectionAsync(Item), $"Left {Title} as it is.");
+    Task ItsFine() => DecideAsync(() => Actions.DismissCorrectionAsync(Item), new CorrectionCardText(Item).LeftAsIs);
 
     [RelayCommand]
     void OpenFile()
@@ -649,24 +642,23 @@ public sealed partial class FolderRuleCardViewModel(FolderRuleInfo rule, Vocabul
     public FolderRuleInfo Rule { get; } = rule;
 
     /// <summary>The folder's own name, or the library folder's for a rule on the whole of one.</summary>
-    public string FolderName => FolderRuleText.FolderName(Rule);
+    readonly FolderRuleCardText _text = new(rule, vocabulary);
 
-    public override string Title => $"A rule for “{FolderName}”";
+    public string FolderName => _text.FolderName;
 
-    public string Heading => $"You set {FolderRuleText.Describe(Rule, vocabulary)} on {Rule.Books.ToString("N0", CultureInfo.CurrentCulture)} books in this folder. "
-        + "Suggest it for every file in it?";
+    public override string Title => _text.Title;
 
-    public string Detail { get; } = "Files in this folder and its subfolders, new ones too, get it as a suggestion. Anything you set on a book yourself stays. "
-        + "Settings > Library can switch the rule off.";
+    public string Heading => _text.Heading;
+
+    public string Detail { get; } = FolderRuleCardText.Detail;
 
     public string Path => FolderRuleText.FullPath(Rule);
 
     [RelayCommand]
-    Task UseRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, true),
-        $"Files in “{FolderName}” now get {FolderRuleText.Describe(Rule, vocabulary)} as a suggestion.");
+    Task UseRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, true), _text.Used);
 
     [RelayCommand]
-    Task NoRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, false), $"No rule for “{FolderName}”. Bibliotaph won't suggest this one again.");
+    Task NoRule() => DecideAsync(() => Actions.AnswerRuleAsync(Rule, false), _text.NoRule);
 
     protected override Task DismissAsync() => NoRule();
 
@@ -683,27 +675,24 @@ public sealed partial class FolderCollectionCardViewModel(FolderCollectionPropos
 {
     public FolderCollectionProposal Proposal { get; } = proposal;
 
+    FolderCollectionCardText Text => new(Proposal);
+
     public override string Title => Proposal.Name;
 
-    string Books => Proposal.Books.Count.ToString("N0", CultureInfo.CurrentCulture);
+    public string Heading => Text.Heading;
 
-    public string Heading => $"Make a collection “{Proposal.Name}” from these {Books} books?";
-
-    public string Detail => "Books that land in this folder later join it too, until you add or remove a book by hand."
-        + (Proposal.ParentName is { } parent ? $" It goes inside “{parent}”, made from the folder above." : "");
+    public string Detail => Text.Detail;
 
     public string Path => Proposal.FullPath;
 
     [RelayCommand]
-    Task Accept() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Accept), $"Made the collection “{Proposal.Name}” with {Books} books.");
+    Task Accept() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Accept), Text.Accepted);
 
     [RelayCommand]
-    Task NotNow() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.NotNow),
-        $"“{Proposal.Name}” can wait. It's asked about again the next time this list is made.");
+    Task NotNow() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.NotNow), Text.NotNow);
 
     [RelayCommand]
-    Task Never() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Never),
-        $"No collection from “{Proposal.Name}”. Bibliotaph won't ask about this folder again.");
+    Task Never() => DecideAsync(() => Actions.AnswerFolderAsync(Proposal, CollectionAnswer.Never), Text.Never);
 
     protected override Task DismissAsync() => Never();
 
@@ -722,37 +711,23 @@ public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggesti
 
     public override string Title => Suggestion.Name;
 
+    readonly CollectionSuggestionCardText _text = new(suggestion, vocabulary);
+
     public IReadOnlyList<SuggestedBook> Books => Suggestion.Books;
 
-    string What => Books.Count == 1 ? "this book" : $"these {Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
-
-    string Added => Books.Count == 1 ? "1 book" : $"{Books.Count.ToString("N0", CultureInfo.CurrentCulture)} books";
-
-    public string Heading => $"Add {What} to “{Suggestion.Name}”?";
+    public string Heading => _text.Heading;
 
     /// <summary>What most of the collection's books share, which these share too.</summary>
-    public string Detail
-    {
-        get
-        {
-            var reasons = new List<string>();
-            if (Suggestion.Series is { } series) reasons.Add($"are in the series “{series}”");
-            if (Suggestion.Setting is { } setting && Suggestion.System is { } system)
-                reasons.Add($"are set in {vocabulary.Label(MetadataFields.Settings.Vocabulary!, setting)} for {vocabulary.Label(MetadataFields.System.Vocabulary!, system)}");
-            return $"Most of the books in this collection {string.Join(", or ", reasons)}, and so {(Books.Count == 1 ? "is this one" : "are these")}.";
-        }
-    }
+    public string Detail => _text.Detail;
 
     [RelayCommand]
-    Task Accept() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Accept), $"Added {Added} to “{Suggestion.Name}”.");
+    Task Accept() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Accept), _text.Accepted);
 
     [RelayCommand]
-    Task NotNow() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.NotNow),
-        $"“{Suggestion.Name}” can wait. It's asked about again the next time this list is made.");
+    Task NotNow() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.NotNow), _text.NotNow);
 
     [RelayCommand]
-    Task Never() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Never),
-        $"Bibliotaph won't suggest {(Books.Count == 1 ? "this book" : "these books")} for “{Suggestion.Name}” again.");
+    Task Never() => DecideAsync(() => Actions.AnswerSuggestionAsync(Suggestion, CollectionAnswer.Never), _text.Never);
 
     protected override Task DismissAsync() => Never();
 
@@ -766,20 +741,6 @@ public sealed partial class CollectionSuggestionCardViewModel(CollectionSuggesti
     Task OpenBookInWindow(SuggestedBook book) => book.DocumentId is { } id ? Actions.OpenDocumentInWindowAsync(id, book.Title) : Task.CompletedTask;
 }
 
-/// <summary>How a folder rule reads, on its Needs review card and in Settings > Library.</summary>
-public static class FolderRuleText
-{
-    public static string FolderName(FolderRuleInfo rule) =>
-        rule.Folder.Name is { Length: > 0 } name ? name : System.IO.Path.GetFileName(rule.RootPath.TrimEnd('\\', '/')) is { Length: > 0 } top ? top : rule.RootPath;
-
-    /// <summary>"system Pathfinder 2e", "types Adventure": the field in lower case, then the value as it reads.</summary>
-    public static string Describe(FolderRuleInfo rule, Vocabulary vocabulary) => MetadataFields.Find(rule.Field) is { } field
-        ? $"{field.Label.ToLower(CultureInfo.CurrentCulture)} {MetadataValueViewModel.Display(field, rule.Value, vocabulary)}"
-        : $"{rule.Field} {rule.Value}";
-
-    public static string FullPath(FolderRuleInfo rule) => rule.Folder.Folder.Length == 0 ? rule.RootPath : System.IO.Path.Combine(rule.RootPath, rule.Folder.Folder);
-}
-
 /// <summary>
 /// A new version of a book whose places need a look: "New version of X: 12 places found their page, 2 need a look".
 /// Each that needs one opens at the page suggested for it, or takes it with Use this page; those found by themselves
@@ -787,39 +748,23 @@ public static class FolderRuleText
 /// </summary>
 public sealed partial class RevisionCardViewModel : DecidedCardViewModel
 {
-    /// <summary>Places found by themselves listed by name; the rest are counted.</summary>
-    const int FoundShown = 8;
-
     public RevisionCardViewModel(RevisionItem item, IReviewActions actions) : base(actions)
     {
         Item = item;
-        Rows = [.. item.Places.Where(p => p.Outcome != PageCheck.Found).Select(p => new RevisionRowViewModel(this, p))];
-        var found = item.Places.Where(p => p.Outcome == PageCheck.Found).ToList();
-        Found = [.. found.Take(FoundShown).Select(RevisionRowViewModel.Describe)];
-        FoundMore = found.Count > FoundShown ? $"and {(found.Count - FoundShown).ToString("N0", CultureInfo.CurrentCulture)} more" : "";
+        Rows = [.. RevisionCardText.Rows(item).Select(p => new RevisionRowViewModel(this, p))];
+        Found = RevisionCardText.Found(item);
+        FoundMore = RevisionCardText.FoundMore(item);
     }
 
     public RevisionItem Item { get; }
 
     public string Title => Item.BookTitle;
 
-    public string Heading
-    {
-        get
-        {
-            var look = Rows.Count(r => !r.IsChecked);
-            var found = Item.Found;
-            var foundText = found == 1 ? "1 place found its page" : $"{found.ToString("N0", CultureInfo.CurrentCulture)} places found their page";
-            var lookText = look == 1 ? "1 needs a look" : $"{look.ToString("N0", CultureInfo.CurrentCulture)} need a look";
-            return $"New version of {Item.BookTitle}: {foundText}, {lookText}";
-        }
-    }
+    public string Heading => RevisionCardText.Heading(Item.BookTitle, Item.Found, Rows.Count(r => !r.IsChecked));
 
     public string Path => Item.Path ?? "";
 
-    public string Detail => Item.NeedLook == 1
-        ? "Until it's checked, the place that needs a look opens at the same page number in this version. Open it to look, or take that page with Use this page."
-        : "Until they're checked, the places that need a look open at the same page number in this version. Open one to look, or take that page with Use this page.";
+    public string Detail => RevisionCardText.Detail(Item);
 
     /// <summary>The places that needed a look, and those already checked.</summary>
     public IReadOnlyList<RevisionRowViewModel> Rows { get; }
@@ -851,7 +796,7 @@ public sealed partial class RevisionCardViewModel : DecidedCardViewModel
         OnPropertyChanged(nameof(Heading));
         if (IsDone || Rows.Any(r => !r.IsChecked)) return;
         var undos = Rows.Select(r => r.TakeUndo()).OfType<Func<Task>>().ToList();
-        MarkDone($"Every place in the new version of {Item.BookTitle} is checked.", async () =>
+        MarkDone(RevisionCardText.AllChecked(Item.BookTitle), async () =>
         {
             foreach (var undo in undos) await undo();
             foreach (var row in Rows) row.Restored();
@@ -868,18 +813,10 @@ public sealed partial class RevisionRowViewModel(RevisionCardViewModel card, Rev
 
     public RevisionPlace Place { get; } = place;
 
-    public string Heading => Describe(Place);
+    public string Heading => RevisionCardText.Describe(Place);
 
     /// <summary>"Was p. 12 · opens at p. 12 here, to be checked".</summary>
-    public string Where
-    {
-        get
-        {
-            var was = SessionItemRow.Pages(Place.Place.Range);
-            var here = Place.PageLabel ?? (Place.Check.FirstPdfPage + 1).ToString(CultureInfo.CurrentCulture);
-            return IsChecked ? $"Was {was} · now p. {here}, checked" : $"Was {was} · opens at p. {here} here, to be checked";
-        }
-    }
+    public string Where => RevisionCardText.Where(Place, IsChecked);
 
     public bool IsNote => Place.Place.Kind == PlaceKind.PageNote;
 
@@ -903,19 +840,6 @@ public sealed partial class RevisionRowViewModel(RevisionCardViewModel card, Rev
     public string UseName => $"Use the suggested page for {Heading}";
 
     public string UndoName => $"Undo the page for {Heading}";
-
-    /// <summary>"Encounter map in Session 4", "Note: the lever opens the vault", as the card lists a place.</summary>
-    public static string Describe(RevisionPlace place)
-    {
-        var placed = place.Place;
-        if (placed.Kind == PlaceKind.PageNote)
-        {
-            var text = (placed.Text ?? "").ReplaceLineEndings(" ").Trim();
-            return $"Note: {(text.Length > 60 ? text[..59].TrimEnd() + "…" : text)}";
-        }
-        var label = string.IsNullOrWhiteSpace(placed.Text) ? SessionItemRow.Pages(placed.Range) : placed.Text.Trim();
-        return placed.PackTitle is { } pack ? $"{label} in {pack}" : label;
-    }
 
     [RelayCommand]
     void Open() => card.Open(this);

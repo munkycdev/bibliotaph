@@ -233,6 +233,6 @@ public class OtherReviewCardTests
         var note = new RevisionPlace(new PlacedPages(PlaceKind.PageNote, 1, new EntryId(3001), new PageRange(31, 4, 4),
             "The lever behind the altar opens the vault, but only while the bell is ringing above"), new PageRefCheck(PageCheck.NeedsLook, 32, 4, 4), null);
 
-        Assert.Equal("Note: The lever behind the altar opens the vault, but only while…", RevisionRowViewModel.Describe(note));
+        Assert.Equal("Note: The lever behind the altar opens the vault, but only while…", RevisionCardText.Describe(note));
     }
 }

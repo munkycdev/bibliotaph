@@ -482,6 +482,9 @@
     CancellationTokenSource? _resolving;
 
     bool _correcting;
+
+    /// <summary>Whether <see cref="Correct"/> was acted on, so it starts Cataloged wrong… for the first book only.</summary>
+    bool _tookCorrect;
     bool _decided;
     CorrectionOffer? _offer;
 
@@ -493,6 +496,9 @@
 
     /// <summary>The book whose details these are: a card's <see cref="BookCard.EntryId"/>.</summary>
     [Parameter, EditorRequired] public long EntryId { get; set; }
+
+    /// <summary>Starts Cataloged wrong… once the first book's details are read, for Needs review's Fix it.</summary>
+    [Parameter] public bool Correct { get; set; }
 
     /// <summary>The card these details were opened from, when it is a file in a pack shown on its own.</summary>
     [Parameter] public BookCard? Card { get; set; }
@@ -544,6 +550,11 @@
         _carried = null;
         _focus = true;
         await LoadAsync();
+        if (Correct && !_tookCorrect)
+        {
+            _tookCorrect = true;
+            StartCorrecting();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
