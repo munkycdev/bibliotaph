@@ -10,24 +10,24 @@
     It makes, in its own resource group: a user-assigned identity the app runs as, a storage account (Litestream's
     replica, the Data Protection key ring and covers), a Key Vault (the key that wraps the key ring, and the sign-in secrets),
     the Microsoft sign-in app registration, the container app (one replica, never scaled), and the app registration
-    GitHub Actions deploys with. It reuses an existing Container Apps environment and container registry.
+    GitHub Actions deploys with. It reuses an existing Container Apps environment.
 
-    The names of the existing registry and environment are listed by:
-        az acr list --query "[].{name:name, group:resourceGroup}" -o table
+    The image comes from GitHub's container registry, where CI pushes one for every push to main. The app pulls it
+    without signing in, so the package must be public: on GitHub, the package's settings, Change visibility.
+
+    The names of the existing environment and its group are listed by:
         az containerapp env list --query "[].{name:name, group:resourceGroup}" -o table
 
 .EXAMPLE
-    ./infra/setup.ps1 -Registry <registry> -Environment <environment> -EnvironmentResourceGroup <environment's group>
+    ./infra/setup.ps1 -Environment <environment> -EnvironmentResourceGroup <environment's group>
 
 .EXAMPLE
     # Once the DNS records it printed have propagated:
-    ./infra/setup.ps1 -Registry <registry> -Environment <environment> -EnvironmentResourceGroup <environment's group> -BindDomain
+    ./infra/setup.ps1 -Environment <environment> -EnvironmentResourceGroup <environment's group> -BindDomain
 #>
 #Requires -Version 7.3
 [CmdletBinding()]
 param(
-    # The existing container registry the image is pushed to and pulled from.
-    [Parameter(Mandatory)] [string] $Registry,
     # The existing Container Apps environment, and its resource group.
     [Parameter(Mandatory)] [string] $Environment,
     [Parameter(Mandatory)] [string] $EnvironmentResourceGroup,
@@ -39,6 +39,8 @@ param(
     [string] $App = 'bibliotaph-app',
     [string] $Domain = 'bibliotaph.online',
     [string] $GitHubRepository = 'munkycdev/bibliotaph',
+    # The image CI pushes to GitHub's container registry, without its tag.
+    [string] $Image = 'ghcr.io/munkycdev/bibliotaph-server',
 
     # From the Google Cloud console (APIs & Services, Credentials, OAuth client ID, Web application). Its secret is
     # asked for once and kept in Key Vault.
@@ -50,7 +52,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
-$repoRoot = Split-Path $PSScriptRoot -Parent
 
 function Step([string] $text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 
@@ -62,6 +63,18 @@ function Find {
     $result = az @args 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $result) { return $null }
     $result | ConvertFrom-Json
+}
+
+# Asks GitHub's registry for the image as anyone would, with an anonymous pull token.
+function ImageIsPullable([string] $reference) {
+    $name, $tag = ($reference -replace '^ghcr\.io/', '') -split ':', 2
+    try {
+        $token = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:${name}:pull").token
+        $accept = 'application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json'
+        Invoke-WebRequest -Method Head "https://ghcr.io/v2/$name/manifests/$tag" -Headers @{ Authorization = "Bearer $token"; Accept = $accept } | Out-Null
+        return $true
+    }
+    catch { return $false }
 }
 
 function Grant([string] $principalId, [string] $principalType, [string] $role, [string] $scope) {
@@ -124,10 +137,6 @@ Retry {
 
 function SecretExists([string] $name) { [bool] (Find keyvault secret show --vault-name $KeyVault -n $name --query id) }
 
-Step 'Container registry'
-$registryId = az acr show -n $Registry --query id -o tsv
-Grant $id.principalId ServicePrincipal 'AcrPull' $registryId
-
 Step 'Microsoft sign-in'
 $signIn = Find ad app list --display-name 'Bibliotaph' --query "[?displayName=='Bibliotaph'] | [0].{appId:appId, id:id}" -o json
 # One registration signs people in and connects their OneDrive, so it answers on both callbacks, here and on a
@@ -177,13 +186,14 @@ $settings = @(
 
 Step 'Container app'
 if (-not (Find containerapp show -n $App -g $ResourceGroup --query id)) {
-    # The first image is built in Azure, so no Docker is needed here. CI pushes every later one.
-    $image = "$Registry.azurecr.io/bibliotaph-server:setup"
-    az acr build -r $Registry -t 'bibliotaph-server:setup' -f src/Bibliotaph.Server/Container/Dockerfile $repoRoot
+    # The first image is the one CI pushed for main; each later push to main rolls the app onto its own.
+    $image = "${Image}:main"
+    if (-not (ImageIsPullable $image)) {
+        throw "$image can't be pulled without signing in. Push to main so CI publishes it, then make the package public on GitHub (its settings, Change visibility)."
+    }
     # One replica, never more and never none: each library's SQLite files have exactly one writer, and the disk
     # under /data is only a working copy that Litestream restores from Blob storage.
-    az containerapp create -n $App -g $ResourceGroup --environment $cae.id --image $image `
-        --registry-server "$Registry.azurecr.io" --registry-identity $id.id --user-assigned $id.id `
+    az containerapp create -n $App -g $ResourceGroup --environment $cae.id --image $image --user-assigned $id.id `
         --ingress external --target-port 8080 --min-replicas 1 --max-replicas 1 --cpu 1 --memory 2Gi `
         --secrets @secrets --env-vars @settings -o none
 }
@@ -230,9 +240,8 @@ if ($federated -eq '0') {
     az ad app federated-credential create --id $deploy.id --parameters "@$file" -o none
     Remove-Item $file
 }
-# Push images, and roll the one app onto them; nothing else. Changing an app also needs the right to join its
-# environment, which no built-in role grants without much more besides.
-Grant $deployPrincipal ServicePrincipal 'AcrPush' $registryId
+# Roll the one app onto a new image; nothing else. Changing an app also needs the right to join its environment,
+# which no built-in role grants without much more besides.
 Grant $deployPrincipal ServicePrincipal 'Contributor' $appId
 $joinRole = 'Container Apps environment join'
 if (-not (Find role definition list --name $joinRole --query '[0].id')) {
@@ -250,6 +259,5 @@ Write-Host "`nSet these repository variables so every push to main deploys (no s
 Write-Host "  gh variable set AZURE_CLIENT_ID --body $($deploy.appId) -R $GitHubRepository"
 Write-Host "  gh variable set AZURE_TENANT_ID --body $($account.tenant) -R $GitHubRepository"
 Write-Host "  gh variable set AZURE_SUBSCRIPTION_ID --body $($account.subscription) -R $GitHubRepository"
-Write-Host "  gh variable set AZURE_REGISTRY --body $Registry -R $GitHubRepository"
 Write-Host "  gh variable set AZURE_RESOURCE_GROUP --body $ResourceGroup -R $GitHubRepository"
 Write-Host "  gh variable set AZURE_CONTAINER_APP --body $App -R $GitHubRepository"
