@@ -3,3 +3,4 @@ obj/
 out/
 node_modules/
 bench/pdf.worker.patched.mjs
+onedrive/pdf.worker.patched.mjs

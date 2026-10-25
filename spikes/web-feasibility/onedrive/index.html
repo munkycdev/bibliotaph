@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bibliotaph web spike: OneDrive</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 16px; max-width: 980px; }
+    fieldset { margin: 0 0 12px; border: 1px solid #bbb; }
+    input[type=text] { width: 28em; }
+    button { margin: 2px 4px 2px 0; }
+    pre { background: #f4f4f4; padding: 8px; white-space: pre-wrap; max-height: 28em; overflow: auto; }
+    #log { font: 12px ui-monospace, monospace; }
+    canvas { max-width: 240px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>OneDrive feasibility</h1>
+  <p>Reads names, sizes and byte ranges from your OneDrive. The only write is a small test file in this app's own
+     folder (Apps), which the app-folder test deletes again. Results hold counts and timings, never file or folder names.</p>
+
+  <fieldset>
+    <legend>1. Sign in</legend>
+    <label>Application (client) ID <input type="text" id="clientId" placeholder="00000000-0000-0000-0000-000000000000"></label>
+    <button id="signIn">Sign in</button> <button id="signOut">Sign out</button>
+    <div id="who"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Library folder</legend>
+    <label>Path under your OneDrive <input type="text" id="folder" placeholder="eBooks/Some folder (blank for the whole drive)"></label>
+    <label>PDFs to read <input type="number" id="sample" value="6" min="1" max="20"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>3. Tests</legend>
+    <button id="runAll">Run all</button>
+    <button data-test="drive">Drive</button>
+    <button data-test="walk">List by walking</button>
+    <button data-test="delta">List by delta</button>
+    <button data-test="changes">Check for changes</button>
+    <button data-test="cors">CORS</button>
+    <button data-test="ranges">Range reads</button>
+    <button data-test="pdfjs">PDF.js over OneDrive</button>
+    <button data-test="hash">Download and hash</button>
+    <button data-test="appFolder">App folder write</button>
+    <button data-test="refresh">Token refresh</button>
+    <button id="copy">Copy results</button>
+  </fieldset>
+
+  <canvas id="page"></canvas>
+  <h2>Results</h2>
+  <pre id="results">{}</pre>
+  <h2>Log</h2>
+  <pre id="log"></pre>
+
+  <script src="/node_modules/@azure/msal-browser/lib/msal-browser.min.js"></script>
+  <script type="module" src="/spike.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Signing in</title>
+</head>
+<body>
+  <!-- The redirect URI registered for the app: hands the sign-in response back to the page that opened the popup. -->
+  <script src="/node_modules/@azure/msal-browser/lib/redirect-bridge/msal-redirect-bridge.min.js"></script>
+  <script>msalRedirectBridge.broadcastResponseToMainFrame().catch(e => document.body.textContent = e.message);</script>
+</body>
+</html>
