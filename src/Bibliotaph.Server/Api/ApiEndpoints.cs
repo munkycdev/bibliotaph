@@ -20,7 +20,7 @@ public static class ApiEndpoints
             if (principal.UserId() is not { } id || await accounts.FindUserAsync(id, ct) is not { } user) return Results.Unauthorized();
             var logins = await accounts.LoginsAsync(id, ct);
             return Results.Ok(new CurrentUser(user.Id, user.Name, user.Email, user.IsAdmin,
-                [.. logins.Select(l => new LinkedSignIn(l.Provider, l.Email, Utc(l.Added)))]));
+                [.. logins.Select(l => new LinkedSignIn(Auth0SignIn.Describe(l.Provider, l.Subject), l.Email, Utc(l.Added)))]));
         });
 
         api.MapGet("/library/summary", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -61,8 +61,7 @@ public static class ApiEndpoints
 
     public static string InviteLink(ServerOptions options, HttpRequest? request, string code)
     {
-        var origin = options.PublicOrigin ?? (request is null ? "https://localhost" : $"{request.Scheme}://{request.Host}");
-        return $"{origin.TrimEnd('/')}/join?invite={Uri.EscapeDataString(code)}";
+        return $"{AuthEndpoints.PublicOrigin(options, request)}/join?invite={Uri.EscapeDataString(code)}";
     }
 
     static DateTimeOffset Utc(DateTime stored) => new(DateTime.SpecifyKind(stored, DateTimeKind.Utc));

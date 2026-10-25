@@ -61,7 +61,7 @@ public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configur
             ?? throw new OneDriveException(HttpStatusCode.Unauthorized, "That drive isn't connected any more.");
         if (connection.NeedsReconnect) throw new OneDriveException(HttpStatusCode.Unauthorized, "OneDrive needs connecting again.");
 
-        var client = configuration.GetSection("Auth:microsoft").Get<ProviderClient>() ?? new ProviderClient();
+        var client = configuration.GetSection(OneDriveApp.Section).Get<OneDriveApp>() ?? new OneDriveApp();
         using var request = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["client_id"] = client.ClientId ?? "",

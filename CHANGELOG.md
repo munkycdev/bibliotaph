@@ -3,7 +3,7 @@
 ## Unreleased
 
 - **The start of Bibliotaph on the web.** bibliotaph.online gets its server and a browser app that looks like the
-  Windows one. It is invite-only: a one-time link makes an account, signed in with Microsoft or Google, and admins make
+  Windows one. It is invite-only: a one-time link makes an account, signed in through Auth0 with Google, Microsoft or an email address, and admins make
   invitations in Settings. The privacy policy is published at bibliotaph.online/privacy. Your library comes to it in the
   next steps. See [Bibliotaph on the web](docs/guide/web.md).
 - **OneDrive on the web.** Connect one or more OneDrives in Settings › Storage, then add library folders from them as in
@@ -42,6 +42,9 @@
   Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
 - **Add to binder on the web.** A book's details, the Select bar and a matching page's + add to a binder, the one you
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
+- **Sign in to the web through Auth0.** bibliotaph.online's sign-in page has one Continue button, which offers Google,
+  Microsoft or your email address, with Apple to come. Link another sign-in in Settings adds another way into the same
+  account, and Sign out signs you out of the sign-in page too. The privacy policy names Auth0.
 - **Books you own elsewhere on the web.** The Library's Add menu has Add a book I own elsewhere…, as in the Windows
   app, with a cover picture of your own; its details have Choose a cover image…, Remove the cover and Remove from
   library with Undo. See [Bibliotaph on the web](docs/guide/web.md#books-you-own-elsewhere).

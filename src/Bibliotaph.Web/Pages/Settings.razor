@@ -28,17 +28,16 @@ else if (Problem == "storage")
             <tbody>
                 @foreach (var signIn in _me.SignIns)
                 {
-                    <tr><td>@ProviderName(signIn.Provider)</td><td>@(signIn.Email ?? "")</td><td>@signIn.Added.ToString("d MMM yyyy")</td></tr>
+                    <tr><td>@signIn.Provider</td><td>@(signIn.Email ?? "")</td><td>@signIn.Added.ToString("d MMM yyyy")</td></tr>
                 }
             </tbody>
         </table>
-        @if (Unlinked.Any())
+        @if (_providers.FirstOrDefault(p => p.Id != "developer") is { } provider)
         {
             <div class="bt-actions">
-                @foreach (var provider in Unlinked)
-                {
-                    <ServerLink Href="@($"auth/signin/{provider.Id}?returnUrl=%2Fsettings")"><Icon Name="Plus" />Link a @provider.Name sign-in</ServerLink>
-                }
+                <ServerLink Href="@($"auth/signin/{provider.Id}?returnUrl=%2Fsettings")" Title="Sign in another way, such as with Google or Microsoft, to use either for this account">
+                    <Icon Name="Plus" />Link another sign-in
+                </ServerLink>
             </div>
         }
     </section>
@@ -173,9 +172,7 @@ else if (Problem == "storage")
 
     [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
 
-    IEnumerable<SignInProvider> Unlinked => _providers.Where(p => _me?.SignIns.All(s => s.Provider != p.Id) == true);
 
-    string ProviderName(string id) => _providers.FirstOrDefault(p => p.Id == id)?.Name ?? id;
 
     protected override async Task OnInitializedAsync()
     {
@@ -238,8 +235,7 @@ else if (Problem == "storage")
 
     async Task SignOut()
     {
-        await Session.SignOutAsync();
-        Navigation.NavigateTo("", forceLoad: true);
+        Navigation.NavigateTo(await Session.SignOutAsync(), forceLoad: true);
     }
 
     static string State(InviteInfo invite) =>

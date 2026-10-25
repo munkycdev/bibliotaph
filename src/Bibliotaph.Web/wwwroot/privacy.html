@@ -25,7 +25,7 @@
     <table class="bt-table">
       <thead><tr><th>What</th><th>Examples</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td>Account</td><td>Your name, email address and account ID from the sign-in provider you choose; the invitation you used</td><td>To sign you in and keep your library separate from everyone else's</td></tr>
+        <tr><td>Account</td><td>Your name, email address and account ID from the way you sign in; the invitation you used</td><td>To sign you in and keep your library separate from everyone else's</td></tr>
         <tr><td>Storage connections</td><td>For each storage service you connect, an access token and refresh token (encrypted), and the folders you add</td><td>To list and read those folders, while you're away too</td></tr>
         <tr><td>Library index</td><td>File names, folder paths, sizes, dates and fingerprints (hashes) of the files in folders you add; the text we read from each book's pages; small cover and page thumbnails</td><td>To search your books by their contents and show them in your library</td></tr>
         <tr><td>Your work</td><td>Titles, systems, tags, collections, adventures, notes, ratings and corrections you make</td><td>This is your library; we keep it so it's there next time</td></tr>
@@ -39,7 +39,7 @@
 
     <h2>Signing in and connecting your storage</h2>
     <p>Signing in and storage are separate. You sign in with an account you already have, then connect one or more storage services where your books live. Each service shows you what Bibliotaph is asking for before you agree.</p>
-    <p><strong>Signing in.</strong> You sign in through a provider we support, such as Microsoft, Google or Apple. We ask that provider only for your name, email address and a unique account ID. We never see or store your password. You can link more than one sign-in to the same account.</p>
+    <p><strong>Signing in.</strong> Sign-in is run for us by Auth0, a service of Okta. You sign in on its page with an account you already have, such as Microsoft, Google or Apple, or with your email address. We receive only your name, email address and a unique account ID. We never see or store your password; if you sign in with an email address, Auth0 keeps the password, protected, on our behalf. You can link more than one sign-in to the same account.</p>
     <p><strong>Connecting storage.</strong> You can connect storage services such as OneDrive, Google Drive or Dropbox, and add folders from each one to your library. For every service, we ask for the least access the service offers:</p>
     <table class="bt-table">
       <thead><tr><th>Access</th><th>What Bibliotaph does with it</th></tr></thead>
@@ -60,12 +60,13 @@
     <p>We store your key encrypted, use it only for the requests you set up, and delete it when you remove it or close your account.</p>
 
     <h2>Cookies, where data is kept, and who we share it with</h2>
-    <p><strong>Cookies.</strong> We use one cookie to keep you signed in, plus short-lived ones that exist only while a sign-in is under way. All of them are essential, so we don't ask for consent to them. We use no analytics, advertising or third-party cookies. The web app also keeps book pieces and settings in your browser's own storage, on your device.</p>
-    <p><strong>Where it's kept.</strong> Everything we store is in Microsoft Azure data centres in the western United States, including the backups. Text recognition (OCR) for scanned books runs on our own server and isn't sent to any third party.</p>
+    <p><strong>Cookies.</strong> We use one cookie to keep you signed in, plus short-lived ones that exist only while a sign-in is under way. Auth0's sign-in page sets its own cookies, also only to sign you in. All of them are essential, so we don't ask for consent to them. We use no analytics or advertising cookies. The web app also keeps book pieces and settings in your browser's own storage, on your device.</p>
+    <p><strong>Where it's kept.</strong> Everything we store is in Microsoft Azure data centres in the western United States, including the backups. Auth0 keeps its record of your sign-ins in the United States too. Text recognition (OCR) for scanned books runs on our own server and isn't sent to any third party.</p>
     <p><strong>Who we share it with.</strong> We don't sell or rent your information, and we don't share it for advertising. Only these parties handle it:</p>
     <ul>
       <li><strong>Our hosting provider</strong>, Microsoft Azure, which runs the service and stores our data on our behalf.</li>
-      <li><strong>The sign-in provider you choose</strong>, which confirms who you are when you sign in.</li>
+      <li><strong>Auth0</strong> (Okta), our sign-in service, which confirms who you are on our behalf and keeps a record of your sign-ins.</li>
+      <li><strong>The account you sign in with</strong>, such as Microsoft, Google or Apple, which confirms who you are to Auth0.</li>
       <li><strong>The storage services you connect</strong>, which serve your files to Bibliotaph and receive any files it saves for you.</li>
       <li><strong>The AI provider you choose</strong>, only if you add a key (see above).</li>
       <li><strong>An online store you import from</strong>, which receives what's needed to fetch your own purchases, and only when you ask.</li>

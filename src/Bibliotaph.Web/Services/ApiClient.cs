@@ -472,10 +472,11 @@ public sealed class ApiClient(HttpClient http)
 
     sealed record ProblemText(string? Title, string? Detail);
 
-    public async Task SignOutAsync(CancellationToken ct = default)
+    public async Task<SignedOut> SignOutAsync(CancellationToken ct = default)
     {
         using var response = await http.PostAsync("auth/signout", null, ct);
         response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<SignedOut>(ct))!;
     }
 }
 
