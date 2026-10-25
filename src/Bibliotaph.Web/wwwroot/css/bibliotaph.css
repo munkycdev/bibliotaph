@@ -677,6 +677,31 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-decided span{flex:1}
 .bt-decided .bt-link{padding:0 0 0 12px}
 .bt-reviewmore{margin-top:18px}
+.bt-reviewchips{display:flex;align-items:flex-start;gap:4px;flex-shrink:0}
+.bt-reviewchips .bt-chip{margin:0}
+.bt-reviewchips .bt-icon{margin:-6px -8px 0 4px}
+.bt-reviewpath{color:var(--bt-muted);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-reviewoffer{margin:12px 0 0}
+.bt-reviewoffer .bt-reviewdetail{margin-top:4px}
+.bt-reviewoffer .bt-link{display:inline-block;margin-top:6px;font-size:11px}
+.bt-reviewtiles{display:flex;gap:6px;margin-top:12px}
+.bt-reviewtiles img{width:56px;height:56px;object-fit:cover;border:1px solid var(--bt-line);border-radius:4px;background:var(--bt-side)}
+.bt-reviewbooks{list-style:none;padding:0;margin:8px 0 0}
+.bt-reviewbooks li{margin-top:2px}
+.bt-reviewbooks .bt-link{font-size:12px}
+.bt-reviewplaces{list-style:none;padding:0;margin:12px 0 0}
+.bt-reviewplace{display:flex;align-items:center;gap:8px;background:var(--bt-side);border-radius:6px;padding:8px 12px;margin-bottom:6px}
+.bt-reviewplace>svg{flex-shrink:0;align-self:flex-start;margin-top:2px;color:var(--bt-accent)}
+.bt-reviewplace.checked>svg{color:var(--bt-muted)}
+.bt-reviewplacetext{flex:1;min-width:0}
+.bt-reviewplacename{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-reviewplace .bt-link{flex-shrink:0;font-size:12px;display:inline-flex;align-items:center;gap:4px}
+.bt-reviewfound{margin-top:8px}
+.bt-reviewfound ul{list-style:none;padding:0;margin:4px 0 0}
+.bt-reviewfound li{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:2px;color:var(--bt-text)}
+.bt-reviewfound li svg{flex-shrink:0;color:var(--bt-muted)}
+.bt-reviewfoundmore{margin-left:17px}
+.bt-reviewchoices{margin-top:16px;flex-wrap:wrap}
 .bt-retryall{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px}
 .bt-attention{display:flex;gap:10px;align-items:flex-start;background:var(--bt-side);border-radius:6px;padding:15px;margin-top:12px}
 .bt-attention>svg{flex-shrink:0}

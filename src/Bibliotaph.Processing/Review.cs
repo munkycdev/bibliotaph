@@ -110,12 +110,21 @@ public sealed class ReviewService(
             .OrderBy(f => f.Issue.Kind)
             .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
-        return new ReviewList(items, await vocabularies.GetPendingAsync(ct), await vocabularies.GetAsync(ct), await cards.Copies.GetVersionsAsync(ct),
+        return await ListAsync(items, await vocabularies.GetPendingAsync(ct), ct);
+    }
+
+    /// <summary>
+    /// The cards beyond fields and terms as they wait now, to find one again and answer it; unlike making the list,
+    /// this leaves the cards put away with Not now away.
+    /// </summary>
+    public Task<ReviewList> GetOffersAsync(CancellationToken ct = default) => ListAsync([], [], ct);
+
+    async Task<ReviewList> ListAsync(IReadOnlyList<ReviewItem> items, IReadOnlyList<PendingTerm> terms, CancellationToken ct) =>
+        new(items, terms, await vocabularies.GetAsync(ct), await cards.Copies.GetVersionsAsync(ct),
             await cards.Packs.GetProposalsAsync(ct), await cards.Elsewhere.GetPendingAsync(ct), await cards.Places.GetRevisionsAsync(ct),
             await cards.Corrections.GetWaitingAsync(ct), await cards.Rules.GetProposedAsync(ct),
             await cards.Parts.GetUnplacedAsync(ct), await cards.Proposals.GetPendingAsync(ct),
             await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct));
-    }
 
     /// <summary>One entry's card for a field, as the queue would make it now; null when it isn't waiting any more.</summary>
     public async Task<ReviewIssue?> FindAsync(EntryId entryId, string fieldKey, ReviewKind kind, CancellationToken ct = default)

@@ -268,6 +268,12 @@ public sealed class ApiClient(HttpClient http)
     public Task<ActionResult> FileTermAsync(long id, string target, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, $"api/review/terms/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}/map", new ReviewTermMap(target), ct);
 
+    public Task<ActionResult> AnswerOfferAsync(ReviewOfferAnswer answer, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/answer", answer, ct);
+
+    public Task<ActionResult> UsePlaceAsync(ReviewPlaceUse use, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/places/use", use, ct);
+
     public Task<ReviewFiles> AttentionAsync(CancellationToken ct = default) => SendAsync<ReviewFiles>(HttpMethod.Get, "api/review/files", null, ct);
 
     public Task<ReviewFiles> RetryAsync(IReadOnlyList<long> documents, CancellationToken ct = default) =>

@@ -234,8 +234,27 @@ A new term card offers **Add as a new** term, **Reject**, or a term the vocabula
 decided card folds to a line saying what happened, with **Undo**, until the page is opened again. **Show** narrows
 the list to new terms or to one field's suggestions, with how many of each are waiting; 60 cards show at a time, with
 **Show more** for the rest. The book's title opens its details in the Library. When the library's suggestions change
-while you work, a line offers **Show the new list**. The other kinds of card (new versions, packs, books owned
-elsewhere, places to check, corrections, adventures, folder rules and collections) come next.
+while you work, a line offers **Show the new list**.
+
+The cards that ask one question come between the new terms and the field suggestions, as in the Windows app:
+
+- **New version?**: a file that shares most of its pages, or its title and publisher, with a book you have. **Make it
+  current**, **Keep as another copy**, or **Separate book**. **Open the book** shows the book it was matched with.
+- **Image pack?**: a folder of images, with the first few shown. **Make a pack** or **Keep separate**.
+- **Owned elsewhere**: a new file with the title of a book you own elsewhere. **Same book** puts the file on that
+  book's card, or **Separate book**.
+- **New version** (places to check): the session items and page notes whose pages weren't found in a new version of
+  their book. **Use this page** takes the page suggested for each, with **Undo**; the card is done once every place is
+  checked. Opening a place at its page comes with the reader.
+- **Cataloged wrong**: a book whose details you closed without a change after **Cataloged wrong…**. **Fix it** opens
+  its details in the Library with the guesses marked again; **It's fine now** takes the card away.
+- **Folder rule?**: the same value set on several books in one folder. **Use this rule** suggests it for every file
+  there, or **No thanks**.
+- **Collection?** and **Add to collection?**: a folder that could be a collection, or books that could join one.
+  **Accept**, **Not now** (asked again next time the page opens) or **Never**.
+
+The **×** on a pack, folder rule or collection card gives its "don't ask again" answer. Every answer has **Undo**. Where
+a file or folder is, the card says so under its heading. Adventures found inside a file come next.
 
 **Files needing attention** lists the files that couldn't be read, grouped by reason. **Try again** gives a file, or
 every file on a card, another go, and **Try all again** does it for all of them apart from locked and protected

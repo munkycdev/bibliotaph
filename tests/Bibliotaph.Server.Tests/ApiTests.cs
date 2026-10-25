@@ -695,6 +695,64 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Needs_review_answers_the_cards_that_ask_one_question_with_undo_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+        var book = books.OrderBy(b => b.Title, StringComparer.Ordinal).First();
+
+        // Cataloged wrong… left without a change, and the same system set on the books of one folder.
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var library = lease.Library;
+            await library.Get<CorrectionService>().LeaveUnfinishedAsync(new EntryId(book.EntryId), ct);
+            var folder = (await library.Get<LibraryStore>().GetEntryFoldersAsync([new EntryId(book.EntryId)], ct))[0].Folder;
+            await library.Get<CorrectionStore>().ProposeAsync(folder, "system", "pathfinder", 3, ct);
+        }
+
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var correction = list.Offers.Single(o => o.Kind == "corrections");
+        var rule = list.Offers.Single(o => o.Kind == "rules");
+        using var stale = await client.PostAsJsonAsync("/api/review/offers/answer", new ReviewOfferAnswer(rule.Id, "0000", "use"), ct);
+        var fine = await PostAsync<ActionResult>("/api/review/offers/answer", new ReviewOfferAnswer(correction.Id, correction.Stamp, "fine"));
+        var afterFine = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{fine.Undo}", null);
+        var afterUndo = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var used = await PostAsync<ActionResult>("/api/review/offers/answer", new ReviewOfferAnswer(rule.Id, rule.Stamp, "use"));
+        var status = (await client.GetFromJsonAsync<LibraryStatus>("/api/library/status", ct))!;
+
+        Assert.Equal(["corrections", "rules"], list.Show.Select(s => s.Key).Where(k => !k.StartsWith("field:", StringComparison.Ordinal)));
+        Assert.Equal((book.Title, "Cataloged wrong", "You said this book was cataloged wrong.", book.EntryId),
+            (correction.Title, correction.Chip, correction.Heading, correction.Fix));
+        Assert.Equal(["Fix it", "It's fine now"], correction.Choices.Select(c => c.Label));
+        Assert.Equal(book.EntryId, correction.Book?.EntryId);
+        Assert.Equal(("Folder rule?", "no"), (rule.Chip, rule.Dismiss));
+        Assert.Equal("You set game system Pathfinder on 3 books in this folder. Suggest it for every file in it?", rule.Heading);
+        Assert.Equal("OneDrive · Dana › RPG › Maps", rule.Path);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal($"Left {book.Title} as it is.", fine.Message);
+        Assert.DoesNotContain(afterFine.Offers, o => o.Kind == "corrections");
+        Assert.Contains(afterUndo.Offers, o => o.Id == correction.Id);
+        Assert.Equal("Files in “Maps” now get game system Pathfinder as a suggestion.", used.Message);
+        Assert.Equal(list.Count - 1, status.Suggestions);
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

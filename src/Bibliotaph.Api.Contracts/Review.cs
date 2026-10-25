@@ -8,9 +8,42 @@ namespace Bibliotaph.Api.Contracts;
 /// a decided card can still be undone, and counts what's waiting itself. <see cref="Count"/> is every card Needs
 /// review had then, as the sidebar counts them, so the page can tell when the library's suggestions have moved on.
 /// <see cref="Choices"/> are each term field's vocabulary, by field key, for Edit to pick from; sent once, not per card.
+/// <see cref="Offers"/> are the other cards, in the order the page shows them after the new terms.
 /// </summary>
 public sealed record ReviewSuggestions(IReadOnlyList<ReviewTermCard> Terms, IReadOnlyList<ReviewFieldCard> Fields, IReadOnlyList<ReviewShowKind> Show, int Count,
-    IReadOnlyDictionary<string, IReadOnlyList<string>> Choices);
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Choices, IReadOnlyList<ReviewOfferCard> Offers);
+
+/// <summary>
+/// A card that asks one question about a book, a folder or a collection, answered with one of its buttons: a new
+/// version, an image pack, a book owned elsewhere, places to check in a new version, a book cataloged wrong, a folder
+/// rule, a collection from a folder, or books for a collection. <see cref="Kind"/> is its key in the Show menu.
+/// <see cref="Stamp"/> is what the card said, so an answer isn't given to a card that changed since the page showed
+/// it. <see cref="Dismiss"/> is the choice the × gives, on the cards that have one. <see cref="Book"/> is the card's
+/// title link, to the book's details; <see cref="Links"/> any other books it names. <see cref="Tiles"/> are covers to
+/// show what a pack holds, <see cref="Places"/> a new version's places to check and <see cref="Found"/> those found
+/// by themselves. <see cref="Fix"/> is the book whose details Fix it opens for Cataloged wrong….
+/// </summary>
+public sealed record ReviewOfferCard(string Id, string Kind, string Stamp, string Title, string Chip, string Heading, string? Path, string? Evidence,
+    string Detail, IReadOnlyList<ReviewChoice> Choices, string? Dismiss, ReviewLink? Book, IReadOnlyList<ReviewLink> Links,
+    IReadOnlyList<string> Tiles, IReadOnlyList<ReviewPlace> Places, int FoundCount, IReadOnlyList<string> Found, string FoundMore, long? Fix);
+
+/// <summary>A button on an offer card; <see cref="Primary"/> is the card's main answer.</summary>
+public sealed record ReviewChoice(string Key, string Label, string Hint, bool Primary);
+
+/// <summary>A book a card names, which opens its details; <see cref="Hint"/> is its tooltip.</summary>
+public sealed record ReviewLink(long EntryId, string Label, string Hint);
+
+/// <summary>
+/// A place in a new version to check: its words, where it opens before and after Use this page, and whether it was
+/// checked already.
+/// </summary>
+public sealed record ReviewPlace(string Key, string Heading, string Where, string CheckedWhere, bool Checked);
+
+/// <summary>An answer to an offer card, given to the card as the page showed it.</summary>
+public sealed record ReviewOfferAnswer(string Id, string Stamp, string Choice);
+
+/// <summary>Use this page for one place on a new version's card.</summary>
+public sealed record ReviewPlaceUse(string Id, string Stamp, string Place);
 
 /// <summary>An entry in the Show menu other than Everything: a kind of card, or the field suggestions are for.</summary>
 public sealed record ReviewShowKind(string Key, string Name);
@@ -94,6 +127,22 @@ public static class ReviewWords
     public static string MoreLabel(int hidden) => $"Show {N(Math.Min(PageSize, hidden))} more ({N(hidden)} not shown)";
 
     public static string ShowFiles(int count, bool shown) => shown ? "Hide the files" : $"Show the {N(count)} files";
+
+    public const string DismissHint = "Close. Bibliotaph won't suggest this again, and Undo brings it back.";
+
+    public const string FoundHeading = "Found their page, nothing to do:";
+
+    public const string UseHint = "This place opens at the page suggested from now on";
+
+    public static string AllChecked(string bookTitle) => $"Every place in the new version of {bookTitle} is checked.";
+
+    /// <summary>A new version's card, counting the places that still need a look as they're checked.</summary>
+    public static string RevisionHeading(string bookTitle, int found, int look)
+    {
+        var foundText = found == 1 ? "1 place found its page" : $"{N(found)} places found their page";
+        var lookText = look == 1 ? "1 needs a look" : $"{N(look)} need a look";
+        return $"New version of {bookTitle}: {foundText}, {lookText}";
+    }
 
     static string N(int count) => count.ToString("N0", CultureInfo.CurrentCulture);
 }

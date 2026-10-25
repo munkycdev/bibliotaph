@@ -443,7 +443,7 @@ else
 }
 @if (_details is { } entryId)
 {
-    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Card="_detailsCard" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
+    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Card="_detailsCard" Correct="_correct" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
 }
 
 @code {
@@ -469,6 +469,9 @@ else
     IJSObjectReference? _watch;
     long? _details;
     BookCard? _detailsCard;
+
+    /// <summary>The details first opened start Cataloged wrong…, for Needs review's Fix it.</summary>
+    bool _correct;
     BookDetailsDrawer? _drawer;
     ActionResult? _done;
     CollectionPage? _collection;
@@ -542,6 +545,7 @@ else
         _searchSort = await PrefAsync("library.sort.search");
         _browseSort = await PrefAsync("library.sort.browse");
         _details = LibraryUrl.Book(Navigation.Uri);
+        _correct = _details is not null && LibraryUrl.Correct(Navigation.Uri);
         Navigation.LocationChanged += OnLocationChanged;
         Activity.Changed += OnActivityChanged;
         Pins.Changed += OnPinsChanged;
