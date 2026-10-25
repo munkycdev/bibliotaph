@@ -204,4 +204,10 @@ sealed class MemoryCoverStore : ICoverStore
 
     public Task<byte[]?> DownloadAsync(string userId, string name, CancellationToken ct) =>
         Task.FromResult(_covers.TryGetValue($"{userId}/{name}", out var bytes) ? bytes : null);
+
+    public Task DeleteAsync(string userId, string name, CancellationToken ct)
+    {
+        _covers.TryRemove($"{userId}/{name}", out _);
+        return Task.CompletedTask;
+    }
 }

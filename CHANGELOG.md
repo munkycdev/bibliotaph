@@ -42,6 +42,9 @@
   Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
 - **Add to binder on the web.** A book's details, the Select bar and a matching page's + add to a binder, the one you
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
+- **Books you own elsewhere on the web.** The Library's Add menu has Add a book I own elsewhere…, as in the Windows
+  app, with a cover picture of your own; its details have Choose a cover image…, Remove the cover and Remove from
+  library with Undo. See [Bibliotaph on the web](docs/guide/web.md#books-you-own-elsewhere).
 - **Needs review on the web.** bibliotaph.online's Needs review has the Windows page's two tabs and its sidebar count.
   Field suggestions can be accepted, accepted for every book suggesting the same, edited or rejected, and new terms
   added, filed under another or rejected, each with Undo; Show narrows the list. Files needing attention can be tried

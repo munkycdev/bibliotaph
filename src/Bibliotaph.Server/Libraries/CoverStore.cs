@@ -19,6 +19,9 @@ public interface ICoverStore
 
     /// <summary>The cover's bytes, or null when it isn't kept.</summary>
     Task<byte[]?> DownloadAsync(string userId, string name, CancellationToken ct);
+
+    /// <summary>Forgets a cover, if it is kept.</summary>
+    Task DeleteAsync(string userId, string name, CancellationToken ct);
 }
 
 /// <summary>On a developer's machine and in tests, the disk is kept, so there is nothing to keep elsewhere.</summary>
@@ -29,6 +32,8 @@ public sealed class NoCoverStore : ICoverStore
     public Task UploadAsync(string userId, string name, Stream jpeg, CancellationToken ct) => Task.CompletedTask;
 
     public Task<byte[]?> DownloadAsync(string userId, string name, CancellationToken ct) => Task.FromResult<byte[]?>(null);
+
+    public Task DeleteAsync(string userId, string name, CancellationToken ct) => Task.CompletedTask;
 }
 
 /// <summary>Covers in a Blob container, under users/{user ID}/, beside the database replicas' account.</summary>
@@ -59,30 +64,50 @@ public sealed class BlobCoverStore(BlobContainerClient container) : ICoverStore
         }
     }
 
+    public async Task DeleteAsync(string userId, string name, CancellationToken ct) =>
+        await container.GetBlobClient(Prefix(userId) + name).DeleteIfExistsAsync(cancellationToken: ct);
+
     static string Prefix(string userId) => $"users/{UserIds.Require(userId)}/";
 }
 
 /// <summary>
 /// Keeps one library's covers in the <see cref="ICoverStore"/> while the library is open: those already on disk when
 /// it opens and not yet kept, then each new one as indexing draws it, and any missed once more as it closes. A cover
-/// the disk has lost is fetched back when it is next asked for.
+/// the disk has lost is fetched back when it is next asked for, except the covers the user chose: nothing could draw
+/// those again, and whether one exists decides a card's cover, so they are all back on disk before the library opens.
+/// A chosen cover removed or replaced is forgotten in the store too.
 /// </summary>
 public sealed class CoverMirror(string userId, CoverCache covers, ICoverStore store, ILogger<CoverMirror> log) : IAsyncDisposable
 {
-    readonly Channel<string> _new = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+    readonly Channel<(string Name, bool Gone)> _changes = Channel.CreateUnbounded<(string, bool)>(new UnboundedChannelOptions { SingleReader = true });
     readonly List<FileSystemWatcher> _watchers = [];
     ConcurrentDictionary<string, bool>? _kept;
     Task? _loop;
 
-    public void Start()
+    public async Task StartAsync(CancellationToken ct)
     {
+        try
+        {
+            _kept = new ConcurrentDictionary<string, bool>((await store.ListAsync(userId, ct)).Select(n => KeyValuePair.Create(n, true)), StringComparer.Ordinal);
+            foreach (var name in _kept.Keys.Where(CoverCache.IsChosen).Where(n => !File.Exists(covers.PathFor(n))))
+                if (await store.DownloadAsync(userId, name, ct) is { } jpeg) covers.Restore(name, jpeg);
+        }
+        catch (Exception ex) when (ex is IOException or RequestFailedException)
+        {
+            // The library still opens; its covers are drawn again as needed, and the next open tries the store again.
+            _kept = null;
+            log.LogWarning(ex, "Couldn't read the kept covers of {User}", userId);
+        }
+
         foreach (var folder in new[] { covers.Folder, covers.ChosenFolder })
         {
             Directory.CreateDirectory(folder);
             // CoverCache writes a .tmp file and renames it, so a finished cover arrives as a rename.
             var watcher = new FileSystemWatcher(folder, "*.jpg") { NotifyFilter = NotifyFilters.FileName };
-            watcher.Renamed += (_, e) => _new.Writer.TryWrite(e.Name!);
-            watcher.Created += (_, e) => _new.Writer.TryWrite(e.Name!);
+            watcher.Renamed += (_, e) => _changes.Writer.TryWrite((e.Name!, false));
+            watcher.Created += (_, e) => _changes.Writer.TryWrite((e.Name!, false));
+            // The cache's own covers can be drawn again, so a cache cleared on disk keeps what the store has.
+            if (folder == covers.ChosenFolder) watcher.Deleted += (_, e) => _changes.Writer.TryWrite((e.Name!, true));
             watcher.EnableRaisingEvents = true;
             _watchers.Add(watcher);
         }
@@ -103,10 +128,10 @@ public sealed class CoverMirror(string userId, CoverCache covers, ICoverStore st
     {
         try
         {
-            _kept = new ConcurrentDictionary<string, bool>((await store.ListAsync(userId, CancellationToken.None)).Select(n => KeyValuePair.Create(n, true)),
-                StringComparer.Ordinal);
-            foreach (var name in OnDisk()) _new.Writer.TryWrite(name);
-            await foreach (var name in _new.Reader.ReadAllAsync()) await KeepAsync(name, CancellationToken.None);
+            foreach (var name in OnDisk()) _changes.Writer.TryWrite((name, false));
+            await foreach (var (name, gone) in _changes.Reader.ReadAllAsync())
+                if (gone) await ForgetAsync(name, CancellationToken.None);
+                else await KeepAsync(name, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -135,10 +160,24 @@ public sealed class CoverMirror(string userId, CoverCache covers, ICoverStore st
         }
     }
 
+    async Task ForgetAsync(string name, CancellationToken ct)
+    {
+        if (_kept is null || File.Exists(covers.PathFor(name)) || !_kept.TryRemove(name, out _)) return;
+        try
+        {
+            await store.DeleteAsync(userId, name, ct);
+        }
+        catch (RequestFailedException ex)
+        {
+            // Left in the store, it is restored to a disk where no card names it, which shows nothing.
+            log.LogInformation("Couldn't forget cover {Cover} of {User}: {Reason}", name, userId, ex.Message);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var watcher in _watchers) watcher.Dispose();
-        _new.Writer.TryComplete();
+        _changes.Writer.TryComplete();
         if (_loop is not null)
         {
             // The covers already noticed go first; then any a watcher missed.

@@ -3,13 +3,14 @@ namespace Bibliotaph.Api.Contracts;
 /// <summary>
 /// A book's details, as GET /api/library/books/{entryId} gives them: what the Windows app's details drawer shows, in
 /// its words and order. Lists the book has nothing for are empty, and the client leaves their sections out.
+/// <see cref="HasChosenCover"/> is a book owned elsewhere showing a picture the user chose, which can be taken away.
 /// </summary>
 public sealed record BookDetails(
     BookCard Card, string Eyebrow, string Publisher, string Pages, bool CanOpen, IReadOnlyList<DetailField> Fields, IReadOnlyList<DetailPart> Parts,
     string PartsHeading, bool CanMarkParts, string? PartOf, long? PartOfEntryId, IReadOnlyList<PackFile> PackFiles, string PackFilesHeading,
     string FactsHeading, IReadOnlyList<DetailFact> Facts, bool ShowsLocations, IReadOnlyList<DetailLocation> Locations, IReadOnlyList<DetailCopy> Copies,
     string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
-    string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections);
+    string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, bool HasChosenCover = false);
 
 /// <summary>
 /// One field under Details: its values as they read, where each came from and the other suggestions, and how it is

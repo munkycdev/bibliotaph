@@ -246,7 +246,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             var opened = await library.Index.InitializeAsync();
             if (opened != IndexOpenResult.Opened) _log.LogInformation("index.db for {User}: {Result}", userId, opened);
             await library.Writer.StartAsync(CancellationToken.None);
-            library.Get<CoverMirror>().Start();
+            await library.Get<CoverMirror>().StartAsync(CancellationToken.None);
 
             await library.Drives.ReloadAsync();
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.

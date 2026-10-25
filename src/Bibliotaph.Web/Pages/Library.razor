@@ -43,6 +43,18 @@
         else if (_query.Collection is null && _query.Binder is null && _viewId is null)
         {
             <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
+            @* Add, as on Windows: what joins the library other than a folder. *@
+            <div class="bt-menuanchor">
+                <button class="bt-button primary" aria-haspopup="menu" aria-expanded="@_addMenu" @onclick="() => _addMenu = !_addMenu"><Icon Name="Plus" />Add<Icon Name="ChevronDown" Size="14" /></button>
+                @if (_addMenu)
+                {
+                    <div class="bt-backdrop fixed bt-menuback" @onclick="() => _addMenu = false"></div>
+                    <div class="bt-menu" role="menu" aria-label="Add">
+                        <button class="bt-menuitem" role="menuitem" title="A book in print or on a virtual tabletop, so search finds it with the rest"
+                                @onclick="OpenAddElsewhere">Add a book I own elsewhere…</button>
+                    </div>
+                }
+            </div>
         }
     </Actions>
 </PageHeading>
@@ -441,6 +453,11 @@ else
 {
     <PackTogetherDialog Preview="packing" Books="_ticked" Closed="PackClosedAsync" />
 }
+@if (_addingElsewhere)
+{
+    <AddElsewhereDialog Closed="AddElsewhereClosedAsync" />
+}
+
 @if (_details is { } entryId)
 {
     <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Card="_detailsCard" Correct="_correct" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
@@ -472,6 +489,9 @@ else
 
     /// <summary>The details first opened start Cataloged wrong…, for Needs review's Fix it.</summary>
     bool _correct;
+
+    bool _addMenu;
+    bool _addingElsewhere;
     BookDetailsDrawer? _drawer;
     ActionResult? _done;
     CollectionPage? _collection;
@@ -724,6 +744,23 @@ else
     Task ReloadAsync() => Task.WhenAll(LoadAsync(), LoadCollectionAsync());
 
     /// <summary>What a change from the details did, over the cards, with its Undo.</summary>
+    void OpenAddElsewhere()
+    {
+        _addMenu = false;
+        CloseDetails();
+        _addingElsewhere = true;
+    }
+
+    /// <summary>After Add to library, the new card's details open, where every other field can be filled in.</summary>
+    async Task AddElsewhereClosedAsync(long? entryId)
+    {
+        _addingElsewhere = false;
+        if (entryId is not { } added) return;
+        await ReloadAsync();
+        _details = added;
+        _detailsCard = null;
+    }
+
     async Task ShowDone(ActionResult result)
     {
         _done = result;

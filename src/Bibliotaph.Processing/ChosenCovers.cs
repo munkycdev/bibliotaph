@@ -36,10 +36,9 @@ public sealed class ChosenCovers(CoverCache covers, IImageCodec images, EntrySto
         ct.ThrowIfCancellationRequested();
         try
         {
-            if (new FileInfo(path).Length > MaxBytes) return (null, "That picture is too big to use as a cover.");
+            if (new FileInfo(path).Length > MaxBytes) return (null, TooBig);
             await using var stream = File.OpenRead(path);
-            var jpeg = images.Thumbnail(stream, CoverCache.Width);
-            return jpeg is null ? (null, "That file isn't a picture Bibliotaph can read.") : (jpeg, null);
+            return Read(stream);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -47,6 +46,12 @@ public sealed class ChosenCovers(CoverCache covers, IImageCodec images, EntrySto
             return (null, "Bibliotaph couldn't open that picture.");
         }
     }
+
+    public const string TooBig = "That picture is too big to use as a cover.";
+
+    /// <summary>A picture sent from a browser, at cover size, or why it can't be a cover; the caller keeps it under <see cref="MaxBytes"/>.</summary>
+    public (byte[]? Jpeg, string? Problem) Read(Stream stream) =>
+        images.Thumbnail(stream, CoverCache.Width) is { } jpeg ? (jpeg, null) : (null, "That file isn't a picture Bibliotaph can read.");
 
     /// <summary>Makes a picture <see cref="ReadAsync"/> read the book's cover, or says why it can't be.</summary>
     public async Task<string?> KeepAsync(EntryId entryId, byte[] jpeg, CancellationToken ct = default)

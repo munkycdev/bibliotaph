@@ -123,6 +123,19 @@ The details change a book as the Windows app's do:
 - A book in more than one file: **Make current** chooses which copy opens, and **Not the same book** gives a file its own
   card again.
 
+### Books you own elsewhere
+
+A book you own in print or on a virtual tabletop can have a card too, so it turns up in searches, collections and
+binders with the rest. **Add ▾** › **Add a book I own elsewhere…** in the Library asks for its title and, if you like,
+its game system, type, publisher and where you own it: tick the places, or type somewhere else or the book's link
+online. **Choose a cover image…** picks a picture of your own as its cover; a picture that can't be one says so before
+the book is added. **Add to library** makes the card and opens its details for everything else.
+
+In its details, **Choose a cover image…** changes the cover, **Remove the cover** stops using the picture you chose,
+and **Remove from library** takes the book out, with **Undo**. The covers you choose are kept with your account, so a
+new version of the server keeps them. When a file with its title arrives, Needs review asks whether it's this book's
+file.
+
 ### Collections
 
 **Collections** gathers books around a campaign, a setting or an idea, as in the Windows app. Its page has a card for

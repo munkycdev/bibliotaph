@@ -943,6 +943,60 @@ public sealed class ApiTests : IDisposable
     }
 
     /// <summary>Signs in whoever the test header names, in place of the session cookie.</summary>
+    [Fact]
+    public async Task A_book_owned_elsewhere_is_added_with_its_cover_and_removed_with_undo_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        var choices = (await client.GetFromJsonAsync<ElsewhereChoices>("/api/library/elsewhere/choices", ct))!;
+        using var notAPicture = await client.PostAsync("/api/library/elsewhere/cover", new ByteArrayContent([1, 2, 3]), ct);
+        var refused = (await notAPicture.Content.ReadFromJsonAsync<ChosenCoverRead>(ct))!;
+        using var picture = await client.PostAsync("/api/library/elsewhere/cover", new ByteArrayContent(Png()), ct);
+        var read = (await picture.Content.ReadFromJsonAsync<ChosenCoverRead>(ct))!;
+        using var untitled = await client.PostAsJsonAsync("/api/library/elsewhere", new ElsewhereAdd(" ", null, null, null, [], "", null), ct);
+        var noTitle = (await untitled.Content.ReadFromJsonAsync<ElsewhereAdded>(ct))!;
+        var added = await PostAsync<ElsewhereAdded>("/api/library/elsewhere",
+            new ElsewhereAdd("Tomb of the Test", "", "", "Test Press", [choices.Owns[0]], "", read.Cover));
+        var entryId = added.EntryId!.Value;
+        var details = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{entryId}", ct))!;
+
+        using var removeCover = await client.DeleteAsync($"/api/library/books/{entryId}/chosen-cover", ct);
+        var withoutCover = (await removeCover.Content.ReadFromJsonAsync<BookDetails>(ct))!;
+        using var badCover = await client.PutAsync($"/api/library/books/{entryId}/chosen-cover", new ByteArrayContent([1, 2, 3]), ct);
+        using var goodCover = await client.PutAsync($"/api/library/books/{entryId}/chosen-cover", new ByteArrayContent(Png()), ct);
+        var withCover = (await goodCover.Content.ReadFromJsonAsync<BookDetails>(ct))!;
+
+        using var remove = await client.DeleteAsync($"/api/library/books/{entryId}/elsewhere", ct);
+        var removed = (await remove.Content.ReadFromJsonAsync<ActionResult>(ct))!;
+        var afterRemove = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{removed.Undo}", null);
+        var afterUndo = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!;
+
+        Assert.Equal((ElsewhereText.Heading, "Print"), (choices.Heading, choices.Owns[0]));
+        Assert.Equal((null, "That file isn't a picture Bibliotaph can read."), (refused.Cover, refused.Problem));
+        Assert.NotNull(read.Cover);
+        Assert.Null(noTitle.EntryId);
+        Assert.NotNull(noTitle.Problem);
+        Assert.Equal(("Tomb of the Test", "Test Press", true, true), (details.Card.Title, details.Publisher, details.Card.Elsewhere, details.HasChosenCover));
+        Assert.NotNull(details.Card.Cover);
+        Assert.False(withoutCover.HasChosenCover);
+        Assert.Equal(HttpStatusCode.BadRequest, badCover.StatusCode);
+        Assert.True(withCover.HasChosenCover);
+        Assert.Equal("Removed Tomb of the Test from your library.", removed.Message);
+        Assert.Empty(afterRemove.Books);
+        Assert.Equal(["Tomb of the Test"], afterUndo.Books.Select(b => b.Title));
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
     static byte[] Png(SkiaSharp.SKColor? color = null)
     {
         using var bitmap = new SkiaSharp.SKBitmap(600, 400);

@@ -42,6 +42,9 @@ public sealed class CoverCache(AppPaths paths)
 
     const string ChosenPrefix = "chosen-";
 
+    /// <summary>Whether a cover's file name is one the user chose.</summary>
+    public static bool IsChosen(string fileName) => fileName.StartsWith(ChosenPrefix, StringComparison.Ordinal);
+
     public string PathFor(string fileName) =>
         Path.Combine(fileName.StartsWith(ChosenPrefix, StringComparison.Ordinal) ? ChosenFolder : Folder, fileName);
 

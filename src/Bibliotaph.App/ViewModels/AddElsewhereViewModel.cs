@@ -36,22 +36,11 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
         _elsewhere = elsewhere;
         _files = files;
         _covers = covers;
-        static IEnumerable<string> Labels(Vocabulary vocabulary, string name) =>
-            vocabulary.InVocabulary(name).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase);
-        // Editions are offered beside systems, by a name that finds them again: "D&D 5e" is how most people name what they play.
-        Systems = [NotSet, .. Labels(vocabulary, "system").Concat(vocabulary.InVocabulary("edition").Select(e => EditionName(vocabulary, e)).OfType<string>())
-            .Distinct().Order(StringComparer.CurrentCultureIgnoreCase).Select(l => new Choice<string?>(l, l))];
-        Types = [NotSet, .. Labels(vocabulary, "type").Select(l => new Choice<string?>(l, l))];
+        Systems = [NotSet, .. ElsewhereText.Systems(vocabulary).Select(l => new Choice<string?>(l, l))];
+        Types = [NotSet, .. ElsewhereText.Types(vocabulary).Select(l => new Choice<string?>(l, l))];
         System = NotSet;
         Type = NotSet;
-        Owns = [.. vocabulary.InVocabulary(MetadataFields.AlsoOwn.Vocabulary!).OrderBy(t => t.Key == "print" ? 0 : 1)
-            .ThenBy(t => t.Label, StringComparer.CurrentCultureIgnoreCase).Select(t => new OwnOption(t))];
-    }
-
-    static string? EditionName(Vocabulary vocabulary, Term edition)
-    {
-        string?[] names = [vocabulary.Find("system", edition.ParentKey ?? "") is { } system ? $"{system.Brief} {edition.Brief}" : null, edition.Label];
-        return names.FirstOrDefault(n => n is not null && vocabulary.Resolve("system", n) is null && vocabulary.Resolve("edition", n)?.Key == edition.Key);
+        Owns = [.. ElsewhereText.Owns(vocabulary).Select(t => new OwnOption(t))];
     }
 
     public static async Task<AddElsewhereViewModel> LoadAsync(ElsewhereService elsewhere, IFilePicker files, ChosenCovers? covers = null) =>
@@ -135,9 +124,7 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
         Problem = null;
         try
         {
-            List<string> owns = [.. Owns.Where(o => o.IsChecked).Select(o => o.Label)];
-            if (OtherOwn.Trim().Length > 0) owns.AddRange(MetadataValues.Split(MetadataFields.AlsoOwn, OtherOwn));
-            var draft = new ElsewhereDraft(Title.Trim(), System?.Value, Type?.Value is { } type ? [type] : null, Blank(Publisher), owns);
+            var draft = ElsewhereText.Draft(Title, System?.Value, Type?.Value, Publisher, Owns.Where(o => o.IsChecked).Select(o => o.Label), OtherOwn);
             var (entryId, problem) = await Task.Run(() => _elsewhere.AddAsync(draft));
             if (problem is not null && entryId is null)
             {
@@ -155,6 +142,4 @@ public sealed partial class AddElsewhereViewModel : ObservableObject
 
     [RelayCommand]
     void Cancel() => Closed?.Invoke(this, null);
-
-    static string? Blank(string text) => text.Trim() is { Length: > 0 } trimmed ? trimmed : null;
 }

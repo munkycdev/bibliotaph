@@ -120,6 +120,7 @@ public static class LibraryServices
         services.AddSingleton<FavoritesService>();
         services.AddSingleton<NotesService>();
         services.AddSingleton(new HeldActions(host.Clock));
+        services.AddSingleton(new PendingCovers(host.Clock));
 
         // Indexing: the Windows app's stages that read a book, without OCR and AI, which the server doesn't run yet.
         services.AddSingleton<IStage, ProbeStage>();
