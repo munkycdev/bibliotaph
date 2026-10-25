@@ -1,0 +1,91 @@
+@* .bt-dialog: Same book, as the Windows app's dialog: which of the ticked cards' files opens, then they join as one
+   book. Esc, Cancel or a click outside closes it. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Cancel"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@Preview.Heading" @onkeydown="KeyDown">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">SAME BOOK</span>
+            <h2 class="bt-dialogtitle">@Preview.Heading</h2>
+            <div class="bt-small bt-dialogintro">Copies and versions of one book share a card. Nothing on disk changes.</div>
+            @if (Preview.Elsewhere is { } elsewhere)
+            {
+                <div class="bt-small bt-dialogintro">@elsewhere</div>
+            }
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Cancel" @ref="_close"><Icon Name="X" /></button>
+    </div>
+    <div class="bt-fieldlabel">Which file opens</div>
+    <div class="bt-choices-list bt-filechoices" role="radiogroup" aria-label="Which file opens">
+        @foreach (var file in Preview.Files)
+        {
+            <label class="bt-filechoice">
+                <input type="radio" name="opens" checked="@(file.DocumentId == _opens)" aria-label="@($"Open {file.Name}")" @onchange="() => _opens = file.DocumentId" />
+                <span>
+                    <span class="bt-filename">@file.Name</span>
+                    <span class="bt-small">@file.Card · @file.Detail</span>
+                </span>
+            </label>
+        }
+    </div>
+    <div class="bt-small bt-dialogintro">Where the cards set different values, such as two titles, the card keeps one and Needs review asks about the other.</div>
+    @if (_problem is { } problem)
+    {
+        <div class="bt-small bt-problem" role="alert">@problem</div>
+    }
+    <div class="bt-boxactions end bt-dialogactions">
+        <button class="bt-button" @onclick="Cancel">Cancel</button>
+        <button class="bt-button primary" disabled="@_joining" @onclick="JoinAsync"><Icon Name="Copy" />Join as one book</button>
+    </div>
+</div>
+
+@code {
+    long _opens;
+    string? _problem;
+    bool _joining;
+    ElementReference _close;
+
+    [Parameter, EditorRequired] public SameBookPreview Preview { get; set; } = default!;
+
+    [Parameter, EditorRequired] public IReadOnlyList<long> Books { get; set; } = [];
+
+    /// <summary>Raised when the dialog closes: with what joining did, or null when it was cancelled.</summary>
+    [Parameter] public EventCallback<ActionResult?> Closed { get; set; }
+
+    protected override void OnInitialized() => _opens = Preview.Opens;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _close.FocusAsync();
+    }
+
+    async Task JoinAsync()
+    {
+        _joining = true;
+        _problem = null;
+        try
+        {
+            await Closed.InvokeAsync(await Api.JoinAsync(new SameBookJoin(Books, _opens)));
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _problem = "That didn't work. Check your connection and try again.";
+        }
+        finally
+        {
+            _joining = false;
+        }
+    }
+
+    Task Cancel() => Closed.InvokeAsync(null);
+
+    async Task KeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Cancel();
+    }
+}

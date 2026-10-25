@@ -32,6 +32,9 @@
   Saved searches list has them all. Collections, saved searches, books and Favorites pin to the sidebar and Home, in the
   order you drag them to. They are the same ones the Windows app shows. See
   [Favorites, saved searches and pins](docs/guide/web.md#favorites-saved-searches-and-pins).
+- **Select mode on the web.** Select in the Library ticks books, with Shift+click and Ctrl+A, and the Select bar adds
+  them to a collection or takes them out, joins them as the Same book, packs them together, removes adventures and
+  exports them as a CSV, as in the Windows app, with Undo. See [Select mode](docs/guide/web.md#select-mode).
 
 ## 1.3 · 19 October 2026
 

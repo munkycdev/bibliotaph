@@ -1,5 +1,5 @@
-using System.Globalization;
 using Bibliotaph.Core;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Bibliotaph.App.ViewModels;
@@ -30,11 +30,7 @@ public sealed class BookSelection : ObservableObject
     public int NotShown => _ticked.Keys.Count(id => !_shown.Contains(id));
 
     /// <summary>"12 selected", "12 selected, 3 not shown", or what to do when nothing is ticked.</summary>
-    public string Summary => Count == 0
-        ? "Click books to select them. Shift+click selects a range, Ctrl+A everything shown."
-        : NotShown == 0
-            ? $"{Count.ToString("N0", CultureInfo.CurrentCulture)} selected"
-            : $"{Count.ToString("N0", CultureInfo.CurrentCulture)} selected, {NotShown.ToString("N0", CultureInfo.CurrentCulture)} not shown";
+    public string Summary => SelectionRules.Summary(Count, NotShown);
 
     /// <summary>The ticked books' entries, in the order they were ticked.</summary>
     public IReadOnlyList<EntryId> EntryIds => [.. _ticked.Keys];

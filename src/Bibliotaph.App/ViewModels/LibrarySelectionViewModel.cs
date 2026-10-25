@@ -1,7 +1,7 @@
-using System.Globalization;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -164,7 +164,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         if (result is null) return;
         // Leaving the Library while it applied ends the Undo, as leaving afterwards would. Undo puts back exactly what
         // the fields held before.
-        SayDone(result.Books == 0 ? "Those books already had these values, so nothing changed." : $"Edited {BulkEditViewModel.Books(result.Books)}.",
+        SayDone(SelectionRules.Edited(result.Books),
             result.Books > 0 && _page.IsCurrent ? () => _metadata.UndoManyAsync(result.Undo) : null,
             "The edit couldn't be undone.");
         await _page.RefreshAsync();
@@ -174,12 +174,12 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanClearSelection))]
     async Task ExportSelected()
     {
-        if (_files.SaveFile("Export these books for a spreadsheet", "Bibliotaph books.csv", "CSV (*.csv)|*.csv", ".csv") is not { } path) return;
+        if (_files.SaveFile("Export these books for a spreadsheet", SelectionRules.ExportName, "CSV (*.csv)|*.csv", ".csv") is not { } path) return;
         Undo.Clear();
         try
         {
             var rows = await _export.WriteCsvAsync(path, Books.EntryIds);
-            Undo.Say($"Exported {BulkEditViewModel.Books(rows)} to {System.IO.Path.GetFileName(path)}.");
+            Undo.Say(SelectionRules.Exported(rows, System.IO.Path.GetFileName(path)));
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
@@ -190,12 +190,10 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
 
     // Same book.
 
-    /// <summary>
-    /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them.
-    /// Packs aren't offered: a pack is many files, not a copy of a book.
-    /// </summary>
-    public bool CanJoinSelected => SameBookDialog is null && Books.Count >= 2 && Books.Items is var cards
-        && !cards.Any(c => c.StandsForPack) && cards.Count(c => c.IsElsewhere) <= 1;
+    /// <summary>Same book, as <see cref="SelectionRules.CanJoin"/> says.</summary>
+    public bool CanJoinSelected => SameBookDialog is null && SelectionRules.CanJoin(Entries);
+
+    IReadOnlyList<LibraryEntry> Entries => [.. Books.Items.Select(c => c.Entry)];
 
     /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
     [RelayCommand(CanExecute = nameof(CanJoinSelected))]
@@ -224,23 +222,15 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         var title = _page.TitleOf(result.Join.EntryId) ?? "one book";
         // Leaving the Library while it joined ends the Undo, as leaving afterwards would. Undo gives each card its
         // files back, with what it brought.
-        SayDone($"Joined {result.Cards.ToString("N0", CultureInfo.CurrentCulture)} cards as {title}.",
-            _page.IsCurrent ? () => _copies.UndoJoinAsOneBookAsync(result.Join) : null,
-            "The cards couldn't be taken apart again. Use Not the same book in the card's Copies list.");
+        SayDone(SameBookPlan.Joined(result.Cards, title), _page.IsCurrent ? () => _copies.UndoJoinAsOneBookAsync(result.Join) : null, SameBookPlan.UndoFailed);
         Books.Clear();
         await _page.RefreshAsync();
     }
 
     // Pack together.
 
-    /// <summary>
-    /// Pack together fits two or more cards for single files, images or PDFs (a party's character sheets), or packs:
-    /// no books owned elsewhere, no adventures inside files, and no file with adventures marked in it, whose cards
-    /// name it.
-    /// </summary>
-    public bool CanPackSelected => PackDialog is null && Books.Count >= 2
-        && Books.Items.All(c => c.StandsForPack || c is { IsElsewhere: false, IsPart: false, Entry.Parts: 0 }
-            && (SourceFormats.IsImage(c.Entry.Format) || c.Entry.Format == SourceFormats.Pdf));
+    /// <summary>Pack together, as <see cref="SelectionRules.CanPack"/> says.</summary>
+    public bool CanPackSelected => PackDialog is null && SelectionRules.CanPack(Entries);
 
     /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
     [RelayCommand(CanExecute = nameof(CanPackSelected))]
@@ -268,8 +258,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         if (result is null) return;
         // Leaving the Library while it packed ends the Undo, as leaving afterwards would. Undo puts the cards back as
         // they were: merged packs come back, and files have their own cards again.
-        SayDone(result.Message, _page.IsCurrent ? () => _packs.UndoPackTogetherAsync(result.Result) : null,
-            "The pack couldn't be put back as it was. Use Split in its details.");
+        SayDone(result.Message, _page.IsCurrent ? () => _packs.UndoPackTogetherAsync(result.Result) : null, PackTogetherPlan.UndoFailed);
         Books.Clear();
         await _page.RefreshAsync();
     }
@@ -277,7 +266,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     // Remove adventures: the ticked adventures' cards go at once, as each one's own Remove adventure would.
 
     /// <summary>Remove adventures fits ticked cards that are all adventures inside files.</summary>
-    public bool CanRemoveSelectedParts => !IsRemovingParts && Books.HasAny && Books.Items.All(c => c.IsPart);
+    public bool CanRemoveSelectedParts => !IsRemovingParts && SelectionRules.CanRemoveAdventures(Entries);
 
     bool IsRemovingParts { get; set; }
 
@@ -296,19 +285,19 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         {
             foreach (var card in cards)
                 if (await Task.Run(() => _parts.RemoveAsync(card.EntryId)) is { } part) removed.Add(part);
-            message = $"Removed {LibraryItemViewModel.Adventures(removed.Count)}. Their pages are only their files' again.";
+            message = SelectionRules.Removed(removed.Count);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Removing {Count} selected adventures failed after {Removed}", cards.Count, removed.Count);
-            message = removed.Count == 0 ? "The adventures couldn't be removed." : $"Only {LibraryItemViewModel.Adventures(removed.Count)} could be removed.";
+            message = SelectionRules.RemoveFailed(removed.Count);
         }
         // Leaving the Library while it removed ends the Undo, as leaving afterwards would. Undo brings each adventure
         // back as a card with what was set on it.
         SayDone(message, removed.Count > 0 && _page.IsCurrent ? async () =>
         {
             foreach (var part in Enumerable.Reverse(removed)) await _parts.RestoreAsync(part);
-        } : null, "The adventures couldn't all be brought back. Mark their pages again from their files' details.");
+        } : null, SelectionRules.RemoveUndoFailed);
         IsRemovingParts = false;
         Books.Clear();
         await _page.RefreshAsync();

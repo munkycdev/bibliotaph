@@ -35,7 +35,7 @@
       <ItemsControl x:Name="Files" ItemsSource="{Binding Files}" Focusable="False" KeyboardNavigation.TabNavigation="Continue"
                     AutomationProperties.Name="Which file opens">
         <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="{x:Type vm:SameBookFile}">
+          <DataTemplate DataType="{x:Type vm:SameBookFileViewModel}">
             <RadioButton GroupName="SameBookOpens" IsChecked="{Binding Opens}" Margin="0,0,0,10" Foreground="{DynamicResource Bt.Text}"
                          ToolTip="{Binding Path}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}">
               <StackPanel Margin="4,0,0,0">

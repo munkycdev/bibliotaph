@@ -558,3 +558,20 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-viewnote{margin:0 0 14px;color:var(--bt-muted)}
 .bt-homepins{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 28px}
 .bt-button.dimmed{opacity:.55}
+/* Select mode: the bar with what is ticked and what can be done to it, each book's tick, and the Same book dialog's
+   files. */
+.bt-selectbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;margin:0 0 14px;border-radius:6px;background:var(--bt-soft)}
+.bt-selectsummary{font-size:12px;margin-right:8px}
+.bt-menu.bt-menuleft{left:0;right:auto}
+.bt-tick{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:var(--bt-panel);border:1.5px solid var(--bt-muted);color:var(--bt-accent-text)}
+.bt-tick.on{background:var(--bt-accent);border-color:var(--bt-accent)}
+.bt-tick svg{stroke-width:2.4}
+.bt-coverarea .bt-tick{position:absolute;left:8px;top:8px;z-index:1}
+.bt-listrow.selecting{position:relative;padding-left:36px}
+.bt-listrow .bt-tick{position:absolute;left:0;top:50%;transform:translateY(-50%)}
+.bt-bookbutton.selecting,.bt-listrow.selecting{user-select:none}
+.bt-filechoices{margin-bottom:10px}
+.bt-filechoice{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer}
+.bt-filechoice input{margin-top:3px}
+.bt-filechoice>span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bt-filename{font-size:12px;font-weight:500;overflow-wrap:anywhere}

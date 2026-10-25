@@ -1,0 +1,6 @@
+@* .bt-tick: a book's checkbox in Select mode, as the Windows app's. It only shows the tick: a click on the book ticks it. *@
+<span class="bt-tick @(On ? "on" : "")" aria-hidden="true">@if (On) { <Icon Name="Check" Size="14" /> }</span>
+
+@code {
+    [Parameter] public bool On { get; set; }
+}

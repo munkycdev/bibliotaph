@@ -98,6 +98,8 @@ public static class LibraryServices
         services.AddSingleton<PinsService>();
         services.AddSingleton(sp => new SmartViewStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));
         services.AddSingleton<NoteStore>();
+        services.AddSingleton<CatalogExport>();
+        services.AddSingleton<ExportService>();
         services.AddSingleton<CoverCache>();
         services.AddSingleton(sp => new CoverMirror(userId, sp.GetRequiredService<CoverCache>(), host.Covers, sp.GetRequiredService<ILogger<CoverMirror>>()));
         services.AddSingleton<FileHasher>();

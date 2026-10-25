@@ -28,3 +28,36 @@ document.addEventListener('dragstart', function (e) {
     e.dataTransfer.setData('text/plain', '');
   }
 });
+// Select mode's keys, as in the Windows app: Ctrl+A ticks everything shown and Esc leaves, unless a box or a dialog
+// has them.
+window.bibliotaphSelect = (function () {
+  var page = null;
+  document.addEventListener('keydown', function (e) {
+    if (!page) return;
+    var target = e.target;
+    var typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+    if (typing || document.querySelector('.bt-dialog, .bt-drawer')) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      page.invokeMethodAsync('SelectAll');
+    } else if (e.key === 'Escape') {
+      page.invokeMethodAsync('StopSelecting');
+    }
+  });
+  return {
+    start: function (p) { page = p; },
+    stop: function () { page = null; }
+  };
+})();
+// A file made in the browser, such as Export these' CSV, saved where the browser saves downloads. A CSV starts with a
+// byte order mark so Excel reads its accents and dashes right.
+window.bibliotaphSave = function (name, type, text) {
+  var url = URL.createObjectURL(new Blob(['\ufeff' + text], { type: type }));
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+};

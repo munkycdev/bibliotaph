@@ -63,6 +63,10 @@
             </div>
         }
         <div class="bt-tools">
+            @if (!_query.IsPagesTab && !_selecting)
+            {
+                <button class="bt-button" title="Tick books to edit their metadata together" aria-label="Select books" @onclick="StartSelectingAsync"><Icon Name="CopyCheck" />Select</button>
+            }
             @if (CanSaveSearch)
             {
                 <button class="bt-button" title="Keep this search, its filters and order, pinned in the sidebar" @onclick="SaveSearchAsync"><Icon Name="Plus" />Save search</button>
@@ -265,6 +269,51 @@
         {
             <div class="bt-small bt-viewnote">@viewNote</div>
         }
+        @if (_selecting)
+        {
+            @* Select mode: how many are ticked, and what can be done to them all. *@
+            <div class="bt-selectbar" role="toolbar" aria-label="Selection">
+                <span class="bt-selectsummary" role="status">@(_selection?.Summary ?? "")</span>
+                <div class="bt-menuanchor">
+                    <button class="bt-button" title="Add every selected book to a collection" aria-haspopup="menu" aria-expanded="@(_selectionMenu is not null)"
+                            disabled="@(_ticked.Count == 0)" @onclick="ToggleCollectionMenuAsync"><Icon Name="FolderPlus" />Add to collection</button>
+                    @if (_selectionMenu is { } menu)
+                    {
+                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _selectionMenu = null"></div>
+                        <div class="bt-menu bt-menuleft" role="menu" aria-label="Add to collection">
+                            @foreach (var item in menu)
+                            {
+                                <button class="bt-menuitem" role="menuitem" title="@item.Path" @onclick="() => AddSelectedToCollectionAsync(item)">@item.Label</button>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (_selection is { CanJoin: true })
+                {
+                    <button class="bt-button" title="Join the selected cards as one book: copies, or versions of it" aria-label="Join the selected cards as one book"
+                            disabled="@_working" @onclick="JoinSelectedAsync"><Icon Name="Copy" />Same book</button>
+                }
+                @if (_selection is { CanPack: true })
+                {
+                    <button class="bt-button" title="Put the selected images and packs into one pack" aria-label="Put the selected images and packs into one pack"
+                            disabled="@_working" @onclick="PackSelectedAsync"><Icon Name="LayoutGrid" />Pack together</button>
+                }
+                @if (_selection is { CanRemoveAdventures: true })
+                {
+                    <button class="bt-button" title="Take away the selected adventures' cards. Their pages stay in their files." aria-label="Remove the selected adventures"
+                            disabled="@_working" @onclick="RemoveSelectedAdventuresAsync"><Icon Name="Trash2" />Remove adventures</button>
+                }
+                @if (_query.Collection is not null)
+                {
+                    <button class="bt-button" title="Take the selected books out of this collection. They stay in your library."
+                            disabled="@(_ticked.Count == 0 || _working)" @onclick="RemoveSelectedFromCollectionAsync">Remove from collection</button>
+                }
+                <button class="bt-button" title="Save the selected books as a CSV file, for a spreadsheet" aria-label="Export the selected books"
+                        disabled="@(_ticked.Count == 0 || _working)" @onclick="ExportSelectedAsync"><Icon Name="SquareArrowOutUpRight" />Export these</button>
+                <button class="bt-button" aria-label="Clear the selection" disabled="@(_ticked.Count == 0)" @onclick="ClearSelectionAsync">Clear</button>
+                <button class="bt-button" title="Leave Select mode (Esc)" aria-label="Done selecting" @onclick="StopSelectingAsync">Done</button>
+            </div>
+        }
         @if (_results.Empty is null)
         {
             <div class="bt-countline">
@@ -326,7 +375,9 @@ else if (_list)
     <div class="bt-booklist" aria-label="Books">
         @foreach (var book in _results.Books.Take(_shown))
         {
-            <button class="bt-listrow" @key="book.Id" title="@book.Title" aria-label="Details for @book.Title" @onclick="() => ShowDetails(book)">
+            <button class="bt-listrow @(_selecting ? "selecting" : "")" @key="book.Id" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)"
+                    @onclick="e => CardClickAsync(book, e)">
+                @if (_selecting) { <Tick On="IsTicked(book)" /> }
                 <div class="bt-thumb"><BookCover Book="book" Marks="false" /></div>
                 <div class="bt-listtitle">
                     <div class="bt-booktitle">@book.Title</div>
@@ -355,9 +406,10 @@ else
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-book" @key="book.Id" title="@book.Title">
-                <button class="bt-bookbutton" aria-label="Details for @book.Title" @onclick="() => ShowDetails(book)">
+                <button class="bt-bookbutton @(_selecting ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" @onclick="e => CardClickAsync(book, e)">
                 <div class="bt-coverarea">
                     <BookCover Book="book" />
+                    @if (_selecting) { <Tick On="IsTicked(book)" /> }
                     @if (book.Favorite) { <span class="bt-heart cover on" role="img" aria-label="Favorite"><Icon Name="Heart" Size="13" /></span> }
                 </div>
                 <div class="bt-booktitle">@book.Title</div>
@@ -368,6 +420,14 @@ else
     </div>
 }
 <div @ref="_end" class="bt-end-of-results"></div>
+@if (_sameBook is { } sameBook)
+{
+    <SameBookDialog Preview="sameBook" Books="_ticked" Closed="SameBookClosedAsync" />
+}
+@if (_packing is { } packing)
+{
+    <PackTogetherDialog Preview="packing" Books="_ticked" Closed="PackClosedAsync" />
+}
 @if (_details is { } entryId)
 {
     <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
@@ -405,6 +465,15 @@ else
     SavedSearch? _view;
     List<SavedSearchInfo>? _searches;
     bool _showSearches;
+    bool _selecting;
+    readonly List<long> _ticked = [];
+    long? _anchor;
+    SelectionInfo? _selection;
+    int _selectionVersion;
+    IReadOnlyList<CollectionMenuItem>? _selectionMenu;
+    SameBookPreview? _sameBook;
+    PackTogetherPreview? _packing;
+    bool _working;
 
     /// <summary>A saved search keeps its own order; elsewhere the order is the browser's to remember.</summary>
     string Sort => _query.Sort ?? (_viewId is null ? _query.IsSearching ? _searchSort : _browseSort : null) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
@@ -579,6 +648,7 @@ else
             _results = results;
             _loaded = DateTime.UtcNow;
             _hasFolders = results.Empty?.Action != "add-folder";
+            if (_selecting) await UpdateSelectionAsync();
         }
         catch (OperationCanceledException)
         {
@@ -727,6 +797,219 @@ else
         }
         Collections.Pending = result;
         Navigation.NavigateTo("collections");
+    }
+
+    // Select mode, as the Windows Library's: ticks are kept by book while the search and filters change, so books can
+    // be gathered from several searches; the files of a pack, each on a card of its own, are ticked as their pack.
+
+    bool IsTicked(BookCard book) => _ticked.Contains(book.EntryId);
+
+    string CardLabel(BookCard book) => _selecting ? $"Select {book.Title}" : $"Details for {book.Title}";
+
+    string? Pressed(BookCard book) => _selecting ? IsTicked(book) ? "true" : "false" : null;
+
+    /// <summary>The books the results show now, in order: what Ctrl+A and Shift+click tick.</summary>
+    IReadOnlyList<long> ShownBooks => _results is null ? [] : _query.IsPagesTab
+        ? [.. _results.Matches.Select(m => m.Book.EntryId).Distinct()]
+        : [.. _results.Books.Select(b => b.EntryId).Distinct()];
+
+    async Task StartSelectingAsync()
+    {
+        _selecting = true;
+        _self ??= DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("bibliotaphSelect.start", _self);
+        }
+        catch (JSException)
+        {
+            // Without library.js, Ctrl+A and Esc are left to the browser; the bar's buttons still work.
+        }
+        await UpdateSelectionAsync();
+    }
+
+    /// <summary>Esc in Select mode, outside a box or a dialog.</summary>
+    [JSInvokable]
+    public async Task StopSelecting()
+    {
+        await StopSelectingAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>Done, or Esc: leaves Select mode, and the ticks with it.</summary>
+    async Task StopSelectingAsync()
+    {
+        _selecting = false;
+        _ticked.Clear();
+        _anchor = null;
+        _selection = null;
+        _selectionMenu = null;
+        try
+        {
+            await JS.InvokeVoidAsync("bibliotaphSelect.stop");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    /// <summary>Ctrl+A in Select mode: ticks every book in the current results, keeping the ticks from earlier searches.</summary>
+    [JSInvokable]
+    public async Task SelectAll()
+    {
+        if (!_selecting || _query.IsPagesTab) return;
+        foreach (var id in ShownBooks.Where(id => !_ticked.Contains(id))) _ticked.Add(id);
+        await UpdateSelectionAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>In Select mode a click ticks a book, and Shift+click every book from the last one clicked to this one.</summary>
+    async Task CardClickAsync(BookCard book, MouseEventArgs e)
+    {
+        if (!_selecting)
+        {
+            ShowDetails(book);
+            return;
+        }
+        var shown = ShownBooks;
+        var from = _anchor is { } anchor ? IndexOf(shown, anchor) : -1;
+        var to = IndexOf(shown, book.EntryId);
+        if (e.ShiftKey && from >= 0 && to >= 0)
+        {
+            for (var i = Math.Min(from, to); i <= Math.Max(from, to); i++)
+                if (!_ticked.Contains(shown[i])) _ticked.Add(shown[i]);
+        }
+        else if (!_ticked.Remove(book.EntryId)) _ticked.Add(book.EntryId);
+        _anchor = book.EntryId;
+        await UpdateSelectionAsync();
+    }
+
+    static int IndexOf(IReadOnlyList<long> shown, long id)
+    {
+        for (var i = 0; i < shown.Count; i++)
+            if (shown[i] == id) return i;
+        return -1;
+    }
+
+    async Task ClearSelectionAsync()
+    {
+        _ticked.Clear();
+        _anchor = null;
+        await UpdateSelectionAsync();
+    }
+
+    /// <summary>What the Select bar says and offers for the ticks as they are now; a later tick's answer wins.</summary>
+    async Task UpdateSelectionAsync()
+    {
+        var version = ++_selectionVersion;
+        var shown = ShownBooks.ToHashSet();
+        try
+        {
+            var info = await Api.SelectionAsync(new SelectionQuery([.. _ticked], _ticked.Count(id => !shown.Contains(id))));
+            if (version == _selectionVersion && _selecting) _selection = info;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // The bar keeps what it said; the next tick asks again.
+        }
+    }
+
+    async Task ToggleCollectionMenuAsync()
+    {
+        if (_selectionMenu is not null)
+        {
+            _selectionMenu = null;
+            return;
+        }
+        if (await SearchActionAsync(() => Api.CollectionsAsync()) is { } list) _selectionMenu = list.Menu;
+    }
+
+    async Task AddSelectedToCollectionAsync(CollectionMenuItem item)
+    {
+        _selectionMenu = null;
+        if (_selection is not { } selection) return;
+        if (await Collections.AddAsync([.. _ticked], selection.Books, item) is { } result) await ShowDone(result);
+        else if (Collections.Pending is { } problem)
+        {
+            _done = problem;
+            Collections.Pending = null;
+        }
+    }
+
+    async Task RemoveSelectedFromCollectionAsync()
+    {
+        if (_query.Collection is not { } id || _selection is not { } selection) return;
+        if (await Collections.RemoveAsync([.. _ticked], selection.Books, id) is not { } result) return;
+        _ticked.Clear();
+        await ShowDone(result);
+        await UpdateSelectionAsync();
+    }
+
+    /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
+    async Task JoinSelectedAsync()
+    {
+        CloseDetails();
+        _working = true;
+        _sameBook = await SearchActionAsync(() => Api.SameBookAsync([.. _ticked]));
+        _working = false;
+    }
+
+    async Task SameBookClosedAsync(ActionResult? result)
+    {
+        _sameBook = null;
+        await AfterSelectionChangeAsync(result);
+    }
+
+    /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
+    async Task PackSelectedAsync()
+    {
+        CloseDetails();
+        _working = true;
+        _packing = await SearchActionAsync(() => Api.PackPreviewAsync([.. _ticked]));
+        _working = false;
+    }
+
+    async Task PackClosedAsync(ActionResult? result)
+    {
+        _packing = null;
+        await AfterSelectionChangeAsync(result);
+    }
+
+    /// <summary>Remove adventures: each ticked adventure's card goes and its pages are its file's again, with one Undo for them all.</summary>
+    async Task RemoveSelectedAdventuresAsync()
+    {
+        CloseDetails();
+        _working = true;
+        var result = await SearchActionAsync(() => Api.RemoveAdventuresAsync([.. _ticked]));
+        _working = false;
+        await AfterSelectionChangeAsync(result);
+    }
+
+    /// <summary>After a change to the ticked cards: the note with its Undo, no ticks, and the library as it is now.</summary>
+    async Task AfterSelectionChangeAsync(ActionResult? result)
+    {
+        if (result is null) return;
+        _ticked.Clear();
+        _anchor = null;
+        await ShowDone(result);
+    }
+
+    /// <summary>Export these: the ticked books as CSV, the rows Settings › Backup's Export CSV writes, saved as a download.</summary>
+    async Task ExportSelectedAsync()
+    {
+        _working = true;
+        var csv = await SearchActionAsync(() => Api.ExportAsync([.. _ticked]));
+        _working = false;
+        if (csv is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("bibliotaphSave", csv.Name, "text/csv;charset=utf-8", csv.Csv);
+            _done = new ActionResult(csv.Message);
+        }
+        catch (JSException)
+        {
+            _done = new ActionResult("The export couldn't be saved by this browser.");
+        }
     }
 
     /// <summary>What the Library shows, as a saved search keeps it.</summary>
@@ -945,6 +1228,16 @@ else
         Activity.Changed -= OnActivityChanged;
         Pins.Changed -= OnPinsChanged;
         _loading?.Cancel();
+        if (_selecting)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("bibliotaphSelect.stop");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
         if (_watch is not null)
         {
             try
