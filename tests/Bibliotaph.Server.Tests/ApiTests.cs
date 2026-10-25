@@ -529,7 +529,8 @@ public sealed class ApiTests : IDisposable
         Assert.Equal("Any game system", list.Systems[0].Label);
         Assert.Equal("Harbor night", home!.Preparing?.Title);
         Assert.Equal(["Adventure", "Maps", "Encounters", "Rules"], withSection.SuggestedSections);
-        Assert.Equal("SATURDAY, 31 OCTOBER 2026", withSection.Eyebrow);
+        Assert.Equal(BinderText.Eyebrow(new DateOnly(2026, 10, 31)), withSection.Eyebrow);
+        Assert.StartsWith("SATURDAY, ", withSection.Eyebrow, StringComparison.Ordinal);
         // Move to section goes to the end, a drop on a heading to the start, and a drop on an item takes its place.
         Assert.Equal([maps.Id, second, first], arranged!.Rows.Select(r => r.Item?.Id ?? r.Section!.Id));
         Assert.Equal([first, second], afterUp!.Rows.Select(r => r.Item?.Id).OfType<long>());
