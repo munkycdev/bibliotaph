@@ -8,30 +8,36 @@ public sealed class SignInTests
     static ClaimsPrincipal Principal(params (string Type, string Value)[] claims) =>
         new(new ClaimsIdentity(claims.Select(c => new Claim(c.Type, c.Value)), "test"));
 
-    static SignInProvider Provider(string id) => SignInProvider.All.Single(p => p.Id == id);
-
     [Fact]
-    public void A_Microsoft_sign_in_is_known_by_object_and_tenant_ids()
+    public void An_Auth0_sign_in_is_known_by_its_sub_which_names_the_connection()
     {
-        var identity = Provider("microsoft").Identify(Principal(("oid", "o1"), ("tid", "t1"), ("sub", "per-app"), ("preferred_username", "dana@example.com")));
+        var identity = Auth0SignIn.Identify(Principal(("sub", "google-oauth2|1234"), ("name", "Dana"), ("email", "dana@example.org"), ("email_verified", "true")));
 
-        Assert.Equal("o1@t1", identity!.Subject);
-        Assert.Equal("dana@example.com", identity.Email);
+        Assert.Equal(new Bibliotaph.Server.Accounts.ExternalIdentity("auth0", "google-oauth2|1234", "Dana", "dana@example.org"), identity);
     }
 
     [Fact]
-    public void A_Google_email_counts_only_when_Google_verified_it()
-    {
-        var unverified = Provider("google").Identify(Principal(("sub", "s1"), ("email", "dana@example.org"), ("email_verified", "false")));
-        var verified = Provider("google").Identify(Principal(("sub", "s1"), ("email", "dana@example.org"), ("email_verified", "true")));
-
-        Assert.Null(unverified!.Email);
-        Assert.Equal("dana@example.org", verified!.Email);
-    }
+    public void An_email_counts_only_when_Auth0_says_it_was_verified() =>
+        Assert.Null(Auth0SignIn.Identify(Principal(("sub", "auth0|1"), ("email", "dana@example.org"), ("email_verified", "false")))!.Email);
 
     [Fact]
-    public void A_token_without_a_stable_id_is_not_a_sign_in() =>
-        Assert.Null(Provider("microsoft").Identify(Principal(("sub", "per-app"))));
+    public void A_token_without_a_sub_is_not_a_sign_in() =>
+        Assert.Null(Auth0SignIn.Identify(Principal(("email", "dana@example.org"))));
+
+    [Theory]
+    [InlineData("auth0", "google-oauth2|1234", "Google")]
+    [InlineData("auth0", "windowslive|abc", "Microsoft")]
+    [InlineData("auth0", "apple|001", "Apple")]
+    [InlineData("auth0", "auth0|65f0", "Email")]
+    [InlineData("auth0", "github|9", "Github")]
+    [InlineData("developer", "local", "Developer")]
+    public void Settings_names_a_sign_in_by_the_connection_it_came_through(string provider, string subject, string expected) =>
+        Assert.Equal(expected, Auth0SignIn.Describe(provider, subject));
+
+    [Fact]
+    public void Signing_out_ends_the_Auth0_session_and_comes_back_home() =>
+        Assert.Equal("https://tenant.example.auth0.com/v2/logout?client_id=abc&returnTo=https%3A%2F%2Fbibliotaph.online%2F",
+            Auth0SignIn.LogoutUrl(new Auth0Client { Domain = "tenant.example.auth0.com", ClientId = "abc", ClientSecret = "s" }, "https://bibliotaph.online/"));
 
     [Theory]
     [InlineData("/settings", "/settings")]

@@ -47,20 +47,16 @@ public static class AuthSetup
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
             });
 
-        foreach (var provider in Configured(configuration))
-        {
-            var client = configuration.GetSection($"Auth:{provider.Id}").Get<ProviderClient>()!;
-            auth.AddOpenIdConnect(provider.Id, provider.Name, options => provider.Configure(options, client));
-        }
+        if (Auth0(configuration) is { } client) auth.AddOpenIdConnect(Auth0SignIn.Id, "Auth0", options => Auth0SignIn.Configure(options, client));
 
         services.AddAuthorizationBuilder()
             .AddPolicy(AdminPolicy, policy => policy.RequireAuthenticatedUser().RequireClaim(AdminClaim, "true"));
         return services;
     }
 
-    /// <summary>The providers with a client ID in configuration (Auth:microsoft:ClientId and so on).</summary>
-    public static IReadOnlyList<SignInProvider> Configured(IConfiguration configuration) =>
-        [.. SignInProvider.All.Where(p => !string.IsNullOrEmpty(configuration[$"Auth:{p.Id}:ClientId"]))];
+    /// <summary>Auth0's settings (Auth:auth0:Domain, ClientId and ClientSecret), or null when sign-in isn't set up.</summary>
+    public static Auth0Client? Auth0(IConfiguration configuration) =>
+        configuration.GetSection($"Auth:{Auth0SignIn.Id}").Get<Auth0Client>() is { IsSet: true } client ? client : null;
 
     static Task Status(RedirectContext<CookieAuthenticationOptions> context, int status)
     {

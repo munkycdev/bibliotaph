@@ -78,7 +78,7 @@ public sealed class ApiTests : IDisposable
         var me = await Client(user).GetFromJsonAsync<CurrentUser>("/api/me", TestContext.Current.CancellationToken);
 
         Assert.Equal(user.Id, me!.UserId);
-        Assert.Equal("google", Assert.Single(me.SignIns).Provider);
+        Assert.Equal("Google", Assert.Single(me.SignIns).Provider);
     }
 
     [Fact]
@@ -932,6 +932,32 @@ public sealed class ApiTests : IDisposable
         var providers = await Client().GetFromJsonAsync<List<Bibliotaph.Api.Contracts.SignInProvider>>("/auth/providers", TestContext.Current.CancellationToken);
 
         Assert.Empty(providers!);
+    }
+
+    [Fact]
+    public async Task With_Auth0_set_up_sign_in_is_one_button_and_signing_out_ends_its_session_too()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var factory = _factory.WithWebHostBuilder(host =>
+        {
+            host.UseSetting("Auth:auth0:Domain", "tenant.example.auth0.com");
+            host.UseSetting("Auth:auth0:ClientId", "abc");
+            host.UseSetting("Auth:auth0:ClientSecret", "secret");
+            host.UseSetting("Server:PublicOrigin", "https://bibliotaph.online");
+        });
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var providers = await client.GetFromJsonAsync<List<Bibliotaph.Api.Contracts.SignInProvider>>("/auth/providers", ct);
+        using var direct = await client.GetAsync("/auth/signin/google", ct);
+        using var unguarded = await client.PostAsync("/auth/signout", null, ct);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using var signOut = await client.PostAsync("/auth/signout", null, ct);
+        var signedOut = await signOut.Content.ReadFromJsonAsync<SignedOut>(ct);
+
+        Assert.Equal([new Bibliotaph.Api.Contracts.SignInProvider("auth0", "Continue")], providers);
+        Assert.Equal(HttpStatusCode.NotFound, direct.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, unguarded.StatusCode);
+        Assert.Equal("https://tenant.example.auth0.com/v2/logout?client_id=abc&returnTo=https%3A%2F%2Fbibliotaph.online%2F", signedOut!.Next);
     }
 
     [Fact]
