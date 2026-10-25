@@ -1,0 +1,161 @@
+{
+ "where": "opfs",
+ "books": 500,
+ "pages": 100,
+ "open": {
+  "result": "Created",
+  "ms": 128
+ },
+ "addMs": 76644,
+ "stats": {
+  "docs": 500,
+  "pages": 50000,
+  "bytes": 265293824
+ },
+ "searches": [
+  {
+   "run": "cold",
+   "query": "owlbear",
+   "documents": 0,
+   "documentsMs": 40.8,
+   "books": 100,
+   "matchingPages": 969,
+   "pagesMs": 528
+  },
+  {
+   "run": "warm",
+   "query": "owlbear",
+   "documents": 0,
+   "documentsMs": 2.2,
+   "books": 100,
+   "matchingPages": 969,
+   "pagesMs": 170.2
+  },
+  {
+   "run": "cold",
+   "query": "owlbear tavern",
+   "documents": 0,
+   "documentsMs": 2.5,
+   "books": 100,
+   "matchingPages": 215,
+   "pagesMs": 131.9
+  },
+  {
+   "run": "warm",
+   "query": "owlbear tavern",
+   "documents": 0,
+   "documentsMs": 2.5,
+   "books": 100,
+   "matchingPages": 215,
+   "pagesMs": 132.2
+  },
+  {
+   "run": "cold",
+   "query": "\"red dragon\"",
+   "documents": 0,
+   "documentsMs": 2.3,
+   "books": 26,
+   "matchingPages": 27,
+   "pagesMs": 46
+  },
+  {
+   "run": "warm",
+   "query": "\"red dragon\"",
+   "documents": 0,
+   "documentsMs": 2.8,
+   "books": 26,
+   "matchingPages": 27,
+   "pagesMs": 15.6
+  },
+  {
+   "run": "cold",
+   "query": "necromancer crypt -vampire",
+   "documents": 0,
+   "documentsMs": 2.9,
+   "books": 46,
+   "matchingPages": 47,
+   "pagesMs": 55.5
+  },
+  {
+   "run": "warm",
+   "query": "necromancer crypt -vampire",
+   "documents": 0,
+   "documentsMs": 3.8,
+   "books": 46,
+   "matchingPages": 47,
+   "pagesMs": 39.8
+  },
+  {
+   "run": "cold",
+   "query": "owl*",
+   "documents": 0,
+   "documentsMs": 2.9,
+   "books": 100,
+   "matchingPages": 969,
+   "pagesMs": 204.3
+  },
+  {
+   "run": "warm",
+   "query": "owl*",
+   "documents": 0,
+   "documentsMs": 3.7,
+   "books": 100,
+   "matchingPages": 969,
+   "pagesMs": 147.7
+  },
+  {
+   "run": "cold",
+   "query": "damage",
+   "documents": 0,
+   "documentsMs": 2.8,
+   "books": 100,
+   "matchingPages": 34355,
+   "pagesMs": 9291.7
+  },
+  {
+   "run": "warm",
+   "query": "damage",
+   "documents": 0,
+   "documentsMs": 4.2,
+   "books": 100,
+   "matchingPages": 34355,
+   "pagesMs": 9379.9
+  },
+  {
+   "run": "cold",
+   "query": "title:dragon",
+   "documents": 0,
+   "documentsMs": 8.3,
+   "books": 0,
+   "matchingPages": 0,
+   "pagesMs": 0
+  },
+  {
+   "run": "warm",
+   "query": "title:dragon",
+   "documents": 0,
+   "documentsMs": 1.8,
+   "books": 0,
+   "matchingPages": 0,
+   "pagesMs": 0
+  },
+  {
+   "run": "cold",
+   "query": "kitsune yokai oni",
+   "documents": 0,
+   "documentsMs": 2.4,
+   "books": 0,
+   "matchingPages": 0,
+   "pagesMs": 16.4
+  },
+  {
+   "run": "warm",
+   "query": "kitsune yokai oni",
+   "documents": 0,
+   "documentsMs": 2.2,
+   "books": 0,
+   "matchingPages": 0,
+   "pagesMs": 1.3
+  }
+ ]
+}

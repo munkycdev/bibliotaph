@@ -1,0 +1,50 @@
+// A static server with Range support, like Blob Storage or a drive's download link, for the spike's pages and books.
+// Usage: node tools/serve.mjs <wwwroot> <port> [booksFolder]
+// Books are served at /books/<name>; ?delay=<ms> adds latency per request, to feel like a slow connection.
+import { createServer } from 'node:http';
+import { createReadStream, statSync, existsSync } from 'node:fs';
+import { extname, join, normalize } from 'node:path';
+
+const [root, port = '8080', books] = process.argv.slice(2);
+const types = {
+  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
+  '.css': 'text/css', '.dll': 'application/octet-stream', '.dat': 'application/octet-stream', '.pdf': 'application/pdf',
+  '.webmanifest': 'application/manifest+json', '.map': 'application/json',
+};
+export const counters = { requests: 0, bytes: 0 };
+
+createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  const delay = Number(url.searchParams.get('delay') ?? 0);
+  if (delay) await new Promise(r => setTimeout(r, delay));
+  if (url.pathname === '/__counters') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(counters));
+    if (url.searchParams.has('reset')) { counters.requests = 0; counters.bytes = 0; }
+    return;
+  }
+  const isBook = url.pathname.startsWith('/books/') && books;
+  let path = isBook
+    ? join(books, decodeURIComponent(url.pathname.slice(7)))
+    : join(root, normalize(decodeURIComponent(url.pathname)));
+  if (!existsSync(path) || statSync(path).isDirectory()) path = join(root, 'index.html');
+  const size = statSync(path).size;
+  const headers = {
+    'content-type': types[extname(path)] ?? 'application/octet-stream', 'accept-ranges': 'bytes', 'cache-control': 'no-store',
+    'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-range, accept-ranges, content-length',
+  };
+  const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? '');
+  // Only book traffic is counted, so a test can tell what a read cost without the page's own files.
+  if (isBook) counters.requests++;
+  if (range) {
+    const start = range[1] === '' ? size - Number(range[2]) : Number(range[1]);
+    const end = range[1] !== '' && range[2] !== '' ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (isBook) counters.bytes += end - start + 1;
+    res.writeHead(206, { ...headers, 'content-range': `bytes ${start}-${end}/${size}`, 'content-length': end - start + 1 });
+    createReadStream(path, { start, end }).pipe(res);
+  } else {
+    if (isBook) counters.bytes += size;
+    res.writeHead(200, { ...headers, 'content-length': size });
+    createReadStream(path).pipe(res);
+  }
+}).listen(Number(port), () => console.log(`serving ${root} on ${port}`));

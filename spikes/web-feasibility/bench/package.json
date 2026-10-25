@@ -1,0 +1,9 @@
+{
+  "name": "bibliotaph-web-spike-bench",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "hash-wasm": "4.12.0",
+    "pdfjs-dist": "6.4.299"
+  }
+}

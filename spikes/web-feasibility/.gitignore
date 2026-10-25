@@ -1,0 +1,5 @@
+bin/
+obj/
+out/
+bench/node_modules/
+bench/pdf.worker.patched.mjs

@@ -1,0 +1,247 @@
+{
+  "storage": {
+    "persisted": false,
+    "persist": false,
+    "quota": 3221225472,
+    "usage": 0
+  },
+  "books": {
+    "text-40.pdf": {
+      "hashWasm": {
+        "bytes": 87362,
+        "ms": 43,
+        "sha256": "f33f4132515463cd34a8010f95cbd0a5bb929f5b6265a5e76a0047047d9762cb"
+      },
+      "hashSubtle": {
+        "bytes": 87362,
+        "fetchMs": 34,
+        "ms": 35,
+        "sha256": "f33f4132515463cd34a8010f95cbd0a5bb929f5b6265a5e76a0047047d9762cb"
+      },
+      "direct": {
+        "openMs": 132,
+        "firstRenderMs": 59,
+        "pages": 40,
+        "chars": 99104,
+        "firstPageMs": 9,
+        "allPagesMs": 111,
+        "network": {
+          "requests": 1,
+          "bytes": 87362
+        }
+      },
+      "cachedCold": {
+        "openMs": 171,
+        "firstRenderMs": 41,
+        "afterFirstPage": {
+          "fromCache": 0,
+          "fromNetwork": 1,
+          "networkRequests": 1,
+          "chunksHeld": 1,
+          "chunkCount": 1
+        },
+        "backgroundMs": 0,
+        "pages": 40,
+        "chars": 99104,
+        "firstPageMs": 12,
+        "allPagesMs": 124,
+        "counters": {
+          "fromCache": 0,
+          "fromNetwork": 1,
+          "networkRequests": 1
+        },
+        "complete": true,
+        "bytesOnDisk": 87376,
+        "network": {
+          "requests": 2,
+          "bytes": 87363
+        }
+      },
+      "cachedOffline": {
+        "openMs": 84,
+        "firstRenderMs": 52,
+        "afterFirstPage": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 1,
+          "chunkCount": 1
+        },
+        "backgroundMs": null,
+        "pages": 40,
+        "chars": 99104,
+        "firstPageMs": 12,
+        "allPagesMs": 134,
+        "counters": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 87376,
+        "network": {
+          "requests": 0,
+          "bytes": 0
+        }
+      }
+    },
+    "text-300.pdf": {
+      "hashWasm": {
+        "bytes": 488367,
+        "ms": 40,
+        "sha256": "f7a3d1e46ca4c649b14b5a0e6b8ee9236560b4857fc366964ce8dac0732d0e9e"
+      },
+      "hashSubtle": {
+        "bytes": 488367,
+        "fetchMs": 36,
+        "ms": 37,
+        "sha256": "f7a3d1e46ca4c649b14b5a0e6b8ee9236560b4857fc366964ce8dac0732d0e9e"
+      },
+      "direct": {
+        "openMs": 145,
+        "firstRenderMs": 42,
+        "pages": 300,
+        "chars": 743580,
+        "firstPageMs": 10,
+        "allPagesMs": 802,
+        "network": {
+          "requests": 1,
+          "bytes": 488367
+        }
+      },
+      "cachedCold": {
+        "openMs": 270,
+        "firstRenderMs": 53,
+        "afterFirstPage": {
+          "fromCache": 0,
+          "fromNetwork": 1,
+          "networkRequests": 1,
+          "chunksHeld": 1,
+          "chunkCount": 1
+        },
+        "backgroundMs": 0,
+        "pages": 300,
+        "chars": 743580,
+        "firstPageMs": 11,
+        "allPagesMs": 750,
+        "counters": {
+          "fromCache": 0,
+          "fromNetwork": 1,
+          "networkRequests": 1
+        },
+        "complete": true,
+        "bytesOnDisk": 488382,
+        "network": {
+          "requests": 2,
+          "bytes": 488368
+        }
+      },
+      "cachedOffline": {
+        "openMs": 138,
+        "firstRenderMs": 125,
+        "afterFirstPage": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 1,
+          "chunkCount": 1
+        },
+        "backgroundMs": null,
+        "pages": 300,
+        "chars": 743580,
+        "firstPageMs": 29,
+        "allPagesMs": 708,
+        "counters": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 488382,
+        "network": {
+          "requests": 0,
+          "bytes": 0
+        }
+      }
+    },
+    "illustrated-120.pdf": {
+      "hashWasm": {
+        "bytes": 46910431,
+        "ms": 528,
+        "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+      },
+      "hashSubtle": {
+        "bytes": 46910431,
+        "fetchMs": 271,
+        "ms": 338,
+        "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+      },
+      "direct": {
+        "openMs": 1656,
+        "firstRenderMs": 55,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 11,
+        "allPagesMs": 240,
+        "network": {
+          "requests": 46,
+          "bytes": 93820862
+        }
+      },
+      "cachedCold": {
+        "openMs": 1649,
+        "firstRenderMs": 70,
+        "afterFirstPage": {
+          "fromCache": 0,
+          "fromNetwork": 45,
+          "networkRequests": 45,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": 0,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 9,
+        "allPagesMs": 329,
+        "counters": {
+          "fromCache": 0,
+          "fromNetwork": 45,
+          "networkRequests": 45
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448,
+        "network": {
+          "requests": 46,
+          "bytes": 46910432
+        }
+      },
+      "cachedOffline": {
+        "openMs": 337,
+        "firstRenderMs": 66,
+        "afterFirstPage": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": null,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 29,
+        "allPagesMs": 320,
+        "counters": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448,
+        "network": {
+          "requests": 0,
+          "bytes": 0
+        }
+      }
+    }
+  }
+}

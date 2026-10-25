@@ -1,0 +1,89 @@
+{
+  "storage": {
+    "persisted": false,
+    "persist": false,
+    "quota": 3221225472,
+    "usage": 0
+  },
+  "books": {
+    "illustrated-120.pdf": {
+      "hashWasm": {
+        "bytes": 46910431,
+        "ms": 7860,
+        "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+      },
+      "hashSubtle": {
+        "bytes": 46910431,
+        "fetchMs": 7923,
+        "ms": 7993,
+        "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+      },
+      "direct": {
+        "openMs": 8041,
+        "firstRenderMs": 50,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 9,
+        "allPagesMs": 339,
+        "network": {
+          "requests": 46,
+          "bytes": 93820862
+        }
+      },
+      "cachedCold": {
+        "openMs": 8219,
+        "firstRenderMs": 67,
+        "afterFirstPage": {
+          "fromCache": 0,
+          "fromNetwork": 45,
+          "networkRequests": 45,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": 0,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 8,
+        "allPagesMs": 275,
+        "counters": {
+          "fromCache": 0,
+          "fromNetwork": 45,
+          "networkRequests": 45
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448,
+        "network": {
+          "requests": 46,
+          "bytes": 46910432
+        }
+      },
+      "cachedOffline": {
+        "openMs": 451,
+        "firstRenderMs": 61,
+        "afterFirstPage": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": null,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 15,
+        "allPagesMs": 334,
+        "counters": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448,
+        "network": {
+          "requests": 0,
+          "bytes": 0
+        }
+      }
+    }
+  }
+}
