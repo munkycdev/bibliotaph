@@ -242,11 +242,19 @@ if (-not $deploy) {
 }
 $deployPrincipal = Find ad sp show --id $deploy.appId --query id -o json
 if (-not $deployPrincipal) { $deployPrincipal = Json (az ad sp create --id $deploy.appId --query id -o json) }
-$subject = "repo:${GitHubRepository}:ref:refs/heads/main"
-$federated = az ad app federated-credential list --id $deploy.id --query "[?subject=='$subject'] | length(@)" -o tsv
-if ($federated -eq '0') {
+# GitHub's tokens may name the repository with its owner's and its own IDs ("repo:owner@1/name@2:...") rather than by
+# name alone, so main is trusted under both spellings. The IDs also keep a renamed or re-created repository out.
+$repo = Json (gh api "repos/$GitHubRepository")
+$owner, $name = $GitHubRepository.Split('/')
+$subjects = [ordered]@{
+    'main' = "repo:${GitHubRepository}:ref:refs/heads/main"
+    'main-ids' = "repo:$owner@$($repo.owner.id)/$name@$($repo.id):ref:refs/heads/main"
+}
+foreach ($credential in $subjects.GetEnumerator()) {
+    $federated = az ad app federated-credential list --id $deploy.id --query "[?subject=='$($credential.Value)'] | length(@)" -o tsv
+    if ($federated -ne '0') { continue }
     $file = New-TemporaryFile
-    @{ name = 'main'; issuer = 'https://token.actions.githubusercontent.com'; subject = $subject; audiences = @('api://AzureADTokenExchange') } |
+    @{ name = $credential.Key; issuer = 'https://token.actions.githubusercontent.com'; subject = $credential.Value; audiences = @('api://AzureADTokenExchange') } |
         ConvertTo-Json | Set-Content $file
     az ad app federated-credential create --id $deploy.id --parameters "@$file" -o none
     Remove-Item $file
