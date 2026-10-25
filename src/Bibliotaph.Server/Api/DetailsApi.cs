@@ -88,6 +88,11 @@ public static class DetailsApi
         var notes = library.Get<NotesService>();
         var noted = (string.IsNullOrWhiteSpace(await notes.GetEntryNoteAsync(entryId, ct)) ? 0 : 1) + (await notes.GetPageNotesAsync(entryId, ct)).Count;
         var hasPdfs = entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf);
+        var collections = await CollectionsApi.AllAsync(library, ct);
+        var chips = (await library.Get<CollectionsService>().GetForEntryAsync(entryId, ct))
+            .Select(collections.GetValueOrDefault).OfType<CollectionInfo>()
+            .Select(c => new CollectionChip(c.Id, c.Name, CollectionText.PathOf(collections, c.Id)))
+            .OrderBy(c => c.Path, StringComparer.CurrentCultureIgnoreCase).ToList();
         return new BookDetails(
             LibraryApi.ToCard(entry, away),
             DetailsText.Eyebrow(entry, hasPdfs),
@@ -116,7 +121,8 @@ public static class DetailsApi
             entry.IsPart ? From(entry.Pages, labels) : "",
             entry.IsPart ? To(entry.Pages, labels) : "",
             DetailsText.SplitPackLabel(hasPdfs),
-            DetailsText.SplitPackTip(hasPdfs));
+            DetailsText.SplitPackTip(hasPdfs),
+            chips);
     }
 
     /// <summary>An adventure's first page as the editor starts with it.</summary>

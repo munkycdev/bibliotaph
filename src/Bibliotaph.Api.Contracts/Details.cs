@@ -9,7 +9,7 @@ public sealed record BookDetails(
     string PartsHeading, bool CanMarkParts, string? PartOf, long? PartOfEntryId, IReadOnlyList<PackFile> PackFiles, string PackFilesHeading,
     string FactsHeading, IReadOnlyList<DetailFact> Facts, bool ShowsLocations, IReadOnlyList<DetailLocation> Locations, IReadOnlyList<DetailCopy> Copies,
     string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
-    string SplitPackLabel, string SplitPackTip);
+    string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections);
 
 /// <summary>
 /// One field under Details: its values as they read, where each came from and the other suggestions, and how it is
@@ -34,6 +34,9 @@ public sealed record DetailCopy(long DocumentId, string Heading, string Detail, 
 
 /// <summary>An adventure marked in a file: its own card, and its pages there, the first and last as the file numbers them.</summary>
 public sealed record DetailPart(long EntryId, string Title, string Pages, string From, string To);
+
+/// <summary>A collection the book was added to itself, as a chip: its name, and its path for the chip's tip.</summary>
+public sealed record CollectionChip(long Id, string Name, string Path);
 
 /// <summary>A file in a pack, with its cover's name for /api/library/covers/.</summary>
 public sealed record PackFile(long EntryId, string Name, string? Cover, bool IsPdf, bool IsCover);

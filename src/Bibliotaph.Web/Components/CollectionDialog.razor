@@ -1,0 +1,116 @@
+@* .bt-dialog: the collection dialog over the page, as the Windows app's: a name and description for New collection and
+   Rename, or every collection to pick from, narrowed as you type. Esc, Cancel or a click outside closes it. *@
+@implements IDisposable
+@inject CollectionDialogs Dialogs
+
+@if (Dialogs.Current is { } dialog)
+{
+    <div class="bt-backdrop fixed bt-dialogback" @onclick="Cancel"></div>
+    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@dialog.Heading" @onkeydown="KeyDown">
+        <div class="bt-drawer-head bt-dialoghead">
+            <div>
+                <span class="bt-eyebrow bt-eyebrow-block">@dialog.Eyebrow</span>
+                <h2 class="bt-dialogtitle">@dialog.Heading</h2>
+            </div>
+            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Cancel"><Icon Name="X" /></button>
+        </div>
+        @if (dialog.Naming)
+        {
+            <label class="bt-field">Name<input aria-label="Name" @bind="_name" @bind:event="oninput" @onkeydown="NameKeyDown" @ref="_first" /></label>
+            <label class="bt-field">Description (optional)<input aria-label="Description" @bind="_description" @bind:event="oninput" @onkeydown="NameKeyDown" /></label>
+            <div class="bt-boxactions end bt-dialogactions">
+                <button class="bt-button" @onclick="Cancel">Cancel</button>
+                <button class="bt-button primary" disabled="@(_name.Trim().Length == 0)" @onclick="Save">@dialog.ActionText</button>
+            </div>
+        }
+        else
+        {
+            <input class="bt-input bt-dialogfilter" aria-label="Find a collection" title="Type part of a collection's name" @bind="_filter" @bind:event="oninput"
+                   @onkeydown="FilterKeyDown" @ref="_first" />
+            <div class="bt-choices-list" aria-label="Collections">
+                @foreach (var choice in Shown)
+                {
+                    <button class="bt-choicerow depth-@Math.Min(choice.Depth, 6)" aria-label="@choice.Path" title="@choice.Path" @onclick="() => Dialogs.Close(choice)">
+                        <Icon Name="Folder" Size="14" /><span>@choice.Name</span>
+                    </button>
+                }
+            </div>
+            @if (Shown.Count == 0)
+            {
+                <div class="bt-small bt-nomatch">No collection has that in its name.</div>
+            }
+            <div class="bt-boxactions end bt-dialogactions">
+                <button class="bt-button" @onclick="Cancel">Cancel</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    CollectionDialogRequest? _shown;
+    string _name = "";
+    string _description = "";
+    string _filter = "";
+    ElementReference _first;
+    bool _focus;
+
+    protected override void OnInitialized() => Dialogs.Changed += OnChanged;
+
+    public void Dispose() => Dialogs.Changed -= OnChanged;
+
+    void OnChanged()
+    {
+        if (Dialogs.Current is { } dialog && !ReferenceEquals(dialog, _shown))
+        {
+            _name = dialog.Name;
+            _description = dialog.Description;
+            _filter = "";
+            _focus = true;
+        }
+        _shown = Dialogs.Current;
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focus || Dialogs.Current is null) return;
+        _focus = false;
+        await _first.FocusAsync();
+    }
+
+    /// <summary>While filtering, each collection shows by its path, unindented, so a match deep in the tree reads clearly.</summary>
+    IReadOnlyList<CollectionChoice> Shown
+    {
+        get
+        {
+            var choices = Dialogs.Current?.Choices ?? [];
+            var words = _filter.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return words.Length == 0 ? choices
+                : [.. choices.Where(c => words.All(w => c.Path.Contains(w, StringComparison.CurrentCultureIgnoreCase))).Select(c => c with { Name = c.Path, Depth = 0 })];
+        }
+    }
+
+    void Save()
+    {
+        if (_name.Trim() is not { Length: > 0 } name) return;
+        Dialogs.Close((name, _description.Trim() is { Length: > 0 } d ? d : (string?)null));
+    }
+
+    void Cancel() => Dialogs.Close(null);
+
+    void KeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Cancel();
+    }
+
+    void NameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Save();
+    }
+
+    /// <summary>Enter in the filter box picks the first collection it leaves.</summary>
+    void FilterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Shown.Count > 0) Dialogs.Close(Shown[0]);
+    }
+}

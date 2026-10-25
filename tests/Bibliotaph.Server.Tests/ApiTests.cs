@@ -160,6 +160,82 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Collections_are_made_filled_and_changed_as_the_windows_app_changes_them()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/harbor.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.SingleOrDefault(b => b.Cover is not null), ct);
+
+        using var unnamed = await client.PostAsJsonAsync("/api/collections", new CollectionName("  ", null), ct);
+        var campaign = await CreateAsync(new CollectionName("Campaign", "The sea campaign"));
+        var maps = await CreateAsync(new CollectionName("Maps", null, campaign.Id));
+        var added = await SendAsync(client.PostAsJsonAsync($"/api/collections/{maps.Id}/books", new CollectionBooks([book.EntryId, 999_999], "Harbor"), ct));
+        var again = await SendAsync(client.PostAsJsonAsync($"/api/collections/{maps.Id}/books", new CollectionBooks([book.EntryId], "Harbor"), ct));
+        var inside = await client.GetFromJsonAsync<LibraryResults>($"/api/library?collection={campaign.Id}", ct);
+        var onlyHere = await client.GetFromJsonAsync<LibraryResults>($"/api/library?collection={campaign.Id}&addedHere=true", ct);
+        var page = await client.GetFromJsonAsync<CollectionPage>($"/api/collections/{campaign.Id}", ct);
+        var details = await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct);
+        var list = await client.GetFromJsonAsync<CollectionList>("/api/collections", ct);
+        using var intoItself = await client.PutAsJsonAsync($"/api/collections/{campaign.Id}/parent", new CollectionMove(maps.Id), ct);
+        var moved = await SendAsync(client.PutAsJsonAsync($"/api/collections/{maps.Id}/parent", new CollectionMove(null), ct));
+        var renamed = await SendAsync(client.PutAsJsonAsync($"/api/collections/{maps.Id}", new CollectionName("Charts", null), ct));
+        var removed = await SendAsync(client.PostAsJsonAsync($"/api/collections/{maps.Id}/books/remove", new CollectionBooks([book.EntryId], "Harbor"), ct));
+        var putBack = await SendAsync(client.PostAsync($"/api/library/held/{removed.Undo}", null, ct));
+        var deleted = await SendAsync(client.DeleteAsync($"/api/collections/{maps.Id}", ct));
+        var afterDelete = await client.GetFromJsonAsync<List<CollectionCard>>("/api/collections/cards", ct);
+        await SendAsync(client.PostAsync($"/api/library/held/{deleted.Undo}", null, ct));
+        var cards = await client.GetFromJsonAsync<List<CollectionCard>>("/api/collections/cards", ct);
+        var other = Client(await AddUserAsync(admin: false));
+        using var stranger = await other.GetAsync($"/api/collections/{campaign.Id}", ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, unnamed.StatusCode);
+        Assert.Equal("Campaign › Maps", maps.Path);
+        // A book from another library is left out rather than added.
+        Assert.Equal("Added Harbor to Maps.", added.Message);
+        Assert.NotNull(added.Undo);
+        Assert.Equal(("Harbor is in Maps already.", null), (again.Message, again.Undo));
+        Assert.Equal([book.EntryId], inside!.Books.Select(b => b.EntryId));
+        Assert.Equal(CollectionText.EmptyTitle, onlyHere!.Empty?.Title);
+        Assert.Equal(("Campaign", "The sea campaign"), (page!.Collection.Name, page.Subtitle));
+        Assert.Equal(["Maps"], page.Children.Select(c => c.Name));
+        Assert.Equal("1 book", page.Children[0].Count);
+        Assert.Equal(["Campaign › Maps"], details!.Collections.Select(c => c.Path));
+        Assert.Equal(["Campaign", "Campaign › Maps"], list!.Tree.Select(c => c.Path));
+        Assert.Equal([0, 1], list.Depths);
+        Assert.Equal(["Add to Campaign", "Add to Maps", CollectionText.NewItem], list.Menu.Select(m => m.Label));
+        Assert.Equal(HttpStatusCode.NotFound, intoItself.StatusCode);
+        Assert.Equal("Moved Maps to the top level.", moved.Message);
+        Assert.Equal("Renamed Maps to Charts.", renamed.Message);
+        Assert.Equal("Removed Harbor from Charts.", removed.Message);
+        Assert.Equal("", putBack.Message);
+        Assert.Equal("Deleted Charts. Its books are still in your library.", deleted.Message);
+        Assert.Equal(["Campaign"], afterDelete!.Select(c => c.Name));
+        Assert.Equal(["Campaign", "Charts"], cards!.Select(c => c.Name));
+        Assert.Equal("1 book", cards!.Single(c => c.Name == "Charts").Count);
+        Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+
+        async Task<CollectionNode> CreateAsync(CollectionName name)
+        {
+            using var response = await client.PostAsJsonAsync("/api/collections", name, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<CollectionCreated>(ct))!.Collection;
+        }
+
+        async Task<ActionResult> SendAsync(Task<HttpResponseMessage> request)
+        {
+            using var response = await request;
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<ActionResult>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

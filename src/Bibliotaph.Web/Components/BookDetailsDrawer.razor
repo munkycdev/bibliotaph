@@ -1,6 +1,8 @@
 @* .bt-drawer: a book's details, as the Windows app's details drawer shows them and changes them. Esc, the close button or a click outside closes it. *@
 @implements IAsyncDisposable
 @inject ApiClient Api
+@inject CollectionActions Collections
+@inject NavigationManager Navigation
 
 <div class="bt-backdrop fixed" @onclick="Close"></div>
 <aside class="bt-drawer fixed bt-details" role="dialog" aria-modal="true" aria-label="@(_details?.Card.Title ?? "Book details")" @onkeydown="KeyDown">
@@ -87,6 +89,40 @@
         }
         else
         {
+            @* The collections the book is in: a chip opens one, its × takes the book out. *@
+            <div class="bt-drawerhead-row">
+                <h3 class="bt-drawerhead">COLLECTIONS</h3>
+                <div class="bt-menuanchor">
+                    <button class="bt-link bt-iconlink" title="Add this book to a collection" aria-haspopup="menu" aria-expanded="@(_collectionMenu is not null)"
+                            @onclick="OpenCollectionMenuAsync"><Icon Name="FolderPlus" Size="13" />Add to collection</button>
+                    @if (_collectionMenu is { } menu)
+                    {
+                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _collectionMenu = null"></div>
+                        <div class="bt-menu" role="menu" aria-label="Add to collection">
+                            @foreach (var item in menu)
+                            {
+                                <button class="bt-menuitem" role="menuitem" title="@item.Path" @onclick="() => AddToCollectionAsync(item)">@item.Label</button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+            @if (book.Collections.Count == 0)
+            {
+                <div class="bt-small">Not in any collection yet.</div>
+            }
+            else
+            {
+                <div class="bt-chips" aria-label="Collections this book is in">
+                    @foreach (var collection in book.Collections)
+                    {
+                        <span class="bt-chip on" @key="collection.Id"><button class="bt-chiplink" title="@collection.Path" aria-label="Open @collection.Path"
+                                @onclick="() => OpenCollectionAsync(collection.Id)">@collection.Name</button><button class="bt-chipx" title="Take this book out of @collection.Name"
+                                aria-label="Remove from @collection.Name" @onclick="() => RemoveFromCollectionAsync(collection)"><Icon Name="X" Size="12" /></button></span>
+                    }
+                </div>
+            }
+
             @if (book.PackFiles.Count > 0)
             {
                 <div class="bt-drawerhead-row">
@@ -437,6 +473,7 @@
     CorrectionOffer? _offer;
 
     long? _packMenu;
+    IReadOnlyList<CollectionMenuItem>? _collectionMenu;
     PartEditor? _part;
     ActionResult? _partNote;
     ActionResult? _carried;
@@ -784,6 +821,45 @@
         await Done.InvokeAsync(new ActionResult("Changing…"));
         var result = await TryAsync(() => Api.RunHeldAsync(offer.Token));
         if (result is not null) await Done.InvokeAsync(result);
+    }
+
+    // Collections: added to and taken out of, with the note in the library and its Undo.
+
+    async Task OpenCollectionMenuAsync()
+    {
+        if (_collectionMenu is not null)
+        {
+            _collectionMenu = null;
+            return;
+        }
+        if (await TryAsync(() => Api.CollectionsAsync()) is { } list) _collectionMenu = list.Menu;
+    }
+
+    async Task AddToCollectionAsync(CollectionMenuItem item)
+    {
+        _collectionMenu = null;
+        if (_details is not { } book) return;
+        await CollectionChangedAsync(await Collections.AddAsync([book.Card.EntryId], book.Card.Title, item));
+    }
+
+    async Task RemoveFromCollectionAsync(CollectionChip collection)
+    {
+        if (_details is not { } book) return;
+        await CollectionChangedAsync(await Collections.RemoveAsync([book.Card.EntryId], book.Card.Title, collection.Id));
+    }
+
+    async Task CollectionChangedAsync(ActionResult? result)
+    {
+        if (result is null) return;
+        await Done.InvokeAsync(result);
+        await LoadAsync();
+    }
+
+    /// <summary>A chip opens its collection in the library, as on Windows.</summary>
+    async Task OpenCollectionAsync(long collectionId)
+    {
+        await Close();
+        Navigation.NavigateTo($"library?collection={collectionId.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
     }
 
     // Reprocess, a pack's cover and split, and copies.

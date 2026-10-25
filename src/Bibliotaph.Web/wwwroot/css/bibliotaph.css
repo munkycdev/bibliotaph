@@ -481,3 +481,47 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-librarynote .bt-donenote{margin:0}
 .bt-sectionrow .bt-link{display:inline-flex;align-items:center;gap:4px}
 .bt-drawerhead-row{flex-wrap:wrap;gap:6px 16px}
+/* Collections: their cards, a collection's page in the library, the dialog that names or picks one, and a book's Add to collection menu. */
+.bt-collectioncards{display:flex;flex-wrap:wrap;gap:0 22px}
+.bt-collectioncard{display:block;width:196px;margin-bottom:22px;color:inherit;text-decoration:none}
+.bt-collectionmosaic{position:relative;height:136px;border-radius:6px;background:var(--bt-side);border:1px solid var(--bt-line);display:flex;align-items:center;justify-content:center;color:var(--bt-muted)}
+.bt-collectioncard:hover .bt-collectionmosaic,.bt-collectioncard:focus-visible .bt-collectionmosaic{border-color:var(--bt-muted)}
+.bt-collectioncovers{display:flex;gap:10px}
+.bt-collectioncovers>*{width:76px;height:106px}
+.bt-collectionpin{position:absolute;top:8px;right:8px;color:var(--bt-accent);display:inline-flex}
+.bt-collectionname{margin-top:10px;font-size:12px;font-weight:600;color:var(--bt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-collectioncount{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-pagenote{margin-top:24px}
+.bt-headbuttons{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.bt-scopechip{margin:0 0 12px}
+.bt-sectionline-top>.bt-scopechip{display:inline-flex}
+.bt-subcollections{margin-top:6px}
+.bt-addedhere{margin:0 0 14px}
+.bt-dialog{position:fixed;top:24px;left:50%;transform:translateX(-50%);width:min(480px,calc(100% - 32px));max-height:calc(100% - 48px);overflow:auto;z-index:13;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:10px;padding:22px 28px;box-shadow:0 0 60px #00000026}
+.bt-dialoghead{align-items:flex-start;margin-bottom:4px}
+.bt-dialoghead .bt-eyebrow-block{margin-bottom:6px}
+.bt-dialogtitle{font-size:18px;font-weight:500;margin:0;color:var(--bt-text)}
+.bt-dialog .bt-field{margin-top:14px}
+.bt-dialogfilter{margin:14px 0 8px}
+.bt-choices-list{max-height:340px;overflow:auto}
+.bt-choicerow{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:4px;text-align:left;font-size:12px;color:var(--bt-text);cursor:pointer}
+.bt-choicerow svg{color:var(--bt-muted);flex:0 0 auto}
+.bt-choicerow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-choicerow:hover,.bt-choicerow:focus-visible{background:var(--bt-side)}
+.bt-choicerow.depth-1{padding-left:28px}
+.bt-choicerow.depth-2{padding-left:46px}
+.bt-choicerow.depth-3{padding-left:64px}
+.bt-choicerow.depth-4{padding-left:82px}
+.bt-choicerow.depth-5{padding-left:100px}
+.bt-choicerow.depth-6{padding-left:118px}
+.bt-nomatch{margin:6px 0 0 10px}
+.bt-dialogactions{margin-top:22px}
+.bt-menuanchor{position:relative}
+.bt-iconlink{display:inline-flex;align-items:center;gap:4px}
+.bt-backdrop.bt-menuback{background:none;z-index:12}
+.bt-menu{position:absolute;right:0;top:100%;z-index:13;min-width:210px;max-width:320px;padding:3px;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:6px;box-shadow:0 8px 30px #00000020}
+.bt-menuitem{display:block;width:100%;padding:6px 10px;border-radius:4px;text-align:left;font-size:12px;color:var(--bt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.bt-menuitem:hover,.bt-menuitem:focus-visible{background:var(--bt-side)}
+.bt-chiplink{font:inherit;color:var(--bt-text);padding:0;cursor:pointer}
+.bt-chiplink:hover{color:var(--bt-accent)}
+.bt-backdrop.bt-dialogback{z-index:12}

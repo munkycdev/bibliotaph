@@ -76,6 +76,8 @@ public static class LibraryApi
             Folder = long.TryParse(Text("folder"), NumberStyles.None, CultureInfo.InvariantCulture, out var folder) ? folder : null,
             Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Adventures = Text("adventures"),
             Collections = Text("collections"),
+            Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
+            AddedHere = On("addedHere"),
         };
     }
 
@@ -118,6 +120,7 @@ public static class LibraryApi
                     ? new("No folders yet.", "Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are.",
                         "add-folder", "Add a folder")
                     : filtered ? new("Nothing here. Yet.", "No books match these filters.", "clear-filters", "Clear filters")
+                    : query.Collection is not null ? new(CollectionText.EmptyTitle, CollectionText.EmptyMessage, "clear-scope", "Show your library")
                     : new("Indexing your library.", $"{(await StorageApi.StatusAsync(library, ct)).Text}. Books appear here as they are read.",
                         "manage-folders", "Manage folders");
             }
@@ -160,7 +163,8 @@ public static class LibraryApi
             query.UnknownLevels, Parse<AiFilter>(query.Ai) ?? AiFilter.All, query.Copies, One(query.Own), Styles: One(query.Style),
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
-            PackFiles: query.EachFile);
+            PackFiles: query.EachFile,
+            Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection) : null);
     }
 
     static bool IsFiltering(LibraryQuery q) =>

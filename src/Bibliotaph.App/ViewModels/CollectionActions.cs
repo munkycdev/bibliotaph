@@ -61,7 +61,7 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         var added = await Run(() => collections.AddAsync(collectionId, books), "Adding to a collection failed");
         if (added is null) return;
         var name = Directory.Find(collectionId)?.Name ?? "the collection";
-        await FinishAsync(added.Count == 0 ? $"{Capital(what)} {(books.Count == 1 ? "is" : "are")} in {name} already." : $"Added {what} to {name}.",
+        await FinishAsync(CollectionText.Added(what, books.Count, added.Count, name),
             added.Count == 0 ? null : () => collections.RemoveAsync(collectionId, added));
     }
 
@@ -71,14 +71,13 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         var removed = await Run(() => collections.RemoveAsync(collectionId, books), "Removing from a collection failed");
         if (removed is null) return;
         var name = Directory.Find(collectionId)?.Name ?? "the collection";
-        await FinishAsync(removed.Count == 0 ? $"{Capital(what)} {(books.Count == 1 ? "was" : "were")} only in {name} through a collection inside it."
-            : $"Removed {what} from {name}.", removed.Count == 0 ? null : () => collections.AddAsync(collectionId, removed));
+        await FinishAsync(CollectionText.Removed(what, books.Count, removed.Count, name), removed.Count == 0 ? null : () => collections.AddAsync(collectionId, removed));
     }
 
     /// <summary>New collection: at the top, or inside <paramref name="parentId"/>.</summary>
     public void Create(long? parentId)
     {
-        var heading = parentId is { } parent ? $"New collection in {Directory.Find(parent)?.Name}" : "New collection";
+        var heading = CollectionText.NewHeading(parentId is { } parent ? Directory.Find(parent)?.Name : null);
         Open(CollectionDialogViewModel.Naming(heading, "Create"), async result =>
         {
             var created = await Run(() => collections.CreateAsync(result.Name, parentId, result.Description), "Making the collection failed");
@@ -92,21 +91,20 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
         Open(CollectionDialogViewModel.Naming("Rename collection", "Save", collection.Name, collection.Description), async result =>
         {
             if (await Run(async () => { await collections.RenameAsync(collection.Id, result.Name, result.Description); return true; }, "Renaming the collection failed"))
-                await FinishAsync($"Renamed {collection.Name} to {result.Name}.", () => collections.RenameAsync(collection.Id, collection.Name, collection.Description));
+                await FinishAsync(CollectionText.Renamed(collection.Name, result.Name), () => collections.RenameAsync(collection.Id, collection.Name, collection.Description));
         });
 
     /// <summary>Move to…: into another collection, or to the top, but never into itself or one inside it.</summary>
     public void Move(CollectionInfo collection)
     {
-        var top = new CollectionChoice(null, "Collections (the top level)", "Collections", 0);
+        var top = new CollectionChoice(null, CollectionText.TopLevel, "Collections", 0);
         var choices = Directory.Tree(excluding: collection.Id).Where(c => c.Id != collection.ParentId).ToList();
         if (collection.ParentId is not null) choices.Insert(0, top);
         Open(CollectionDialogViewModel.Picking($"Move {collection.Name} to", choices), async result =>
         {
             if (result.Choice is not { } choice) return;
             if (!await Run(async () => { await collections.MoveAsync(collection.Id, choice.Id); return true; }, "Moving the collection failed")) return;
-            var where = choice.Id is null ? "the top level" : choice.Name;
-            await FinishAsync($"Moved {collection.Name} to {where}.", () => collections.MoveAsync(collection.Id, collection.ParentId));
+            await FinishAsync(CollectionText.Moved(collection.Name, choice.Id is null ? null : choice.Name), () => collections.MoveAsync(collection.Id, collection.ParentId));
         });
     }
 
@@ -120,8 +118,7 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
 
     /// <summary>The note after a delete, on the page shown after it, with Undo bringing the collection back.</summary>
     public void ShowDeleted(CollectionDeletion deleted) =>
-        Undo.Offer($"Deleted {deleted.Name}. Its books are still in your library{(deleted.Children.Count > 0 ? ", and its collections moved up a level" : "")}.",
-            Undoing(() => collections.RestoreAsync(deleted)));
+        Undo.Offer(CollectionText.Deleted(deleted), Undoing(() => collections.RestoreAsync(deleted)));
 
     /// <summary>Esc or Cancel closes the dialog; the note goes when the page is left.</summary>
     public void Close()
@@ -173,6 +170,4 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
             return default;
         }
     }
-
-    static string Capital(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 }

@@ -119,7 +119,23 @@ The details change a book as the Windows app's do:
 - A book in more than one file: **Make current** chooses which copy opens, and **Not the same book** gives a file its own
   card again.
 
-The reader, collections and binders are the next steps.
+### Collections
+
+**Collections** gathers books around a campaign, a setting or an idea, as in the Windows app. Its page has a card for
+each collection at the top, pinned ones first; **New collection** makes one and opens it.
+
+A collection opens in the Library with its name as the heading and **In** its name on a chip above the books (its **×**
+shows your whole library, keeping the search and filters). The search box and filters work within it. Collections
+inside it show as cards above its books, and **Only books added here** leaves out the books that are only in those.
+Its buttons are **New collection** (one inside it), **Rename**, **Move to…** (into another collection, or to the top)
+and the bin, which deletes it: its books stay in your library, the collections inside it move up a level, and
+**Undo** on Collections brings it back.
+
+A book's details list its collections under **Collections**: a chip opens one, and its **×** takes the book out.
+**Add to collection** offers the collections used last, **Add to a new collection…**, and **Add to another
+collection…**, which lists them all and narrows as you type. Each change says what it did, with **Undo**.
+
+The reader and binders are the next steps.
 
 ## Your theme
 

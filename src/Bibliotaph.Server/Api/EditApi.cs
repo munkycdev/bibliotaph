@@ -244,7 +244,7 @@ public static class EditApi
     /// Keeps an Undo for the client to ask for by its token. Undone, the note goes, as on Windows; what couldn't be
     /// undone says so in <paramref name="failed"/>.
     /// </summary>
-    static string? Hold(UserLibrary library, Func<Task>? undo, string failed) =>
+    internal static string? Hold(UserLibrary library, Func<Task>? undo, string failed) =>
         undo is null ? null : library.Get<HeldActions>().Hold(async _ =>
         {
             try

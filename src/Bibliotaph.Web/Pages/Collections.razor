@@ -1,5 +1,77 @@
 @page "/collections"
+@inject ApiClient Api
+@inject CollectionActions Actions
+@inject NavigationManager Navigation
 
-<PageHeading Title="Collections" />
-<EmptyState Title="No collections yet."
-            Message="A collection keeps the books you want together, such as those for a campaign. Make one here, or add books to a new one from the Library." />
+@* The Windows app's Collections page: a card for each collection at the top level, pinned first, then by name. A
+   card opens the Library scoped to it, where its sub-collections and its actions are. *@
+<PageHeading Title="Collections" Subtitle="Books gathered around a campaign, a setting or an idea.">
+    <Actions>
+        <button class="bt-button primary" @onclick="CreateAsync"><Icon Name="FolderPlus" />New collection</button>
+    </Actions>
+</PageHeading>
+<div class="bt-rule"></div>
+
+@if (_note is not null)
+{
+    <div class="bt-librarynote bt-pagenote">
+        <DoneNote Result="_note" UndoName="Undo" Dismissed="() => _note = null" Undone="LoadAsync" />
+    </div>
+}
+
+@if (_cards is null)
+{
+    <div class="bt-loading">Opening your collections…</div>
+}
+else if (_cards.Count == 0)
+{
+    <EmptyState Title="No collections yet."
+                Message="A collection keeps the books you want together, such as those for a campaign. Make one here, or add books to a new one from the Library."
+                ActionText="New collection" ActionIcon="FolderPlus" Action="CreateAsync" />
+}
+else
+{
+    <div class="bt-collectioncards" aria-label="Collections">
+        @foreach (var card in _cards)
+        {
+            <CollectionTile @key="card.Id" Card="card" />
+        }
+    </div>
+}
+
+@code {
+    List<CollectionCard>? _cards;
+    ActionResult? _note;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // After a collection was deleted from its page: the note saying so, with Undo.
+        _note = Actions.Pending;
+        Actions.Pending = null;
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            _cards = await Api.CollectionCardsAsync();
+        }
+        catch (ApiProblemException e)
+        {
+            _cards = [];
+            _note = new ActionResult(e.Message);
+        }
+    }
+
+    /// <summary>A new collection opens at once, ready for books.</summary>
+    async Task CreateAsync()
+    {
+        if (await Actions.CreateAsync(null) is { } created) Navigation.NavigateTo($"library?collection={created.Id}");
+        else if (Actions.Pending is { } problem)
+        {
+            _note = problem;
+            Actions.Pending = null;
+        }
+    }
+}

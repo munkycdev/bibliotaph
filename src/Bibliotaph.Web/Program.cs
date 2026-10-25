@@ -15,5 +15,7 @@ builder.Services.AddScoped<ApiClient>();
 builder.Services.AddScoped<Session>();
 builder.Services.AddScoped<Theme>();
 builder.Services.AddScoped<LibraryActivity>();
+builder.Services.AddScoped<CollectionDialogs>();
+builder.Services.AddScoped<CollectionActions>();
 
 await builder.Build().RunAsync();
