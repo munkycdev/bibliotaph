@@ -378,8 +378,11 @@ else if (_query.IsPagesTab)
                         <div class="bt-hitpage">
                             <div class="bt-hitline">
                                 <div class="bt-hitwhere">@hit.Where</div>
+                                <a class="bt-button" href="@ReaderUrl.For(match.Book, hit, _query.Q)" aria-label="Open @hit.Where"><Icon Name="BookOpen" />Open page</a>
                                 <button class="bt-icon" title="Add this page to the current binder" aria-label="Add @hit.Where to the binder"
                                         @onclick="() => AddPageAsync(match.Book, hit)"><Icon Name="Plus" Size="15" /></button>
+                                <button class="bt-icon" title="Open in new window" aria-label="Open @hit.Where in new window"
+                                        @onclick="() => BrowserWindow.OpenAsync(JS, Navigation.ToAbsoluteUri(ReaderUrl.For(match.Book, hit, _query.Q, popout: true)).ToString())"><Icon Name="SquareArrowOutUpRight" Size="15" /></button>
                             </div>
                             <p>@foreach (var (text, marked) in Snippet(hit.Snippet)) { if (marked) { <mark>@text</mark> } else { @text } }</p>
                             <span class="bt-chip">@hit.Source</span>
@@ -397,7 +400,7 @@ else if (_list)
         @foreach (var book in _results.Books.Take(_shown))
         {
             <button class="bt-listrow @(_selecting ? "selecting" : "")" @key="book.Id" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)"
-                    @onclick="e => CardClickAsync(book, e)">
+                    @onclick="e => CardClickAsync(book, e)" @ondblclick="() => OpenBook(book)">
                 @if (_selecting) { <Tick On="IsTicked(book)" /> }
                 <div class="bt-thumb"><BookCover Book="book" Marks="false" /></div>
                 <div class="bt-listtitle">
@@ -427,7 +430,8 @@ else
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-book" @key="book.Id" title="@book.Title">
-                <button class="bt-bookbutton @(_selecting ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" @onclick="e => CardClickAsync(book, e)">
+                <button class="bt-bookbutton @(_selecting ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" @onclick="e => CardClickAsync(book, e)"
+                        @ondblclick="() => OpenBook(book)">
                 <div class="bt-coverarea">
                     <BookCover Book="book" />
                     @if (_selecting) { <Tick On="IsTicked(book)" /> }
@@ -789,6 +793,12 @@ else
     }
 
     /// <summary>A matching page's Add: that page to the binder worked on last, as on Windows.</summary>
+    /// <summary>A double-click opens the book in the reader, as in the Windows app; outside Select mode, and when it has a file.</summary>
+    void OpenBook(BookCard book)
+    {
+        if (!_selecting && !book.Elsewhere) Navigation.NavigateTo(ReaderUrl.For(book));
+    }
+
     async Task AddPageAsync(BookCard book, PageMatch hit)
     {
         try

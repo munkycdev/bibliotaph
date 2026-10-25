@@ -944,6 +944,31 @@ public sealed class ApiTests : IDisposable
 
     /// <summary>Signs in whoever the test header names, in place of the session cookie.</summary>
     [Fact]
+    public async Task The_reader_says_why_a_book_owned_elsewhere_has_nothing_to_open_and_keeps_to_the_users_own_books()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using var add = await client.PostAsJsonAsync("/api/library/elsewhere", new ElsewhereAdd("Tomb of the Test", "", "", "", [], "", null), ct);
+        var entryId = (await add.Content.ReadFromJsonAsync<ElsewhereAdded>(ct))!.EntryId!.Value;
+
+        var elsewhere = (await client.GetFromJsonAsync<ReaderBook>($"/api/library/books/{entryId}/reader", ct))!;
+        using var missing = await client.GetAsync("/api/library/books/999999/reader", ct);
+        using var stranger = await Client(await AddUserAsync(admin: false)).GetAsync($"/api/library/books/{entryId}/reader", ct);
+        var link = (await client.GetFromJsonAsync<ReaderLink>("/api/library/documents/999999/link", ct))!;
+        var find = (await client.GetFromJsonAsync<ReaderFind>("/api/library/documents/999999/find?q=owlbear", ct))!;
+
+        Assert.Equal("Nothing to open here.", elsewhere.Problem?.Title);
+        Assert.Equal("Tomb of the Test", elsewhere.Title);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+        Assert.Null(link.Url);
+        Assert.NotNull(link.Problem);
+        Assert.Empty(find.Pages);
+    }
+
+    [Fact]
     public async Task A_book_owned_elsewhere_is_added_with_its_cover_and_removed_with_undo_as_the_windows_app_does()
     {
         var ct = TestContext.Current.CancellationToken;

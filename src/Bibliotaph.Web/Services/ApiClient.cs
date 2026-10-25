@@ -118,6 +118,8 @@ public sealed class ApiClient(HttpClient http)
 
     static string Book(long entryId) => $"api/library/books/{entryId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
+    static string Document(long documentId) => $"api/library/documents/{documentId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
     /// <summary>A value typed for a field, a list comma-separated: the details as they are now, or what's wrong with it.</summary>
     public Task<EditResult> SetFieldAsync(long entryId, string key, string text, CancellationToken ct = default) =>
         SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/fields/{Uri.EscapeDataString(key)}", new FieldEdit(text), ct);
@@ -169,6 +171,35 @@ public sealed class ApiClient(HttpClient http)
     /// <summary>An Undo, or Change them, by the token the server gave for it.</summary>
     public Task<ActionResult> RunHeldAsync(string token, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, $"api/library/held/{Uri.EscapeDataString(token)}", null, ct);
+
+    // The reader.
+
+    /// <summary>A book to read: the card's own file, or <paramref name="documentId"/> in a pack; at a page, or with a search's words.</summary>
+    public Task<ReaderBook> ReaderAsync(long entryId, long? documentId, int? page, string? q, bool keep, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (documentId is { } doc) query.Add($"doc={doc.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        if (page is { } at) query.Add($"page={at.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        if (!string.IsNullOrWhiteSpace(q)) query.Add($"q={Uri.EscapeDataString(q)}");
+        if (keep) query.Add("keep=true");
+        var url = $"{Book(entryId)}/reader" + (query.Count > 0 ? "?" + string.Join('&', query) : "");
+        return SendAsync<ReaderBook>(HttpMethod.Get, url, null, ct);
+    }
+
+    public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
+        SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
+
+    /// <summary>Every page with a match, in pages <paramref name="from"/> to <paramref name="to"/> when given (an adventure's).</summary>
+    public Task<ReaderFind> FindInBookAsync(long documentId, string text, int? from, int? to, CancellationToken ct = default)
+    {
+        var url = $"{Document(documentId)}/find?q={Uri.EscapeDataString(text)}";
+        if (from is { } first) url += $"&from={first.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        if (to is { } last) url += $"&to={last.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        return SendAsync<ReaderFind>(HttpMethod.Get, url, null, ct);
+    }
+
+    public Task SavePositionAsync(long documentId, int page, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Put, $"{Document(documentId)}/position", new ReaderPosition(page), ct);
 
     // The sidebar's pins, and saved searches.
 

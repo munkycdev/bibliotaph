@@ -280,6 +280,35 @@ every file on a card, another go, and **Try all again** does it for all of them 
 files. A card for a fault in Bibliotaph has **Copy details**, which copies the version and the error, without file
 names, to paste into a bug report. Opening a locked file to unlock it comes with the reader.
 
+## Reading a book
+
+A book opens in the reader as in the Windows app: double-click it in the Library, or click it once and click **Open**
+in its details. A matching page under **Inside documents** has **Open page**, which opens the book at that page with
+the search's words marked. A book opened from the Library opens where you left it, and says so; an adventure inside a
+file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure").
+
+The pages are read straight from your OneDrive, a piece at a time, so a big book shows its first page in a moment; the
+server never has a copy. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
+
+- **Page box**: type a printed page number or a PDF page number, and press **Enter**. **Previous** and **Next** turn a
+  page; the line under the pages says which printed and PDF page you're on.
+- **Zoom**: the zoom buttons and menu, **Ctrl+Plus** and **Ctrl+Minus**, or **Ctrl** and the mouse wheel. **Ctrl+0**
+  fits the page to the width again.
+- **Contents**: the list button shows the book's bookmarks on the left, with what the AI found in each chapter when it
+  has read the whole book. An adventure's own bookmarks stand out.
+- **Page thumbnails**: the toolbar button shows a strip of small pages under the pages, the page you're on outlined.
+  The browser remembers whether it was showing until you close it.
+- **Links** in the PDF work, and **Back to page …** takes you back after following one.
+- **Find**: **Ctrl+F**, then **Enter** or **F3** for the next match and **Shift+F3** for the one before. In an
+  adventure, Find looks in its pages unless you tick **Whole file**.
+- **Copy**: select text and press **Ctrl+C**. If a PDF doesn't allow copying, Bibliotaph says so.
+- The **heart** and the **pin** make the book a favorite and pin it to the sidebar. **Pop out** moves the book to a
+  window of its own, and **Return to main window** brings it back. **Open in new window** beside **Open** in a book's
+  details, and beside a matching page, opens it in one straight away.
+
+A PDF with a password asks for it each time it opens; the password isn't kept. A book owned elsewhere has nothing to
+open, and a file inside a ZIP opens in the Windows app for now. Pictures, packs and e-books come to the reader next.
+
 ## Your theme
 
 The button at the top right cycles between your device's theme, light and dark, as in the Windows app. The browser

@@ -6,6 +6,8 @@
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
 @inject Pins Pins
+@inject Breadcrumb Breadcrumb
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -14,6 +16,13 @@
 else if (_me is null)
 {
     <SignInCard Problem="@SignInProblem" />
+}
+else if (PoppedOut)
+{
+    @* A reader popped out into a window of its own has no shell around it, as on Windows. *@
+    <div class="bt-shell popout"><main id="bt-main">@Body</main></div>
+    <CollectionDialog />
+    <BinderDialog />
 }
 else
 {
@@ -82,7 +91,16 @@ else
         </aside>
         <div class="bt-workarea">
             <header class="bt-topbar">
-                <div class="bt-breadcrumb">@Section</div>
+                @if (Breadcrumb.Title is { } title)
+                {
+                    @* A book in the reader: back to where it was opened from, and the section it belongs to before its title. *@
+                    <button class="bt-icon bt-back" title="Back" aria-label="Back" @onclick="() => BrowserWindow.BackAsync(JS)"><Icon Name="ArrowLeft" Size="15" /></button>
+                    <div class="bt-breadcrumb" title="@title"><a href="library" aria-label="Go to Library">Library</a><span class="bt-crumbsep">/</span>@title</div>
+                }
+                else
+                {
+                    <div class="bt-breadcrumb">@Section</div>
+                }
                 <label class="bt-search">
                     <Icon Name="Search" Size="15" />
                     <span class="visually-hidden">Search</span>
@@ -123,6 +141,10 @@ else
             ? "Signing in didn't finish. Try again, or choose another way to sign in."
             : null;
 
+    bool PoppedOut =>
+        Navigation.ToBaseRelativePath(Navigation.Uri) is var path && path.StartsWith("read/", StringComparison.Ordinal)
+        && path.Contains("popout=true", StringComparison.Ordinal);
+
     string Section =>
         Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("settings", StringComparison.Ordinal) ? "Settings"
             : Items.FirstOrDefault(i => i.Href == ActiveHref).Label ?? "Home";
@@ -149,6 +171,7 @@ else
             Activity.Changed += OnActivityChanged;
             Activity.Start();
             Pins.Changed += OnPinsChanged;
+            Breadcrumb.Changed += OnPinsChanged;
             await Pins.LoadAsync();
         }
         _theme = await Theme.CurrentAsync();
@@ -272,5 +295,6 @@ else
         Navigation.LocationChanged -= OnLocationChanged;
         Activity.Changed -= OnActivityChanged;
         Pins.Changed -= OnPinsChanged;
+        Breadcrumb.Changed -= OnPinsChanged;
     }
 }

@@ -156,7 +156,7 @@ public static class LibraryApi
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
         var coverage = progress.Searchable < progress.Documents ? CardText.Coverage(progress) : null;
         var matches = pages.Entries.Select(d => new BookMatches(Card(d.Entry),
-            [.. d.Pages.Select(p => new PageMatch(p.PdfPage, CardText.Where(p), p.Snippet, CardText.Source(p)))],
+            [.. d.Pages.Select(p => new PageMatch(p.PdfPage, CardText.Where(p), p.Snippet, CardText.Source(p), p.DocumentId))],
             CardText.MorePages(d.MatchingPages, d.Pages.Count))).ToList();
         var label = $"matching {(pages.MatchingPages == 1 ? "page" : "pages")} in {N(pages.MatchingEntries)} {(pages.MatchingEntries == 1 ? "document" : "documents")} {forQuery}";
         if (pages.Entries.Count < pages.MatchingEntries) label += $", best {N(pages.Entries.Count)} shown";

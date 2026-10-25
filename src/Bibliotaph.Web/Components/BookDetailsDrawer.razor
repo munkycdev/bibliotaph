@@ -4,6 +4,7 @@
 @inject CollectionActions Collections
 @inject NavigationManager Navigation
 @inject Pins Pins
+@inject IJSRuntime JS
 
 <div class="bt-backdrop fixed" @onclick="Close"></div>
 <aside class="bt-drawer fixed bt-details" role="dialog" aria-modal="true" aria-label="@(_details?.Card.Title ?? "Book details")" @onkeydown="KeyDown">
@@ -47,6 +48,15 @@
         </div>
 
         <div class="bt-detailactions">
+            @if (book.CanOpen)
+            {
+                var opens = Card is { } shownCard && shownCard.EntryId == book.Card.EntryId ? shownCard : book.Card;
+                <div class="bt-openbuttons">
+                    <a class="bt-button primary" href="@ReaderUrl.For(opens)" aria-label="Open @book.Card.Title"><Icon Name="BookOpen" />Open</a>
+                    <button class="bt-icon" title="Open in new window" aria-label="Open @book.Card.Title in new window"
+                            @onclick="() => BrowserWindow.OpenAsync(JS, Navigation.ToAbsoluteUri(ReaderUrl.For(opens, popout: true)).ToString())"><Icon Name="SquareArrowOutUpRight" Size="15" /></button>
+                </div>
+            }
             @{
                 var pinned = Pins.IsPinned(PinKinds.Book, book.Card.EntryId);
                 var pinAction = pinned ? "Unpin from the sidebar and Home" : "Pin to the sidebar and Home";
