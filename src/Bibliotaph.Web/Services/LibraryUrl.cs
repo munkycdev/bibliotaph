@@ -43,6 +43,7 @@ public static class LibraryUrl
         Add("picked", q.Picked);
         Add("collection", q.Collection?.ToString(CultureInfo.InvariantCulture));
         Add("addedHere", q.Collection is not null && q.AddedHere ? "true" : null);
+        Add("binder", q.Collection is null ? q.Binder?.ToString(CultureInfo.InvariantCulture) : null);
         Add("favorites", q.Favorites && q.Collection is null ? "true" : null);
         return parts.Count == 0 ? "" : "?" + string.Join('&', parts);
     }
@@ -120,6 +121,7 @@ public static class LibraryUrl
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = Text("addedHere") == "true",
             Favorites = Text("favorites") == "true",
+            Binder = long.TryParse(Text("binder"), NumberStyles.None, CultureInfo.InvariantCulture, out var binder) ? binder : null,
             Sort = Text("sort"),
         };
     }

@@ -69,7 +69,8 @@ public static class LibraryApi
         var opened = await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: HomeRow, ct: ct);
         var added = await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: HomeRow, ct: ct);
         BookCard Card(LibraryEntry entry) => ToCard(entry, away.GetValueOrDefault(entry.EntryId));
-        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], (await StorageApi.StatusAsync(library, ct)).Text);
+        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], (await StorageApi.StatusAsync(library, ct)).Text,
+            await BindersApi.PreparingAsync(library, ct));
     }
 
     /// <summary>The Library page's query string. Anything missing or unreadable is "any", never a refusal.</summary>
@@ -87,6 +88,7 @@ public static class LibraryApi
             Collections = Text("collections"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = On("addedHere"), Favorites = On("favorites"),
+            Binder = long.TryParse(Text("binder"), NumberStyles.None, CultureInfo.InvariantCulture, out var binder) ? binder : null,
         };
     }
 
@@ -107,6 +109,7 @@ public static class LibraryApi
         var scope = await store.GetVisibleEntryIdsAsync(query.Folder, ct);
         var away = await store.GetUnavailableAsync(ct);
         var filter = Filter(query, scope);
+        var scopeText = await ScopeAsync(library, query, ct);
         var text = query.Q?.Trim() ?? "";
         var parsed = SearchQuery.Parse(searching ? text : "");
         var plan = searching ? SearchPlan.From(parsed) : null;
@@ -130,12 +133,13 @@ public static class LibraryApi
                         "add-folder", "Add a folder")
                     : filtered ? new("Nothing here. Yet.", "No books match these filters.", "clear-filters", "Clear filters")
                     : query.Collection is not null ? new(CollectionText.EmptyTitle, CollectionText.EmptyMessage, "clear-scope", "Show your library")
+                    : query.Binder is not null ? new(BinderText.ScopeEmptyTitle, BinderText.ScopeEmptyMessage, "clear-scope", "Show your library")
                     : query.Favorites ? new(SavedSearchText.FavoritesEmptyTitle, SavedSearchText.FavoritesEmptyMessage, "clear-scope", "Show your library")
                     : new("Indexing your library.", $"{(await StorageApi.StatusAsync(library, ct)).Text}. Books appear here as they are read.",
                         "manage-folders", "Manage folders");
             }
             return new LibraryResults([.. documents.Select(Card)], [], N(documents.Count), documents.Count == 1 ? "document" : "documents",
-                "Documents", "Inside documents", issue, null, empty, menus, Scope(query));
+                "Documents", "Inside documents", issue, null, empty, menus, scopeText);
         }
 
         var documentsTab = $"Documents · {N(documents.Count)}";
@@ -147,7 +151,7 @@ public static class LibraryApi
 
         if (!query.IsPagesTab)
             return new LibraryResults([.. documents.Select(Card)], [], N(documents.Count), $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}",
-                documentsTab, pagesTab, issue, null, documents.Count > 0 ? null : NoResults(), menus, Scope(query));
+                documentsTab, pagesTab, issue, null, documents.Count > 0 ? null : NoResults(), menus, scopeText);
 
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
         var coverage = progress.Searchable < progress.Documents ? CardText.Coverage(progress) : null;
@@ -160,13 +164,19 @@ public static class LibraryApi
             ? new EmptyLibrary("Inside documents looks for words.", "Add a word to search the pages, or see the matching books on the Documents tab.",
                 "show-documents", "Show documents")
             : matches.Count > 0 ? null : NoResults();
-        return new LibraryResults([], matches, N(pages.MatchingPages), label, documentsTab, pagesTab, issue, coverage, emptyPages, menus, Scope(query));
+        return new LibraryResults([], matches, N(pages.MatchingPages), label, documentsTab, pagesTab, issue, coverage, emptyPages, menus, scopeText);
     }
 
-    /// <summary>Favorites as the page names it; a collection's words come with its own page.</summary>
-    static ScopeText? Scope(LibraryQuery query) => query.Favorites && query.Collection is null
-        ? new ScopeText(SavedSearchText.FavoritesName, SavedSearchText.FavoritesSubtitle, $"In {SavedSearchText.FavoritesName}")
-        : null;
+    /// <summary>Favorites or a binder as the page names it; a collection's words come with its own page.</summary>
+    static async Task<ScopeText?> ScopeAsync(UserLibrary library, LibraryQuery query, CancellationToken ct)
+    {
+        if (query.Collection is not null) return null;
+        if (query.Binder is { } binder)
+            return (await library.Get<SessionStore>().ListAsync(ct)).FirstOrDefault(p => p.Id == binder) is { } pack
+                ? new ScopeText(pack.Title, BinderText.ScopeSubtitle, $"In {pack.Title}")
+                : null;
+        return query.Favorites ? new ScopeText(SavedSearchText.FavoritesName, SavedSearchText.FavoritesSubtitle, $"In {SavedSearchText.FavoritesName}") : null;
+    }
 
     static LibraryFilter Filter(LibraryQuery query, IReadOnlyCollection<EntryId> scope)
     {
@@ -180,6 +190,7 @@ public static class LibraryApi
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
             PackFiles: query.EachFile, Picked: Picked(query.Picked),
             Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection)
+                : query.Binder is { } binder ? ScopeKeys.Session(binder)
                 : query.Favorites ? ScopeKeys.Favorites : null);
     }
 

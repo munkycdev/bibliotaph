@@ -1,0 +1,26 @@
+@* A binder's card, as the Windows app's SessionCard: the covers of its first two books, or a notebook while it has
+   none; its title, date and how many items. It shares the collection card's look, as the Windows cards do. *@
+<a class="bt-collectioncard" href="@($"binders/{Card.Id}")" title="@Card.Title" aria-label="@Card.Title" aria-description="@Card.Date">
+    <div class="bt-collectionmosaic">
+        @if (Card.Covers.Count == 0)
+        {
+            <Icon Name="NotebookTabs" Size="30" />
+        }
+        else
+        {
+            <div class="bt-collectioncovers">
+                @foreach (var book in Card.Covers)
+                {
+                    <BookCover Book="book" Marks="false" />
+                }
+            </div>
+        }
+    </div>
+    <div class="bt-collectionname">@Card.Title</div>
+    <div class="bt-small bt-collectioncount">@Card.Date</div>
+    <div class="bt-small bt-bindercount">@Card.Count</div>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public BinderCard Card { get; set; } = default!;
+}

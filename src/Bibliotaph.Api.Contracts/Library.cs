@@ -62,6 +62,9 @@ public sealed record LibraryQuery
     /// <summary>Only the books added to <see cref="Collection"/> itself: its "Only books added here".</summary>
     public bool AddedHere { get; init; }
 
+    /// <summary>The binder whose books are shown, whole or for some of their pages: Show these books in the Library.</summary>
+    public long? Binder { get; init; }
+
     public bool IsSearching => !string.IsNullOrWhiteSpace(Q);
 
     public bool IsPagesTab => IsSearching && Tab == "pages";
@@ -165,4 +168,4 @@ public static class LibraryChoices
 /// Home's rows, as the Windows app's: the books opened last and added last, a cover each, and what the library is
 /// doing, for the note shown before any book has been read.
 /// </summary>
-public sealed record HomeShelves(IReadOnlyList<BookCard> Opened, IReadOnlyList<BookCard> Added, string Status);
+public sealed record HomeShelves(IReadOnlyList<BookCard> Opened, IReadOnlyList<BookCard> Added, string Status, BinderCard? Preparing = null);

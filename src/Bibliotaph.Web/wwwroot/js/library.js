@@ -21,9 +21,10 @@
     }
   };
 })();
-// A pin dragged to a new place in the sidebar: Firefox starts a drag only once it carries some data.
+// A pin dragged to a new place in the sidebar, or a binder's item by its grip: Firefox starts a drag only once it
+// carries some data.
 document.addEventListener('dragstart', function (e) {
-  if (e.target && e.target.closest && e.target.closest('.bt-pinrow') && e.dataTransfer) {
+  if (e.target && e.target.closest && e.target.closest('.bt-pinrow, .bt-bindergrip') && e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
   }

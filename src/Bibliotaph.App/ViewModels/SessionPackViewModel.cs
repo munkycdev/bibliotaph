@@ -23,7 +23,7 @@ public sealed record SectionMove(SessionItemRow Item, long SectionId, string Lab
 public sealed partial class SessionPackViewModel : PageViewModel
 {
     /// <summary>The headings Add section suggests.</summary>
-    public static IReadOnlyList<string> SuggestedSections { get; } = ["Adventure", "Maps", "Encounters", "Rules"];
+    public static IReadOnlyList<string> SuggestedSections => BinderText.SuggestedSections;
 
     readonly SessionsService _sessions;
     readonly SessionPages _sessionPages;
@@ -79,10 +79,10 @@ public sealed partial class SessionPackViewModel : PageViewModel
     public partial SessionPackInfo? Pack { get; private set; }
 
     /// <summary>"SATURDAY, 17 OCTOBER 2026", or "BINDER" without a date.</summary>
-    public string Eyebrow => (SessionDirectory.DateLabel(Pack?.Date) ?? "Binder").ToUpperInvariant();
+    public string Eyebrow => BinderText.Eyebrow(Pack?.Date);
 
     /// <summary>"3 items · Your order, your notes".</summary>
-    public string CountLabel => $"{SessionDirectory.CountLabel(Pack?.ItemCount ?? 0)} · Your order, your notes";
+    public string CountLabel => BinderText.ListCount(Pack?.ItemCount ?? 0);
 
     /// <summary>Section headings and items, in the order they show.</summary>
     public ObservableCollection<object> Rows { get; } = [];
@@ -346,7 +346,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "{Failure}", failure);
-            Actions.Undo.Say("That didn't work. The log has the details.");
+            Actions.Undo.Say(BinderText.Failed);
             return false;
         }
         finally

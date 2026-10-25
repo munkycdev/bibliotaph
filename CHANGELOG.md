@@ -37,6 +37,9 @@
   exports them as a CSV, as in the Windows app, with Undo. See [Select mode](docs/guide/web.md#select-mode).
 - **Edit metadata on the web.** In Select mode, Edit metadata sets, adds or removes values on every ticked book at
   once, with Review changes first and Undo after, as in the Windows app. See [Select mode](docs/guide/web.md#select-mode).
+- **Binders on the web.** The Binders page groups your binders as in the Windows app, Home has Continue preparing, and a
+  binder's page arranges its items and sections, edits labels and notes, and duplicates or deletes it, with Undo.
+  Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
 
 ## 1.3 · 19 October 2026
 

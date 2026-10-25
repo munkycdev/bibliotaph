@@ -1,5 +1,102 @@
 @page "/binders"
+@inject ApiClient Api
+@inject BinderActions Actions
+@inject NavigationManager Navigation
 
-<PageHeading Title="Binders" />
-<EmptyState Title="An empty notebook."
-            Message="A binder gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one." />
+@* The Windows app's Binders page: every binder as a card, in groups, each by title: upcoming, at hand, without a date,
+   and earlier ones behind a link. A card opens the binder; New binder makes one and opens it. *@
+<PageHeading Title="Binders" Subtitle="@Subtitle">
+    <Actions>
+        <button class="bt-button primary" @onclick="CreateAsync"><Icon Name="Plus" />New binder</button>
+    </Actions>
+</PageHeading>
+<div class="bt-rule"></div>
+
+@if (_note is not null)
+{
+    <div class="bt-librarynote bt-pagenote">
+        <DoneNote Result="_note" UndoName="Undo" Dismissed="() => _note = null" Undone="LoadAsync" />
+    </div>
+}
+
+@if (_list is not { } list)
+{
+    <div class="bt-loading">Opening your binders…</div>
+}
+else if (list.Upcoming.Count + list.AtHand.Count + list.Undated.Count + list.Earlier.Count == 0)
+{
+    <EmptyState Title="@EmptyTitle" Message="@EmptyMessage" ActionText="New binder" ActionIcon="Plus" Action="CreateAsync" />
+}
+else
+{
+    @Group("UPCOMING", "Upcoming binders", list.Upcoming)
+    @Group("AT HAND", "Binders kept at hand", list.AtHand)
+    @Group("NO DATE YET", "Binders without a date", list.Undated)
+    @if (list.Earlier.Count > 0)
+    {
+        <button class="bt-link bt-inline bt-earlier" aria-expanded="@_earlier" @onclick="() => _earlier = !_earlier">
+            <Icon Name="ChevronDown" Size="13" />@(_earlier ? list.HideEarlier : list.ShowEarlier)
+        </button>
+        @if (_earlier)
+        {
+            <div class="bt-collectioncards bt-bindergroup" aria-label="Earlier binders">
+                @foreach (var card in list.Earlier) { <BinderTile @key="card.Id" Card="card" /> }
+            </div>
+        }
+    }
+}
+
+@code {
+    // The Windows page's words, as its BinderText has them; the web doesn't reference it.
+    const string Subtitle = "Your next session, gathered in one place.";
+    const string EmptyTitle = "An empty notebook.";
+    const string EmptyMessage =
+        "A binder gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one.";
+
+    BinderList? _list;
+    ActionResult? _note;
+    bool _earlier;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // After a binder was deleted from its page: the note saying so, with Undo.
+        _note = Actions.Pending;
+        Actions.Pending = null;
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            _list = await Api.BindersAsync(DateOnly.FromDateTime(DateTime.Now));
+        }
+        catch (ApiProblemException e)
+        {
+            _list = new BinderList([], [], [], [], "", "", []);
+            _note = new ActionResult(e.Message);
+        }
+    }
+
+    RenderFragment Group(string heading, string label, IReadOnlyList<BinderCard> cards) => __builder =>
+    {
+        if (cards.Count == 0) return;
+        <span class="bt-eyebrow bt-eyebrow-block bt-bindergroupheading">@heading</span>
+        <div class="bt-collectioncards" aria-label="@label">
+            @foreach (var card in cards) { <BinderTile @key="card.Id" Card="card" /> }
+        </div>
+    };
+
+    /// <summary>A new binder opens at once, ready for books and pages.</summary>
+    async Task CreateAsync()
+    {
+        try
+        {
+            if (await Actions.CreateAsync(_list?.Systems ?? []) is { } id) Navigation.NavigateTo($"binders/{id}");
+        }
+        catch (ApiProblemException e)
+        {
+            _note = new ActionResult(e.Message);
+        }
+    }
+}

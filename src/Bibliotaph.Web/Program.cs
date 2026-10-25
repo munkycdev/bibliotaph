@@ -17,6 +17,8 @@ builder.Services.AddScoped<Theme>();
 builder.Services.AddScoped<LibraryActivity>();
 builder.Services.AddScoped<CollectionDialogs>();
 builder.Services.AddScoped<CollectionActions>();
+builder.Services.AddScoped<BinderDialogs>();
+builder.Services.AddScoped<BinderActions>();
 builder.Services.AddScoped<Pins>();
 
 await builder.Build().RunAsync();

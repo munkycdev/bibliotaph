@@ -39,7 +39,7 @@
             <button class="bt-button" title="Pinned, Favorites shows in the sidebar and on Home" aria-label="@($"{PinLabel(PinKinds.Favorites, null)} Favorites")"
                     @onclick="() => Pins.ToggleAsync(PinKinds.Favorites)"><Icon Name="Pin" />@PinLabel(PinKinds.Favorites, null)</button>
         }
-        else if (_query.Collection is null && _viewId is null)
+        else if (_query.Collection is null && _query.Binder is null && _viewId is null)
         {
             <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
         }
@@ -499,7 +499,7 @@ else
     string? ScopeChip => _collection is { } open ? $"In {open.Collection.Path}" : _query.Collection is null ? _results?.Scope?.Chip : null;
 
     /// <summary>Save search, while a search, a filter or a scope is in use and no saved search is shown, as in the Windows app.</summary>
-    bool CanSaveSearch => _viewId is null && (_query.IsSearching || Chips.Count > 0 || _query.Collection is not null || IsFavorites);
+    bool CanSaveSearch => _viewId is null && (_query.IsSearching || Chips.Count > 0 || _query.Collection is not null || _query.Binder is not null || IsFavorites);
 
     /// <summary>The search, filters, order or layout differ from the saved search's: Update and Save as new show.</summary>
     bool ViewChanged => _view is { } view && _edited
@@ -518,6 +518,7 @@ else
             UnknownLevels = q.Level is not null && q.UnknownLevels,
             AddedHere = q.Collection is not null && q.AddedHere,
             Favorites = q.Favorites && q.Collection is null,
+            Binder = q.Collection is null ? q.Binder : null,
             Picked = PickedText.Canonical(q.Picked),
         };
     }
@@ -757,16 +758,17 @@ else
     Task ClearFilters() => Filter(new LibraryQuery
     {
         Q = _query.Q, Tab = _query.Tab, Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites,
+        Binder = _query.Binder,
     });
 
-    Task ClearScope() => Filter(_query with { Collection = null, AddedHere = false, Favorites = false });
+    Task ClearScope() => Filter(_query with { Collection = null, AddedHere = false, Favorites = false, Binder = null });
 
     Task EmptyAction(string action) => action switch
     {
         "clear-filters" => ClearFilters(),
         "clear-scope" => ClearScope(),
         "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null }
-            : new LibraryQuery { Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites }),
+            : new LibraryQuery { Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites, Binder = _query.Binder }),
         "show-documents" => ShowTab(null),
         _ => Task.CompletedTask,
     };

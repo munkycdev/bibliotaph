@@ -470,6 +470,90 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Binders_are_listed_opened_arranged_and_deleted_with_undo_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/harbor.png", Png());
+        _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+
+        using var untitled = await client.PostAsJsonAsync("/api/binders", new BinderEdit("  ", null, false, null), ct);
+        var created = await SendAsync<BinderCreated>(HttpMethod.Post, "/api/binders", new BinderEdit("Harbor night", new DateOnly(2026, 10, 31), false, null));
+        var atHand = await SendAsync<BinderCreated>(HttpMethod.Post, "/api/binders", new BinderEdit("Rules", null, true, null));
+        long first, second;
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var added = await lease.Library.Get<SessionsService>().AddAsync(created.Id,
+                [.. books.Select(b => new Bibliotaph.Catalog.NewSessionItem(new Bibliotaph.Core.EntryId(b.EntryId)))], ct: ct);
+            (first, second) = (added[0], added[1]);
+        }
+        var list = await client.GetFromJsonAsync<BinderList>("/api/binders?today=2026-10-25", ct);
+        var later = await client.GetFromJsonAsync<BinderList>("/api/binders?today=2026-11-01", ct);
+        var home = await client.GetFromJsonAsync<HomeShelves>("/api/home", ct);
+        await SendAsync<ActionResult>(HttpMethod.Post, $"/api/binders/{created.Id}/sections", new BinderName("Maps"));
+        var withSection = await SendAsync<BinderPage>(HttpMethod.Post, $"/api/binders/{created.Id}/open", null);
+        var maps = withSection.Rows.Single(r => r.Section is not null).Section!;
+        await SendAsync<bool>(HttpMethod.Post, $"/api/binders/items/{first}/move", new BinderItemMove(SectionId: maps.Id));
+        await SendAsync<bool>(HttpMethod.Post, $"/api/binders/items/{second}/move", new BinderItemMove(SectionId: maps.Id, First: true));
+        await SendAsync<bool>(HttpMethod.Post, $"/api/binders/items/{first}/move", new BinderItemMove(By: -1));
+        var afterUp = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{created.Id}", ct);
+        await SendAsync<bool>(HttpMethod.Post, $"/api/binders/items/{second}/move", new BinderItemMove(Onto: first));
+        using (await client.PutAsJsonAsync($"/api/binders/items/{first}", new BinderItemEdit("Harbor map", "Read aloud"), ct)) { }
+        using (await client.PutAsJsonAsync($"/api/binders/{created.Id}/notes", new BinderNotes("Bring dice"), ct)) { }
+        var arranged = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{created.Id}", ct);
+        var removed = await SendAsync<ActionResult>(HttpMethod.Delete, $"/api/binders/items/{second}", null);
+        var afterRemove = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{created.Id}", ct);
+        await SendAsync<ActionResult>(HttpMethod.Post, $"/api/library/held/{removed.Undo}", null);
+        var scoped = await client.GetFromJsonAsync<LibraryResults>($"/api/library?binder={created.Id}", ct);
+        var copy = await SendAsync<BinderCreated>(HttpMethod.Post, $"/api/binders/{created.Id}/duplicate", null);
+        var copied = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{copy.Id}", ct);
+        var deleted = await SendAsync<ActionResult>(HttpMethod.Delete, $"/api/binders/{created.Id}", null);
+        using var gone = await client.GetAsync($"/api/binders/{created.Id}", ct);
+        await SendAsync<ActionResult>(HttpMethod.Post, $"/api/library/held/{deleted.Undo}", null);
+        var restoredCard = (await client.GetFromJsonAsync<BinderList>("/api/binders?today=2026-10-25", ct))!.Upcoming.Single(c => c.Title == "Harbor night");
+        var restored = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{restoredCard.Id}", ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, untitled.StatusCode);
+        Assert.Equal(["Harbor night"], list!.Upcoming.Select(c => c.Title));
+        Assert.Equal(["Rules"], list.AtHand.Select(c => c.Title));
+        Assert.Empty(list.Earlier);
+        Assert.Equal(("2 items", "At hand · any system", 2), (list.Upcoming[0].Count, list.AtHand[0].Date, list.Upcoming[0].Covers.Count));
+        Assert.Equal(["Harbor night"], later!.Earlier.Select(c => c.Title));
+        Assert.Equal("Show earlier binders (1)", later.ShowEarlier);
+        Assert.Equal("Any game system", list.Systems[0].Label);
+        Assert.Equal("Harbor night", home!.Preparing?.Title);
+        Assert.Equal(["Adventure", "Maps", "Encounters", "Rules"], withSection.SuggestedSections);
+        Assert.Equal("SATURDAY, 31 OCTOBER 2026", withSection.Eyebrow);
+        // Move to section goes to the end, a drop on a heading to the start, and a drop on an item takes its place.
+        Assert.Equal([maps.Id, second, first], arranged!.Rows.Select(r => r.Item?.Id ?? r.Section!.Id));
+        Assert.Equal([first, second], afterUp!.Rows.Select(r => r.Item?.Id).OfType<long>());
+        var harbor = arranged.Rows[2].Item!;
+        Assert.Equal(("02", "Harbor map", "Read aloud", "Bring dice"), (harbor.Number, harbor.Heading, harbor.Note, arranged.Notes));
+        Assert.Equal(["Move to Before the first section"], harbor.Moves.Select(m => m.Label));
+        Assert.StartsWith("Removed ", removed.Message, StringComparison.Ordinal);
+        Assert.Equal("1 item · Your order, your notes", afterRemove!.Count);
+        Assert.Equal(("Harbor night", "In Harbor night", 2), (scoped!.Scope?.Heading, scoped.Scope?.Chip, scoped.Books.Count));
+        Assert.Equal(("Harbor night (copy)", "BINDER", 3), (copied!.Title, copied.Eyebrow, copied.Rows.Count));
+        Assert.Equal("Deleted Harbor night. Its books are still in your library.", deleted.Message);
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+        Assert.Equal(3, restored!.Rows.Count);
+
+        async Task<T> SendAsync<T>(HttpMethod method, string url, object? body)
+        {
+            using var request = new HttpRequestMessage(method, url) { Content = body is null ? null : JsonContent.Create(body) };
+            using var response = await client.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

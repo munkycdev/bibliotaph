@@ -106,7 +106,7 @@ public static class PinsApi
             {
                 PinKind.Favorites => new(PinKinds.Favorites, null, SavedSearchText.FavoritesName, "library?favorites=true", "Heart", false, SavedSearchText.FavoritesName),
                 PinKind.Collection when collections.TryGetValue(id, out var c) => new(PinKinds.Collection, id, c.Name, $"library?collection={Id(id)}", "Folders", false, c.Name),
-                PinKind.Binder when binders.TryGetValue(id, out var b) => new(PinKinds.Binder, id, b.Title, "binders", "NotebookTabs", false, b.Title),
+                PinKind.Binder when binders.TryGetValue(id, out var b) => new(PinKinds.Binder, id, b.Title, $"binders/{Id(id)}", "NotebookTabs", false, b.Title),
                 PinKind.SavedSearch when views.TryGetValue(id, out var v) => new(PinKinds.Search, id, v.Name, $"library?view={Id(id)}", "SlidersHorizontal", false, v.Name),
                 PinKind.Entry when books.TryGetValue(new EntryId(id), out var e) => Book(e, away.GetValueOrDefault(e.EntryId)),
                 _ => null,

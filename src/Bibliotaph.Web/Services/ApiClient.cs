@@ -237,6 +237,51 @@ public sealed class ApiClient(HttpClient http)
     public Task<BulkApplyResult> BulkApplyAsync(BulkEditRequest request, CancellationToken ct = default) =>
         SendAsync<BulkApplyResult>(HttpMethod.Post, "api/library/selection/edit/apply", request, ct);
 
+    static string Binder(long id) => $"api/binders/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    /// <summary>The Binders page's groups, upcoming and earlier as of <paramref name="today"/> where the user is.</summary>
+    public Task<BinderList> BindersAsync(DateOnly today, CancellationToken ct = default) =>
+        SendAsync<BinderList>(HttpMethod.Get, $"api/binders?today={today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
+
+    public Task<BinderCreated> CreateBinderAsync(BinderEdit edit, CancellationToken ct = default) =>
+        SendAsync<BinderCreated>(HttpMethod.Post, "api/binders", edit, ct);
+
+    /// <summary>Opening a binder's page makes it the current one, which Add to binder adds to.</summary>
+    public Task<BinderPage> OpenBinderAsync(long id, CancellationToken ct = default) => SendAsync<BinderPage>(HttpMethod.Post, $"{Binder(id)}/open", null, ct);
+
+    public Task<BinderPage> BinderAsync(long id, CancellationToken ct = default) => SendAsync<BinderPage>(HttpMethod.Get, Binder(id), null, ct);
+
+    public Task<ActionResult> EditBinderAsync(long id, BinderEdit edit, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Put, Binder(id), edit, ct);
+
+    public Task SetBinderNotesAsync(long id, string notes, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Put, $"{Binder(id)}/notes", new BinderNotes(notes), ct);
+
+    public Task<BinderCreated> DuplicateBinderAsync(long id, CancellationToken ct = default) =>
+        SendAsync<BinderCreated>(HttpMethod.Post, $"{Binder(id)}/duplicate", null, ct);
+
+    public Task<ActionResult> DeleteBinderAsync(long id, CancellationToken ct = default) => SendAsync<ActionResult>(HttpMethod.Delete, Binder(id), null, ct);
+
+    public Task<ActionResult> AddSectionAsync(long id, string name, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"{Binder(id)}/sections", new BinderName(name), ct);
+
+    public Task<ActionResult> RenameSectionAsync(long id, long section, string name, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Put, $"{Binder(id)}/sections/{section.ToString(System.Globalization.CultureInfo.InvariantCulture)}", new BinderName(name), ct);
+
+    public Task<ActionResult> DeleteSectionAsync(long id, long section, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Delete, $"{Binder(id)}/sections/{section.ToString(System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
+
+    static string BinderItem(long id) => $"api/binders/items/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    public Task SetBinderItemAsync(long item, string label, string note, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Put, BinderItem(item), new BinderItemEdit(label, note), ct);
+
+    public Task<bool> MoveBinderItemAsync(long item, BinderItemMove move, CancellationToken ct = default) =>
+        SendAsync<bool>(HttpMethod.Post, $"{BinderItem(item)}/move", move, ct);
+
+    public Task<ActionResult> RemoveBinderItemAsync(long item, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Delete, BinderItem(item), null, ct);
+
     static string Collection(long id) => $"api/collections/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
     public Task<CollectionList> CollectionsAsync(CancellationToken ct = default) => SendAsync<CollectionList>(HttpMethod.Get, "api/collections", null, ct);

@@ -604,3 +604,40 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-bulkfoot{display:flex;align-items:center;gap:16px;margin-top:16px}
 .bt-bulkfoot .bt-problem{flex:1;margin-top:0}
 .bt-bulkfoot .bt-boxactions{margin-top:0;margin-left:auto}
+.bt-bindercount{margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-bindergroupheading{margin:28px 0 14px}
+.bt-earlier{margin-top:20px}
+.bt-bindergroup{margin-top:16px}
+.bt-headingactions{display:flex;gap:2px;align-self:flex-start}
+.bt-bindercountline{display:inline-flex;align-items:center;gap:8px}
+.bt-toolbarspace{flex:1}
+.bt-binderpage{display:grid;grid-template-columns:minmax(0,1fr) minmax(200px,280px);gap:36px;margin-top:24px}
+.bt-binderline{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;font-size:13px;color:var(--bt-text)}
+.bt-binderline strong{font-weight:600}
+.bt-bindernotes .bt-binderline{margin-bottom:10px}
+.bt-bindernotes .bt-notebox{min-height:260px}
+.bt-bindersection{display:flex;align-items:center;gap:2px;padding:18px 0 6px;border-bottom:1px solid var(--bt-line)}
+.bt-bindersection .bt-eyebrow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.bt-binderitem{position:relative;display:grid;grid-template-columns:22px 30px 44px minmax(0,1fr) auto;align-items:start;padding:14px 0;border-bottom:1px solid var(--bt-line)}
+.bt-binderitem:focus-visible{outline:2px solid var(--bt-accent);outline-offset:-2px}
+.bt-binderitem.drop,.bt-bindersection.drop{box-shadow:inset 0 2px 0 var(--bt-accent)}
+.bt-binderitem.dimmed .bt-binderthumb,.bt-binderitem.dimmed .bt-binderlabel,.bt-binderitem.dimmed .bt-binderwhere{opacity:.55}
+.bt-bindergrip{cursor:grab;color:var(--bt-muted);padding-top:4px;user-select:none}
+.bt-bindernumber{font-size:11px;font-weight:500;color:var(--bt-muted);padding-top:5px}
+.bt-binderthumb{width:36px}
+.bt-binderwhat{min-width:0;padding-left:4px}
+.bt-inlinebox{width:100%;padding:3px 5px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--bt-text);font:inherit}
+.bt-inlinebox::placeholder{color:var(--bt-muted)}
+.bt-inlinebox:hover{border-color:var(--bt-line)}
+.bt-inlinebox:focus{border-color:var(--bt-accent);background:var(--bt-panel);outline:none}
+.bt-binderlabel{font-size:13px;font-weight:600}
+.bt-bindernote{font-size:11px;margin-top:2px}
+.bt-binderwhere{margin:2px 0 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-binderreason{display:flex;gap:6px;align-items:flex-start;margin:6px 0 0 6px;font-size:11px;color:var(--bt-text)}
+.bt-binderreason svg{flex:none;margin-top:1px;color:var(--bt-muted)}
+.bt-binderreason.changed svg{color:var(--bt-accent)}
+.bt-binderactions{display:flex;align-items:flex-start}
+@media(max-width:850px){.bt-binderpage{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:620px){.bt-binderitem{grid-template-columns:18px 24px 36px minmax(0,1fr)}
+.bt-binderactions{grid-column:4;justify-content:flex-end}
+.bt-toolbarspace{display:none}}
