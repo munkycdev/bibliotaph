@@ -9,30 +9,30 @@
     "text-40.pdf": {
       "hashWasm": {
         "bytes": 87362,
-        "ms": 43,
+        "ms": 40,
         "sha256": "f33f4132515463cd34a8010f95cbd0a5bb929f5b6265a5e76a0047047d9762cb"
       },
       "hashSubtle": {
         "bytes": 87362,
-        "fetchMs": 34,
-        "ms": 35,
+        "fetchMs": 35,
+        "ms": 36,
         "sha256": "f33f4132515463cd34a8010f95cbd0a5bb929f5b6265a5e76a0047047d9762cb"
       },
       "direct": {
-        "openMs": 132,
-        "firstRenderMs": 59,
+        "openMs": 44,
+        "firstRenderMs": 64,
         "pages": 40,
         "chars": 99104,
         "firstPageMs": 9,
-        "allPagesMs": 111,
+        "allPagesMs": 104,
         "network": {
           "requests": 1,
           "bytes": 87362
         }
       },
       "cachedCold": {
-        "openMs": 171,
-        "firstRenderMs": 41,
+        "openMs": 88,
+        "firstRenderMs": 29,
         "afterFirstPage": {
           "fromCache": 0,
           "fromNetwork": 1,
@@ -43,8 +43,8 @@
         "backgroundMs": 0,
         "pages": 40,
         "chars": 99104,
-        "firstPageMs": 12,
-        "allPagesMs": 124,
+        "firstPageMs": 4,
+        "allPagesMs": 89,
         "counters": {
           "fromCache": 0,
           "fromNetwork": 1,
@@ -58,8 +58,8 @@
         }
       },
       "cachedOffline": {
-        "openMs": 84,
-        "firstRenderMs": 52,
+        "openMs": 95,
+        "firstRenderMs": 45,
         "afterFirstPage": {
           "fromCache": 1,
           "fromNetwork": 0,
@@ -70,8 +70,8 @@
         "backgroundMs": null,
         "pages": 40,
         "chars": 99104,
-        "firstPageMs": 12,
-        "allPagesMs": 134,
+        "firstPageMs": 13,
+        "allPagesMs": 104,
         "counters": {
           "fromCache": 1,
           "fromNetwork": 0,
@@ -83,35 +83,58 @@
           "requests": 0,
           "bytes": 0
         }
+      },
+      "cachedOfflineWarm": {
+        "openMs": 8,
+        "firstRenderMs": 15,
+        "afterFirstPage": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 1,
+          "chunkCount": 1
+        },
+        "backgroundMs": null,
+        "pages": 40,
+        "chars": 99104,
+        "firstPageMs": 4,
+        "allPagesMs": 74,
+        "counters": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 87376
       }
     },
     "text-300.pdf": {
       "hashWasm": {
         "bytes": 488367,
-        "ms": 40,
+        "ms": 38,
         "sha256": "f7a3d1e46ca4c649b14b5a0e6b8ee9236560b4857fc366964ce8dac0732d0e9e"
       },
       "hashSubtle": {
         "bytes": 488367,
-        "fetchMs": 36,
-        "ms": 37,
+        "fetchMs": 38,
+        "ms": 39,
         "sha256": "f7a3d1e46ca4c649b14b5a0e6b8ee9236560b4857fc366964ce8dac0732d0e9e"
       },
       "direct": {
-        "openMs": 145,
-        "firstRenderMs": 42,
+        "openMs": 44,
+        "firstRenderMs": 19,
         "pages": 300,
         "chars": 743580,
-        "firstPageMs": 10,
-        "allPagesMs": 802,
+        "firstPageMs": 8,
+        "allPagesMs": 555,
         "network": {
           "requests": 1,
           "bytes": 488367
         }
       },
       "cachedCold": {
-        "openMs": 270,
-        "firstRenderMs": 53,
+        "openMs": 98,
+        "firstRenderMs": 20,
         "afterFirstPage": {
           "fromCache": 0,
           "fromNetwork": 1,
@@ -122,8 +145,8 @@
         "backgroundMs": 0,
         "pages": 300,
         "chars": 743580,
-        "firstPageMs": 11,
-        "allPagesMs": 750,
+        "firstPageMs": 4,
+        "allPagesMs": 546,
         "counters": {
           "fromCache": 0,
           "fromNetwork": 1,
@@ -137,8 +160,8 @@
         }
       },
       "cachedOffline": {
-        "openMs": 138,
-        "firstRenderMs": 125,
+        "openMs": 108,
+        "firstRenderMs": 48,
         "afterFirstPage": {
           "fromCache": 1,
           "fromNetwork": 0,
@@ -149,8 +172,8 @@
         "backgroundMs": null,
         "pages": 300,
         "chars": 743580,
-        "firstPageMs": 29,
-        "allPagesMs": 708,
+        "firstPageMs": 8,
+        "allPagesMs": 684,
         "counters": {
           "fromCache": 1,
           "fromNetwork": 0,
@@ -162,47 +185,70 @@
           "requests": 0,
           "bytes": 0
         }
+      },
+      "cachedOfflineWarm": {
+        "openMs": 29,
+        "firstRenderMs": 31,
+        "afterFirstPage": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 1,
+          "chunkCount": 1
+        },
+        "backgroundMs": null,
+        "pages": 300,
+        "chars": 743580,
+        "firstPageMs": 4,
+        "allPagesMs": 568,
+        "counters": {
+          "fromCache": 1,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 488382
       }
     },
     "illustrated-120.pdf": {
       "hashWasm": {
         "bytes": 46910431,
-        "ms": 528,
+        "ms": 292,
         "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
       },
       "hashSubtle": {
         "bytes": 46910431,
-        "fetchMs": 271,
-        "ms": 338,
+        "fetchMs": 133,
+        "ms": 202,
         "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
       },
       "direct": {
-        "openMs": 1656,
-        "firstRenderMs": 55,
+        "openMs": 130,
+        "firstRenderMs": 35,
         "pages": 120,
         "chars": 297385,
-        "firstPageMs": 11,
-        "allPagesMs": 240,
+        "firstPageMs": 8,
+        "allPagesMs": 1577,
         "network": {
           "requests": 46,
           "bytes": 93820862
         }
       },
       "cachedCold": {
-        "openMs": 1649,
-        "firstRenderMs": 70,
+        "openMs": 144,
+        "firstRenderMs": 20,
         "afterFirstPage": {
           "fromCache": 0,
-          "fromNetwork": 45,
-          "networkRequests": 45,
-          "chunksHeld": 45,
+          "fromNetwork": 2,
+          "networkRequests": 6,
+          "chunksHeld": 2,
           "chunkCount": 45
         },
-        "backgroundMs": 0,
+        "backgroundMs": 1394,
         "pages": 120,
         "chars": 297385,
-        "firstPageMs": 9,
-        "allPagesMs": 329,
+        "firstPageMs": 5,
+        "allPagesMs": 369,
         "counters": {
           "fromCache": 0,
           "fromNetwork": 45,
@@ -216,8 +262,8 @@
         }
       },
       "cachedOffline": {
-        "openMs": 337,
-        "firstRenderMs": 66,
+        "openMs": 128,
+        "firstRenderMs": 78,
         "afterFirstPage": {
           "fromCache": 45,
           "fromNetwork": 0,
@@ -228,8 +274,8 @@
         "backgroundMs": null,
         "pages": 120,
         "chars": 297385,
-        "firstPageMs": 29,
-        "allPagesMs": 320,
+        "firstPageMs": 40,
+        "allPagesMs": 547,
         "counters": {
           "fromCache": 45,
           "fromNetwork": 0,
@@ -241,6 +287,29 @@
           "requests": 0,
           "bytes": 0
         }
+      },
+      "cachedOfflineWarm": {
+        "openMs": 23,
+        "firstRenderMs": 54,
+        "afterFirstPage": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": null,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 27,
+        "allPagesMs": 347,
+        "counters": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448
       }
     }
   }

@@ -99,20 +99,27 @@ them.
 `bench/cache.js` stores a book in 1 MB OPFS chunks and serves PDF.js range reads from them; whatever was read once
 never downloads again, and the rest completes in the background (paused whenever the reader needs something).
 
-The 47 MB illustrated book at 50 Mbps:
+The 47 MB illustrated book at 50 Mbps, with one PDF.js worker kept for every book as the app would:
 
 | | Open + first page | Downloaded before page 1 |
 | --- | --- | --- |
-| PDF.js reading the server directly | 8.1 s | the whole file |
-| Cache, stock PDF.js | 8.2 s | the whole file |
-| Cache, patched PDF.js | 1.0 s | 2 MB |
-| Cache, reopened with the server unreachable | 0.5 s | nothing |
+| PDF.js reading the server directly | 7.8 s | the whole file |
+| Cache, stock PDF.js | 7.9 s | the whole file |
+| Cache, patched PDF.js | 0.5 s | 2 MB |
+| Cache, server unreachable, first book after a page load | 0.37 s | nothing |
+| Cache, server unreachable, any later book | 65 ms | nothing |
+
+The first book after a page load also pays for starting PDF.js's worker, about 0.3 s.
+
+On Dave's PC, 12 of his real PDFs (1 to 46 MB, 16 to 265 pages) at 50 Mbps, in an earlier version of the bench
+that started a new PDF.js worker for every book: page 1 from cold in 0.9 to 2.7 s after 2 to 10 MB, and all text
+in 0.1 to 3.7 s.
 
 Stock PDF.js checks the last page on open, and for a flat page tree it fetches every page object at once. When
 page objects sit beside their images, as in this test file, that is the whole book. `tools/patch-pdfjs.mjs` skips
 the check outside recovery mode; with it the cache asks for the newest request first, so the page on screen jumps
 ahead of PDF.js's prefetch. Many real PDFs have balanced page trees and will not hit this; the patch is cheap
-insurance either way and needs testing against real books.
+insurance either way.
 
 `navigator.storage.persist()` is refused in a headless, never-visited profile. A real installed PWA usually gets
 it; the app has to cope when it does not, because unpersisted storage can be evicted.

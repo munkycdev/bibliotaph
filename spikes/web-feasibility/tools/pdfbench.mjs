@@ -44,11 +44,13 @@ for (const book of books) {
   // Nothing may reach the book server now: the reopen must come entirely from OPFS.
   await page.route('**/books/**', route => route.abort());
   r.cachedOffline = await run('cached', key, url);
+  // The first open after a reload also starts PDF.js's worker; the second shows what the cache itself costs.
+  r.cachedOfflineWarm = await run('cached', key, url);
   r.cachedOffline.network = await counters(true);
   await page.unroute('**/books/**');
   const mb = (r.hashWasm.bytes / 1e6).toFixed(1), first = x => `${x.openMs + x.firstRenderMs} ms`;
   console.error(`${book}: ${mb} MB, ${r.direct.pages} pages | page 1: direct ${first(r.direct)}, cache cold ${first(r.cachedCold)}`
-    + ` after ${r.cachedCold.afterFirstPage.fromNetwork} MB, offline ${first(r.cachedOffline)} | all text ${r.cachedOffline.allPagesMs} ms`
+    + ` after ${r.cachedCold.afterFirstPage.fromNetwork} MB, offline ${first(r.cachedOffline)} (again ${first(r.cachedOfflineWarm)}) | all text ${r.cachedOffline.allPagesMs} ms`
     + ` | sha-256 ${r.hashWasm.ms} ms`);
 }
 await browser.close();

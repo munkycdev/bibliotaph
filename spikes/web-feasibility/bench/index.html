@@ -13,6 +13,8 @@
 
     pdfjs.GlobalWorkerOptions.workerSrc = new URLSearchParams(location.search).has('patched')
       ? '/pdf.worker.patched.mjs' : '/node_modules/pdfjs-dist/build/pdf.worker.min.mjs';
+    // One worker for every book, as the app would keep it: starting PDF.js's worker is part of the first open only.
+    const worker = new pdfjs.PDFWorker();
     const now = () => performance.now();
     const ms = t => Math.round(now() - t);
 
@@ -42,7 +44,7 @@
     // PDF.js reading the file straight from the server with its own range requests: the no-cache baseline.
     async function direct(url) {
       const t = now();
-      const task = pdfjs.getDocument({ url, rangeChunkSize: ChunkSize, disableAutoFetch: true, disableStream: true });
+      const task = pdfjs.getDocument({ worker, url, rangeChunkSize: ChunkSize, disableAutoFetch: true, disableStream: true });
       const doc = await task.promise;
       const openMs = ms(t);
       const renderMs = await render(doc);
@@ -58,7 +60,7 @@
       const transport = new pdfjs.PDFDataRangeTransport(cache.size, null);
       transport.requestDataRange = (begin, end) =>
         cache.read(begin, end).then(bytes => transport.onDataRange(begin, bytes), e => console.error(e));
-      const task = pdfjs.getDocument({ range: transport, rangeChunkSize: ChunkSize, disableAutoFetch: true });
+      const task = pdfjs.getDocument({ worker, range: transport, rangeChunkSize: ChunkSize, disableAutoFetch: true });
       const doc = await task.promise;
       const openMs = ms(t);
       const firstRenderMs = await render(doc);

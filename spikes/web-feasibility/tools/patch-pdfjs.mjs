@@ -4,10 +4,11 @@
 // shows. The check only guards against a wrong /Count, so it still runs when PDF.js is recovering a damaged file.
 // Usage: node tools/patch-pdfjs.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
-const source = new URL('../bench/node_modules/pdfjs-dist/build/pdf.worker.mjs', import.meta.url);
+// The minified build, as the app would ship it: the unminified one takes noticeably longer to start.
+const source = new URL('../bench/node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url);
 const target = new URL('../bench/pdf.worker.patched.mjs', import.meta.url);
-const before = 'await this.ensureDoc("checkLastPage", [recoveryMode]);';
+const check = /await this\.ensureDoc\("checkLastPage",\[(\w+)\]\)/g;
 const text = readFileSync(source, 'utf8');
-if (text.split(before).length !== 2) throw new Error('PDF.js changed: the last-page check was not found exactly once');
-writeFileSync(target, text.replace(before, `if (recoveryMode) ${before}`));
+if ((text.match(check) ?? []).length !== 1) throw new Error('PDF.js changed: the last-page check was not found exactly once');
+writeFileSync(target, text.replace(check, (call, recoveryMode) => `${recoveryMode}&&${call}`));
 console.log('wrote', target.pathname);

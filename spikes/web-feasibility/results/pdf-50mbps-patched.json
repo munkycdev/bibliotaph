@@ -9,30 +9,30 @@
     "illustrated-120.pdf": {
       "hashWasm": {
         "bytes": 46910431,
-        "ms": 7903,
+        "ms": 8070,
         "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
       },
       "hashSubtle": {
         "bytes": 46910431,
-        "fetchMs": 7904,
-        "ms": 7983,
+        "fetchMs": 7927,
+        "ms": 7991,
         "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
       },
       "direct": {
-        "openMs": 942,
-        "firstRenderMs": 76,
+        "openMs": 440,
+        "firstRenderMs": 67,
         "pages": 120,
         "chars": 297385,
         "firstPageMs": 13,
-        "allPagesMs": 7457,
+        "allPagesMs": 7467,
         "network": {
           "requests": 46,
           "bytes": 93820862
         }
       },
       "cachedCold": {
-        "openMs": 973,
-        "firstRenderMs": 49,
+        "openMs": 465,
+        "firstRenderMs": 32,
         "afterFirstPage": {
           "fromCache": 0,
           "fromNetwork": 2,
@@ -40,11 +40,11 @@
           "chunksHeld": 2,
           "chunkCount": 45
         },
-        "backgroundMs": 7353,
+        "backgroundMs": 7379,
         "pages": 120,
         "chars": 297385,
-        "firstPageMs": 13,
-        "allPagesMs": 369,
+        "firstPageMs": 4,
+        "allPagesMs": 280,
         "counters": {
           "fromCache": 0,
           "fromNetwork": 45,
@@ -58,8 +58,8 @@
         }
       },
       "cachedOffline": {
-        "openMs": 510,
-        "firstRenderMs": 101,
+        "openMs": 307,
+        "firstRenderMs": 64,
         "afterFirstPage": {
           "fromCache": 45,
           "fromNetwork": 0,
@@ -70,8 +70,8 @@
         "backgroundMs": null,
         "pages": 120,
         "chars": 297385,
-        "firstPageMs": 24,
-        "allPagesMs": 353,
+        "firstPageMs": 33,
+        "allPagesMs": 394,
         "counters": {
           "fromCache": 45,
           "fromNetwork": 0,
@@ -83,6 +83,29 @@
           "requests": 0,
           "bytes": 0
         }
+      },
+      "cachedOfflineWarm": {
+        "openMs": 27,
+        "firstRenderMs": 38,
+        "afterFirstPage": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": null,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 26,
+        "allPagesMs": 418,
+        "counters": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448
       }
     }
   }
