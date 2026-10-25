@@ -67,10 +67,10 @@ public sealed class User
 /// <summary>One way into an account. A user can link several: a Microsoft and a Google sign-in, say.</summary>
 public sealed class Login
 {
-    /// <summary>The provider's key, such as microsoft or google.</summary>
+    /// <summary>The provider's key: auth0, or developer on a developer's machine.</summary>
     public required string Provider { get; set; }
 
-    /// <summary>The provider's stable ID for the person: oid@tid for Microsoft, sub for Google.</summary>
+    /// <summary>The provider's stable ID for the person: Auth0's sub, which names the connection too ("google-oauth2|1234").</summary>
     public required string Subject { get; set; }
 
     public required string UserId { get; set; }

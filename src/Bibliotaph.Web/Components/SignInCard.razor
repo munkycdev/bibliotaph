@@ -15,7 +15,7 @@
             }
             else
             {
-                <text>Choose how you'll sign in. You'll use the same account each time; you can link another later in Settings.</text>
+                <text>Choose how you'll sign in: Google, Microsoft or your email address. Use the same one each time; you can link another later in Settings.</text>
             }
         </p>
         @if (_providers is null)
@@ -30,7 +30,7 @@
         {
             @foreach (var provider in _providers)
             {
-                <ServerLink Class="bt-button" Href="@SignInUrl(provider)">Continue with @provider.Name</ServerLink>
+                <ServerLink Class="bt-button" Href="@SignInUrl(provider)">@provider.Label</ServerLink>
             }
         }
         @if (Problem is not null)

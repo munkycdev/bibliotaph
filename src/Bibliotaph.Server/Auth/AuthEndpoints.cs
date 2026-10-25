@@ -1,21 +1,24 @@
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
 using Microsoft.AspNetCore.Authentication;
-using ProviderInfo = Bibliotaph.Api.Contracts.SignInProvider;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.Options;
 
 namespace Bibliotaph.Server.Auth;
 
 /// <summary>
-/// /auth: the browser navigates here (these are pages, not API calls). Sign-in goes to the provider and back through
+/// /auth: the browser navigates here (these are pages, not API calls). Sign-in goes to Auth0 and back through
 /// /auth/complete, which decides which account it is and sets the session cookie.
 /// </summary>
 public static class AuthEndpoints
 {
-    public static void MapAuth(this IEndpointRouteBuilder app, IReadOnlyList<SignInProvider> providers, bool developerSignIn)
+    public static void MapAuth(this IEndpointRouteBuilder app, Auth0Client? auth0, bool developerSignIn)
     {
         var auth = app.MapGroup("/auth");
 
         auth.MapGet("/providers", () =>
-            providers.Select(p => new ProviderInfo(p.Id, p.Name)).Concat(developerSignIn ? [new ProviderInfo("developer", "a local developer account")] : []));
+            (auth0 is null ? Array.Empty<SignInProvider>() : [new SignInProvider(Auth0SignIn.Id, "Continue")])
+                .Concat(developerSignIn ? [new SignInProvider("developer", "Continue as a local developer")] : []));
 
         // Development only, and only when Auth:DeveloperSignIn is true: signs in as one local admin with no provider at
         // all, so the client can be worked on before any app registration exists.
@@ -33,32 +36,32 @@ public static class AuthEndpoints
                 return Results.LocalRedirect("/");
             });
 
-        auth.MapGet("/signin/{provider}", (string provider, string? invite, string? returnUrl) =>
-        {
-            if (providers.All(p => p.Id != provider)) return Results.NotFound();
-            var properties = new AuthenticationProperties { RedirectUri = "/auth/complete" };
-            properties.Items["provider"] = provider;
-            if (!string.IsNullOrEmpty(invite)) properties.Items["invite"] = invite;
-            properties.Items["returnUrl"] = LocalOrHome(returnUrl);
-            return Results.Challenge(properties, [provider]);
-        });
+        if (auth0 is not null)
+            auth.MapGet("/signin/" + Auth0SignIn.Id, async (string? invite, string? returnUrl, HttpContext context) =>
+            {
+                var properties = new OpenIdConnectChallengeProperties { RedirectUri = "/auth/complete" };
+                // Someone signed in is linking another sign-in; without this, Auth0 would hand back the one they're using.
+                if ((await context.AuthenticateAsync(AuthSetup.SessionScheme)).Succeeded) properties.Prompt = "login";
+                if (!string.IsNullOrEmpty(invite)) properties.Items["invite"] = invite;
+                properties.Items["returnUrl"] = LocalOrHome(returnUrl);
+                return Results.Challenge(properties, [Auth0SignIn.Id]);
+            });
 
         auth.MapGet("/complete", async (HttpContext context, AccountService accounts) =>
         {
             var external = await context.AuthenticateAsync(AuthSetup.ExternalScheme);
             await context.SignOutAsync(AuthSetup.ExternalScheme);
             var items = external.Properties?.Items;
-            var provider = providers.FirstOrDefault(p => items is not null && items.TryGetValue("provider", out var id) && id == p.Id);
-            if (!external.Succeeded || provider is null || provider.Identify(external.Principal!) is not { } identity)
+            if (!external.Succeeded || items is null || Auth0SignIn.Identify(external.Principal!) is not { } identity)
                 return Results.LocalRedirect("/signin?problem=failed");
 
             var current = await context.AuthenticateAsync(AuthSetup.SessionScheme);
-            var outcome = await accounts.SignInAsync(identity, Item(items!, "invite"), current.Principal?.UserId(), context.RequestAborted);
+            var outcome = await accounts.SignInAsync(identity, Item(items, "invite"), current.Principal?.UserId(), context.RequestAborted);
             switch (outcome.Result)
             {
                 case SignInResult.SignedIn or SignInResult.Created or SignInResult.Linked:
                     await context.SignInAsync(AuthSetup.SessionScheme, AuthSetup.SessionPrincipal(outcome.User!));
-                    return Results.LocalRedirect(LocalOrHome(Item(items!, "returnUrl")));
+                    return Results.LocalRedirect(LocalOrHome(Item(items, "returnUrl")));
                 case SignInResult.NeedsInvite:
                     return Results.LocalRedirect("/invite-only");
                 case SignInResult.InviteNotValid:
@@ -68,12 +71,18 @@ public static class AuthEndpoints
             }
         });
 
-        auth.MapPost("/signout", async (HttpContext context) =>
+        // The page goes on to Auth0's logout, which ends its session and comes back here.
+        auth.MapPost("/signout", async (HttpContext context, IOptions<ServerOptions> options) =>
         {
             await context.SignOutAsync(AuthSetup.SessionScheme);
-            return Results.NoContent();
+            var home = PublicOrigin(options.Value, context.Request) + "/";
+            return new SignedOut(auth0 is null ? "/" : Auth0SignIn.LogoutUrl(auth0, home));
         });
     }
+
+    /// <summary>This site's address as people reach it, which behind the container's ingress isn't the request's own.</summary>
+    internal static string PublicOrigin(ServerOptions options, HttpRequest? request) =>
+        (options.PublicOrigin ?? (request is null ? "https://localhost" : $"{request.Scheme}://{request.Host}")).TrimEnd('/');
 
     static string? Item(IDictionary<string, string?> items, string key) => items.TryGetValue(key, out var value) ? value : null;
 

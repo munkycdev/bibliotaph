@@ -6,6 +6,15 @@ using Microsoft.Extensions.Options;
 
 namespace Bibliotaph.Server.Storage;
 
+/// <summary>The "Storage:OneDrive" configuration section: the Microsoft Entra app registration OneDrive is connected through.</summary>
+public sealed class OneDriveApp
+{
+    public const string Section = "Storage:OneDrive";
+
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
+}
+
 /// <summary>
 /// Connecting storage: an OAuth grant of its own, apart from signing in, so a user can sign in with Google and read
 /// books from OneDrive, or connect two drives. The grant's refresh token goes to accounts.db, encrypted; the browser
@@ -24,7 +33,7 @@ public static class StorageSetup
         services.AddHostedService<DriveWatch>();
 
         if (!Configured(configuration)) return services;
-        var client = configuration.GetSection("Auth:microsoft").Get<ProviderClient>()!;
+        var client = configuration.GetSection(OneDriveApp.Section).Get<OneDriveApp>()!;
         services.AddAuthentication().AddOAuth(OneDriveProvider.Id, OneDriveProvider.Name, options =>
         {
             options.AuthorizationEndpoint = OneDriveProvider.AuthorizationEndpoint;
@@ -55,9 +64,9 @@ public static class StorageSetup
         return services;
     }
 
-    /// <summary>OneDrive is connected through the Microsoft sign-in's app registration, so it needs that to be set up.</summary>
+    /// <summary>OneDrive can be connected once its app registration is set up.</summary>
     public static bool Configured(IConfiguration configuration) =>
-        configuration.GetSection("Auth:microsoft").Get<ProviderClient>() is { ClientId.Length: > 0, ClientSecret.Length: > 0 };
+        configuration.GetSection(OneDriveApp.Section).Get<OneDriveApp>() is { ClientId.Length: > 0, ClientSecret.Length: > 0 };
 
     static async Task SaveConnectionAsync(OAuthCreatingTicketContext context)
     {

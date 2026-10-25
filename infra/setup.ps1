@@ -8,9 +8,12 @@
     the app's settings.
 
     It makes, in its own resource group: a user-assigned identity the app runs as, a storage account (Litestream's
-    replica, the Data Protection key ring and covers), a Key Vault (the key that wraps the key ring, and the sign-in secrets),
-    the Microsoft sign-in app registration, the container app (one replica, never scaled), and the app registration
-    GitHub Actions deploys with. It reuses an existing Container Apps environment.
+    replica, the Data Protection key ring and covers), a Key Vault (the key that wraps the key ring, and the client
+    secrets), the Microsoft app registration OneDrive is connected through, the container app (one replica, never
+    scaled), and the app registration GitHub Actions deploys with. It reuses an existing Container Apps environment.
+
+    People sign in through Auth0. Its tenant and Regular Web Application are made in Auth0's dashboard, with the URLs
+    this script prints; then -Auth0Domain and -Auth0ClientId set them here, and the client secret is asked for once.
 
     The image comes from GitHub's container registry, where CI pushes one for every push to main. The app pulls it
     without signing in, so the package must be public: on GitHub, the package's settings, Change visibility.
@@ -42,9 +45,11 @@ param(
     # The image CI pushes to GitHub's container registry, without its tag.
     [string] $Image = 'ghcr.io/munkycdev/bibliotaph-server',
 
-    # From the Google Cloud console (APIs & Services, Credentials, OAuth client ID, Web application). Its secret is
-    # asked for once and kept in Key Vault.
-    [string] $GoogleClientId,
+    # The Auth0 tenant's domain (such as bibliotaph.us.auth0.com) and its Regular Web Application's client ID, from
+    # the application's Settings in Auth0's dashboard. Its client secret is asked for once and kept in Key Vault.
+    # Once set, a later run without them keeps them.
+    [string] $Auth0Domain,
+    [string] $Auth0ClientId,
 
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
@@ -139,14 +144,10 @@ Retry {
 
 function SecretExists([string] $name) { [bool] (Find keyvault secret show --vault-name $KeyVault -n $name --query id) }
 
-Step 'Microsoft sign-in'
+Step 'OneDrive app registration'
 $signIn = Find ad app list --display-name 'Bibliotaph' --query "[?displayName=='Bibliotaph'] | [0].{appId:appId, id:id}" -o json
-# One registration signs people in and connects their OneDrive, so it answers on both callbacks, here and on a
-# developer's machine.
-$redirects = foreach ($origin in "https://$Domain", 'https://localhost:5179') {
-    "$origin/auth/callback/microsoft"
-    "$origin/storage/callback/onedrive"
-}
+# It connects people's OneDrive, here and on a developer's machine; signing in is Auth0's.
+$redirects = foreach ($origin in "https://$Domain", 'https://localhost:5179') { "$origin/storage/callback/onedrive" }
 if (-not $signIn) {
     $signIn = Json (az ad app create --display-name 'Bibliotaph' --sign-in-audience AzureADMultipleOrgs `
         --web-redirect-uris @redirects --query '{appId:appId, id:id}' -o json)
@@ -172,16 +173,26 @@ if (-not (SecretExists 'auth-microsoft')) {
     Remove-Variable password
 }
 
-$providers = @("Auth__microsoft__ClientId=$($signIn.appId)", 'Auth__microsoft__ClientSecret=secretref:auth-microsoft')
+# The secret keeps the name it had when this registration signed people in too.
+$providers = @("Storage__OneDrive__ClientId=$($signIn.appId)", 'Storage__OneDrive__ClientSecret=secretref:auth-microsoft')
 $secrets = @("auth-microsoft=keyvaultref:https://$KeyVault.vault.azure.net/secrets/auth-microsoft,identityref:$($id.id)")
-if ($GoogleClientId) {
-    Step 'Google sign-in'
-    if (-not (SecretExists 'auth-google')) {
-        $secret = Read-Host "  Client secret for $GoogleClientId" -AsSecureString
-        az keyvault secret set --vault-name $KeyVault -n auth-google --value ([System.Net.NetworkCredential]::new('', $secret).Password) -o none
+
+Step 'Auth0 sign-in'
+if ($Auth0Domain -or $Auth0ClientId) {
+    if (-not ($Auth0Domain -and $Auth0ClientId)) { throw 'Give both -Auth0Domain and -Auth0ClientId.' }
+    $Auth0Domain = $Auth0Domain -replace '^https://', '' -replace '/+$', ''
+    if (-not (SecretExists 'auth0')) {
+        $secret = Read-Host "  Client secret for $Auth0ClientId" -AsSecureString
+        az keyvault secret set --vault-name $KeyVault -n auth0 --value ([System.Net.NetworkCredential]::new('', $secret).Password) -o none
     }
-    $providers += "Auth__google__ClientId=$GoogleClientId", 'Auth__google__ClientSecret=secretref:auth-google'
-    $secrets += "auth-google=keyvaultref:https://$KeyVault.vault.azure.net/secrets/auth-google,identityref:$($id.id)"
+    $providers += "Auth__auth0__Domain=$Auth0Domain", "Auth__auth0__ClientId=$Auth0ClientId", 'Auth__auth0__ClientSecret=secretref:auth0'
+}
+# The secret reference stays while the app's settings name it, which a run without the switches leaves as they were.
+if (SecretExists 'auth0') { $secrets += "auth0=keyvaultref:https://$KeyVault.vault.azure.net/secrets/auth0,identityref:$($id.id)" }
+Write-Host "  In Auth0, the application's Allowed Callback URLs: https://$Domain/auth/callback/auth0, https://localhost:5179/auth/callback/auth0"
+Write-Host "  Allowed Logout URLs: https://$Domain/, https://localhost:5179/"
+if (-not $Auth0Domain -and -not (SecretExists 'auth0')) {
+    Write-Host '  Nobody can sign in until this runs with -Auth0Domain and -Auth0ClientId.' -ForegroundColor Yellow
 }
 
 $settings = @(
@@ -211,6 +222,10 @@ if (-not (Find containerapp show -n $App -g $ResourceGroup --query id)) {
 else {
     az containerapp secret set -n $App -g $ResourceGroup --secrets @secrets -o none
     az containerapp update -n $App -g $ResourceGroup --set-env-vars @settings -o none
+    # Microsoft and Google signed people in directly before Auth0 did.
+    $old = @(az containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env[].name' -o json | ConvertFrom-Json |
+        Where-Object { $_ -like 'Auth__microsoft__*' -or $_ -like 'Auth__google__*' })
+    if ($old) { az containerapp update -n $App -g $ResourceGroup --remove-env-vars @old -o none }
 }
 $appId = az containerapp show -n $App -g $ResourceGroup --query id -o tsv
 $fqdn = az containerapp show -n $App -g $ResourceGroup --query properties.configuration.ingress.fqdn -o tsv

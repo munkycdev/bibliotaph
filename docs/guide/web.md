@@ -9,20 +9,22 @@ reading your books in the browser comes next.
 
 ## Join with an invitation
 
-An invitation is a one-time link that expires after 14 days. Open it, choose **Continue with Microsoft** or **Continue
-with Google**, and sign in with an account you already have. That makes your Bibliotaph account; the link can't be used
-again. Bibliotaph asks the provider only for your name, email address and an account ID, and never sees your password.
+An invitation is a one-time link that expires after 14 days. Open it and choose **Continue**. Bibliotaph's sign-in
+page, run by Auth0, offers Google, Microsoft or your email address; sign in with the one you'll use each time. That
+makes your Bibliotaph account; the link can't be used again. Bibliotaph receives only your name, email address and an
+account ID, and never sees your password.
 
 Without an invitation, signing in with an account Bibliotaph doesn't know shows **Bibliotaph is invite-only for now.**
 
 ## Signing in and out
 
-Sign in at [bibliotaph.online](https://bibliotaph.online) with the same account each time. You stay signed in on that
-browser for two weeks after you last used it. **Settings** › **Sign out** ends it.
+Sign in at [bibliotaph.online](https://bibliotaph.online) with **Continue** and the same account each time. You stay
+signed in on that browser for two weeks after you last used it. **Settings** › **Sign out** ends it, and signs you out
+of the sign-in page too, so the next person on that browser has to sign in themselves.
 
-To sign in with another account as well, such as Google beside Microsoft, choose **Link a Google sign-in** (or
-Microsoft) in **Settings** › **Account**. Either one then opens the same library. A sign-in that already belongs to another Bibliotaph account
-can't be linked.
+To sign in another way as well, such as Google beside Microsoft, choose **Link another sign-in** in **Settings** ›
+**Account** and sign in the other way. Either one then opens the same library, and **Account** lists each by name. A
+sign-in that already belongs to another Bibliotaph account can't be linked.
 
 ## Inviting others
 
