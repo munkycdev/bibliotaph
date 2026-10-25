@@ -556,7 +556,8 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-menuitem:disabled{color:var(--bt-muted);cursor:default;background:none}
 .bt-gesture{color:var(--bt-muted);font-size:11px}
 .bt-pinend{height:14px}
-.bt-pinbutton.on{color:var(--bt-accent)}
+.bt-pinbutton.on,.bt-offline.on{color:var(--bt-accent)}
+.bt-offlineprogress{min-width:30px;font-variant-numeric:tabular-nums}
 /* Saved searches: the toolbar's list of them, the banner once one is changed, why one shows more than it was saved with,
    and Home's row of pins. */
 .bt-searchlist{width:320px;max-width:min(320px,calc(100vw - 32px));padding:8px 6px}

@@ -114,6 +114,8 @@ else if (Problem == "storage")
         <p class="bt-sample">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
     </section>
 
+    <BrowserBooks />
+
     @if (_picking)
     {
         <FolderPicker Storage="_storage" Picked="Picked" Cancelled="() => _picking = false" />

@@ -57,6 +57,9 @@
   adventure, the heart and pin, and Pop out. A book opens where you left it, an adventure at its own pages, and a
   matching page with the search's words marked. Pages come straight from your OneDrive and are kept in your browser,
   never on the server. See [Reading a book](docs/guide/web.md#reading-a-book).
+- **Keep books offline in your browser.** The reader's Keep offline button downloads a whole book to the browser, so
+  it opens without waiting on the network, and Settings › Books in this browser shows the books kept there, sets how
+  much room the others may take, and lets them go. See [Books in this browser](docs/guide/web.md#books-in-this-browser).
 
 ## 1.3 · 19 October 2026
 

@@ -1,7 +1,7 @@
 // The reader's pages, as the Windows reader shows them: a PDF drawn by PDF.js from byte ranges of the file in the user's
 // storage, every page in one scrolling column, with its text selectable, its links followed, the words of a search or
 // a find marked, and a strip of page thumbnails. The page around it is Blazor's; this reports back what the reader does.
-import { BookCache, ChunkSize, LinkError } from './bookcache.js';
+import { BookCache, ChunkSize, LinkError, trim } from './bookcache.js';
 
 const base = new URL('../lib/pdfjs/', import.meta.url).href;
 const ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
@@ -39,8 +39,9 @@ const l10n = {
  * Opens a book in the reader's stage.
  * @param {HTMLElement} stage .bt-pages, which scrolls the pages
  * @param {HTMLElement} strip .bt-strip, for the thumbnails
- * @param {{key: string, size: number, start: number, labels: (string|null)[], marks: string[]}} book
- * @param {any} page the Blazor page: PageChanged, ScaleChanged, Opened, Failed, AskPassword, Link, LinkFollowed, Notice, FindKey
+ * @param {{key: string, size: number, start: number, labels: (string|null)[], marks: string[], title: string, entryId: number, documentId: number}} book
+ * @param {any} page the Blazor page: PageChanged, ScaleChanged, Opened, Failed, AskPassword, Link, LinkFollowed, Notice, FindKey,
+ *   Offline
  */
 export async function open(stage, strip, book, page) {
   await load();
@@ -65,7 +66,11 @@ class Reader {
 
   async start() {
     const { EventBus, PDFLinkService, PDFViewer, LinkTarget } = viewers;
-    const cache = await BookCache.open(this.book.key, this.book.size, () => this.page.invokeMethodAsync('Link'));
+    const { title, entryId, documentId } = this.book;
+    const cache = this.cache = await BookCache.open(this.book.key, this.book.size, () => this.page.invokeMethodAsync('Link'),
+      { title, entryId, documentId });
+    // Room for this book is made from the others, never from it.
+    trim(this.book.key).catch(() => { });
     const transport = new pdfjs.PDFDataRangeTransport(this.book.size, null);
     transport.requestDataRange = (begin, end) =>
       cache.read(begin, end).then(bytes => transport.onDataRange(begin, bytes), e => this.#failed(e));
@@ -171,6 +176,28 @@ class Reader {
     refit.observe(this.stage);
     this.listeners.push(() => refit.disconnect());
     this.page.invokeMethodAsync('Opened', this.canCopy);
+    this.#offline();
+    // A book kept offline that the browser has partly cleared reads the rest again.
+    if (cache.kept && !cache.complete) this.keepOffline(true);
+  }
+
+  #offline() {
+    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress);
+  }
+
+  /** Keeps the whole book in this browser, or lets it go with the rest; the page hears how far it has got. */
+  keepOffline(on) {
+    let told = 0;
+    this.cache.keepOffline(on, () => {
+      // A long book reads in hundreds of chunks: the page hears of it a few times a second at most.
+      if (Date.now() - told < 250) return;
+      told = Date.now();
+      this.#offline();
+    }).then(done => {
+      this.#offline();
+      if (!done && on && this.cache.kept && !this.closed)
+        this.page.invokeMethodAsync('Notice', "The whole book couldn't be kept: the connection dropped or the browser is out of room. It carries on when you next open it.");
+    });
   }
 
   #listen(target, type, handler, options) {
@@ -261,6 +288,7 @@ class Reader {
     for (const stop of this.listeners) stop();
     this.marks.dispose();
     this.thumbnails?.dispose();
+    this.cache?.close();
     this.viewer?.setDocument(null);
     this.task?.destroy();
   }
