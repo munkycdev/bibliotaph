@@ -1,0 +1,14 @@
+# The server image copies the repository; none of this belongs in its build.
+.git
+.github
+.vs
+**/bin
+**/obj
+**/App_Data
+artifacts
+TestResults
+spikes
+docs
+*.db
+*.db-wal
+*.db-shm

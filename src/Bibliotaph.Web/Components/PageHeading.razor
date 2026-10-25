@@ -1,0 +1,15 @@
+@* .bt-heading: the page's title in the display face, with its subtitle and actions on the right. *@
+<PageTitle>@Title · Bibliotaph</PageTitle>
+<div class="bt-heading">
+    <div>
+        <h1 tabindex="-1">@Title</h1>
+        @if (Subtitle is not null) { <div class="bt-subtitle">@Subtitle</div> }
+    </div>
+    @Actions
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

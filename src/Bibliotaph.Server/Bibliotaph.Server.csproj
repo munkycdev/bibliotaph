@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    bibliotaph.online: serves the web client and the API, signs people in, and holds each user's library as the same
+    catalog.db and index.db the Windows app uses, one folder per user. Runs on Linux in a container (Dockerfile).
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <!-- The container is linux-x64; the repo-wide x64 setting would also be fine, but the server has no native code. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <UserSecretsId>bibliotaph-server-dev</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Api.Contracts\Bibliotaph.Api.Contracts.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Web\Bibliotaph.Web.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bibliotaph.Server.Tests" />
+  </ItemGroup>
+</Project>

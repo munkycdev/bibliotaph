@@ -1,0 +1,29 @@
+@* .bt-empty, as the Windows app's EmptyState control: a display-face title, a line of copy and one action. *@
+<div class="bt-empty">
+    <h2>@Title</h2>
+    <p>@Message</p>
+    @if (ActionText is not null)
+    {
+        <div class="bt-actions centered">
+            @if (ActionHref is not null)
+            {
+                <a class="bt-button primary" href="@ActionHref">@if (ActionIcon is not null) { <Icon Name="@ActionIcon" /> }@ActionText</a>
+            }
+            else
+            {
+                <button class="bt-button primary" @onclick="Action">@if (ActionIcon is not null) { <Icon Name="@ActionIcon" /> }@ActionText</button>
+            }
+        </div>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Message { get; set; } = "";
+    [Parameter] public string? ActionText { get; set; }
+    [Parameter] public string? ActionIcon { get; set; }
+    [Parameter] public string? ActionHref { get; set; }
+    [Parameter] public EventCallback Action { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

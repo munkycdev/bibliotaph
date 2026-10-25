@@ -1,0 +1,36 @@
+@page "/"
+@inject ApiClient Api
+
+<PageTitle>Bibliotaph</PageTitle>
+@if (_summary is null)
+{
+    <div class="bt-loading">Opening your library…</div>
+}
+else if (_summary.Folders == 0)
+{
+    @* First run, as the Windows app's Home: what Bibliotaph does, and that the files stay put. *@
+    <div class="bt-welcome">
+        <span class="bt-eyebrow bt-eyebrow-block">WELCOME TO BIBLIOTAPH</span>
+        <h1 tabindex="-1">Good stories begin with something you already own.</h1>
+        <p class="bt-copy">
+            Bibliotaph builds a catalog of the RPG books, maps and handouts already in your storage, then helps you find the
+            right book and the right page. Your files stay exactly where they are: nothing is moved, renamed or changed.
+        </p>
+        <div class="bt-actions">
+            <a class="bt-button primary" href="settings#storage"><Icon Name="FolderPlus" />Add a folder</a>
+        </div>
+        <p class="bt-note"><Icon Name="ShieldCheck" />Your catalog, notes and collections are kept in your Bibliotaph account. Your books stay in your storage.</p>
+    </div>
+}
+else
+{
+    <span class="bt-eyebrow bt-eyebrow-block">YOUR NEXT GOOD STORY</span>
+    <h1 tabindex="-1">Welcome back.</h1>
+    <div class="bt-subtitle">A familiar shelf. A few places you haven't been.</div>
+}
+
+@code {
+    LibrarySummary? _summary;
+
+    protected override async Task OnInitializedAsync() => _summary = await Api.LibrarySummaryAsync();
+}

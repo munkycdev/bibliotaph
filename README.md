@@ -140,6 +140,7 @@ through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guid
 8. [AI](docs/guide/ai.md): what it does, what it sends, how to set it up, and scanning whole books.
 9. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
 10. [Questions and answers](docs/guide/faq.md)
+11. [Bibliotaph on the web](docs/guide/web.md): bibliotaph.online, invite-only while it's built.
 
 ## Help and feedback
 

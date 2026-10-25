@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **The start of Bibliotaph on the web.** bibliotaph.online gets its server and a browser app that looks like the
+  Windows one. It is invite-only: a one-time link makes an account, signed in with Microsoft or Google, and admins make
+  invitations in Settings. The privacy policy is published at bibliotaph.online/privacy. Your library comes to it in the
+  next steps. See [Bibliotaph on the web](docs/guide/web.md).
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.590 (19 October 2026):

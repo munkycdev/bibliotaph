@@ -1,0 +1,12 @@
+# Every database under /data streams to Blob storage. The users folder is watched, so a library made or restored
+# while the server runs starts replicating without a restart. Pre-migration backups live outside it on purpose.
+dbs:
+  - path: /data/accounts.db
+    replica:
+      url: ${REPLICA_URL}/accounts.db
+  - dir: /data/users
+    pattern: "*.db"
+    recursive: true
+    watch: true
+    replica:
+      url: ${REPLICA_URL}/users

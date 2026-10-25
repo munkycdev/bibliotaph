@@ -34,6 +34,18 @@
     <PackageVersion Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
+  <ItemGroup Label="Server">
+    <!-- The web app's server and its Blazor WebAssembly client (MIT), in the .NET 11 band. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="$(DotNetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(DotNetPackagesVersion)" />
+    <!-- MIT. Data Protection keys in Blob storage, wrapped by a Key Vault key, reached with the app's managed identity. -->
+    <PackageVersion Include="Azure.Identity" Version="1.21.0" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.5" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.5" />
+  </ItemGroup>
+
   <ItemGroup Label="Tools">
     <!-- OCR bake-off only; the app ships whichever engine wins. -->
     <PackageVersion Include="Tesseract" Version="5.2.0" />

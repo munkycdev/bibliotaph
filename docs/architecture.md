@@ -78,6 +78,9 @@ The worker opens a PDF through `FPDF_LoadCustomDocument` over a read-only .NET s
 | `Bibliotaph.PdfWorker` | PDFium and Windows OCR (console exe) | Pdf.Contracts |
 | `Bibliotaph.Viewer` | Virtualized page surface, tiles, highlights, selection, links, image view | Core, Pdf.Host |
 | `Bibliotaph.App` | Shell, pages, view models, theme, WebView2 windows, Windows-only services, DI composition | Everything above except PdfWorker |
+| `Bibliotaph.Api.Contracts` | The web API's request and response records, shared by the server and its clients | Nothing |
+| `Bibliotaph.Server` | bibliotaph.online: ASP.NET Core host, sign-in, accounts and invitations (`accounts.db`), each user's catalog and index, the API, and the container it ships in | Api.Contracts, Catalog, Index, Web |
+| `Bibliotaph.Web` | The browser app, Blazor WebAssembly, styled and iconed like the Windows app | Api.Contracts |
 
 Core and Pdf.Contracts reference nothing, and only App knows about windows. A banned-API analyzer rejects write-capable file APIs everywhere except Processing, Pdf.Host and PdfWorker. Processing opens library files only through `ISourceFileReader`, which has no write path; the worker opens them read-only. Both share read, write and delete, so Bibliotaph never stops the user or a sync client from changing a file.
 
@@ -295,6 +298,22 @@ Notes are a book's own note and notes on page ranges; they are found again in ot
 - **Theme.** The design's colour tokens are brushes in Light and Dark dictionaries, following the Windows app mode unless overridden, plus a Contrast dictionary built live from the system colours under a Windows contrast theme. DM Sans for the interface and Libre Caslon Display for display headings, both embedded; Lucide icons as geometry resources. Animations are off when Windows' animation effects are.
 - **Library.** The cover grid uses `VirtualizingWrapPanel`, with covers decoded off the UI thread at display size and frozen. Filters show as chips; Select mode drives bulk edits, Same book, Pack together, Remove adventures, collections and export.
 - **Accessibility.** Per-monitor DPI, automation names on every control, a keyboard path for every action, and Ctrl+/ to list shortcuts (Ctrl+K search, Ctrl+F find in book).
+
+## Web server
+
+bibliotaph.online is the same library for game masters whose books are in cloud storage. A server holds each user's catalog and index and reads their books from their storage; it never keeps a copy of a book. It is being built in steps; the first gives it its host, accounts and browser app.
+
+**Host.** `Bibliotaph.Server` is an ASP.NET Core app that also serves `Bibliotaph.Web`, a Blazor WebAssembly client, from the same origin, so the browser holds no tokens: a cookie session does (the backend-for-frontend pattern). `/auth` is navigated to, `/api` is called with JSON, and every other path returns the client's page so its router can take over. `Bibliotaph.Web` copies the Windows app's look rather than reinventing it: its stylesheet comes from the mock-ups the WPF theme follows, its fonts are the app's, and its icons are read at run time from the app's own `Icons.xaml`.
+
+**Sign-in.** OpenID Connect with Microsoft (any work, school or personal account) and Google, asking for `openid profile email` only, code flow with PKCE. Each provider's callback is `/auth/callback/<provider>`. `/auth/complete` maps the provider's stable subject (Microsoft's `oid@tid`, Google's `sub`) to an account: a known sign-in signs in, an unknown one links to the account already signed in or redeems an invitation, and anything else is refused as invite-only. The session cookie is `__Host-bibliotaph`: HttpOnly, Secure, SameSite=Lax, sliding over 14 days; API calls get 401 rather than a redirect. Every API write must carry the `X-Bibliotaph` header, which a cross-site form can't send. A strict content security policy allows only the site's own scripts, styles and WebAssembly, so the client has no inline styles. Signing in with a storage provider is kept apart from signing in to Bibliotaph: storage connections have their own grants and tokens.
+
+**Accounts.** `accounts.db` (EF Core, its own migrations) holds `users`, `logins` (provider and subject to user), `invites` and `storage_connections`. An invitation is a one-time link whose code is 18 random bytes; only its SHA-256 is stored, and it lasts 14 days. The first admin's invitation comes from the server's own `invite` command, which `infra/invite.ps1` runs inside the container.
+
+**Each user's library.** Every user gets `/data/users/<id>/catalog.db` and `index.db`, the same databases and code the Windows app uses, so migrations, stores and search behave identically. `UserLibraries` opens a user's pair on first use (migrating the catalog, starting its index writer), counts leases so requests share one opening, and closes it after 20 minutes idle.
+
+**Durability.** The server runs as exactly one Container Apps replica, never scaled out or to zero, because each SQLite file must have one writer. Its disk is only a working copy: Litestream, which starts the server as its child process, streams every database's WAL to Blob storage within a second. At start it restores `accounts.db`; a user's databases are restored from the replica when they first open (`LitestreamRestore`), and Litestream's directory watch picks up new and restored files without a restart. Data Protection keys (the cookie keys, and later the encrypted storage tokens) are kept in Blob storage, wrapped by a Key Vault key, so sessions and secrets survive a new container.
+
+**Azure.** `infra/setup.ps1` creates or refreshes everything in `rg-bibliotaph`: a user-assigned identity the app runs as (Blob, Key Vault and registry pull rights), the storage account, the Key Vault with the key-ring key and the sign-in secrets, the Microsoft app registration, the container app in an existing Container Apps environment, the custom domain with managed certificates, and a deploy identity GitHub Actions signs in as through OIDC, with no stored secret. CI builds the image on Linux for every pull request and checks it starts; a push to main that passes the Windows build and tests pushes the image to the registry and rolls the app onto it.
 
 ## Safety and secrets
 

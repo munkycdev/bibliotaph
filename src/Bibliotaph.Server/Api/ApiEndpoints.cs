@@ -1,0 +1,56 @@
+using System.Security.Claims;
+using Bibliotaph.Api.Contracts;
+using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Auth;
+using Bibliotaph.Server.Libraries;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace Bibliotaph.Server.Api;
+
+/// <summary>/api: JSON for the web client. Every call needs a session; calls that change something need the client header.</summary>
+public static class ApiEndpoints
+{
+    public static void MapApi(this IEndpointRouteBuilder app)
+    {
+        var api = app.MapGroup("/api").RequireAuthorization();
+
+        api.MapGet("/me", async (ClaimsPrincipal principal, AccountService accounts, CancellationToken ct) =>
+        {
+            if (principal.UserId() is not { } id || await accounts.FindUserAsync(id, ct) is not { } user) return Results.Unauthorized();
+            var logins = await accounts.LoginsAsync(id, ct);
+            return Results.Ok(new CurrentUser(user.Id, user.Name, user.Email, user.IsAdmin,
+                [.. logins.Select(l => new LinkedSignIn(l.Provider, l.Email, Utc(l.Added)))]));
+        });
+
+        api.MapGet("/library/summary", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await using var db = lease.Library.Catalog.CreateContext();
+            return new LibrarySummary(await db.Entries.CountAsync(ct), await db.SourceRoots.CountAsync(ct));
+        });
+
+        var invites = api.MapGroup("/invites").RequireAuthorization(AuthSetup.AdminPolicy);
+
+        invites.MapGet("/", async (AccountService accounts, CancellationToken ct) =>
+            (await accounts.InvitesAsync(ct)).Select(i => new InviteInfo(i.Id, i.Note, i.Admin, Utc(i.Created), Utc(i.Expires), i.Redeemed is { } r ? Utc(r) : null)));
+
+        invites.MapPost("/", async (CreateInvite request, ClaimsPrincipal principal, HttpContext context, AccountService accounts,
+            IOptions<ServerOptions> options, CancellationToken ct) =>
+        {
+            var (code, invite) = await accounts.CreateInviteAsync(principal.UserId(), request.Note, request.Admin, ct);
+            return new CreatedInvite(InviteLink(options.Value, context.Request, code), Utc(invite.Expires));
+        });
+
+        // An unknown API path is a 404, never the web client's page.
+        api.MapFallback(() => Results.NotFound()).AllowAnonymous();
+    }
+
+    public static string InviteLink(ServerOptions options, HttpRequest? request, string code)
+    {
+        var origin = options.PublicOrigin ?? (request is null ? "https://localhost" : $"{request.Scheme}://{request.Host}");
+        return $"{origin.TrimEnd('/')}/join?invite={Uri.EscapeDataString(code)}";
+    }
+
+    static DateTimeOffset Utc(DateTime stored) => new(DateTime.SpecifyKind(stored, DateTimeKind.Utc));
+}
