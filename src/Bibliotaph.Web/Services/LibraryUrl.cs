@@ -39,6 +39,7 @@ public static class LibraryUrl
         Add("copies", q.Copies ? "true" : null);
         Add("adventures", q.Adventures);
         Add("collections", q.Collections);
+        Add("picked", q.Picked);
         Add("collection", q.Collection?.ToString(CultureInfo.InvariantCulture));
         Add("addedHere", q.Collection is not null && q.AddedHere ? "true" : null);
         return parts.Count == 0 ? "" : "?" + string.Join('&', parts);
@@ -86,6 +87,7 @@ public static class LibraryUrl
             Copies = Text("copies") == "true",
             Adventures = Text("adventures"),
             Collections = Text("collections"),
+            Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = Text("addedHere") == "true",
         };

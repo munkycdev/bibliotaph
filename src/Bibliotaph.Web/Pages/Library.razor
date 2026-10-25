@@ -114,6 +114,18 @@
                         }
                     </div>
                 }
+                @if (menus.Boxes.Any(b => b.Offered))
+                {
+                    @* Type-ahead filters for fields with too many values for a menu. A box's chips widen it; the boxes narrow together. *@
+                    <span class="bt-eyebrow bt-eyebrow-block">ABOUT THE BOOK</span>
+                    <div class="bt-filterrow bt-boxes" aria-label="About the book">
+                        @foreach (var box in menus.Boxes.Where(b => b.Offered))
+                        {
+                            <TypeAheadBox @key="box.Key" Box="box" Query="_query with { EachFile = _eachFile }" Picked='v => Filter(_query with { Picked = PickedText.Add(_query.Picked, box.Key, v) })'
+                                          Removed='v => Filter(_query with { Picked = PickedText.Remove(_query.Picked, box.Key, v) })' />
+                        }
+                    </div>
+                }
                 <span class="bt-eyebrow bt-eyebrow-block">WHERE IT LIVES</span>
                 <div class="bt-filterrow">
                     <Menu Label="Source folder" Choices="menus.Folders" Value="@Text(_query.Folder)" Changed='v => Filter(_query with { Folder = long.TryParse(v, out var id) ? id : null })' />
@@ -573,6 +585,12 @@ else
             Add(_query.Players is not null, Label(LibraryChoices.Players, Text(_query.Players)), "players", q => q with { Players = null });
             Add(_query.Style is not null, Label(m.Styles, _query.Style), "style", q => q with { Style = null }, true);
             Add(_query.Duration is not null, Label(m.Durations, _query.Duration), "duration", q => q with { Duration = null }, true);
+            foreach (var box in m.Boxes)
+                foreach (var pick in box.Picked)
+                {
+                    var label = $"{box.Label}: {pick.Label}";
+                    chips.Add(new Chip(label, $"Remove {label}", q => q with { Picked = PickedText.Remove(q.Picked, box.Key, pick.Value) }, true));
+                }
             Add(_query.Folder is not null, $"Folder: {Label(m.Folders, Text(_query.Folder))}", "source folder", q => q with { Folder = null }, true);
             Add(_query.Own is not null, $"Also own: {Label(m.Owns, _query.Own)}", "also own", q => q with { Own = null }, true);
             Add(_query.Store is not null, $"Get it from: {Label(m.Stores, _query.Store)}", "get it from", q => q with { Store = null }, true);

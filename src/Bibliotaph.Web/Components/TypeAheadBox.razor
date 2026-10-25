@@ -1,0 +1,114 @@
+@* .bt-typeahead, as the Windows app's type-ahead filters: typing lists the values among the books shown that match,
+   with how many books each has, and picking one adds a chip under the box. Arrows move through the list, Enter picks,
+   Esc empties the box. *@
+@implements IDisposable
+@inject ApiClient Api
+
+<div class="bt-field bt-typeahead">
+    <span>@Box.Label</span>
+    <div class="bt-typeaheadbox">
+        <input type="text" role="combobox" aria-label="@Box.Label" title="@Box.Hint" placeholder="" autocomplete="off" aria-autocomplete="list"
+               aria-expanded="@Open" value="@_text" @oninput="Typed" @onkeydown="KeyDown" @onfocus="() => _focused = true" @onblur="() => _focused = false" />
+        @if (Open)
+        {
+            <div class="bt-suggestions" role="listbox" aria-label="@Box.Label that match">
+                @for (var i = 0; i < _suggestions.Count; i++)
+                {
+                    var suggestion = _suggestions[i];
+                    <button class="bt-suggestion @(i == _highlight ? "active" : "")" role="option" aria-selected="@(i == _highlight)" aria-label="@suggestion.Spoken"
+                            @onmousedown:preventDefault="true" @onclick="() => PickAsync(suggestion)">
+                        <span class="bt-suggestionlabel">@suggestion.Label</span><span class="bt-suggestioncount">@suggestion.Count</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
+    @if (Box.Picked.Count > 0)
+    {
+        <div class="bt-chips" aria-label="@Box.Label picked">
+            @foreach (var pick in Box.Picked)
+            {
+                <span class="bt-chip on">@pick.Label<button class="bt-chipx" title="Remove @pick.Label" aria-label="Remove @pick.Label" @onclick="() => Removed.InvokeAsync(pick.Value)"><Icon Name="X" Size="12" /></button></span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    static readonly TimeSpan Pause = TimeSpan.FromMilliseconds(150);
+
+    string _text = "";
+    bool _focused;
+    int _highlight;
+    IReadOnlyList<ValueSuggestion> _suggestions = [];
+    CancellationTokenSource? _typing;
+
+    [Parameter, EditorRequired] public FilterBox Box { get; set; } = default!;
+
+    /// <summary>The Library's search and filters, so the box offers only values the books shown have.</summary>
+    [Parameter, EditorRequired] public LibraryQuery Query { get; set; } = default!;
+
+    [Parameter] public EventCallback<string> Picked { get; set; }
+
+    [Parameter] public EventCallback<string> Removed { get; set; }
+
+    bool Open => _focused && _suggestions.Count > 0;
+
+    async Task Typed(ChangeEventArgs e)
+    {
+        _text = e.Value as string ?? "";
+        _typing?.Cancel();
+        var typing = _typing = new CancellationTokenSource();
+        if (_text.Trim().Length == 0)
+        {
+            _suggestions = [];
+            return;
+        }
+        try
+        {
+            await Task.Delay(Pause, typing.Token);
+            var suggestions = await Api.SuggestAsync(Box.Key, _text, Query, typing.Token);
+            if (typing.IsCancellationRequested) return;
+            _suggestions = suggestions;
+            _highlight = 0;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ApiProblemException)
+        {
+            _suggestions = [];
+        }
+    }
+
+    async Task KeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown" when _suggestions.Count > 0:
+                _highlight = Math.Min(_highlight + 1, _suggestions.Count - 1);
+                break;
+            case "ArrowUp" when _suggestions.Count > 0:
+                _highlight = Math.Max(_highlight - 1, 0);
+                break;
+            case "Enter" when Open:
+                await PickAsync(_suggestions[_highlight]);
+                break;
+            case "Escape":
+                _typing?.Cancel();
+                _text = "";
+                _suggestions = [];
+                break;
+        }
+    }
+
+    Task PickAsync(ValueSuggestion suggestion)
+    {
+        _typing?.Cancel();
+        _text = "";
+        _suggestions = [];
+        return Picked.InvokeAsync(suggestion.Value);
+    }
+
+    public void Dispose() => _typing?.Cancel();
+}

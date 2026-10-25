@@ -47,6 +47,12 @@ public sealed record LibraryQuery
 
     public string? Collections { get; init; }
 
+    /// <summary>
+    /// The values picked in the type-ahead filters, as JSON: an object of arrays by field key,
+    /// <c>{"setting":["the-marches"]}</c>, as a saved search keeps them.
+    /// </summary>
+    public string? Picked { get; init; }
+
     /// <summary>The collection shown, its books and its sub-collections' books: the Library scoped to it.</summary>
     public long? Collection { get; init; }
 
@@ -89,7 +95,17 @@ public sealed record LibraryMenus(
     IReadOnlyList<FilterChoice> Systems, IReadOnlyList<FilterChoice> Types, IReadOnlyList<FilterChoice> Styles,
     IReadOnlyList<FilterChoice> Durations, IReadOnlyList<FilterChoice> Folders, IReadOnlyList<FilterChoice> Owns,
     IReadOnlyList<FilterChoice> Stores, bool ShowStyle, bool ShowDuration, bool ShowOwn, bool ShowStore, bool ShowAi, bool ShowCopies,
-    bool ShowAdventures, bool ShowCollections);
+    bool ShowAdventures, bool ShowCollections, IReadOnlyList<FilterBox> Boxes);
+
+/// <summary>
+/// A type-ahead filter, for a field with too many values for a menu: its label and hint, whether the books shown have
+/// any value for it, and the values picked, with their names. What to offer for what was typed comes from
+/// /api/library/values/{key}.
+/// </summary>
+public sealed record FilterBox(string Key, string Label, string Hint, bool Offered, IReadOnlyList<FilterChoice> Picked);
+
+/// <summary>A value a type-ahead filter offers: "The Marches", with how many books it would show.</summary>
+public sealed record ValueSuggestion(string Value, string Label, string Count, string Spoken);
 
 /// <summary>
 /// An empty page: what to say, and the one thing to do about it. <see cref="Action"/> is one of clear-filters,
