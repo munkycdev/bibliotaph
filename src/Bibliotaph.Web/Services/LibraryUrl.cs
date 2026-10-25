@@ -39,10 +39,11 @@ public static class LibraryUrl
         Add("copies", q.Copies ? "true" : null);
         Add("adventures", q.Adventures);
         Add("collections", q.Collections);
+        Add("collection", q.Collection?.ToString(CultureInfo.InvariantCulture));
+        Add("addedHere", q.Collection is not null && q.AddedHere ? "true" : null);
         return parts.Count == 0 ? "" : "?" + string.Join('&', parts);
     }
 
-    /// <summary>The search and filters in a Library address; anything it doesn't know is left out.</summary>
     /// <summary>The book whose details Home asked the Library to open: library?book=12.</summary>
     public static long? Book(string uri) =>
         long.TryParse(Values(uri).GetValueOrDefault("book"), NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
@@ -60,6 +61,7 @@ public static class LibraryUrl
         return values;
     }
 
+    /// <summary>The search and filters in a Library address; anything it doesn't know is left out.</summary>
     public static LibraryQuery Parse(string uri)
     {
         var values = Values(uri);
@@ -84,6 +86,8 @@ public static class LibraryUrl
             Copies = Text("copies") == "true",
             Adventures = Text("adventures"),
             Collections = Text("collections"),
+            Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
+            AddedHere = Text("addedHere") == "true",
         };
     }
 }

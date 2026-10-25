@@ -4,12 +4,26 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject LibraryActivity Activity
+@inject CollectionActions Collections
 
 @* The Windows app's Library page: its heading, the toolbar (results tabs while searching, filters, order, covers or
    list, packs or each file), the filter panel and its chips, the count, then the covers, the list or the matching pages. *@
-<PageHeading Title="@(_query.IsSearching ? "Search results" : "Your library")" Subtitle="@Subtitle">
+<PageHeading Title="@Heading" Subtitle="@Subtitle">
     <Actions>
-        <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
+        @if (_collection is { } open)
+        {
+            @* A collection's own actions. Deleting it never deletes its books. *@
+            <div class="bt-headbuttons">
+            <button class="bt-button" title="Make a collection inside this one" @onclick="NewInsideAsync"><Icon Name="FolderPlus" />New collection</button>
+            <button class="bt-button" title="Change its name or description" aria-label="Rename the collection" @onclick="RenameAsync"><Icon Name="Pencil" />Rename</button>
+            <button class="bt-button" title="Put it inside another collection, or at the top" aria-label="Move the collection" @onclick="MoveAsync"><Icon Name="FolderInput" />Move to…</button>
+            <button class="bt-icon" title="Delete the collection. Its books stay in your library, and Undo brings it back." aria-label="Delete the collection" @onclick="DeleteAsync"><Icon Name="Trash2" Size="15" /></button>
+            </div>
+        }
+        else if (_query.Collection is null)
+        {
+            <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
+        }
     </Actions>
 </PageHeading>
 
@@ -142,6 +156,11 @@
     }
 
     <div class="bt-sectionline-top">
+        @if (_collection is { } scope)
+        {
+            @* The part of the library shown; its × shows the whole library, with the same search and filters. *@
+            <span class="bt-chip on bt-scopechip">In @scope.Collection.Path<button class="bt-chipx" title="Show your whole library" aria-label="Show your whole library" @onclick="ClearScope"><Icon Name="X" Size="12" /></button></span>
+        }
         @if (Chips is { Count: > 0 } chips)
         {
             <div class="bt-chips" aria-label="Filters on">
@@ -154,6 +173,19 @@
                     <button class="bt-link" @onclick="ClearFilters">Clear filters</button>
                 }
             </div>
+        }
+        @if (_collection is { Children.Count: > 0 } parent)
+        {
+            @* Its sub-collections, as cards above its books, and the switch that leaves their books out. *@
+            <div class="bt-collectioncards bt-subcollections" aria-label="Collections inside this one">
+                @foreach (var card in parent.Children)
+                {
+                    <CollectionTile @key="card.Id" Card="card" />
+                }
+            </div>
+            <label class="bt-check small bt-addedhere" title="Leave out the books that are only in the collections inside this one">
+                <input type="checkbox" checked="@_query.AddedHere" @onchange='e => Filter(_query with { AddedHere = e.Value is true })' />Only books added here
+            </label>
         }
         @if (_results.Empty is null)
         {
@@ -287,10 +319,15 @@ else
     long? _details;
     BookDetailsDrawer? _drawer;
     ActionResult? _done;
+    CollectionPage? _collection;
 
     string Sort => (_query.IsSearching ? _searchSort : _browseSort) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
 
-    string Subtitle => _query.IsSearching ? "Across titles, file details and the pages within." : "Good stories begin with something you already own.";
+    string Heading => _query.IsSearching ? "Search results" : _collection?.Collection.Name ?? (_query.Collection is null ? "Your library" : "");
+
+    string Subtitle => _query.IsSearching
+        ? _collection is { } scope ? $"In {scope.Collection.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
+        : _collection?.Subtitle ?? (_query.Collection is null ? "Good stories begin with something you already own." : "");
 
     int ResultCount => _results is null ? 0 : _query.IsPagesTab ? _results.Matches.Count : _results.Books.Count;
 
@@ -304,7 +341,10 @@ else
         _details = LibraryUrl.Book(Navigation.Uri);
         Navigation.LocationChanged += OnLocationChanged;
         Activity.Changed += OnActivityChanged;
-        await LoadAsync();
+        // After a change made elsewhere, such as a collection made from Collections: the note saying so.
+        _done = Collections.Pending;
+        Collections.Pending = null;
+        await Task.WhenAll(LoadAsync(), LoadCollectionAsync());
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -348,6 +388,22 @@ else
         }
     }
 
+    /// <summary>The collection shown, with its sub-collections; one deleted meanwhile leaves the whole library.</summary>
+    async Task LoadCollectionAsync()
+    {
+        if (_query.Collection is not { } id)
+        {
+            _collection = null;
+            return;
+        }
+        var page = await Api.CollectionAsync(id);
+        if (_query.Collection != id) return;
+        _collection = page;
+        if (page is null) await ClearScope();
+        // With none inside it any more, there are no books to leave out.
+        else if (page.Children.Count == 0 && _query.AddedHere) await Filter(_query with { AddedHere = false });
+    }
+
     /// <summary>A search typed in the top bar, or Back to an earlier search, arrives as a new address.</summary>
     void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
@@ -358,7 +414,7 @@ else
         _shown = Batch;
         InvokeAsync(async () =>
         {
-            await LoadAsync();
+            await Task.WhenAll(LoadAsync(), LoadCollectionAsync());
             StateHasChanged();
         });
     }
@@ -382,7 +438,7 @@ else
     }
 
     /// <summary>After a change in the details, the cards as they are now.</summary>
-    Task ReloadAsync() => LoadAsync();
+    Task ReloadAsync() => Task.WhenAll(LoadAsync(), LoadCollectionAsync());
 
     /// <summary>What a change from the details did, over the cards, with its Undo.</summary>
     async Task ShowDone(ActionResult result)
@@ -419,15 +475,55 @@ else
 
     Task ShowTab(string? tab) => Filter(_query with { Tab = tab });
 
-    Task ClearFilters() => Filter(new LibraryQuery { Q = _query.Q, Tab = _query.Tab });
+    /// <summary>Filters off; the search and the collection shown stay.</summary>
+    Task ClearFilters() => Filter(new LibraryQuery { Q = _query.Q, Tab = _query.Tab, Collection = _query.Collection, AddedHere = _query.AddedHere });
+
+    Task ClearScope() => Filter(_query with { Collection = null, AddedHere = false });
 
     Task EmptyAction(string action) => action switch
     {
         "clear-filters" => ClearFilters(),
-        "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null } : new LibraryQuery()),
+        "clear-scope" => ClearScope(),
+        "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null }
+            : new LibraryQuery { Collection = _query.Collection, AddedHere = _query.AddedHere }),
         "show-documents" => ShowTab(null),
         _ => Task.CompletedTask,
     };
+
+    /// <summary>A collection made inside this one opens at once, ready for books.</summary>
+    async Task NewInsideAsync()
+    {
+        if (_collection is not { } open) return;
+        if (await Collections.CreateAsync(open.Collection) is { } created) Navigation.NavigateTo($"library?collection={created.Id}");
+        else if (Collections.Pending is { } problem)
+        {
+            _done = problem;
+            Collections.Pending = null;
+        }
+    }
+
+    async Task RenameAsync()
+    {
+        if (_collection is { } open && await Collections.RenameAsync(open.Collection) is { } result) await ShowDone(result);
+    }
+
+    async Task MoveAsync()
+    {
+        if (_collection is { } open && await Collections.MoveAsync(open.Collection) is { } result) await ShowDone(result);
+    }
+
+    /// <summary>Deleted, the collection's page goes; Collections says so, with Undo.</summary>
+    async Task DeleteAsync()
+    {
+        if (_collection is not { } open || await Collections.DeleteAsync(open.Collection.Id) is not { } result) return;
+        if (result.Undo is null)
+        {
+            _done = result;
+            return;
+        }
+        Collections.Pending = result;
+        Navigation.NavigateTo("collections");
+    }
 
     async Task ChangeSort(ChangeEventArgs e)
     {

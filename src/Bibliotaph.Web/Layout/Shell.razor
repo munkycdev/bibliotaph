@@ -22,7 +22,8 @@ else
             <nav class="bt-navigation" aria-label="Main navigation">
                 @foreach (var item in Items)
                 {
-                    <NavLink class="bt-nav" href="@item.Href" Match="@(item.Href == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"><Icon Name="@item.Icon" />@item.Label</NavLink>
+                    var active = item.Href == ActiveHref;
+                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)"><Icon Name="@item.Icon" />@item.Label</a>
                 }
             </nav>
             <div class="bt-sidegroup">
@@ -48,6 +49,7 @@ else
             <main id="bt-main">@Body</main>
         </div>
     </div>
+    <CollectionDialog />
 }
 
 @code {
@@ -72,13 +74,19 @@ else
             ? "Signing in didn't finish. Try again, or choose another way to sign in."
             : null;
 
-    string Section
+    string Section =>
+        Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("settings", StringComparison.Ordinal) ? "Settings"
+            : Items.FirstOrDefault(i => i.Href == ActiveHref).Label ?? "Home";
+
+    /// <summary>The section the page is in. A collection shows in the Library, but belongs to Collections, as on Windows.</summary>
+    string? ActiveHref
     {
         get
         {
             var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
-            if (path.StartsWith("settings", StringComparison.Ordinal)) return "Settings";
-            return Items.Where(i => i.Href != "" && path.StartsWith(i.Href, StringComparison.Ordinal)).Select(i => i.Label).FirstOrDefault() ?? "Home";
+            if (path.Length == 0) return "";
+            if (path.StartsWith("library", StringComparison.Ordinal) && LibraryUrl.Parse(Navigation.Uri).Collection is not null) return "collections";
+            return Items.FirstOrDefault(i => i.Href != "" && path.StartsWith(i.Href, StringComparison.Ordinal)).Href;
         }
     }
 

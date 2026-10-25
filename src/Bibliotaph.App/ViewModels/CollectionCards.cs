@@ -30,7 +30,7 @@ public sealed class CollectionCardViewModel(CollectionInfo collection, string co
 
     public bool HasSecondCover => Covers.Count > 1;
 
-    public string Tip => Collection.Description is { } description ? $"{Name}: {description}" : Name;
+    public string Tip => Processing.CollectionText.Tip(Collection);
 }
 
 /// <summary>A collection in a picker: indented under the one it sits in, or listed by its path while filtering.</summary>

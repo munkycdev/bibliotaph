@@ -47,6 +47,12 @@ public sealed record LibraryQuery
 
     public string? Collections { get; init; }
 
+    /// <summary>The collection shown, its books and its sub-collections' books: the Library scoped to it.</summary>
+    public long? Collection { get; init; }
+
+    /// <summary>Only the books added to <see cref="Collection"/> itself: its "Only books added here".</summary>
+    public bool AddedHere { get; init; }
+
     public bool IsSearching => !string.IsNullOrWhiteSpace(Q);
 
     public bool IsPagesTab => IsSearching && Tab == "pages";

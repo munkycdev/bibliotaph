@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Windows;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
@@ -17,9 +16,6 @@ namespace Bibliotaph.App.Services;
 /// </summary>
 public sealed class CollectionDirectory : ICollectionChoices
 {
-    /// <summary>How many recent collections a book's menu offers before New collection… and Choose….</summary>
-    const int RecentCount = 4;
-
     readonly CollectionsService _collections;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
@@ -71,10 +67,9 @@ public sealed class CollectionDirectory : ICollectionChoices
     /// </summary>
     public static IReadOnlyList<CollectionMenuChoice> MenuChoicesFor(IReadOnlyList<CollectionInfo> all, Func<long, string> pathOf) =>
     [
-        .. all.OrderByDescending(c => c.UsedUtc).Take(RecentCount).OrderBy(c => pathOf(c.Id), StringComparer.CurrentCultureIgnoreCase)
-            .Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, $"Add to {c.Name}", pathOf(c.Id))),
-        new(CollectionMenuKind.New, null, "Add to a new collection…", null),
-        .. all.Count > RecentCount ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, "Add to another collection…", null)] : Array.Empty<CollectionMenuChoice>(),
+        .. CollectionText.Recent(all, pathOf).Select(c => new CollectionMenuChoice(CollectionMenuKind.Collection, c.Id, CollectionText.AddItem(c.Name), pathOf(c.Id))),
+        new(CollectionMenuKind.New, null, CollectionText.NewItem, null),
+        .. CollectionText.OffersChoose(all.Count) ? [new CollectionMenuChoice(CollectionMenuKind.Choose, null, CollectionText.ChooseItem, null)] : Array.Empty<CollectionMenuChoice>(),
     ];
 
     public CollectionInfo? Find(long collectionId) => _byId.GetValueOrDefault(collectionId);
@@ -83,41 +78,21 @@ public sealed class CollectionDirectory : ICollectionChoices
     public Task<IReadOnlyList<long>> CollectionsOfAsync(EntryId entryId) => _collections.GetForEntryAsync(entryId);
 
     /// <summary>The collections inside <paramref name="parentId"/>, or at the top, by name. Only the sidebar keeps the pinned ones' own order.</summary>
-    public IReadOnlyList<CollectionInfo> ChildrenOf(long? parentId) =>
-        [.. _byId.Values.Where(c => c.ParentId == parentId).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)];
+    public IReadOnlyList<CollectionInfo> ChildrenOf(long? parentId) => CollectionText.ChildrenOf(_byId.Values, parentId);
 
     /// <summary>"Campaign › Maps": the collection's name after those of the collections it sits in.</summary>
-    public string PathOf(long collectionId)
-    {
-        var names = new List<string>();
-        for (long? at = collectionId; at is { } id && _byId.TryGetValue(id, out var c) && names.Count <= _byId.Count; at = c.ParentId) names.Add(c.Name);
-        names.Reverse();
-        return string.Join(" › ", names);
-    }
+    public string PathOf(long collectionId) => CollectionText.PathOf(_byId, collectionId);
 
     /// <summary>
     /// Every collection, depth first, for a picker: each after the one it sits in. <paramref name="excluding"/> leaves out
     /// a collection and everything under it, for Move to….
     /// </summary>
-    public IReadOnlyList<CollectionChoice> Tree(long? excluding = null)
-    {
-        var result = new List<CollectionChoice>();
-        void Add(long? parent, int depth)
-        {
-            foreach (var child in ChildrenOf(parent).Where(c => c.Id != excluding))
-            {
-                result.Add(new CollectionChoice(child.Id, child.Name, PathOf(child.Id), depth));
-                if (depth < 32) Add(child.Id, depth + 1);
-            }
-        }
-        Add(null, 0);
-        return result;
-    }
+    public IReadOnlyList<CollectionChoice> Tree(long? excluding = null) =>
+        [.. CollectionText.Tree(_byId.Values, excluding).Select(t => new CollectionChoice(t.Collection.Id, t.Collection.Name, PathOf(t.Collection.Id), t.Depth))];
 
     /// <summary>What the Library shows for a collection: its books and its sub-collections' books.</summary>
     public LibraryScope ScopeFor(CollectionInfo collection) => new(ScopeKeys.Collection(collection.Id), collection.Name,
-        collection.Description ?? "A collection. The books in its sub-collections show here too.",
-        "Nothing in this collection yet.", "Add books from the Library: right-click a book, or choose Select and tick several, then add them to this collection.")
+        collection.Description ?? CollectionText.Subtitle, CollectionText.EmptyTitle, CollectionText.EmptyMessage)
     {
         CollectionId = collection.Id,
         Path = PathOf(collection.Id),
@@ -139,15 +114,8 @@ public sealed class CollectionDirectory : ICollectionChoices
             var covers = await Task.Run(() => _queries.ListAsync(new LibraryFilter(visible, Sort: LibrarySort.RecentlyAdded, Group: key), limit: 2));
             var books = counts.GetValueOrDefault(key);
             var children = _byId.Values.Count(c => c.ParentId == collection.Id);
-            cards.Add(new CollectionCardViewModel(collection, Count(books, children), [.. covers.Select(e => new LibraryItemViewModel(e, _covers))]));
+            cards.Add(new CollectionCardViewModel(collection, CollectionText.Count(books, children), [.. covers.Select(e => new LibraryItemViewModel(e, _covers))]));
         }
         return cards;
-    }
-
-    static string Count(long books, int children)
-    {
-        var parts = new List<string> { books == 0 ? "No books yet" : books == 1 ? "1 book" : $"{books.ToString("N0", CultureInfo.CurrentCulture)} books" };
-        if (children > 0) parts.Add(children == 1 ? "1 collection" : $"{children.ToString("N0", CultureInfo.CurrentCulture)} collections");
-        return string.Join(" · ", parts);
     }
 }
