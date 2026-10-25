@@ -58,6 +58,12 @@ public sealed record ServerPaths(string Root)
     public string Staging => Path.Combine(Root, "staging");
 
     public string Keys => Path.Combine(Root, "keys");
+
+    /// <summary>
+    /// Books being read, each downloaded from its drive and deleted when it has been read. Emptied at every start, so
+    /// a crash mid-read leaves nothing behind.
+    /// </summary>
+    public string Downloads => Path.Combine(Root, "downloads");
 }
 
 /// <summary>

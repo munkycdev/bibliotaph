@@ -42,9 +42,77 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<CreatedInvite>(ct))!;
     }
 
+    public async Task<IReadOnlyList<StorageAccount>> StorageAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<StorageAccount>>("api/storage", ct) ?? [];
+
+    public async Task DisconnectStorageAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/storage/{Uri.EscapeDataString(id)}", ct);
+        await EnsureAsync(response, ct);
+    }
+
+    public async Task<StorageFolderList> StorageFoldersAsync(string id, string path, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/storage/{Uri.EscapeDataString(id)}/folders?path={Uri.EscapeDataString(path)}", ct);
+        await EnsureAsync(response, ct);
+        return (await response.Content.ReadFromJsonAsync<StorageFolderList>(ct))!;
+    }
+
+    public async Task<IReadOnlyList<LibraryFolder>> LibraryFoldersAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<LibraryFolder>>("api/library/folders", ct) ?? [];
+
+    public async Task<IReadOnlyList<LibraryFolder>> AddLibraryFolderAsync(AddLibraryFolder request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/library/folders", request, ct);
+        await EnsureAsync(response, ct);
+        return (await response.Content.ReadFromJsonAsync<List<LibraryFolder>>(ct))!;
+    }
+
+    public async Task<IReadOnlyList<LibraryFolder>> RemoveLibraryFolderAsync(long id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/library/folders/{id}", ct);
+        await EnsureAsync(response, ct);
+        return (await response.Content.ReadFromJsonAsync<List<LibraryFolder>>(ct))!;
+    }
+
+    public async Task<LibraryStatus?> LibraryStatusAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/library/status", ct);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) return null;
+        await EnsureAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<LibraryStatus>(ct);
+    }
+
+    public async Task RescanAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/library/rescan", null, ct);
+        await EnsureAsync(response, ct);
+    }
+
+    /// <summary>A refused call becomes an <see cref="ApiProblemException"/> carrying the server's own words, when it gave any.</summary>
+    static async Task EnsureAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+        string? detail = null;
+        if (response.Content.Headers.ContentType?.MediaType == "application/problem+json")
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemText>(ct);
+            detail = problem?.Detail ?? problem?.Title;
+        }
+        throw new ApiProblemException(response.StatusCode, detail ?? "Bibliotaph couldn't do that just now. Try again in a moment.");
+    }
+
+    sealed record ProblemText(string? Title, string? Detail);
+
     public async Task SignOutAsync(CancellationToken ct = default)
     {
         using var response = await http.PostAsync("auth/signout", null, ct);
         response.EnsureSuccessStatusCode();
     }
+}
+
+/// <summary>A call the server refused, with a message that can be shown as it is.</summary>
+public sealed class ApiProblemException(HttpStatusCode status, string message) : Exception(message)
+{
+    public HttpStatusCode Status { get; } = status;
 }

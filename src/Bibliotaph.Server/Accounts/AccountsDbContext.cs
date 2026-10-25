@@ -110,6 +110,22 @@ public sealed class StorageConnection
     public required string ProtectedRefreshToken { get; set; }
 
     public string? Scopes { get; set; }
+
+    /// <summary>The provider's kind of account, such as personal or business for OneDrive, which changes some calls.</summary>
+    public string? AccountKind { get; set; }
+
+    /// <summary>The provider refused the refresh token (revoked, expired, password changed): the user must connect again.</summary>
+    public bool NeedsReconnect { get; set; }
+
+    /// <summary>
+    /// Sent back with every change notification for this connection, so a notification can't be forged by someone who
+    /// only knows the address it is posted to.
+    /// </summary>
+    public required string NotificationSecret { get; set; }
+
+    public string? SubscriptionId { get; set; }
+    public DateTime? SubscriptionExpires { get; set; }
+
     public DateTime Created { get; set; }
     public DateTime Updated { get; set; }
 }

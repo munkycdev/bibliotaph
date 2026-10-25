@@ -1,7 +1,6 @@
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Server.Libraries;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Server.Tests;
 
@@ -9,12 +8,17 @@ public sealed class UserLibrariesTests : IDisposable
 {
     readonly TempFolder _folder = new();
     readonly ManualClock _clock = new(new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero));
+    readonly LibraryFixture _fixture;
     readonly UserLibraries _libraries;
 
     static readonly string Alice = new('a', 32);
     static readonly string Bob = new('b', 32);
 
-    public UserLibrariesTests() => _libraries = new UserLibraries(new ServerPaths(_folder.Path), new NoRestore(), _clock, NullLoggerFactory.Instance);
+    public UserLibrariesTests()
+    {
+        _fixture = new LibraryFixture(_folder.Path, _clock);
+        _libraries = _fixture.Libraries;
+    }
 
     public void Dispose()
     {

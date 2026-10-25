@@ -30,6 +30,8 @@ public static class ApiEndpoints
             return new LibrarySummary(await db.Entries.CountAsync(ct), await db.SourceRoots.CountAsync(ct));
         });
 
+        api.MapStorageApi();
+
         var invites = api.MapGroup("/invites").RequireAuthorization(AuthSetup.AdminPolicy);
 
         invites.MapGet("/", async (AccountService accounts, CancellationToken ct) =>

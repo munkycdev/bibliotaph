@@ -22,6 +22,7 @@
     <Project Path="src/Bibliotaph.PdfWorker/Bibliotaph.PdfWorker.csproj" />
     <Project Path="src/Bibliotaph.Processing/Bibliotaph.Processing.csproj" />
     <Project Path="src/Bibliotaph.Server/Bibliotaph.Server.csproj" />
+    <Project Path="src/Bibliotaph.Storage.OneDrive/Bibliotaph.Storage.OneDrive.csproj" />
     <Project Path="src/Bibliotaph.Viewer/Bibliotaph.Viewer.csproj" />
     <Project Path="src/Bibliotaph.Web/Bibliotaph.Web.csproj" />
   </Folder>

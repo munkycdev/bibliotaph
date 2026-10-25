@@ -4,6 +4,7 @@
 @inject Session Session
 @inject Theme Theme
 @inject NavigationManager Navigation
+@inject LibraryActivity Activity
 
 @if (_loading)
 {
@@ -30,7 +31,8 @@ else
             </div>
             <div class="bt-sidebottom">
                 <NavLink class="bt-nav" href="settings"><Icon Name="Settings2" />Settings</NavLink>
-                <div class="bt-sync"><span class="bt-status-dot"></span>@_me.Name</div>
+                @* As in the Windows app: one or two lines of what the library is doing, the whole text on hover. *@
+                <div class="bt-sync" role="status" title="@Activity.Current?.Text"><span class="bt-status-dot @(Activity.Current?.Busy == true ? "busy" : "")"></span><span>@(Activity.Current?.Text ?? "Opening your library")</span></div>
             </div>
         </aside>
         <div class="bt-workarea">
@@ -82,6 +84,11 @@ else
     {
         Navigation.LocationChanged += OnLocationChanged;
         _me = await Session.MeAsync();
+        if (_me is not null)
+        {
+            Activity.Changed += OnActivityChanged;
+            Activity.Start();
+        }
         _theme = await Theme.CurrentAsync();
         _loading = false;
     }
@@ -90,5 +97,11 @@ else
 
     void OnLocationChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    void OnActivityChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Activity.Changed -= OnActivityChanged;
+    }
 }

@@ -298,3 +298,22 @@ a{color:var(--bt-accent)}
 .bt-policy p{margin-top:12px}
 .bt-policy ul{padding-left:20px;margin:10px 0 0}
 .bt-policy .bt-table{margin-top:14px}
+/* Connected storage and library folders, as the Windows app's Library folders section: icon, text, a remove button. */
+.bt-sourcerow{display:flex;align-items:flex-start;gap:10px}
+.bt-sourcerow>div{flex:1;min-width:0}
+.bt-sourcerow>.bt-icon,.bt-sourcerow>.bt-button{margin:-7px -7px -7px 0}
+.bt-pending{background:transparent;border:1px solid var(--bt-line)}
+.bt-pending .bt-actions{margin-top:12px}
+.bt-backdrop.fixed,.bt-drawer.fixed{position:fixed}
+.bt-drawer.fixed{overflow-y:auto;max-height:100vh}
+.bt-picker-storage{margin-bottom:16px}
+.bt-crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:12px;color:var(--bt-muted)}
+.bt-folderlist{border-top:1px solid var(--bt-line);margin-bottom:12px}
+.bt-folderrow{display:flex;align-items:center;gap:10px;width:100%;padding:12px 6px;border-bottom:1px solid var(--bt-line);font-size:12px;text-align:left;cursor:pointer}
+.bt-folderrow:hover{background:var(--bt-side)}
+.bt-folderrow>span:first-of-type{flex:1;min-width:0;overflow-wrap:anywhere}
+.bt-folderrow .bt-chip{margin:0}
+.bt-sync{align-items:flex-start}
+.bt-sync>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bt-sync .bt-status-dot{flex-shrink:0;margin-top:5px}
+.bt-status-dot.busy{background:var(--bt-accent)}

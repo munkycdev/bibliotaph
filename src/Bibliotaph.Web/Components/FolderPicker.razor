@@ -1,0 +1,130 @@
+@* Picks a folder in connected storage, as the Windows app's folder dialog does: walk down from the top, then use the folder you're in. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed" @onclick="Cancel"></div>
+<aside class="bt-drawer fixed" role="dialog" aria-modal="true" aria-labelledby="picker-heading">
+    <div class="bt-drawer-head">
+        <h2 id="picker-heading">Pick a folder</h2>
+        <button class="bt-icon" aria-label="Close" title="Close" @onclick="Cancel"><Icon Name="X" /></button>
+    </div>
+
+    @if (Storage.Count > 1)
+    {
+        <label class="bt-field bt-picker-storage">Storage
+            <select value="@_storage?.Id" @onchange="ChangeStorage">
+                @foreach (var account in Storage)
+                {
+                    <option value="@account.Id">@account.Name</option>
+                }
+            </select>
+        </label>
+    }
+
+    <nav class="bt-crumbs" aria-label="Folder">
+        <button class="bt-link" @onclick="() => OpenAsync(string.Empty)">@_storage?.Name</button>
+        @foreach (var (name, path) in Crumbs)
+        {
+            <Icon Name="ChevronRight" Size="13" />
+            <button class="bt-link" @onclick="() => OpenAsync(path)">@name</button>
+        }
+    </nav>
+
+    @if (_problem is not null)
+    {
+        <div class="bt-message" role="alert">@_problem</div>
+    }
+    else if (_list is null)
+    {
+        <div class="bt-loading">Opening…</div>
+    }
+    else
+    {
+        <div class="bt-folderlist">
+            @foreach (var folder in _list.Folders)
+            {
+                <button class="bt-folderrow" @onclick="() => OpenAsync(folder.Path)">
+                    <Icon Name="Folder" /><span>@folder.Name</span>
+                    @if (folder.InLibrary)
+                    {
+                        <span class="bt-chip">In your library</span>
+                    }
+                    <Icon Name="ChevronRight" Size="15" />
+                </button>
+            }
+            @if (_list.Folders.Count == 0)
+            {
+                <p class="bt-sample">No folders in here.</p>
+            }
+        </div>
+        <p class="bt-sample">@Contents(_list)</p>
+    }
+
+    <div class="bt-drawer-actions">
+        <button class="bt-button primary" disabled="@(_list is null)" @onclick="Use"><Icon Name="Check" />Use this folder</button>
+        <button class="bt-button" @onclick="Cancel">Cancel</button>
+    </div>
+</aside>
+
+@code {
+    StorageAccount? _storage;
+    StorageFolderList? _list;
+    string _path = "";
+    string? _problem;
+
+    [Parameter, EditorRequired] public IReadOnlyList<StorageAccount> Storage { get; set; } = [];
+    [Parameter] public EventCallback<PickedFolder> Picked { get; set; }
+    [Parameter] public EventCallback Cancelled { get; set; }
+
+    IEnumerable<(string Name, string Path)> Crumbs
+    {
+        get
+        {
+            if (_path.Length == 0) yield break;
+            var parts = _path.Split('/');
+            for (var i = 0; i < parts.Length; i++) yield return (parts[i], string.Join('/', parts[..(i + 1)]));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _storage = Storage.FirstOrDefault(s => !s.NeedsReconnect) ?? Storage.FirstOrDefault();
+        await OpenAsync("");
+    }
+
+    async Task ChangeStorage(ChangeEventArgs e)
+    {
+        _storage = Storage.FirstOrDefault(s => s.Id == (string?)e.Value);
+        await OpenAsync("");
+    }
+
+    async Task OpenAsync(string path)
+    {
+        if (_storage is null) return;
+        _path = path;
+        _list = null;
+        _problem = null;
+        try
+        {
+            _list = await Api.StorageFoldersAsync(_storage.Id, path);
+        }
+        catch (ApiProblemException problem)
+        {
+            _problem = problem.Status == System.Net.HttpStatusCode.NotFound ? "That folder isn't there any more." : problem.Message;
+        }
+    }
+
+    Task Use() => _list is null || _storage is null ? Task.CompletedTask
+        : Picked.InvokeAsync(new PickedFolder(_storage, _list.Path, _list.Path.Length == 0 ? _storage.Name : $"{_storage.Name} › {_list.Path.Replace("/", " › ")}", Contents(_list)));
+
+    Task Cancel() => Cancelled.InvokeAsync();
+
+    /// <summary>What's directly in the folder; its subfolders are counted when it's added.</summary>
+    static string Contents(StorageFolderList list) =>
+        (list.Folders.Count, list.Files) switch
+        {
+            (0, 0) => "This folder is empty.",
+            (var folders, 0) => $"{folders:N0} {(folders == 1 ? "folder" : "folders")} here",
+            (0, var files) => $"{files:N0} {(files == 1 ? "file" : "files")} here",
+            var (folders, files) => $"{folders:N0} {(folders == 1 ? "folder" : "folders")} and {files:N0} {(files == 1 ? "file" : "files")} here",
+        };
+}

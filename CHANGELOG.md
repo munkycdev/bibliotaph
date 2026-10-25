@@ -6,6 +6,9 @@
   Windows one. It is invite-only: a one-time link makes an account, signed in with Microsoft or Google, and admins make
   invitations in Settings. The privacy policy is published at bibliotaph.online/privacy. Your library comes to it in the
   next steps. See [Bibliotaph on the web](docs/guide/web.md).
+- **OneDrive on the web.** Connect one or more OneDrives in Settings › Storage, then add library folders from them as in
+  the Windows app. Bibliotaph looks through them, reads each new file once without keeping a copy, and notices changes
+  in your OneDrive within minutes. The sidebar says what it's doing.
 
 ## 1.3 · 19 October 2026
 

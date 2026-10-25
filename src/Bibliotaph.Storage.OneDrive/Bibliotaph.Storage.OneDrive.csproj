@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    OneDrive through Microsoft Graph: listing library folders, reading books, and watching for changes. Plain .NET, so
+    the server uses it now and the Windows app can later.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <!-- A book is downloaded to a temporary file to be read, and the file deleted when it's closed. -->
+    <AllowFileWrites>true</AllowFileWrites>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bibliotaph.Server.Tests" />
+  </ItemGroup>
+</Project>

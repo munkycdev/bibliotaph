@@ -126,13 +126,21 @@ Grant $id.principalId ServicePrincipal 'AcrPull' $registryId
 
 Step 'Microsoft sign-in'
 $signIn = Find ad app list --display-name 'Bibliotaph' --query "[?displayName=='Bibliotaph'] | [0].{appId:appId, id:id}" -o json
+# One registration signs people in and connects their OneDrive, so it answers on both callbacks, here and on a
+# developer's machine.
+$redirects = foreach ($origin in "https://$Domain", 'https://localhost:5179') {
+    "$origin/auth/callback/microsoft"
+    "$origin/storage/callback/onedrive"
+}
 if (-not $signIn) {
     # Personal accounts need v2 tokens, which can only be set once the registration exists.
     $signIn = Json (az ad app create --display-name 'Bibliotaph' --sign-in-audience AzureADMultipleOrgs `
-        --web-redirect-uris "https://$Domain/auth/callback/microsoft" 'https://localhost:5179/auth/callback/microsoft' `
-        --query '{appId:appId, id:id}' -o json)
+        --web-redirect-uris @redirects --query '{appId:appId, id:id}' -o json)
     az ad app update --id $signIn.id --set api.requestedAccessTokenVersion=2
     az ad app update --id $signIn.id --sign-in-audience AzureADandPersonalMicrosoftAccount
+}
+else {
+    az ad app update --id $signIn.id --web-redirect-uris @redirects
 }
 if (-not (SecretExists 'auth-microsoft')) {
     $password = az ad app credential reset --id $signIn.id --append --display-name $Domain --years 2 --query password -o tsv

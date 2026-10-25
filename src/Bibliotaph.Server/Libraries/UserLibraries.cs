@@ -2,38 +2,54 @@ using System.Collections.Concurrent;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Bibliotaph.Processing;
+using Bibliotaph.Server.Storage;
+using Bibliotaph.Storage.OneDrive;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Libraries;
 
 /// <summary>
-/// One user's library: the same catalog.db, index.db and single index writer the Windows app runs, in that user's
-/// folder. Only <see cref="UserLibraries"/> opens and closes it; endpoints borrow it through a <see cref="LibraryLease"/>.
+/// One user's library: the same catalog.db, index.db, stores and indexing the Windows app runs, in that user's folder,
+/// with its own services so nothing is shared between users. Only <see cref="UserLibraries"/> opens and closes it;
+/// endpoints borrow it through a <see cref="LibraryLease"/>.
 /// </summary>
 public sealed class UserLibrary
 {
-    internal UserLibrary(string userId, AppPaths paths, CatalogDatabase catalog, IndexDatabase index, IndexWriter writer)
+    internal UserLibrary(string userId, AppPaths paths, ServiceProvider services)
     {
         UserId = userId;
         Paths = paths;
-        Catalog = catalog;
-        Index = index;
-        Writer = writer;
-        Contexts = new ContextFactory(catalog);
+        Services = services;
     }
 
     public string UserId { get; }
     public AppPaths Paths { get; }
-    public CatalogDatabase Catalog { get; }
-    public IndexDatabase Index { get; }
-    public IndexWriter Writer { get; }
+    internal ServiceProvider Services { get; }
+
+    public T Get<T>() where T : notnull => Services.GetRequiredService<T>();
+
+    public CatalogDatabase Catalog => Get<CatalogDatabase>();
+    public IndexDatabase Index => Get<IndexDatabase>();
+    public IndexWriter Writer => Get<IndexWriter>();
+    public IndexingService Indexing => Get<IndexingService>();
+    public UserDrives Drives => Get<UserDrives>();
 
     /// <summary>For the Catalog stores, which take a context factory as the Windows app's DI gives them.</summary>
-    public IDbContextFactory<CatalogDbContext> Contexts { get; }
+    public IDbContextFactory<CatalogDbContext> Contexts => Get<IDbContextFactory<CatalogDbContext>>();
 
-    sealed class ContextFactory(CatalogDatabase database) : IDbContextFactory<CatalogDbContext>
+    /// <summary>
+    /// Whether indexing has work in hand: a scan, or files still to read. A busy library stays open after its last
+    /// request, so indexing finishes even when nobody is looking.
+    /// </summary>
+    public async Task<bool> IsBusyAsync(CancellationToken ct = default)
     {
-        public CatalogDbContext CreateDbContext() => database.CreateContext();
+        var indexing = Indexing;
+        if (indexing.IsScanning || indexing.Hashing is not null) return true;
+        if (indexing.IsPaused(Lane.Index)) return false;
+        var counts = await Get<LibraryStore>().GetCountsAsync(ct);
+        // Files that couldn't be read are tried again after the next scan, not now.
+        return counts.Unhashed > indexing.Unreadable.Count;
     }
 }
 
@@ -63,10 +79,11 @@ public sealed class LibraryLease : IAsyncDisposable
 /// and closes it after <see cref="ServerOptions.LibraryIdle"/> without use. SQLite wants one writing process per file,
 /// so this one server process is the only writer of every library; anything else (the indexer job) goes through the API.
 /// </summary>
-public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, TimeProvider clock, ILoggerFactory logs) : IAsyncDisposable
+public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, LibraryHost host) : IAsyncDisposable
 {
     readonly ConcurrentDictionary<string, Slot> _slots = new();
-    readonly ILogger _log = logs.CreateLogger<UserLibraries>();
+    readonly ILogger _log = host.Logs.CreateLogger<UserLibraries>();
+    readonly TimeProvider clock = host.Clock;
 
     /// <summary>Libraries open now, for tests and diagnostics.</summary>
     public int OpenCount => _slots.Count;
@@ -105,6 +122,29 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, T
         }
     }
 
+    /// <summary>
+    /// The user connected or disconnected a drive: an open library picks up the change and looks at its folders again.
+    /// A closed one reads the connections when it next opens.
+    /// </summary>
+    public async Task DrivesChangedAsync(string userId)
+    {
+        if (!_slots.TryGetValue(userId, out var slot) || !slot.Opening.IsValueCreated || !slot.Opening.Value.IsCompletedSuccessfully) return;
+        var library = await slot.Opening.Value;
+        await library.Drives.ReloadAsync();
+        library.Indexing.RequestScan();
+    }
+
+    /// <summary>
+    /// Something changed in one of a user's drives. An open library scans the folders on that drive; a closed one is
+    /// opened, which scans every folder, and stays open while it reads what's new.
+    /// </summary>
+    public async Task DriveChangedAsync(string userId, string driveId, CancellationToken ct = default)
+    {
+        var wasOpen = _slots.ContainsKey(userId);
+        await using var lease = await OpenAsync(userId, ct);
+        if (wasOpen) lease.Library.Get<DriveChangeFeed>().Notify(driveId);
+    }
+
     void Release(Slot slot)
     {
         lock (slot)
@@ -121,11 +161,26 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, T
         var closed = 0;
         foreach (var (userId, slot) in _slots)
         {
-            if (!TryBeginClose(slot, s => s.Leases == 0 && now - s.LastUsed >= idle, out var done)) continue;
+            if (!IsIdle(slot, now, idle)) continue;
+            try
+            {
+                if (await (await slot.Opening.Value).IsBusyAsync()) continue;
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Couldn't tell whether the library of {User} is busy; closing it", userId);
+            }
+            if (!TryBeginClose(slot, s => IsIdle(s, now, idle), out var done)) continue;
             await CloseAsync(userId, slot, done);
             closed++;
         }
         return closed;
+    }
+
+    static bool IsIdle(Slot slot, DateTimeOffset now, TimeSpan idle)
+    {
+        if (!slot.Opening.IsValueCreated || !slot.Opening.Value.IsCompletedSuccessfully) return false;
+        lock (slot) return slot.Closed is null && slot.Leases == 0 && now - slot.LastUsed >= idle;
     }
 
     static bool TryBeginClose(Slot slot, Func<Slot, bool> when, out TaskCompletionSource done)
@@ -146,11 +201,15 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, T
         try
         {
             var library = await slot.Opening.Value;
+            // Indexing first, so it can still record the job it was on; then the writer, as the Windows app stops them.
+            await library.Indexing.StopAsync(CancellationToken.None);
             await library.Writer.StopAsync(CancellationToken.None);
-            library.Writer.Dispose();
+            var index = library.Index;
+            var catalog = library.Catalog;
+            await library.Services.DisposeAsync();
             // Pooled connections keep the files open; a library opened again later must not share them.
-            library.Index.ClearPools();
-            library.Catalog.ClearPool();
+            index.ClearPools();
+            catalog.ClearPool();
             _log.LogInformation("Closed the library of {User}", userId);
         }
         catch (Exception ex)
@@ -172,21 +231,29 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, T
         await restore.RestoreAsync($"users/{userId}/catalog.db", appPaths.CatalogDatabase, CancellationToken.None);
         await restore.RestoreAsync($"users/{userId}/index.db", appPaths.IndexDatabase, CancellationToken.None);
 
-        var catalog = new CatalogDatabase(appPaths.CatalogDatabase, paths.UserBackups(userId), clock, logs.CreateLogger<CatalogDatabase>());
-        var migrated = await catalog.MigrateAsync();
-        if (migrated.AppliedMigrations.Count > 0)
-            _log.LogInformation("Applied {Count} catalog migration(s) for {User}", migrated.AppliedMigrations.Count, userId);
+        var services = LibraryServices.Build(userId, appPaths, paths.UserBackups(userId), host);
+        try
+        {
+            var library = new UserLibrary(userId, appPaths, services);
+            var migrated = await library.Catalog.MigrateAsync();
+            if (migrated.AppliedMigrations.Count > 0)
+                _log.LogInformation("Applied {Count} catalog migration(s) for {User}", migrated.AppliedMigrations.Count, userId);
+            await library.Get<VocabularyStore>().SeedAsync();
 
-        var index = IndexDatabase.ForFile(appPaths.IndexDatabase, logs.CreateLogger<IndexDatabase>());
-        var opened = await index.InitializeAsync();
-        if (opened != IndexOpenResult.Opened) _log.LogInformation("index.db for {User}: {Result}", userId, opened);
+            var opened = await library.Index.InitializeAsync();
+            if (opened != IndexOpenResult.Opened) _log.LogInformation("index.db for {User}: {Result}", userId, opened);
+            await library.Writer.StartAsync(CancellationToken.None);
 
-        var writer = new IndexWriter(index, logs.CreateLogger<IndexWriter>());
-        await writer.StartAsync(CancellationToken.None);
-
-        var library = new UserLibrary(userId, appPaths, catalog, index, writer);
-        await new VocabularyStore(library.Contexts, clock).SeedAsync();
-        return library;
+            await library.Drives.ReloadAsync();
+            // Scans every library folder as it starts, which picks up whatever changed while the library was closed.
+            await library.Indexing.StartAsync(CancellationToken.None);
+            return library;
+        }
+        catch
+        {
+            await services.DisposeAsync();
+            throw;
+        }
     }
 
     public async ValueTask DisposeAsync()
