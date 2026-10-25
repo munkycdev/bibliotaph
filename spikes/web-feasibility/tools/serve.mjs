@@ -1,9 +1,9 @@
 // A static server with Range support, like Blob Storage or a drive's download link, for the spike's pages and books.
 // Usage: node tools/serve.mjs <wwwroot> <port> [booksFolder]
-// Books are served at /books/<name>. Slow connections are simulated in the browser (tools/pdfbench.mjs), not here.
+// Books are served at /books/<name>, and /__books lists the folder's PDFs. Slow connections are simulated in the browser (tools/pdfbench.mjs), not here.
 import { createServer } from 'node:http';
-import { createReadStream, statSync, existsSync } from 'node:fs';
-import { extname, join, normalize } from 'node:path';
+import { createReadStream, statSync, existsSync, readdirSync } from 'node:fs';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 
 const [root, port = '8080', books] = process.argv.slice(2);
 const types = {
@@ -21,11 +21,16 @@ createServer(async (req, res) => {
     if (url.searchParams.has('reset')) { counters.requests = 0; counters.bytes = 0; }
     return;
   }
+  if (url.pathname === '/__books') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(books ? readdirSync(books).filter(name => extname(name).toLowerCase() === '.pdf') : []));
+    return;
+  }
   const isBook = url.pathname.startsWith('/books/') && books;
-  let path = isBook
-    ? join(books, decodeURIComponent(url.pathname.slice(7)))
-    : join(root, normalize(decodeURIComponent(url.pathname)));
-  if (!existsSync(path) || statSync(path).isDirectory()) path = join(root, 'index.html');
+  const base = resolve(isBook ? books : root);
+  let path = resolve(base, '.' + sep + normalize(decodeURIComponent(isBook ? url.pathname.slice(7) : url.pathname)));
+  // Nothing outside the two folders is served, whatever the request's path says.
+  if (!path.startsWith(base + sep) || !existsSync(path) || statSync(path).isDirectory()) path = join(root, 'index.html');
   const size = statSync(path).size;
   const headers = {
     'content-type': types[extname(path)] ?? 'application/octet-stream', 'accept-ranges': 'bytes', 'cache-control': 'no-store',

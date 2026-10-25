@@ -21,18 +21,25 @@ No real book, title or path is used or committed.
 
 ## Running it (PowerShell)
 
+Needs the .NET 11 SDK from `global.json` with the `wasm-tools` workload, and Node 22 or later.
+
 ```powershell
-dotnet publish src/Spike.Web -c Release -o out/web
-dotnet run --project src/Spike.Corpus -c Release -- $env:TEMP\spike-books C:\Windows\Fonts\arial.ttf
+dotnet workload install wasm-tools
+npm install --no-save playwright; npx playwright install chromium
 Push-Location bench; npm ci; Pop-Location
 node tools/patch-pdfjs.mjs
-Start-Job { node tools/serve.mjs out/web/wwwroot 8080 }
-Start-Job { node tools/serve.mjs bench 8081 $env:TEMP\spike-books }
-node tools/scale.mjs http://localhost:8080/ 500 100 opfs
-$env:MBPS = 50; $env:PATCHED = 1; node tools/pdfbench.mjs http://localhost:8081/ illustrated-120.pdf
+dotnet publish src/Spike.Web -c Release -o out/web
+dotnet run --project src/Spike.Corpus -c Release -- $env:TEMP\spike-books C:\Windows\Fonts\arial.ttf
 ```
 
-The drivers need Playwright (`npm i -g playwright`) and Chromium.
+Then, in two other windows, `node tools/serve.mjs out/web/wwwroot 8080` and
+`node tools/serve.mjs bench 8081 $env:TEMP\spike-books` (any folder of PDFs works). The drivers print a summary to
+the console and the raw JSON to stdout:
+
+```powershell
+node tools/scale.mjs http://localhost:8080/ 500 100 opfs > $env:TEMP\scale.json
+$env:MBPS = 50; $env:PATCHED = 1; node tools/pdfbench.mjs http://localhost:8081/ all > $env:TEMP\pdf.json
+```
 
 ## Results
 

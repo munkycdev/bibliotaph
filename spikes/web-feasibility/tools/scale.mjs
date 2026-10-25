@@ -24,4 +24,7 @@ const result = await page.evaluate(async ({ books, pages, where }) => {
   return out;
 }, { books: Number(books), pages: Number(pages), where });
 console.log(JSON.stringify(result, null, 1));
+console.error(`${result.books} books x ${result.pages} pages in ${where}: indexed in ${(result.addMs / 1000).toFixed(1)} s`);
+for (const s of result.searches.filter(s => s.run === 'warm'))
+  console.error(`  ${s.query}: ${s.matchingPages} pages in ${Math.round(s.pagesMs)} ms`);
 await browser.close();
