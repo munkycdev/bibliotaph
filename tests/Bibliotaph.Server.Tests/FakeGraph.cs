@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
+using Bibliotaph.Pdf.Host;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Indexing;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.DataProtection;
@@ -149,7 +151,9 @@ sealed class LibraryFixture : IAsyncDisposable
         }).Build();
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
-        Libraries = new UserLibraries(Paths, new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads));
+        Pdf = new PdfWorkerPool(new PdfWorkerPoolOptions());
+        Libraries = new UserLibraries(Paths, new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
+            new WorkerPdfEngine(Pdf), new SkiaImageCodec()));
     }
 
     public FakeGraph Graph { get; }
@@ -159,6 +163,7 @@ sealed class LibraryFixture : IAsyncDisposable
     public DriveTokens Tokens { get; }
     public UserDriveFactory Drives { get; }
     public UserLibraries Libraries { get; }
+    public PdfWorkerPool Pdf { get; }
 
     /// <summary>Makes a user and connects the fake drive to them, as the OAuth callback does.</summary>
     public async Task<(string UserId, ConnectedAccount Drive)> UserWithDriveAsync(string name = "Dana")
@@ -170,5 +175,9 @@ sealed class LibraryFixture : IAsyncDisposable
         return (user.Id, drive);
     }
 
-    public ValueTask DisposeAsync() => Libraries.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await Libraries.DisposeAsync();
+        await Pdf.DisposeAsync();
+    }
 }

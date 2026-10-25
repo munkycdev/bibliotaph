@@ -15,7 +15,7 @@ public sealed record WorkerOptions
     public string? WorkerPath { get; init; }
     public long SharedBufferBytes { get; init; } = 256L * 1024 * 1024;
 
-    /// <summary>Per-process committed-memory cap, enforced by a Windows job object.</summary>
+    /// <summary>Per-process memory cap: committed memory, by a Windows job object; resident memory on Linux.</summary>
     public long MemoryLimitBytes { get; init; } = 1024L * 1024 * 1024;
     public TimeSpan DefaultTimeout { get; init; } = TimeSpan.FromSeconds(60);
 
@@ -50,6 +50,7 @@ public sealed class WorkerClient : IAsyncDisposable
     Process? _process;
     NamedPipeServerStream? _pipe;
     JobObject? _job;
+    MemoryWatch? _memory;
     int _nextId;
     bool _disposed;
 
@@ -252,6 +253,10 @@ public sealed class WorkerClient : IAsyncDisposable
             _job = new JobObject(Options.MemoryLimitBytes);
             _job.Assign(_process);
         }
+        else if (OperatingSystem.IsLinux())
+        {
+            _memory = new MemoryWatch(_process, Options.MemoryLimitBytes);
+        }
 
         using var connect = CancellationTokenSource.CreateLinkedTokenSource(ct);
         connect.CancelAfter(TimeSpan.FromSeconds(15));
@@ -288,6 +293,8 @@ public sealed class WorkerClient : IAsyncDisposable
         _pipe = null;
         if (OperatingSystem.IsWindows()) _job?.Dispose();
         _job = null;
+        if (OperatingSystem.IsLinux()) _memory?.Dispose();
+        _memory = null;
     }
 
     public async ValueTask DisposeAsync()

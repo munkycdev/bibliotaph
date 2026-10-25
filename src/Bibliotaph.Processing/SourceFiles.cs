@@ -21,6 +21,18 @@ public sealed class LocalFile(string path, Action? release) : IAsyncDisposable, 
     }
 }
 
+/// <summary>
+/// Library files on no disk this process can open, such as a OneDrive the web server reads through its API. The PDF
+/// engine and image decoders need a file, so <see cref="SourceFiles"/> fetches a copy into its cache to read.
+/// </summary>
+public interface IRemoteFiles
+{
+    bool IsRemote(string path);
+
+    /// <summary>The file's content, read once from the start. Throws <see cref="FileNotFoundException"/> when it's gone.</summary>
+    Task<Stream> OpenAsync(string path, CancellationToken ct);
+}
+
 /// <summary>A file inside a ZIP no longer has the content it was hashed with: the ZIP changed, and the next scan sorts it out.</summary>
 public sealed class SourceChangedException(string message) : IOException(message);
 
@@ -29,9 +41,11 @@ public sealed class SourceChangedException(string message) : IOException(message
 /// to the extract cache, named by its content hash, checked against that hash, and reused by every reader after. Files
 /// in use are kept; once the cache passes its limit, the least recently used go. It also knows which library files are
 /// open through it, a book in the reader or a ZIP being extracted, so none goes back to online-only while it is in use
-/// (<see cref="OnlineOnlyReturns"/>).
+/// (<see cref="OnlineOnlyReturns"/>). A <paramref name="remote"/> file is fetched into the cache the same way, and its
+/// copy deleted as soon as its documents' stages are done with it (<see cref="DropRemoteCopiesAsync"/>).
 /// </summary>
-public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpace disk, IndexingOptions? options = null, long limitBytes = SourceFiles.DefaultLimitBytes)
+public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpace disk, IndexingOptions? options = null,
+    long limitBytes = SourceFiles.DefaultLimitBytes, IRemoteFiles? remote = null)
 {
     public const long DefaultLimitBytes = 5L * 1024 * 1024 * 1024;
 
@@ -41,6 +55,8 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     /// <summary>Library files open through here, by full path, with how many hold each.</summary>
     readonly Dictionary<string, int> _open = [with(StringComparer.OrdinalIgnoreCase)];
     readonly ConcurrentDictionary<string, SemaphoreSlim> _extracting = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Copies of remote files in the cache, by name, with the documents they were fetched for.</summary>
+    readonly Dictionary<string, HashSet<long>> _remoteCopies = [with(StringComparer.OrdinalIgnoreCase)];
     bool _cleaned;
 
     public string Folder => paths.Extract;
@@ -52,13 +68,14 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     /// </summary>
     public async Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct = default)
     {
-        if (!source.InArchive)
+        var fetch = !source.InArchive && remote?.IsRemote(source.FullPath) == true;
+        if (!source.InArchive && !fetch)
         {
             var path = source.FullPath;
             Track(path, +1);
             return new LocalFile(path, () => Track(path, -1));
         }
-        var name = source.ContentHash.ToLowerInvariant() + Path.GetExtension(source.EntryPath!).ToLowerInvariant();
+        var name = source.ContentHash.ToLowerInvariant() + Path.GetExtension(source.EntryPath ?? source.FullPath).ToLowerInvariant();
         var target = Path.Combine(Folder, name);
         Hold(name);
         try
@@ -69,7 +86,14 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
             {
                 // The modified time says when it was last used, for eviction; it's Bibliotaph's own copy.
                 if (File.Exists(target)) File.SetLastWriteTimeUtc(target, DateTime.UtcNow);
+                else if (fetch) await FetchAsync(source, target, ct);
                 else await ExtractAsync(source, target, ct);
+                if (fetch)
+                    lock (_lock)
+                    {
+                        if (!_remoteCopies.TryGetValue(name, out var documents)) _remoteCopies[name] = documents = [];
+                        documents.Add(source.DocumentId);
+                    }
             }
             finally
             {
@@ -106,7 +130,27 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
         await using var input = ArchiveReader.OpenMember(zip, source.EntryPath!);
         if (disk.FreeBytes(Folder) is { } free && free - input.Length < _reserveBytes)
             throw new IOException("There isn't enough free disk space to read this file from its ZIP.");
+        await CopyCheckedAsync(input, source, target, ct);
+    }
 
+    async Task FetchAsync(DocumentSource source, string target, CancellationToken ct)
+    {
+        Directory.CreateDirectory(Folder);
+        Track(source.FullPath, +1);
+        try
+        {
+            await using var input = await remote!.OpenAsync(source.FullPath, ct);
+            await CopyCheckedAsync(input, source, target, ct);
+        }
+        finally
+        {
+            Track(source.FullPath, -1);
+        }
+    }
+
+    /// <summary>Writes <paramref name="input"/> to <paramref name="target"/>, keeping it only if it has the source's content.</summary>
+    static async Task CopyCheckedAsync(Stream input, DocumentSource source, string target, CancellationToken ct)
+    {
         var temp = $"{target}.{Guid.NewGuid():N}.tmp";
         try
         {
@@ -122,7 +166,7 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
                 }
             }
             if (!ContentHash.FromBytes(hash.GetHashAndReset()).Hex.Equals(source.ContentHash, StringComparison.OrdinalIgnoreCase))
-                throw new SourceChangedException("The file inside the ZIP has changed since it was read.");
+                throw new SourceChangedException(source.InArchive ? "The file inside the ZIP has changed since it was read." : "The file has changed since it was read.");
             File.Move(temp, target, overwrite: true);
         }
         catch
@@ -172,6 +216,32 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
         }
     }
 
+    /// <summary>
+    /// Deletes each copy of a remote file not in use whose documents <paramref name="doneReading"/> says are done with
+    /// it, so nobody's books stay on the server longer than reading them takes. Returns how many went.
+    /// </summary>
+    public async Task<int> DropRemoteCopiesAsync(Func<IReadOnlyCollection<long>, Task<IReadOnlySet<long>>> doneReading)
+    {
+        List<(string Name, long[] Documents)> copies;
+        lock (_lock) copies = [.. _remoteCopies.Select(c => (c.Key, c.Value.ToArray()))];
+        if (copies.Count == 0) return 0;
+        var done = await doneReading([.. copies.SelectMany(c => c.Documents).Distinct()]);
+        var dropped = 0;
+        foreach (var (name, documents) in copies)
+        {
+            if (!documents.All(done.Contains)) continue;
+            lock (_lock)
+            {
+                if (_inUse.ContainsKey(name)) continue;
+                var path = Path.Combine(Folder, name);
+                if (!TryDelete(path) && File.Exists(path)) continue;
+                _remoteCopies.Remove(name);
+                dropped++;
+            }
+        }
+        return dropped;
+    }
+
     /// <summary>Deletes the least recently used files not in use until the cache is within its limit.</summary>
     void Evict()
     {
@@ -183,7 +253,9 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
             lock (_lock)
             {
                 if (_inUse.ContainsKey(file.Name)) continue;
-                if (TryDelete(file.FullName)) total -= file.Length;
+                if (!TryDelete(file.FullName)) continue;
+                total -= file.Length;
+                _remoteCopies.Remove(file.Name);
             }
         }
     }

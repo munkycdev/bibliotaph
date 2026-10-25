@@ -5,10 +5,31 @@ namespace Bibliotaph.Storage.OneDrive;
 /// <summary>
 /// Reads a book on a OneDrive by downloading it whole to a temporary file, which is deleted as soon as the stream is
 /// closed: the server keeps no copy of anyone's books. Readers seek (PDFs, ZIPs), which a download stream can't.
-/// Anything that isn't a drive path is read by <paramref name="local"/>.
+/// Anything that isn't a drive path is read by <paramref name="local"/>. As <see cref="IRemoteFiles"/>, it streams a
+/// file for <see cref="SourceFiles"/> to keep while its stages read it.
 /// </summary>
-public sealed class OneDriveFileReader(IDriveClients drives, string temporaryFolder, ISourceFileReader local) : ISourceFileReader
+public sealed class OneDriveFileReader(IDriveClients drives, string temporaryFolder, ISourceFileReader local) : ISourceFileReader, IRemoteFiles
 {
+    public bool IsRemote(string path) => DrivePath.IsDrivePath(path);
+
+    async Task<Stream> IRemoteFiles.OpenAsync(string path, CancellationToken ct)
+    {
+        if (!DrivePath.TryParse(path, out var driveId, out var pathInDrive) || drives.Find(driveId) is not { } client)
+            throw new FileNotFoundException("That drive isn't connected.", path);
+        try
+        {
+            return await client.OpenReadAsync(driveId, pathInDrive, ct);
+        }
+        catch (OneDriveException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException("The file isn't on the drive any more.", pathInDrive, ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new IOException($"OneDrive couldn't be reached: {ex.Message}", ex);
+        }
+    }
+
     public Stream OpenRead(string path)
     {
         if (!DrivePath.TryParse(path, out var driveId, out var pathInDrive)) return local.OpenRead(path);

@@ -51,15 +51,17 @@ folder shows what's directly in it; choose **Add to library** to keep it or **Ca
 added and what it holds, such as "488 PDFs, 12 e-books, 120 images · 15 other files ignored". The **×** removes a folder
 from your library without touching its files.
 
-Bibliotaph looks through a new folder straight away, then reads each new file once to recognise it. Your books aren't
+Bibliotaph looks through a new folder straight away, then reads each new file to recognise it. Your books aren't
 copied: each is downloaded only while it's being read and deleted straight after. The line at the bottom of the sidebar
 says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
 Changes in your OneDrive (books added, moved or deleted) are picked up within a few minutes, whether or not you have
 Bibliotaph open, and twice a day it looks through every folder anyway. **Look for changes** looks straight away.
 
-For now Bibliotaph on the web lists and recognises your files; showing them as books with covers, text search and the
-reader are the next steps.
+Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
+its file and folder names. Bibliotaph downloads a book once for this and deletes its copy as soon as it's done; the
+sidebar shows **Reading 120 new files** and then **Up to date**. Scanned pages that need OCR, and AI suggestions, aren't
+read on the web yet. Showing your books with their covers, search and the reader are the next steps.
 
 ## Your theme
 

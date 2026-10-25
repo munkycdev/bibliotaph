@@ -50,6 +50,25 @@ public sealed class JobBoardTests : IndexFixture
         Assert.Equal(1, Connection.ExecuteScalar<long>("SELECT count(*) FROM job WHERE document_id = 1 AND stage = 'Probe'"));
     }
 
+    [Theory]
+    [InlineData(false, new[] { 1L, 2L, 1L, 2L })]
+    [InlineData(true, new[] { 1L, 1L, 2L, 2L })]
+    public async Task Book_at_a_time_finishes_a_books_stages_before_starting_the_next(bool bookAtATime, long[] expected)
+    {
+        var queue = new JobBoard(Writer, Database, Clock, bookAtATime);
+        await queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
+        await queue.EnqueueAsync(2, "bb", Stage.Probe, ct: Ct);
+
+        var order = new List<long>();
+        while (await queue.LeaseAsync(IndexLane, "test", Lease, Ct) is { } job)
+        {
+            order.Add(job.DocumentId);
+            await queue.CompleteAsync(job, next: job.Stage == Stage.Probe ? [Stage.Text] : [], ct: Ct);
+        }
+
+        Assert.Equal(expected, order);
+    }
+
     [Fact]
     public async Task A_lease_takes_the_most_urgent_job_in_the_lane_and_marks_it_running()
     {

@@ -10,8 +10,16 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="PDFsharp" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\Bibliotaph.Pdf.Host.Tests\SyntheticPdfs.cs" Link="SyntheticPdfs.cs" />
+    <Compile Include="..\Bibliotaph.Pdf.Host.Tests\GlyphOutlines.cs" Link="GlyphOutlines.cs" />
+    <Compile Include="..\..\src\Bibliotaph.App\Services\SmokePdfs.cs" Link="SmokePdfs.cs" />
+    <EmbeddedResource Include="..\..\src\Bibliotaph.App\Fonts\DMSans-Regular.ttf" LogicalName="DMSans-Regular.ttf" />
+  </ItemGroup>
+  <ItemGroup>
+    <BundledExe Include="..\..\src\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
   </ItemGroup>
 </Project>

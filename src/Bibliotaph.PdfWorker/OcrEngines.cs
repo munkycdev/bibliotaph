@@ -1,7 +1,9 @@
+#if WINDOWS
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
+#endif
 
 namespace Bibliotaph.PdfWorker;
 
@@ -22,6 +24,7 @@ static class OcrEngines
     /// <summary>Windows OCR in the user's languages, or null with the reason when it can't run here.</summary>
     public static IOcrEngine? Create(out string? reason)
     {
+#if WINDOWS
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763))
         {
             reason = "OCR needs Windows 10 version 1809 or later.";
@@ -30,8 +33,14 @@ static class OcrEngines
         var engine = WindowsOcrEngine.TryCreate();
         reason = engine is null ? "Windows OCR has no language installed for this user (Settings > Time & language > Language & region)." : null;
         return engine;
+#else
+        reason = "OCR isn't available here.";
+        return null;
+#endif
     }
 }
+
+#if WINDOWS
 
 /// <summary>Windows.Media.Ocr: ships with Windows, so Bibliotaph packages no OCR binaries or language data.</summary>
 [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.17763.0")]
@@ -63,3 +72,4 @@ sealed class WindowsOcrEngine : IOcrEngine
         return (string.Join('\n', result.Lines.Select(l => l.Text)), words);
     }
 }
+#endif

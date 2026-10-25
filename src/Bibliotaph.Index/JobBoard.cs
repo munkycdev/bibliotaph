@@ -11,9 +11,11 @@ public sealed record JobRecord(long Id, long DocumentId, string ContentHash, Sta
 /// The durable job queue in index.db. One job per document, stage and stage version; leases mark a job as running, and
 /// leases left behind by a closed or crashed app go back to pending at startup. Every write goes through the <see
 /// cref="IndexWriter"/>, so leasing is atomic without extra locking. Each job change also updates <c>stage_status</c>,
-/// which is what the UI reads.
+/// which is what the UI reads. With <c>bookAtATime</c>, a book's next stage is leased before the next book's first,
+/// rather than one stage across the library at a time: the web server fetches each book from the user's drive to read
+/// it, so finishing a book while its copy is at hand means fetching it once.
 /// </summary>
-public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimeProvider? clock = null)
+public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimeProvider? clock = null, bool bookAtATime = false)
 {
     /// <summary>Attempts before a job fails for good. A job that kills the PDF worker counts as an attempt.</summary>
     public const int MaxAttempts = 3;
@@ -93,11 +95,11 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         {
             var now = Now();
             var row = c.QueryFirstOrDefault<JobRow>(
-                """
+                $"""
                 SELECT id, document_id AS DocumentId, content_hash AS ContentHash, stage, stage_version AS StageVersion, attempts
                 FROM job
                 WHERE status = 'pending' AND stage IN @names AND (not_before_utc IS NULL OR not_before_utc <= @now)
-                ORDER BY priority DESC, id
+                ORDER BY priority DESC, {(bookAtATime ? "document_id, " : "")}id
                 LIMIT 1
                 """, new { names, now }, t);
             if (row is null) return null;
