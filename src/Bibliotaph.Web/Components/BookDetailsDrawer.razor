@@ -1,0 +1,260 @@
+@* .bt-drawer: a book's details, as the Windows app's details drawer shows them. Esc, the close button or a click outside closes it. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed" @onclick="Close"></div>
+<aside class="bt-drawer fixed bt-details" role="dialog" aria-modal="true" aria-label="@(_details?.Card.Title ?? "Book details")" @onkeydown="KeyDown">
+    <div class="bt-drawer-head">
+        <span class="bt-eyebrow">@_details?.Eyebrow</span>
+        <div class="bt-inline">
+            @if (_details?.Card.Favorite == true)
+            {
+                <span class="bt-heart on" role="img" aria-label="Favorite" title="Favorite"><Icon Name="Heart" Size="15" /></span>
+            }
+            <button class="bt-icon" @ref="_close" aria-label="Close details" title="Close (Esc)" @onclick="Close"><Icon Name="X" /></button>
+        </div>
+    </div>
+
+    @if (_problem is not null)
+    {
+        <div class="bt-message" role="alert">@_problem</div>
+    }
+    else if (_details is not { } book)
+    {
+        <div class="bt-loading">Opening…</div>
+    }
+    else
+    {
+        <div class="bt-detail-layout">
+            <div class="bt-detailcover"><BookCover Book="book.Card" /></div>
+            <div>
+                @if (book.Card.Kind.Length > 0) { <span class="bt-eyebrow bt-eyebrow-block">@book.Card.Kind</span> }
+                <h2 class="bt-detail-title">@book.Card.Title</h2>
+                @if (book.Publisher.Length > 0) { <div class="bt-subtitle">@book.Publisher</div> }
+                <div class="bt-detailchips">
+                    @if (book.Card.System.Length > 0) { <span class="bt-chip text">@book.Card.System</span> }
+                    @if (book.Card.Levels.Length > 0) { <span class="bt-chip text">@book.Card.Levels</span> }
+                    @if (book.Card.Players.Length > 0) { <span class="bt-chip text">@book.Card.Players</span> }
+                    <span class="bt-chip">@book.Card.Format</span>
+                    @if (book.Pages.Length > 0) { <span class="bt-chip">@book.Pages</span> }
+                </div>
+            </div>
+        </div>
+
+        @if (book.PackFiles.Count > 0)
+        {
+            <h3 class="bt-drawerhead bt-sectionhead">@book.PackFilesHeading</h3>
+            <div class="bt-packfiles">
+                @foreach (var file in book.PackFiles)
+                {
+                    <div class="bt-packfile" title="@file.Name">
+                        <div class="bt-packthumb">
+                            @if (file.Cover is { } cover) { <img src="@BookCover.CoverUrl(cover)" alt="" loading="lazy" /> }
+                            @if (file.IsPdf) { <span class="bt-packmark pdf">PDF</span> }
+                            @if (file.IsCover) { <span class="bt-packmark cover" aria-label="The pack's cover">Cover</span> }
+                        </div>
+                        <div class="bt-packname">@file.Name</div>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="bt-drawerhead-row">
+            <h3 class="bt-drawerhead">DETAILS</h3>
+            @if (book.Fields.Any(f => !f.Known && !f.Primary))
+            {
+                <button class="bt-link" @onclick="() => _allFields = !_allFields">@(_allFields ? "Fewer fields" : "More fields")</button>
+            }
+        </div>
+        <div class="bt-fields">
+            @foreach (var field in book.Fields.Where(f => _allFields || f.Known || f.Primary))
+            {
+                <div class="bt-fieldrow" @key="field.Key">
+                    <div class="bt-fieldlabel">@field.Label</div>
+                    <div class="bt-inline">
+                        <span class="bt-fieldvalue @(field.Known ? "" : "unknown")">@field.Display</span>
+                        @if (field.Known || field.Alternatives.Count > 0)
+                        {
+                            <button class="bt-link bt-evidencelink" aria-expanded="@_open.Contains(field.Key)" aria-label="Where @field.Label came from"
+                                    @onclick="() => Toggle(field.Key)">
+                                <Icon Name="@(field.NeedsReview ? "TriangleAlert" : field.Suggested ? "Sparkles" : "TextSearch")" Size="12" />@field.EvidenceLabel
+                            </button>
+                        }
+                    </div>
+                    @foreach (var link in field.Values.Where(v => v.Url is not null))
+                    {
+                        <a class="bt-link bt-storelink" href="@link.Url" target="_blank" rel="noopener noreferrer" title="@link.Url">
+                            <Icon Name="SquareArrowOutUpRight" Size="12" />@link.LinkText
+                        </a>
+                    }
+                    @if (_open.Contains(field.Key))
+                    {
+                        <div class="bt-evidence">
+                            @foreach (var value in field.Values)
+                            {
+                                <div class="bt-evidencevalue">
+                                    <strong>@value.Text</strong>
+                                    @foreach (var source in value.Sources) { <div>@source</div> }
+                                </div>
+                            }
+                            @if (field.Alternatives.Count > 0)
+                            {
+                                <span class="bt-eyebrow bt-eyebrow-block bt-othersuggestions">OTHER SUGGESTIONS</span>
+                                @foreach (var value in field.Alternatives)
+                                {
+                                    <div class="bt-evidencevalue">
+                                        <span class="bt-alternative">@value.Text</span>
+                                        @foreach (var source in value.Sources) { <div>@source</div> }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (book.CanMarkParts && book.Parts.Count > 0)
+        {
+            <h3 class="bt-drawerhead bt-sectionhead">@book.PartsHeading</h3>
+            @foreach (var part in book.Parts)
+            {
+                <div class="bt-detailbox">
+                    <button class="bt-titlelink" aria-label="Details for @part.Title" @onclick="() => Show(part.EntryId)">@part.Title</button>
+                    <div class="bt-small">@part.Pages</div>
+                </div>
+            }
+        }
+        @if (book.PartOf is { } partOf)
+        {
+            <h3 class="bt-drawerhead bt-sectionhead">IN A FILE</h3>
+            <div class="bt-detailbox">
+                <div class="bt-row">@partOf</div>
+                <div class="bt-small">Values set on the file, such as its system and publisher, are this adventure's too unless it has its own.</div>
+                @if (book.PartOfEntryId is { } file)
+                {
+                    <div class="bt-boxactions">
+                        <button class="bt-button" aria-label="Show the file this adventure is in" @onclick="() => Show(file)"><Icon Name="ArrowUpRight" Size="14" />Show the file</button>
+                    </div>
+                }
+            </div>
+        }
+
+        <h3 class="bt-drawerhead bt-sectionhead">@book.FactsHeading</h3>
+        <dl class="bt-facts">
+            @foreach (var fact in book.Facts)
+            {
+                <dt>@fact.Label</dt>
+                <dd>@fact.Value</dd>
+            }
+        </dl>
+
+        @if (book.ShowsLocations)
+        {
+            <h3 class="bt-drawerhead bt-sectionhead">WHERE IT IS</h3>
+            @foreach (var location in book.Locations)
+            {
+                <div class="bt-detailbox">
+                    <div class="bt-row bt-path">@location.Path</div>
+                    @if (location.State.Length > 0) { <div class="bt-small">@location.State</div> }
+                </div>
+            }
+        }
+
+        @if (book.Copies.Count > 0)
+        {
+            <h3 class="bt-drawerhead bt-sectionhead">@book.CopiesHeading</h3>
+            @foreach (var copy in book.Copies)
+            {
+                <div class="bt-detailbox" aria-label="@copy.Heading">
+                    <div class="bt-copyheading">@copy.Heading</div>
+                    <div class="bt-small">@copy.Detail</div>
+                    @if (copy.Path is { } path) { <div class="bt-row bt-path">@path</div> }
+                </div>
+            }
+        }
+
+        @if (book.Stages.Count > 0)
+        {
+            <h3 class="bt-drawerhead bt-sectionhead">INDEXING</h3>
+            <dl class="bt-facts">
+                @foreach (var stage in book.Stages)
+                {
+                    <dt>@stage.Label</dt>
+                    <dd>@stage.Value</dd>
+                }
+            </dl>
+        }
+    }
+</aside>
+
+@code {
+    BookDetails? _details;
+    string? _problem;
+    bool _allFields;
+    readonly HashSet<string> _open = [];
+    ElementReference _close;
+    long _shown;
+    bool _focus;
+
+    /// <summary>The book whose details these are: a card's <see cref="BookCard.EntryId"/>.</summary>
+    [Parameter, EditorRequired] public long EntryId { get; set; }
+
+    [Parameter] public EventCallback Closed { get; set; }
+
+    /// <summary>Another book's details asked for from these: an adventure's file, or an adventure in this file.</summary>
+    [Parameter] public EventCallback<long> ShowEntry { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntryId == _shown) return;
+        _shown = EntryId;
+        _details = null;
+        _problem = null;
+        _allFields = false;
+        _open.Clear();
+        _focus = true;
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focus) return;
+        _focus = false;
+        // So Esc reaches the drawer, and the keyboard starts inside it.
+        await _close.FocusAsync();
+    }
+
+    /// <summary>Reads the details again, as the library does while books are being read, so its processing follows.</summary>
+    public async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    async Task LoadAsync()
+    {
+        var entryId = EntryId;
+        try
+        {
+            var details = await Api.BookAsync(entryId);
+            if (entryId != EntryId) return;
+            _details = details;
+            _problem = details is null ? "This book isn't in your library any more." : null;
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+    }
+
+    void Toggle(string key)
+    {
+        if (!_open.Remove(key)) _open.Add(key);
+    }
+
+    Task Show(long entryId) => ShowEntry.InvokeAsync(entryId);
+
+    Task Close() => Closed.InvokeAsync();
+
+    Task KeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
+}

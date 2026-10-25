@@ -27,6 +27,32 @@ public static class DetailsText
     public static bool IsAdventure(LibraryEntry entry, EffectiveMetadata metadata) =>
         entry.IsPart || metadata[MetadataFields.Types].Values.Any(v => v.Value == PartStore.AdventureType);
 
+    /// <summary>The line over the details: "PACK", "OWNED ELSEWHERE", "ADVENTURE IN A FILE", the format, or "IMAGE".</summary>
+    public static string Eyebrow(LibraryEntry entry, bool packHasPdfs) =>
+        entry.IsPack ? packHasPdfs ? "PACK" : "IMAGE PACK" : entry.IsElsewhere ? "OWNED ELSEWHERE" : entry.IsPart ? "ADVENTURE IN A FILE"
+        : SourceFormats.HasPages(entry.Format) ? CardText.FormatName(entry.Format) : "IMAGE";
+
+    /// <summary>A book owned elsewhere has no file to say anything about.</summary>
+    public static string FactsHeading(LibraryEntry entry) => entry.IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
+
+    /// <summary>"IMAGES (12)", or "FILES (12)" once PDFs are among them.</summary>
+    public static string PackFilesHeading(int count, bool hasPdfs) => $"{(hasPdfs ? "FILES" : "IMAGES")} ({count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    public static string CopiesHeading(int count) => $"COPIES ({count.ToString("N0", CultureInfo.CurrentCulture)})";
+
+    public static string PartsHeading(int count) =>
+        count > 0 ? $"ADVENTURES IN THIS FILE ({count.ToString("N0", CultureInfo.CurrentCulture)})" : "ADVENTURES IN THIS FILE";
+
+    /// <summary>An adventure's pages as its file numbers them, or that they weren't found in the copy the file opens.</summary>
+    public static string PartPages(PartPages? pages, IReadOnlyList<string?> labels) => pages?.Describe(labels) ?? "Its pages weren't found in this copy";
+
+    /// <summary>"3 of its images are here", for a folder or ZIP holding some of a pack's files.</summary>
+    public static string PackFolderState(PackFolder folder, bool hasPdfs) =>
+        $"{folder.Files.ToString("N0", CultureInfo.CurrentCulture)} of its {(hasPdfs ? "files" : "images")} {(folder.IsArchive ? "are in this ZIP" : "are here")}";
+
+    /// <summary>The place a pack was made from.</summary>
+    public static string PackPlaceState(PackPlace place) => place.IsArchive ? "The pack's ZIP" : "The pack's folder";
+
     /// <summary>What Bibliotaph knows from the file: its format, when it was added, its folders, and how it's searched.</summary>
     public static IReadOnlyList<(string Label, string Value)> Facts(LibraryEntry entry, DocumentDetails? details)
     {

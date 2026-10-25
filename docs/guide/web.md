@@ -83,7 +83,18 @@ documents**, the pages that match with the words marked. The same search words w
 word out, and fields such as `system:` and `type:`. A search and its filters are in the page's address, so you can
 bookmark them.
 
-The book details, the reader, and editing a book are the next steps.
+Click a card, a list row or a matching book's title to open its details over the page, as in the Windows app: its cover
+and what it is, then **Details**, each field with where its value came from (**Sources**, **Suggested** or **Sources
+disagree** opens the evidence and the other suggestions; **More fields** shows the empty ones), the adventures marked in
+a file or the file an adventure is in, a pack's files, **About the file**, **Where it is** in your storage, its copies
+when it has more than one, and how far reading it has got. **Esc**, the **×** or a click outside closes them.
+
+**Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
+in the Library.
+
+Covers are kept with your account, so they don't need drawing again when the server restarts.
+
+Editing a book's details, the reader, collections and binders are the next steps.
 
 ## Your theme
 

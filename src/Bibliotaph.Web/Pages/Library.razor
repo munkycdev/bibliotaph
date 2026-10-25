@@ -188,7 +188,7 @@ else if (_query.IsPagesTab)
             <div class="bt-hit">
                 <div class="bt-hitcover"><BookCover Book="match.Book" /></div>
                 <div>
-                    <h3>@match.Book.Title</h3>
+                    <h3><button class="bt-titlelink" aria-label="Details for @match.Book.Title" @onclick="() => ShowDetails(match.Book)">@match.Book.Title</button></h3>
                     <div class="bt-bookmeta">@match.Book.Meta</div>
                     @foreach (var hit in match.Pages)
                     {
@@ -209,7 +209,7 @@ else if (_list)
     <div class="bt-booklist" aria-label="Books">
         @foreach (var book in _results.Books.Take(_shown))
         {
-            <div class="bt-listrow" @key="book.Id" title="@book.Title">
+            <button class="bt-listrow" @key="book.Id" title="@book.Title" aria-label="Details for @book.Title" @onclick="() => ShowDetails(book)">
                 <div class="bt-thumb"><BookCover Book="book" Marks="false" /></div>
                 <div class="bt-listtitle">
                     <div class="bt-booktitle">@book.Title</div>
@@ -228,7 +228,7 @@ else if (_list)
                 </div>
                 <div class="bt-heart @(book.Favorite ? "on" : "")">@if (book.Favorite) { <span role="img" aria-label="Favorite"><Icon Name="Heart" Size="14" /></span> }</div>
                 <div class="bt-chevron"><Icon Name="ChevronRight" Size="15" /></div>
-            </div>
+            </button>
         }
     </div>
 }
@@ -238,17 +238,23 @@ else
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-book" @key="book.Id" title="@book.Title">
+                <button class="bt-bookbutton" aria-label="Details for @book.Title" @onclick="() => ShowDetails(book)">
                 <div class="bt-coverarea">
                     <BookCover Book="book" />
                     @if (book.Favorite) { <span class="bt-heart cover on" role="img" aria-label="Favorite"><Icon Name="Heart" Size="13" /></span> }
                 </div>
                 <div class="bt-booktitle">@book.Title</div>
                 <div class="bt-bookmeta">@book.Meta</div>
+                </button>
             </div>
         }
     </div>
 }
 <div @ref="_end" class="bt-end-of-results"></div>
+@if (_details is { } entryId)
+{
+    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Closed="CloseDetails" ShowEntry="id => _details = id" />
+}
 
 @code {
     /// <summary>Cards drawn at first, and each time the end of them comes into view.</summary>
@@ -271,6 +277,8 @@ else
     ElementReference _end;
     DotNetObjectReference<Library>? _self;
     IJSObjectReference? _watch;
+    long? _details;
+    BookDetailsDrawer? _drawer;
 
     string Sort => (_query.IsSearching ? _searchSort : _browseSort) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
 
@@ -285,6 +293,7 @@ else
         _searchSort = await PrefAsync("library.sort.search");
         _browseSort = await PrefAsync("library.sort.browse");
         _query = LibraryUrl.Parse(Navigation.Uri);
+        _details = LibraryUrl.Book(Navigation.Uri);
         Navigation.LocationChanged += OnLocationChanged;
         Activity.Changed += OnActivityChanged;
         await LoadAsync();
@@ -360,7 +369,19 @@ else
         {
             await LoadAsync();
             StateHasChanged();
+            if (_drawer is not null) await _drawer.RefreshAsync();
         });
+    }
+
+    /// <summary>A card's details, over the page.</summary>
+    void ShowDetails(BookCard book) => _details = book.EntryId;
+
+    void CloseDetails()
+    {
+        _details = null;
+        _drawer = null;
+        // Opened from Home: the address forgets the book, so reloading doesn't open it again.
+        if (LibraryUrl.Book(Navigation.Uri) is not null) Navigation.NavigateTo("library" + LibraryUrl.QueryString(_query, forApi: false), replace: true);
     }
 
     /// <summary>Shows a changed search or filter, at an address of its own.</summary>

@@ -12,12 +12,16 @@
     the Microsoft sign-in app registration, the container app (one replica, never scaled), and the app registration
     GitHub Actions deploys with. It reuses an existing Container Apps environment and container registry.
 
+    The names of the existing registry and environment are listed by:
+        az acr list --query "[].{name:name, group:resourceGroup}" -o table
+        az containerapp env list --query "[].{name:name, group:resourceGroup}" -o table
+
 .EXAMPLE
-    ./infra/setup.ps1 -Registry nornisacr -Environment nornis-env -EnvironmentResourceGroup rg-nornis
+    ./infra/setup.ps1 -Registry <registry> -Environment <environment> -EnvironmentResourceGroup <environment's group>
 
 .EXAMPLE
     # Once the DNS records it printed have propagated:
-    ./infra/setup.ps1 -Registry nornisacr -Environment nornis-env -EnvironmentResourceGroup rg-nornis -BindDomain
+    ./infra/setup.ps1 -Registry <registry> -Environment <environment> -EnvironmentResourceGroup <environment's group> -BindDomain
 #>
 #Requires -Version 7.3
 [CmdletBinding()]

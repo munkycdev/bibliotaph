@@ -20,6 +20,12 @@ public static class FieldText
     public static string DisplayWithLink(MetadataField field, string value, Vocabulary vocabulary) =>
         field.Kind == FieldKind.Store && StoreLink.Parse(value) is { ShortUrl: { } link } ? $"{Display(field, value, vocabulary)} · {link}" : Display(field, value, vocabulary);
 
+    /// <summary>A field's values as they read, separated by commas, or "Not set".</summary>
+    public static string Join(IReadOnlyCollection<string> texts) => texts.Count > 0 ? string.Join(", ", texts) : "Not set";
+
+    /// <summary>The link that opens a field's evidence: "Sources disagree", "Suggested" while nobody has confirmed it, or "Sources".</summary>
+    public static string EvidenceLabel(bool needsReview, bool suggested) => needsReview ? "Sources disagree" : suggested ? "Suggested" : "Sources";
+
     /// <summary>Where one claim came from, in words: "From the folder name “D&amp;D 5e”", with its pages unless told not to.</summary>
     public static string Source(MetadataClaim claim, bool pages = true)
     {

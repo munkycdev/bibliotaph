@@ -15,6 +15,10 @@
 - **Your library in the browser.** bibliotaph.online's Library shows your books with their covers or as a list, with the
   Windows app's filters, orders and Packs or Each file, and the search box finds books and the pages inside them. See
   [Your library and search](docs/guide/web.md#your-library-and-search).
+- **Book details and Home on the web.** A click on a book opens its details as in the Windows app: its fields with
+  where each value came from, its adventures or pack files, its file, where it is, its copies and how far reading it has
+  got. Home shows the books opened and added last. Covers are kept with your account across server restarts. See
+  [Your library and search](docs/guide/web.md#your-library-and-search).
 
 ## 1.3 · 19 October 2026
 

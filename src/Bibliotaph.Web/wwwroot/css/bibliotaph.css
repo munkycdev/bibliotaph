@@ -387,3 +387,50 @@ a{color:var(--bt-accent)}
 .bt-listrow .bt-thumb{width:35px}
 .bt-field.narrow{min-width:0;flex:1 1 140px}
 .bt-field.narrow select{min-width:0}}
+/* A book's details, as the Windows app's details drawer: cover beside the title, then its sections, each headed in small capitals. */
+.bt-details{width:min(440px,100%)}
+.bt-details .bt-detail-layout{grid-template-columns:110px minmax(0,1fr);gap:18px}
+.bt-details .bt-detail-title{font-size:27px;font-weight:400;margin:0}
+.bt-details .bt-subtitle{margin-top:6px;font-size:11px}
+.bt-detailcover .bt-bookcover{width:110px}
+.bt-detailchips{margin-top:12px;display:flex;flex-wrap:wrap}
+.bt-chip.text{color:var(--bt-text)}
+.bt-drawerhead{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--bt-text);margin:0}
+.bt-sectionhead{margin:28px 0 10px}
+.bt-drawerhead-row{display:flex;justify-content:space-between;align-items:center;margin:28px 0 4px}
+.bt-fieldrow{padding:10px 0;border-bottom:1px solid var(--bt-line)}
+.bt-fieldlabel{font-size:10px;color:var(--bt-muted);margin-bottom:3px}
+.bt-fieldvalue{font-size:12px;color:var(--bt-text)}
+.bt-fieldvalue.unknown{color:var(--bt-muted)}
+.bt-evidencelink,.bt-storelink{display:inline-flex;align-items:center;gap:4px;padding:0}
+.bt-storelink{margin-top:3px;text-decoration:none}
+.bt-fieldrow .bt-evidence{margin-top:10px}
+.bt-evidencevalue{margin-bottom:10px}
+.bt-evidencevalue>div{margin-top:3px}
+.bt-alternative{color:var(--bt-text)}
+.bt-othersuggestions{font-size:9px;margin:10px 0 8px}
+.bt-detailbox{background:var(--bt-side);border-radius:6px;padding:12px;margin-bottom:8px}
+.bt-detailbox .bt-small{margin-top:4px}
+.bt-small{font-size:11px;color:var(--bt-muted)}
+.bt-row{font-size:12px;color:var(--bt-text)}
+.bt-path{font-size:11px;overflow-wrap:anywhere}
+.bt-copyheading{font-size:12px;font-weight:600}
+.bt-detailbox .bt-path{margin-top:6px}
+.bt-boxactions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.bt-titlelink{font:inherit;color:var(--bt-text);text-align:left;padding:0;cursor:pointer}
+.bt-titlelink:hover{color:var(--bt-accent)}
+.bt-detailbox .bt-titlelink{font-size:13px;font-weight:550}
+.bt-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 15px;margin:0}
+.bt-facts dt{font-size:11px;color:var(--bt-muted)}
+.bt-facts dd{font-size:12px;margin:0;color:var(--bt-text)}
+.bt-packfiles{display:flex;flex-wrap:wrap;gap:10px 8px}
+.bt-packfile{width:88px}
+.bt-packthumb{position:relative;height:88px;border-radius:4px;background:var(--bt-warm);border:1px solid var(--bt-line);overflow:hidden}
+.bt-packthumb img{width:100%;height:100%;object-fit:cover}
+.bt-packmark{position:absolute;left:4px;padding:1px 4px;border-radius:3px;font-size:10px}
+.bt-packmark.pdf{bottom:4px;background:var(--bt-panel);border:1px solid var(--bt-line);color:var(--bt-text)}
+.bt-packmark.cover{top:4px;background:var(--bt-accent);color:var(--bt-accent-text);font-weight:600}
+.bt-packname{font-size:10px;color:var(--bt-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+.bt-hit h3 .bt-titlelink{font-size:15px;font-weight:550}
+.bt-shelf{justify-content:start}
+.bt-sectionline a.bt-link{text-decoration:none;display:inline-flex;align-items:center;gap:6px}

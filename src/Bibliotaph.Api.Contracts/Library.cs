@@ -129,3 +129,9 @@ public static class LibraryChoices
 
     public static IReadOnlyList<FilterChoice> Collections { get; } = [new("", "All books"), new("InOne", "In a collection"), new("NotInOne", "Not in a collection")];
 }
+
+/// <summary>
+/// Home's rows, as the Windows app's: the books opened last and added last, a cover each, and what the library is
+/// doing, for the note shown before any book has been read.
+/// </summary>
+public sealed record HomeShelves(IReadOnlyList<BookCard> Opened, IReadOnlyList<BookCard> Added, string Status);

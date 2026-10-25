@@ -97,7 +97,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// <summary>A pack with PDFs among its images: it speaks of files, not images.</summary>
     bool HasPdfs => Item.HasPdfMembers || PackImages.Any(i => i.IsPdf);
 
-    public string PackImagesHeading => $"{(HasPdfs ? "FILES" : "IMAGES")} ({PackImages.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    public string PackImagesHeading => DetailsText.PackFilesHeading(PackImages.Count, HasPdfs);
 
     /// <summary>The grid's name for screen readers.</summary>
     public string PackImagesName => HasPdfs ? "Files in the pack" : "Images in the pack";
@@ -147,7 +147,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool CanOpen => !IsElsewhere;
 
-    public string FactsHeading => IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
+    public string FactsHeading => DetailsText.FactsHeading(Item.Entry);
 
     /// <summary>Raised after "Remove from library", with what Undo needs.</summary>
     public event EventHandler<RemovedEntry>? Removed;
@@ -208,7 +208,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool HasCopies => Copies.Count > 0;
 
-    public string CopiesHeading => $"COPIES ({Copies.Count.ToString("N0", CultureInfo.CurrentCulture)})";
+    public string CopiesHeading => DetailsText.CopiesHeading(Copies.Count);
 
     /// <summary>Opens this copy instead: its cover, page count and page hits become the card's. Nothing on disk changes.</summary>
     [RelayCommand]
@@ -432,8 +432,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public void ShowCollections(IReadOnlyList<CollectionChip> collections) => Collections = collections;
 
-    public string Eyebrow => Item.IsPack ? HasPdfs ? "PACK" : "IMAGE PACK" : Item.IsElsewhere ? "OWNED ELSEWHERE" : Item.IsPart ? "ADVENTURE IN A FILE"
-        : SourceFormats.HasPages(Item.Entry.Format) ? LibraryItemViewModel.FormatName(Item.Entry.Format) : "IMAGE";
+    public string Eyebrow => DetailsText.Eyebrow(Item.Entry, HasPdfs);
 
     [ObservableProperty]
     public partial IReadOnlyList<InspectorFact> Facts { get; private set; } = [];
@@ -505,10 +504,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
             images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)))
                 .Select(i => new PackImageViewModel(i, covers, isCover: i.MemberEntryId == item.Entry.CoverMember))];
-            var noun = item.HasPdfMembers || images.Any(i => i.IsPdf) ? "files" : "images";
-            locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, place.IsArchive ? "The pack's ZIP" : "The pack's folder") },
+            var pdfs = item.HasPdfMembers || images.Any(i => i.IsPdf);
+            locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, DetailsText.PackPlaceState(place)) },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
-                    .Select(f => new InspectorLocation(f.FullPath, $"{f.Files.ToString("N0", CultureInfo.CurrentCulture)} of its {noun} {(f.IsArchive ? "are in this ZIP" : "are here")}"))];
+                    .Select(f => new InspectorLocation(f.FullPath, DetailsText.PackFolderState(f, pdfs)))];
         }
         else
         {

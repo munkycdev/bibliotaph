@@ -89,7 +89,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     public bool IsKnown => Values.Count > 0;
 
-    public string Display => IsKnown ? string.Join(", ", Values.Select(v => v.Text)) : "Not set";
+    public string Display => FieldText.Join([.. Values.Select(v => v.Text)]);
 
     /// <summary>The values with a web link (Get it from), shown as links under the field.</summary>
     public IReadOnlyList<MetadataValueViewModel> Links => [.. Values.Where(v => v.HasLink)];
@@ -107,7 +107,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     public bool CanReset => Values.Any(v => v.Confirmed);
 
     /// <summary>"Suggested" or "Sources disagree", on the link that opens the evidence.</summary>
-    public string EvidenceLabel => NeedsReview ? "Sources disagree" : IsSuggested ? "Suggested" : "Sources";
+    public string EvidenceLabel => FieldText.EvidenceLabel(NeedsReview, IsSuggested);
 
     public bool HasEvidence => IsKnown || HasAlternatives;
 
