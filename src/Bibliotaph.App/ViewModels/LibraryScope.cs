@@ -1,4 +1,5 @@
 using Bibliotaph.Core;
+using Bibliotaph.Processing;
 
 namespace Bibliotaph.App.ViewModels;
 
@@ -15,6 +16,6 @@ public sealed record LibraryScope(string Key, string Name, string Subtitle, stri
     /// <summary>For a collection: "Campaign › Maps", for the chip.</summary>
     public string? Path { get; init; }
 
-    public static LibraryScope Favorites { get; } = new(ScopeKeys.Favorites, "Favorites", "The books you marked with a heart.",
-        "No favorites yet.", "Mark a book with the heart on its cover, in its details or in the reader, and it shows here.");
+    public static LibraryScope Favorites { get; } = new(ScopeKeys.Favorites, SavedSearchText.FavoritesName, SavedSearchText.FavoritesSubtitle,
+        SavedSearchText.FavoritesEmptyTitle, SavedSearchText.FavoritesEmptyMessage);
 }

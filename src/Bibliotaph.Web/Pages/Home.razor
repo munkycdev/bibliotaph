@@ -3,6 +3,7 @@
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
+@inject Pins Pins
 
 <PageTitle>Bibliotaph</PageTitle>
 @if (_summary is null)
@@ -56,6 +57,20 @@ else
             </div>
             <Shelf Books="shelves.Added" Label="Recently added" Open="ShowDetails" />
         }
+        @if (Pins.Items.Count > 0)
+        {
+            @* The sidebar's pins, in its order. *@
+            <div class="bt-sectionline">
+                <strong>Pinned</strong>
+                <a class="bt-link bt-inline" href="collections">All collections<Icon Name="ArrowRight" Size="13" /></a>
+            </div>
+            <div class="bt-homepins" role="list" aria-label="Pinned">
+                @foreach (var pin in Pins.Items)
+                {
+                    <a class="bt-button @(pin.Dimmed ? "dimmed" : "")" role="listitem" href="@pin.Href" title="@pin.Tip" aria-label="@pin.Label"><Icon Name="@pin.Icon" />@pin.Label</a>
+                }
+            </div>
+        }
     }
 }
 
@@ -70,7 +85,10 @@ else
         _summary = await Api.LibrarySummaryAsync();
         if (_summary.Folders > 0) await LoadAsync();
         Activity.Changed += OnActivityChanged;
+        Pins.Changed += OnPinsChanged;
     }
+
+    void OnPinsChanged() => InvokeAsync(StateHasChanged);
 
     async Task LoadAsync()
     {
@@ -95,5 +113,9 @@ else
     /// <summary>A cover: the Library with that book's details open, as on Windows.</summary>
     void ShowDetails(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}");
 
-    public void Dispose() => Activity.Changed -= OnActivityChanged;
+    public void Dispose()
+    {
+        Activity.Changed -= OnActivityChanged;
+        Pins.Changed -= OnPinsChanged;
+    }
 }

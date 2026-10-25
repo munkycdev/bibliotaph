@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
+using Bibliotaph.Index;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;

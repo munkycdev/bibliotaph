@@ -270,6 +270,74 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Saved_searches_pins_and_favorites_work_as_the_windows_app_keeps_them()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/harbor.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.SingleOrDefault(b => b.Cover is not null), ct);
+
+        var noFavorites = await client.GetFromJsonAsync<LibraryResults>("/api/library?favorites=true", ct);
+        using (await client.PutAsJsonAsync($"/api/library/books/{book.EntryId}/favorite", new SetFavorite(true), ct)) { }
+        var favorites = await client.GetFromJsonAsync<LibraryResults>("/api/library?favorites=true", ct);
+        using var unnamed = await client.PostAsJsonAsync("/api/searches", new SavedSearchSave(" ", new LibraryQuery(), false), ct);
+        using var saving = await client.PostAsJsonAsync("/api/searches",
+            new SavedSearchSave("Maps", new LibraryQuery { Q = "harbor", Sort = "Title", Kind = "Images", Favorites = true }, true), ct);
+        var created = (await saving.Content.ReadFromJsonAsync<SavedSearchCreated>(ct))!;
+        var id = created.Search.Id;
+        var pinned = await client.GetFromJsonAsync<PinList>("/api/pins", ct);
+        var updated = await SendAsync(client.PutAsJsonAsync($"/api/searches/{id}", new SavedSearchChange(new LibraryQuery { System = "dnd5e" }, false), ct));
+        var afterUpdate = await client.GetFromJsonAsync<SavedSearch>($"/api/searches/{id}", ct);
+        await SendAsync(client.PostAsync($"/api/library/held/{updated.Undo}", null, ct));
+        var undone = await client.GetFromJsonAsync<SavedSearch>($"/api/searches/{id}", ct);
+        await SendAsync(client.PutAsJsonAsync($"/api/searches/{id}/name", new SavedSearchRename("Harbor maps"), ct));
+        await client.PostAsJsonAsync("/api/pins", new PinRef(PinKinds.Book, book.EntryId), ct);
+        using var nowhere = await client.PostAsJsonAsync("/api/pins", new PinRef(PinKinds.Collection, 999_999), ct);
+        using var moving = await client.PostAsJsonAsync("/api/pins/move", new PinMove(PinKinds.Book, book.EntryId, 0), ct);
+        var moved = (await moving.Content.ReadFromJsonAsync<PinList>(ct))!;
+        var deleted = await SendAsync(client.DeleteAsync($"/api/searches/{id}", ct));
+        var afterDelete = await client.GetFromJsonAsync<List<SavedSearchInfo>>("/api/searches", ct);
+        using var gone = await client.GetAsync($"/api/searches/{id}", ct);
+        await SendAsync(client.PostAsync($"/api/library/held/{deleted.Undo}", null, ct));
+        var restored = await client.GetFromJsonAsync<List<SavedSearchInfo>>("/api/searches", ct);
+        using var unpinning = await client.PostAsJsonAsync("/api/pins/remove", new PinRef(PinKinds.Favorites, null), ct);
+        var unpinned = (await unpinning.Content.ReadFromJsonAsync<PinList>(ct))!;
+
+        Assert.Equal(SavedSearchText.FavoritesEmptyTitle, noFavorites!.Empty?.Title);
+        Assert.Equal([book.EntryId], favorites!.Books.Select(b => b.EntryId));
+        Assert.Equal(new ScopeText("Favorites", SavedSearchText.FavoritesSubtitle, "In Favorites"), favorites.Scope);
+        Assert.Equal(HttpStatusCode.BadRequest, unnamed.StatusCode);
+        Assert.Equal("Saved Maps. It's pinned in the sidebar.", created.Result.Message);
+        Assert.Equal(("harbor", "Title", "Images", true, true), (created.Search.Query.Q, created.Search.Query.Sort, created.Search.Query.Kind, created.Search.Query.Favorites, created.Search.List));
+        Assert.Equal(("Maps (2)", true), (created.Search.CopyName, created.Search.Pinned));
+        // Favorites starts pinned, as in the Windows app.
+        Assert.Equal([("Favorites", "library?favorites=true", "Heart"), ("Maps", $"library?view={id}", "SlidersHorizontal")], pinned!.Items.Select(i => (i.Label, i.Href, i.Icon)));
+        Assert.Equal("Updated Maps.", updated.Message);
+        Assert.Equal(("dnd5e", null, "RecentlyAdded"), (afterUpdate!.Query.System, afterUpdate.Query.Q, afterUpdate.Query.Sort));
+        Assert.Equal("harbor", undone!.Query.Q);
+        Assert.Equal(HttpStatusCode.NotFound, nowhere.StatusCode);
+        Assert.Equal([PinKinds.Book, PinKinds.Favorites, PinKinds.Search], moved.Items.Select(i => i.Kind));
+        Assert.Equal("Harbor maps", moved.Items[2].Label);
+        Assert.Equal("Deleted the saved search Harbor maps. Your books are untouched.", deleted.Message);
+        Assert.Empty(afterDelete!);
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+        Assert.Equal([("Harbor maps", true)], restored!.Select(s => (s.Name, s.Pinned)));
+        Assert.Equal([PinKinds.Book, PinKinds.Search], unpinned.Items.Select(i => i.Kind));
+
+        async Task<ActionResult> SendAsync(Task<HttpResponseMessage> request)
+        {
+            using var response = await request;
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<ActionResult>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

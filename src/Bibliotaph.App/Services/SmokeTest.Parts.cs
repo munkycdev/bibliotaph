@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 

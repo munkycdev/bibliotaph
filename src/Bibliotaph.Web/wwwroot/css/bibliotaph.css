@@ -217,7 +217,7 @@ mark{background:var(--bt-soft);color:var(--bt-text);padding:1px 2px}
 h1{font-size:35px}
 .bt-heading>.bt-button{padding:8px;font-size:10px}
 .bt-tools{margin-left:0;width:100%;justify-content:flex-end}
-.bt-tools .bt-button{margin-right:auto}
+.bt-tools .bt-select{margin-left:auto}
 .bt-books{grid-template-columns:repeat(2,minmax(0,1fr));gap:23px 18px}
 .bt-cover .bt-cover-title{font-size:32px}
 .bt-reader-stage{padding:12px}
@@ -535,3 +535,26 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-suggestionlabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-suggestioncount{color:var(--bt-muted);flex:0 0 auto}
 .bt-typeahead .bt-chips{margin-top:6px}
+.bt-dialogintro{margin-top:6px}
+/* The sidebar's pins: a drop line where a dragged pin will land, a dimmed book that can't be opened, and the right-click menu. */
+.bt-pinrow{position:relative;border-top:2px solid transparent}
+.bt-pinrow.drop{border-top-color:var(--bt-accent)}
+.bt-pinrow .bt-nav{margin:0}
+.bt-nav.dimmed{opacity:.55}
+.bt-navlabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bt-pinmenu{left:10px;right:auto}
+.bt-menuitem{display:flex;justify-content:space-between;gap:16px}
+.bt-menuitem:disabled{color:var(--bt-muted);cursor:default;background:none}
+.bt-gesture{color:var(--bt-muted);font-size:11px}
+.bt-pinend{height:14px}
+.bt-pinbutton.on{color:var(--bt-accent)}
+/* Saved searches: the toolbar's list of them, the banner once one is changed, why one shows more than it was saved with,
+   and Home's row of pins. */
+.bt-searchlist{width:320px;max-width:min(320px,calc(100vw - 32px));padding:8px 6px}
+.bt-searchlist .bt-eyebrow{padding:0 6px 4px}
+.bt-searchrow{display:flex;align-items:center;gap:2px}
+.bt-searchrow .bt-nav{flex:1;min-width:0;margin:0;color:var(--bt-text)}
+.bt-viewchanged{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 12px;margin:0 0 14px;border-radius:6px;background:var(--bt-soft)}
+.bt-viewnote{margin:0 0 14px;color:var(--bt-muted)}
+.bt-homepins{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 28px}
+.bt-button.dimmed{opacity:.55}

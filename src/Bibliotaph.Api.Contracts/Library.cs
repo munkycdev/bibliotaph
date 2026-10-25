@@ -53,6 +53,9 @@ public sealed record LibraryQuery
     /// </summary>
     public string? Picked { get; init; }
 
+    /// <summary>Only the books marked with a heart: the Library as Favorites.</summary>
+    public bool Favorites { get; init; }
+
     /// <summary>The collection shown, its books and its sub-collections' books: the Library scoped to it.</summary>
     public long? Collection { get; init; }
 
@@ -119,7 +122,13 @@ public sealed record EmptyLibrary(string Title, string Message, string Action, s
 /// </summary>
 public sealed record LibraryResults(
     IReadOnlyList<BookCard> Books, IReadOnlyList<BookMatches> Matches, string CountText, string CountLabel, string DocumentsTab,
-    string PagesTab, string? Issue, string? Coverage, EmptyLibrary? Empty, LibraryMenus Menus);
+    string PagesTab, string? Issue, string? Coverage, EmptyLibrary? Empty, LibraryMenus Menus, ScopeText? Scope = null);
+
+/// <summary>
+/// The part of the library shown, such as Favorites, as the page names it: its heading, its subtitle, and its chip
+/// above the books, whose × shows the whole library. A collection's come with its own page.
+/// </summary>
+public sealed record ScopeText(string Heading, string Subtitle, string Chip);
 
 /// <summary>The Library's fixed menus, in the Windows app's words and order. Each value is the name the API takes.</summary>
 public static class LibraryChoices

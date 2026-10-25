@@ -5,22 +5,41 @@
 @inject IJSRuntime JS
 @inject LibraryActivity Activity
 @inject CollectionActions Collections
+@inject CollectionDialogs Dialogs
+@inject Pins Pins
 
 @* The Windows app's Library page: its heading, the toolbar (results tabs while searching, filters, order, covers or
    list, packs or each file), the filter panel and its chips, the count, then the covers, the list or the matching pages. *@
 <PageHeading Title="@Heading" Subtitle="@Subtitle">
     <Actions>
-        @if (_collection is { } open)
+        @if (_view is { } view)
+        {
+            @* A saved search's own actions. Deleting it never deletes a book. *@
+            <div class="bt-headbuttons">
+                <button class="bt-button" aria-label="Rename the saved search" @onclick="RenameSearchAsync"><Icon Name="Pencil" />Rename</button>
+                <button class="bt-button" title="Pinned searches show in the sidebar and on Home" aria-label="@($"{PinLabel(PinKinds.Search, view.Id)} the saved search")"
+                        @onclick="() => Pins.ToggleAsync(PinKinds.Search, view.Id)"><Icon Name="Pin" />@PinLabel(PinKinds.Search, view.Id)</button>
+                <button class="bt-icon" title="Delete the saved search. Your books stay as they are, and Undo brings it back." aria-label="Delete the saved search"
+                        @onclick="DeleteSearchAsync"><Icon Name="Trash2" Size="15" /></button>
+            </div>
+        }
+        else if (_collection is { } open)
         {
             @* A collection's own actions. Deleting it never deletes its books. *@
             <div class="bt-headbuttons">
             <button class="bt-button" title="Make a collection inside this one" @onclick="NewInsideAsync"><Icon Name="FolderPlus" />New collection</button>
             <button class="bt-button" title="Change its name or description" aria-label="Rename the collection" @onclick="RenameAsync"><Icon Name="Pencil" />Rename</button>
             <button class="bt-button" title="Put it inside another collection, or at the top" aria-label="Move the collection" @onclick="MoveAsync"><Icon Name="FolderInput" />Move to…</button>
+            <button class="bt-button" title="Pinned collections show in the sidebar, on Home, and first on Collections" @onclick="() => Pins.ToggleAsync(PinKinds.Collection, open.Collection.Id)"><Icon Name="Pin" />@PinLabel(PinKinds.Collection, open.Collection.Id)</button>
             <button class="bt-icon" title="Delete the collection. Its books stay in your library, and Undo brings it back." aria-label="Delete the collection" @onclick="DeleteAsync"><Icon Name="Trash2" Size="15" /></button>
             </div>
         }
-        else if (_query.Collection is null)
+        else if (IsFavorites)
+        {
+            <button class="bt-button" title="Pinned, Favorites shows in the sidebar and on Home" aria-label="@($"{PinLabel(PinKinds.Favorites, null)} Favorites")"
+                    @onclick="() => Pins.ToggleAsync(PinKinds.Favorites)"><Icon Name="Pin" />@PinLabel(PinKinds.Favorites, null)</button>
+        }
+        else if (_query.Collection is null && _viewId is null)
         {
             <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
         }
@@ -44,6 +63,38 @@
             </div>
         }
         <div class="bt-tools">
+            @if (CanSaveSearch)
+            {
+                <button class="bt-button" title="Keep this search, its filters and order, pinned in the sidebar" @onclick="SaveSearchAsync"><Icon Name="Plus" />Save search</button>
+            }
+            @if (_searches is { Count: > 0 } searches)
+            {
+                @* Every saved search, pinned or not, each with its pin, Rename and Delete. *@
+                <div class="bt-menuanchor">
+                    <button class="bt-button" title="Every search you've saved, pinned or not" aria-haspopup="true" aria-expanded="@_showSearches"
+                            @onclick="() => _showSearches = !_showSearches"><Icon Name="List" />Saved searches</button>
+                    @if (_showSearches)
+                    {
+                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _showSearches = false"></div>
+                        <div class="bt-menu bt-searchlist" aria-label="Saved searches">
+                            <span class="bt-eyebrow bt-eyebrow-block">SAVED SEARCHES</span>
+                            @foreach (var search in searches)
+                            {
+                                var pinned = Pins.IsPinned(PinKinds.Search, search.Id);
+                                var pinAction = pinned ? "Unpin from the sidebar" : "Pin to the sidebar";
+                                <div class="bt-searchrow" @key="search.Id">
+                                    <a class="bt-nav" href="@($"library?view={search.Id}")" title="@search.Name" @onclick="() => _showSearches = false"><Icon Name="SlidersHorizontal" /><span class="bt-navlabel">@search.Name</span></a>
+                                    <button class="bt-icon bt-pinbutton @(pinned ? "on" : "")" title="@pinAction" aria-label="@($"{pinAction}: {search.Name}")" aria-pressed="@pinned"
+                                            @onclick="() => Pins.ToggleAsync(PinKinds.Search, search.Id)"><Icon Name="Pin" Size="14" /></button>
+                                    <button class="bt-icon" title="Rename" aria-label="@($"Rename {search.Name}")" @onclick="() => RenameSearchAsync(search)"><Icon Name="Pencil" Size="14" /></button>
+                                    <button class="bt-icon" title="Delete. Your books stay as they are, and Undo brings it back." aria-label="@($"Delete {search.Name}")"
+                                            @onclick="() => DeleteSearchAsync(search)"><Icon Name="Trash2" Size="14" /></button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
             <button class="bt-button @(_showFilters ? "on" : "")" aria-expanded="@_showFilters" aria-label="Filters" @onclick="() => _showFilters = !_showFilters">
                 <Icon Name="SlidersHorizontal" />@FiltersLabel
             </button>
@@ -168,10 +219,10 @@
     }
 
     <div class="bt-sectionline-top">
-        @if (_collection is { } scope)
+        @if (ScopeChip is { } scopeChip)
         {
             @* The part of the library shown; its × shows the whole library, with the same search and filters. *@
-            <span class="bt-chip on bt-scopechip">In @scope.Collection.Path<button class="bt-chipx" title="Show your whole library" aria-label="Show your whole library" @onclick="ClearScope"><Icon Name="X" Size="12" /></button></span>
+            <span class="bt-chip on bt-scopechip">@scopeChip<button class="bt-chipx" title="Show your whole library" aria-label="Show your whole library" @onclick="ClearScope"><Icon Name="X" Size="12" /></button></span>
         }
         @if (Chips is { Count: > 0 } chips)
         {
@@ -198,6 +249,21 @@
             <label class="bt-check small bt-addedhere" title="Leave out the books that are only in the collections inside this one">
                 <input type="checkbox" checked="@_query.AddedHere" @onchange='e => Filter(_query with { AddedHere = e.Value is true })' />Only books added here
             </label>
+        }
+        @if (ViewChanged && _view is { } changed)
+        {
+            @* A saved search whose search, filters or order were changed: keep the change in it, or as a new one. *@
+            <div class="bt-viewchanged">
+                <span class="bt-small">@changed.ChangedText</span>
+                <div class="bt-inline">
+                    <button class="bt-button primary" title="The saved search keeps the search, filters and order shown now" @onclick="UpdateSearchAsync">Update saved search</button>
+                    <button class="bt-button" title="Keep both: a new saved search, and this one as it was" @onclick="SaveAsNewAsync">Save as new</button>
+                </div>
+            </div>
+        }
+        @if (_view?.Note is { } viewNote)
+        {
+            <div class="bt-small bt-viewnote">@viewNote</div>
         }
         @if (_results.Empty is null)
         {
@@ -332,32 +398,151 @@ else
     BookDetailsDrawer? _drawer;
     ActionResult? _done;
     CollectionPage? _collection;
+    bool _prefList;
+    string? _settled;
+    long? _viewId;
+    bool _edited;
+    SavedSearch? _view;
+    List<SavedSearchInfo>? _searches;
+    bool _showSearches;
 
-    string Sort => (_query.IsSearching ? _searchSort : _browseSort) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
+    /// <summary>A saved search keeps its own order; elsewhere the order is the browser's to remember.</summary>
+    string Sort => _query.Sort ?? (_viewId is null ? _query.IsSearching ? _searchSort : _browseSort : null) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
 
-    string Heading => _query.IsSearching ? "Search results" : _collection?.Collection.Name ?? (_query.Collection is null ? "Your library" : "");
+    bool IsFavorites => _query.Favorites && _query.Collection is null;
 
-    string Subtitle => _query.IsSearching
-        ? _collection is { } scope ? $"In {scope.Collection.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
-        : _collection?.Subtitle ?? (_query.Collection is null ? "Good stories begin with something you already own." : "");
+    string Heading => _view?.Name ?? (_viewId is not null ? ""
+        : _query.IsSearching ? "Search results" : _collection?.Collection.Name ?? _results?.Scope?.Heading ?? (_query.Collection is null ? "Your library" : ""));
+
+    string Subtitle => _view?.Subtitle ?? (_viewId is not null ? ""
+        : _query.IsSearching
+            ? _collection is { } scope ? $"In {scope.Collection.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
+            : _collection?.Subtitle ?? _results?.Scope?.Subtitle ?? (_query.Collection is null ? "Good stories begin with something you already own." : ""));
+
+    /// <summary>The scope chip: the collection shown, or Favorites.</summary>
+    string? ScopeChip => _collection is { } open ? $"In {open.Collection.Path}" : _query.Collection is null ? _results?.Scope?.Chip : null;
+
+    /// <summary>Save search, while a search, a filter or a scope is in use and no saved search is shown, as in the Windows app.</summary>
+    bool CanSaveSearch => _viewId is null && (_query.IsSearching || Chips.Count > 0 || _query.Collection is not null || IsFavorites);
+
+    /// <summary>The search, filters, order or layout differ from the saved search's: Update and Save as new show.</summary>
+    bool ViewChanged => _view is { } view && _edited
+        && (Comparable(_query) != Comparable(view.Query) || Sort != view.Query.Sort || _list != view.List);
+
+    /// <summary>The query as it filters, so two that show the same books compare equal.</summary>
+    static LibraryQuery Comparable(LibraryQuery q)
+    {
+        var searching = q.IsSearching;
+        return q with
+        {
+            Q = searching ? q.Q!.Trim() : null,
+            Tab = searching && q.IsPagesTab ? "pages" : null,
+            Sort = null,
+            EachFile = false,
+            UnknownLevels = q.Level is not null && q.UnknownLevels,
+            AddedHere = q.Collection is not null && q.AddedHere,
+            Favorites = q.Favorites && q.Collection is null,
+            Picked = PickedText.Canonical(q.Picked),
+        };
+    }
+
+    string PinLabel(string kind, long? id) => Pins.PinLabel(kind, id);
 
     int ResultCount => _results is null ? 0 : _query.IsPagesTab ? _results.Matches.Count : _results.Books.Count;
 
     protected override async Task OnInitializedAsync()
     {
-        _list = await PrefAsync("library.layout") == "list";
+        _prefList = _list = await PrefAsync("library.layout") == "list";
         _eachFile = await PrefAsync("library.pack-view") == "files";
         _searchSort = await PrefAsync("library.sort.search");
         _browseSort = await PrefAsync("library.sort.browse");
-        _query = LibraryUrl.Parse(Navigation.Uri);
         _details = LibraryUrl.Book(Navigation.Uri);
         Navigation.LocationChanged += OnLocationChanged;
         Activity.Changed += OnActivityChanged;
+        Pins.Changed += OnPinsChanged;
         // After a change made elsewhere, such as a collection made from Collections: the note saying so.
         _done = Collections.Pending;
         Collections.Pending = null;
-        await Task.WhenAll(LoadAsync(), LoadCollectionAsync());
+        await Task.WhenAll(ShowAddressAsync(Navigation.Uri), LoadSearchesAsync());
     }
+
+    /// <summary>
+    /// What the address asks for: a search and filters, or a saved search as it was saved, or as changed since. Opening
+    /// the details of a book, or closing them, changes nothing else.
+    /// </summary>
+    async Task ShowAddressAsync(string uri)
+    {
+        var settled = LibraryUrl.Settled(uri);
+        if (settled == _settled) return;
+        _settled = settled;
+        var query = LibraryUrl.Parse(uri);
+        var viewId = LibraryUrl.View(uri);
+        var edited = LibraryUrl.Edited(uri);
+        if (viewId != _viewId) _view = null;
+        _viewId = viewId;
+        _edited = edited;
+        _shown = Batch;
+        if (viewId is { } id)
+        {
+            var view = _view ?? await Api.SavedSearchAsync(id);
+            if (_settled != settled) return;
+            if (view is null)
+            {
+                // Deleted meanwhile, perhaps in the Windows app: the library, with what the address had.
+                _viewId = null;
+                Navigation.NavigateTo("library" + LibraryUrl.QueryString(query, forApi: false), replace: true);
+                return;
+            }
+            _view = view;
+            if (!edited)
+            {
+                query = view.Query;
+                _list = view.List;
+            }
+            else _list = LibraryUrl.List(uri) ?? view.List;
+        }
+        else _list = _prefList;
+        _query = query;
+        await Task.WhenAll(LoadAsync(), LoadCollectionAsync());
+        if (_settled == settled) await DoAsync(uri);
+    }
+
+    /// <summary>Rename… or Delete from a pinned search's menu in the sidebar, once its page is open.</summary>
+    async Task DoAsync(string uri)
+    {
+        if (LibraryUrl.Do(uri) is not { } action || _view is null) return;
+        Navigation.NavigateTo(CurrentAddress(), replace: true);
+        if (action == "rename") await RenameSearchAsync();
+        else if (action == "delete") await DeleteSearchAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>Where the page is now: a saved search as saved by its number alone, or with what was changed.</summary>
+    string CurrentAddress() => _viewId is { } id && !_edited ? $"library?view={id.ToString(System.Globalization.CultureInfo.InvariantCulture)}" : Address(_query);
+
+    string Address(LibraryQuery next)
+    {
+        var address = "library" + LibraryUrl.QueryString(next, forApi: false);
+        if (_viewId is not { } id) return address;
+        var sort = next.Sort ?? Sort;
+        // Relevance orders search results only; without a search the books go newest first.
+        if (!next.IsSearching && sort == "Relevance") sort = "RecentlyAdded";
+        return LibraryUrl.ChangedView(address, id, sort, _list);
+    }
+
+    async Task LoadSearchesAsync()
+    {
+        try
+        {
+            _searches = await Api.SavedSearchesAsync();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // The toolbar goes without the list until the page opens again.
+        }
+    }
+
+    void OnPinsChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -420,13 +605,9 @@ else
     void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         if (!Navigation.ToBaseRelativePath(e.Location).StartsWith("library", StringComparison.Ordinal)) return;
-        var next = LibraryUrl.Parse(e.Location);
-        if (next == _query) return;
-        _query = next;
-        _shown = Batch;
         InvokeAsync(async () =>
         {
-            await Task.WhenAll(LoadAsync(), LoadCollectionAsync());
+            await ShowAddressAsync(e.Location);
             StateHasChanged();
         });
     }
@@ -461,6 +642,14 @@ else
 
     async Task UndoneAsync()
     {
+        // An Undo of a saved search's change brings back what it was; one of a deletion, the search itself.
+        await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
+        if (_viewId is { } id && !_edited && await Api.SavedSearchAsync(id) is { } view)
+        {
+            _view = view;
+            _query = view.Query;
+            _list = view.List;
+        }
         await ReloadAsync();
         if (_drawer is not null) await _drawer.RefreshAsync();
     }
@@ -473,7 +662,7 @@ else
         _details = null;
         _drawer = null;
         // Opened from Home: the address forgets the book, so reloading doesn't open it again.
-        if (LibraryUrl.Book(Navigation.Uri) is not null) Navigation.NavigateTo("library" + LibraryUrl.QueryString(_query, forApi: false), replace: true);
+        if (LibraryUrl.Book(Navigation.Uri) is not null) Navigation.NavigateTo(CurrentAddress(), replace: true);
     }
 
     /// <summary>Shows a changed search or filter, at an address of its own.</summary>
@@ -481,23 +670,26 @@ else
     {
         if (next.Level is null) next = next with { UnknownLevels = false };
         if (string.IsNullOrWhiteSpace(next.Q)) next = next with { Q = null, Tab = null };
-        Navigation.NavigateTo("library" + LibraryUrl.QueryString(next, forApi: false), replace: true);
+        Navigation.NavigateTo(Address(next), replace: true);
         return Task.CompletedTask;
     }
 
     Task ShowTab(string? tab) => Filter(_query with { Tab = tab });
 
-    /// <summary>Filters off; the search and the collection shown stay.</summary>
-    Task ClearFilters() => Filter(new LibraryQuery { Q = _query.Q, Tab = _query.Tab, Collection = _query.Collection, AddedHere = _query.AddedHere });
+    /// <summary>Filters off; the search and the part of the library shown stay.</summary>
+    Task ClearFilters() => Filter(new LibraryQuery
+    {
+        Q = _query.Q, Tab = _query.Tab, Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites,
+    });
 
-    Task ClearScope() => Filter(_query with { Collection = null, AddedHere = false });
+    Task ClearScope() => Filter(_query with { Collection = null, AddedHere = false, Favorites = false });
 
     Task EmptyAction(string action) => action switch
     {
         "clear-filters" => ClearFilters(),
         "clear-scope" => ClearScope(),
         "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null }
-            : new LibraryQuery { Collection = _query.Collection, AddedHere = _query.AddedHere }),
+            : new LibraryQuery { Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites }),
         "show-documents" => ShowTab(null),
         _ => Task.CompletedTask,
     };
@@ -537,9 +729,96 @@ else
         Navigation.NavigateTo("collections");
     }
 
+    /// <summary>What the Library shows, as a saved search keeps it.</summary>
+    LibraryQuery Saving => _query with { Sort = Sort, EachFile = false };
+
+    /// <summary>Saved, the search opens as itself, pinned in the sidebar.</summary>
+    async Task SaveSearchAsync()
+    {
+        if (await Dialogs.NameSearchAsync("Save search", "Save") is not { } name) return;
+        await SaveNewAsync(name);
+    }
+
+    async Task SaveAsNewAsync()
+    {
+        if (_view is not { } view || await Dialogs.NameSearchAsync("Save as a new search", "Save", view.CopyName) is not { } name) return;
+        await SaveNewAsync(name);
+    }
+
+    async Task SaveNewAsync(string name)
+    {
+        if (await SearchActionAsync(() => Api.SaveSearchAsync(new SavedSearchSave(name, Saving, _list))) is not { } created) return;
+        _done = created.Result;
+        _view = created.Search;
+        await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
+        Navigation.NavigateTo($"library?view={created.Search.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+    }
+
+    async Task UpdateSearchAsync()
+    {
+        if (_view is not { } view || await SearchActionAsync(() => Api.UpdateSearchAsync(view.Id, new SavedSearchChange(Saving, _list))) is not { } result) return;
+        _done = result;
+        _view = await Api.SavedSearchAsync(view.Id);
+        Navigation.NavigateTo($"library?view={view.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)}", replace: true);
+    }
+
+    Task RenameSearchAsync() => _view is { } view ? RenameSearchAsync(view.Id, view.Name) : Task.CompletedTask;
+
+    Task RenameSearchAsync(SavedSearchInfo search) => RenameSearchAsync(search.Id, search.Name);
+
+    async Task RenameSearchAsync(long id, string current)
+    {
+        _showSearches = false;
+        if (await Dialogs.NameSearchAsync("Rename saved search", "Save", current) is not { } name || name == current) return;
+        if (await SearchActionAsync(() => Api.RenameSearchAsync(id, name)) is null) return;
+        if (id == _viewId && await Api.SavedSearchAsync(id) is { } renamed) _view = renamed;
+        await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
+    }
+
+    Task DeleteSearchAsync() => _view is { } view ? DeleteSearchAsync(view.Id) : Task.CompletedTask;
+
+    Task DeleteSearchAsync(SavedSearchInfo search) => DeleteSearchAsync(search.Id);
+
+    /// <summary>Deleted, the saved search's page becomes the library with the same search and filters, and the note has Undo.</summary>
+    async Task DeleteSearchAsync(long id)
+    {
+        _showSearches = false;
+        if (await SearchActionAsync(() => Api.DeleteSearchAsync(id)) is not { } result) return;
+        _done = result;
+        await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
+        if (id != _viewId) return;
+        var query = _query;
+        _viewId = null;
+        _view = null;
+        Navigation.NavigateTo("library" + LibraryUrl.QueryString(query, forApi: false));
+    }
+
+    /// <summary>A saved search change, its problem shown over the cards when it fails.</summary>
+    async Task<T?> SearchActionAsync<T>(Func<Task<T>> action) where T : class
+    {
+        try
+        {
+            return await action();
+        }
+        catch (ApiProblemException e)
+        {
+            _done = new ActionResult(e.Message);
+        }
+        catch (HttpRequestException)
+        {
+            _done = new ActionResult("That didn't work. Check your connection and try again.");
+        }
+        return null;
+    }
+
     async Task ChangeSort(ChangeEventArgs e)
     {
         var sort = e.Value as string;
+        if (_viewId is not null)
+        {
+            await Filter(_query with { Sort = sort });
+            return;
+        }
         if (_query.IsSearching) _searchSort = sort;
         else _browseSort = sort;
         await SetPrefAsync(_query.IsSearching ? "library.sort.search" : "library.sort.browse", sort ?? "");
@@ -549,6 +828,13 @@ else
     async Task SetLayout(bool list)
     {
         _list = list;
+        // A saved search keeps its own layout, so the change is the search's to keep or not.
+        if (_viewId is not null)
+        {
+            await Filter(_query);
+            return;
+        }
+        _prefList = list;
         await SetPrefAsync("library.layout", list ? "list" : "covers");
     }
 
@@ -657,6 +943,7 @@ else
     {
         Navigation.LocationChanged -= OnLocationChanged;
         Activity.Changed -= OnActivityChanged;
+        Pins.Changed -= OnPinsChanged;
         _loading?.Cancel();
         if (_watch is not null)
         {

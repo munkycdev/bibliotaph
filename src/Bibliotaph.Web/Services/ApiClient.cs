@@ -170,6 +170,40 @@ public sealed class ApiClient(HttpClient http)
     public Task<ActionResult> RunHeldAsync(string token, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, $"api/library/held/{Uri.EscapeDataString(token)}", null, ct);
 
+    // The sidebar's pins, and saved searches.
+
+    public Task<PinList> PinsAsync(CancellationToken ct = default) => SendAsync<PinList>(HttpMethod.Get, "api/pins", null, ct);
+
+    public Task<PinList> PinAsync(PinRef pin, CancellationToken ct = default) => SendAsync<PinList>(HttpMethod.Post, "api/pins", pin, ct);
+
+    public Task<PinList> UnpinAsync(PinRef pin, CancellationToken ct = default) => SendAsync<PinList>(HttpMethod.Post, "api/pins/remove", pin, ct);
+
+    public Task<PinList> MovePinAsync(PinMove move, CancellationToken ct = default) => SendAsync<PinList>(HttpMethod.Post, "api/pins/move", move, ct);
+
+    static string Search(long id) => $"api/searches/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    public Task<List<SavedSearchInfo>> SavedSearchesAsync(CancellationToken ct = default) => SendAsync<List<SavedSearchInfo>>(HttpMethod.Get, "api/searches", null, ct);
+
+    /// <summary>A saved search, or null when it has gone.</summary>
+    public async Task<SavedSearch?> SavedSearchAsync(long id, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync(Search(id), ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        await EnsureAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<SavedSearch>(ct);
+    }
+
+    public Task<SavedSearchCreated> SaveSearchAsync(SavedSearchSave search, CancellationToken ct = default) =>
+        SendAsync<SavedSearchCreated>(HttpMethod.Post, "api/searches", search, ct);
+
+    public Task<ActionResult> UpdateSearchAsync(long id, SavedSearchChange change, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Put, Search(id), change, ct);
+
+    public Task<ActionResult> RenameSearchAsync(long id, string name, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Put, $"{Search(id)}/name", new SavedSearchRename(name), ct);
+
+    public Task<ActionResult> DeleteSearchAsync(long id, CancellationToken ct = default) => SendAsync<ActionResult>(HttpMethod.Delete, Search(id), null, ct);
+
     static string Collection(long id) => $"api/collections/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
     public Task<CollectionList> CollectionsAsync(CancellationToken ct = default) => SendAsync<CollectionList>(HttpMethod.Get, "api/collections", null, ct);

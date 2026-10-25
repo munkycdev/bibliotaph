@@ -5,6 +5,7 @@
 @inject Theme Theme
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
+@inject Pins Pins
 
 @if (_loading)
 {
@@ -26,9 +27,49 @@ else
                     <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)"><Icon Name="@item.Icon" />@item.Label</a>
                 }
             </nav>
-            <div class="bt-sidegroup">
+            @* Books, Favorites, collections, binders and saved searches, in order. A pin is dragged to a new place, or moved
+               with Alt+Up and Alt+Down or its right-click menu, which also unpins it, and renames or deletes a saved search. *@
+            <div class="bt-sidegroup bt-pins">
                 <span class="bt-eyebrow">PINNED</span>
-                <p class="bt-sample bt-nav-hint">Pin a book, collection or binder from its menu.</p>
+                @if (Pins.Items.Count == 0)
+                {
+                    <p class="bt-sample bt-nav-hint">@Pins.Hint</p>
+                }
+                <div role="list" aria-label="Pinned">
+                    @for (var i = 0; i < Pins.Items.Count; i++)
+                    {
+                        var pin = Pins.Items[i];
+                        var at = i;
+                        var active = IsShown(pin);
+                        <div class="bt-pinrow @(_dropAt == at && _dragging is not null ? "drop" : "")" role="listitem" @key="(pin.Kind, pin.Id)"
+                             @ondragover="() => _dropAt = at" @ondragover:preventDefault="true" @ondrop="() => DropAsync(at)">
+                            <a class="bt-nav @(active ? "active" : "") @(pin.Dimmed ? "dimmed" : "")" href="@pin.Href" title="@pin.Tip" aria-current="@(active ? "page" : null)"
+                               draggable="true" @ondragstart="() => _dragging = pin" @ondragend="EndDrag"
+                               @oncontextmenu="() => _pinMenu = pin" @oncontextmenu:preventDefault="true" @onkeydown="e => PinKeyAsync(pin, at, e)">
+                                <Icon Name="@pin.Icon" /><span class="bt-navlabel">@pin.Label</span>
+                            </a>
+                            @if (_pinMenu == pin)
+                            {
+                                <div class="bt-backdrop fixed bt-menuback" @onclick="() => _pinMenu = null" @oncontextmenu="() => _pinMenu = null" @oncontextmenu:preventDefault="true"></div>
+                                <div class="bt-menu bt-pinmenu" role="menu" aria-label="@pin.Label">
+                                    <button class="bt-menuitem" role="menuitem" disabled="@(at == 0)" @onclick="() => MoveAsync(pin, at - 1)">Move up<span class="bt-gesture">Alt+Up</span></button>
+                                    <button class="bt-menuitem" role="menuitem" disabled="@(at == Pins.Items.Count - 1)" @onclick="() => MoveAsync(pin, at + 1)">Move down<span class="bt-gesture">Alt+Down</span></button>
+                                    <button class="bt-menuitem" role="menuitem" @onclick="() => UnpinAsync(pin)">Unpin</button>
+                                    @if (pin.Kind == PinKinds.Search)
+                                    {
+                                        <button class="bt-menuitem" role="menuitem" @onclick='() => ActOnSearch(pin, "rename")'>Rename…</button>
+                                        <button class="bt-menuitem" role="menuitem" @onclick='() => ActOnSearch(pin, "delete")'>Delete</button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    @if (_dragging is not null)
+                    {
+                        <div class="bt-pinrow bt-pinend @(_dropAt == Pins.Items.Count ? "drop" : "")" @ondragover="() => _dropAt = Pins.Items.Count"
+                             @ondragover:preventDefault="true" @ondrop="() => DropAsync(Pins.Items.Count)"></div>
+                    }
+                </div>
             </div>
             <div class="bt-sidebottom">
                 <NavLink class="bt-nav" href="settings"><Icon Name="Settings2" />Settings</NavLink>
@@ -99,6 +140,8 @@ else
         {
             Activity.Changed += OnActivityChanged;
             Activity.Start();
+            Pins.Changed += OnPinsChanged;
+            await Pins.LoadAsync();
         }
         _theme = await Theme.CurrentAsync();
         _loading = false;
@@ -160,9 +203,66 @@ else
 
     void OnActivityChanged() => InvokeAsync(StateHasChanged);
 
+    void OnPinsChanged() => InvokeAsync(StateHasChanged);
+
+    PinItem? _pinMenu;
+    PinItem? _dragging;
+    int? _dropAt;
+
+    /// <summary>The pin whose page is shown: the same address, as the Windows app marks the pin of the page open.</summary>
+    bool IsShown(PinItem pin)
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        return path == pin.Href || (path.StartsWith(pin.Href + "&", StringComparison.Ordinal) && pin.Kind == PinKinds.Search);
+    }
+
+    async Task MoveAsync(PinItem pin, int index)
+    {
+        _pinMenu = null;
+        if (index < 0 || index >= Pins.Items.Count) return;
+        await Pins.MoveAsync(pin, index);
+    }
+
+    Task UnpinAsync(PinItem pin)
+    {
+        _pinMenu = null;
+        return Pins.UnpinAsync(pin);
+    }
+
+    /// <summary>A saved search's Rename… and Delete open it, and the Library asks for the name or deletes it there, where Undo is.</summary>
+    void ActOnSearch(PinItem pin, string action)
+    {
+        _pinMenu = null;
+        Navigation.NavigateTo($"{pin.Href}&do={action}");
+    }
+
+    Task PinKeyAsync(PinItem pin, int at, KeyboardEventArgs e) =>
+        !e.AltKey ? Task.CompletedTask
+        : e.Key == "ArrowUp" ? MoveAsync(pin, at - 1)
+        : e.Key == "ArrowDown" ? MoveAsync(pin, at + 1)
+        : Task.CompletedTask;
+
+    async Task DropAsync(int at)
+    {
+        var dragging = _dragging;
+        EndDrag();
+        if (dragging is null) return;
+        var from = Pins.Items.ToList().FindIndex(p => p.Kind == dragging.Kind && p.Id == dragging.Id);
+        // It lands where the line was, above the pin dropped on; the index counts the pins once it has been taken out.
+        var index = at > from ? at - 1 : at;
+        if (from >= 0 && index != from) await Pins.MoveAsync(dragging, index);
+    }
+
+    void EndDrag()
+    {
+        _dragging = null;
+        _dropAt = null;
+    }
+
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
         Activity.Changed -= OnActivityChanged;
+        Pins.Changed -= OnPinsChanged;
     }
 }

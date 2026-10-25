@@ -27,6 +27,11 @@
   [Your library and search](docs/guide/web.md#your-library-and-search).
 - **Collections on the web.** Make, open, rename, move and delete collections, and add books to them or take them out
   from a book's details, as in the Windows app, with Undo. See [Collections](docs/guide/web.md#collections).
+- **Favorites, saved searches and pins on the web.** Favorites shows the books with a heart. Save search keeps a search,
+  its filters and order as a page of its own, with Update saved search and Save as new once it's changed, and the
+  Saved searches list has them all. Collections, saved searches, books and Favorites pin to the sidebar and Home, in the
+  order you drag them to. They are the same ones the Windows app shows. See
+  [Favorites, saved searches and pins](docs/guide/web.md#favorites-saved-searches-and-pins).
 
 ## 1.3 · 19 October 2026
 
