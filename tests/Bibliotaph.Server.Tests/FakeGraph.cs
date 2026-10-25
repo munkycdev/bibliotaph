@@ -153,10 +153,12 @@ sealed class LibraryFixture : IAsyncDisposable
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
         Pdf = new PdfWorkerPool(new PdfWorkerPoolOptions());
         Libraries = new UserLibraries(Paths, new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
-            new WorkerPdfEngine(Pdf), new SkiaImageCodec()));
+            new WorkerPdfEngine(Pdf), new SkiaImageCodec(), Covers));
     }
 
     public FakeGraph Graph { get; }
+
+    public MemoryCoverStore Covers { get; } = new();
     public ServerPaths Paths { get; }
     public AccountsDatabase Accounts { get; }
     public StorageConnections Connections { get; }
@@ -180,4 +182,26 @@ sealed class LibraryFixture : IAsyncDisposable
         await Libraries.DisposeAsync();
         await Pdf.DisposeAsync();
     }
+}
+
+/// <summary>Covers kept in memory, as Blob storage keeps them for the server.</summary>
+sealed class MemoryCoverStore : ICoverStore
+{
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> _covers = new();
+
+    public IReadOnlyCollection<string> Names => [.. _covers.Keys];
+
+    public Task<IReadOnlySet<string>> ListAsync(string userId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlySet<string>>(_covers.Keys.Where(k => k.StartsWith(userId + "/", StringComparison.Ordinal))
+            .Select(k => k[(userId.Length + 1)..]).ToHashSet());
+
+    public async Task UploadAsync(string userId, string name, Stream jpeg, CancellationToken ct)
+    {
+        using var copy = new MemoryStream();
+        await jpeg.CopyToAsync(copy, ct);
+        _covers[$"{userId}/{name}"] = copy.ToArray();
+    }
+
+    public Task<byte[]?> DownloadAsync(string userId, string name, CancellationToken ct) =>
+        Task.FromResult(_covers.TryGetValue($"{userId}/{name}", out var bytes) ? bytes : null);
 }

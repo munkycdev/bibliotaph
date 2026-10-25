@@ -46,6 +46,8 @@
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.5" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.5" />
+    <!-- MIT. Covers kept in Blob storage, which the replica's disk loses on a restart. -->
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.26.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tools">

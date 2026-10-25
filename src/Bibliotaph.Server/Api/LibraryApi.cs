@@ -30,7 +30,7 @@ public static class LibraryApi
             if (!IsCoverName(name)) return Results.NotFound();
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var path = lease.Library.Get<CoverCache>().PathFor(name);
-            if (!File.Exists(path)) return Results.NotFound();
+            if (!await lease.Library.Get<CoverMirror>().RestoreAsync(name, ct)) return Results.NotFound();
             // A cover's name changes with its image, except a book owned elsewhere's, which importing again redraws.
             context.Response.Headers.CacheControl = name.StartsWith("elsewhere-", StringComparison.Ordinal)
                 ? "private, no-cache"

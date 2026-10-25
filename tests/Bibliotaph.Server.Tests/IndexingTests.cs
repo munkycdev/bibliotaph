@@ -6,6 +6,7 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Indexing;
+using Bibliotaph.Server.Libraries;
 using Bibliotaph.Storage.OneDrive;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
@@ -93,6 +94,16 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         Assert.Contains($"for “{word}”", pages.CountLabel, StringComparison.Ordinal);
         var nothing = await LibraryApi.ResultsAsync(library, new LibraryQuery { Q = "zzyzxnotaword" }, Ct);
         Assert.Equal("clear-search", nothing.Empty?.Action);
+
+        // Covers outlive the server's disk: each is kept as indexing draws it, and one the disk lost comes back.
+        var cover = all.Books[0].Cover!;
+        await WaitAsync(() => Task.FromResult(all.Books.All(b => Fixture.Covers.Names.Contains($"{userId}/{b.Cover}")) ? "" : null));
+        var path = library.Get<CoverCache>().PathFor(cover);
+        var bytes = await File.ReadAllBytesAsync(path, Ct);
+        File.Delete(path);
+        Assert.True(await library.Get<CoverMirror>().RestoreAsync(cover, Ct));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path, Ct));
+        Assert.False(await library.Get<CoverMirror>().RestoreAsync("nothere.jpg", Ct));
     }
 
     [Fact]

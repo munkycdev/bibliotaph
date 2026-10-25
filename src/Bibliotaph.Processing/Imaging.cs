@@ -83,6 +83,17 @@ public sealed class CoverCache(AppPaths paths)
 
     static string ChosenPattern(Guid syncId) => string.Create(CultureInfo.InvariantCulture, $"{ChosenPrefix}{syncId:N}-*.jpg");
 
+    /// <summary>
+    /// Puts back a cover kept elsewhere under its own name, as the web server does with the copies it keeps of covers
+    /// its disk loses on a restart. Only a bare file name is taken, so nothing lands outside the cover folders.
+    /// </summary>
+    public void Restore(string fileName, byte[] jpeg)
+    {
+        if (fileName.Length == 0 || Path.GetFileName(fileName) != fileName || fileName.Contains("..", StringComparison.Ordinal))
+            throw new ArgumentException("Not a cover's file name.", nameof(fileName));
+        WriteTo(fileName.StartsWith(ChosenPrefix, StringComparison.Ordinal) ? ChosenFolder : Folder, fileName, jpeg);
+    }
+
     public string Write(string contentHash, byte[] jpeg)
     {
         var name = FileName(contentHash);

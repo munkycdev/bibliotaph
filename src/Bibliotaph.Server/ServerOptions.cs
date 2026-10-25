@@ -34,6 +34,12 @@ public sealed class ServerOptions
 
     public string? KeyRingKey { get; set; }
 
+    /// <summary>
+    /// The Blob container that keeps every user's covers (https://account.blob.core.windows.net/covers), which the
+    /// replica's disk loses on a restart. Unset, covers live only in <see cref="DataRoot"/>.
+    /// </summary>
+    public string? CoverContainer { get; set; }
+
     /// <summary>The user-assigned managed identity that reaches Blob storage and Key Vault.</summary>
     public string? ManagedIdentityClientId { get; set; }
 }
