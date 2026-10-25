@@ -77,9 +77,11 @@ function ImageIsPullable([string] $reference) {
     catch { return $false }
 }
 
+# az on Windows is a batch file, so cmd reads its arguments first: a query with brackets or pipes but no spaces isn't
+# quoted, and cmd stops at them. Those filters are done here instead.
 function Grant([string] $principalId, [string] $principalType, [string] $role, [string] $scope) {
-    $existing = az role assignment list --assignee $principalId --role $role --scope $scope --query 'length(@)' -o tsv
-    if ($existing -ne '0') { return }
+    $existing = Json (az role assignment list --assignee $principalId --role $role --scope $scope -o json)
+    if ($existing) { return }
     az role assignment create --assignee-object-id $principalId --assignee-principal-type $principalType `
         --role $role --scope $scope -o none
     Write-Host "  granted $role"
@@ -208,7 +210,7 @@ Write-Host "  running at https://$fqdn"
 Step 'Domain'
 if ($BindDomain) {
     foreach ($hostname in $Domain, "www.$Domain") {
-        $bound = az containerapp hostname list -n $App -g $ResourceGroup --query "[?name=='$hostname'].bindingType" -o tsv
+        $bound = (Json (az containerapp hostname list -n $App -g $ResourceGroup -o json) | Where-Object name -eq $hostname).bindingType
         if ($bound -eq 'SniEnabled') { Write-Host "  $hostname already has its certificate"; continue }
         if (-not $bound) { az containerapp hostname add -n $App -g $ResourceGroup --hostname $hostname -o none }
         az containerapp hostname bind -n $App -g $ResourceGroup --hostname $hostname --environment $cae.id `
