@@ -9,9 +9,11 @@ public sealed class Session(ApiClient api)
 
     public Task<CurrentUser?> MeAsync() => _me ??= api.MeAsync();
 
-    public async Task SignOutAsync()
+    /// <summary>Signs out, and says where the page goes next to end the sign-in provider's session too.</summary>
+    public async Task<string> SignOutAsync()
     {
-        await api.SignOutAsync();
+        var signedOut = await api.SignOutAsync();
         _me = Task.FromResult<CurrentUser?>(null);
+        return signedOut.Next;
     }
 }

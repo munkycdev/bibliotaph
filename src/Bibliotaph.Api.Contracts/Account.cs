@@ -1,11 +1,15 @@
 namespace Bibliotaph.Api.Contracts;
 
-/// <summary>A way to sign in, as the sign-in page lists it. <see cref="Id"/> is its key in the sign-in URL, such as microsoft.</summary>
-public sealed record SignInProvider(string Id, string Name);
+/// <summary>A way to sign in, as the sign-in page lists it: <see cref="Id"/> is its key in the sign-in URL, such as auth0, and <see cref="Label"/> its button's words.</summary>
+public sealed record SignInProvider(string Id, string Label);
+
+/// <summary>Signed out of Bibliotaph: where the page goes next, which ends the identity provider's session too.</summary>
+public sealed record SignedOut(string Next);
 
 /// <summary>The signed-in user. GET /api/me answers 401 when nobody is signed in.</summary>
 public sealed record CurrentUser(string UserId, string Name, string? Email, bool IsAdmin, IReadOnlyList<LinkedSignIn> SignIns);
 
+/// <summary>A way into the account. <see cref="Provider"/> names it as Settings shows it, by the connection it came through, such as Google.</summary>
 public sealed record LinkedSignIn(string Provider, string? Email, DateTimeOffset Added);
 
 /// <summary>How much is in the signed-in user's library.</summary>

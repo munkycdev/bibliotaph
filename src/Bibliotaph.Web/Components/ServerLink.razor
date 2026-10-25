@@ -1,10 +1,11 @@
 @* A link to a server page (/auth/...), which the client's router must not take: it loads the page for real. *@
 @inject NavigationManager Navigation
-<button class="@Class" @onclick="Go">@ChildContent</button>
+<button class="@Class" title="@Title" @onclick="Go">@ChildContent</button>
 
 @code {
     [Parameter, EditorRequired] public string Href { get; set; } = "";
     [Parameter] public string Class { get; set; } = "bt-button";
+    [Parameter] public string? Title { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     void Go() => Navigation.NavigateTo(Href, forceLoad: true);

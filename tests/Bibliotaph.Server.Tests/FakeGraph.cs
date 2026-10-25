@@ -146,8 +146,8 @@ sealed class LibraryFixture : IAsyncDisposable
         var http = new FakeHttp(Graph);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Auth:microsoft:ClientId"] = "client",
-            ["Auth:microsoft:ClientSecret"] = "secret",
+            ["Storage:OneDrive:ClientId"] = "client",
+            ["Storage:OneDrive:ClientSecret"] = "secret",
         }).Build();
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);

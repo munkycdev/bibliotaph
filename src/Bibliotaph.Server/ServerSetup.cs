@@ -90,7 +90,7 @@ public static class ServerSetup
         app.UseAuthorization();
 
         app.MapGet("/healthz", () => Results.Text("ok"));
-        app.MapAuth(AuthSetup.Configured(app.Configuration),
+        app.MapAuth(AuthSetup.Auth0(app.Configuration),
             developerSignIn: app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Auth:DeveloperSignIn"));
         app.MapApi();
         app.MapStorage();
