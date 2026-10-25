@@ -94,7 +94,32 @@ in the Library.
 
 Covers are kept with your account, so they don't need drawing again when the server restarts.
 
-Editing a book's details, the reader, collections and binders are the next steps.
+### Changing a book's details
+
+The details change a book as the Windows app's do:
+
+- **The heart** beside **×** adds the book to your favorites, or takes it out.
+- **The pencil** on a field edits it: type the value, a list separated with commas, and **Save** (or **Enter**; **Esc**
+  cancels). A field with a list of terms, such as Game system or Type, says how what you typed will be filed and lets
+  you pick from the list.
+- **The evidence** a field's **Sources** or **Suggested** opens has **Keep this**, **Use this** on another suggestion,
+  **Not right** on any value, and **Reset to suggestion** to forget what you set.
+- After a correction, Bibliotaph may offer to correct the other books from the same folder that showed the same thing:
+  **Change them** does, with **Undo**; **No thanks** leaves them.
+- **The pencil under the cover** is **Cataloged wrong…**: every field shows, the guessed values are marked **Guessed**
+  with their evidence open, and **Done** ends it. If you leave without changing or keeping anything, Needs review keeps
+  a reminder.
+- **Notes** is the book's own note, saved as you type and found by search, with the notes on its pages below.
+- **Adventures in this file**: **Add** gives pages of a PDF a card of their own, typed as the file numbers them; each
+  has **Edit range** and **Remove**, with **Undo**. An adventure's own details have **Show the file**, **Edit range** and
+  **Remove adventure**.
+- **Reprocess**, under **Where it is**, reads the file again; what you added stays.
+- A pack's files: click one for **Use as the pack's cover**, or **Use the mosaic**; **Split into separate images** (or
+  files) gives each its own card, with **Undo**.
+- A book in more than one file: **Make current** chooses which copy opens, and **Not the same book** gives a file its own
+  card again.
+
+The reader, collections and binders are the next steps.
 
 ## Your theme
 

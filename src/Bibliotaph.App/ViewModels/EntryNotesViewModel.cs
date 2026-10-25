@@ -92,7 +92,7 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     public partial bool HasPageNotes { get; private set; }
 
     /// <summary>"Notes", or "Notes (3)" when the book has a note of its own or notes on its pages.</summary>
-    public string TabLabel => (Text.Trim().Length > 0 ? 1 : 0) + PageNotes.Count is var count and > 0 ? $"Notes ({count})" : "Notes";
+    public string TabLabel => DetailsText.NotesLabel((Text.Trim().Length > 0 ? 1 : 0) + PageNotes.Count);
 
     public async Task LoadAsync()
     {

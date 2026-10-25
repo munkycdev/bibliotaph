@@ -81,7 +81,7 @@ public sealed partial class InspectorViewModel
         {
             var added = await Task.Run(() => parts.AddAsync(documentId, pages, title));
             if (added.Problem is not null) return added.Problem;
-            PartUndo.Say($"“{title}” has a card of its own now.");
+            PartUndo.Say(DetailsText.PartAdded(title));
             await PartsChangedAsync();
             return null;
         }));
@@ -100,7 +100,7 @@ public sealed partial class InspectorViewModel
         {
             var moved = await Task.Run(() => parts.SetPagesAsync(partId, documentId, pages));
             if (moved.Problem is not null) return moved.Problem;
-            SayPart($"“{title}” is on {pages.Describe(_labels)} now.", moved.Undo);
+            SayPart(DetailsText.PartMoved(title, pages.Describe(_labels)), moved.Undo);
             await PartsChangedAsync();
             return null;
         }));
@@ -128,7 +128,7 @@ public sealed partial class InspectorViewModel
     public void ShowPartRemoved(RemovedPart removed, string title)
     {
         var parts = _parts;
-        SayPart($"Removed “{title}”. Its pages are only the file's again.", parts is null ? null : () => Task.Run(() => parts.RestoreAsync(removed)));
+        SayPart(DetailsText.PartRemoved(title), parts is null ? null : () => Task.Run(() => parts.RestoreAsync(removed)));
     }
 
     /// <summary>The file an adventure is in, or an adventure in this file: its details.</summary>

@@ -726,8 +726,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             else
             {
                 var books = undo?.Select(s => s.EntryId).Distinct().Count() ?? 0;
-                Selection.SayDone(books == 0 ? "Those books already had these values, so nothing changed."
-                        : $"Changed {BulkEditViewModel.Books(books)} from “{offer.FolderName}”.",
+                Selection.SayDone(DetailsText.LookAlikesChanged(books, offer.FolderName),
                     books > 0 && undo is not null && ReferenceEquals(_navigation.Current, this) ? () => _metadata.UndoManyAsync(undo) : null,
                     "The edit couldn't be undone.");
             }

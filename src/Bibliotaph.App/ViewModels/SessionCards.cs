@@ -112,14 +112,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public string Where => Item.Link is not null ? $"{BookTitle} · Page on {OnlinePlace ?? "the web"}" : $"{BookTitle} · {Pages(Item.Range)}";
 
     /// <summary>For the reader's counter and the item's own line: "p. 42–44", "Whole book".</summary>
-    public static string Pages(PageRange? range)
-    {
-        if (range is null) return "Whole book";
-        var first = range.FirstLabel ?? (range.FirstPdfPage + 1).ToString(CultureInfo.CurrentCulture);
-        if (range.IsSinglePage) return $"p. {first}";
-        var last = range.LastLabel ?? (range.LastPdfPage + 1).ToString(CultureInfo.CurrentCulture);
-        return $"p. {first}–{last}";
-    }
+    public static string Pages(PageRange? range) => DetailsText.Pages(range);
 
     /// <summary>The item in hand in a binder's reader.</summary>
     [ObservableProperty]

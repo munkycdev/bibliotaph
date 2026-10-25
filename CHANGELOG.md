@@ -19,6 +19,9 @@
   where each value came from, its adventures or pack files, its file, where it is, its copies and how far reading it has
   got. Home shows the books opened and added last. Covers are kept with your account across server restarts. See
   [Your library and search](docs/guide/web.md#your-library-and-search).
+- **Change a book's details on the web.** As in the Windows app: edit fields and choose between suggestions, Cataloged
+  wrong… and the offer to correct look-alikes, favorites, notes, adventures inside a PDF, Reprocess, a pack's cover and
+  split, and copies, with Undo. See [Changing a book's details](docs/guide/web.md#changing-a-books-details).
 
 ## 1.3 · 19 October 2026
 

@@ -1,4 +1,5 @@
-@* .bt-drawer: a book's details, as the Windows app's details drawer shows them. Esc, the close button or a click outside closes it. *@
+@* .bt-drawer: a book's details, as the Windows app's details drawer shows them and changes them. Esc, the close button or a click outside closes it. *@
+@implements IAsyncDisposable
 @inject ApiClient Api
 
 <div class="bt-backdrop fixed" @onclick="Close"></div>
@@ -6,9 +7,11 @@
     <div class="bt-drawer-head">
         <span class="bt-eyebrow">@_details?.Eyebrow</span>
         <div class="bt-inline">
-            @if (_details?.Card.Favorite == true)
+            @if (_details is { } shown)
             {
-                <span class="bt-heart on" role="img" aria-label="Favorite" title="Favorite"><Icon Name="Heart" Size="15" /></span>
+                var action = shown.Card.Favorite ? "Remove from favorites" : "Add to favorites";
+                <button class="bt-icon bt-heart @(shown.Card.Favorite ? "on" : "")" title="@action" aria-label="@action" aria-pressed="@shown.Card.Favorite"
+                        @onclick="ToggleFavoriteAsync"><Icon Name="Heart" Size="15" /></button>
             }
             <button class="bt-icon" @ref="_close" aria-label="Close details" title="Close (Esc)" @onclick="Close"><Icon Name="X" /></button>
         </div>
@@ -40,154 +43,372 @@
             </div>
         </div>
 
-        @if (book.PackFiles.Count > 0)
+        <div class="bt-detailactions">
+            @if (!_correcting)
+            {
+                <button class="bt-icon" title="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" aria-label="Cataloged wrong…"
+                        @onclick="StartCorrecting"><Icon Name="Pencil" Size="15" /></button>
+            }
+        </div>
+
+        <div class="bt-tabs bt-detailtabs" role="tablist" aria-label="Details or notes">
+            <button class="bt-tab @(_notesTab ? "" : "active")" role="tab" aria-selected="@(!_notesTab)" @onclick="() => _notesTab = false">Details</button>
+            <button class="bt-tab @(_notesTab ? "active" : "")" role="tab" aria-selected="@_notesTab" @onclick="ShowNotesAsync">@(_notes?.TabLabel ?? book.NotesLabel)</button>
+        </div>
+
+        @if (_notesTab)
         {
-            <h3 class="bt-drawerhead bt-sectionhead">@book.PackFilesHeading</h3>
-            <div class="bt-packfiles">
-                @foreach (var file in book.PackFiles)
+            <div class="bt-booknotes">
+                <textarea class="bt-notebox" aria-label="Note on this book" title="Saved as you type. A search finds the book by its note." value="@_noteText"
+                          @oninput="NoteTyped" disabled="@(_notes is null)"></textarea>
+                <div class="bt-small bt-notehint">Saved as you type. A search finds this book by its note.</div>
+                <h3 class="bt-drawerhead bt-sectionhead">ON ITS PAGES</h3>
+                @if (_notes is { PageNotes.Count: > 0 } notes)
                 {
-                    <div class="bt-packfile" title="@file.Name">
-                        <div class="bt-packthumb">
-                            @if (file.Cover is { } cover) { <img src="@BookCover.CoverUrl(cover)" alt="" loading="lazy" /> }
-                            @if (file.IsPdf) { <span class="bt-packmark pdf">PDF</span> }
-                            @if (file.IsCover) { <span class="bt-packmark cover" aria-label="The pack's cover">Cover</span> }
-                        </div>
-                        <div class="bt-packname">@file.Name</div>
+                    <div aria-label="Notes on its pages">
+                        @foreach (var note in notes.PageNotes)
+                        {
+                            <div class="bt-detailbox">
+                                <div class="bt-notepages">@note.Pages</div>
+                                <div class="bt-row bt-notetext">@note.Text</div>
+                                @if (note.Reason is { } reason)
+                                {
+                                    <div class="bt-notereason @(note.Changed ? "changed" : "")"><Icon Name="TriangleAlert" Size="12" /><span>@reason</span></div>
+                                }
+                            </div>
+                        }
                     </div>
+                }
+                else if (_notes is not null)
+                {
+                    <div class="bt-small">No page notes yet. Add one in the reader with Note.</div>
                 }
             </div>
         }
-
-        <div class="bt-drawerhead-row">
-            <h3 class="bt-drawerhead">DETAILS</h3>
-            @if (book.Fields.Any(f => !f.Known && !f.Primary))
+        else
+        {
+            @if (book.PackFiles.Count > 0)
             {
-                <button class="bt-link" @onclick="() => _allFields = !_allFields">@(_allFields ? "Fewer fields" : "More fields")</button>
-            }
-        </div>
-        <div class="bt-fields">
-            @foreach (var field in book.Fields.Where(f => _allFields || f.Known || f.Primary))
-            {
-                <div class="bt-fieldrow" @key="field.Key">
-                    <div class="bt-fieldlabel">@field.Label</div>
-                    <div class="bt-inline">
-                        <span class="bt-fieldvalue @(field.Known ? "" : "unknown")">@field.Display</span>
-                        @if (field.Known || field.Alternatives.Count > 0)
+                <div class="bt-drawerhead-row">
+                    <h3 class="bt-drawerhead">@book.PackFilesHeading</h3>
+                    <div class="bt-inline bt-headactions">
+                        @if (book.PackFiles.Any(f => f.IsCover))
                         {
-                            <button class="bt-link bt-evidencelink" aria-expanded="@_open.Contains(field.Key)" aria-label="Where @field.Label came from"
-                                    @onclick="() => Toggle(field.Key)">
-                                <Icon Name="@(field.NeedsReview ? "TriangleAlert" : field.Suggested ? "Sparkles" : "TextSearch")" Size="12" />@field.EvidenceLabel
-                            </button>
+                            <button class="bt-link" title="Show the pack's first four files on its card again" @onclick="() => UseCoverAsync(null)">Use the mosaic</button>
                         }
+                        <button class="bt-link" title="@book.SplitPackTip" @onclick="SplitAsync">@book.SplitPackLabel</button>
                     </div>
-                    @foreach (var link in field.Values.Where(v => v.Url is not null))
+                </div>
+                <div class="bt-packfiles">
+                    @foreach (var file in book.PackFiles)
                     {
-                        <a class="bt-link bt-storelink" href="@link.Url" target="_blank" rel="noopener noreferrer" title="@link.Url">
-                            <Icon Name="SquareArrowOutUpRight" Size="12" />@link.LinkText
-                        </a>
-                    }
-                    @if (_open.Contains(field.Key))
-                    {
-                        <div class="bt-evidence">
-                            @foreach (var value in field.Values)
+                        <div class="bt-packfile" @key="file.EntryId">
+                            <button class="bt-packthumb" title="@file.Name" aria-label="@file.Name" aria-expanded="@(_packMenu == file.EntryId)"
+                                    @onclick="() => _packMenu = _packMenu == file.EntryId ? null : file.EntryId">
+                                @if (file.Cover is { } cover) { <img src="@BookCover.CoverUrl(cover)" alt="" loading="lazy" /> }
+                                @if (file.IsPdf) { <span class="bt-packmark pdf">PDF</span> }
+                                @if (file.IsCover) { <span class="bt-packmark cover" aria-label="The pack's cover">Cover</span> }
+                            </button>
+                            <div class="bt-packname">@file.Name</div>
+                            @if (_packMenu == file.EntryId)
                             {
-                                <div class="bt-evidencevalue">
-                                    <strong>@value.Text</strong>
-                                    @foreach (var source in value.Sources) { <div>@source</div> }
+                                <div class="bt-packmenu">
+                                    @if (file.IsCover)
+                                    {
+                                        <button class="bt-link" @onclick="() => UseCoverAsync(null)">Use the mosaic</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="bt-link" @onclick="() => UseCoverAsync(file.EntryId)">Use as the pack's cover</button>
+                                    }
                                 </div>
                             }
-                            @if (field.Alternatives.Count > 0)
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (_correcting)
+            {
+                <div class="bt-banner" aria-label="Correcting this book">
+                    <div>
+                        <div class="bt-bannerhead">What's wrong?</div>
+                        <div class="bt-bannertext">Values marked Guessed came from names, the file or the AI model, and nobody has confirmed them. Edit a field, or mark a value Not right. If you leave without changing anything, Needs review keeps a reminder.</div>
+                    </div>
+                    <button class="bt-button" aria-label="Done correcting" @onclick="EndCorrectingAsync">Done</button>
+                </div>
+            }
+            @if (_offer is { } offer)
+            {
+                <div class="bt-banner stacked" aria-label="@offer.Question">
+                    <div class="bt-bannerhead">@offer.Question</div>
+                    <div class="bt-bannertext">@offer.Detail</div>
+                    <div class="bt-boxactions">
+                        <button class="bt-button primary" aria-label="Change the other books too" @onclick="AcceptOfferAsync">Change them</button>
+                        <button class="bt-button" aria-label="Leave the other books as they are" @onclick="() => _offer = null">No thanks</button>
+                    </div>
+                </div>
+            }
+
+            <div class="bt-drawerhead-row">
+                <h3 class="bt-drawerhead">DETAILS</h3>
+                @if (book.Fields.Any(f => !f.Known && !f.Primary))
+                {
+                    <button class="bt-link" @onclick="() => _allFields = !_allFields">@(_allFields ? "Fewer fields" : "More fields")</button>
+                }
+            </div>
+            <div class="bt-fields">
+                @foreach (var field in book.Fields.Where(f => _allFields || f.Known || f.Primary))
+                {
+                    var editing = _editing == field.Key;
+                    <div class="bt-fieldrow @(_busy == field.Key ? "busy" : "")" @key="field.Key" aria-label="@field.Label">
+                        <div class="bt-fieldline">
+                            <div>
+                                <div class="bt-fieldlabel">@field.Label</div>
+                                <div class="bt-inline bt-fieldvalues">
+                                    <span class="bt-fieldvalue @(field.Known ? "" : "unknown")">@field.Display</span>
+                                    @if (_correcting && field.Known && field.Suggested)
+                                    {
+                                        <span class="bt-chip bt-guessed" title="Nobody has confirmed this yet">Guessed</span>
+                                    }
+                                    @if (field.Known || field.Alternatives.Count > 0)
+                                    {
+                                        <button class="bt-link bt-evidencelink" aria-expanded="@_open.Contains(field.Key)" aria-label="Where @field.Label came from"
+                                                @onclick="() => Toggle(field.Key)">
+                                            <Icon Name="@(field.NeedsReview ? "TriangleAlert" : field.Suggested ? "Sparkles" : "TextSearch")" Size="12" />@field.EvidenceLabel
+                                        </button>
+                                    }
+                                </div>
+                                @foreach (var link in field.Values.Where(v => v.Url is not null))
+                                {
+                                    <a class="bt-link bt-storelink" href="@link.Url" target="_blank" rel="noopener noreferrer" title="@link.Url">
+                                        <Icon Name="SquareArrowOutUpRight" Size="12" />@link.LinkText
+                                    </a>
+                                }
+                            </div>
+                            @if (!editing)
                             {
-                                <span class="bt-eyebrow bt-eyebrow-block bt-othersuggestions">OTHER SUGGESTIONS</span>
-                                @foreach (var value in field.Alternatives)
+                                <button class="bt-icon" title="Edit" aria-label="Edit @field.Label" disabled="@(_busy is not null)" @onclick="() => StartEdit(field)"><Icon Name="Pencil" Size="14" /></button>
+                            }
+                        </div>
+
+                        @if (editing)
+                        {
+                            <div class="bt-fieldedit">
+                                <input class="bt-input" aria-label="@field.Label" value="@_editText" @oninput="EditTyped" @onkeydown="EditKeyDown" @onkeydown:stopPropagation="true" @ref="_editor" />
+                                @if (field.EditHint.Length > 0) { <div class="bt-small bt-edithint">@field.EditHint</div> }
+                                @if (_resolution.Length > 0) { <div class="bt-row bt-resolution">@_resolution</div> }
+                                @if (field.Choices.Count > 0)
+                                {
+                                    <label class="bt-field bt-choices">
+                                        <span>@field.ChoicesLabel</span>
+                                        <select aria-label="@field.ChoicesLabel" value="" @onchange="e => PickAsync(field, e)">
+                                            <option value=""></option>
+                                            @foreach (var choice in field.Choices) { <option value="@choice">@choice</option> }
+                                        </select>
+                                    </label>
+                                }
+                                @if (_editProblem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+                                <div class="bt-boxactions">
+                                    <button class="bt-button primary" disabled="@(_busy is not null)" @onclick="() => SaveAsync(field)"><Icon Name="Check" Size="14" />Save</button>
+                                    <button class="bt-button" @onclick="CancelEdit">Cancel</button>
+                                </div>
+                            </div>
+                        }
+
+                        @if (_open.Contains(field.Key))
+                        {
+                            <div class="bt-evidence">
+                                @foreach (var value in field.Values)
                                 {
                                     <div class="bt-evidencevalue">
-                                        <span class="bt-alternative">@value.Text</span>
+                                        <div class="bt-evidenceline">
+                                            <strong>@value.Text</strong>
+                                            <button class="bt-link" aria-label="@value.Text is not right" disabled="@(_busy is not null)"
+                                                    @onclick='() => FieldActionAsync(field, "reject", value.Normalized)'>Not right</button>
+                                        </div>
                                         @foreach (var source in value.Sources) { <div>@source</div> }
                                     </div>
                                 }
-                            }
+                                @if (field.Suggested)
+                                {
+                                    <button class="bt-link bt-evidenceaction" aria-label="Keep this @field.Label" disabled="@(_busy is not null)"
+                                            @onclick='() => FieldActionAsync(field, "keep")'><Icon Name="Check" Size="12" />Keep this</button>
+                                }
+                                @if (field.Alternatives.Count > 0)
+                                {
+                                    <span class="bt-eyebrow bt-eyebrow-block bt-othersuggestions">OTHER SUGGESTIONS</span>
+                                    @foreach (var value in field.Alternatives)
+                                    {
+                                        <div class="bt-evidencevalue">
+                                            <div class="bt-evidenceline">
+                                                <span class="bt-alternative">@value.Text</span>
+                                                <span class="bt-inline">
+                                                    <button class="bt-link" aria-label="Use @value.Text" disabled="@(_busy is not null)"
+                                                            @onclick='() => FieldActionAsync(field, "use", value.Value)'>Use this</button>
+                                                    <button class="bt-link" aria-label="@value.Text is not right" disabled="@(_busy is not null)"
+                                                            @onclick='() => FieldActionAsync(field, "reject", value.Normalized)'>Not right</button>
+                                                </span>
+                                            </div>
+                                            @foreach (var source in value.Sources) { <div>@source</div> }
+                                        </div>
+                                    }
+                                }
+                                @if (field.CanReset)
+                                {
+                                    <button class="bt-link bt-evidenceaction" title="Forget what you set here and go back to what the sources suggest" disabled="@(_busy is not null)"
+                                            @onclick='() => FieldActionAsync(field, "reset")'><Icon Name="Undo2" Size="12" />Reset to suggestion</button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (book.CanMarkParts)
+            {
+                <div class="bt-drawerhead-row bt-sectionrow">
+                    <h3 class="bt-drawerhead">@book.PartsHeading</h3>
+                    <button class="bt-link" title="Give pages of this file a card of their own, as an adventure" aria-label="Add an adventure in this file"
+                            @onclick="AddPart"><Icon Name="Plus" Size="13" />Add</button>
+                </div>
+                @if (book.Parts.Count == 0)
+                {
+                    <div class="bt-small bt-partsintro">A compilation's adventures can each have a card of their own that opens at their pages. The file isn't changed.</div>
+                }
+                <div aria-label="Adventures in this file">
+                    @foreach (var part in book.Parts)
+                    {
+                        <div class="bt-detailbox" @key="part.EntryId" aria-label="@part.Title">
+                            <button class="bt-titlelink" aria-label="Details for @part.Title" @onclick="() => Show(part.EntryId)">@part.Title</button>
+                            <div class="bt-small">@part.Pages</div>
+                            <div class="bt-boxactions">
+                                <button class="bt-button" aria-label="Edit the pages of @part.Title" @onclick="() => EditPart(part.EntryId, part.Title, part.From, part.To)"><Icon Name="Pencil" Size="14" />Edit range</button>
+                                <button class="bt-button" title="Its card goes; its pages are only the file's again" aria-label="Remove the adventure @part.Title"
+                                        @onclick="() => RemovePartAsync(part.EntryId, false)"><Icon Name="Trash2" Size="14" />Remove</button>
+                            </div>
                         </div>
                     }
                 </div>
             }
-        </div>
-
-        @if (book.CanMarkParts && book.Parts.Count > 0)
-        {
-            <h3 class="bt-drawerhead bt-sectionhead">@book.PartsHeading</h3>
-            @foreach (var part in book.Parts)
+            @if (book.PartOf is { } partOf)
             {
+                <h3 class="bt-drawerhead bt-sectionhead">IN A FILE</h3>
                 <div class="bt-detailbox">
-                    <button class="bt-titlelink" aria-label="Details for @part.Title" @onclick="() => Show(part.EntryId)">@part.Title</button>
-                    <div class="bt-small">@part.Pages</div>
-                </div>
-            }
-        }
-        @if (book.PartOf is { } partOf)
-        {
-            <h3 class="bt-drawerhead bt-sectionhead">IN A FILE</h3>
-            <div class="bt-detailbox">
-                <div class="bt-row">@partOf</div>
-                <div class="bt-small">Values set on the file, such as its system and publisher, are this adventure's too unless it has its own.</div>
-                @if (book.PartOfEntryId is { } file)
-                {
+                    <div class="bt-row">@partOf</div>
+                    <div class="bt-small">Values set on the file, such as its system and publisher, are this adventure's too unless it has its own.</div>
                     <div class="bt-boxactions">
-                        <button class="bt-button" aria-label="Show the file this adventure is in" @onclick="() => Show(file)"><Icon Name="ArrowUpRight" Size="14" />Show the file</button>
+                        @if (book.PartOfEntryId is { } file)
+                        {
+                            <button class="bt-button" aria-label="Show the file this adventure is in" @onclick="() => Show(file)"><Icon Name="ArrowUpRight" Size="14" />Show the file</button>
+                        }
+                        <button class="bt-button" aria-label="Edit this adventure's pages" @onclick="() => EditPart(book.Card.EntryId, book.Card.Title, book.PartFrom, book.PartTo)"><Icon Name="Pencil" Size="14" />Edit range</button>
+                        <button class="bt-button" title="This card goes; its pages are only the file's again" @onclick="() => RemovePartAsync(book.Card.EntryId, true)"><Icon Name="Trash2" Size="14" />Remove adventure</button>
                     </div>
-                }
-            </div>
-        }
-
-        <h3 class="bt-drawerhead bt-sectionhead">@book.FactsHeading</h3>
-        <dl class="bt-facts">
-            @foreach (var fact in book.Facts)
-            {
-                <dt>@fact.Label</dt>
-                <dd>@fact.Value</dd>
-            }
-        </dl>
-
-        @if (book.ShowsLocations)
-        {
-            <h3 class="bt-drawerhead bt-sectionhead">WHERE IT IS</h3>
-            @foreach (var location in book.Locations)
-            {
-                <div class="bt-detailbox">
-                    <div class="bt-row bt-path">@location.Path</div>
-                    @if (location.State.Length > 0) { <div class="bt-small">@location.State</div> }
                 </div>
             }
-        }
-
-        @if (book.Copies.Count > 0)
-        {
-            <h3 class="bt-drawerhead bt-sectionhead">@book.CopiesHeading</h3>
-            @foreach (var copy in book.Copies)
+            @if (_part is { } editor)
             {
-                <div class="bt-detailbox" aria-label="@copy.Heading">
-                    <div class="bt-copyheading">@copy.Heading</div>
-                    <div class="bt-small">@copy.Detail</div>
-                    @if (copy.Path is { } path) { <div class="bt-row bt-path">@path</div> }
+                <div class="bt-parteditor" aria-label="@editor.Heading" @onkeydown="PartKeyDown" @onkeydown:stopPropagation="true">
+                    <div class="bt-drawer-head">
+                        <div>
+                            <span class="bt-eyebrow bt-eyebrow-block">ADVENTURE IN THIS FILE</span>
+                            <h3 class="bt-partheading">@editor.Heading</h3>
+                        </div>
+                        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="() => _part = null"><Icon Name="X" /></button>
+                    </div>
+                    @if (editor.PartId is null)
+                    {
+                        <label class="bt-field">Title<input aria-label="Adventure title" @bind="editor.Title" @bind:event="oninput" /></label>
+                    }
+                    <div class="bt-pagefields">
+                        <label class="bt-field">First page<input aria-label="First page" @bind="editor.From" @bind:event="oninput" /></label>
+                        <label class="bt-field">Last page<input aria-label="Last page" @bind="editor.To" @bind:event="oninput" /></label>
+                    </div>
+                    <div class="bt-small bt-edithint">@PagesHint</div>
+                    @if (editor.Problem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+                    <div class="bt-small bt-edithint">The file isn't changed: the adventure gets a card of its own that opens these pages.</div>
+                    <div class="bt-boxactions end">
+                        <button class="bt-button" @onclick="() => _part = null">Cancel</button>
+                        <button class="bt-button primary" disabled="@(editor.Saving || (editor.PartId is null && editor.Title.Trim().Length == 0) || editor.From.Trim().Length == 0)"
+                                @onclick="SavePartAsync">@(editor.PartId is null ? "Make its card" : "Save pages")</button>
+                    </div>
                 </div>
             }
-        }
+            <DoneNote Result="_partNote" UndoName="Undo the change to the adventures" Dismissed="() => _partNote = null" Undone="ChangedAsync" />
 
-        @if (book.Stages.Count > 0)
-        {
-            <h3 class="bt-drawerhead bt-sectionhead">INDEXING</h3>
+            <h3 class="bt-drawerhead bt-sectionhead">@book.FactsHeading</h3>
             <dl class="bt-facts">
-                @foreach (var stage in book.Stages)
+                @foreach (var fact in book.Facts)
                 {
-                    <dt>@stage.Label</dt>
-                    <dd>@stage.Value</dd>
+                    <dt>@fact.Label</dt>
+                    <dd>@fact.Value</dd>
                 }
             </dl>
+
+            @if (book.ShowsLocations)
+            {
+                <h3 class="bt-drawerhead bt-sectionhead">WHERE IT IS</h3>
+                @for (var i = 0; i < book.Locations.Count; i++)
+                {
+                    var location = book.Locations[i];
+                    <div class="bt-detailbox">
+                        <div class="bt-row bt-path">@location.Path</div>
+                        @if (location.State.Length > 0) { <div class="bt-small">@location.State</div> }
+                        @if (i == 0 && book.PackFiles.Count == 0)
+                        {
+                            var label = book.Reprocessing ? "Reprocessing…" : "Reprocess";
+                            <div class="bt-boxactions">
+                                <button class="bt-button" title="Read the file again: pages, text, cover and hints from names. What you added stays." aria-label="@label"
+                                        disabled="@book.Reprocessing" @onclick="ReprocessAsync"><Icon Name="RotateCcw" Size="14" />@label</button>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @if (book.Copies.Count > 0)
+            {
+                <h3 class="bt-drawerhead bt-sectionhead">@book.CopiesHeading</h3>
+                <div aria-label="Copies">
+                    @foreach (var copy in book.Copies)
+                    {
+                        <div class="bt-detailbox" aria-label="@copy.Heading">
+                            <div class="bt-copyheading">@copy.Heading</div>
+                            <div class="bt-small">@copy.Detail</div>
+                            @if (copy.Path is { } path) { <div class="bt-row bt-path">@path</div> }
+                            <div class="bt-boxactions">
+                                @if (!copy.IsCurrent && copy.Path is not null)
+                                {
+                                    <button class="bt-button" title="Open this copy: its cover, pages and page hits become the book's. No file changes."
+                                            @onclick="() => CopyAsync(copy.DocumentId, false)"><Icon Name="Check" Size="14" />Make current</button>
+                                }
+                                <button class="bt-button" title="Give this file a card of its own again. Bibliotaph won't join them again."
+                                        @onclick="() => CopyAsync(copy.DocumentId, true)">Not the same book</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (book.Stages.Count > 0)
+            {
+                <h3 class="bt-drawerhead bt-sectionhead">INDEXING</h3>
+                <dl class="bt-facts">
+                    @foreach (var stage in book.Stages)
+                    {
+                        <dt>@stage.Label</dt>
+                        <dd>@stage.Value</dd>
+                    }
+                </dl>
+            }
         }
     }
 </aside>
 
 @code {
+    const string PagesHint = "Type pages as the file numbers them, or PDF page numbers.";
+
     BookDetails? _details;
     string? _problem;
     bool _allFields;
@@ -195,6 +416,30 @@
     ElementReference _close;
     long _shown;
     bool _focus;
+
+    bool _notesTab;
+    BookNotes? _notes;
+    string _noteText = "";
+    CancellationTokenSource? _noteSave;
+    Task _noteSaving = Task.CompletedTask;
+
+    string? _editing;
+    string _editText = "";
+    string _resolution = "";
+    string? _editProblem;
+    string? _busy;
+    ElementReference _editor;
+    bool _focusEditor;
+    CancellationTokenSource? _resolving;
+
+    bool _correcting;
+    bool _decided;
+    CorrectionOffer? _offer;
+
+    long? _packMenu;
+    PartEditor? _part;
+    ActionResult? _partNote;
+    ActionResult? _carried;
 
     /// <summary>The book whose details these are: a card's <see cref="BookCard.EntryId"/>.</summary>
     [Parameter, EditorRequired] public long EntryId { get; set; }
@@ -204,20 +449,57 @@
     /// <summary>Another book's details asked for from these: an adventure's file, or an adventure in this file.</summary>
     [Parameter] public EventCallback<long> ShowEntry { get; set; }
 
+    /// <summary>Raised after a change the library's cards may show, so they can be read again.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    /// <summary>
+    /// A change whose note belongs to the library rather than these details, as on Windows: a pack split into its files,
+    /// or the books from the same folder corrected too. The library shows it with its Undo.
+    /// </summary>
+    [Parameter] public EventCallback<ActionResult> Done { get; set; }
+
+    /// <summary>An adventure's pages being typed: a new one, with its title, or one being moved.</summary>
+    sealed class PartEditor(string heading, long? partId, string title, string from, string to)
+    {
+        public string Heading { get; } = heading;
+        public long? PartId { get; } = partId;
+        public string Title { get; set; } = title;
+        public string From { get; set; } = from;
+        public string To { get; set; } = to;
+        public string? Problem { get; set; }
+        public bool Saving { get; set; }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntryId == _shown) return;
+        var previous = _shown;
+        await LeaveAsync(previous);
         _shown = EntryId;
         _details = null;
         _problem = null;
         _allFields = false;
         _open.Clear();
+        _notesTab = false;
+        _notes = null;
+        _editing = null;
+        _offer = null;
+        _packMenu = null;
+        _part = null;
+        // The file an adventure was removed from shows what was done, with its Undo.
+        _partNote = _carried;
+        _carried = null;
         _focus = true;
         await LoadAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_focusEditor)
+        {
+            _focusEditor = false;
+            await _editor.FocusAsync();
+        }
         if (!_focus) return;
         _focus = false;
         // So Esc reaches the drawer, and the keyboard starts inside it.
@@ -252,9 +534,369 @@
         if (!_open.Remove(key)) _open.Add(key);
     }
 
-    Task Show(long entryId) => ShowEntry.InvokeAsync(entryId);
+    async Task Show(long entryId)
+    {
+        await ShowEntry.InvokeAsync(entryId);
+    }
 
-    Task Close() => Closed.InvokeAsync();
+    async Task Close()
+    {
+        await LeaveAsync(EntryId);
+        await Closed.InvokeAsync();
+    }
 
     Task KeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
+
+    /// <summary>Leaving a book's details: its note is saved, and Cataloged wrong… ends.</summary>
+    async Task LeaveAsync(long entryId)
+    {
+        if (entryId == 0) return;
+        await FlushNoteAsync();
+        await EndCorrectingAsync(entryId);
+    }
+
+    Task ChangedAsync() => Changed.InvokeAsync();
+
+    /// <summary>Runs a change, showing what the server said when it refused.</summary>
+    async Task<T?> TryAsync<T>(Func<Task<T>> call) where T : class
+    {
+        try
+        {
+            return await call();
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+            return null;
+        }
+    }
+
+    async Task ToggleFavoriteAsync()
+    {
+        if (_details is not { } book) return;
+        var favorite = !book.Card.Favorite;
+        _details = book with { Card = book.Card with { Favorite = favorite } };
+        try
+        {
+            await Api.SetFavoriteAsync(book.Card.EntryId, favorite);
+            await ChangedAsync();
+        }
+        catch (ApiProblemException)
+        {
+            _details = book;
+        }
+    }
+
+    // The Notes tab.
+
+    async Task ShowNotesAsync()
+    {
+        _notesTab = true;
+        _editing = null;
+        if (_notes is not null) return;
+        var notes = await TryAsync(() => Api.NotesAsync(EntryId));
+        if (notes is null) return;
+        _notes = notes;
+        _noteText = notes.Text;
+    }
+
+    /// <summary>Saved as you type, a moment after the typing stops, as on Windows.</summary>
+    void NoteTyped(ChangeEventArgs e)
+    {
+        _noteText = e.Value as string ?? "";
+        _noteSave?.Cancel();
+        var pending = _noteSave = new CancellationTokenSource();
+        var entryId = EntryId;
+        var text = _noteText;
+        _ = Task.Delay(700, pending.Token).ContinueWith(async t =>
+        {
+            if (t.IsCanceled) return;
+            await InvokeAsync(async () =>
+            {
+                if (pending != _noteSave) return;
+                _noteSave = null;
+                await SaveNoteAsync(entryId, text);
+            });
+        }, TaskScheduler.Default);
+    }
+
+    async Task FlushNoteAsync()
+    {
+        if (_noteSave is { } pending)
+        {
+            pending.Cancel();
+            _noteSave = null;
+            await SaveNoteAsync(_shown, _noteText);
+        }
+        await _noteSaving;
+    }
+
+    async Task SaveNoteAsync(long entryId, string text)
+    {
+        var saving = Api.SetNoteAsync(entryId, text);
+        _noteSaving = saving;
+        try
+        {
+            var notes = await saving;
+            if (entryId == EntryId && _noteSave is null) _notes = notes with { Text = _noteText };
+            StateHasChanged();
+            await ChangedAsync();
+        }
+        catch (ApiProblemException e)
+        {
+            if (entryId == EntryId) _problem = e.Message;
+        }
+    }
+
+    // Editing a field, and its evidence.
+
+    void StartEdit(DetailField field)
+    {
+        _editing = field.Key;
+        _editText = string.Join(", ", field.Values.Select(v => v.Text));
+        _editProblem = null;
+        _resolution = "";
+        _focusEditor = true;
+        _ = ResolveAsync(field);
+    }
+
+    void CancelEdit()
+    {
+        _editing = null;
+        _editProblem = null;
+    }
+
+    void EditTyped(ChangeEventArgs e)
+    {
+        _editText = e.Value as string ?? "";
+        if (_details?.Fields.FirstOrDefault(f => f.Key == _editing) is { } field) _ = ResolveAsync(field);
+    }
+
+    async Task EditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CancelEdit();
+        else if (e.Key == "Enter" && _details?.Fields.FirstOrDefault(f => f.Key == _editing) is { } field) await SaveAsync(field);
+    }
+
+    /// <summary>For a term field, how what is typed will be filed: "“Campaign” is another name for Adventure".</summary>
+    async Task ResolveAsync(DetailField field)
+    {
+        if (field.Choices.Count == 0) return;
+        _resolving?.Cancel();
+        var resolving = _resolving = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, resolving.Token);
+            var text = await Api.ResolutionAsync(field.Key, _editText, resolving.Token);
+            if (resolving != _resolving || _editing != field.Key) return;
+            _resolution = text;
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ApiProblemException)
+        {
+        }
+    }
+
+    /// <summary>A value picked from the list: in place of what's typed, or added to it for a field with several.</summary>
+    async Task PickAsync(DetailField field, ChangeEventArgs e)
+    {
+        if (e.Value is not string { Length: > 0 } value) return;
+        if (!field.Multiple) _editText = value;
+        else
+        {
+            var current = _editText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (!current.Contains(value, StringComparer.CurrentCultureIgnoreCase)) _editText = string.Join(", ", current.Append(value));
+        }
+        await ResolveAsync(field);
+    }
+
+    async Task SaveAsync(DetailField field)
+    {
+        if (_busy is not null) return;
+        await RunFieldAsync(field, () => Api.SetFieldAsync(EntryId, field.Key, _editText), saved: true);
+    }
+
+    Task FieldActionAsync(DetailField field, string action, string text = "") =>
+        _busy is not null ? Task.CompletedTask : RunFieldAsync(field, () => Api.FieldActionAsync(EntryId, field.Key, action, text), saved: false);
+
+    async Task RunFieldAsync(DetailField field, Func<Task<EditResult>> change, bool saved)
+    {
+        _busy = field.Key;
+        try
+        {
+            var entryId = EntryId;
+            if (await TryAsync(change) is not { } result || entryId != EntryId) return;
+            if (result.Problem is { } problem)
+            {
+                _editProblem = problem;
+                return;
+            }
+            if (saved) _editing = null;
+            _decided = true;
+            if (result.Details is { } details) _details = details;
+            // A newer offer replaces an older one; one stays until it is answered.
+            if (result.Offer is { } offer) _offer = offer;
+            await ChangedAsync();
+        }
+        finally
+        {
+            _busy = null;
+        }
+    }
+
+    // Cataloged wrong…
+
+    /// <summary>Every field showing, the guesses marked and their evidence open, until Done or the details close.</summary>
+    void StartCorrecting()
+    {
+        if (_details is not { } book) return;
+        _decided = false;
+        _correcting = true;
+        _notesTab = false;
+        _allFields = true;
+        foreach (var field in book.Fields.Where(f => f.Known && f.Suggested)) _open.Add(field.Key);
+    }
+
+    Task EndCorrectingAsync() => EndCorrectingAsync(EntryId);
+
+    /// <summary>Left without a change or a kept value, the book gets a Needs review card that opens it again.</summary>
+    async Task EndCorrectingAsync(long entryId)
+    {
+        if (!_correcting) return;
+        _correcting = false;
+        try
+        {
+            await Api.EndCorrectionAsync(entryId, _decided);
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+    }
+
+    async Task AcceptOfferAsync()
+    {
+        if (_offer is not { } offer) return;
+        _offer = null;
+        await Done.InvokeAsync(new ActionResult("Changing…"));
+        var result = await TryAsync(() => Api.RunHeldAsync(offer.Token));
+        if (result is not null) await Done.InvokeAsync(result);
+    }
+
+    // Reprocess, a pack's cover and split, and copies.
+
+    async Task ReprocessAsync()
+    {
+        if (await TryAsync(() => Api.ReprocessAsync(EntryId)) is { } details) _details = details;
+    }
+
+    async Task UseCoverAsync(long? member)
+    {
+        _packMenu = null;
+        if (await TryAsync(() => Api.UsePackCoverAsync(EntryId, member)) is not { } details) return;
+        _details = details;
+        await ChangedAsync();
+    }
+
+    /// <summary>The pack goes and its files are cards again; the library says so, with Undo.</summary>
+    async Task SplitAsync()
+    {
+        if (await TryAsync(() => Api.SplitPackAsync(EntryId)) is not { } result) return;
+        await Done.InvokeAsync(result);
+        await Close();
+    }
+
+    async Task CopyAsync(long documentId, bool notSame)
+    {
+        var entryId = EntryId;
+        if (await TryAsync(() => notSame ? Api.NotSameBookAsync(entryId, documentId) : Api.MakeCurrentAsync(entryId, documentId)) is not { } result) return;
+        await ChangedAsync();
+        if (result.Show is { } show && show != entryId) await Show(show);
+        else await RefreshAsync();
+    }
+
+    // Adventures inside a file.
+
+    void AddPart()
+    {
+        _partNote = null;
+        _part = new PartEditor("Mark pages as an adventure", null, "", _details?.FirstPage ?? "", "");
+    }
+
+    void EditPart(long partId, string title, string from, string to)
+    {
+        _partNote = null;
+        _part = new PartEditor($"The pages of “{title}”", partId, title, from, to);
+    }
+
+    async Task PartKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _part = null;
+        else if (e.Key == "Enter") await SavePartAsync();
+    }
+
+    async Task SavePartAsync()
+    {
+        if (_part is not { Saving: false } editor) return;
+        editor.Saving = true;
+        editor.Problem = null;
+        try
+        {
+            var edit = new PartEdit(editor.PartId is null ? editor.Title : null, editor.From, editor.To);
+            if (editor.PartId is { } partId)
+            {
+                if (await TryAsync(() => Api.SetPartPagesAsync(partId, edit)) is not { } moved) return;
+                if (moved.Undo is null)
+                {
+                    editor.Problem = moved.Message;
+                    return;
+                }
+                _part = null;
+                _partNote = moved;
+                await RefreshAsync();
+            }
+            else
+            {
+                if (await TryAsync(() => Api.AddPartAsync(EntryId, edit)) is not { } added) return;
+                if (added.Problem is { } problem)
+                {
+                    editor.Problem = problem;
+                    return;
+                }
+                _part = null;
+                if (added.Details is { } details) _details = details;
+                _partNote = new ActionResult(added.Message ?? "");
+            }
+            await ChangedAsync();
+        }
+        finally
+        {
+            editor.Saving = false;
+        }
+    }
+
+    /// <summary>The adventure's card goes. Removed from its own details, its file's show what was done, with Undo.</summary>
+    async Task RemovePartAsync(long partId, bool own)
+    {
+        _part = null;
+        if (await TryAsync(() => Api.RemovePartAsync(partId)) is not { } removed) return;
+        await ChangedAsync();
+        if (own && removed.Show is { } file)
+        {
+            _carried = removed;
+            await Show(file);
+            return;
+        }
+        _partNote = removed;
+        await RefreshAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _resolving?.Cancel();
+        await LeaveAsync(_shown);
+    }
 }

@@ -3,6 +3,7 @@ using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
@@ -45,6 +46,7 @@ public static class DetailsApi
         IReadOnlyList<DetailLocation> locations = [];
         IReadOnlyList<DetailCopy> copies = [];
         IReadOnlyList<DetailPart> parts = [];
+        IReadOnlyList<string?> labels = [];
         var drives = library.Get<UserDrives>();
         string Where(string path) => FolderText.Location(path, drives);
         if (entry.IsPack)
@@ -71,18 +73,24 @@ public static class DetailsApi
                     return new DetailCopy(c.Copy.DocumentId, DetailsText.CopyHeading(c.Copy, path is not null), DetailsText.CopyDetail(c.Copy),
                         path is null ? null : Where(path), c.Copy.IsCurrent);
                 })];
-            if (entry.Format == SourceFormats.Pdf && !entry.IsPart)
+            if (entry.Format == SourceFormats.Pdf)
             {
+                // Pages are typed and shown as the file numbers them.
                 var partsService = library.Get<PartsService>();
-                var labels = await partsService.GetPageLabelsAsync(entry.DocumentId, ct);
-                parts = [.. (await partsService.GetAsync(entryId, ct)).Select(p => new DetailPart(p.EntryId.Value, p.Title, DetailsText.PartPages(p.Pages, labels)))];
+                labels = await partsService.GetPageLabelsAsync(entry.DocumentId, ct);
+                if (!entry.IsPart)
+                    parts = [.. (await partsService.GetAsync(entryId, ct)).Select(p => new DetailPart(p.EntryId.Value, p.Title,
+                        DetailsText.PartPages(p.Pages, labels), From(p.Pages, labels), To(p.Pages, labels)))];
             }
         }
 
         var stages = library.Get<IStageCatalog>();
+        var notes = library.Get<NotesService>();
+        var noted = (string.IsNullOrWhiteSpace(await notes.GetEntryNoteAsync(entryId, ct)) ? 0 : 1) + (await notes.GetPageNotesAsync(entryId, ct)).Count;
+        var hasPdfs = entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf);
         return new BookDetails(
             LibraryApi.ToCard(entry, away),
-            DetailsText.Eyebrow(entry, entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf)),
+            DetailsText.Eyebrow(entry, hasPdfs),
             entry.Publisher ?? "",
             CardText.Pages(entry),
             !entry.IsElsewhere,
@@ -93,7 +101,7 @@ public static class DetailsApi
             entry.IsPart ? entry.PartLine ?? "" : null,
             entry.IsPart ? entry.ParentEntryId?.Value : null,
             packFiles,
-            DetailsText.PackFilesHeading(packFiles.Count, entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf)),
+            DetailsText.PackFilesHeading(packFiles.Count, hasPdfs),
             DetailsText.FactsHeading(entry),
             [.. DetailsText.Facts(entry, details).Select(f => new DetailFact(f.Label, f.Value))],
             !entry.IsElsewhere,
@@ -101,8 +109,21 @@ public static class DetailsApi
             copies,
             DetailsText.CopiesHeading(copies.Count),
             // A pack's processing is its images', each read like any image.
-            entry.IsPack ? [] : [.. details.Stages.Select(s => new DetailFact(stages.Find(s.Stage)?.Names.Label ?? s.Stage.ToString(), DetailsText.Progress(s)))]);
+            entry.IsPack ? [] : [.. details.Stages.Select(s => new DetailFact(stages.Find(s.Stage)?.Names.Label ?? s.Stage.ToString(), DetailsText.Progress(s)))],
+            DetailsText.IsReprocessing(entry, details),
+            DetailsText.NotesLabel(noted),
+            PageNumbers.Display(0, labels),
+            entry.IsPart ? From(entry.Pages, labels) : "",
+            entry.IsPart ? To(entry.Pages, labels) : "",
+            DetailsText.SplitPackLabel(hasPdfs),
+            DetailsText.SplitPackTip(hasPdfs));
     }
+
+    /// <summary>An adventure's first page as the editor starts with it.</summary>
+    static string From(PartPages? pages, IReadOnlyList<string?> labels) => pages is { } p ? PageNumbers.Display(p.First, labels) : "";
+
+    /// <summary>Its last page, or blank for one page.</summary>
+    static string To(PartPages? pages, IReadOnlyList<string?> labels) => pages is { } p && p.Count > 1 ? PageNumbers.Display(p.Last, labels) : "";
 
     static DetailField ToField(EffectiveField field, Vocabulary vocabulary, bool primary)
     {
@@ -117,6 +138,7 @@ public static class DetailsApi
         var suggested = values.Any(v => !v.Confirmed);
         return new DetailField(field.Field.Key, field.Field.Label, primary, FieldText.Join([.. values.Select(v => v.Text)]), values.Count > 0, suggested,
             field.NeedsReview, FieldText.EvidenceLabel(field.NeedsReview, suggested), values.Any(v => v.Confirmed), values,
-            [.. field.Alternatives.Select(Value)]);
+            [.. field.Alternatives.Select(Value)], field.Field.Multiple, FieldText.EditHint(field.Field), FieldText.ChoicesLabel(field.Field),
+            FieldText.Choices(field.Field, vocabulary));
     }
 }

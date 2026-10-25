@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
@@ -25,6 +27,69 @@ public static class FieldText
 
     /// <summary>The link that opens a field's evidence: "Sources disagree", "Suggested" while nobody has confirmed it, or "Sources".</summary>
     public static string EvidenceLabel(bool needsReview, bool suggested) => needsReview ? "Sources disagree" : suggested ? "Suggested" : "Sources";
+
+    /// <summary>How to type Get it from, wherever it is edited.</summary>
+    public const string StoreHint = "A store, a link, or both: DriveThruRPG https://… Separate stores with commas";
+
+    /// <summary>How to type Also own, wherever it is edited: a place, and the book's page there when it is online.</summary>
+    public const string OwnHint = "Where, a link to the book there, or both: D&D Beyond https://… Separate them with commas";
+
+    /// <summary>How to type a linked field (<see cref="FieldKind.Store"/>).</summary>
+    public static string LinkHint(MetadataField field) => field == MetadataFields.AlsoOwn ? OwnHint : StoreHint;
+
+    /// <summary>The line under a field's editor: how to type it, or nothing for plain text.</summary>
+    public static string EditHint(MetadataField field) => field.Kind switch
+    {
+        FieldKind.Levels => "3, 1-5 or n/a",
+        FieldKind.Players => "4 or 3-5",
+        FieldKind.Year => "2019",
+        FieldKind.Store => LinkHint(field),
+        _ when field.Multiple => "Separate values with commas",
+        _ => "",
+    };
+
+    /// <summary>What a new term of the field is called: "a new store", "a new place", "a new setting".</summary>
+    public static string TermNoun(MetadataField field) =>
+        field == MetadataFields.AlsoOwn ? "place" : field.Kind == FieldKind.Store ? field.Vocabulary! : field.Label.ToLower(CultureInfo.CurrentCulture);
+
+    /// <summary>The list under a term field's editor: picking adds to a list, or replaces a single value.</summary>
+    public static string ChoicesLabel(MetadataField field) => field.Multiple ? "Add from the list" : "Or pick from the list";
+
+    /// <summary>The labels of a term field's vocabulary, to pick from; empty for other fields.</summary>
+    public static IReadOnlyList<string> Choices(MetadataField field, Vocabulary vocabulary) =>
+        field.Kind is FieldKind.Term or FieldKind.Store
+            ? [.. vocabulary.InVocabulary(field.Vocabulary!).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase)]
+            : [];
+
+    /// <summary>
+    /// For a term field, how what is typed will be filed: "“Campaign” is another name for Adventure", or "“Heists” will
+    /// be added as a new type". Empty for other fields, or when every value is typed as its own label.
+    /// </summary>
+    public static string Resolution(MetadataField field, string? typed, Vocabulary vocabulary)
+    {
+        if (field.Kind is not (FieldKind.Term or FieldKind.Store)) return "";
+        var notes = new List<string>();
+        foreach (var typedPart in MetadataValues.Split(field, typed ?? ""))
+        {
+            if (MetadataText.Normalize(typedPart).Length == 0) continue;
+            var part = typedPart;
+            Term? term;
+            if (field.Kind == FieldKind.Store)
+            {
+                (term, part, var url) = StoreLink.Read(typedPart, vocabulary, field);
+                if (term is not null && url is not null && MetadataText.Normalize(StoreLink.Split(typedPart).Name).Length == 0)
+                {
+                    notes.Add($"The link goes to {term.Label}.");
+                    continue;
+                }
+            }
+            else term = vocabulary.Resolve(field.Vocabulary!, part);
+            var kind = TermNoun(field);
+            if (term is null) notes.Add($"“{part}” will be added as a new {kind}.");
+            else if (MetadataText.Normalize(term.Label) != MetadataText.Normalize(part)) notes.Add($"“{part}” is another name for {term.Label}.");
+        }
+        return string.Join(" ", notes);
+    }
 
     /// <summary>Where one claim came from, in words: "From the folder name “D&amp;D 5e”", with its pages unless told not to.</summary>
     public static string Source(MetadataClaim claim, bool pages = true)

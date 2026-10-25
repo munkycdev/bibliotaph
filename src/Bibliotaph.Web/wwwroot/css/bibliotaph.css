@@ -434,3 +434,50 @@ a{color:var(--bt-accent)}
 .bt-hit h3 .bt-titlelink{font-size:15px;font-weight:550}
 .bt-shelf{justify-content:start}
 .bt-sectionline a.bt-link{text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+/* Changing a book's details: the editor under a field, the evidence's actions, Cataloged wrong… and its offer, adventures' pages, notes. */
+button.bt-heart{color:var(--bt-accent)}
+.bt-detailactions{display:flex;justify-content:flex-end;margin:20px 0 -8px;min-height:32px}
+.bt-detailtabs{margin-top:24px}
+.bt-headactions{gap:16px}
+.bt-sectionrow{margin:28px 0 10px}
+.bt-fieldline{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bt-fieldvalues{flex-wrap:wrap;gap:4px 10px}
+.bt-fieldrow.busy{opacity:.6;pointer-events:none}
+.bt-guessed{background:var(--bt-soft);color:var(--bt-text);font-weight:600}
+.bt-fieldedit{margin-top:8px}
+.bt-input{width:100%;padding:8px;border:1px solid var(--bt-line);border-radius:5px;background:var(--bt-panel);color:var(--bt-text);font-size:12px}
+.bt-input:focus,.bt-notebox:focus{outline:2px solid var(--bt-accent);outline-offset:-1px}
+.bt-edithint,.bt-resolution{margin-top:5px;font-size:11px}
+.bt-choices{margin-top:10px}
+.bt-problem{margin-top:8px;font-size:11px;color:var(--bt-accent)}
+.bt-evidenceline{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.bt-evidenceline .bt-inline{gap:10px}
+.bt-evidenceaction{display:inline-flex;align-items:center;gap:4px;padding:0;margin-bottom:6px}
+.bt-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;background:var(--bt-soft);border-radius:6px;padding:10px 14px;margin-top:24px}
+.bt-banner.stacked{display:block;margin-top:12px}
+.bt-bannerhead{font-size:12px;font-weight:600;color:var(--bt-text)}
+.bt-bannertext{font-size:11px;color:var(--bt-text);margin-top:4px}
+.bt-boxactions.end{justify-content:flex-end}
+.bt-partsintro{margin-bottom:8px}
+.bt-parteditor{border:1px solid var(--bt-line);border-radius:10px;background:var(--bt-panel);padding:22px 28px;margin:0 0 8px;box-shadow:0 0 60px #00000026}
+.bt-parteditor .bt-field{margin-top:14px}
+.bt-partheading{font-size:18px;font-weight:500;margin:0}
+.bt-pagefields{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bt-donenote{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.bt-donenote .bt-small{flex:1}
+.bt-donenote .bt-link{display:inline-flex;align-items:center;gap:4px;padding:0}
+.bt-packthumb{display:block;width:100%;padding:0;cursor:pointer}
+.bt-packthumb:hover,.bt-packthumb:focus-visible{border-color:var(--bt-accent)}
+.bt-packmenu{margin-top:4px;font-size:11px}
+.bt-booknotes{margin-top:18px}
+.bt-notebox{width:100%;min-height:140px;padding:8px;border:1px solid var(--bt-line);border-radius:5px;background:var(--bt-panel);color:var(--bt-text);font:inherit;font-size:12px;resize:vertical}
+.bt-notehint{margin-top:6px}
+.bt-notepages{font-size:11px;font-weight:600;color:var(--bt-text)}
+.bt-notetext{margin-top:4px;white-space:pre-wrap}
+.bt-notereason{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--bt-text)}
+.bt-notereason svg{color:var(--bt-muted)}
+.bt-notereason.changed svg{color:var(--bt-accent)}
+.bt-librarynote{margin:0 0 14px;padding:4px 14px;border-radius:6px;background:var(--bt-soft)}
+.bt-librarynote .bt-donenote{margin:0}
+.bt-sectionrow .bt-link{display:inline-flex;align-items:center;gap:4px}
+.bt-drawerhead-row{flex-wrap:wrap;gap:6px 16px}
