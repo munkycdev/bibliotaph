@@ -36,16 +36,16 @@ public static class AuthEndpoints
                 return Results.LocalRedirect("/");
             });
 
-        auth.MapGet("/signin/{provider}", async (string provider, string? invite, string? returnUrl, HttpContext context) =>
-        {
-            if (auth0 is null || provider != Auth0SignIn.Id) return Results.NotFound();
-            var properties = new OpenIdConnectChallengeProperties { RedirectUri = "/auth/complete" };
-            // Someone signed in is linking another sign-in; without this, Auth0 would hand back the one they're using.
-            if ((await context.AuthenticateAsync(AuthSetup.SessionScheme)).Succeeded) properties.Prompt = "login";
-            if (!string.IsNullOrEmpty(invite)) properties.Items["invite"] = invite;
-            properties.Items["returnUrl"] = LocalOrHome(returnUrl);
-            return Results.Challenge(properties, [provider]);
-        });
+        if (auth0 is not null)
+            auth.MapGet("/signin/" + Auth0SignIn.Id, async (string? invite, string? returnUrl, HttpContext context) =>
+            {
+                var properties = new OpenIdConnectChallengeProperties { RedirectUri = "/auth/complete" };
+                // Someone signed in is linking another sign-in; without this, Auth0 would hand back the one they're using.
+                if ((await context.AuthenticateAsync(AuthSetup.SessionScheme)).Succeeded) properties.Prompt = "login";
+                if (!string.IsNullOrEmpty(invite)) properties.Items["invite"] = invite;
+                properties.Items["returnUrl"] = LocalOrHome(returnUrl);
+                return Results.Challenge(properties, [Auth0SignIn.Id]);
+            });
 
         auth.MapGet("/complete", async (HttpContext context, AccountService accounts) =>
         {
