@@ -1,0 +1,80 @@
+@* .bt-dialog: Pack together, as the Windows app's dialog: what the ticked cards make, and the pack's name ready to
+   edit. Esc, Cancel or a click outside closes it. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Cancel"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@Preview.Heading" @onkeydown="KeyDown">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">@Preview.Eyebrow</span>
+            <h2 class="bt-dialogtitle">@Preview.Heading</h2>
+            <div class="bt-small bt-dialogintro">@Preview.Explanation</div>
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Cancel"><Icon Name="X" /></button>
+    </div>
+    <label class="bt-field">Name<input aria-label="Pack name" @bind="_name" @bind:event="oninput" @onkeydown="NameKeyDown" @ref="_box" /></label>
+    @if (_problem is { } problem)
+    {
+        <div class="bt-small bt-problem" role="alert">@problem</div>
+    }
+    <div class="bt-boxactions end bt-dialogactions">
+        <button class="bt-button" @onclick="Cancel">Cancel</button>
+        <button class="bt-button primary" disabled="@(_packing || _name.Trim().Length == 0)" @onclick="PackAsync"><Icon Name="LayoutGrid" />Pack together</button>
+    </div>
+</div>
+
+@code {
+    string _name = "";
+    string? _problem;
+    bool _packing;
+    ElementReference _box;
+
+    [Parameter, EditorRequired] public PackTogetherPreview Preview { get; set; } = default!;
+
+    [Parameter, EditorRequired] public IReadOnlyList<long> Books { get; set; } = [];
+
+    /// <summary>Raised when the dialog closes: with what packing did, or null when it was cancelled.</summary>
+    [Parameter] public EventCallback<ActionResult?> Closed { get; set; }
+
+    protected override void OnInitialized() => _name = Preview.Name;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _box.FocusAsync();
+    }
+
+    async Task PackAsync()
+    {
+        if (_packing || _name.Trim().Length == 0) return;
+        _packing = true;
+        _problem = null;
+        try
+        {
+            await Closed.InvokeAsync(await Api.PackAsync(new PackTogetherRequest(Books, _name.Trim())));
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _problem = "That didn't work. Check your connection and try again.";
+        }
+        finally
+        {
+            _packing = false;
+        }
+    }
+
+    Task Cancel() => Closed.InvokeAsync(null);
+
+    async Task KeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Cancel();
+    }
+
+    async Task NameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await PackAsync();
+    }
+}

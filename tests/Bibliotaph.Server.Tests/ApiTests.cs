@@ -338,6 +338,69 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Select_mode_packs_joins_and_exports_the_ticked_books_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/harbor.png", Png());
+        _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two && two.All(b => b.Cover is not null) ? two : null, ct);
+        List<long> ids = [.. books.Select(b => b.EntryId)];
+
+        var none = await PostAsync<SelectionInfo>("/api/library/selection", new SelectionQuery([], 0));
+        var one = await PostAsync<SelectionInfo>("/api/library/selection", new SelectionQuery([ids[0]], 0));
+        var both = await PostAsync<SelectionInfo>("/api/library/selection", new SelectionQuery([.. ids, 999_999], 1));
+        var packing = await PostAsync<PackTogetherPreview>("/api/library/selection/pack", new SelectedBooks(ids));
+        using var unnamed = await client.PostAsJsonAsync("/api/library/selection/pack/make", new PackTogetherRequest(ids, " "), ct);
+        var packed = await PostAsync<ActionResult>("/api/library/selection/pack/make", new PackTogetherRequest(ids, "Harbor maps"));
+        var afterPack = await client.GetFromJsonAsync<LibraryResults>("/api/library", ct);
+        using var again = await client.PostAsJsonAsync("/api/library/selection/pack/make", new PackTogetherRequest(ids, "Harbor maps"), ct);
+        await PostAsync<ActionResult>($"/api/library/held/{packed.Undo}", null);
+        var unpacked = await client.GetFromJsonAsync<LibraryResults>("/api/library", ct);
+        var joining = await PostAsync<SameBookPreview>("/api/library/selection/same-book", new SelectedBooks(ids));
+        var joined = await PostAsync<ActionResult>("/api/library/selection/same-book/join", new SameBookJoin(ids, joining.Opens));
+        var afterJoin = await client.GetFromJsonAsync<LibraryResults>("/api/library", ct);
+        await PostAsync<ActionResult>($"/api/library/held/{joined.Undo}", null);
+        var apart = await client.GetFromJsonAsync<LibraryResults>("/api/library", ct);
+        var csv = await PostAsync<ExportedCsv>("/api/library/selection/export", new SelectedBooks(ids));
+        using var noAdventures = await client.PostAsJsonAsync("/api/library/selection/remove-adventures", new SelectedBooks(ids), ct);
+
+        Assert.Equal("Click books to select them. Shift+click selects a range, Ctrl+A everything shown.", none.Summary);
+        Assert.Equal(("1 selected", "1 book", false, false, false), (one.Summary, one.Books, one.CanJoin, one.CanPack, one.CanRemoveAdventures));
+        // A ticked book no longer in the library is left out of what fits, but still counted, as the bar counts ticks.
+        Assert.Equal(("3 selected, 1 not shown", true, true, false), (both.Summary, both.CanJoin, both.CanPack, both.CanRemoveAdventures));
+        Assert.Equal(("IMAGE PACK", "Make a pack of 2 images", "Maps"), (packing.Eyebrow, packing.Heading, packing.Name));
+        Assert.Equal(HttpStatusCode.BadRequest, unnamed.StatusCode);
+        Assert.Equal("Made a pack of 2 images: Harbor maps.", packed.Message);
+        Assert.Equal(["Harbor maps"], afterPack!.Books.Select(b => b.Title));
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Equal(2, unpacked!.Books.Count);
+        Assert.Equal(("Join 2 cards as one book", null, 2), (joining.Heading, joining.Elsewhere, joining.Files.Count));
+        Assert.Equal(["harbor.png", "tower.png"], joining.Files.Select(f => f.Name).Order());
+        Assert.StartsWith("Joined 2 cards as ", joined.Message, StringComparison.Ordinal);
+        Assert.Single(afterJoin!.Books);
+        Assert.Equal(2, apart!.Books.Count);
+        Assert.Equal(("Bibliotaph books.csv", "Exported 2 books to Bibliotaph books.csv."), (csv.Name, csv.Message));
+        var lines = csv.Csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(3, lines.Length);
+        Assert.StartsWith("Title,System,Type", lines[0], StringComparison.Ordinal);
+        Assert.Contains(lines, l => l.EndsWith("OneDrive · Dana › RPG › Maps › harbor.png", StringComparison.Ordinal));
+        Assert.Equal(HttpStatusCode.NotFound, noAdventures.StatusCode);
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);
@@ -486,10 +549,10 @@ public sealed class ApiTests : IDisposable
     }
 
     /// <summary>Signs in whoever the test header names, in place of the session cookie.</summary>
-    static byte[] Png()
+    static byte[] Png(SkiaSharp.SKColor? color = null)
     {
         using var bitmap = new SkiaSharp.SKBitmap(600, 400);
-        bitmap.Erase(SkiaSharp.SKColors.SeaGreen);
+        bitmap.Erase(color ?? SkiaSharp.SKColors.SeaGreen);
         using var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
         return data.ToArray();
     }

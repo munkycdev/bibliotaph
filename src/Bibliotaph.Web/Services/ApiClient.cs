@@ -204,6 +204,27 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<ActionResult> DeleteSearchAsync(long id, CancellationToken ct = default) => SendAsync<ActionResult>(HttpMethod.Delete, Search(id), null, ct);
 
+    public Task<SelectionInfo> SelectionAsync(SelectionQuery query, CancellationToken ct = default) =>
+        SendAsync<SelectionInfo>(HttpMethod.Post, "api/library/selection", query, ct);
+
+    public Task<SameBookPreview> SameBookAsync(IReadOnlyList<long> books, CancellationToken ct = default) =>
+        SendAsync<SameBookPreview>(HttpMethod.Post, "api/library/selection/same-book", new SelectedBooks(books), ct);
+
+    public Task<ActionResult> JoinAsync(SameBookJoin join, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/library/selection/same-book/join", join, ct);
+
+    public Task<PackTogetherPreview> PackPreviewAsync(IReadOnlyList<long> books, CancellationToken ct = default) =>
+        SendAsync<PackTogetherPreview>(HttpMethod.Post, "api/library/selection/pack", new SelectedBooks(books), ct);
+
+    public Task<ActionResult> PackAsync(PackTogetherRequest request, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/library/selection/pack/make", request, ct);
+
+    public Task<ActionResult> RemoveAdventuresAsync(IReadOnlyList<long> books, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/library/selection/remove-adventures", new SelectedBooks(books), ct);
+
+    public Task<ExportedCsv> ExportAsync(IReadOnlyList<long> books, CancellationToken ct = default) =>
+        SendAsync<ExportedCsv>(HttpMethod.Post, "api/library/selection/export", new SelectedBooks(books), ct);
+
     static string Collection(long id) => $"api/collections/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
     public Task<CollectionList> CollectionsAsync(CancellationToken ct = default) => SendAsync<CollectionList>(HttpMethod.Get, "api/collections", null, ct);

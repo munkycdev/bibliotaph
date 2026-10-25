@@ -149,7 +149,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
         else if (IsEditingStep) Cancel();
     }
 
-    internal static string Books(int count) => count == 1 ? "1 book" : $"{count.ToString("N0", CultureInfo.CurrentCulture)} books";
+    internal static string Books(int count) => SelectionRules.Books(count);
 }
 
 /// <summary>A field in the bulk editor: what the selected books have in it, and the change to make.</summary>

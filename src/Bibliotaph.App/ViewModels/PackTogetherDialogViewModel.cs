@@ -1,4 +1,3 @@
-using System.Globalization;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
@@ -10,67 +9,33 @@ namespace Bibliotaph.App.ViewModels;
 /// <summary>What Pack together did, for Undo, and the Library's note saying so.</summary>
 public sealed record PackTogetherDialogResult(PackTogetherResult Result, string Message);
 
-/// <summary>
-/// Pack together: one dialog whether the ticked cards make a new pack, add files to a pack, or merge packs, with
-/// the pack's name ready to edit. Images and PDFs alike go in, such as a party's character sheets and their portraits;
-/// with a PDF among them it speaks of files rather than images.
-/// </summary>
+/// <summary>Pack together: the dialog for the pack's name, as <see cref="PackTogetherPlan"/> words it.</summary>
 public sealed partial class PackTogetherDialogViewModel : ObservableObject
 {
     readonly PackService _packs;
     readonly IReadOnlyList<EntryId> _cards;
-    readonly int _files;
-    readonly bool _pdfsTicked;
-    readonly int _packCount;
+    readonly PackTogetherPlan _plan;
 
-    PackTogetherDialogViewModel(PackService packs, IReadOnlyList<LibraryItemViewModel> cards, string name)
+    PackTogetherDialogViewModel(PackService packs, IReadOnlyList<LibraryItemViewModel> cards, PackTogetherPlan plan)
     {
         _packs = packs;
         _cards = [.. cards.Select(c => c.EntryId)];
-        var packItems = cards.Where(c => c.StandsForPack).OrderBy(c => c.EntryId.Value).ToList();
-        _packCount = packItems.Count;
-        _files = cards.Count - _packCount;
-        _pdfsTicked = cards.Any(c => !c.StandsForPack && c.Entry.Format == SourceFormats.Pdf);
-        var withPdfs = _pdfsTicked || packItems.Any(p => p.HasPdfMembers);
-        Eyebrow = withPdfs ? "PACK" : "IMAGE PACK";
-        Name = name;
-        var files = Count(_files);
-        var split = withPdfs ? "Split into separate files" : "Split into separate images";
-        (Heading, Explanation) = _packCount switch
-        {
-            0 => ($"Make a pack of {files}",
-                $"They show as one card. A pack you make doesn't grow by itself, and {split} gives each its card back."),
-            1 => ($"Add {files} to {packItems[0].PackName}", "They show inside the pack. New images in its folder still join it."),
-            _ => ($"Merge {_packCount.ToString("N0", CultureInfo.CurrentCulture)} packs{(_files > 0 ? $" and {files}" : "")}",
-                $"The newer packs join {packItems[0].PackName} with their {(withPdfs ? "files" : "images")}, hearts, collections, binder items and notes. New images in their folders join it too."),
-        };
+        _plan = plan;
+        Name = plan.Name;
     }
 
-    /// <summary>
-    /// The dialog for <paramref name="cards"/>, named after the oldest pack among them, or for files only after the
-    /// folder or ZIP they share (the first file's when they don't).
-    /// </summary>
-    public static async Task<PackTogetherDialogViewModel> LoadAsync(PackService packs, LibraryStore library, IReadOnlyList<LibraryItemViewModel> cards)
-    {
-        if (cards.Where(c => c.StandsForPack).MinBy(c => c.EntryId.Value) is { } oldest) return new PackTogetherDialogViewModel(packs, cards, oldest.PackName);
-        var folders = new List<string>();
-        foreach (var file in cards)
-            if ((await Task.Run(() => library.GetLocationsAsync(file.DocumentId))).FirstOrDefault(l => l.State != FileLocationState.Missing) is { } place)
-                folders.Add(place.ArchivePath is { } zip ? DisplayTitle.FromFileName(System.IO.Path.GetFileName(zip))
-                    : DisplayTitle.FromFolderName(System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(place.FullPath)) ?? ""));
-        var name = folders.Distinct(StringComparer.CurrentCultureIgnoreCase).Count() == 1 ? folders[0] : folders.FirstOrDefault() ?? "";
-        return new PackTogetherDialogViewModel(packs, cards, name);
-    }
+    public static async Task<PackTogetherDialogViewModel> LoadAsync(PackService packs, LibraryStore library, IReadOnlyList<LibraryItemViewModel> cards) =>
+        new(packs, cards, await Task.Run(() => PackTogetherPlan.LoadAsync(library, [.. cards.Select(c => c.Entry)])));
 
     /// <summary>Raised when the dialog closes: with what Pack together did, or null when it was cancelled.</summary>
     public event EventHandler<PackTogetherDialogResult?>? Closed;
 
     /// <summary>"IMAGE PACK", or "PACK" when PDFs go in it too.</summary>
-    public string Eyebrow { get; }
+    public string Eyebrow => _plan.Eyebrow;
 
-    public string Heading { get; }
+    public string Heading => _plan.Heading;
 
-    public string Explanation { get; }
+    public string Explanation => _plan.Explanation;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PackCommand))]
@@ -96,16 +61,10 @@ public sealed partial class PackTogetherDialogViewModel : ObservableObject
             var name = Name.Trim();
             if (await Task.Run(() => _packs.PackTogetherAsync(_cards, name)) is not { } result)
             {
-                Problem = "These cards can't be packed any more: one of them has changed. Close this and tick them again.";
+                Problem = PackTogetherPlan.Gone;
                 return;
             }
-            var message = _packCount switch
-            {
-                0 => $"Made a pack of {Count(_files)}: {name}.",
-                1 => $"Added {Count(_files)} to {name}.",
-                _ => $"Merged {_packCount.ToString("N0", CultureInfo.CurrentCulture)} packs into {name}.",
-            };
-            Closed?.Invoke(this, new PackTogetherDialogResult(result, message));
+            Closed?.Invoke(this, new PackTogetherDialogResult(result, _plan.Done(name)));
         }
         finally
         {
@@ -115,7 +74,4 @@ public sealed partial class PackTogetherDialogViewModel : ObservableObject
 
     [RelayCommand]
     void Cancel() => Closed?.Invoke(this, null);
-
-    /// <summary>"2 images", or "2 files" when a PDF is among the ticked cards.</summary>
-    string Count(int count) => _pdfsTicked ? LibraryItemViewModel.Files(count) : LibraryItemViewModel.Images(count);
 }

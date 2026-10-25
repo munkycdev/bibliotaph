@@ -158,6 +158,20 @@ and Favorites. Drag one to move it, or use Alt+Up and Alt+Down; right-click one 
 **Unpin**, and for a saved search **Rename…** and **Delete**. A book's details have a pin button too. A pinned book
 whose file can't be opened right now is dimmed.
 
+### Select mode
+
+**Select** in the Library's toolbar ticks books instead of opening them, as in the Windows app. Click a book to tick
+it, **Shift**+click to tick a run of them, and **Ctrl+A** to tick every book shown; **Esc** or **Done** leaves Select
+mode and **Clear** unticks them all. The Select bar says how many are ticked and offers what fits them:
+
+- **Add to collection** adds them to a collection, and inside a collection **Remove from collection** takes them out.
+- **Same book** joins cards that are copies or versions of one book; you choose which file opens.
+- **Pack together** makes a pack of images or PDFs, adds them to a pack, or merges packs, under a name you can change.
+- **Remove adventures** removes ticked adventures marked inside files; their pages are only their files' again.
+- **Export these** saves the ticked books as a CSV file for a spreadsheet, with the Windows app's columns.
+
+Each change says what it did, with **Undo**. Editing the ticked books' details together comes next.
+
 The reader and binders are the next steps.
 
 ## Your theme
