@@ -1,0 +1,22 @@
+@* .bt-field: a small label over a select, as the Windows app's filter menus. The empty value is the menu's "any". *@
+<label class="bt-field narrow" title="@Hint">
+    <span>@Label</span>
+    <select value="@(Value ?? "")" @onchange="OnChange">
+        @foreach (var choice in Choices)
+        {
+            <option value="@choice.Value">@choice.Label</option>
+        }
+    </select>
+</label>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<FilterChoice> Choices { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public string? Hint { get; set; }
+
+    /// <summary>The value chosen, or null for "any".</summary>
+    [Parameter] public EventCallback<string?> Changed { get; set; }
+
+    Task OnChange(ChangeEventArgs e) => Changed.InvokeAsync(e.Value is string { Length: > 0 } value ? value : null);
+}

@@ -4,7 +4,9 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
+using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -85,6 +87,40 @@ public sealed class ApiTests : IDisposable
 
         Assert.Equal(new LibrarySummary(0, 0), summary);
         Assert.True(File.Exists(Path.Combine(_folder.Path, "users", user.Id, "catalog.db")));
+    }
+
+    [Fact]
+    public async Task A_new_users_library_page_asks_for_a_folder()
+    {
+        var user = await AddUserAsync(admin: false);
+
+        var results = await Client(user).GetFromJsonAsync<LibraryResults>("/api/library?sort=Title&kind=Books&level=3&unknownLevels=true",
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(results!.Books);
+        Assert.Equal("add-folder", results.Empty?.Action);
+        Assert.Equal("All systems", Assert.Single(results.Menus.Systems).Label);
+    }
+
+    [Fact]
+    public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
+    {
+        var user = await AddUserAsync(admin: false);
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, TestContext.Current.CancellationToken))
+            lease.Library.Get<CoverCache>().Write("abc123", [0xFF, 0xD8, 0xFF, 0xD9]);
+        var client = Client(user);
+
+        using var cover = await client.GetAsync("/api/library/covers/abc123.jpg", TestContext.Current.CancellationToken);
+        using var missing = await client.GetAsync("/api/library/covers/def456.jpg", TestContext.Current.CancellationToken);
+        using var outside = await client.GetAsync("/api/library/covers/..%2Fcatalog.db", TestContext.Current.CancellationToken);
+        using var stranger = await Client().GetAsync("/api/library/covers/abc123.jpg", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, cover.StatusCode);
+        Assert.Equal("image/jpeg", cover.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(4, (await cover.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken)).Length);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, outside.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, stranger.StatusCode);
     }
 
     [Fact]

@@ -1,25 +1,515 @@
 @page "/library"
+@implements IAsyncDisposable
 @inject ApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject LibraryActivity Activity
 
-<PageHeading Title="Library" Subtitle="@Subtitle">
+@* The Windows app's Library page: its heading, the toolbar (results tabs while searching, filters, order, covers or
+   list, packs or each file), the filter panel and its chips, the count, then the covers, the list or the matching pages. *@
+<PageHeading Title="@(_query.IsSearching ? "Search results" : "Your library")" Subtitle="@Subtitle">
     <Actions>
-        <a class="bt-button" href="settings#storage"><Icon Name="FolderPlus" />Add folder</a>
+        <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
     </Actions>
 </PageHeading>
-@if (_summary is { Folders: 0 })
+
+@if (_results is null)
 {
-    <EmptyState Title="No folders yet." Message="Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are."
-                ActionText="Add a folder" ActionIcon="FolderPlus" ActionHref="settings#storage" />
+    <div class="bt-loading">Opening your library…</div>
+    return;
 }
-else if (_summary is not null)
+
+@if (_hasFolders)
 {
-    <EmptyState Title="Indexing your library." Message="Books appear here as they are read." />
+    <div class="bt-toolbar">
+        @if (_query.IsSearching)
+        {
+            <div class="bt-tabs" role="tablist" aria-label="Results">
+                <button class="bt-tab @(_query.IsPagesTab ? "" : "active")" role="tab" aria-selected="@(!_query.IsPagesTab)" @onclick='() => ShowTab(null)'>@_results.DocumentsTab</button>
+                <button class="bt-tab @(_query.IsPagesTab ? "active" : "")" role="tab" aria-selected="@_query.IsPagesTab" @onclick='() => ShowTab("pages")'>@_results.PagesTab</button>
+            </div>
+        }
+        <div class="bt-tools">
+            <button class="bt-button @(_showFilters ? "on" : "")" aria-expanded="@_showFilters" aria-label="Filters" @onclick="() => _showFilters = !_showFilters">
+                <Icon Name="SlidersHorizontal" />@FiltersLabel
+            </button>
+            <select class="bt-select" aria-label="Sort" value="@Sort" @onchange="ChangeSort">
+                @foreach (var choice in _query.IsSearching ? LibraryChoices.SearchSorts : LibraryChoices.BrowseSorts)
+                {
+                    <option value="@choice.Value">@choice.Label</option>
+                }
+            </select>
+            @if (!_query.IsPagesTab)
+            {
+                <div class="bt-viewtoggle" role="group" aria-label="Layout">
+                    <button class="bt-icon @(_list ? "" : "active")" title="Covers" aria-label="Show covers" aria-pressed="@(!_list)" @onclick="() => SetLayout(false)"><Icon Name="LayoutGrid" Size="15" /></button>
+                    <button class="bt-icon @(_list ? "active" : "")" title="List" aria-label="Show a list" aria-pressed="@_list" @onclick="() => SetLayout(true)"><Icon Name="List" Size="15" /></button>
+                </div>
+            }
+            @* Packs as one card each, or every file in them on a card of its own; the matching pages follow it too. *@
+            <div class="bt-viewtoggle" role="group" aria-label="Packs">
+                <button class="bt-icon @(_eachFile ? "" : "active")" title="Packs" aria-label="Show packs" aria-pressed="@(!_eachFile)" @onclick="() => SetEachFile(false)"><Icon Name="Package" Size="15" /></button>
+                <button class="bt-icon @(_eachFile ? "active" : "")" title="Each file" aria-label="Show each file" aria-pressed="@_eachFile" @onclick="() => SetEachFile(true)"><Icon Name="Files" Size="15" /></button>
+            </div>
+        </div>
+    </div>
+
+    @if (_showFilters)
+    {
+        var menus = _results.Menus;
+        <div class="bt-filters">
+            <div class="bt-filterrow">
+                <Menu Label="Game system" Choices="menus.Systems" Value="@_query.System" Changed='v => Filter(_query with { System = v })' />
+                <Menu Label="Type" Choices="menus.Types" Value="@_query.Type" Changed='v => Filter(_query with { Type = v })' />
+                <div class="bt-field narrow">
+                    <span>Character level</span>
+                    <div class="bt-inline">
+                        <select aria-label="Character level" value="@Text(_query.Level)" @onchange='e => Filter(_query with { Level = Number(e.Value) })'>
+                            @foreach (var choice in LibraryChoices.Levels) { <option value="@choice.Value">@choice.Label</option> }
+                        </select>
+                        @if (_query.Level is not null)
+                        {
+                            <label class="bt-check small"><input type="checkbox" checked="@_query.UnknownLevels" @onchange='e => Filter(_query with { UnknownLevels = e.Value is true })' />Include unknown levels</label>
+                        }
+                    </div>
+                </div>
+                <div class="bt-field narrow" title="Books written for this many players">
+                    <span>Players</span>
+                    <select aria-label="Players" value="@Text(_query.Players)" @onchange='e => Filter(_query with { Players = Number(e.Value) })'>
+                        @foreach (var choice in LibraryChoices.Players) { <option value="@choice.Value">@choice.Label</option> }
+                    </select>
+                </div>
+                <button class="bt-link bt-end" title="Style, duration, where books live, and housekeeping" @onclick="() => _showMore = !_showMore">@MoreFiltersLabel</button>
+                <button class="bt-button bt-end" @onclick="ClearFilters">Clear filters</button>
+            </div>
+            @if (_showMore)
+            {
+                @if (menus.ShowStyle || menus.ShowDuration)
+                {
+                    <span class="bt-eyebrow bt-eyebrow-block">THE ADVENTURE</span>
+                    <div class="bt-filterrow">
+                        @if (menus.ShowStyle)
+                        {
+                            <Menu Label="Style" Choices="menus.Styles" Value="@_query.Style" Changed='v => Filter(_query with { Style = v })'
+                                  Hint="The kind of adventure: a heist, a dungeon crawl, a hexcrawl" />
+                        }
+                        @if (menus.ShowDuration)
+                        {
+                            <Menu Label="Duration" Choices="menus.Durations" Value="@_query.Duration" Changed='v => Filter(_query with { Duration = v })'
+                                  Hint="How long it takes to play: a one-shot, a few sessions, a campaign" />
+                        }
+                    </div>
+                }
+                <span class="bt-eyebrow bt-eyebrow-block">WHERE IT LIVES</span>
+                <div class="bt-filterrow">
+                    <Menu Label="Source folder" Choices="menus.Folders" Value="@Text(_query.Folder)" Changed='v => Filter(_query with { Folder = long.TryParse(v, out var id) ? id : null })' />
+                    @if (menus.ShowOwn)
+                    {
+                        <Menu Label="Also own" Choices="menus.Owns" Value="@_query.Own" Changed='v => Filter(_query with { Own = v })'
+                              Hint="Books you also own in print or on a virtual tabletop" />
+                    }
+                    @if (menus.ShowStore)
+                    {
+                        <Menu Label="Get it from" Choices="menus.Stores" Value="@_query.Store" Changed='v => Filter(_query with { Store = v })'
+                              Hint="Where you got it, or can get it again" />
+                    }
+                </div>
+                <span class="bt-eyebrow bt-eyebrow-block">HOUSEKEEPING</span>
+                <div class="bt-filterrow">
+                    <Menu Label="Kind" Choices="LibraryChoices.Kinds" Value="@_query.Kind" Changed='v => Filter(_query with { Kind = v })' />
+                    @if (menus.ShowAi)
+                    {
+                        <Menu Label="AI" Choices="LibraryChoices.Ai" Value="@_query.Ai" Changed='v => Filter(_query with { Ai = v })' Hint="Books a model has read and catalogued" />
+                    }
+                    @if (menus.ShowCopies)
+                    {
+                        <Menu Label="Copies" Choices="LibraryChoices.Copies" Value='@(_query.Copies ? "true" : "")' Changed='v => Filter(_query with { Copies = v == "true" })'
+                              Hint="Books that are in more than one file" />
+                    }
+                    @if (menus.ShowAdventures)
+                    {
+                        <Menu Label="Adventures inside files" Choices="LibraryChoices.Adventures" Value="@_query.Adventures" Changed='v => Filter(_query with { Adventures = v })'
+                              Hint="Adventures marked inside a compilation: inside their book, where a search still finds them; as cards of their own; or hidden" />
+                    }
+                    @if (menus.ShowCollections)
+                    {
+                        <Menu Label="Collection" Choices="LibraryChoices.Collections" Value="@_query.Collections" Changed='v => Filter(_query with { Collections = v })'
+                              Hint="Books you've put in a collection, or those in none yet" />
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="bt-sectionline-top">
+        @if (Chips is { Count: > 0 } chips)
+        {
+            <div class="bt-chips" aria-label="Filters on">
+                @foreach (var chip in chips)
+                {
+                    <span class="bt-chip on">@chip.Label<button class="bt-chipx" title="@chip.Name" aria-label="@chip.Name" @onclick="() => Filter(chip.Clear(_query))"><Icon Name="X" Size="12" /></button></span>
+                }
+                @if (chips.Count > 1)
+                {
+                    <button class="bt-link" @onclick="ClearFilters">Clear filters</button>
+                }
+            </div>
+        }
+        @if (_results.Empty is null)
+        {
+            <div class="bt-countline">
+                <span><strong>@_results.CountText</strong> @_results.CountLabel</span>
+                @if (_results.Coverage is not null) { <span class="bt-coverage">@_results.Coverage</span> }
+            </div>
+        }
+        @if (_results.Issue is not null)
+        {
+            <div class="bt-issue">@_results.Issue</div>
+        }
+    </div>
 }
+
+@if (_results.Empty is { } empty)
+{
+    @if (empty.Action is "add-folder" or "manage-folders")
+    {
+        <EmptyState Title="@empty.Title" Message="@empty.Message" ActionText="@empty.ActionText" ActionIcon='@(empty.Action == "add-folder" ? "FolderPlus" : null)' ActionHref="settings#library" />
+    }
+    else
+    {
+        <EmptyState Title="@empty.Title" Message="@empty.Message" ActionText="@empty.ActionText" Action="() => EmptyAction(empty.Action)" />
+    }
+}
+else if (_query.IsPagesTab)
+{
+    <div class="bt-hits" aria-label="Matching pages">
+        @foreach (var match in _results.Matches.Take(_shown))
+        {
+            <div class="bt-hit">
+                <div class="bt-hitcover"><BookCover Book="match.Book" /></div>
+                <div>
+                    <h3>@match.Book.Title</h3>
+                    <div class="bt-bookmeta">@match.Book.Meta</div>
+                    @foreach (var hit in match.Pages)
+                    {
+                        <div class="bt-hitpage">
+                            <div class="bt-hitwhere">@hit.Where</div>
+                            <p>@foreach (var (text, marked) in Snippet(hit.Snippet)) { if (marked) { <mark>@text</mark> } else { @text } }</p>
+                            <span class="bt-chip">@hit.Source</span>
+                        </div>
+                    }
+                    @if (match.More.Length > 0) { <div class="bt-bookmeta bt-more">@match.More</div> }
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (_list)
+{
+    <div class="bt-booklist" aria-label="Books">
+        @foreach (var book in _results.Books.Take(_shown))
+        {
+            <div class="bt-listrow" @key="book.Id" title="@book.Title">
+                <div class="bt-thumb"><BookCover Book="book" Marks="false" /></div>
+                <div class="bt-listtitle">
+                    <div class="bt-booktitle">@book.Title</div>
+                    <div class="bt-bookmeta">@book.Byline</div>
+                </div>
+                <div class="bt-listfield wide" title="Game system">@book.System</div>
+                <div class="bt-listfield wide" title="Type">@book.Kind</div>
+                <div class="bt-listfield wide">
+                    <div title="Character levels">@book.Levels</div>
+                    @if (book.Players.Length > 0) { <div title="Players">@book.Players</div> }
+                </div>
+                <div class="bt-listfield">
+                    <div>@book.Size</div>
+                    @if (book.Copies.Length > 0) { <div title="Files of this book in your library">@book.Copies</div> }
+                    @if (book.Availability.Length > 0) { <div title="@book.AvailabilityTip">@book.Availability</div> }
+                </div>
+                <div class="bt-heart @(book.Favorite ? "on" : "")">@if (book.Favorite) { <span role="img" aria-label="Favorite"><Icon Name="Heart" Size="14" /></span> }</div>
+                <div class="bt-chevron"><Icon Name="ChevronRight" Size="15" /></div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="bt-books" aria-label="Books">
+        @foreach (var book in _results.Books.Take(_shown))
+        {
+            <div class="bt-book" @key="book.Id" title="@book.Title">
+                <div class="bt-coverarea">
+                    <BookCover Book="book" />
+                    @if (book.Favorite) { <span class="bt-heart cover on" role="img" aria-label="Favorite"><Icon Name="Heart" Size="13" /></span> }
+                </div>
+                <div class="bt-booktitle">@book.Title</div>
+                <div class="bt-bookmeta">@book.Meta</div>
+            </div>
+        }
+    </div>
+}
+<div @ref="_end" class="bt-end-of-results"></div>
 
 @code {
-    LibrarySummary? _summary;
+    /// <summary>Cards drawn at first, and each time the end of them comes into view.</summary>
+    const int Batch = 120;
 
-    string? Subtitle => _summary is null ? null : _summary.Books == 1 ? "1 book" : $"{_summary.Books:N0} books";
+    LibraryQuery _query = new();
+    LibraryResults? _results;
+    bool _hasFolders = true;
+    bool _showFilters;
+    bool _showMore;
+    bool _list;
+    bool _eachFile;
+    string? _searchSort;
+    string? _browseSort;
+    int _shown = Batch;
+    int _version;
+    bool _wasBusy;
+    DateTime _loaded;
+    CancellationTokenSource? _loading;
+    ElementReference _end;
+    DotNetObjectReference<Library>? _self;
+    IJSObjectReference? _watch;
 
-    protected override async Task OnInitializedAsync() => _summary = await Api.LibrarySummaryAsync();
+    string Sort => (_query.IsSearching ? _searchSort : _browseSort) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
+
+    string Subtitle => _query.IsSearching ? "Across titles, file details and the pages within." : "Good stories begin with something you already own.";
+
+    int ResultCount => _results is null ? 0 : _query.IsPagesTab ? _results.Matches.Count : _results.Books.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _list = await PrefAsync("library.layout") == "list";
+        _eachFile = await PrefAsync("library.pack-view") == "files";
+        _searchSort = await PrefAsync("library.sort.search");
+        _browseSort = await PrefAsync("library.sort.browse");
+        _query = LibraryUrl.Parse(Navigation.Uri);
+        Navigation.LocationChanged += OnLocationChanged;
+        Activity.Changed += OnActivityChanged;
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_watch is not null || _results is null) return;
+        _self ??= DotNetObjectReference.Create(this);
+        try
+        {
+            _watch = await JS.InvokeAsync<IJSObjectReference?>("bibliotaphMore.watch", _end, _self);
+        }
+        catch (JSException)
+        {
+            // Without the watcher every card is drawn at once.
+            _shown = int.MaxValue;
+        }
+    }
+
+    [JSInvokable]
+    public void ShowMore()
+    {
+        if (_shown >= ResultCount) return;
+        _shown += Batch;
+        StateHasChanged();
+    }
+
+    async Task LoadAsync()
+    {
+        var version = ++_version;
+        _loading?.Cancel();
+        _loading = new CancellationTokenSource();
+        try
+        {
+            var results = await Api.LibraryAsync(_query with { Sort = Sort, EachFile = _eachFile }, _loading.Token);
+            if (version != _version) return;
+            _results = results;
+            _loaded = DateTime.UtcNow;
+            _hasFolders = results.Empty?.Action != "add-folder";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    /// <summary>A search typed in the top bar, or Back to an earlier search, arrives as a new address.</summary>
+    void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!Navigation.ToBaseRelativePath(e.Location).StartsWith("library", StringComparison.Ordinal)) return;
+        var next = LibraryUrl.Parse(e.Location);
+        if (next == _query) return;
+        _query = next;
+        _shown = Batch;
+        InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// While books are being read, the cards follow, as the Windows app's do: every so often rather than on each
+    /// status, since a large library's cards are a lot to send, and once more when the reading is done.
+    /// </summary>
+    void OnActivityChanged()
+    {
+        var busy = Activity.Current?.Busy == true;
+        var finished = _wasBusy && !busy;
+        _wasBusy = busy;
+        if (!finished && !(busy && DateTime.UtcNow - _loaded > TimeSpan.FromSeconds(15))) return;
+        InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>Shows a changed search or filter, at an address of its own.</summary>
+    Task Filter(LibraryQuery next)
+    {
+        if (next.Level is null) next = next with { UnknownLevels = false };
+        if (string.IsNullOrWhiteSpace(next.Q)) next = next with { Q = null, Tab = null };
+        Navigation.NavigateTo("library" + LibraryUrl.QueryString(next, forApi: false), replace: true);
+        return Task.CompletedTask;
+    }
+
+    Task ShowTab(string? tab) => Filter(_query with { Tab = tab });
+
+    Task ClearFilters() => Filter(new LibraryQuery { Q = _query.Q, Tab = _query.Tab });
+
+    Task EmptyAction(string action) => action switch
+    {
+        "clear-filters" => ClearFilters(),
+        "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null } : new LibraryQuery()),
+        "show-documents" => ShowTab(null),
+        _ => Task.CompletedTask,
+    };
+
+    async Task ChangeSort(ChangeEventArgs e)
+    {
+        var sort = e.Value as string;
+        if (_query.IsSearching) _searchSort = sort;
+        else _browseSort = sort;
+        await SetPrefAsync(_query.IsSearching ? "library.sort.search" : "library.sort.browse", sort ?? "");
+        await LoadAsync();
+    }
+
+    async Task SetLayout(bool list)
+    {
+        _list = list;
+        await SetPrefAsync("library.layout", list ? "list" : "covers");
+    }
+
+    async Task SetEachFile(bool eachFile)
+    {
+        if (_eachFile == eachFile) return;
+        _eachFile = eachFile;
+        await SetPrefAsync("library.pack-view", eachFile ? "files" : "packs");
+        await LoadAsync();
+    }
+
+    /// <summary>"Filters", or "Filters · 2" with two on.</summary>
+    string FiltersLabel => Chips.Count > 0 ? $"Filters · {Chips.Count}" : "Filters";
+
+    /// <summary>"More filters", with how many of them are on while they are folded away.</summary>
+    string MoreFiltersLabel => _showMore ? "Fewer filters" : Chips.Count(c => c.Folded) is var n and > 0 ? $"More filters · {n}" : "More filters";
+
+    sealed record Chip(string Label, string Name, Func<LibraryQuery, LibraryQuery> Clear, bool Folded = false);
+
+    /// <summary>The filters that are on, common ones first, in the Windows app's words; each chip's × turns its filter off.</summary>
+    List<Chip> Chips
+    {
+        get
+        {
+            List<Chip> chips = [];
+            if (_results is not { Menus: var m }) return chips;
+            void Add(bool on, string label, string filter, Func<LibraryQuery, LibraryQuery> clear, bool folded = false)
+            {
+                if (on) chips.Add(new Chip(label, $"Turn off the {filter} filter", clear, folded));
+            }
+            Add(_query.System is not null, Label(m.Systems, _query.System), "game system", q => q with { System = null });
+            Add(_query.Type is not null, Label(m.Types, _query.Type), "type", q => q with { Type = null });
+            Add(_query.Level is not null, $"Level {_query.Level}{(_query.UnknownLevels ? " or unknown" : "")}", "character level", q => q with { Level = null });
+            Add(_query.Players is not null, Label(LibraryChoices.Players, Text(_query.Players)), "players", q => q with { Players = null });
+            Add(_query.Style is not null, Label(m.Styles, _query.Style), "style", q => q with { Style = null }, true);
+            Add(_query.Duration is not null, Label(m.Durations, _query.Duration), "duration", q => q with { Duration = null }, true);
+            Add(_query.Folder is not null, $"Folder: {Label(m.Folders, Text(_query.Folder))}", "source folder", q => q with { Folder = null }, true);
+            Add(_query.Own is not null, $"Also own: {Label(m.Owns, _query.Own)}", "also own", q => q with { Own = null }, true);
+            Add(_query.Store is not null, $"Get it from: {Label(m.Stores, _query.Store)}", "get it from", q => q with { Store = null }, true);
+            Add(_query.Kind is not null, Label(LibraryChoices.Kinds, _query.Kind), "kind", q => q with { Kind = null }, true);
+            Add(_query.Ai is not null, Label(LibraryChoices.Ai, _query.Ai), "AI", q => q with { Ai = null }, true);
+            Add(_query.Copies, Label(LibraryChoices.Copies, "true"), "copies", q => q with { Copies = false }, true);
+            Add(_query.Adventures is not null, _query.Adventures == "Hidden" ? "Adventures inside files hidden" : "Adventures as cards", "adventures inside files",
+                q => q with { Adventures = null }, true);
+            Add(_query.Collections is not null, Label(LibraryChoices.Collections, _query.Collections), "collection", q => q with { Collections = null }, true);
+            return chips;
+        }
+    }
+
+    /// <summary>A choice's label without its count: "D&amp;D 5e (12)" reads "D&amp;D 5e" on its chip.</summary>
+    static string Label(IReadOnlyList<FilterChoice> menu, string? value)
+    {
+        var label = menu.FirstOrDefault(c => c.Value == value)?.Label ?? value ?? "";
+        return label.EndsWith(')') && label.LastIndexOf(" (", StringComparison.Ordinal) is var i and > 0 ? label[..i] : label;
+    }
+
+    /// <summary>A snippet's text, split where its hits start and end.</summary>
+    static IEnumerable<(string Text, bool Hit)> Snippet(string snippet)
+    {
+        var hit = false;
+        var start = 0;
+        for (var i = 0; i <= snippet.Length; i++)
+        {
+            if (i < snippet.Length && snippet[i] != LibraryChoices.HitStart && snippet[i] != LibraryChoices.HitEnd) continue;
+            if (i > start) yield return (snippet[start..i], hit);
+            if (i < snippet.Length) hit = snippet[i] == LibraryChoices.HitStart;
+            start = i + 1;
+        }
+    }
+
+    static string Text(long? value) => value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
+
+    static int? Number(object? value) => int.TryParse(value as string, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : null;
+
+    async Task<string?> PrefAsync(string key)
+    {
+        try
+        {
+            return await JS.InvokeAsync<string?>("bibliotaphPrefs.get", key);
+        }
+        catch (JSException)
+        {
+            return null;
+        }
+    }
+
+    async Task SetPrefAsync(string key, string value)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("bibliotaphPrefs.set", key, value);
+        }
+        catch (JSException)
+        {
+            // library.js didn't load; the choice holds until the page is left.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Activity.Changed -= OnActivityChanged;
+        _loading?.Cancel();
+        if (_watch is not null)
+        {
+            try
+            {
+                await _watch.InvokeVoidAsync("stop");
+                await _watch.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        _self?.Dispose();
+    }
 }

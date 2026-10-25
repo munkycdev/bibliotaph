@@ -1,0 +1,64 @@
+@* .bt-bookcover, as the Windows app's Cover template: the book's own cover, a pack's mosaic, or a plain one with its
+   initial while there is none; with the marks for a book owned elsewhere, away, locked, found inside its book or read by AI. *@
+<div class="bt-bookcover @(Book.Availability.Length > 0 ? "away" : "")">
+    @if (Book.Mosaic.Count > 0)
+    {
+        <div class="bt-mosaic">
+            @foreach (var tile in Book.Mosaic)
+            {
+                <img src="@CoverUrl(tile)" alt="" loading="lazy" />
+            }
+        </div>
+    }
+    else if (Book.Cover is { } cover && !_failed)
+    {
+        <img class="bt-coverimage" src="@CoverUrl(cover)" alt="" loading="lazy" @onerror="() => _failed = true" />
+    }
+    else
+    {
+        <span class="bt-initial" aria-hidden="true">@Book.Initial</span>
+    }
+    @if (Marks)
+    {
+        @if (Book.FoundInBook)
+        {
+            <span class="bt-ribbon"><Icon Name="BookOpen" Size="10" />Adventure</span>
+        }
+        @if (Book.TextMark.Length > 0)
+        {
+            <span class="bt-covermark top @(Book.FoundInBook ? "below-ribbon" : "")" title="@Book.TextMarkTip"><Icon Name="Lock" Size="10" />@Book.TextMark</span>
+        }
+        @if (Book.AiTip is not null)
+        {
+            <span class="bt-aibadge" title="@Book.AiTip" role="img" aria-label="@Book.AiTip"><Icon Name="Sparkle" Size="11" /></span>
+        }
+        @if (Book.Elsewhere)
+        {
+            <span class="bt-covermark elsewhere" title="Owned elsewhere: @Book.Size"><Icon Name="Cloud" Size="12" />@Book.Badge</span>
+        }
+        @if (Book.Availability.Length > 0)
+        {
+            <span class="bt-covermark away" title="@Book.AvailabilityTip">@Book.Availability</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BookCard Book { get; set; } = default!;
+
+    /// <summary>The list's small covers leave the marks to the row's own columns.</summary>
+    [Parameter] public bool Marks { get; set; } = true;
+
+    bool _failed;
+    string? _shown;
+
+    protected override void OnParametersSet()
+    {
+        // A card that gets a new cover tries it, even after the last one failed to load.
+        if (_shown == Book.Cover) return;
+        _shown = Book.Cover;
+        _failed = false;
+    }
+
+    static string CoverUrl(string name) => $"api/library/covers/{Uri.EscapeDataString(name)}";
+}

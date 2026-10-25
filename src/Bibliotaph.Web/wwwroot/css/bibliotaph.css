@@ -317,3 +317,73 @@ a{color:var(--bt-accent)}
 .bt-sync>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .bt-sync .bt-status-dot{flex-shrink:0;margin-top:5px}
 .bt-status-dot.busy{background:var(--bt-accent)}
+/* The Library, as the Windows app's: its toolbar and filters, the cover grid, the detail list and the matching pages. */
+.bt-tools{flex-wrap:wrap;gap:8px}
+.bt-button.on{background:var(--bt-soft)}
+.bt-select{padding:8px 10px;border:1px solid var(--bt-line);border-radius:6px;background:var(--bt-panel);color:var(--bt-text);font-size:11px;max-width:180px}
+.bt-viewtoggle .bt-icon{min-width:30px;min-height:28px;padding:5px;color:var(--bt-muted)}
+.bt-viewtoggle .bt-icon.active{color:var(--bt-text)}
+.bt-filters{padding:15px 0 3px;border-bottom:1px solid var(--bt-line)}
+.bt-filterrow{display:flex;flex-wrap:wrap;gap:0 12px;align-items:flex-end}
+.bt-filterrow>*{margin-bottom:12px}
+.bt-filters .bt-eyebrow-block{margin:4px 0 8px}
+.bt-field.narrow{flex:0 0 auto;min-width:150px}
+.bt-field.narrow select{min-width:150px}
+.bt-check.small{font-size:11px;color:var(--bt-text);white-space:nowrap}
+.bt-link{cursor:pointer}
+.bt-sectionline-top{margin:23px 0 0}
+.bt-chips{display:flex;flex-wrap:wrap;align-items:center;gap:0 4px;margin-bottom:6px}
+.bt-chip.on{background:var(--bt-soft);color:var(--bt-text);font-size:11px;padding:2px 2px 2px 10px;gap:4px}
+.bt-chipx{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;cursor:pointer;color:var(--bt-muted)}
+.bt-chipx:hover{background:var(--bt-panel);color:var(--bt-text)}
+.bt-countline{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;font-size:11px;color:var(--bt-muted);margin:0 0 17px}
+.bt-countline strong{color:var(--bt-text);font-weight:500}
+.bt-issue{display:inline-block;margin:-7px 0 17px;padding:5px 8px;border-radius:4px;background:var(--bt-warm);font-size:11px}
+.bt-books{grid-template-columns:repeat(auto-fill,150px);justify-content:space-between;gap:30px 22px}
+.bt-book{min-width:0}
+.bt-coverarea{position:relative;transition:transform .18s}
+.bt-book:hover .bt-coverarea{transform:translateY(-4px)}
+.bt-bookcover{position:relative;aspect-ratio:150/208;overflow:hidden;border-radius:2px 5px 5px 2px;background:var(--bt-warm);border:1px solid var(--bt-line);box-shadow:0 3px 7px #00000026;display:grid;place-items:center}
+.bt-bookcover>img.bt-coverimage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bt-bookcover.away>img,.bt-bookcover.away>.bt-mosaic,.bt-bookcover.away>.bt-initial{opacity:.4}
+.bt-mosaic{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.bt-mosaic img{width:100%;height:100%;object-fit:cover;border:.5px solid var(--bt-line)}
+.bt-initial{font:64px/1 'Libre Caslon Display',Georgia,serif;color:var(--bt-muted)}
+.bt-thumb .bt-initial{font-size:24px}
+.bt-hitcover .bt-initial{font-size:30px}
+.bt-covermark,.bt-ribbon{position:absolute;display:inline-flex;align-items:center;gap:4px;font-size:10px;line-height:1.4;padding:2px 7px 2px 5px;border-radius:3px;background:var(--bt-panel);border:1px solid var(--bt-line);color:var(--bt-text);max-width:calc(100% - 12px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-covermark svg,.bt-ribbon svg{width:10px;height:10px;stroke-width:2.2}
+.bt-covermark.top{left:4px;top:4px}
+.bt-covermark.top.below-ribbon{top:32px}
+.bt-covermark.elsewhere{left:4px;bottom:6px}
+.bt-covermark.elsewhere svg{width:12px;height:12px;color:var(--bt-muted)}
+.bt-covermark.away{left:50%;transform:translateX(-50%);bottom:8px;padding:2px 7px}
+.bt-ribbon{left:0;top:10px;border:0;border-radius:0 3px 3px 0;background:var(--bt-accent);color:var(--bt-accent-text);font-weight:600}
+.bt-aibadge{position:absolute;right:4px;top:4px;width:18px;height:18px;border-radius:9px;background:var(--bt-accent);color:var(--bt-accent-text);display:grid;place-items:center}
+.bt-aibadge svg{width:11px;height:11px;stroke-width:2.2}
+.bt-heart{display:grid;place-items:center;color:var(--bt-accent)}
+.bt-heart.on svg{fill:var(--bt-accent)}
+.bt-heart.cover{position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:13px;background:var(--bt-panel);border:1px solid var(--bt-line)}
+.bt-book .bt-booktitle{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bt-book .bt-bookmeta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-listrow{grid-template-columns:46px minmax(110px,3fr) minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,.9fr) 72px 34px 27px;gap:0 10px}
+.bt-listrow .bt-thumb{width:46px}
+.bt-listtitle{min-width:0;padding:0 5px}
+.bt-listtitle .bt-booktitle,.bt-listtitle .bt-bookmeta,.bt-listfield>div,.bt-listfield{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-listrow .bt-listfield{min-width:0}
+.bt-chevron{color:var(--bt-muted);display:grid;justify-items:end}
+.bt-hit h3{font-size:12px;font-weight:600}
+.bt-hitcover{width:60px}
+.bt-hitpage{margin-top:12px}
+.bt-hitwhere{font-size:11px;font-weight:500}
+.bt-hit .bt-hitpage p{margin:6px 0 4px;line-height:20px}
+.bt-more{margin-top:10px}
+.bt-end-of-results{height:1px}
+@media(max-width:850px){.bt-listrow{grid-template-columns:40px minmax(0,1fr) 72px 34px 24px}
+.bt-listrow .bt-listfield.wide{display:none}}
+@media(max-width:620px){.bt-books{grid-template-columns:repeat(2,minmax(0,1fr));justify-content:stretch}
+.bt-sidebar{position:static;height:auto}
+.bt-listrow{grid-template-columns:35px minmax(0,1fr) 34px 23px}
+.bt-listrow .bt-thumb{width:35px}
+.bt-field.narrow{min-width:0;flex:1 1 140px}
+.bt-field.narrow select{min-width:0}}

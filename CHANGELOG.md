@@ -12,6 +12,9 @@
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.
+- **Your library in the browser.** bibliotaph.online's Library shows your books with their covers or as a list, with the
+  Windows app's filters, orders and Packs or Each file, and the search box finds books and the pages inside them. See
+  [Your library and search](docs/guide/web.md#your-library-and-search).
 
 ## 1.3 · 19 October 2026
 

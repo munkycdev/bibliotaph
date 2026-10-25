@@ -31,6 +31,7 @@ public static class ApiEndpoints
         });
 
         api.MapStorageApi();
+        api.MapLibraryApi();
 
         var invites = api.MapGroup("/invites").RequireAuthorization(AuthSetup.AdminPolicy);
 

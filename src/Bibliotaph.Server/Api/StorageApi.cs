@@ -128,7 +128,7 @@ public static class StorageApi
         return folders;
     }
 
-    static async Task<LibraryStatus> StatusAsync(UserLibrary library, CancellationToken ct)
+    internal static async Task<LibraryStatus> StatusAsync(UserLibrary library, CancellationToken ct)
     {
         var indexing = library.Indexing;
         var counts = await library.Get<LibraryStore>().GetCountsAsync(ct);
