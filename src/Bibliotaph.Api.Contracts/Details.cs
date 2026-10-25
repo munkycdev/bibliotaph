@@ -8,15 +8,18 @@ public sealed record BookDetails(
     BookCard Card, string Eyebrow, string Publisher, string Pages, bool CanOpen, IReadOnlyList<DetailField> Fields, IReadOnlyList<DetailPart> Parts,
     string PartsHeading, bool CanMarkParts, string? PartOf, long? PartOfEntryId, IReadOnlyList<PackFile> PackFiles, string PackFilesHeading,
     string FactsHeading, IReadOnlyList<DetailFact> Facts, bool ShowsLocations, IReadOnlyList<DetailLocation> Locations, IReadOnlyList<DetailCopy> Copies,
-    string CopiesHeading, IReadOnlyList<DetailFact> Stages);
+    string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
+    string SplitPackLabel, string SplitPackTip);
 
 /// <summary>
-/// One field under Details: its values as they read, where each came from and the other suggestions. <see
-/// cref="Primary"/> fields show even when nothing is known; the rest wait behind More fields.
+/// One field under Details: its values as they read, where each came from and the other suggestions, and how it is
+/// edited. <see cref="Primary"/> fields show even when nothing is known; the rest wait behind More fields. <see
+/// cref="Choices"/> are a term field's vocabulary, to pick from.
 /// </summary>
 public sealed record DetailField(
     string Key, string Label, bool Primary, string Display, bool Known, bool Suggested, bool NeedsReview, string EvidenceLabel, bool CanReset,
-    IReadOnlyList<DetailValue> Values, IReadOnlyList<DetailValue> Alternatives);
+    IReadOnlyList<DetailValue> Values, IReadOnlyList<DetailValue> Alternatives, bool Multiple, string EditHint, string ChoicesLabel,
+    IReadOnlyList<string> Choices);
 
 /// <summary>A value with its sources: "From the folder name “D&amp;D 5e”", "You set this". <see cref="Url"/> is a store's link.</summary>
 public sealed record DetailValue(string Text, string Value, string Normalized, bool Confirmed, string? Url, string? LinkText, IReadOnlyList<string> Sources);
@@ -29,8 +32,8 @@ public sealed record DetailLocation(string Path, string State);
 /// <summary>One of a book's files when it has more than one: "Current copy", its pages and when it was added, and where it is.</summary>
 public sealed record DetailCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent);
 
-/// <summary>An adventure marked in a file: its own card, and its pages there.</summary>
-public sealed record DetailPart(long EntryId, string Title, string Pages);
+/// <summary>An adventure marked in a file: its own card, and its pages there, the first and last as the file numbers them.</summary>
+public sealed record DetailPart(long EntryId, string Title, string Pages, string From, string To);
 
 /// <summary>A file in a pack, with its cover's name for /api/library/covers/.</summary>
 public sealed record PackFile(long EntryId, string Name, string? Cover, bool IsPdf, bool IsCover);

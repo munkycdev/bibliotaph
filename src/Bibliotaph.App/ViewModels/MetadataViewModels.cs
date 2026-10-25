@@ -116,30 +116,21 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     public bool UsesChoices => Choices.Count > 0;
 
-    public string ChoicesLabel => Field.Multiple ? "Add from the list" : "Or pick from the list";
+    public string ChoicesLabel => FieldText.ChoicesLabel(Field);
 
-    public string EditHint => Field.Kind switch
-    {
-        FieldKind.Levels => "3, 1-5 or n/a",
-        FieldKind.Players => "4 or 3-5",
-        FieldKind.Year => "2019",
-        FieldKind.Store => LinkHint(Field),
-        _ when Field.Multiple => "Separate values with commas",
-        _ => "",
-    };
+    public string EditHint => FieldText.EditHint(Field);
 
     /// <summary>How to type Get it from, wherever it is edited.</summary>
-    public const string StoreHint = "A store, a link, or both: DriveThruRPG https://… Separate stores with commas";
+    public const string StoreHint = FieldText.StoreHint;
 
     /// <summary>How to type Also own, wherever it is edited: a place, and the book's page there when it is online.</summary>
-    public const string OwnHint = "Where, a link to the book there, or both: D&D Beyond https://… Separate them with commas";
+    public const string OwnHint = FieldText.OwnHint;
 
     /// <summary>How to type a linked field (<see cref="FieldKind.Store"/>).</summary>
-    public static string LinkHint(MetadataField field) => field == MetadataFields.AlsoOwn ? OwnHint : StoreHint;
+    public static string LinkHint(MetadataField field) => FieldText.LinkHint(field);
 
     /// <summary>What a new term of the field is called: "a new store", "a new place", "a new setting".</summary>
-    public static string TermNoun(MetadataField field) =>
-        field == MetadataFields.AlsoOwn ? "place" : field.Kind == FieldKind.Store ? field.Vocabulary! : field.Label.ToLower(CultureInfo.CurrentCulture);
+    public static string TermNoun(MetadataField field) => FieldText.TermNoun(field);
 
     [ObservableProperty]
     public partial bool ShowEvidence { get; set; }
@@ -171,37 +162,10 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     partial void OnEditTextChanged(string value) => Resolution = DescribeResolution(Field, value, _vocabulary);
 
     /// <summary>How typed text will be filed in a term field; empty for other fields, or when every value is a label.</summary>
-    public static string DescribeResolution(MetadataField field, string? typed, Vocabulary vocabulary)
-    {
-        if (field.Kind is not (FieldKind.Term or FieldKind.Store)) return "";
-        var notes = new List<string>();
-        foreach (var typedPart in MetadataValues.Split(field, typed ?? ""))
-        {
-            if (MetadataText.Normalize(typedPart).Length == 0) continue;
-            var part = typedPart;
-            Term? term;
-            if (field.Kind == FieldKind.Store)
-            {
-                (term, part, var url) = StoreLink.Read(typedPart, vocabulary, field);
-                if (term is not null && url is not null && MetadataText.Normalize(StoreLink.Split(typedPart).Name).Length == 0)
-                {
-                    notes.Add($"The link goes to {term.Label}.");
-                    continue;
-                }
-            }
-            else term = vocabulary.Resolve(field.Vocabulary!, part);
-            var kind = TermNoun(field);
-            if (term is null) notes.Add($"“{part}” will be added as a new {kind}.");
-            else if (MetadataText.Normalize(term.Label) != MetadataText.Normalize(part)) notes.Add($"“{part}” is another name for {term.Label}.");
-        }
-        return string.Join(" ", notes);
-    }
+    public static string DescribeResolution(MetadataField field, string? typed, Vocabulary vocabulary) => FieldText.Resolution(field, typed, vocabulary);
 
     /// <summary>The labels of a term field's vocabulary, to pick from; empty for other fields.</summary>
-    public static IReadOnlyList<string> ChoicesFor(MetadataField field, Vocabulary vocabulary) =>
-        field.Kind is FieldKind.Term or FieldKind.Store
-            ? [.. vocabulary.InVocabulary(field.Vocabulary!).Select(t => t.Label).Order(StringComparer.CurrentCultureIgnoreCase)]
-            : [];
+    public static IReadOnlyList<string> ChoicesFor(MetadataField field, Vocabulary vocabulary) => FieldText.Choices(field, vocabulary);
 
     [ObservableProperty]
     public partial bool IsBusy { get; set; }

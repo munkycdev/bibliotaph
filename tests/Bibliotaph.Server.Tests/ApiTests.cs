@@ -115,6 +115,51 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task A_books_details_are_changed_as_the_windows_inspector_changes_them()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/harbor.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.SingleOrDefault(b => b.Cover is not null), ct);
+        var path = $"/api/library/books/{book.EntryId}";
+
+        using var titled = await client.PostAsJsonAsync($"{path}/fields/title", new FieldEdit("Harbor of Lost Ships"), ct);
+        var edit = (await titled.Content.ReadFromJsonAsync<EditResult>(ct))!;
+        using var unknownField = await client.PostAsJsonAsync($"{path}/fields/nosuchfield", new FieldEdit("x"), ct);
+        using var kept = await client.PostAsync($"{path}/fields/title/keep", null, ct);
+        using var favorite = await client.PutAsJsonAsync($"{path}/favorite", new SetFavorite(true), ct);
+        using var noted = await client.PutAsJsonAsync($"{path}/notes", new FieldEdit("Bring the tide tables."), ct);
+        var notes = (await noted.Content.ReadFromJsonAsync<BookNotes>(ct))!;
+        using var parts = await client.PostAsJsonAsync($"{path}/parts", new PartEdit("Chapter", "1", ""), ct);
+        using var held = await client.PostAsync("/api/library/held/nothing", null, ct);
+        using var corrected = await client.PostAsJsonAsync($"{path}/correction", new CorrectionEnd(true), ct);
+        var after = await client.GetFromJsonAsync<BookDetails>(path, ct);
+        var other = Client(await AddUserAsync(admin: false));
+        other.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using var stranger = await other.PostAsJsonAsync($"{path}/fields/title", new FieldEdit("Mine"), ct);
+
+        Assert.Null(edit.Problem);
+        Assert.Equal("Harbor of Lost Ships", edit.Details!.Card.Title);
+        Assert.Equal(HttpStatusCode.NotFound, unknownField.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, favorite.StatusCode);
+        Assert.Equal(("Bring the tide tables.", "Notes (1)"), (notes.Text, notes.TabLabel));
+        // Only a PDF's pages can be an adventure of their own.
+        Assert.Equal(HttpStatusCode.NotFound, parts.StatusCode);
+        Assert.Equal("That can't be done any more.", (await held.Content.ReadFromJsonAsync<ActionResult>(ct))!.Message);
+        Assert.Equal(HttpStatusCode.NoContent, corrected.StatusCode);
+        Assert.True(after!.Card.Favorite);
+        Assert.Equal("Notes (1)", after.NotesLabel);
+        Assert.Contains(after.Fields, f => f.Key == "title" && !f.Suggested && f.CanReset);
+        Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);
@@ -263,6 +308,25 @@ public sealed class ApiTests : IDisposable
     }
 
     /// <summary>Signs in whoever the test header names, in place of the session cookie.</summary>
+    static byte[] Png()
+    {
+        using var bitmap = new SkiaSharp.SKBitmap(600, 400);
+        bitmap.Erase(SkiaSharp.SKColors.SeaGreen);
+        using var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
+    static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(60));
+        while (true)
+        {
+            if (await done() is { } result) return result;
+            await Task.Delay(100, timeout.Token);
+        }
+    }
+
     sealed class TestSession(IOptionsMonitor<AuthenticationSchemeOptions> options, Microsoft.Extensions.Logging.ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {

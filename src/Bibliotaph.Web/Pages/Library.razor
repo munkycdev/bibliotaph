@@ -169,6 +169,13 @@
     </div>
 }
 
+@if (_done is not null)
+{
+    <div class="bt-librarynote">
+        <DoneNote Result="_done" Dismissed="() => _done = null" Undone="UndoneAsync" />
+    </div>
+}
+
 @if (_results.Empty is { } empty)
 {
     @if (empty.Action is "add-folder" or "manage-folders")
@@ -253,7 +260,7 @@ else
 <div @ref="_end" class="bt-end-of-results"></div>
 @if (_details is { } entryId)
 {
-    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Closed="CloseDetails" ShowEntry="id => _details = id" />
+    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
 }
 
 @code {
@@ -279,6 +286,7 @@ else
     IJSObjectReference? _watch;
     long? _details;
     BookDetailsDrawer? _drawer;
+    ActionResult? _done;
 
     string Sort => (_query.IsSearching ? _searchSort : _browseSort) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
 
@@ -371,6 +379,22 @@ else
             StateHasChanged();
             if (_drawer is not null) await _drawer.RefreshAsync();
         });
+    }
+
+    /// <summary>After a change in the details, the cards as they are now.</summary>
+    Task ReloadAsync() => LoadAsync();
+
+    /// <summary>What a change from the details did, over the cards, with its Undo.</summary>
+    async Task ShowDone(ActionResult result)
+    {
+        _done = result;
+        await ReloadAsync();
+    }
+
+    async Task UndoneAsync()
+    {
+        await ReloadAsync();
+        if (_drawer is not null) await _drawer.RefreshAsync();
     }
 
     /// <summary>A card's details, over the page.</summary>

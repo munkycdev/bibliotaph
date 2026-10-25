@@ -102,11 +102,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// <summary>The grid's name for screen readers.</summary>
     public string PackImagesName => HasPdfs ? "Files in the pack" : "Images in the pack";
 
-    public string SplitPackLabel => HasPdfs ? "Split into separate files" : "Split into separate images";
+    public string SplitPackLabel => DetailsText.SplitPackLabel(HasPdfs);
 
-    public string SplitPackTip => HasPdfs
-        ? "Give every file its own card again. Bibliotaph won't pack this folder again."
-        : "Give every image its own card again. Bibliotaph won't pack this folder again.";
+    public string SplitPackTip => DetailsText.SplitPackTip(HasPdfs);
 
     /// <summary>Raised after "Split into separate images" (or files), with the files that got their cards back.</summary>
     public event EventHandler<IReadOnlyList<EntryId>>? PackSplit;
@@ -387,15 +385,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
 
     public bool HasLookAlikeOffer => LookAlikeOffer is not null;
 
-    public string LookAlikeQuestion => LookAlikeOffer is { } offer
-        ? $"Change {offer.Books.Count.ToString("N0", CultureInfo.CurrentCulture)} other {(offer.Books.Count == 1 ? "book" : "books")} from “{offer.FolderName}” too?"
-        : "";
+    public string LookAlikeQuestion => LookAlikeOffer is { } offer ? DetailsText.LookAlikeQuestion(offer) : "";
 
-    public string LookAlikeDetail => LookAlikeOffer is not { } offer ? ""
-        : (offer.Books.Count == 1 ? "It" : "They") + (offer.Before.Count == 0
-            ? $" had no {offer.Field.Label.ToLower(CultureInfo.CurrentCulture)} either"
-            : $" show the {offer.Field.Label.ToLower(CultureInfo.CurrentCulture)} this book did")
-          + $", and you haven't set it on {(offer.Books.Count == 1 ? "it" : "them")}. Undo takes it all back.";
+    public string LookAlikeDetail => LookAlikeOffer is { } offer ? DetailsText.LookAlikeDetail(offer) : "";
 
     /// <summary>Raised by Change them, with the offer for the Library to apply as a bulk edit.</summary>
     public event EventHandler<LookAlikeOffer>? LookAlikesAccepted;
@@ -587,9 +579,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             ? []
             : [.. details.Stages.Select(s => new InspectorStage(_stages.Find(s.Stage)?.Names.Label ?? s.Stage.ToString(), StatusText(s)))];
         if (!stages.SequenceEqual(Stages)) Stages = stages;
-        // AI cataloguing isn't part of Reprocess and can wait for hours (AI off, a model server down), so only the
-        // stages that read the file count.
-        IsReprocessing = !entry.IsPack && details?.Stages.Any(s => Pipeline.FileStages.Contains(s.Stage) && s.Status is StageStatus.Pending or StageStatus.Running) == true;
+        IsReprocessing = DetailsText.IsReprocessing(entry, details);
         PageCount = SourceFormats.HasPages(entry.Format) ? entry.PageCount ?? 0 : 0;
     }
 

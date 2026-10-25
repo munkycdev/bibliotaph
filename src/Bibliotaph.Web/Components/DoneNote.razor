@@ -1,0 +1,65 @@
+@* .bt-donenote: what a change did, with Undo when it can be undone and × to dismiss it, as the Windows app's undo notes. *@
+@inject ApiClient Api
+
+@if (_shown is { Length: > 0 } message)
+{
+    <div class="bt-donenote" role="status" aria-live="polite">
+        <span class="bt-small">@message</span>
+        @if (_undo is not null)
+        {
+            <button class="bt-link" aria-label="@UndoName" @onclick="UndoAsync"><Icon Name="Undo2" Size="13" />Undo</button>
+        }
+        <button class="bt-icon" title="Dismiss" aria-label="Dismiss" @onclick="Dismiss"><Icon Name="X" Size="14" /></button>
+    </div>
+}
+
+@code {
+    ActionResult? _result;
+    string? _shown;
+    string? _undo;
+
+    /// <summary>The change to tell of; a new one replaces the note.</summary>
+    [Parameter] public ActionResult? Result { get; set; }
+
+    /// <summary>What Undo says to a screen reader: "Undo the change to the adventures".</summary>
+    [Parameter] public string UndoName { get; set; } = "Undo the change";
+
+    [Parameter] public EventCallback Dismissed { get; set; }
+
+    /// <summary>Raised once Undo has run, so what shows it can read it all again.</summary>
+    [Parameter] public EventCallback Undone { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Result, _result)) return;
+        _result = Result;
+        _shown = Result?.Message;
+        _undo = Result?.Undo;
+    }
+
+    async Task UndoAsync()
+    {
+        if (_undo is not { } token) return;
+        _undo = null;
+        _shown = "Undoing…";
+        try
+        {
+            // Undone, the note goes; what couldn't be undone says so.
+            var result = await Api.RunHeldAsync(token);
+            _shown = result.Message;
+        }
+        catch (ApiProblemException e)
+        {
+            _shown = e.Message;
+        }
+        await Undone.InvokeAsync();
+        if (string.IsNullOrEmpty(_shown)) await Dismissed.InvokeAsync();
+    }
+
+    Task Dismiss()
+    {
+        _shown = null;
+        _undo = null;
+        return Dismissed.InvokeAsync();
+    }
+}

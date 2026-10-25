@@ -45,7 +45,7 @@ public sealed partial class PartEditorViewModel(string heading, string actionTex
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     public partial bool IsSaving { get; private set; }
 
-    public string? PagesProblem => Pages() is null ? "Type pages as the file numbers them, or PDF page numbers." : null;
+    public string? PagesProblem => Pages() is null ? Processing.DetailsText.PagesHint : null;
 
     PartPages? Pages()
     {

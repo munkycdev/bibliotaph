@@ -43,8 +43,59 @@ public static class DetailsText
     public static string PartsHeading(int count) =>
         count > 0 ? $"ADVENTURES IN THIS FILE ({count.ToString("N0", CultureInfo.CurrentCulture)})" : "ADVENTURES IN THIS FILE";
 
+    /// <summary>"p. 42", "p. 42–44", with the copy's printed page numbers where it has them, or "Whole book".</summary>
+    public static string Pages(PageRange? range)
+    {
+        if (range is null) return "Whole book";
+        var first = range.FirstLabel ?? (range.FirstPdfPage + 1).ToString(CultureInfo.CurrentCulture);
+        if (range.IsSinglePage) return $"p. {first}";
+        var last = range.LastLabel ?? (range.LastPdfPage + 1).ToString(CultureInfo.CurrentCulture);
+        return $"p. {first}–{last}";
+    }
+
+    /// <summary>"“The Crypt” has a card of its own now."</summary>
+    public static string PartAdded(string title) => $"“{title}” has a card of its own now.";
+
+    public static string PartMoved(string title, string pages) => $"“{title}” is on {pages} now.";
+
+    public static string PartRemoved(string title) => $"Removed “{title}”. Its pages are only the file's again.";
+
+    /// <summary>Why an adventure's pages can't be read as typed.</summary>
+    public const string PagesHint = "Type pages as the file numbers them, or PDF page numbers.";
+
     /// <summary>An adventure's pages as its file numbers them, or that they weren't found in the copy the file opens.</summary>
     public static string PartPages(PartPages? pages, IReadOnlyList<string?> labels) => pages?.Describe(labels) ?? "Its pages weren't found in this copy";
+
+    /// <summary>"Change 14 other books from “Fey Court” too?", after a correction that books from the same folder could use.</summary>
+    public static string LookAlikeQuestion(LookAlikeOffer offer) =>
+        $"Change {offer.Books.Count.ToString("N0", CultureInfo.CurrentCulture)} other {(offer.Books.Count == 1 ? "book" : "books")} from “{offer.FolderName}” too?";
+
+    public static string LookAlikeDetail(LookAlikeOffer offer) =>
+        (offer.Books.Count == 1 ? "It" : "They") + (offer.Before.Count == 0
+            ? $" had no {offer.Field.Label.ToLower(CultureInfo.CurrentCulture)} either"
+            : $" show the {offer.Field.Label.ToLower(CultureInfo.CurrentCulture)} this book did")
+        + $", and you haven't set it on {(offer.Books.Count == 1 ? "it" : "them")}. Undo takes it all back.";
+
+    /// <summary>What Change them did: "Changed 14 books from “Fey Court”.", or that nothing needed changing.</summary>
+    public static string LookAlikesChanged(int books, string folder) => books == 0
+        ? "Those books already had these values, so nothing changed."
+        : $"Changed {(books == 1 ? "1 book" : $"{books.ToString("N0", CultureInfo.CurrentCulture)} books")} from “{folder}”.";
+
+    /// <summary>"Notes", or "Notes (3)" when the book has a note of its own or notes on its pages.</summary>
+    public static string NotesLabel(int count) => count > 0 ? $"Notes ({count.ToString(CultureInfo.CurrentCulture)})" : "Notes";
+
+    public static string SplitPackLabel(bool hasPdfs) => hasPdfs ? "Split into separate files" : "Split into separate images";
+
+    public static string SplitPackTip(bool hasPdfs) => hasPdfs
+        ? "Give every file its own card again. Bibliotaph won't pack this folder again."
+        : "Give every image its own card again. Bibliotaph won't pack this folder again.";
+
+    /// <summary>
+    /// A stage that reads the file is waiting or running, as after Reprocess. AI cataloguing isn't part of Reprocess and
+    /// can wait for hours (AI off, a model server down), so it doesn't count; a pack's processing is its files'.
+    /// </summary>
+    public static bool IsReprocessing(LibraryEntry entry, DocumentDetails? details) =>
+        !entry.IsPack && details?.Stages.Any(s => Pipeline.FileStages.Contains(s.Stage) && s.Status is StageStatus.Pending or StageStatus.Running) == true;
 
     /// <summary>"3 of its images are here", for a folder or ZIP holding some of a pack's files.</summary>
     public static string PackFolderState(PackFolder folder, bool hasPdfs) =>
