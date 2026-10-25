@@ -148,15 +148,24 @@ $redirects = foreach ($origin in "https://$Domain", 'https://localhost:5179') {
     "$origin/storage/callback/onedrive"
 }
 if (-not $signIn) {
-    # Personal accounts need v2 tokens, which can only be set once the registration exists.
     $signIn = Json (az ad app create --display-name 'Bibliotaph' --sign-in-audience AzureADMultipleOrgs `
         --web-redirect-uris @redirects --query '{appId:appId, id:id}' -o json)
-    az ad app update --id $signIn.id --set api.requestedAccessTokenVersion=2
-    az ad app update --id $signIn.id --sign-in-audience AzureADandPersonalMicrosoftAccount
 }
 else {
     az ad app update --id $signIn.id --web-redirect-uris @redirects
 }
+# Personal accounts need v2 tokens, which can only be set once the registration exists. A new registration has no api
+# section for az ad app update --set to change, so this goes to Graph, with the body in a file to keep it from cmd.
+function PatchSignIn([hashtable] $change) {
+    $file = New-TemporaryFile
+    $change | ConvertTo-Json -Depth 3 | Set-Content $file
+    az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/applications/$($signIn.id)" --headers 'Content-Type=application/json' `
+        --body "@$file" -o none
+    Remove-Item $file
+}
+$registration = Json (az ad app show --id $signIn.id --query '{version:api.requestedAccessTokenVersion, audience:signInAudience}' -o json)
+if ($registration.version -ne 2) { PatchSignIn @{ api = @{ requestedAccessTokenVersion = 2 } } }
+if ($registration.audience -ne 'AzureADandPersonalMicrosoftAccount') { PatchSignIn @{ signInAudience = 'AzureADandPersonalMicrosoftAccount' } }
 if (-not (SecretExists 'auth-microsoft')) {
     $password = az ad app credential reset --id $signIn.id --append --display-name $Domain --years 2 --query password -o tsv
     az keyvault secret set --vault-name $KeyVault -n auth-microsoft --value $password -o none
