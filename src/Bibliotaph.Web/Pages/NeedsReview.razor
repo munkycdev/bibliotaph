@@ -1,4 +1,346 @@
 @page "/review"
+@implements IDisposable
+@inject ApiClient Api
+@inject LibraryActivity Activity
+@inject IJSRuntime Js
 
-<PageHeading Title="Needs review" />
-<EmptyState Title="Everything in its place." Message="No suggestions need your attention." ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
+@* The Windows app's Needs review: Metadata suggestions and Files needing attention, on two tabs. The suggestions are
+   read when the page opens and stay put while they're worked through, so a decided card can still be undone; when
+   the library's count moves away from what the page shows, a line offers the new list. *@
+<PageHeading Title="A little clarification." TabTitle="Needs review" Subtitle="@ReviewWords.Subtitle(Remaining, FileCount)" />
+
+<div class="bt-toolbar bt-reviewtabs">
+    <div class="bt-tabs" role="tablist" aria-label="Needs review">
+        <button class="bt-tab @(_filesTab ? "" : "active")" role="tab" aria-selected="@(!_filesTab)" @onclick="() => _filesTab = false">@ReviewWords.SuggestionsTab(Remaining)</button>
+        <button class="bt-tab @(_filesTab ? "active" : "")" role="tab" aria-selected="@_filesTab" @onclick="() => _filesTab = true">@ReviewWords.FilesTab(FileCount)</button>
+    </div>
+</div>
+
+@if (!_filesTab)
+{
+    <div class="bt-reviewpage" role="tabpanel" aria-label="Metadata suggestions">
+        @if (_list is null)
+        {
+            <div class="bt-loading">@(_problem ?? "Reading the suggestions…")</div>
+        }
+        else
+        {
+            @if (_show.Count > 2)
+            {
+                <label class="bt-reviewshow">
+                    <span class="bt-small">Show</span>
+                    <select class="bt-select" aria-label="Show" value="@_picked" @onchange="PickShow">
+                        @foreach (var (key, name) in _show)
+                        {
+                            <option value="@key">@ReviewWords.ShowLabel(name, Waiting(key))</option>
+                        }
+                    </select>
+                </label>
+            }
+            @if (HasUpdates)
+            {
+                <div class="bt-banner side">
+                    <span class="bt-bannertext">The suggestions have changed since this list was made.</span>
+                    <button class="bt-link" @onclick="LoadAsync">Show the new list</button>
+                </div>
+            }
+            @if (_bulk is { } bulk)
+            {
+                <div class="bt-banner" role="status">
+                    <span class="bt-bannertext">@bulk.Message</span>
+                    @if (bulk.Undo is not null)
+                    {
+                        <button class="bt-link" @onclick="UndoAllAsync">Undo all</button>
+                    }
+                </div>
+            }
+            @if (Shows("terms"))
+            {
+                @foreach (var term in _list.Terms)
+                {
+                    <ReviewTermCardView @key="term.Id" Card="term" State="StateOf(TermKey(term))" Decided="Decided" />
+                }
+            }
+            @foreach (var card in ShownFields)
+            {
+                <ReviewFieldCardView @key="card.Id" Card="card" State="StateOf(card.Id)" Choices="ChoicesFor(card)" Decided="Decided" AcceptAll="AcceptAllAsync" />
+            }
+            @if (Hidden > 0)
+            {
+                <button class="bt-button bt-reviewmore" @onclick="() => _shown += ReviewWords.PageSize">@ReviewWords.MoreLabel(Hidden)</button>
+            }
+            @if (_list.Terms.Count == 0 && _fields.Count == 0)
+            {
+                <EmptyState Title="Everything in its place." Message="No suggestions need your attention." ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
+            }
+        }
+    </div>
+}
+else
+{
+    <div class="bt-reviewpage" role="tabpanel" aria-label="Files needing attention">
+        @if (_files is null)
+        {
+            <div class="bt-loading">Looking for files that need attention…</div>
+        }
+        else
+        {
+            @if (_files.CanRetryAll)
+            {
+                <div class="bt-retryall">
+                    <span class="bt-small">Gives every file below another go, apart from locked and protected ones, which trying again can't help.</span>
+                    <button class="bt-button" @onclick="() => RetryAsync(_files.Cards.SelectMany(c => c.Files))"><Icon Name="RotateCcw" />Try all again</button>
+                </div>
+            }
+            @foreach (var card in _files.Cards)
+            {
+                var key = AttentionKey(card);
+                var open = _openFiles.Contains(key);
+                <div class="bt-attention">
+                    <Icon Name="TriangleAlert" />
+                    <div class="bt-attentionbody">
+                        <div class="bt-row">@card.Heading</div>
+                        <div class="bt-small">@card.Detail</div>
+                        <div class="bt-attentionlinks">
+                            @if (card.Files.Count > 1)
+                            {
+                                <button class="bt-link" aria-expanded="@open" @onclick="() => Toggle(key)">@ReviewWords.ShowFiles(card.Files.Count, open)</button>
+                            }
+                            @if (card.BugDetails is { } details)
+                            {
+                                <button class="bt-link" title="Copies the version and the error, without file names, to paste into a bug report."
+                                        @onclick="() => CopyAsync(key, details)">@(_copied.Contains(key) ? "Copied" : "Copy details")</button>
+                            }
+                        </div>
+                        @if (open)
+                        {
+                            <ul class="bt-attentionfiles">
+                                @foreach (var file in card.Files)
+                                {
+                                    <li>
+                                        <span class="bt-small">@file.Title</span>
+                                        @if (file.CanRetry)
+                                        {
+                                            <button class="bt-link" aria-label="@($"Try {file.Title} again")" @onclick="() => RetryAsync([file])">Try again</button>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                    @if (card.CanRetry)
+                    {
+                        <button class="bt-button" aria-label="@($"Try {card.Heading} again")" @onclick="() => RetryAsync(card.Files)"><Icon Name="RotateCcw" />Try again</button>
+                    }
+                </div>
+            }
+            @if (_files.Cards.Count == 0)
+            {
+                <EmptyState Title="Everything in its place." Message="Every file could be read." ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
+            }
+        }
+    </div>
+}
+
+<div class="bt-reassure"><Icon Name="ShieldCheck" Size="13" />Your corrections are preserved when books are reindexed.</div>
+
+@code {
+    ReviewSuggestions? _list;
+    string? _problem;
+
+    /// <summary>The field cards loaded, less those Accept all decided before they were shown, which won't be.</summary>
+    List<ReviewFieldCard> _fields = [];
+
+    readonly Dictionary<string, ReviewCardState> _states = [];
+
+    /// <summary>Everything, then the kinds and fields of what was loaded, as the Show menu lists them.</summary>
+    List<(string Key, string Name)> _show = [];
+    string _picked = "";
+
+    /// <summary>How many of the field cards the Show menu picks are on the page; more on request.</summary>
+    int _shown = ReviewWords.PageSize;
+
+    /// <summary>Cards waiting when the page loaded, and what the library counted then, to tell when its suggestions move on.</summary>
+    int _loadedWaiting;
+    int _loadedCount;
+
+    /// <summary>"Accepted 40 suggestions." while that Accept all can be undone in one go.</summary>
+    ActionResult? _bulk;
+
+    ReviewFiles? _files;
+    int _lastAttention = -1;
+    bool _filesTab;
+    readonly HashSet<string> _openFiles = [];
+    readonly HashSet<string> _copied = [];
+
+    int Remaining => _list is null ? 0 : _list.Terms.Count(t => !StateOf(TermKey(t)).IsDone) + _fields.Count(f => !StateOf(f.Id).IsDone);
+
+    int FileCount => _files?.Cards.Sum(c => c.Files.Count) ?? 0;
+
+    bool HasUpdates => _list is not null && Activity.Current is { } status && status.Suggestions != _loadedCount + (Remaining - _loadedWaiting);
+
+    IEnumerable<ReviewFieldCard> Matching => _fields.Where(f => Shows(f.Show));
+
+    IEnumerable<ReviewFieldCard> ShownFields => Matching.Take(_shown);
+
+    int Hidden => Math.Max(0, Matching.Count() - _shown);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Activity.Changed += OnActivity;
+        await Task.WhenAll(LoadAsync(), LoadFilesAsync());
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            var list = await Api.ReviewAsync();
+            _list = list;
+            _fields = [.. list.Fields];
+            _states.Clear();
+            _bulk = null;
+            _show = [("", ReviewWords.Everything), .. list.Show.Select(s => (s.Key, s.Name))];
+            if (_show.All(s => s.Key != _picked)) _picked = "";
+            _shown = ReviewWords.PageSize;
+            _loadedWaiting = list.Terms.Count + list.Fields.Count;
+            _loadedCount = list.Count;
+            _problem = null;
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+    }
+
+    async Task LoadFilesAsync()
+    {
+        try
+        {
+            _files = await Api.AttentionAsync();
+            _lastAttention = Activity.Current?.Attention ?? -1;
+        }
+        catch (ApiProblemException)
+        {
+            _files ??= new ReviewFiles([], false);
+        }
+    }
+
+    /// <summary>The library's status moved on: the files are listed again when their count changed, and the suggestions' line follows.</summary>
+    void OnActivity() => _ = InvokeAsync(async () =>
+    {
+        if (Activity.Current is { } status && status.Attention != _lastAttention) await LoadFilesAsync();
+        StateHasChanged();
+    });
+
+    ReviewCardState StateOf(string key)
+    {
+        if (!_states.TryGetValue(key, out var state)) _states[key] = state = new ReviewCardState();
+        return state;
+    }
+
+    static string TermKey(ReviewTermCard term) => $"term:{term.Id}";
+
+    bool Shows(string kind) => _picked.Length == 0 || _picked == kind;
+
+    int Waiting(string key) => key.Length == 0
+        ? Remaining
+        : key == "terms" ? _list!.Terms.Count(t => !StateOf(TermKey(t)).IsDone) : _fields.Count(f => f.Show == key && !StateOf(f.Id).IsDone);
+
+    IReadOnlyList<string> ChoicesFor(ReviewFieldCard card) => _list!.Choices.GetValueOrDefault(card.FieldKey) ?? [];
+
+    void PickShow(ChangeEventArgs e)
+    {
+        _picked = e.Value as string ?? "";
+        _shown = ReviewWords.PageSize;
+    }
+
+    /// <summary>A card decided or undone: the sidebar's count follows.</summary>
+    void Decided(int change) => Activity.Refresh();
+
+    /// <summary>
+    /// Every waiting card that proposes the same, shown or not. Each shown card can be undone on its own, and the banner
+    /// undoes them all.
+    /// </summary>
+    async Task AcceptAllAsync(ReviewFieldCard card)
+    {
+        var state = StateOf(card.Id);
+        if (state.Busy) return;
+        state.Busy = true;
+        try
+        {
+            var shown = ShownFields.Where(f => f.GroupKey == card.GroupKey && !StateOf(f.Id).IsDone).Select(f => f.Id).ToList();
+            var result = await Api.AcceptAllSuggestionsAsync(new ReviewAcceptAll(card.Id, card.GroupKey, shown));
+            foreach (var done in result.Cards) StateOf(done.Id).MarkDone(new ActionResult(done.Message, done.Undo));
+            // Cards not shown yet are decided, so they won't be shown.
+            var decided = result.Cards.Select(c => c.Id).ToHashSet();
+            var unshown = _fields.Where(f => f.GroupKey == card.GroupKey && !decided.Contains(f.Id) && !StateOf(f.Id).IsDone && !shown.Contains(f.Id)).ToHashSet();
+            _fields = [.. _fields.Where(f => !unshown.Contains(f))];
+            _bulk = new ActionResult(result.Message, result.Undo);
+            Activity.Refresh();
+        }
+        catch (ApiProblemException e)
+        {
+            state.Problem = e.Message;
+        }
+        finally
+        {
+            state.Busy = false;
+        }
+    }
+
+    /// <summary>Undo all lists the cards again, since some of them weren't shown.</summary>
+    async Task UndoAllAsync()
+    {
+        if (_bulk?.Undo is not { } token) return;
+        _bulk = _bulk with { Undo = null };
+        try
+        {
+            var result = await Api.RunHeldAsync(token);
+            await LoadAsync();
+            if (result.Message.Length > 0) _bulk = result;
+        }
+        catch (ApiProblemException e)
+        {
+            _bulk = new ActionResult(e.Message);
+        }
+        Activity.Refresh();
+    }
+
+    async Task RetryAsync(IEnumerable<AttentionFile> files)
+    {
+        var ids = files.Where(f => f.CanRetry).Select(f => f.DocumentId!.Value).Distinct().ToList();
+        if (ids.Count == 0) return;
+        try
+        {
+            _files = await Api.RetryAsync(ids);
+        }
+        catch (ApiProblemException)
+        {
+            await LoadFilesAsync();
+        }
+        Activity.Refresh();
+    }
+
+    /// <summary>A card's files share a reason, so its detail and first file name it while the list is made again.</summary>
+    static string AttentionKey(AttentionCard card) => $"{card.Detail}\n{card.Files[0].Title}";
+
+    void Toggle(string key)
+    {
+        if (!_openFiles.Remove(key)) _openFiles.Add(key);
+    }
+
+    async Task CopyAsync(string key, string details)
+    {
+        try
+        {
+            if (await Js.InvokeAsync<bool>("bibliotaphCopy", details)) _copied.Add(key);
+        }
+        catch (JSException)
+        {
+            // The browser has no clipboard to give; the link stays as it was.
+        }
+    }
+
+    public void Dispose() => Activity.Changed -= OnActivity;
+}

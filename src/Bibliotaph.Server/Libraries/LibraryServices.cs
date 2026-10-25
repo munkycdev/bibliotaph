@@ -134,6 +134,15 @@ public static class LibraryServices
             sp.GetRequiredService<IStageCatalog>(), sp.GetRequiredService<IndexingFiles>(), sp.GetRequiredService<PackService>(),
             sp.GetRequiredService<PartsService>(), sp.GetRequiredService<FolderCollections>(), sp.GetRequiredService<IndexingOptions>(),
             sp.GetRequiredService<ILogger<IndexingService>>(), host.Clock, sp.GetRequiredService<DriveChangeFeed>()));
+        services.AddSingleton<IJobControl>(sp => sp.GetRequiredService<IndexingService>());
+        services.AddSingleton<IIndexingStatus>(sp => sp.GetRequiredService<IndexingService>());
+
+        // Needs review: its cards come from these, and each decision goes through them, as in the Windows app.
+        services.AddSingleton<ElsewhereService>();
+        services.AddSingleton<CollectionSuggestions>();
+        services.AddSingleton<VocabularyService>();
+        services.AddSingleton<ReviewCards>();
+        services.AddSingleton<ReviewService>();
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }

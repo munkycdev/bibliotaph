@@ -1,0 +1,207 @@
+@* .bt-reviewitem: one field of one book, as the Windows app's field card: what it shows now, what it suggests and the
+   evidence, with Accept, Accept all, Edit and Reject. Decided, it folds to one line with Undo. *@
+@implements IDisposable
+@inject ApiClient Api
+
+<article class="bt-reviewitem" aria-label="@($"{Card.FieldLabel} for {Card.Title}")">
+    @if (State.IsDone)
+    {
+        <div class="bt-reviewdonetitle">@Card.Title</div>
+        <div class="bt-decided">
+            <Icon Name="Check" Size="14" />
+            <span>@State.Done</span>
+            @if (State.Undo is not null)
+            {
+                <button class="bt-link" disabled="@State.Busy" @onclick="UndoAsync">Undo</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bt-reviewtitle">
+            <a class="bt-reviewbook" href="@($"library?book={Card.Book}")" title="Open the book" aria-label="@($"Open {Card.Title}")">@Card.Title</a>
+            <span class="bt-chip">@Card.FieldLabel</span>
+        </div>
+        <div class="bt-small bt-reviewreason">@Card.Reason</div>
+        <div class="bt-reviewcompare">
+            <div>
+                <small>@Card.CurrentLabel</small>
+                <span>@Card.CurrentText</span>
+                @if (Card.CurrentSource.Length > 0)
+                {
+                    <small class="bt-reviewsource">@Card.CurrentSource</small>
+                }
+            </div>
+            @if (Card.CanAccept)
+            {
+                <span class="bt-reviewarrow"><Icon Name="ArrowRight" Size="15" /></span>
+                <div class="bt-suggested">
+                    <small>@Card.SuggestedLabel</small>
+                    <span>@Card.SuggestedText</span>
+                </div>
+            }
+        </div>
+        @if (Card.Evidence.Length > 0)
+        {
+            <div class="bt-reviewevidence"><Icon Name="TextSearch" Size="13" /><span>@Card.Evidence <strong>@Card.PageText</strong></span></div>
+        }
+        @if (_editing)
+        {
+            <div class="bt-reviewedit">
+                <label class="bt-fieldlabel" for="@InputId">Your value</label>
+                <input id="@InputId" class="bt-input" value="@_text" aria-label="@($"{Card.FieldLabel}, your value")" @oninput="TypedAsync" @onkeydown="KeyAsync" />
+                @if (Card.EditHint.Length > 0)
+                {
+                    <div class="bt-small bt-edithint">@Card.EditHint</div>
+                }
+                @if (_resolution is { Length: > 0 } resolution)
+                {
+                    <div class="bt-resolution">@resolution</div>
+                }
+                @if (Choices.Count > 0)
+                {
+                    <select @key="_picks" class="bt-select bt-reviewpick" aria-label="Pick from the list" value="" @onchange="PickAsync">
+                        <option value="">Pick from the list</option>
+                        @foreach (var choice in Choices)
+                        {
+                            <option value="@choice">@choice</option>
+                        }
+                    </select>
+                }
+                @if (State.Problem is { } problem)
+                {
+                    <div class="bt-problem" role="alert">@problem</div>
+                }
+                <div class="bt-inline">
+                    <button class="bt-button primary" disabled="@State.Busy" @onclick="SaveAsync"><Icon Name="Check" />Save</button>
+                    <button class="bt-button" @onclick="Cancel">Cancel</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            @if (State.Problem is { } problem)
+            {
+                <div class="bt-problem" role="alert">@problem</div>
+            }
+            <div class="bt-inline">
+                @if (Card.CanAccept)
+                {
+                    <button class="bt-button primary" disabled="@State.Busy" aria-label="@($"Accept {Card.SuggestedText}")" @onclick="AcceptAsync"><Icon Name="Check" />Accept</button>
+                }
+                @if (Card.CanAcceptAll)
+                {
+                    <button class="bt-button" disabled="@State.Busy" title="@Card.AcceptAllHint" @onclick="() => AcceptAll.InvokeAsync(Card)">@Card.AcceptAllLabel</button>
+                }
+                <button class="bt-button" @onclick="Edit"><Icon Name="Pencil" />@Card.EditLabel</button>
+                @if (Card.CanReject)
+                {
+                    <button class="bt-button" disabled="@State.Busy" title="@Card.RejectHint" @onclick="RejectAsync">@Card.RejectLabel</button>
+                }
+            </div>
+        }
+    }
+</article>
+
+@code {
+    bool _editing;
+    string _text = "";
+    string? _resolution;
+    CancellationTokenSource? _resolving;
+
+    /// <summary>Picks made, so the list is drawn afresh after each and reads "Pick from the list" again, as on Windows.</summary>
+    int _picks;
+
+    [Parameter, EditorRequired] public ReviewFieldCard Card { get; set; } = default!;
+
+    [Parameter, EditorRequired] public ReviewCardState State { get; set; } = default!;
+
+    /// <summary>The field's vocabulary to pick from, when it has one.</summary>
+    [Parameter] public IReadOnlyList<string> Choices { get; set; } = [];
+
+    /// <summary>Raised with -1 when the card is decided and +1 when that's undone, so the page counts what's waiting.</summary>
+    [Parameter] public EventCallback<int> Decided { get; set; }
+
+    /// <summary>Accept all is the page's, since it decides cards beyond this one.</summary>
+    [Parameter] public EventCallback<ReviewFieldCard> AcceptAll { get; set; }
+
+    string InputId => $"review-{Card.Id.Replace(':', '-')}";
+
+    ReviewFieldDecision Decision => new(Card.Id, Card.GroupKey);
+
+    Task AcceptAsync() => DecideAsync(() => Api.AcceptSuggestionAsync(Decision));
+
+    Task RejectAsync() => DecideAsync(() => Api.RejectSuggestionAsync(Decision));
+
+    Task<bool> DecideAsync(Func<Task<ActionResult>> decide) => State.DecideAsync(decide, Decided.InvokeAsync);
+
+    async Task SaveAsync()
+    {
+        if (await DecideAsync(() => Api.EditSuggestionAsync(new ReviewFieldEdit(Card.Id, Card.GroupKey, _text)))) _editing = false;
+    }
+
+    void Edit()
+    {
+        State.Problem = null;
+        _text = Card.EditStart;
+        _resolution = null;
+        _editing = true;
+    }
+
+    void Cancel()
+    {
+        _editing = false;
+        State.Problem = null;
+    }
+
+    async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveAsync();
+        else if (e.Key == "Escape") Cancel();
+    }
+
+    Task TypedAsync(ChangeEventArgs e)
+    {
+        _text = e.Value as string ?? "";
+        return ResolveAsync();
+    }
+
+    Task PickAsync(ChangeEventArgs e)
+    {
+        if (e.Value is not string { Length: > 0 } value) return Task.CompletedTask;
+        _picks++;
+        if (!Card.Multiple) _text = value;
+        else
+        {
+            var current = _text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (!current.Contains(value, StringComparer.CurrentCultureIgnoreCase)) _text = string.Join(", ", current.Append(value));
+        }
+        return ResolveAsync();
+    }
+
+    /// <summary>How a term field will file what's typed, asked once typing pauses, as the Windows editor shows it.</summary>
+    async Task ResolveAsync()
+    {
+        _resolving?.Cancel();
+        if (Choices.Count == 0) return;
+        var resolving = _resolving = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, resolving.Token);
+            var text = await Api.ResolutionAsync(Card.FieldKey, _text, resolving.Token);
+            if (resolving != _resolving || !_editing) return;
+            _resolution = text;
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ApiProblemException)
+        {
+        }
+    }
+
+    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+
+    public void Dispose() => _resolving?.Cancel();
+}

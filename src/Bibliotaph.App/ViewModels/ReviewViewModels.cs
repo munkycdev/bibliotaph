@@ -122,48 +122,39 @@ public abstract partial class OfferCardViewModel(IReviewActions actions) : Decid
 public sealed partial class ReviewCardViewModel : DecidedCardViewModel
 {
     readonly Vocabulary _vocabulary;
+    readonly FieldCardText _text;
 
     public ReviewCardViewModel(ReviewItem item, Vocabulary vocabulary, IReviewActions actions) : base(actions)
     {
         Item = item;
         _vocabulary = vocabulary;
-        var issue = item.Issue;
-        CurrentText = Describe(issue.Current, "Not set");
-        SuggestedText = Describe(issue.Suggested, "");
-        ProposedText = Describe(issue.Proposed, "");
-        Evidence = issue.Kind == ReviewKind.CopiesDisagree ? "You set this on the other copy's card before the two were joined."
-            : issue.Evidence is { } claim ? MetadataValueViewModel.Describe(claim, pages: false) + "." : "";
-        // Sources that disagree: where the value showing now came from, too.
-        CurrentSource = issue.Kind == ReviewKind.Conflict && issue.Current.Count > 0 ? MetadataValueViewModel.Describe(issue.Current[0].Source) + "." : "";
-        PageText = issue.Evidence is { Pages.Count: > 0 } withPages
-            ? (withPages.Pages.Count == 1 ? "Page " : "Pages ") + string.Join(", ", withPages.Pages.Select(p => (p + 1).ToString(CultureInfo.CurrentCulture))) + "."
-            : "";
-        Choices = MetadataFieldViewModel.ChoicesFor(issue.Field, vocabulary);
-        EditText = issue.Kind == ReviewKind.MissingTitle ? "" : SuggestedText;
+        _text = new FieldCardText(item, vocabulary);
+        CurrentText = _text.CurrentText;
+        SuggestedText = _text.SuggestedText;
+        ProposedText = _text.ProposedText;
+        Evidence = _text.Evidence;
+        CurrentSource = _text.CurrentSource;
+        PageText = _text.PageText;
+        Choices = _text.Choices;
+        EditText = _text.EditStart;
     }
 
     public ReviewItem Item { get; }
 
     public string Title => Item.Title;
 
-    public string FieldLabel => Item.Issue.Field.Label;
+    public string FieldLabel => _text.FieldLabel;
 
     public ReviewKind Kind => Item.Issue.Kind;
 
     /// <summary>Why the card is here, in a line.</summary>
-    public string Reason => Kind switch
-    {
-        ReviewKind.Conflict => "Sources disagree.",
-        ReviewKind.CopiesDisagree => "You set different values on two copies of this book.",
-        ReviewKind.MissingTitle => "This looks like a file's name rather than the book's title.",
-        _ => "Suggested; nobody has confirmed it.",
-    };
+    public string Reason => _text.Reason;
 
     public string CurrentText { get; }
 
-    public string CurrentLabel => Kind == ReviewKind.CopiesDisagree ? "This card" : "Current";
+    public string CurrentLabel => _text.CurrentLabel;
 
-    public string SuggestedLabel => Kind == ReviewKind.CopiesDisagree ? "The other copy" : "Suggested";
+    public string SuggestedLabel => _text.SuggestedLabel;
 
     /// <summary>For a conflict, where the current value came from; empty otherwise.</summary>
     public string CurrentSource { get; }
@@ -181,45 +172,27 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
 
     public bool HasEvidence => Evidence.Length > 0;
 
-    public bool CanAccept => Item.Issue.CanAccept;
+    public bool CanAccept => _text.CanAccept;
 
-    public bool CanAcceptAll => CanAccept && Item.GroupSize > 1;
+    public bool CanAcceptAll => _text.CanAcceptAll;
 
-    public string AcceptAllLabel => $"Accept all {Item.GroupSize:N0}";
+    public string AcceptAllLabel => _text.AcceptAllLabel;
 
-    public string AcceptAllHint => $"Accept every card that suggests {ProposedText} for {FieldLabel}";
+    public string AcceptAllHint => _text.AcceptAllHint;
 
-    /// <summary>Reject keeps what the field shows; a missing title has nothing to turn down, so it just keeps it.</summary>
-    public bool CanReject => Kind != ReviewKind.MissingTitle || Item.Issue.Current.Count > 0;
+    public bool CanReject => _text.CanReject;
 
-    public string RejectLabel => Kind switch
-    {
-        ReviewKind.MissingTitle => "Keep as is",
-        ReviewKind.CopiesDisagree => "Keep this card's",
-        _ => "Reject",
-    };
+    public string RejectLabel => _text.RejectLabel;
 
-    public string RejectHint => Kind switch
-    {
-        ReviewKind.MissingTitle => "Keep this title; it won't be asked about again",
-        ReviewKind.Conflict or ReviewKind.CopiesDisagree => $"Keep {CurrentText}; {ProposedText} won't be suggested again",
-        _ => $"{ProposedText} won't be suggested again",
-    };
+    public string RejectHint => _text.RejectHint;
 
-    public string EditLabel => Kind == ReviewKind.MissingTitle ? "Type a title" : "Edit";
+    public string EditLabel => _text.EditLabel;
 
     public IReadOnlyList<string> Choices { get; }
 
     public bool UsesChoices => Choices.Count > 0;
 
-    public string EditHint => Item.Issue.Field.Kind switch
-    {
-        FieldKind.Levels => "3, 1-5 or n/a",
-        FieldKind.Players => "4 or 3-5",
-        FieldKind.Year => "2019",
-        _ when Item.Issue.Field.Multiple => "Separate values with commas",
-        _ => "",
-    };
+    public string EditHint => _text.EditHint;
 
     [ObservableProperty]
     public partial bool IsEditing { get; set; }
@@ -250,22 +223,14 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
         PickedChoice = null;
     }
 
-    string Describe(IReadOnlyList<EffectiveValue> values, string none) =>
-        values.Count == 0 ? none : string.Join(", ", values.Select(v => MetadataValueViewModel.Display(Item.Issue.Field, v.Value, _vocabulary)));
-
     [RelayCommand]
-    Task Accept() => DecideAsync(() => Actions.AcceptAsync(Item), $"{FieldLabel} is now {SuggestedText}.");
+    Task Accept() => DecideAsync(() => Actions.AcceptAsync(Item), _text.Accepted);
 
     [RelayCommand]
     Task AcceptAll() => RunAsync(() => Actions.AcceptAllAsync(Item));
 
     [RelayCommand]
-    Task Reject() => DecideAsync(() => Actions.RejectAsync(Item), Kind switch
-    {
-        ReviewKind.MissingTitle => "Kept the title.",
-        ReviewKind.Conflict or ReviewKind.CopiesDisagree => $"Kept {CurrentText}.",
-        _ => $"Rejected {ProposedText}.",
-    });
+    Task Reject() => DecideAsync(() => Actions.RejectAsync(Item), _text.Rejected);
 
     [RelayCommand]
     void Edit()
@@ -289,7 +254,7 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
         Problem = problem;
         if (undo is null) return;
         IsEditing = false;
-        MarkDone(MetadataValues.Split(Item.Issue.Field, typed).Count == 0 ? $"{FieldLabel} cleared." : $"{FieldLabel} is now {MetadataText.Tidy(typed)}.", undo);
+        MarkDone(ReviewText.Edited(Item, typed), undo);
     });
 
     [RelayCommand]
@@ -308,24 +273,22 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
     public TermCardViewModel(PendingTerm term, Vocabulary vocabulary, IReviewActions actions) : base(actions)
     {
         Term = term;
-        Targets = [.. vocabulary.InVocabulary(term.Term.Vocabulary).OrderBy(t => t.Label, StringComparer.CurrentCultureIgnoreCase)];
+        Targets = ReviewText.TermTargets(term, vocabulary);
     }
 
     public PendingTerm Term { get; }
 
-    public string Label => Term.Term.Label;
+    public string Label => ReviewText.Term(Term);
 
-    string Noun => Term.Field.Label.ToLower(CultureInfo.CurrentCulture);
+    public string Chip => ReviewText.TermChip(Term);
 
-    public string Chip => $"New {Noun}";
+    public string Detail => ReviewText.TermDetail(Term);
 
-    public string Detail => Term.Documents == 1 ? "Suggested for one book." : $"Suggested for {Term.Documents:N0} books.";
-
-    public string Example => Term.Example is { } quote ? $"“{quote}”" : "";
+    public string Example => ReviewText.TermExample(Term) ?? "";
 
     public bool HasExample => Term.Example is not null;
 
-    public string AddLabel => $"Add as a new {Noun}";
+    public string AddLabel => ReviewText.TermAdd(Term);
 
     /// <summary>The terms this one can be filed under: same vocabulary, by label.</summary>
     public IReadOnlyList<Term> Targets { get; }
@@ -335,15 +298,15 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
     public partial Term? Target { get; set; }
 
     [RelayCommand]
-    Task Add() => DecideAsync(() => Actions.AddTermAsync(Term), $"Added {Label} as a new {Noun}.");
+    Task Add() => DecideAsync(() => Actions.AddTermAsync(Term), ReviewText.TermAdded(Term));
 
     [RelayCommand(CanExecute = nameof(CanMap))]
-    Task Map() => Target is { } target ? DecideAsync(() => Actions.MapTermAsync(Term, target), $"Filed {Label} under {target.Label}.") : Task.CompletedTask;
+    Task Map() => Target is { } target ? DecideAsync(() => Actions.MapTermAsync(Term, target), ReviewText.TermFiled(Term, target.Label)) : Task.CompletedTask;
 
     bool CanMap() => Target is not null;
 
     [RelayCommand]
-    Task Reject() => DecideAsync(() => Actions.RejectTermAsync(Term), $"Rejected {Label}.");
+    Task Reject() => DecideAsync(() => Actions.RejectTermAsync(Term), ReviewText.TermRejected(Term));
 }
 
 /// <summary>

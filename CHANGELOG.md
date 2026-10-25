@@ -42,6 +42,11 @@
   Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
 - **Add to binder on the web.** A book's details, the Select bar and a matching page's + add to a binder, the one you
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
+- **Needs review on the web.** bibliotaph.online's Needs review has the Windows page's two tabs and its sidebar count.
+  Field suggestions can be accepted, accepted for every book suggesting the same, edited or rejected, and new terms
+  added, filed under another or rejected, each with Undo; Show narrows the list. Files needing attention can be tried
+  again, and a fault's details copied for a bug report. The other kinds of card follow. See
+  [Needs review](docs/guide/web.md#needs-review).
 
 ## 1.3 · 19 October 2026
 

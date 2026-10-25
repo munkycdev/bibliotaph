@@ -39,6 +39,7 @@ public static class ApiEndpoints
         api.MapPinsApi();
         api.MapSelectionApi();
         api.MapBindersApi();
+        api.MapReviewApi();
 
         var invites = api.MapGroup("/invites").RequireAuthorization(AuthSetup.AdminPolicy);
 

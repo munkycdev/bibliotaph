@@ -214,6 +214,34 @@ you type, and **Add to a new binder…**, which makes one first. While searching
 **Pages** tab adds that page to the binder you worked on last. Each says what it added, with **Undo**. Opening a
 binder's items in a reader comes next.
 
+### Needs review
+
+**Needs review** in the sidebar has a count of what's waiting, as in the Windows app, and its page, *A little
+clarification.*, has the same two tabs.
+
+**Metadata suggestions** lists new terms first, then a card for each field of each book that needs a second look:
+sources that disagree, a title that looks like a file's name, or, with **All suggestions** chosen in the Windows app's
+settings, every value nobody has confirmed. A card shows what the book has now, the suggestion and where it came
+from, with:
+
+- **Accept**, which makes the suggestion the book's value, and **Accept all**, which accepts every card that suggests
+  the same for the same field, shown or not. A line above the cards says how many, with **Undo all**.
+- **Edit** (or **Type a title**), to type the value yourself, with the field's list to pick from and a line saying
+  how what you type will be filed. Enter saves; Esc cancels.
+- **Reject** (or **Keep as is**), which keeps what the book has. A rejected value is never suggested again.
+
+A new term card offers **Add as a new** term, **Reject**, or a term the vocabulary has to **File under it**. Each
+decided card folds to a line saying what happened, with **Undo**, until the page is opened again. **Show** narrows
+the list to new terms or to one field's suggestions, with how many of each are waiting; 60 cards show at a time, with
+**Show more** for the rest. The book's title opens its details in the Library. When the library's suggestions change
+while you work, a line offers **Show the new list**. The other kinds of card (new versions, packs, books owned
+elsewhere, places to check, corrections, adventures, folder rules and collections) come next.
+
+**Files needing attention** lists the files that couldn't be read, grouped by reason. **Try again** gives a file, or
+every file on a card, another go, and **Try all again** does it for all of them apart from locked and protected
+files. A card for a fault in Bibliotaph has **Copy details**, which copies the version and the error, without file
+names, to paste into a bug report. Opening a locked file to unlock it comes with the reader.
+
 ## Your theme
 
 The button at the top right cycles between your device's theme, light and dark, as in the Windows app. The browser

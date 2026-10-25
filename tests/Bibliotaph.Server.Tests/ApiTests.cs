@@ -3,6 +3,9 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Bibliotaph.Api.Contracts;
+using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
@@ -597,6 +600,95 @@ public sealed class ApiTests : IDisposable
         {
             using var request = new HttpRequestMessage(method, url) { Content = body is null ? null : JsonContent.Create(body) };
             using var response = await client.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
+    public async Task Needs_review_lists_and_decides_field_and_term_cards_with_undo_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+
+        // Two sources that disagree about the system on both books, and a type the vocabulary doesn't know yet.
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var library = lease.Library;
+            var metadata = library.Get<MetadataStore>();
+            var (heist, _) = await library.Get<VocabularyStore>().ProposeTermAsync("type", "Heist Kit", ct);
+            foreach (var book in books)
+            {
+                var entry = new EntryId(book.EntryId);
+                await metadata.ReplaceHintsAsync(entry, null, [new(MetadataFields.System, "dnd", AssertionOrigin.Embedded)], ct);
+                await metadata.AddSuggestionsAsync(entry, null,
+                [
+                    new(MetadataFields.System, "pathfinder", AssertionOrigin.Ai, "for Pathfinder"),
+                    new(MetadataFields.Types, heist.Key, AssertionOrigin.Ai, "a heist kit"),
+                ], ct);
+            }
+            await library.Get<MetadataProjector>().ProjectAllAsync(ct);
+        }
+
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var status = (await client.GetFromJsonAsync<LibraryStatus>("/api/library/status", ct))!;
+        var first = list.Fields.First(f => f.FieldKey == "system");
+        var title = list.Fields.First(f => f.FieldKey == "title");
+        var term = Assert.Single(list.Terms);
+
+        // A card whose suggestion changed since the page showed it is refused rather than decided.
+        using var stale = await client.PostAsJsonAsync("/api/review/fields/accept", new ReviewFieldDecision(first.Id, "system|Conflict|pathfinder"), ct);
+        var accepted = await PostAsync<ActionResult>("/api/review/fields/accept", new ReviewFieldDecision(first.Id, first.GroupKey));
+        var afterAccept = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{accepted.Undo}", null);
+        var all = await PostAsync<ReviewAcceptedAll>("/api/review/fields/accept-all", new ReviewAcceptAll(first.Id, first.GroupKey, [first.Id]));
+        var afterAll = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{all.Undo}", null);
+        var rejected = await PostAsync<ActionResult>("/api/review/fields/reject", new ReviewFieldDecision(first.Id, first.GroupKey));
+        var edited = await PostAsync<ActionResult>("/api/review/fields/edit", new ReviewFieldEdit(title.Id, title.GroupKey, "Harbor  map"));
+        var filed = await PostAsync<ActionResult>($"/api/review/terms/{term.Id}/map", new ReviewTermMap("map-pack"));
+        var afterDecisions = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{filed.Undo}", null);
+        var added = await PostAsync<ActionResult>($"/api/review/terms/{term.Id}/add", null);
+        var files = (await client.GetFromJsonAsync<ReviewFiles>("/api/review/files", ct))!;
+
+        Assert.Equal(["terms", "field:system", "field:title"], list.Show.Select(s => s.Key));
+        Assert.Equal((5, 5), (list.Count, status.Suggestions));
+        Assert.Equal(("Sources disagree.", "Pathfinder", "Dungeons & Dragons", "Accept all 2"),
+            (first.Reason, first.CurrentText, first.SuggestedText, first.AcceptAllLabel));
+        Assert.Equal("From the PDF's own information.", first.Evidence);
+        Assert.Contains("Pathfinder", list.Choices["system"]);
+        Assert.False(list.Choices.ContainsKey("title"));
+        Assert.Equal(("Type a title", "Keep as is", false), (title.EditLabel, title.RejectLabel, title.CanAccept));
+        Assert.Equal(("Heist Kit", "New type", "Suggested for 2 books.", "“a heist kit”"), (term.Label, term.Chip, term.Detail, term.Example));
+        Assert.Contains(term.Targets, t => t.Key == "map-pack");
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal("Game system is now Dungeons & Dragons.", accepted.Message);
+        Assert.DoesNotContain(afterAccept.Fields, f => f.Id == first.Id);
+        Assert.Equal(("Accepted 2 suggestions.", 2), (all.Message, all.Count));
+        Assert.Equal([first.Id], all.Cards.Select(c => c.Id));
+        Assert.NotNull(all.Cards[0].Undo);
+        Assert.DoesNotContain(afterAll.Fields, f => f.FieldKey == "system");
+        Assert.Equal("Kept Pathfinder.", rejected.Message);
+        Assert.Equal("Title is now Harbor map.", edited.Message);
+        Assert.Equal("Filed Heist Kit under Map pack.", filed.Message);
+        Assert.Empty(afterDecisions.Terms);
+        Assert.Equal([list.Fields.First(f => f.FieldKey == "system" && f.Id != first.Id).Id, list.Fields.Last(f => f.FieldKey == "title").Id],
+            afterDecisions.Fields.Select(f => f.Id));
+        Assert.Equal("Added Heist Kit as a new type.", added.Message);
+        Assert.Equal((false, 0), (files.CanRetryAll, files.Cards.Count));
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
             response.EnsureSuccessStatusCode();
             return (await response.Content.ReadFromJsonAsync<T>(ct))!;
         }

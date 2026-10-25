@@ -24,7 +24,10 @@ else
                 @foreach (var item in Items)
                 {
                     var active = item.Href == ActiveHref;
-                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)"><Icon Name="@item.Icon" />@item.Label</a>
+                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)"><Icon Name="@item.Icon" />@item.Label@if (CountOf(item.Href) is { } count)
+                    {
+                        <span class="bt-count" aria-label="@($"{count} to review")">@count</span>
+                    }</a>
                 }
             </nav>
             @* Books, Favorites, collections, binders and saved searches, in order. A pin is dragged to a new place, or moved
@@ -103,6 +106,10 @@ else
         ("binders", "Binders", "NotebookTabs"),
         ("review", "Needs review", "Inbox"),
     ];
+
+    /// <summary>What Needs review holds, beside its name as on Windows; nothing when it's empty.</summary>
+    string? CountOf(string href) =>
+        href == "review" && Activity.Current is { Review: > 0 } status ? status.Review.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) : null;
 
     static readonly TimeSpan SearchPause = TimeSpan.FromMilliseconds(300);
 

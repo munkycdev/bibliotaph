@@ -139,7 +139,9 @@ public static class StorageApi
             : unhashed > 0 ? $"Reading {unhashed:N0} new {FolderText.Plural(unhashed, "file", "files")}"
             : counts.Documents == 0 ? "Nothing to process"
             : $"Up to date · {counts.Documents:N0} {FolderText.Plural(counts.Documents, "item", "items")}";
-        return new LibraryStatus(text, await library.IsBusyAsync(ct), counts.Documents, folders);
+        var suggestions = await library.Get<ReviewService>().CountAsync(ct);
+        var attention = (await library.Get<IndexQueries>().GetProgressAsync(ct)).NeedAttention + indexing.Unreadable.Count + counts.Problems;
+        return new LibraryStatus(text, await library.IsBusyAsync(ct), counts.Documents, folders, (int)suggestions, (int)attention);
     }
 }
 
