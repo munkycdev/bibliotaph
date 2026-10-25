@@ -21,6 +21,8 @@ public static class DrivePath
     public static bool TryParse(string path, out string driveId, out string pathInDrive)
     {
         driveId = pathInDrive = "";
+        // Path.Combine joins with a backslash on Windows; OneDrive allows none in a name, so it can only be a separator.
+        path = path.Replace('\\', '/');
         if (!path.StartsWith(Prefix, StringComparison.Ordinal)) return false;
         var rest = path[Prefix.Length..];
         var slash = rest.IndexOf('/', StringComparison.Ordinal);

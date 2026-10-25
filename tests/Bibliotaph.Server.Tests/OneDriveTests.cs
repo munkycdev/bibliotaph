@@ -43,6 +43,13 @@ public sealed class OneDriveTests : IDisposable
     }
 
     [Fact]
+    public void A_drive_path_joined_with_backslashes_reads_the_same()
+    {
+        Assert.True(DrivePath.TryParse(@"/onedrive/drive1/RPG\Adventures\one.pdf", out var drive, out var inner));
+        Assert.Equal(("drive1", "RPG/Adventures/one.pdf"), (drive, inner));
+    }
+
+    [Fact]
     public void A_local_path_isnt_a_drive_path() => Assert.False(DrivePath.TryParse("/data/books", out _, out _));
 
     [Fact]

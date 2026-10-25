@@ -57,8 +57,8 @@ public static class LibraryServices
         services.AddSingleton<IImageCodec, NoImageCodec>();
         services.AddSingleton<IPasswordStore, NoPasswords>();
         services.AddSingleton<IDiskSpace, DiskSpace>();
-        services.AddSingleton<IFileIdentity, FileIdentity>();
-        services.AddSingleton<ICloudFiles, CloudFiles>();
+        services.AddSingleton<IFileIdentity, NoFileIdentity>();
+        services.AddSingleton<ICloudFiles, NoCloudFiles>();
 
         // The stores and services indexing reaches, as the Windows app registers them.
         services.AddSingleton<LibraryStore>();
@@ -114,6 +114,22 @@ sealed class NoPdfEngine : IPdfEngine
 {
     public Task<PdfResult<IPdfDocument>> OpenAsync(string path, string? password, CancellationToken ct) =>
         Task.FromResult(new PdfResult<IPdfDocument>(null, ErrorKind.Internal, "PDFs aren't read on the server."));
+}
+
+/// <summary>A drive's files have no disk or file ID: moves are recognised by content, as on any disk without IDs.</summary>
+sealed class NoFileIdentity : IFileIdentity
+{
+    public VolumeIdentity? Volume(string folder) => null;
+
+    public string? FileId(string path) => null;
+}
+
+/// <summary>Nothing on the server is a Windows cloud file: a book is downloaded only while it's read, then deleted.</summary>
+sealed class NoCloudFiles : ICloudFiles
+{
+    public CloudFileState StateOf(string path) => CloudFileState.Unknown;
+
+    public void ReturnToOnlineOnly(string path) => throw new IOException("There are no cloud files on the server.");
 }
 
 /// <summary>The server has no image codec yet; nothing that makes covers or thumbnails runs there.</summary>
