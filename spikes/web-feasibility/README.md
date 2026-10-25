@@ -17,6 +17,7 @@ No real book, title or path is used or committed.
 | `src/Spike.Native` | The same workload on desktop .NET, as the baseline. |
 | `src/Spike.Corpus` | Writes the test PDFs: 40 and 300 text pages, and 120 pages with a large image on each. |
 | `bench/` | PDF.js and hash-wasm in a plain page: SHA-256, text extraction, first render, and the OPFS book cache (`cache.js`). |
+| `onedrive/` | Sign-in with MSAL.js and the Graph calls a web Bibliotaph would make against a real OneDrive (see OneDrive below). |
 | `tools/` | A Range-capable static server and the Playwright drivers that produced `results/`. |
 
 ## Running it (PowerShell)
@@ -128,9 +129,45 @@ Raw numbers are in `results/`: `index-*.json` for the index (`opfs-uncached` is 
 `pdf.json` with 30 ms of latency and no bandwidth limit, `pdf-50mbps-stock.json` and `pdf-50mbps-patched.json` at 50 Mbps, and
 `hash-dotnet.json`.
 
+## OneDrive
+
+`onedrive/` is a page that signs in with MSAL.js (no server) and measures against a real drive:
+
+- listing a library folder by walking its children and by delta,
+- polling the delta for changes, as a folder watcher would,
+- range reads from Graph download links, including whether CORS lets the page read them,
+- PDF.js opening books through those reads,
+- downloading a whole book to hash it,
+- writing to the app's own folder (`Files.ReadWrite.AppFolder`), so Bibliotaph's files never go among the user's,
+- refreshing the token silently.
+
+Its results hold counts, sizes and timings, never names. Its only write is a test file in the app folder, which it
+deletes again.
+
+It needs an app registration. In the [Entra admin center](https://entra.microsoft.com), open App registrations, then
+New registration:
+
+- Name: `Bibliotaph (dev)`.
+- Supported account types: any organizational directory and personal Microsoft accounts.
+- Redirect URI: platform Single-page application, `http://localhost:5178/auth.html`.
+
+Copy the Application (client) ID. It identifies the app and isn't a secret, because a single-page app has none. User.Read, Files.Read and Files.ReadWrite.AppFolder are delegated
+permissions the user consents to at sign-in, so nothing needs adding under API permissions. If the tenant doesn't
+let users consent to apps, grant admin consent there for those three.
+
+```powershell
+Push-Location onedrive; npm ci; Pop-Location
+node tools/patch-pdfjs.mjs onedrive
+Push-Location onedrive; node ../tools/serve.mjs . 5178
+```
+
+Open http://localhost:5178/ in Edge, paste the client ID, sign in, enter the library folder's path under the drive
+(for example `eBooks/Some folder`), and press Run all. Check for changes measures the watcher: add or rename a file
+in the folder, wait for OneDrive to sync it, then press it.
+
 ## Still open
 
 - Dave's real index.db and books, on his PC.
-- OneDrive sign-in with MSAL.js and range reads from Graph download URLs (needs an app registration).
+- Results from `onedrive/` against Dave's drive.
 - Several tabs at once (Web Locks around the single worker that owns the databases).
 - Safari and Firefox: OPFS synchronous access handles exist in both, but nothing here was run on them.
