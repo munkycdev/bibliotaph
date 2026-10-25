@@ -50,3 +50,37 @@ public sealed record BinderNotes(string? Notes);
 
 /// <summary>A binder made or copied: where it opens.</summary>
 public sealed record BinderCreated(long Id);
+
+/// <summary>A binder in the picker.</summary>
+public sealed record BinderChoice(long Id, string Title);
+
+public enum BinderMenuKind
+{
+    /// <summary>"Add to Harbor night": the binder worked on last.</summary>
+    Binder,
+
+    /// <summary>"Add to another binder…": picks one first.</summary>
+    Choose,
+
+    /// <summary>"Add to a new binder…": names one first.</summary>
+    New,
+}
+
+public sealed record BinderMenuChoice(BinderMenuKind Kind, long? Id, string Label);
+
+/// <summary>
+/// Add to binder's menu, as the Windows app's: the binder worked on last, then another (with every binder for the
+/// picker) and a new one (with the game systems for its dialog); and the words of those dialogs.
+/// </summary>
+public sealed record BinderMenu(IReadOnlyList<BinderMenuChoice> Choices, IReadOnlyList<BinderChoice> All, IReadOnlyList<FilterChoice> Systems,
+    string NewHeading, string NewAction)
+{
+    /// <summary>The picker's heading: "Add The Drowned Abbey to a binder".</summary>
+    public static string PickHeading(string what) => $"Add {what} to a binder";
+}
+
+/// <summary>
+/// What Add to binder adds: these books whole (<see cref="Title"/> names one in the note), or one page of a
+/// document.
+/// </summary>
+public sealed record BinderAdd(IReadOnlyList<long> Books, string? Title = null, long? DocumentId = null, int? Page = null);

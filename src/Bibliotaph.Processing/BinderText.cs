@@ -61,6 +61,24 @@ public static class BinderText
 
     public static string Added(string what, string binder) => $"Added {what} to {binder}.";
 
+    /// <summary>Add to binder's first item: the binder worked on last.</summary>
+    public static string AddTo(string binder) => $"Add to {binder}";
+
+    public const string AddToAnother = "Add to another binder…";
+
+    public const string AddToNew = "Add to a new binder…";
+
+    /// <summary>The picker's heading: "Add The Drowned Abbey to a binder", "Add 3 books to a binder".</summary>
+    public static string PickHeading(string what) => $"Add {what} to a binder";
+
+    public const string NewHeading = "Add to a new binder";
+
+    public const string NewAction = "Create and add";
+
+    /// <summary>What a search hit's Add calls its page: "page 42" by its printed label, else its place in the file.</summary>
+    public static string PageWhat(string? label, int pdfPage) =>
+        $"page {(string.IsNullOrWhiteSpace(label) ? (pdfPage + 1).ToString(CultureInfo.CurrentCulture) : label)}";
+
     public const string NotAdded = "That couldn't be added.";
 
     public static string SectionAdded(string name) => $"Added {name}. Items you add now go at its end.";

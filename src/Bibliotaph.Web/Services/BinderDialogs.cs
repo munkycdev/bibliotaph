@@ -14,9 +14,6 @@ public enum BinderDialogKind
     Pick,
 }
 
-/// <summary>A binder in the picker.</summary>
-public sealed record BinderChoice(long Id, string Title);
-
 /// <summary>A dialog to show, with what it starts with.</summary>
 public sealed record BinderDialogRequest(BinderDialogKind Kind, string Heading, string ActionText, BinderEdit Start, IReadOnlyList<FilterChoice> Systems,
     IReadOnlyList<BinderChoice> Choices)

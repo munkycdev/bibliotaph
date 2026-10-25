@@ -40,6 +40,8 @@
 - **Binders on the web.** The Binders page groups your binders as in the Windows app, Home has Continue preparing, and a
   binder's page arranges its items and sections, edits labels and notes, and duplicates or deletes it, with Undo.
   Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
+- **Add to binder on the web.** A book's details, the Select bar and a matching page's + add to a binder, the one you
+  worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
 
 ## 1.3 · 19 October 2026
 

@@ -1,0 +1,75 @@
+@* Add to binder, as the Windows app's binder menu: the binder worked on last, another binder, or a new one. The
+   menu is read as it opens, so it always leads with the binder worked on last. *@
+@inject ApiClient Api
+@inject BinderActions Actions
+
+<div class="bt-menuanchor">
+    <button class="@ButtonClass" title="@Title" aria-label="@(Label ?? "Add to binder")" aria-haspopup="menu" aria-expanded="@(_menu is not null)" disabled="@Disabled"
+            @onclick="ToggleAsync"><Icon Name="NotebookPen" Size="@IconSize" />@Label</button>
+    @if (_menu is { } menu)
+    {
+        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _menu = null"></div>
+        <div class="@($"bt-menu {MenuClass}")" role="menu" aria-label="Add to binder">
+            @foreach (var choice in menu.Choices)
+            {
+                <button class="bt-menuitem" role="menuitem" @onclick="() => ChooseAsync(menu, choice)">@choice.Label</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    BinderMenu? _menu;
+
+    /// <summary>What's added, as the picker's heading names it: the book's title, or "3 books".</summary>
+    [Parameter, EditorRequired] public string What { get; set; } = "";
+
+    /// <summary>The books to add, read when a choice is made, so a selection that changed since the menu opened counts.</summary>
+    [Parameter, EditorRequired] public Func<BinderAdd> Add { get; set; } = default!;
+
+    /// <summary>What adding did, with its Undo, for the page to show; or why it failed.</summary>
+    [Parameter] public EventCallback<ActionResult> Done { get; set; }
+
+    [Parameter] public string ButtonClass { get; set; } = "bt-button";
+
+    [Parameter] public string MenuClass { get; set; } = "";
+
+    /// <summary>The button's words; none for an icon on its own.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    [Parameter] public string Title { get; set; } = "Add to binder";
+
+    [Parameter] public int IconSize { get; set; } = 17;
+
+    [Parameter] public bool Disabled { get; set; }
+
+    async Task ToggleAsync()
+    {
+        if (_menu is not null)
+        {
+            _menu = null;
+            return;
+        }
+        try
+        {
+            _menu = await Api.BinderMenuAsync();
+        }
+        catch (ApiProblemException e)
+        {
+            await Done.InvokeAsync(new ActionResult(e.Message));
+        }
+    }
+
+    async Task ChooseAsync(BinderMenu menu, BinderMenuChoice choice)
+    {
+        _menu = null;
+        try
+        {
+            if (await Actions.AddAsync(menu, choice, What, Add()) is { } result) await Done.InvokeAsync(result);
+        }
+        catch (ApiProblemException e)
+        {
+            await Done.InvokeAsync(new ActionResult(e.Message));
+        }
+    }
+}

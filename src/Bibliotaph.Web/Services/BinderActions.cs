@@ -17,4 +17,26 @@ public sealed class BinderActions(ApiClient api, BinderDialogs dialogs)
         if (await dialogs.NameAsync(heading, actionText, systems) is not { } named) return null;
         return (await api.CreateBinderAsync(named)).Id;
     }
+
+    /// <summary>
+    /// One of Add to binder's choices, as on Windows: the binder named, one picked from all of them, or a new one named
+    /// first. <paramref name="what"/> names what's added in the picker's heading. Null when cancelled.
+    /// </summary>
+    public async Task<ActionResult?> AddAsync(BinderMenu menu, BinderMenuChoice choice, string what, BinderAdd add)
+    {
+        long? id = choice.Kind switch
+        {
+            BinderMenuKind.Binder => choice.Id,
+            BinderMenuKind.Choose => (await dialogs.PickAsync(BinderMenu.PickHeading(what), menu.All))?.Id,
+            _ => await CreateAsync(menu.Systems, menu.NewHeading, menu.NewAction),
+        };
+        return id is { } binder ? await api.AddToBinderAsync(binder, add) : null;
+    }
+
+    /// <summary>A search hit's Add: to the binder worked on last, or a new one when there's none yet.</summary>
+    public async Task<ActionResult?> AddToCurrentAsync(string what, BinderAdd add)
+    {
+        var menu = await api.BinderMenuAsync();
+        return await AddAsync(menu, menu.Choices[0], what, add);
+    }
 }

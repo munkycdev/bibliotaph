@@ -53,6 +53,12 @@
             }
             <button class="bt-icon bt-pinbutton @(pinned ? "on" : "")" title="@pinAction" aria-label="@pinAction" aria-pressed="@pinned"
                     @onclick="() => Pins.ToggleAsync(PinKinds.Book, book.Card.EntryId)"><Icon Name="Pin" Size="15" /></button>
+            @{
+                // A file in a pack shown on a card of its own goes in on its own: a binder can hold one map from a pack.
+                var addCard = Card is { } card && card.EntryId == book.Card.EntryId ? card : book.Card;
+                var adding = long.TryParse(addCard.Id, out var cardId) ? cardId : addCard.EntryId;
+            }
+            <AddToBinder What="@addCard.Title" Add="() => new BinderAdd([adding], addCard.Title)" Done="AddedToBinderAsync" ButtonClass="bt-icon" IconSize="15" />
             @if (!_correcting)
             {
                 <button class="bt-icon" title="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" aria-label="Cataloged wrong…"
@@ -488,6 +494,9 @@
     /// <summary>The book whose details these are: a card's <see cref="BookCard.EntryId"/>.</summary>
     [Parameter, EditorRequired] public long EntryId { get; set; }
 
+    /// <summary>The card these details were opened from, when it is a file in a pack shown on its own.</summary>
+    [Parameter] public BookCard? Card { get; set; }
+
     [Parameter] public EventCallback Closed { get; set; }
 
     /// <summary>Another book's details asked for from these: an adventure's file, or an adventure in this file.</summary>
@@ -861,6 +870,9 @@
         await Done.InvokeAsync(result);
         await LoadAsync();
     }
+
+    /// <summary>The library shows what Add to binder did, with its Undo, as on Windows.</summary>
+    Task AddedToBinderAsync(ActionResult result) => Done.InvokeAsync(result);
 
     /// <summary>A chip opens its collection in the library, as on Windows.</summary>
     async Task OpenCollectionAsync(long collectionId)

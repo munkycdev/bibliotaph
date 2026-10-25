@@ -554,6 +554,54 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Add_to_binder_leads_with_the_binder_worked_on_last_and_undo_takes_out_what_it_added()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/harbor.png", Png());
+        _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+
+        var empty = await client.GetFromJsonAsync<BinderMenu>("/api/binders/menu", ct);
+        var first = await SendAsync<BinderCreated>(HttpMethod.Post, "/api/binders", new BinderEdit("Harbor night", null, false, null));
+        var second = await SendAsync<BinderCreated>(HttpMethod.Post, "/api/binders", new BinderEdit("Tower climb", null, false, null));
+        await SendAsync<BinderPage>(HttpMethod.Post, $"/api/binders/{first.Id}/open", null);
+        var menu = await client.GetFromJsonAsync<BinderMenu>("/api/binders/menu", ct);
+        var one = await SendAsync<ActionResult>(HttpMethod.Post, $"/api/binders/{first.Id}/add", new BinderAdd([books[0].EntryId], "Harbor map"));
+        var both = await SendAsync<ActionResult>(HttpMethod.Post, $"/api/binders/{second.Id}/add", new BinderAdd([.. books.Select(b => b.EntryId)]));
+        var page = await SendAsync<ActionResult>(HttpMethod.Post, $"/api/binders/{first.Id}/add", new BinderAdd([], DocumentId: books[1].DocumentId, Page: 0));
+        var withAll = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{first.Id}", ct);
+        await SendAsync<ActionResult>(HttpMethod.Post, $"/api/library/held/{both.Undo}", null);
+        var undone = await client.GetFromJsonAsync<BinderPage>($"/api/binders/{second.Id}", ct);
+        using var missing = await client.PostAsJsonAsync("/api/binders/999999/add", new BinderAdd([books[0].EntryId]), ct);
+
+        Assert.Equal([BinderMenuKind.New], empty!.Choices.Select(c => c.Kind));
+        Assert.Equal(["Add to Harbor night", "Add to another binder…", "Add to a new binder…"], menu!.Choices.Select(c => c.Label));
+        Assert.Equal(first.Id, menu.Choices[0].Id);
+        Assert.Equal(2, menu.All.Count);
+        Assert.Equal(("Add to a new binder", "Create and add"), (menu.NewHeading, menu.NewAction));
+        Assert.Equal("Added Harbor map to Harbor night.", one.Message);
+        Assert.Equal("Added 2 books to Tower climb.", both.Message);
+        Assert.Equal("Added page 1 to Harbor night.", page.Message);
+        Assert.Equal(2, withAll!.Rows.Count(r => r.Item is not null));
+        Assert.Empty(undone!.Rows);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        async Task<T> SendAsync<T>(HttpMethod method, string url, object? body)
+        {
+            using var request = new HttpRequestMessage(method, url) { Content = body is null ? null : JsonContent.Create(body) };
+            using var response = await client.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

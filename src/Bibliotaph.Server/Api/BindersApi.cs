@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
@@ -72,6 +73,45 @@ public static class BindersApi
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             await lease.Library.Get<SessionsService>().SetNotesAsync(id, notes.Notes, ct);
             return Results.NoContent();
+        });
+
+        // Add to binder's menu, which leads with the binder worked on last.
+        binders.MapGet("/menu", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var all = await lease.Library.Get<SessionsService>().ListAsync(ct);
+            List<BinderMenuChoice> choices = [];
+            if (all is [var current, ..]) choices.Add(new BinderMenuChoice(BinderMenuKind.Binder, current.Id, BinderText.AddTo(current.Title)));
+            if (all.Count > 1) choices.Add(new BinderMenuChoice(BinderMenuKind.Choose, null, BinderText.AddToAnother));
+            choices.Add(new BinderMenuChoice(BinderMenuKind.New, null, BinderText.AddToNew));
+            return new BinderMenu(choices, [.. all.Select(p => new BinderChoice(p.Id, p.Title))], await SystemsAsync(lease.Library, ct), BinderText.NewHeading,
+                BinderText.NewAction);
+        });
+
+        // Whole books, or a page found by search, with Undo taking out just what was added.
+        binders.MapPost("/{id:long}/add", async (long id, BinderAdd add, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            var sessions = library.Get<SessionsService>();
+            if (await sessions.GetAsync(id, ct) is not { } contents) return Results.NotFound();
+            IReadOnlyList<long> added;
+            string what;
+            if (add.DocumentId is { } document && add.Page is { } page)
+            {
+                var labels = await library.Get<PartsService>().GetPageLabelsAsync(document, ct);
+                what = BinderText.PageWhat(page < labels.Count ? labels[page] : null, page);
+                added = await sessions.AddPagesAsync(id, document, page, page, ct: ct) is { } item ? [item] : [];
+            }
+            else
+            {
+                what = add.Books.Count == 1 && add.Title is { Length: > 0 } title ? title : SelectionRules.Books(add.Books.Count);
+                added = add.Books.Count == 0 ? [] : await sessions.AddAsync(id, [.. add.Books.Distinct().Select(b => new NewSessionItem(new EntryId(b)))], ct: ct);
+            }
+            return Results.Ok(added.Count == 0
+                ? new ActionResult(BinderText.NotAdded)
+                : new ActionResult(BinderText.Added(what, contents.Pack.Title),
+                    EditApi.Hold(library, async () => await sessions.RemoveItemsAsync(added, CancellationToken.None), BinderText.Failed)));
         });
 
         // A copy without its date, which then opens.

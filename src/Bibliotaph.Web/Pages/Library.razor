@@ -7,6 +7,7 @@
 @inject CollectionActions Collections
 @inject CollectionDialogs Dialogs
 @inject Pins Pins
+@inject BinderActions BinderActions
 
 @* The Windows app's Library page: its heading, the toolbar (results tabs while searching, filters, order, covers or
    list, packs or each file), the filter panel and its chips, the count, then the covers, the list or the matching pages. *@
@@ -290,6 +291,8 @@
                         </div>
                     }
                 </div>
+                <AddToBinder What="@(_selection?.Books ?? "")" Add="() => new BinderAdd([.. _ticked])" Done="ShowDone" Label="Add to binder" MenuClass="bt-menuleft"
+                             Title="Add every selected book to a binder" Disabled="@(_ticked.Count == 0)" />
                 @if (_selection is { CanJoin: true })
                 {
                     <button class="bt-button" title="Join the selected cards as one book: copies, or versions of it" aria-label="Join the selected cards as one book"
@@ -361,7 +364,11 @@ else if (_query.IsPagesTab)
                     @foreach (var hit in match.Pages)
                     {
                         <div class="bt-hitpage">
-                            <div class="bt-hitwhere">@hit.Where</div>
+                            <div class="bt-hitline">
+                                <div class="bt-hitwhere">@hit.Where</div>
+                                <button class="bt-icon" title="Add this page to the current binder" aria-label="Add @hit.Where to the binder"
+                                        @onclick="() => AddPageAsync(match.Book, hit)"><Icon Name="Plus" Size="15" /></button>
+                            </div>
                             <p>@foreach (var (text, marked) in Snippet(hit.Snippet)) { if (marked) { <mark>@text</mark> } else { @text } }</p>
                             <span class="bt-chip">@hit.Source</span>
                         </div>
@@ -436,7 +443,7 @@ else
 }
 @if (_details is { } entryId)
 {
-    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
+    <BookDetailsDrawer @ref="_drawer" EntryId="entryId" Card="_detailsCard" Closed="CloseDetails" ShowEntry="id => _details = id" Changed="ReloadAsync" Done="ShowDone" />
 }
 
 @code {
@@ -461,6 +468,7 @@ else
     DotNetObjectReference<Library>? _self;
     IJSObjectReference? _watch;
     long? _details;
+    BookCard? _detailsCard;
     BookDetailsDrawer? _drawer;
     ActionResult? _done;
     CollectionPage? _collection;
@@ -733,11 +741,29 @@ else
     }
 
     /// <summary>A card's details, over the page.</summary>
-    void ShowDetails(BookCard book) => _details = book.EntryId;
+    void ShowDetails(BookCard book)
+    {
+        _details = book.EntryId;
+        _detailsCard = book;
+    }
+
+    /// <summary>A matching page's Add: that page to the binder worked on last, as on Windows.</summary>
+    async Task AddPageAsync(BookCard book, PageMatch hit)
+    {
+        try
+        {
+            if (await BinderActions.AddToCurrentAsync(hit.Where, new BinderAdd([], DocumentId: book.DocumentId, Page: hit.PdfPage)) is { } result) _done = result;
+        }
+        catch (ApiProblemException e)
+        {
+            _done = new ActionResult(e.Message);
+        }
+    }
 
     void CloseDetails()
     {
         _details = null;
+        _detailsCard = null;
         _drawer = null;
         // Opened from Home: the address forgets the book, so reloading doesn't open it again.
         if (LibraryUrl.Book(Navigation.Uri) is not null) Navigation.NavigateTo(CurrentAddress(), replace: true);
