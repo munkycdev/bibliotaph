@@ -225,6 +225,40 @@ const tests = {
     return { ms: ms(t), scope: state.deltaScope, itemsInDrive: read.items.length, itemsInFolder: mine.length, files: mine.filter(i => i.file).length, deleted: mine.filter(i => i.deleted).length };
   },
 
+  // Which ways of reading a book the browser allows, on the smallest sample. A failed fetch here is CORS: the
+  // console names the reason (no Access-Control-Allow-Origin, or a refused preflight), which a page can't see.
+  async cors() {
+    const file = (await sample())[0];
+    const url = await downloadUrl(file.id);
+    const link = new URL(url);
+    const content = `/me/drive/items/${file.id}/content`;
+    const range = { Range: 'bytes=0-65535' };
+    const result = {
+      linkHost: link.hostname.endsWith('.sharepoint.com') ? 'sharepoint' : link.hostname.endsWith('.1drv.com') ? '1drv' : 'other',
+      linkPage: link.pathname.split('/').pop(), linkHasTempauth: link.searchParams.has('tempauth'),
+    };
+    const tries = {
+      linkPlain: () => fetch(url),
+      linkRange: () => fetch(url, { headers: range }),
+      linkRangeSuffix: () => fetch(url, { headers: { Range: 'bytes=0-' } }),
+      contentPlain: () => graph(content, { raw: true }),
+      contentRange: () => graph(content, { headers: range, raw: true }),
+    };
+    for (const [name, attempt] of Object.entries(tries)) {
+      const t = now();
+      try {
+        const response = await attempt();
+        const reader = response.body.getReader();
+        const first = await reader.read();
+        await reader.cancel();
+        result[name] = { status: response.status, ms: ms(t), firstBytes: first.value?.length ?? 0, contentRangeVisible: response.headers.get('content-range') !== null };
+      } catch (e) {
+        result[name] = { error: e.status ? errorCode(e) : e.message, ms: ms(t) };
+      }
+    }
+    return result;
+  },
+
   // A book's download link, then ranges of it as PDF.js would ask: the start, a middle chunk and the last megabyte.
   async ranges() {
     const samples = [];
@@ -232,10 +266,14 @@ const tests = {
       const t = now();
       const url = await downloadUrl(file.id);
       const linkMs = ms(t);
-      const head = await rangeFetch(url, 0, 65535);
-      const middle = await rangeFetch(url, Math.floor(file.size / 2), Math.floor(file.size / 2) + ChunkSize - 1);
-      const tail = await rangeFetch(url, Math.max(0, file.size - ChunkSize), file.size - 1);
-      samples.push({ sizeMB: mb(file.size), linkMs, head: head.summary, middle: middle.summary, tail: tail.summary });
+      try {
+        const head = await rangeFetch(url, 0, 65535);
+        const middle = await rangeFetch(url, Math.floor(file.size / 2), Math.floor(file.size / 2) + ChunkSize - 1);
+        const tail = await rangeFetch(url, Math.max(0, file.size - ChunkSize), file.size - 1);
+        samples.push({ sizeMB: mb(file.size), linkMs, head: head.summary, middle: middle.summary, tail: tail.summary });
+      } catch (e) {
+        throw new Error(`a range read of a link failed (${e.message}); see the cors test`);
+      }
     }
     // Whether the content endpoint can be read directly, without first asking for the link.
     let direct;
@@ -375,6 +413,10 @@ async function openPdf(file) {
   let url = await downloadUrl(file.id);
   const traffic = { requests: 0, bytes: 0, linkRefreshes: 0 };
   const transport = new pdfjs.PDFDataRangeTransport(file.size, null);
+  // A range that can't be read would leave PDF.js waiting for ever, so it fails the book instead.
+  let fail;
+  const failure = new Promise((_, reject) => { fail = reject; });
+  const guard = promise => Promise.race([promise, failure]);
   transport.requestDataRange = async (begin, end) => {
     try {
       let response = await fetch(url, { headers: { Range: `bytes=${begin}-${end - 1}` } });
@@ -390,30 +432,37 @@ async function openPdf(file) {
       transport.onDataRange(begin, data);
     } catch (e) {
       log(`Range ${begin}-${end} failed: ${e.message}`);
+      fail(e);
     }
   };
   const t = now();
   const task = pdfjs.getDocument({ worker, range: transport, rangeChunkSize: ChunkSize, disableAutoFetch: true });
-  const doc = await task.promise;
+  try {
+    return await guard(readPdf(task, file, traffic, t, guard));
+  } finally {
+    await task.destroy();
+  }
+}
+
+async function readPdf(task, file, traffic, t, guard) {
+  const doc = await guard(task.promise);
   const openMs = ms(t);
-  const page = await doc.getPage(1);
+  const page = await guard(doc.getPage(1));
   const viewport = page.getViewport({ scale: 1 });
   const canvas = $('page');
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({ canvas, viewport }).promise;
+  await guard(page.render({ canvas, viewport }).promise);
   const firstRenderMs = ms(t);
   const firstPageMB = mb(traffic.bytes);
   const x = now();
   let chars = 0;
   for (let n = 1; n <= doc.numPages; n++) {
-    const p = await doc.getPage(n);
-    for (const item of (await p.getTextContent()).items) chars += item.str?.length ?? 0;
+    const p = await guard(doc.getPage(n));
+    for (const item of (await guard(p.getTextContent())).items) chars += item.str?.length ?? 0;
     p.cleanup();
   }
-  const result = { sizeMB: mb(file.size), pages: doc.numPages, openMs, firstRenderMs, firstPageMB, allTextMs: ms(x), allTextMB: mb(traffic.bytes), chars, ...traffic };
-  await task.destroy();
-  return result;
+  return { sizeMB: mb(file.size), pages: doc.numPages, openMs, firstRenderMs, firstPageMB, allTextMs: ms(x), allTextMB: mb(traffic.bytes), chars, ...traffic };
 }
 
 async function run(name, test) {
@@ -432,7 +481,7 @@ async function run(name, test) {
 for (const button of document.querySelectorAll('[data-test]')) button.onclick = () => run(button.dataset.test, tests[button.dataset.test]);
 
 $('runAll').onclick = async () => {
-  for (const name of ['drive', 'walk', 'delta', 'ranges', 'pdfjs', 'hash', 'appFolder', 'refresh']) await run(name, tests[name]);
+  for (const name of ['drive', 'walk', 'delta', 'cors', 'hash', 'appFolder', 'refresh', 'ranges', 'pdfjs']) await run(name, tests[name]);
   log('All done. Copy the results and paste them back.');
 };
 
