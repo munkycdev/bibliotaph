@@ -4,7 +4,6 @@ using Bibliotaph.Core;
 using Bibliotaph.Ebooks;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
-using Bibliotaph.Pdf.Host;
 
 namespace Bibliotaph.Processing;
 
@@ -60,7 +59,7 @@ public sealed record StageServices(
     EntryStore Entries,
     IndexStore Index,
     IndexQueries Queries,
-    PdfWorkerPool Workers,
+    IPdfEngine Pdf,
     ISourceFileReader Reader,
     IImageCodec Images,
     CoverCache Covers,
@@ -128,57 +127,39 @@ public interface IGatedStage : IStage
 }
 
 /// <summary>
-/// A document open in the index worker for the length of one job. If the worker restarts (a crash elsewhere),
-/// the document is opened again before the next request. The file it reads is held until the session ends, so a file
-/// extracted from a ZIP isn't evicted under it.
+/// A document open in the PDF engine for the length of one job. The file it reads is held until the session ends, so
+/// a file extracted from a ZIP isn't evicted under it.
 /// </summary>
-sealed class PdfSession(WorkerClient worker, LocalFile file, string? password) : IAsyncDisposable
+sealed class PdfSession(IPdfDocument document, LocalFile file) : IAsyncDisposable
 {
+    public DocInfo Doc => document.Info;
 
-    int _generation = -1;
+    public IPdfDocument Document => document;
 
-    public DocInfo Doc { get; private set; } = null!;
-
-    /// <summary>Opens the document, returning the worker's error response when it won't open.</summary>
-    public async Task<Response?> OpenAsync(CancellationToken ct)
+    /// <summary>Opens <paramref name="file"/>: the session, or the engine's reason it won't open.</summary>
+    public static async Task<(PdfSession? Session, PdfResult<IPdfDocument> Opened)> OpenAsync(IPdfEngine engine, LocalFile file, string? password,
+        CancellationToken ct)
     {
-        var response = await worker.SendAsync(new Request { Op = Op.Open, Path = file.Path, Password = password }, ct: ct);
-        if (!response.Ok) return response;
-        Doc = response.Doc!;
-        _generation = worker.Generation;
-        return null;
-    }
-
-    public async Task<Response> SendAsync(Request request, CancellationToken ct)
-    {
-        if (worker.Generation != _generation)
+        PdfResult<IPdfDocument> opened;
+        try
         {
-            var failed = await OpenAsync(ct);
-            if (failed is not null) return failed;
+            opened = await engine.OpenAsync(file.Path, password, ct);
         }
-        return await worker.SendAsync(request with { DocId = Doc.DocId }, ct: ct);
-    }
-
-    public async Task<(Response Response, byte[]? Pixels)> RenderAsync(Request request, CancellationToken ct)
-    {
-        if (worker.Generation != _generation)
+        catch
         {
-            var failed = await OpenAsync(ct);
-            if (failed is not null) return (failed, null);
+            await file.DisposeAsync();
+            throw;
         }
-        return await worker.RenderAsync(request with { DocId = Doc.DocId }, ct: ct);
+        if (opened.Ok) return (new PdfSession(opened.Value!, file), opened);
+        await file.DisposeAsync();
+        return (null, opened);
     }
 
     public async ValueTask DisposeAsync()
     {
         try
         {
-            if (Doc is null || worker.Generation != _generation) return;
-            await worker.SendAsync(new Request { Op = Op.Close, DocId = Doc.DocId });
-        }
-        catch (WorkerException)
-        {
-            // The worker died; the document went with it.
+            await document.DisposeAsync();
         }
         finally
         {
@@ -228,11 +209,8 @@ static class StageHelpers
         var (file, failed) = await OpenFileAsync(s, source, ct);
         if (file is null) return (null, failed);
 
-        var session = new PdfSession(s.Workers.Index, file, s.Passwords.Find(job.ContentHash));
-        var error = await session.OpenAsync(ct);
-        if (error is null) return (session, null);
-        await session.DisposeAsync();
-        return (null, OpenFailure(error));
+        var (session, opened) = await PdfSession.OpenAsync(s.Pdf, file, s.Passwords.Find(job.ContentHash), ct);
+        return session is null ? (null, OpenFailure(opened.Error, opened.Message)) : (session, null);
     }
 
     /// <summary>A page drawn at cover size, as a JPEG, or null when it couldn't be drawn.</summary>
@@ -240,10 +218,8 @@ static class StageHelpers
     {
         var size = session.Doc.PageSizes[page];
         var scale = Math.Min(4.0, CoverCache.Width / Math.Max(1, size.Width));
-        var (response, pixels) = await session.RenderAsync(new Request { PageIndex = page, Scale = scale }, ct);
-        return response.Ok && pixels is not null
-            ? s.Images.EncodeJpeg(pixels, response.Render!.Width, response.Render.Height, response.Render.Stride)
-            : null;
+        var drawn = await session.Document.RenderAsync(page, scale, ct);
+        return drawn.Value is { } image ? s.Images.EncodeJpeg(image.Pixels, image.Width, image.Height, image.Stride) : null;
     }
 
     /// <summary>
@@ -258,13 +234,13 @@ static class StageHelpers
                 await s.Index.SetPageCoverAsync(documentId, page, s.Covers.Write(CoverCache.PageKey(contentHash, page), jpeg), ct);
     }
 
-    public static StageOutcome OpenFailure(Response error) => error.Error switch
+    public static StageOutcome OpenFailure(ErrorKind error, string? message) => error switch
     {
         ErrorKind.Password => new StageOutcome.Blocked(TextAccessReasons.Locked),
         ErrorKind.Format => new StageOutcome.Failed("This file isn't a readable PDF; it may be damaged or incomplete.", Retry: false),
         ErrorKind.Security => new StageOutcome.Failed(TextAccessReasons.Protected, Retry: false),
         ErrorKind.File => new StageOutcome.Failed("The file could not be read. It may be in use, or still downloading.", Retry: true),
-        _ => new StageOutcome.Failed($"The PDF engine could not open the file ({error.Message}).", Retry: true),
+        _ => new StageOutcome.Failed($"The PDF engine could not open the file ({message}).", Retry: true),
     };
 }
 
@@ -476,10 +452,10 @@ public sealed class TextStage(StageServices s) : IStage
     {
         try
         {
-            var response = await session.SendAsync(new Request { Op = Op.ExtractPages, PageIndex = first, PageCount = count }, ct);
-            return response.Ok ? response.Pages : null;
+            var extracted = await session.Document.ExtractPagesAsync(first, count, ct);
+            return extracted.Ok ? [.. extracted.Value!] : null;
         }
-        catch (WorkerException)
+        catch (PdfEngineException)
         {
             return null;
         }
@@ -493,10 +469,10 @@ public sealed class TextStage(StageServices s) : IStage
         {
             try
             {
-                var response = await session.SendAsync(new Request { Op = Op.ExtractPages, PageIndex = p, PageCount = 1 }, ct);
-                pages.Add(response.Ok ? response.Pages![0] : new PageText(p, "", 0, 0, response.Message ?? "The page could not be read."));
+                var extracted = await session.Document.ExtractPagesAsync(p, 1, ct);
+                pages.Add(extracted.Ok ? extracted.Value![0] : new PageText(p, "", 0, 0, extracted.Message ?? "The page could not be read."));
             }
-            catch (WorkerException)
+            catch (PdfEngineException)
             {
                 pages.Add(new PageText(p, "", 0, 0, "This page crashed the PDF engine."));
             }
@@ -600,12 +576,12 @@ public sealed class OcrStage(StageServices s) : IStage
             foreach (var page in pages)
             {
                 ct.ThrowIfCancellationRequested();
-                Response response;
+                PdfResult<OcrInfo> response;
                 try
                 {
-                    response = await session.SendAsync(new Request { Op = Op.Ocr, PageIndex = page.PdfPage, Scale = Dpi / 72 }, ct);
+                    response = await session.Document.OcrAsync(page.PdfPage, Dpi / 72, ct);
                 }
-                catch (WorkerException)
+                catch (PdfEngineException)
                 {
                     await s.Index.SetPageErrorAsync(job.DocumentId, page.PdfPage, "This page crashed the PDF engine during OCR.", ct);
                     failedPages++;
@@ -620,7 +596,7 @@ public sealed class OcrStage(StageServices s) : IStage
                     continue;
                 }
 
-                var ocr = response.Ocr!;
+                var ocr = response.Value!;
                 await s.Index.SetOcrPageAsync(job.DocumentId, page.PdfPage, ocr.Text, TextQuality.Score(ocr.Text, 0),
                     [.. ocr.Words.Select(w => new OcrWordRow(w.Text, w.Box.Left, w.Box.Top, w.Box.Right, w.Box.Bottom))], ct);
             }

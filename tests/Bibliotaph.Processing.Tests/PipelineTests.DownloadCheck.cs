@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using Bibliotaph.Pdf.Host;
 using Bibliotaph.Pdf.Host.Tests;
 
 namespace Bibliotaph.Processing.Tests;
@@ -37,7 +38,7 @@ public abstract partial class PipelineTests
                 zip.CreateEntry("Inner.zip").Open().Dispose();
             }
 
-            var check = new DownloadCheck(_libraryStore, _entries, _queries, _workers, new ArchiveReader(new SourceFileReader()), new SourceFileReader(),
+            var check = new DownloadCheck(_libraryStore, _entries, _queries, new WorkerPdfEngine(_workers), new ArchiveReader(new SourceFileReader()), new SourceFileReader(),
                 _vocabulary, _paths, new DiskSpace());
             var items = check.List(download, Ct);
             Assert.Equal(9, items.Count); // the text file is left out
