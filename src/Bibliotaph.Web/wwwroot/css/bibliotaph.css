@@ -702,6 +702,13 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-reviewfound li svg{flex-shrink:0;color:var(--bt-muted)}
 .bt-reviewfoundmore{margin-left:17px}
 .bt-reviewchoices{margin-top:16px;flex-wrap:wrap}
+.bt-reviewparts{list-style:none;padding:0;margin:12px 0 0}
+.bt-reviewparts li{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.bt-reviewparts li>input{width:auto;margin-top:3px;accent-color:var(--bt-accent)}
+.bt-reviewparts li>div{flex:1;min-width:0}
+.bt-reviewpartedit{display:grid;grid-template-columns:minmax(0,1fr) 70px 70px;gap:8px}
+.bt-reviewpages{margin-top:12px}
+.bt-reviewpages .bt-field{margin-top:0}
 .bt-retryall{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px}
 .bt-attention{display:flex;gap:10px;align-items:flex-start;background:var(--bt-side);border-radius:6px;padding:15px;margin-top:12px}
 .bt-attention>svg{flex-shrink:0}

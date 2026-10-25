@@ -26,5 +26,9 @@ public sealed class ReviewWordsTests
         Assert.Equal(RevisionCardText.FoundHeading, ReviewWords.FoundHeading);
         Assert.Equal(RevisionCardText.UseHint, ReviewWords.UseHint);
         Assert.Equal(ReviewCardText.DismissHint, ReviewWords.DismissHint);
+        Assert.Equal(PartProposalCardText.AcceptLabel(remaining), ReviewWords.AcceptParts(remaining));
+        Assert.Equal(DetailsText.PagesHint, ReviewWords.PagesHint);
+        Assert.Equal((PartProposalCardText.AcceptHint, PartProposalCardText.EditHint, PartProposalCardText.NotSplitHint),
+            (ReviewWords.AcceptPartsHint, ReviewWords.EditPartsHint, ReviewWords.NotSplitHint));
     }
 }

@@ -1,0 +1,188 @@
+@* .bt-reviewitem: the Windows app's adventure cards. A file that looks like it holds several adventures lists them
+   ticked, with their titles and pages, which Edit makes text boxes; Accept makes a card for each ticked one. An
+   adventure whose pages weren't found in its file as it is now gets Set its pages, typed in place, or Remove
+   adventure. Answered, either folds to one line with Undo. *@
+@inject ApiClient Api
+
+<article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Title}")">
+    @if (State.IsDone)
+    {
+        <div class="bt-reviewdonetitle">@Card.Title</div>
+        <div class="bt-decided">
+            <Icon Name="Check" Size="14" />
+            <span>@State.Done</span>
+            @if (State.Undo is not null)
+            {
+                <button class="bt-link" disabled="@State.Busy" @onclick="UndoAsync">Undo</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bt-reviewtitle">
+            @if (Card.Book is { } book)
+            {
+                <a class="bt-reviewbook" href="@($"library?book={book.EntryId}")" title="@book.Hint" aria-label="@($"Open {Card.Title}")">@Card.Title</a>
+            }
+            <span class="bt-reviewchips">
+                <span class="bt-chip">@Card.Chip</span>
+                @if (Card.Dismiss is { } dismiss)
+                {
+                    <button class="bt-icon" title="@ReviewWords.DismissHint" aria-label="@($"Close the suggestion for {Card.Title}")" disabled="@State.Busy"
+                            @onclick="() => AnswerAsync(dismiss)"><Icon Name="X" Size="14" /></button>
+                }
+            </span>
+        </div>
+        <div class="bt-small bt-reviewreason">@Card.Heading</div>
+        <div class="bt-reviewevidence bt-reviewoffer"><span>@Card.Detail</span></div>
+        @if (Card.Proposed is not null)
+        {
+            <ul class="bt-reviewparts" aria-label="Adventures proposed">
+                @foreach (var row in Draft.Rows)
+                {
+                    <li>
+                        <input type="checkbox" checked="@row.Ticked" aria-label="@($"Make a card for {row.Title}")" @onchange="e => row.Ticked = e.Value is true" />
+                        @if (Draft.Editing)
+                        {
+                            <div class="bt-reviewpartedit">
+                                <input class="bt-input" aria-label="Adventure title" @bind="row.Title" @bind:event="oninput" />
+                                <input class="bt-input" aria-label="First page" title="First page, as the file numbers it" @bind="row.From" @bind:event="oninput" />
+                                <input class="bt-input" aria-label="Last page" title="Last page, as the file numbers it" @bind="row.To" @bind:event="oninput" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div>
+                                <div class="bt-reviewplacename">@row.Title</div>
+                                <div class="bt-small">@row.Summary</div>
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (State.Problem is { } problem)
+            {
+                <div class="bt-problem" role="alert">@problem</div>
+            }
+            <div class="bt-inline bt-reviewchoices">
+                <button class="bt-button primary" title="@ReviewWords.AcceptPartsHint" aria-label="Accept: make cards for the ticked adventures" disabled="@State.Busy"
+                        @onclick="AcceptAsync"><Icon Name="Check" />@ReviewWords.AcceptParts(Draft.Rows.Count(r => r.Ticked))</button>
+                <button class="bt-button" title="@ReviewWords.EditPartsHint" aria-label="Edit the adventures' titles and pages" aria-pressed="@Draft.Editing"
+                        @onclick="() => Draft.Editing = !Draft.Editing"><Icon Name="Pencil" />Edit</button>
+                <button class="bt-button" title="@ReviewWords.NotSplitHint" disabled="@State.Busy" @onclick='() => AnswerAsync("notsplit")'>Not split</button>
+            </div>
+        }
+        else
+        {
+            @if (Draft.Editing)
+            {
+                <div class="bt-reviewedit bt-reviewpages" @onkeydown="PagesKeyAsync">
+                    <div class="bt-pagefields">
+                        <label class="bt-field">First page<input aria-label="First page" @bind="Draft.From" @bind:event="oninput" /></label>
+                        <label class="bt-field">Last page<input aria-label="Last page" @bind="Draft.To" @bind:event="oninput" /></label>
+                    </div>
+                    <div class="bt-small bt-edithint">@ReviewWords.PagesHint</div>
+                    @if (State.Problem is { } problem)
+                    {
+                        <div class="bt-problem" role="alert">@problem</div>
+                    }
+                    <div class="bt-inline">
+                        <button class="bt-button primary" disabled="@(State.Busy || Draft.From.Trim().Length == 0)" @onclick="SavePagesAsync"><Icon Name="Check" />Save pages</button>
+                        <button class="bt-button" @onclick="CancelPages">Cancel</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (State.Problem is { } problem)
+                {
+                    <div class="bt-problem" role="alert">@problem</div>
+                }
+                <div class="bt-inline bt-reviewchoices">
+                    @foreach (var choice in Card.Choices)
+                    {
+                        <button class="bt-button @(choice.Primary ? "primary" : "")" title="@choice.Hint" disabled="@State.Busy" @onclick="() => ChooseAsync(choice.Key)">
+                            @if (choice.Primary)
+                            {
+                                <Icon Name="Pencil" />
+                            }
+                            @choice.Label
+                        </button>
+                    }
+                </div>
+            }
+        }
+    }
+</article>
+
+@code {
+    /// <summary>The card's adventures as ticked and typed, or the pages being set, kept with the card's decision.</summary>
+    sealed class PartsDraft
+    {
+        public List<Row> Rows { get; init; } = [];
+        public bool Editing { get; set; }
+        public string From { get; set; } = "";
+        public string To { get; set; } = "";
+    }
+
+    sealed class Row(ReviewProposedPart part)
+    {
+        public bool Ticked { get; set; } = true;
+        public string Title { get; set; } = part.Title;
+        public string From { get; set; } = part.From;
+        public string To { get; set; } = part.To;
+
+        /// <summary>"pp. 34–52 · Levels 1–3 · 4 players", the pages as typed once they're changed.</summary>
+        public string Summary => string.Join(" · ",
+            new[] { From == part.From && To == part.To ? part.PagesText : ReviewWords.TypedPages(From, To), part.Levels, part.Players }.Where(s => s.Length > 0));
+    }
+
+    [Parameter, EditorRequired] public ReviewOfferCard Card { get; set; } = default!;
+
+    [Parameter, EditorRequired] public ReviewCardState State { get; set; } = default!;
+
+    /// <summary>Raised with -1 when the card is decided and +1 when that's undone, so the page counts what's waiting.</summary>
+    [Parameter] public EventCallback<int> Decided { get; set; }
+
+    PartsDraft Draft => (PartsDraft)(State.Draft ??= new PartsDraft { Rows = [.. (Card.Proposed ?? []).Select(p => new Row(p))] });
+
+    Task AnswerAsync(string choice) =>
+        State.DecideAsync(() => Api.AnswerOfferAsync(new ReviewOfferAnswer(Card.Id, Card.Stamp, choice)), Decided.InvokeAsync);
+
+    Task ChooseAsync(string choice)
+    {
+        if (choice != "pages") return AnswerAsync(choice);
+        State.Problem = null;
+        (Draft.From, Draft.To) = Card.Pages is { } pages ? (pages.From, pages.To) : ("", "");
+        Draft.Editing = true;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Pages that don't read open the text boxes, with the line saying which, as on Windows.</summary>
+    async Task AcceptAsync()
+    {
+        var rows = Draft.Rows.Select((r, i) => (Row: r, Index: i)).Where(x => x.Row.Ticked)
+            .Select(x => new ReviewPartRow(x.Index, x.Row.Title, x.Row.From, x.Row.To)).ToList();
+        if (!await State.DecideAsync(() => Api.AcceptPartsAsync(new ReviewPartsAccept(Card.Id, Card.Stamp, rows)), Decided.InvokeAsync)) Draft.Editing = true;
+    }
+
+    async Task SavePagesAsync()
+    {
+        if (await State.DecideAsync(() => Api.SetPartPagesAsync(new ReviewPartPagesSet(Card.Id, Card.Stamp, Draft.From, Draft.To)), Decided.InvokeAsync))
+            Draft.Editing = false;
+    }
+
+    void CancelPages()
+    {
+        Draft.Editing = false;
+        State.Problem = null;
+    }
+
+    async Task PagesKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SavePagesAsync();
+        else if (e.Key == "Escape") CancelPages();
+    }
+
+    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+}

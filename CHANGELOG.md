@@ -46,8 +46,8 @@
   Field suggestions can be accepted, accepted for every book suggesting the same, edited or rejected, and new terms
   added, filed under another or rejected, each with Undo; Show narrows the list. Files needing attention can be tried
   again, and a fault's details copied for a bug report. The cards for new versions, image packs, books owned
-  elsewhere, places to check, books cataloged wrong, folder rules and collections are answered as in the Windows app,
-  with Undo. Adventures found inside files follow. See [Needs review](docs/guide/web.md#needs-review).
+  elsewhere, places to check, adventures inside files, books cataloged wrong, folder rules and collections are
+  answered as in the Windows app, with Undo. See [Needs review](docs/guide/web.md#needs-review).
 
 ## 1.3 · 19 October 2026
 

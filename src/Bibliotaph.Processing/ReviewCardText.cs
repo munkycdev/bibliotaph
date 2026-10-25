@@ -2,6 +2,7 @@ using System.Globalization;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing;
@@ -282,4 +283,88 @@ public sealed record CollectionSuggestionCardText(CollectionSuggestion Suggestio
     public string NotNow => $"“{Suggestion.Name}” can wait. It's asked about again the next time this list is made.";
 
     public string Never => $"Bibliotaph won't suggest {(Count == 1 ? "this book" : "these books")} for “{Suggestion.Name}” again.";
+}
+
+/// <summary>
+/// "This file looks like it holds 5 adventures": where the book says it is a collection, and the adventures proposed,
+/// each ticked, with its title and pages as the file numbers them.
+/// </summary>
+public sealed record PartProposalCardText(PartProposalItem Item, IReadOnlyList<string?> Labels)
+{
+    public const string AcceptHint = "Give each ticked adventure a card of its own. The file isn't changed.";
+
+    public const string EditHint = "Change the adventures' titles and pages";
+
+    public const string NotSplitHint = "It's one book. Bibliotaph won't ask about this file again.";
+
+    public string Heading => $"This file looks like it holds {CardText.Adventures(Item.Parts.Count)}.";
+
+    public string Chip => Item.Source == PartProposalSource.Ai ? "Adventures? Read with AI" : "Adventures?";
+
+    public string Detail
+    {
+        get
+        {
+            var says = Item.Evidence is { } evidence ? $"The book says “{evidence.Quote}” (p. {PageNumbers.Display(evidence.PdfPage, Labels)}). " : "";
+            var found = Item.Source == PartProposalSource.Ai
+                ? "A model read its contents and the first page of each to find them."
+                : "Its bookmarks and the blurbs on their first pages show where each starts.";
+            return $"{says}{found} Accept gives each ticked adventure a card of its own that opens its pages; the file isn't changed.";
+        }
+    }
+
+    /// <summary>"Make 3 cards", for the ticked adventures.</summary>
+    public static string AcceptLabel(int ticked) => ticked == 1 ? "Make 1 card" : $"Make {ReviewCardText.N(ticked)} cards";
+
+    public string Accepted(int count) => $"{Item.FileTitle}: {CardText.Adventures(count)} with cards of their own.";
+
+    public string NotSplit => $"Kept {Item.FileTitle} as one book.";
+
+    public static string Unreadable(string title) => $"The pages of {(title.Trim().Length > 0 ? title.Trim() : "an adventure")} don't read as pages of this file.";
+
+    /// <summary>A proposed adventure's first and last pages as they're typed: the last is empty for one page.</summary>
+    public (string From, string To) Typed(ProposedPart part) =>
+        (PageNumbers.Display(part.Pages.First, Labels), part.Pages.Count == 1 ? "" : PageNumbers.Display(part.Pages.Last, Labels));
+
+    /// <summary>"Levels 1–3", from its blurb; empty when it gave none.</summary>
+    public static string Levels(ProposedPart part) => part.Levels is { } levels && LevelRange.TryParse(levels, out var range) ? range.Describe() : "";
+
+    /// <summary>"4–6 players", from its blurb; empty when it gave none.</summary>
+    public static string Players(ProposedPart part) => PartRules.Party(part.Quote)?.Describe() ?? "";
+
+    /// <summary>The adventure as typed, or null when its title is empty or its pages don't read as the file's.</summary>
+    public ProposedPart? Read(ProposedPart part, string title, string from, string to)
+    {
+        int? Find(string text) => PageNumbers.Find(text, Labels, Labels.Count);
+        if (title.Trim().Length == 0 || Find(from) is not { } first) return null;
+        var last = to.Trim().Length == 0 ? first : Find(to);
+        return last is { } l ? part with { Title = title.Trim(), Pages = new PartPages(first, l) } : null;
+    }
+}
+
+/// <summary>An adventure whose pages weren't found in the file it is in as that file is now: Set its pages, or Remove adventure.</summary>
+public sealed record UnplacedPartCardText(UnplacedPart Part)
+{
+    public const string Chip = "Adventure in a file";
+
+    public const string Detail = "It may be a new version of the file, with pages added or moved. Set its pages to say where it is now, or remove the adventure.";
+
+    public static IReadOnlyList<ReviewChoiceText> Choices { get; } =
+    [
+        new("pages", "Set its pages", "Type its first and last pages as the file numbers them", true),
+        new("remove", "Remove adventure", "Its card goes; its pages are only the file's again. Undo brings it back."),
+    ];
+
+    public string Heading => $"The pages of {Part.Title} weren't found in the file {Part.FileTitle} opens now.";
+
+    public string EditorHeading => $"The pages of {Part.Title}";
+
+    public string Moved(PartPages pages, IReadOnlyList<string?> labels) => $"{Part.Title} is on {pages.Describe(labels)} now.";
+
+    public string Removed => $"Removed the adventure {Part.Title}. Its pages are only the file's again.";
+
+    /// <summary>Where it was, to start typing from, while the file still has those pages.</summary>
+    public (string From, string To) Start(IReadOnlyList<string?> labels) => Part.WasPages is { } p && p.Last < labels.Count
+        ? (PageNumbers.Display(p.First, labels), p.Count == 1 ? "" : PageNumbers.Display(p.Last, labels))
+        : ("", "");
 }

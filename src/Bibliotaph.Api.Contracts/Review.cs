@@ -21,11 +21,31 @@ public sealed record ReviewSuggestions(IReadOnlyList<ReviewTermCard> Terms, IRea
 /// it. <see cref="Dismiss"/> is the choice the × gives, on the cards that have one. <see cref="Book"/> is the card's
 /// title link, to the book's details; <see cref="Links"/> any other books it names. <see cref="Tiles"/> are covers to
 /// show what a pack holds, <see cref="Places"/> a new version's places to check and <see cref="Found"/> those found
-/// by themselves. <see cref="Fix"/> is the book whose details Fix it opens for Cataloged wrong….
+/// by themselves. <see cref="Fix"/> is the book whose details Fix it opens for Cataloged wrong…. <see cref="Proposed"/>
+/// are the adventures a file looks like it holds, to tick and edit; <see cref="Pages"/> where Set its pages starts for
+/// an adventure whose pages weren't found.
 /// </summary>
 public sealed record ReviewOfferCard(string Id, string Kind, string Stamp, string Title, string Chip, string Heading, string? Path, string? Evidence,
     string Detail, IReadOnlyList<ReviewChoice> Choices, string? Dismiss, ReviewLink? Book, IReadOnlyList<ReviewLink> Links,
-    IReadOnlyList<string> Tiles, IReadOnlyList<ReviewPlace> Places, int FoundCount, IReadOnlyList<string> Found, string FoundMore, long? Fix);
+    IReadOnlyList<string> Tiles, IReadOnlyList<ReviewPlace> Places, int FoundCount, IReadOnlyList<string> Found, string FoundMore, long? Fix,
+    IReadOnlyList<ReviewProposedPart>? Proposed = null, ReviewPartPages? Pages = null);
+
+/// <summary>
+/// An adventure a file looks like it holds: its title and pages as the file numbers them (<see cref="To"/> empty for
+/// one page), <see cref="PagesText"/> as they read, and the levels and party its blurb gave.
+/// </summary>
+public sealed record ReviewProposedPart(string Title, string From, string To, string PagesText, string Levels, string Players);
+
+/// <summary>An adventure's first and last pages as typed; the last empty for one page.</summary>
+public sealed record ReviewPartPages(string From, string To);
+
+/// <summary>Accept on a proposal: the ticked adventures, by their place in the card's list, as typed.</summary>
+public sealed record ReviewPartsAccept(string Id, string Stamp, IReadOnlyList<ReviewPartRow> Parts);
+
+public sealed record ReviewPartRow(int Index, string Title, string From, string To);
+
+/// <summary>Set its pages, for an adventure whose pages weren't found.</summary>
+public sealed record ReviewPartPagesSet(string Id, string Stamp, string From, string To);
 
 /// <summary>A button on an offer card; <see cref="Primary"/> is the card's main answer.</summary>
 public sealed record ReviewChoice(string Key, string Label, string Hint, bool Primary);
@@ -135,6 +155,20 @@ public static class ReviewWords
     public const string UseHint = "This place opens at the page suggested from now on";
 
     public static string AllChecked(string bookTitle) => $"Every place in the new version of {bookTitle} is checked.";
+
+    public const string PagesHint = "Type pages as the file numbers them, or PDF page numbers.";
+
+    public const string AcceptPartsHint = "Give each ticked adventure a card of its own. The file isn't changed.";
+
+    public const string EditPartsHint = "Change the adventures' titles and pages";
+
+    public const string NotSplitHint = "It's one book. Bibliotaph won't ask about this file again.";
+
+    /// <summary>"Make 3 cards", for the ticked adventures.</summary>
+    public static string AcceptParts(int ticked) => ticked == 1 ? "Make 1 card" : $"Make {N(ticked)} cards";
+
+    /// <summary>A proposed adventure's pages as typed, before the server reads them.</summary>
+    public static string TypedPages(string from, string to) => to.Trim().Length == 0 ? $"p. {from}" : $"pp. {from}–{to}";
 
     /// <summary>A new version's card, counting the places that still need a look as they're checked.</summary>
     public static string RevisionHeading(string bookTitle, int found, int look)

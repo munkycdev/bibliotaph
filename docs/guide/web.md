@@ -246,6 +246,12 @@ The cards that ask one question come between the new terms and the field suggest
 - **New version** (places to check): the session items and page notes whose pages weren't found in a new version of
   their book. **Use this page** takes the page suggested for each, with **Undo**; the card is done once every place is
   checked. Opening a place at its page comes with the reader.
+- **Adventures?**: a file that looks like it holds several adventures, from its bookmarks and the blurbs on their
+  first pages, or read by a model. Each adventure is ticked, with its pages and the levels and party its blurb gave;
+  **Edit** turns the titles and pages into text boxes. **Make 3 cards** gives each ticked adventure a card of its own
+  that opens its pages, without changing the file. **Not split** (or **×**) says it's one book.
+- **Adventure in a file**: an adventure whose pages weren't found in its file as it is now, perhaps a new version.
+  **Set its pages** types where it is now, as the file numbers its pages; **Remove adventure** takes its card away.
 - **Cataloged wrong**: a book whose details you closed without a change after **Cataloged wrong…**. **Fix it** opens
   its details in the Library with the guesses marked again; **It's fine now** takes the card away.
 - **Folder rule?**: the same value set on several books in one folder. **Use this rule** suggests it for every file
@@ -253,8 +259,8 @@ The cards that ask one question come between the new terms and the field suggest
 - **Collection?** and **Add to collection?**: a folder that could be a collection, or books that could join one.
   **Accept**, **Not now** (asked again next time the page opens) or **Never**.
 
-The **×** on a pack, folder rule or collection card gives its "don't ask again" answer. Every answer has **Undo**. Where
-a file or folder is, the card says so under its heading. Adventures found inside a file come next.
+The **×** on a pack, adventures, folder rule or collection card gives its "don't ask again" answer. Every answer has
+**Undo**. Where a file or folder is, the card says so under its heading.
 
 **Files needing attention** lists the files that couldn't be read, grouped by reason. **Try again** gives a file, or
 every file on a card, another go, and **Try all again** does it for all of them apart from locked and protected

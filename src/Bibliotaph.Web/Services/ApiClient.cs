@@ -271,6 +271,12 @@ public sealed class ApiClient(HttpClient http)
     public Task<ActionResult> AnswerOfferAsync(ReviewOfferAnswer answer, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/answer", answer, ct);
 
+    public Task<ActionResult> AcceptPartsAsync(ReviewPartsAccept accept, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/parts/accept", accept, ct);
+
+    public Task<ActionResult> SetPartPagesAsync(ReviewPartPagesSet set, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/parts/pages", set, ct);
+
     public Task<ActionResult> UsePlaceAsync(ReviewPlaceUse use, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/places/use", use, ct);
 
