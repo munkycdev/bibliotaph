@@ -165,9 +165,30 @@ Open http://localhost:5178/ in Edge, paste the client ID, sign in, enter the lib
 (for example `eBooks/Some folder`), and press Run all. Check for changes measures the watcher: add or rename a file
 in the folder, wait for OneDrive to sync it, then press it.
 
+### OneDrive results
+
+These come from a run against Dave's work (business) drive, in a library folder of 2,383 files and 9.9 GB of PDFs,
+in Chrome 155:
+
+| What | Result |
+| --- | --- |
+| Sign-in (popup) / silent token refresh | 9 s / 0.2 to 0.5 s |
+| Listing by walking children | 5.2 s, 217 requests, 216 folders |
+| Listing by folder delta | 7.8 s, 13 requests, same 2,383 files (folder delta works on business drives) |
+| Hashes OneDrive reports | quickXorHash only |
+| Range read from a download link | 206 every time, 200 to 350 ms each; `Content-Range` is not exposed to the page |
+| `/content` with a Range header | 206, so the redirect is followed |
+| One stream, whole file | about 5 MB/s |
+| PDF.js open / page 1, median of 6 books | 0.38 s / 0.72 s |
+| PDF.js, 23.5 MB book | page 1 at 1.2 s after 3.6 MB |
+| PDF.js, 782 MB book | open 0.55 s, page 1 at 6 s after 8.1 MB, all text 71 s (the whole file) |
+| App folder write, read back, delete | works (`Files.ReadWrite.AppFolder` on a business drive) |
+
+A business drive leaves `@microsoft.graph.downloadUrl` out of a `$select`, so the link comes from the whole item.
+
 ## Still open
 
-- Dave's real index.db and books, on his PC.
-- Results from `onedrive/` against Dave's drive.
+- Dave's real index.db, on his PC.
+- Downloading books three or four at a time, for indexing.
 - Several tabs at once (Web Locks around the single worker that owns the databases).
 - Safari and Firefox: OPFS synchronous access handles exist in both, but nothing here was run on them.
