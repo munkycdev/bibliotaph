@@ -78,5 +78,10 @@ public sealed class SourceRootStore(IDbContextFactory<CatalogDbContext> contexts
         return true;
     }
 
-    static string Normalize(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+    /// <remarks>
+    /// On Windows a path rooted with a forward slash is no Windows path but a folder in connected storage, such as
+    /// <c>/onedrive/&lt;drive&gt;/RPG</c>, which the full path would put on the current drive.
+    /// </remarks>
+    static string Normalize(string path) =>
+        OperatingSystem.IsWindows() && path.StartsWith('/') && !path.StartsWith("//", StringComparison.Ordinal) ? path.TrimEnd('/') : Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 }
