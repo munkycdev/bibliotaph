@@ -1,7 +1,7 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
-using Bibliotaph.Pdf.Host;
+using Bibliotaph.Pdf.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Processing;
@@ -210,13 +210,12 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
             await TryAsync(() => queue.ReleaseAsync(job, CancellationToken.None), stopping);
             return;
         }
-        catch (PagePoisonedException ex)
+        catch (PdfEngineException ex)
         {
-            outcome = new StageOutcome.Failed(ex.Message, Retry: false);
-        }
-        catch (WorkerException ex)
-        {
-            outcome = new StageOutcome.Failed($"The PDF engine stopped: {ex.Message}", Retry: true);
+            // A page that keeps killing the engine says so itself, and trying again can't help.
+            outcome = ex.Retry
+                ? new StageOutcome.Failed($"The PDF engine stopped: {ex.Message}", Retry: true)
+                : new StageOutcome.Failed(ex.Message, Retry: false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

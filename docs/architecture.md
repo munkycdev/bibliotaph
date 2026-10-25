@@ -59,6 +59,8 @@ flowchart LR
 
 `PdfWorkerPool` (Pdf.Host) starts workers on first use and stops a viewer worker when its last reader lets it go. Each worker talks length-prefixed JSON messages over a named pipe and returns pixels through a shared memory section, which the viewer copies into a frozen bitmap. Each runs in its own job object that caps committed memory (1.5 GB for a viewer worker, 1 GB for the index worker), allows one process and no children, and kills the worker if the app dies. A request that times out kills and restarts the worker. `PoisonTracker` remembers which file and page killed a worker; after two kills on the same page the work is refused with that reason, so one bad book can't loop the queue.
 
+Indexing reaches PDFs only through `IPdfEngine` (Pdf.Contracts): open a file, then read its pages' text, draw a page, or OCR one. On Windows that is `WorkerPdfEngine` (Pdf.Host) over the index worker, which opens the document again if the worker restarted. The seam is there so the stages can run where the worker can't, such as a web version with PDF.js; such an engine answers `OcrUnavailable` for OCR it doesn't have, which blocks the OCR stage with a reason. Engine failures are `PdfEngineException`s, the worker's included: the lane retries the job unless the exception says trying again can't help, as for a page that has killed the worker twice. The viewer still uses the pool directly.
+
 The worker opens a PDF through `FPDF_LoadCustomDocument` over a read-only .NET stream, so PDFium never sees the path (names outside the ANSI code page open like any other) and the file is never opened for writing.
 
 ## Solution layout
@@ -71,8 +73,8 @@ The worker opens a PDF through `FPDF_LoadCustomDocument` over a read-only .NET s
 | `Bibliotaph.Ebooks` | The EPUB and Kindle readers (package, contents, page list, cover, DRM check), HTML to text blocks with AngleSharp, the page cut and the reader page; reads only from a stream | AngleSharp |
 | `Bibliotaph.Classification` | `ModelClassifier`, model client, prompts and schemas, excerpt builder, evidence check, rule hints, Ask's prompts and checks | Core |
 | `Bibliotaph.Processing` | Scanner, watcher, reconcile, hashing, ZIPs, the pipeline and its stages, metadata projection, built-in AI engine and downloads, Ask, online library readers, backups, library sync | Core, Catalog, Index, Classification, Ebooks, Pdf.Host |
-| `Bibliotaph.Pdf.Contracts` | Worker messages and framing | Nothing |
-| `Bibliotaph.Pdf.Host` | Worker pool, job objects, shared sections, restarts, poison tracking | Pdf.Contracts |
+| `Bibliotaph.Pdf.Contracts` | Worker messages and framing, and `IPdfEngine`, the PDF engine indexing uses | Nothing |
+| `Bibliotaph.Pdf.Host` | Worker pool, job objects, shared sections, restarts, poison tracking, `WorkerPdfEngine` | Pdf.Contracts |
 | `Bibliotaph.PdfWorker` | PDFium and Windows OCR (console exe) | Pdf.Contracts |
 | `Bibliotaph.Viewer` | Virtualized page surface, tiles, highlights, selection, links, image view | Core, Pdf.Host |
 | `Bibliotaph.App` | Shell, pages, view models, theme, WebView2 windows, Windows-only services, DI composition | Everything above except PdfWorker |

@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Worker messages and framing, shared by Pdf.Host and PdfWorker. References nothing. -->
+  <!-- Worker messages and framing, shared by Pdf.Host and PdfWorker, and the PDF engine seam indexing uses. References nothing. -->
   <PropertyGroup>
     <TargetFramework>$(BibTfm)</TargetFramework>
   </PropertyGroup>

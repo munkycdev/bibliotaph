@@ -5,6 +5,7 @@ using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
 using Microsoft.EntityFrameworkCore;
@@ -162,6 +163,7 @@ public partial class App : Application
 
         // PDFium runs only in worker processes; none starts until something asks for a page.
         builder.Services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
+        builder.Services.AddSingleton<IPdfEngine, WorkerPdfEngine>();
         builder.Services.AddSingleton<ISourceFileReader, SourceFileReader>();
 
         // Processing: scan, hash, and the job queue's stages. Registered after the index writer, so it stops first

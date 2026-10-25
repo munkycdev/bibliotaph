@@ -5,7 +5,6 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
-using Bibliotaph.Pdf.Host;
 
 namespace Bibliotaph.Processing;
 
@@ -54,7 +53,7 @@ public sealed record CheckedFile(CheckItem Item, CheckVerdict Verdict, string? N
 /// cache, which go when the check ends. Nothing goes into the catalog, the index or the job queue. The rules are
 /// Match's: the same hash, every page alike, most pages alike, or the title and publisher.
 /// </summary>
-public sealed class DownloadCheck(LibraryStore library, EntryStore entries, IndexQueries queries, PdfWorkerPool workers, ArchiveReader archives,
+public sealed class DownloadCheck(LibraryStore library, EntryStore entries, IndexQueries queries, IPdfEngine pdf, ArchiveReader archives,
     ISourceFileReader reader, VocabularyStore vocabularies, AppPaths paths, IDiskSpace disk)
 {
     /// <summary>Free space a PDF taken out of a ZIP must leave on the drive.</summary>
@@ -232,20 +231,21 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
     /// <summary>Every page's text and the PDF's own information; or why its pages couldn't be read, to say beside the verdict.</summary>
     async Task<(IReadOnlyList<string?>? Texts, DocMetadata? Info, string? Problem)> ReadAsync(LocalFile file, CancellationToken ct)
     {
-        await using var session = new PdfSession(workers.Index, file, password: null);
-        Response? error;
+        PdfSession? opened;
+        PdfResult<IPdfDocument> result;
         try
         {
-            error = await session.OpenAsync(ct);
+            (opened, result) = await PdfSession.OpenAsync(pdf, file, password: null, ct);
         }
-        catch (WorkerException)
+        catch (PdfEngineException)
         {
             return (null, null, "The PDF engine couldn't open it, so it was judged by its name.");
         }
-        if (error is not null)
-            return (null, null, error.Error == ErrorKind.Password
+        if (opened is null)
+            return (null, null, result.Error == ErrorKind.Password
                 ? "It needs a password, so it was judged by its name."
                 : "It isn't a readable PDF, so it was judged by its name.");
+        await using var session = opened;
 
         var texts = new List<string?>(session.Doc.PageCount);
         for (var first = 0; first < session.Doc.PageCount; first += TextStage.RunLength)

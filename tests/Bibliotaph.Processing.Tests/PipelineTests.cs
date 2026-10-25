@@ -120,7 +120,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         var projector = _projector = new MetadataProjector(_metadataStore, entries, vocabulary, index, _queries, _settings, _runs,
             new MarkStores(_favorites, _reading, _collections, _sessions, _notes), new CoverCache(_paths));
         _partStore = new PartStore(contexts);
-        var services = _stages = new StageServices(library, entries, index, _queries, _workers, reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
+        var services = _stages = new StageServices(library, entries, index, _queries, new WorkerPdfEngine(_workers), reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
             _partStore);
         _parts = new PartsService(_partStore, entries, _queries, projector, services);
         var packStore = new PackStore(contexts);
