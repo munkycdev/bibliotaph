@@ -314,6 +314,7 @@ const tests = {
     let bytes = 0;
     for (let read; !(read = await reader.read()).done;) { parts.push(read.value); bytes += read.value.length; }
     const downloadMs = ms(t);
+    if (bytes !== file.size) throw new Error(`downloaded ${bytes} bytes of ${file.size}`);
     const all = new Uint8Array(bytes);
     let at = 0;
     for (const part of parts) { all.set(part, at); at += part.length; }
@@ -398,8 +399,12 @@ async function sample() {
   return Array.from({ length: count }, (_, i) => pdfs[count === 1 ? pdfs.length - 1 : Math.round(i * (pdfs.length - 1) / (count - 1))]);
 }
 
+// The whole item rather than a $select of the link: a business drive leaves the annotation out of a selection.
 async function downloadUrl(id) {
-  return (await graph(`/me/drive/items/${id}?$select=id,@microsoft.graph.downloadUrl`))['@microsoft.graph.downloadUrl'];
+  const item = await graph(`/me/drive/items/${id}`);
+  const url = item['@microsoft.graph.downloadUrl'] ?? item['@content.downloadUrl'];
+  if (!url) throw new Error(`no download link on the item (annotations: ${Object.keys(item).filter(k => k.startsWith('@')).join(', ') || 'none'})`);
+  return url;
 }
 
 async function rangeFetch(url, start, end) {
