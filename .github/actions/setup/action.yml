@@ -1,0 +1,63 @@
+name: Set up the Windows runner
+description: >-
+  What every CI job needs before it builds: Defender off, temporary files on D:, the cached .NET SDK and NuGet
+  packages, a restore, and the built-in AI's engine. Both CI jobs use it, so they can't drift apart.
+inputs:
+  github-token:
+    description: Token the engine download uses to read llama.cpp's release.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Real-time scanning inspects every file restore, build and the tests write, which costs minutes on a hosted
+    # runner. The runner is thrown away after the job.
+    - name: Turn off Defender real-time scanning
+      shell: pwsh
+      run: Set-MpPreference -DisableRealtimeMonitoring $true
+
+    # The tests and the smoke test make their folders and SQLite files under %TEMP%, which is on C:, the runner's
+    # slower disk. RUNNER_TEMP is on D:.
+    - name: Keep temporary files on drive D
+      shell: pwsh
+      run: |
+        "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+        "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+
+    # The runner image has no .NET 11, and downloading it took about 40 seconds a run. The SDK lives in its own folder
+    # so it can be cached; setup-dotnet finds it there and only puts it on the path.
+    - uses: actions/cache@v4
+      with:
+        path: ${{ env.DOTNET_INSTALL_DIR }}
+        key: dotnet-${{ runner.os }}-${{ env.DOTNET_SDK }}
+
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_SDK }}
+
+    - uses: actions/cache@v4
+      with:
+        path: ${{ env.NUGET_PACKAGES }}
+        key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+        restore-keys: nuget-${{ runner.os }}-
+
+    - name: Show SDK
+      shell: pwsh
+      run: dotnet --info
+
+    - name: Restore
+      shell: pwsh
+      run: ./build/verify.ps1 -Step Restore
+
+    # llama.cpp's server for the built-in AI, and the tiny model its test runs; both pinned in build/engine.json. The
+    # app's build copies the server beside it, so the smoke job needs it too.
+    - uses: actions/cache@v4
+      with:
+        path: artifacts/cache
+        key: engine-${{ hashFiles('build/engine.json') }}
+
+    - name: Built-in AI engine
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: ./build/verify.ps1 -Step Engine

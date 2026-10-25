@@ -135,25 +135,27 @@ jobs:
             --runtime win-x64 --channel win --noPortable --outputDir releases
           if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed.' }
 
-      # CI runs on every push to main, so the tagged commit has its own "Build and test (Windows)": the draft waits for
-      # it to pass rather than running the same build, tests and smoke test again here.
+      # CI runs on every push to main, so the tagged commit has its own "Build and test (Windows)" and "App smoke test
+      # (Windows)": the draft waits for both to pass rather than running the same build, tests and smoke test again here.
       - name: Wait for CI on this commit
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $checks = "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?check_name=Build%20and%20test%20(Windows)"
           $deadline = (Get-Date).AddMinutes(40)
-          while ($true) {
-            $runs = @(gh api $checks --jq '.check_runs[] | {status, conclusion}' | ConvertFrom-Json)
-            if ($LASTEXITCODE -ne 0) { throw "Reading the checks on $env:GITHUB_SHA failed." }
-            if ($runs | Where-Object { $_.conclusion -eq 'success' }) { Write-Host 'CI passed on this commit.'; break }
-            if (-not ($runs | Where-Object { $_.status -ne 'completed' })) {
-              $found = if ($runs) { @($runs.conclusion) -join ', ' } else { 'it never ran' }
-              throw "CI hasn't passed on $env:GITHUB_SHA ($found). Re-run it, or tag a commit where it passed."
+          foreach ($name in 'Build and test (Windows)', 'App smoke test (Windows)') {
+            $checks = "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?check_name=$([Uri]::EscapeDataString($name))"
+            while ($true) {
+              $runs = @(gh api $checks --jq '.check_runs[] | {status, conclusion}' | ConvertFrom-Json)
+              if ($LASTEXITCODE -ne 0) { throw "Reading the checks on $env:GITHUB_SHA failed." }
+              if ($runs | Where-Object { $_.conclusion -eq 'success' }) { Write-Host "$name passed on this commit."; break }
+              if (-not ($runs | Where-Object { $_.status -ne 'completed' })) {
+                $found = if ($runs) { @($runs.conclusion) -join ', ' } else { 'it never ran' }
+                throw "$name hasn't passed on $env:GITHUB_SHA ($found). Re-run it, or tag a commit where it passed."
+              }
+              if ((Get-Date) -gt $deadline) { throw "$name on $env:GITHUB_SHA hasn't finished after 40 minutes." }
+              Start-Sleep 30
             }
-            if ((Get-Date) -gt $deadline) { throw "CI on $env:GITHUB_SHA hasn't finished after 40 minutes." }
-            Start-Sleep 30
           }
 
       # This build's entries in the feed vpk wrote (the full package, and a delta when there was a release before),
