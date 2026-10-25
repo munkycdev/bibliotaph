@@ -75,9 +75,9 @@ public sealed class SessionDirectory : ISessionChoices
     /// <summary>The Add to session items for these packs, the current one first: it, then Choose when there are others, then New.</summary>
     public static IReadOnlyList<SessionMenuChoice> MenuChoicesFor(IReadOnlyList<SessionPackInfo> all) =>
     [
-        .. all is [var current, ..] ? [new SessionMenuChoice(SessionMenuKind.Session, current.Id, $"Add to {current.Title}")] : Array.Empty<SessionMenuChoice>(),
-        .. all.Count > 1 ? [new SessionMenuChoice(SessionMenuKind.Choose, null, "Add to another binder…")] : Array.Empty<SessionMenuChoice>(),
-        new(SessionMenuKind.New, null, "Add to a new binder…"),
+        .. all is [var current, ..] ? [new SessionMenuChoice(SessionMenuKind.Session, current.Id, BinderText.AddTo(current.Title))] : Array.Empty<SessionMenuChoice>(),
+        .. all.Count > 1 ? [new SessionMenuChoice(SessionMenuKind.Choose, null, BinderText.AddToAnother)] : Array.Empty<SessionMenuChoice>(),
+        new(SessionMenuKind.New, null, BinderText.AddToNew),
     ];
 
     async Task<IReadOnlyList<FacetCount>> LoadSystemsAsync()

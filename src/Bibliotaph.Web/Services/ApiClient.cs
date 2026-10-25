@@ -243,6 +243,12 @@ public sealed class ApiClient(HttpClient http)
     public Task<BinderList> BindersAsync(DateOnly today, CancellationToken ct = default) =>
         SendAsync<BinderList>(HttpMethod.Get, $"api/binders?today={today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
 
+    /// <summary>Add to binder's menu: the binder worked on last first, then another and a new one.</summary>
+    public Task<BinderMenu> BinderMenuAsync(CancellationToken ct = default) => SendAsync<BinderMenu>(HttpMethod.Get, "api/binders/menu", null, ct);
+
+    public Task<ActionResult> AddToBinderAsync(long id, BinderAdd add, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"{Binder(id)}/add", add, ct);
+
     public Task<BinderCreated> CreateBinderAsync(BinderEdit edit, CancellationToken ct = default) =>
         SendAsync<BinderCreated>(HttpMethod.Post, "api/binders", edit, ct);
 

@@ -1234,7 +1234,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     [RelayCommand]
     void AddPageToSession(PageHitViewModel page) =>
         Sessions.AddPage(page.Hit.DocumentId, page.Hit.PdfPage,
-            $"page {(string.IsNullOrWhiteSpace(page.Hit.Label) ? (page.Hit.PdfPage + 1).ToString(CultureInfo.CurrentCulture) : page.Hit.Label)}");
+            BinderText.PageWhat(page.Hit.Label, page.Hit.PdfPage));
 
     // Smart Views, called saved searches in the app.
 

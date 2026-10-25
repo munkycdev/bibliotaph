@@ -165,6 +165,7 @@ mode and **Clear** unticks them all. The Select bar says how many are ticked and
 
 - **Edit metadata** changes fields on every ticked book at once (see below).
 - **Add to collection** adds them to a collection, and inside a collection **Remove from collection** takes them out.
+- **Add to binder** adds them to a binder (see [Binders](#binders)).
 - **Same book** joins cards that are copies or versions of one book; you choose which file opens.
 - **Pack together** makes a pack of images or PDFs, adds them to a pack, or merges packs, under a name you can change.
 - **Remove adventures** removes ticked adventures marked inside files; their pages are only their files' again.
@@ -204,7 +205,14 @@ each with its cover, its label, which book and pages it is, and your note:
 
 **Binder notes**, on the right, are saved as you type. **Show these books in the Library** shows the binder's books
 there, with **In** and the binder's name on a chip; **Find resources** opens the Library. Binders are the same ones
-the Windows app shows. Adding books and pages to a binder from the web, and opening its items in a reader, come next.
+the Windows app shows.
+
+**Add to binder** adds books as in the Windows app: the notebook button in a book's details adds that book (a file
+in a pack shown on its own card goes in on its own), and **Add to binder** in the Select bar adds every ticked book.
+Its menu leads with the binder you worked on last, then **Add to another binder…**, which lists them all and narrows as
+you type, and **Add to a new binder…**, which makes one first. While searching, the **+** beside a matching page on the
+**Pages** tab adds that page to the binder you worked on last. Each says what it added, with **Undo**. Opening a
+binder's items in a reader comes next.
 
 ## Your theme
 

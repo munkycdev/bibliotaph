@@ -641,3 +641,4 @@ button.bt-heart{color:var(--bt-accent)}
 @media(max-width:620px){.bt-binderitem{grid-template-columns:18px 24px 36px minmax(0,1fr)}
 .bt-binderactions{grid-column:4;justify-content:flex-end}
 .bt-toolbarspace{display:none}}
+.bt-hitline{display:flex;align-items:center;justify-content:space-between;gap:8px}

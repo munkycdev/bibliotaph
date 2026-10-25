@@ -68,10 +68,10 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
                 AddToAsync(id, what, () => add(id)).FireAndForget();
                 break;
             case SessionMenuKind.New:
-                NewThen("Add to a new binder", "Create and add", pack => AddToAsync(pack.Id, what, () => add(pack.Id)));
+                NewThen(BinderText.NewHeading, BinderText.NewAction, pack => AddToAsync(pack.Id, what, () => add(pack.Id)));
                 break;
             case SessionMenuKind.Choose:
-                Open(SessionDialogViewModel.Picking($"Add {what} to a binder", Directory.All), async result =>
+                Open(SessionDialogViewModel.Picking(BinderText.PickHeading(what), Directory.All), async result =>
                 {
                     if (result.PackId is { } picked) await AddToAsync(picked, what, () => add(picked));
                 });
@@ -87,7 +87,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     {
         if (Directory.Current is null)
         {
-            NewThen("Add to a new binder", "Create", _ => AddPagesAsync(documentId, from, to, firstPage, findPage));
+            NewThen(BinderText.NewHeading, "Create", _ => AddPagesAsync(documentId, from, to, firstPage, findPage));
             return;
         }
         var label = await Run(() => sessions.SuggestLabelAsync(documentId, firstPage), "Finding the page's bookmark failed") ?? "";
