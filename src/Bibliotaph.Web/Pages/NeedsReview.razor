@@ -63,7 +63,14 @@
             }
             @foreach (var offer in _list.Offers.Where(o => Shows(o.Kind)))
             {
-                <ReviewOfferCardView @key="offer.Id" Card="offer" State="StateOf(offer.Id)" Decided="Decided" />
+                @if (offer.Kind == "parts")
+                {
+                    <ReviewPartsCardView @key="offer.Id" Card="offer" State="StateOf(offer.Id)" Decided="Decided" />
+                }
+                else
+                {
+                    <ReviewOfferCardView @key="offer.Id" Card="offer" State="StateOf(offer.Id)" Decided="Decided" />
+                }
             }
             @foreach (var card in ShownFields)
             {

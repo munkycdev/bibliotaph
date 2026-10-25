@@ -29,6 +29,9 @@ public sealed class ReviewCardState
     /// </summary>
     public Dictionary<string, string?> Places { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>What's typed or ticked on a card edited in place, kept so the Show menu doesn't lose it.</summary>
+    public object? Draft { get; set; }
+
     public void MarkDone(ActionResult result) => MarkDone(result.Message, result.Undo is { } undo ? [undo] : []);
 
     public void MarkDone(string message, IEnumerable<string> undos)

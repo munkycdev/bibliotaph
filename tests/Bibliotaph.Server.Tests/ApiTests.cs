@@ -753,6 +753,48 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Needs_review_answers_a_file_that_looks_like_it_holds_adventures_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
+
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var library = lease.Library;
+            var source = (await library.Get<LibraryStore>().GetSourceAsync(book.DocumentId, ct))!;
+            await library.Get<PartProposalStore>().SaveAsync(source.ContentHash, PartProposalSource.Rules,
+                new Compilation(new CollectionEvidence(0, "three short adventures"), [new ProposedPart("The Crypt", new PartPages(0, 0), "1-3")]), ct);
+        }
+
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var card = list.Offers.Single(o => o.Kind == "parts");
+        using var unreadable = await client.PostAsJsonAsync("/api/review/offers/parts/accept",
+            new ReviewPartsAccept(card.Id, card.Stamp, [new ReviewPartRow(0, "The Crypt", "nine", "")]), ct);
+        using var notSplit = await client.PostAsJsonAsync("/api/review/offers/answer", new ReviewOfferAnswer(card.Id, card.Stamp, "notsplit"), ct);
+        var kept = (await notSplit.Content.ReadFromJsonAsync<ActionResult>(ct))!;
+        var afterNotSplit = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using (await client.PostAsync($"/api/library/held/{kept.Undo}", null, ct)) { }
+        var afterUndo = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+
+        Assert.Equal(("Adventures?", "This file looks like it holds 1 adventure.", "notsplit"), (card.Chip, card.Heading, card.Dismiss));
+        Assert.StartsWith("The book says “three short adventures” (p. 1).", card.Detail);
+        var part = Assert.Single(card.Proposed!);
+        Assert.Equal(("The Crypt", "1", "", "p. 1", "Levels 1–3"), (part.Title, part.From, part.To, part.PagesText, part.Levels));
+        Assert.Equal(HttpStatusCode.BadRequest, unreadable.StatusCode);
+        Assert.Contains("The pages of The Crypt don't read as pages of this file.", await unreadable.Content.ReadAsStringAsync(ct));
+        Assert.Equal($"Kept {book.Title} as one book.", kept.Message);
+        Assert.DoesNotContain(afterNotSplit.Offers, o => o.Kind == "parts");
+        Assert.Contains(afterUndo.Offers, o => o.Id == card.Id);
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);
