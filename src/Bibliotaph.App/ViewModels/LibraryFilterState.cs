@@ -136,14 +136,7 @@ public sealed partial class LibraryFilterState : ObservableObject
     /// The type-ahead filters for fields with too many values for a menu: setting, themes, environments, publisher and
     /// edition. Each box's chips widen it; the boxes narrow together, and with every other filter.
     /// </summary>
-    public IReadOnlyList<ChipFilterViewModel> ChipFilters { get; } =
-    [
-        new(MetadataFields.Settings, "Type a setting: a world, a region, a city"),
-        new(MetadataFields.Themes, "Type a theme: horror, intrigue, fey"),
-        new(MetadataFields.Environments, "Type an environment: a swamp, the underdark, a city"),
-        new(MetadataFields.Publisher, "Type a publisher"),
-        new(MetadataFields.Edition, "Type an edition: 5e, 2nd edition"),
-    ];
+    public IReadOnlyList<ChipFilterViewModel> ChipFilters { get; } = [.. TypeAheadFilters.All.Select(f => new ChipFilterViewModel(f.Field, f.Hint))];
 
     /// <summary>Their group shows once one of them has something to offer.</summary>
     public bool ShowAboutFilters => ChipFilters.Any(b => b.IsOffered);

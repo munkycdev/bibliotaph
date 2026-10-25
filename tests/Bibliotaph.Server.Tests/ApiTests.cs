@@ -236,6 +236,40 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task A_type_ahead_filter_offers_the_values_its_books_have_and_filters_by_those_picked()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/harbor.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.SingleOrDefault(b => b.Cover is not null), ct);
+        using (await client.PostAsJsonAsync($"/api/library/books/{book.EntryId}/fields/publisher", new FieldEdit("Harbor Press"), ct)) { }
+
+        var offered = await client.GetFromJsonAsync<List<ValueSuggestion>>("/api/library/values/publisher?text=harb", ct);
+        var nothing = await client.GetFromJsonAsync<List<ValueSuggestion>>("/api/library/values/publisher?text=zzz", ct);
+        using var unknownField = await client.GetAsync("/api/library/values/title?text=harb", ct);
+        var picked = Uri.EscapeDataString($$"""{"publisher":["{{offered![0].Value}}"]}""");
+        var kept = await client.GetFromJsonAsync<LibraryResults>($"/api/library?picked={picked}", ct);
+        var none = await client.GetFromJsonAsync<LibraryResults>($"/api/library?picked={Uri.EscapeDataString("""{"publisher":["Nobody"]}""")}", ct);
+        var unreadable = await client.GetFromJsonAsync<LibraryResults>("/api/library?picked=nonsense", ct);
+
+        Assert.Equal([("Harbor Press", "1")], offered.Select(s => (s.Label, s.Count)));
+        Assert.Equal("Harbor Press, 1 book", offered[0].Spoken);
+        Assert.Empty(nothing!);
+        Assert.Equal(HttpStatusCode.NotFound, unknownField.StatusCode);
+        Assert.Equal([book.EntryId], kept!.Books.Select(b => b.EntryId));
+        Assert.Equal([new FilterChoice(offered[0].Value, "Harbor Press")], kept.Menus.Boxes.Single(b => b.Key == "publisher").Picked);
+        Assert.True(kept.Menus.Boxes.Single(b => b.Key == "publisher").Offered);
+        Assert.Empty(none!.Books);
+        Assert.Equal([new FilterChoice("Nobody", "Nobody")], none.Menus.Boxes.Single(b => b.Key == "publisher").Picked);
+        Assert.Single(unreadable!.Books);
+    }
+
+    [Fact]
     public async Task A_cover_is_served_by_its_name_and_nothing_else_is()
     {
         var user = await AddUserAsync(admin: false);

@@ -22,6 +22,9 @@
 - **Change a book's details on the web.** As in the Windows app: edit fields and choose between suggestions, Cataloged
   wrong… and the offer to correct look-alikes, favorites, notes, adventures inside a PDF, Reprocess, a pack's cover and
   split, and copies, with Undo. See [Changing a book's details](docs/guide/web.md#changing-a-books-details).
+- **Type to filter on the web.** More filters has the Windows app's boxes for setting, themes, environments, publisher
+  and edition: type, pick from the matching values with their counts, and each pick becomes a chip. See
+  [Your library and search](docs/guide/web.md#your-library-and-search).
 - **Collections on the web.** Make, open, rename, move and delete collections, and add books to them or take them out
   from a book's details, as in the Windows app, with Undo. See [Collections](docs/guide/web.md#collections).
 

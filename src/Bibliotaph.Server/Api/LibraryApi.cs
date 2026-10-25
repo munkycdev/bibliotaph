@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -22,6 +23,14 @@ public static class LibraryApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             return await ResultsAsync(lease.Library, Query(request.Query), ct);
+        });
+
+        api.MapGet("/library/values/{field}", async (string field, string? text, HttpRequest request, ClaimsPrincipal principal, UserLibraries libraries,
+            CancellationToken ct) =>
+        {
+            if (TypeAheadFilters.All.All(f => f.Field.Key != field)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Results.Ok(await SuggestAsync(lease.Library, field, text ?? "", Query(request.Query), ct));
         });
 
         api.MapGet("/home", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -75,7 +84,7 @@ public static class LibraryApi
             Level = Number("level"), UnknownLevels = On("unknownLevels"), Players = Number("players"), Style = Text("style"), Duration = Text("duration"),
             Folder = long.TryParse(Text("folder"), NumberStyles.None, CultureInfo.InvariantCulture, out var folder) ? folder : null,
             Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Adventures = Text("adventures"),
-            Collections = Text("collections"),
+            Collections = Text("collections"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = On("addedHere"),
         };
@@ -163,14 +172,29 @@ public static class LibraryApi
             query.UnknownLevels, Parse<AiFilter>(query.Ai) ?? AiFilter.All, query.Copies, One(query.Own), Styles: One(query.Style),
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
-            PackFiles: query.EachFile,
+            PackFiles: query.EachFile, Picked: Picked(query.Picked),
             Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection) : null);
     }
 
     static bool IsFiltering(LibraryQuery q) =>
         !string.IsNullOrEmpty(q.Kind) || q.Folder is not null || !string.IsNullOrEmpty(q.System) || !string.IsNullOrEmpty(q.Type) || q.Level is not null
         || !string.IsNullOrEmpty(q.Ai) || q.Copies || !string.IsNullOrEmpty(q.Own) || !string.IsNullOrEmpty(q.Style) || !string.IsNullOrEmpty(q.Duration)
-        || q.Players is not null || !string.IsNullOrEmpty(q.Store) || !string.IsNullOrEmpty(q.Adventures) || !string.IsNullOrEmpty(q.Collections);
+        || q.Players is not null || !string.IsNullOrEmpty(q.Store) || !string.IsNullOrEmpty(q.Adventures) || !string.IsNullOrEmpty(q.Collections)
+        || Picked(q.Picked) is not null;
+
+    /// <summary>The type-ahead filters' picks in a query, or null with none or with JSON that can't be read.</summary>
+    static PickedValues? Picked(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<PickedValues>(json) is { IsEmpty: false } picked ? picked : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     static async Task<LibraryMenus> MenusAsync(UserLibrary library, LibraryFilter filter, SearchPlan? plan, LibraryQuery query, CancellationToken ct)
     {
@@ -203,7 +227,39 @@ public static class LibraryApi
             await queries.CountAiReadAsync(ct) > 0 || !string.IsNullOrEmpty(query.Ai),
             await queries.CountWithCopiesAsync(ct) > 0 || query.Copies,
             await queries.CountPartsAsync(ct) > 0 || !string.IsNullOrEmpty(query.Adventures),
-            hasCollections || !string.IsNullOrEmpty(query.Collections));
+            hasCollections || !string.IsNullOrEmpty(query.Collections),
+            await BoxesAsync(queries, filter, plan, ct));
+    }
+
+    /// <summary>
+    /// The type-ahead filters, each shown once some book in view has a value for it, or while it has picks; a pick
+    /// takes its value's name from the counts, and a value no book has any more keeps its own.
+    /// </summary>
+    static async Task<IReadOnlyList<FilterBox>> BoxesAsync(LibraryQueries queries, LibraryFilter filter, SearchPlan? plan, CancellationToken ct)
+    {
+        var boxes = new List<FilterBox>();
+        foreach (var (field, hint) in TypeAheadFilters.All)
+        {
+            var counts = await queries.GetValueCountsAsync(field.Key, filter with { Picked = filter.Picked?.Without(field.Key) }, plan, ct);
+            var picks = filter.Picked?[field.Key] ?? [];
+            var labels = counts.ToDictionary(c => c.Value, c => c.Label, StringComparer.Ordinal);
+            boxes.Add(new FilterBox(field.Key, field.Label, hint, counts.Count > 0 || picks.Count > 0,
+                [.. picks.Select(v => new FilterChoice(v, labels.GetValueOrDefault(v) ?? v))]));
+        }
+        return boxes;
+    }
+
+    /// <summary>What a type-ahead filter offers for what was typed, among the books the rest of the query keeps.</summary>
+    public static async Task<IReadOnlyList<ValueSuggestion>> SuggestAsync(UserLibrary library, string field, string text, LibraryQuery query,
+        CancellationToken ct)
+    {
+        var scope = await library.Get<LibraryStore>().GetVisibleEntryIdsAsync(query.Folder, ct);
+        var filter = Filter(query, scope);
+        var plan = query.IsSearching ? SearchPlan.From(SearchQuery.Parse(query.Q!.Trim())) : null;
+        var counts = await library.Get<LibraryQueries>().GetValueCountsAsync(field, filter with { Picked = filter.Picked?.Without(field) }, plan, ct);
+        static string N(long count) => count.ToString("N0", CultureInfo.CurrentCulture);
+        return [.. TypeAheadFilters.Suggest(counts, [.. filter.Picked?[field] ?? []], text)
+            .Select(c => new ValueSuggestion(c.Value, c.Label, N(c.Count), $"{c.Label}, {N(c.Count)} {(c.Count == 1 ? "book" : "books")}"))];
     }
 
     internal static BookCard ToCard(LibraryEntry e, EntryAvailability availability) => new(

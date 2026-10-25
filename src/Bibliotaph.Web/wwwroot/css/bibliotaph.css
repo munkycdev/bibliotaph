@@ -525,3 +525,13 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-chiplink{font:inherit;color:var(--bt-text);padding:0;cursor:pointer}
 .bt-chiplink:hover{color:var(--bt-accent)}
 .bt-backdrop.bt-dialogback{z-index:12}
+/* The type-ahead filters under More filters. */
+.bt-boxes{align-items:flex-start}
+.bt-typeahead{flex:0 0 200px;min-width:0}
+.bt-typeaheadbox{position:relative}
+.bt-suggestions{position:absolute;left:0;top:100%;z-index:5;min-width:100%;max-width:320px;margin-top:4px;padding:4px;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:7px;box-shadow:0 8px 30px #00000020}
+.bt-suggestion{display:flex;justify-content:space-between;gap:10px;width:100%;padding:6px 8px;border-radius:4px;font-size:11px;color:var(--bt-text);text-align:left;cursor:pointer}
+.bt-suggestion.active,.bt-suggestion:hover{background:var(--bt-side)}
+.bt-suggestionlabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-suggestioncount{color:var(--bt-muted);flex:0 0 auto}
+.bt-typeahead .bt-chips{margin-top:6px}

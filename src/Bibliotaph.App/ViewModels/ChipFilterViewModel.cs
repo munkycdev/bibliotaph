@@ -15,9 +15,6 @@ namespace Bibliotaph.App.ViewModels;
 /// </summary>
 public sealed partial class ChipFilterViewModel(MetadataField field, string hint) : ObservableObject
 {
-    /// <summary>Enough to choose from without the list running past a short window.</summary>
-    const int MaxSuggestions = 8;
-
     IReadOnlyList<ValueCount> _counts = [];
     readonly List<Choice<string>> _picks = [];
     List<Choice<string>> _shown = [];
@@ -125,21 +122,9 @@ public sealed partial class ChipFilterViewModel(MetadataField field, string hint
         foreach (var (suggestion, i) in Suggestions.Select((s, i) => (s, i))) suggestion.IsHighlighted = i == next;
     }
 
-    /// <summary>
-    /// The values not yet picked whose name, or any other name they go by, contains what was typed, ignoring case,
-    /// accents and punctuation: those starting with it first, then the most books.
-    /// </summary>
     void ShowSuggestions()
     {
-        var typed = MetadataText.Normalize(Text);
-        var matches = typed.Length == 0 ? [] : _counts
-            .Where(c => _picks.All(p => p.Value != c.Value))
-            .Select(c => (Count: c, Label: MetadataText.Normalize(c.Label)))
-            .Where(c => c.Label.Contains(typed, StringComparison.Ordinal) || c.Count.Names.Contains(typed, StringComparison.Ordinal))
-            .OrderBy(c => !c.Label.StartsWith(typed, StringComparison.Ordinal))
-            .Take(MaxSuggestions)
-            .Select(c => new ChipSuggestion(c.Count.Value, c.Count.Label, c.Count.Count))
-            .ToList();
+        var matches = TypeAheadFilters.Suggest(_counts, [.. _picks.Select(p => p.Value)], Text).Select(c => new ChipSuggestion(c.Value, c.Label, c.Count)).ToList();
         Suggestions.Clear();
         foreach (var match in matches) Suggestions.Add(match);
         if (Suggestions.Count > 0) Suggestions[0].IsHighlighted = true;

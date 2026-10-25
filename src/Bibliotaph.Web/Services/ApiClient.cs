@@ -89,6 +89,14 @@ public sealed class ApiClient(HttpClient http)
         await EnsureAsync(response, ct);
     }
 
+    /// <summary>What a type-ahead filter offers for what was typed, among the books the query keeps.</summary>
+    public Task<List<ValueSuggestion>> SuggestAsync(string field, string text, LibraryQuery query, CancellationToken ct = default)
+    {
+        var filters = LibraryUrl.QueryString(query, forApi: true);
+        var url = $"api/library/values/{Uri.EscapeDataString(field)}{(filters.Length == 0 ? "?" : filters + "&")}text={Uri.EscapeDataString(text)}";
+        return SendAsync<List<ValueSuggestion>>(HttpMethod.Get, url, null, ct);
+    }
+
     public async Task<LibraryResults> LibraryAsync(LibraryQuery query, CancellationToken ct = default)
     {
         using var response = await http.GetAsync($"api/library{LibraryUrl.QueryString(query, forApi: true)}", ct);
