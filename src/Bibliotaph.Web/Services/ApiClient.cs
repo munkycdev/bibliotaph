@@ -280,6 +280,36 @@ public sealed class ApiClient(HttpClient http)
     public Task<ActionResult> UsePlaceAsync(ReviewPlaceUse use, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/places/use", use, ct);
 
+    // Books owned elsewhere.
+
+    public Task<ElsewhereChoices> ElsewhereChoicesAsync(CancellationToken ct = default) =>
+        SendAsync<ElsewhereChoices>(HttpMethod.Get, "api/library/elsewhere/choices", null, ct);
+
+    public Task<ElsewhereAdded> AddElsewhereAsync(ElsewhereAdd add, CancellationToken ct = default) =>
+        SendAsync<ElsewhereAdded>(HttpMethod.Post, "api/library/elsewhere", add, ct);
+
+    /// <summary>A picture picked in the Add dialog, read as a cover before the book is made.</summary>
+    public Task<ChosenCoverRead> ReadCoverAsync(Stream picture, string contentType, CancellationToken ct = default) =>
+        SendAsync<ChosenCoverRead>(HttpMethod.Post, "api/library/elsewhere/cover", Picture(picture, contentType), ct);
+
+    public Task<BookDetails> ChooseCoverAsync(long entryId, Stream picture, string contentType, CancellationToken ct = default) =>
+        SendAsync<BookDetails>(HttpMethod.Put, $"api/library/books/{Id(entryId)}/chosen-cover", Picture(picture, contentType), ct);
+
+    public Task<BookDetails> RemoveChosenCoverAsync(long entryId, CancellationToken ct = default) =>
+        SendAsync<BookDetails>(HttpMethod.Delete, $"api/library/books/{Id(entryId)}/chosen-cover", null, ct);
+
+    public Task<ActionResult> RemoveElsewhereAsync(long entryId, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Delete, $"api/library/books/{Id(entryId)}/elsewhere", null, ct);
+
+    static StreamContent Picture(Stream picture, string contentType)
+    {
+        var content = new StreamContent(picture);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType.Length > 0 ? contentType : "application/octet-stream");
+        return content;
+    }
+
+    static string Id(long id) => id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     public Task<ReviewFiles> AttentionAsync(CancellationToken ct = default) => SendAsync<ReviewFiles>(HttpMethod.Get, "api/review/files", null, ct);
 
     public Task<ReviewFiles> RetryAsync(IReadOnlyList<long> documents, CancellationToken ct = default) =>
@@ -379,7 +409,10 @@ public sealed class ApiClient(HttpClient http)
 
     async Task<HttpResponseMessage> SendRawAsync(HttpMethod method, string url, object? body, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(method, url) { Content = body is null ? null : JsonContent.Create(body, body.GetType()) };
+        using var request = new HttpRequestMessage(method, url)
+        {
+            Content = body switch { null => null, HttpContent content => content, _ => JsonContent.Create(body, body.GetType()) },
+        };
         var response = await http.SendAsync(request, ct);
         try
         {

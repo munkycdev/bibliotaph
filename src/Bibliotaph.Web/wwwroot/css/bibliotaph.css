@@ -536,6 +536,15 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-suggestioncount{color:var(--bt-muted);flex:0 0 auto}
 .bt-typeahead .bt-chips{margin-top:6px}
 .bt-dialogintro{margin-top:6px}
+/* Add a book you own elsewhere, and its details' cover and Remove from library: the Windows app's dialog and buttons. */
+.bt-owns{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:4px}
+.bt-filebutton{position:relative;align-self:flex-start;cursor:pointer;color:var(--bt-text)}
+.bt-filebutton input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.bt-filebutton:focus-within{outline:2px solid var(--bt-accent);outline-offset:2px}
+.bt-filebutton.disabled{opacity:.5;cursor:default}
+.bt-covername{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--bt-text)}
+.bt-covername span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-detailbuttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 /* The sidebar's pins: a drop line where a dragged pin will land, a dimmed book that can't be opened, and the right-click menu. */
 .bt-pinrow{position:relative;border-top:2px solid transparent}
 .bt-pinrow.drop{border-top-color:var(--bt-accent)}

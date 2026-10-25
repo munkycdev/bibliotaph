@@ -66,6 +66,26 @@
             }
         </div>
 
+        @if (book.Card.Elsewhere)
+        {
+            @* A book owned elsewhere has no file to draw a cover from or to open; the user made it, so they can remove it. *@
+            <div class="bt-detailbuttons">
+                <label class="bt-button bt-filebutton @(_choosingCover ? "disabled" : "")" title="Use a picture of your own as this book's cover">
+                    <Icon Name="Image" />Choose a cover image…
+                    <InputFile accept="image/jpeg,image/png,image/webp" OnChange="CoverPickedAsync" aria-label="Choose a cover image" disabled="@_choosingCover" />
+                </label>
+                @if (book.HasChosenCover)
+                {
+                    <button class="bt-button" title="Stop using the picture you chose as this book's cover" @onclick="RemoveCoverAsync"><Icon Name="X" />Remove the cover</button>
+                }
+                <button class="bt-button" title="Take this book out of your library. Undo brings it back." @onclick="RemoveFromLibraryAsync"><Icon Name="Trash2" />Remove from library</button>
+            </div>
+            @if (_coverProblem is { } coverProblem)
+            {
+                <div class="bt-problem" role="alert">@coverProblem</div>
+            }
+        }
+
         <div class="bt-tabs bt-detailtabs" role="tablist" aria-label="Details or notes">
             <button class="bt-tab @(_notesTab ? "" : "active")" role="tab" aria-selected="@(!_notesTab)" @onclick="() => _notesTab = false">Details</button>
             <button class="bt-tab @(_notesTab ? "active" : "")" role="tab" aria-selected="@_notesTab" @onclick="ShowNotesAsync">@(_notes?.TabLabel ?? book.NotesLabel)</button>
@@ -897,6 +917,54 @@
     async Task ReprocessAsync()
     {
         if (await TryAsync(() => Api.ReprocessAsync(EntryId)) is { } details) _details = details;
+    }
+
+    // A book owned elsewhere: a cover of the user's own, and Remove from library.
+
+    bool _choosingCover;
+    string? _coverProblem;
+
+    async Task CoverPickedAsync(InputFileChangeEventArgs e)
+    {
+        _choosingCover = true;
+        _coverProblem = null;
+        try
+        {
+            await using var picture = e.File.OpenReadStream(CoverMaxBytes);
+            _details = await Api.ChooseCoverAsync(EntryId, picture, e.File.ContentType);
+            await ChangedAsync();
+        }
+        catch (IOException)
+        {
+            _coverProblem = "That picture is too big to use as a cover.";
+        }
+        catch (ApiProblemException ex)
+        {
+            _coverProblem = ex.Message;
+        }
+        finally
+        {
+            _choosingCover = false;
+        }
+    }
+
+    /// <summary>A picture bigger than this is more likely a mistake than a cover; the server says the same.</summary>
+    const long CoverMaxBytes = 50L * 1024 * 1024;
+
+    async Task RemoveCoverAsync()
+    {
+        _coverProblem = null;
+        if (await TryAsync(() => Api.RemoveChosenCoverAsync(EntryId)) is not { } details) return;
+        _details = details;
+        await ChangedAsync();
+    }
+
+    /// <summary>The library says the book went, with Undo, as on Windows.</summary>
+    async Task RemoveFromLibraryAsync()
+    {
+        if (await TryAsync(() => Api.RemoveElsewhereAsync(EntryId)) is not { } result) return;
+        await Done.InvokeAsync(result);
+        await Close();
     }
 
     async Task UseCoverAsync(long? member)

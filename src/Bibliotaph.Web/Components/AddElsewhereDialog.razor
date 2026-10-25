@@ -1,0 +1,198 @@
+@* .bt-dialog: the Windows app's "Add a book you own elsewhere": a title and the few fields most books need, where it is
+   owned, and a cover picture of your own, read as soon as it's picked. Add to library makes the card; its details then
+   open for everything else. Esc, Cancel or a click outside closes it. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="CancelAsync"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Add a book you own elsewhere" @onkeydown="KeyDownAsync">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">@(_choices?.Eyebrow ?? "OWNED ELSEWHERE")</span>
+            <h2 class="bt-dialogtitle">@(_choices?.Heading ?? "Add a book you own elsewhere")</h2>
+            @if (_choices is { } words)
+            {
+                <div class="bt-small bt-dialogintro">@words.Intro</div>
+            }
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close without adding a book" @onclick="CancelAsync"><Icon Name="X" /></button>
+    </div>
+    @if (_choices is not { } choices)
+    {
+        <div class="bt-loading">@(_problem ?? "Opening…")</div>
+    }
+    else
+    {
+        <label class="bt-field">Title<input aria-label="Title" @bind="_title" @bind:event="oninput" @onkeydown="TitleKeyDownAsync" @ref="_titleBox" /></label>
+        <div class="bt-pagefields">
+            <label class="bt-field">Game system
+                <select aria-label="Game system" @bind="_system">
+                    <option value="">Not set</option>
+                    @foreach (var system in choices.Systems) { <option value="@system">@system</option> }
+                </select>
+            </label>
+            <label class="bt-field">Type
+                <select aria-label="Type" @bind="_type">
+                    <option value="">Not set</option>
+                    @foreach (var type in choices.Types) { <option value="@type">@type</option> }
+                </select>
+            </label>
+        </div>
+        <label class="bt-field">Publisher<input aria-label="Publisher" @bind="_publisher" @bind:event="oninput" /></label>
+        <div class="bt-field">
+            <span>Also own</span>
+            <div class="bt-owns">
+                @foreach (var own in choices.Owns)
+                {
+                    <label class="bt-check small" aria-label="@($"Also own on {own}")">
+                        <input type="checkbox" checked="@_owns.Contains(own)" @onchange="e => Own(own, e.Value is true)" />@own
+                    </label>
+                }
+            </div>
+            <input aria-label="Somewhere else, or a link" title="@choices.OtherTip" @bind="_other" @bind:event="oninput" />
+            <span class="bt-small">@choices.OtherHint</span>
+        </div>
+        <div class="bt-field">
+            <span>Cover</span>
+            @if (_coverName is { } name)
+            {
+                <div class="bt-covername">
+                    <span>@name</span>
+                    <button class="bt-link" aria-label="Remove the cover image" @onclick="ClearCover">Remove</button>
+                </div>
+            }
+            else
+            {
+                <label class="bt-button bt-filebutton @(_reading ? "disabled" : "")">
+                    <Icon Name="Image" />Choose a cover image…
+                    <InputFile accept="image/jpeg,image/png,image/webp" OnChange="CoverPickedAsync" aria-label="Choose a cover image" disabled="@_reading" />
+                </label>
+            }
+        </div>
+        @if (_problem is { } problem)
+        {
+            <div class="bt-problem" role="alert">@problem</div>
+        }
+        <div class="bt-boxactions end bt-dialogactions">
+            <button class="bt-button" @onclick="CancelAsync">Cancel</button>
+            <button class="bt-button primary" disabled="@(_saving || _reading || _title.Trim().Length == 0)" @onclick="SaveAsync"><Icon Name="Plus" />Add to library</button>
+        </div>
+    }
+</div>
+
+@code {
+    ElsewhereChoices? _choices;
+    string _title = "";
+    string _system = "";
+    string _type = "";
+    string _publisher = "";
+    string _other = "";
+    readonly HashSet<string> _owns = [];
+    string? _cover;
+    string? _coverName;
+    string? _problem;
+    bool _saving;
+    bool _reading;
+    ElementReference _titleBox;
+    bool _focus;
+
+    /// <summary>Raised when the dialog closes: with the new card's entry, or null when it was cancelled.</summary>
+    [Parameter] public EventCallback<long?> Closed { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _choices = await Api.ElsewhereChoicesAsync();
+            _focus = true;
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focus) return;
+        _focus = false;
+        await _titleBox.FocusAsync();
+    }
+
+    void Own(string own, bool on)
+    {
+        if (on) _owns.Add(own);
+        else _owns.Remove(own);
+    }
+
+    /// <summary>Read now, so a picture that can't be a cover says so before the book is made, as on Windows.</summary>
+    async Task CoverPickedAsync(InputFileChangeEventArgs e)
+    {
+        _reading = true;
+        _problem = null;
+        try
+        {
+            await using var picture = e.File.OpenReadStream(MaxBytes);
+            var read = await Api.ReadCoverAsync(picture, e.File.ContentType);
+            _problem = read.Problem;
+            if (read.Cover is { } token)
+            {
+                _cover = token;
+                _coverName = e.File.Name;
+            }
+        }
+        catch (IOException)
+        {
+            _problem = "That picture is too big to use as a cover.";
+        }
+        catch (ApiProblemException ex)
+        {
+            _problem = ex.Message;
+        }
+        finally
+        {
+            _reading = false;
+        }
+    }
+
+    /// <summary>A picture bigger than this is more likely a mistake than a cover; the server says the same.</summary>
+    const long MaxBytes = 50L * 1024 * 1024;
+
+    void ClearCover()
+    {
+        _cover = null;
+        _coverName = null;
+    }
+
+    async Task SaveAsync()
+    {
+        if (_saving || _title.Trim().Length == 0) return;
+        _saving = true;
+        _problem = null;
+        try
+        {
+            var added = await Api.AddElsewhereAsync(new ElsewhereAdd(_title, _system, _type, _publisher, [.. _choices!.Owns.Where(_owns.Contains)], _other, _cover));
+            if (added.EntryId is { } entryId) await Closed.InvokeAsync(entryId);
+            else _problem = added.Problem;
+        }
+        catch (ApiProblemException e)
+        {
+            _problem = e.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    Task CancelAsync() => Closed.InvokeAsync(null);
+
+    async Task KeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await CancelAsync();
+    }
+
+    async Task TitleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveAsync();
+    }
+}

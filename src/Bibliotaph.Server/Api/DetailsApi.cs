@@ -122,7 +122,8 @@ public static class DetailsApi
             entry.IsPart ? To(entry.Pages, labels) : "",
             DetailsText.SplitPackLabel(hasPdfs),
             DetailsText.SplitPackTip(hasPdfs),
-            chips);
+            chips,
+            entry.IsElsewhere && await library.Get<ChosenCovers>().HasChosenAsync(entryId, ct));
     }
 
     /// <summary>An adventure's first page as the editor starts with it.</summary>

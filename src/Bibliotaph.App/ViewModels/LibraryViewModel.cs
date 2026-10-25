@@ -949,7 +949,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         Inspector = null;
         // Undo brings the book back with everything that was set on it.
-        Selection.SayDone($"Removed {item.Title} from your library.", () => _elsewhere.UndoRemoveAsync(removed), "The book couldn't be brought back.");
+        Selection.SayDone(ElsewhereText.Removed(item.Title), () => _elsewhere.UndoRemoveAsync(removed), ElsewhereText.UndoRemoveFailed);
         await RefreshAsync();
     }
 

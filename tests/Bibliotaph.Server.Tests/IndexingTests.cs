@@ -127,6 +127,43 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task A_chosen_cover_is_back_on_disk_before_the_library_opens_and_forgotten_once_removed()
+    {
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        string kept, path;
+        await using (var lease = await Fixture.Libraries.OpenAsync(userId, Ct))
+        {
+            var library = lease.Library;
+            var (entry, _) = await library.Get<ElsewhereService>().AddAsync(ElsewhereText.Draft("Tomb of the Test", null, null, null, [], ""), Ct);
+            var chosen = library.Get<ChosenCovers>();
+            await chosen.KeepAsync(entry!.Value, chosen.Read(new MemoryStream(Png(60, 80))).Jpeg!, Ct);
+            await WaitAsync(() => Task.FromResult(Chosen().Count == 1 ? "" : null));
+            var first = Chosen()[0];
+            // A cover chosen again replaces the one before, in the store too.
+            await chosen.KeepAsync(entry.Value, chosen.Read(new MemoryStream(Png(80, 60))).Jpeg!, Ct);
+            kept = await WaitAsync(() => Task.FromResult(Chosen() is [var only] && only != first ? only : null));
+            path = library.Get<CoverCache>().PathFor(kept);
+        }
+        Assert.Equal(1, await Fixture.Libraries.CloseIdleAsync(TimeSpan.Zero));
+
+        // A restart empties the disk; the databases come back, and the chosen cover with them, before anything reads it.
+        File.Delete(path);
+        await using (var lease = await Fixture.Libraries.OpenAsync(userId, Ct))
+        {
+            var library = lease.Library;
+            var entry = (await library.Get<LibraryQueries>().ListAsync(new LibraryFilter(), ct: Ct)).Single().EntryId;
+            Assert.True(File.Exists(path));
+            Assert.True(await library.Get<ChosenCovers>().HasChosenAsync(entry, Ct));
+
+            await library.Get<ChosenCovers>().RemoveAsync(entry, Ct);
+            await WaitAsync(() => Task.FromResult(Chosen().Count == 0 ? "" : null));
+        }
+
+        List<string> Chosen() => [.. Fixture.Covers.Names.Where(n => n.StartsWith(userId + "/", StringComparison.Ordinal))
+            .Select(n => n[(userId.Length + 1)..]).Where(CoverCache.IsChosen)];
+    }
+
+    [Fact]
     public void Skia_makes_a_jpeg_thumbnail_no_wider_than_asked()
     {
         var codec = new SkiaImageCodec();
