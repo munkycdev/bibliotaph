@@ -1,3 +1,4 @@
+using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing.Tests;
@@ -16,8 +17,11 @@ public sealed class SourceScannerTests : IDisposable
         return path;
     }
 
+    static Task<ScanResult?> Scan(string root, IReadOnlyCollection<string> otherRoots) =>
+        SourceScanner.ScanAsync(new FileSystemSourceLister(), root, otherRoots, TestContext.Current.CancellationToken);
+
     [Fact]
-    public void Lists_indexable_files_by_format_and_counts_the_rest()
+    public async Task Lists_indexable_files_by_format_and_counts_the_rest()
     {
         Touch("Core/Rules.pdf", 100);
         Touch("Core/Maps/Keep.JPG");
@@ -25,7 +29,7 @@ public sealed class SourceScannerTests : IDisposable
         Touch("Handouts/notes.docx");
         Touch("readme.txt");
 
-        var result = SourceScanner.Scan(_root, [], TestContext.Current.CancellationToken);
+        var result = await Scan(_root, []);
 
         Assert.NotNull(result);
         Assert.Equal(
@@ -39,19 +43,19 @@ public sealed class SourceScannerTests : IDisposable
     }
 
     [Fact]
-    public void A_folder_that_is_its_own_library_root_is_left_to_its_own_scan()
+    public async Task A_folder_that_is_its_own_library_root_is_left_to_its_own_scan()
     {
         Touch("Rules.pdf");
         Touch("Adventures/One.pdf");
         Touch("Adventures/Two.pdf");
 
-        var result = SourceScanner.Scan(_root, [Path.Combine(_root, "Adventures") + Path.DirectorySeparatorChar], TestContext.Current.CancellationToken);
+        var result = await Scan(_root, [Path.Combine(_root, "Adventures") + Path.DirectorySeparatorChar]);
 
         Assert.Equal(["Rules.pdf"], result!.Files.Select(f => f.RelativePath));
     }
 
     [Fact]
-    public void Linked_folders_are_not_followed()
+    public async Task Linked_folders_are_not_followed()
     {
         Touch("Real/Book.pdf");
         try
@@ -63,12 +67,36 @@ public sealed class SourceScannerTests : IDisposable
             Assert.Skip($"Creating a symbolic link needs Developer Mode or elevation here: {ex.Message}");
         }
 
-        var result = SourceScanner.Scan(_root, [], TestContext.Current.CancellationToken);
+        var result = await Scan(_root, []);
 
         Assert.Equal([Path.Combine("Real", "Book.pdf")], result!.Files.Select(f => f.RelativePath));
     }
 
     [Fact]
-    public void A_folder_that_is_not_there_is_unreachable_rather_than_empty() =>
-        Assert.Null(SourceScanner.Scan(Path.Combine(_root, "Unplugged drive"), [], TestContext.Current.CancellationToken));
+    public async Task A_folder_that_is_not_there_is_unreachable_rather_than_empty() =>
+        Assert.Null(await Scan(Path.Combine(_root, "Unplugged drive"), []));
+
+    [Fact]
+    public void A_listing_from_anywhere_is_sorted_into_what_is_read_and_what_is_only_counted()
+    {
+        var when = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var listing = new SourceListing(
+        [
+            new ScannedFile("Core/Rules.pdf", 100, when, OnlineOnly: true),
+            new ScannedFile("Maps.zip", 50, when, OnlineOnly: true),
+            new ScannedFile("Handouts/letter.png", 10, when, OnlineOnly: false),
+            new ScannedFile("Minis/dragon.stl", 1_000, when, OnlineOnly: true),
+        ], ["Locked"]);
+
+        var result = SourceScanner.Classify(listing);
+
+        Assert.Equal(["Core/Rules.pdf", "Maps.zip", "Handouts/letter.png"], result.Files.Select(f => f.RelativePath));
+        Assert.Equal(new Dictionary<string, int> { [SourceFormats.Pdf] = 1, [SourceFormats.Png] = 1 }, result.Summary.ByFormat);
+        Assert.Equal(1, result.Summary.Archives);
+        Assert.Equal(1, result.Summary.Unsupported);
+        // An online-only file that is never read never downloads, so it isn't counted as one that will.
+        Assert.Equal(2, result.Summary.OnlineOnly);
+        Assert.Equal(150, result.Summary.OnlineOnlyBytes);
+        Assert.Equal(["Locked"], result.Summary.Inaccessible);
+    }
 }

@@ -27,85 +27,37 @@ public sealed record ScanSummary
 public sealed record ScanResult(IReadOnlyList<ScannedFile> Files, ScanSummary Summary);
 
 /// <summary>
-/// Lists a source folder without opening any file. Reads names, sizes, times and attributes only, so cloud
-/// placeholders are not downloaded. Symbolic links and junctions are not followed (no cycles), and folders that
-/// are themselves library roots are left to their own scan, so overlapping roots never list a file twice.
+/// Which files in a library folder Bibliotaph reads, from an <see cref="ISourceLister"/>'s listing of it: indexable
+/// files and ZIPs are kept, anything else is only counted.
 /// </summary>
 public static class SourceScanner
 {
-    // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS and FILE_ATTRIBUTE_RECALL_ON_OPEN: a cloud placeholder whose content is not on disk.
-    const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
-    const FileAttributes RecallOnOpen = (FileAttributes)0x00040000;
+    /// <returns>What the folder holds, or null when the root itself can't be reached (offline drive, unplugged disk).</returns>
+    public static async Task<ScanResult?> ScanAsync(ISourceLister lister, string root, IReadOnlyCollection<string> otherRoots, CancellationToken ct = default) =>
+        await lister.ListAsync(root, otherRoots, ct) is { } listing ? Classify(listing) : null;
 
-    /// <returns>The listing, or null when the root itself can't be reached (offline drive, unplugged disk).</returns>
-    public static ScanResult? Scan(string root, IEnumerable<string> otherRoots, CancellationToken ct = default)
+    public static ScanResult Classify(SourceListing listing)
     {
-        var rootInfo = new DirectoryInfo(root);
-        try
-        {
-            if (!rootInfo.Exists) return null;
-            _ = rootInfo.Attributes;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-
-        var nested = otherRoots
-            .Select(r => Path.TrimEndingDirectorySeparator(Path.GetFullPath(r)))
-            .Where(r => r.Length > rootInfo.FullName.Length && IsUnder(r, rootInfo.FullName))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
         var files = new List<ScannedFile>();
         var byFormat = new Dictionary<string, int>();
-        var inaccessible = new List<string>();
         int unsupported = 0, archives = 0, onlineOnly = 0;
         long onlineOnlyBytes = 0;
-
-        var pending = new Stack<DirectoryInfo>();
-        pending.Push(rootInfo);
-        while (pending.Count > 0)
+        foreach (var file in listing.Files)
         {
-            ct.ThrowIfCancellationRequested();
-            var directory = pending.Pop();
-            FileSystemInfo[] entries;
-            try
+            var name = Path.GetFileName(file.RelativePath);
+            var format = SourceFormats.FromFileName(name);
+            if (format is null && !SourceFormats.IsArchive(name))
             {
-                entries = directory.GetFileSystemInfos();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                inaccessible.Add(Path.GetRelativePath(rootInfo.FullName, directory.FullName));
+                unsupported++;
                 continue;
             }
-
-            foreach (var entry in entries)
+            files.Add(file);
+            if (format is null) archives++;
+            else byFormat[format] = byFormat.GetValueOrDefault(format) + 1;
+            if (file.OnlineOnly)
             {
-                if (entry is DirectoryInfo sub)
-                {
-                    // A cloud folder is a reparse point too, so test for a real link rather than the attribute.
-                    if (sub.LinkTarget is not null || nested.Contains(Path.TrimEndingDirectorySeparator(sub.FullName))) continue;
-                    pending.Push(sub);
-                    continue;
-                }
-                if (entry is not FileInfo file || entry.LinkTarget is not null) continue;
-
-                var format = SourceFormats.FromFileName(file.Name);
-                var isArchive = SourceFormats.IsArchive(file.Name);
-                if (format is null && !isArchive)
-                {
-                    unsupported++;
-                    continue;
-                }
-                var isOnlineOnly = (file.Attributes & (RecallOnDataAccess | RecallOnOpen | FileAttributes.Offline)) != 0;
-                files.Add(new ScannedFile(Path.GetRelativePath(rootInfo.FullName, file.FullName), file.Length, file.LastWriteTimeUtc, isOnlineOnly));
-                if (format is null) archives++;
-                else byFormat[format] = byFormat.GetValueOrDefault(format) + 1;
-                if (isOnlineOnly)
-                {
-                    onlineOnly++;
-                    onlineOnlyBytes += file.Length;
-                }
+                onlineOnly++;
+                onlineOnlyBytes += file.SizeBytes;
             }
         }
 
@@ -116,7 +68,7 @@ public static class SourceScanner
             Archives = archives,
             OnlineOnly = onlineOnly,
             OnlineOnlyBytes = onlineOnlyBytes,
-            Inaccessible = inaccessible,
+            Inaccessible = listing.Inaccessible,
         });
     }
 

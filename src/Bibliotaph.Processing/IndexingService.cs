@@ -76,10 +76,10 @@ public sealed record UnreadableFile(long LocationId, string Path, string Reason)
 
 /// <summary>
 /// How indexing reaches the library's files: hashing them, listing and opening ZIPs, the free space an online-only file
-/// needs to download into, the disk and file IDs that tell a moved file from a new one, and giving downloaded files
-/// back to online-only.
+/// needs to download into, the disk and file IDs that tell a moved file from a new one, giving downloaded files back
+/// to online-only, and listing library folders.
 /// </summary>
-public sealed record IndexingFiles(FileHasher Hasher, ArchiveReader Archives, IDiskSpace Disk, IFileIdentity Identity, OnlineOnlyReturns Returns);
+public sealed record IndexingFiles(FileHasher Hasher, ArchiveReader Archives, IDiskSpace Disk, IFileIdentity Identity, OnlineOnlyReturns Returns, ISourceLister Lister);
 
 /// <summary>
 /// What indexing is doing, for those that show it or wait on it: whether folders are being looked through, the file
@@ -200,6 +200,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     readonly JobBoard _queue;
     readonly PartsService _parts;
     readonly OnlineOnlyReturns _returns;
+    readonly ISourceLister _lister;
     readonly ILogger _log;
     readonly TimeProvider _clock;
     readonly IndexingActivityState _activity = new();
@@ -227,7 +228,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         IFolderWatcher? folderWatcher = null)
     {
         options ??= new IndexingOptions();
-        (_roots, _library, _queue, _parts, _returns) = (roots, library, queue, parts, files.Returns);
+        (_roots, _library, _queue, _parts, _returns, _lister) = (roots, library, queue, parts, files.Returns, files.Lister);
         _log = log ?? NullLogger<IndexingService>.Instance;
         _clock = clock ?? TimeProvider.System;
         // Each part logs as indexing, and says through Changed when what it shows moves. A callback into a part made
@@ -235,7 +236,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         _lanes = new LaneRunner(queue, library, stages, options, _log, _clock, RaiseChanged, fileStageDone: () => _hashing!.WakeReturns());
         _hashing = new HashingLoop(library, queue, files, packs, folderCollections, _lanes, _activity, options, _log, _clock, RaiseChanged);
         _watchers = new FolderWatchers(folderWatcher ?? new FileSystemFolderWatcher(), options.RescanDelay, _log, _clock, rootId => _scanner!.RequestScan(rootId));
-        _scanner = new LibraryScanner(roots, library, files.Identity, _watchers, _hashing, _lanes, _activity, options, _log, _clock, RaiseChanged);
+        _scanner = new LibraryScanner(roots, library, files.Lister, files.Identity, _watchers, _hashing, _lanes, _activity, options, _log, _clock, RaiseChanged);
     }
 
     /// <summary>Something changed that a progress display would show. Raised on a background thread, often; throttle.</summary>
@@ -359,7 +360,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     public async Task<ScanResult?> PreviewAsync(string folder, CancellationToken ct = default)
     {
         var others = (await _roots.ListAsync(ct)).Select(r => r.Path).ToList();
-        return await Task.Run(() => SourceScanner.Scan(folder, others, ct), ct);
+        return await SourceScanner.ScanAsync(_lister, folder, others, ct);
     }
 
     /// <summary>
