@@ -42,6 +42,11 @@ createServer(async (req, res) => {
   if (range) {
     const start = range[1] === '' ? size - Number(range[2]) : Number(range[1]);
     const end = range[1] !== '' && range[2] !== '' ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (start < 0 || start > end) {
+      res.writeHead(416, { ...headers, 'content-range': `bytes */${size}` });
+      res.end();
+      return;
+    }
     if (isBook) counters.bytes += end - start + 1;
     res.writeHead(206, { ...headers, 'content-range': `bytes ${start}-${end}/${size}`, 'content-length': end - start + 1 });
     createReadStream(path, { start, end }).pipe(res);
