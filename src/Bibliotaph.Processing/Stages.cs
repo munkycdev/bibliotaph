@@ -197,7 +197,8 @@ static class StageHelpers
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            return (null, new StageOutcome.Failed($"The file could not be read from its ZIP: {ex.Message}", Retry: ex is not InvalidDataException));
+            var from = source.InArchive ? " from its ZIP" : "";
+            return (null, new StageOutcome.Failed($"The file could not be read{from}: {ex.Message}", Retry: ex is not InvalidDataException));
         }
     }
 

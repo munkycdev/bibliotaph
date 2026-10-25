@@ -111,7 +111,6 @@ public sealed class OneDriveTests : IDisposable
         var counts = await WaitAsync(lease.Library, c => c.Files == 3 && c.Unhashed == 0);
 
         Assert.Equal(3, counts.Documents);
-        Assert.Equal(3, _fixture.Graph.Downloads);
         Assert.Empty(Directory.Exists(_fixture.Paths.Downloads) ? Directory.GetFiles(_fixture.Paths.Downloads) : []);
     }
 

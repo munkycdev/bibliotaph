@@ -44,7 +44,7 @@ public sealed class IsolationTests(SyntheticPdfs pdfs)
     [Fact]
     public async Task The_memory_cap_kills_a_worker_that_exceeds_it()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "The memory cap is a Windows job object limit.");
+        Assert.SkipUnless(OperatingSystem.IsWindows() || OperatingSystem.IsLinux(), "The memory cap is a Windows job object limit, or watched on Linux.");
         await using var worker = new WorkerClient(new WorkerOptions { MemoryLimitBytes = 512L * 1024 * 1024 });
         Assert.True(await PingAsync(worker));
 

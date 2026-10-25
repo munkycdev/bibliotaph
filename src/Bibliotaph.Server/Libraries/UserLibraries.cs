@@ -210,6 +210,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             // Pooled connections keep the files open; a library opened again later must not share them.
             index.ClearPools();
             catalog.ClearPool();
+            DeleteFetched(library.Paths);
             _log.LogInformation("Closed the library of {User}", userId);
         }
         catch (Exception ex)
@@ -228,6 +229,8 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         var root = paths.UserRoot(userId);
         Directory.CreateDirectory(root);
         var appPaths = new AppPaths(root);
+        // Copies of books left by a server that stopped mid-read.
+        DeleteFetched(appPaths);
         await restore.RestoreAsync($"users/{userId}/catalog.db", appPaths.CatalogDatabase, CancellationToken.None);
         await restore.RestoreAsync($"users/{userId}/index.db", appPaths.IndexDatabase, CancellationToken.None);
 
@@ -254,6 +257,21 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await services.DisposeAsync();
             throw;
         }
+    }
+
+    /// <summary>The books fetched from drives to be read: none outlives the library being open.</summary>
+    static void DeleteFetched(AppPaths paths)
+    {
+#pragma warning disable RS0030 // Bibliotaph's own copies, never a user's file.
+        try
+        {
+            if (Directory.Exists(paths.Extract)) Directory.Delete(paths.Extract, recursive: true);
+        }
+        catch (IOException)
+        {
+            // A file still open; the next open or close tries again.
+        }
+#pragma warning restore RS0030
     }
 
     public async ValueTask DisposeAsync()

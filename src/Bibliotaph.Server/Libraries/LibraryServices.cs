@@ -9,16 +9,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Libraries;
 
-/// <summary>What every library shares with the server: logging, the clock, and the way to reach a user's drives.</summary>
-public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder);
+/// <summary>
+/// What every library shares with the server: logging, the clock, the way to reach a user's drives, and the PDF
+/// worker and image codec, so one worker reads for every user in turn rather than one each.
+/// </summary>
+public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
+    IImageCodec Images);
 
 /// <summary>
 /// One library's services: the same stores, queries and indexing the Windows app composes in its own host, built once
-/// per open library so nothing is shared between users. What the Windows app gets from Windows (PDFium's worker
-/// processes, WPF's image codec, the password vault, the file system's watcher) is replaced by what the server has.
+/// per open library so nothing is shared between users. What the Windows app gets from Windows (WPF's image codec, the
+/// password vault, the file system's watcher, cloud files) is replaced by what the server has.
 /// </summary>
 public static class LibraryServices
 {
+    /// <summary>
+    /// The most of a user's books kept at once while being read. Copies go as soon as their stages are done, and books
+    /// are read one at a time, so this is only a backstop.
+    /// </summary>
+    const long FetchedBytes = 1L * 1024 * 1024 * 1024;
+
     public static ServiceProvider Build(string userId, AppPaths paths, string backups, LibraryHost host)
     {
         var services = new ServiceCollection();
@@ -44,17 +54,19 @@ public static class LibraryServices
         services.AddSingleton<IndexQueries>();
         services.AddSingleton<UserTagQueries>();
         services.AddSingleton<LibraryQueries>();
-        services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), host.Clock));
+        services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), host.Clock,
+            bookAtATime: true));
         services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), host.Clock));
 
         // The user's drives, read through Graph; a book is downloaded only while it's being read.
         services.AddSingleton(_ => host.Drives.For(userId));
         services.AddSingleton<IDriveClients>(sp => sp.GetRequiredService<UserDrives>());
         services.AddSingleton<ISourceLister, OneDriveSourceLister>();
-        services.AddSingleton<ISourceFileReader>(sp => new OneDriveFileReader(sp.GetRequiredService<IDriveClients>(), host.TemporaryFolder, new SourceFileReader()));
+        services.AddSingleton(sp => new OneDriveFileReader(sp.GetRequiredService<IDriveClients>(), host.TemporaryFolder, new SourceFileReader()));
+        services.AddSingleton<ISourceFileReader>(sp => sp.GetRequiredService<OneDriveFileReader>());
         services.AddSingleton<DriveChangeFeed>();
-        services.AddSingleton<IPdfEngine, NoPdfEngine>();
-        services.AddSingleton<IImageCodec, NoImageCodec>();
+        services.AddSingleton(host.Pdf);
+        services.AddSingleton(host.Images);
         services.AddSingleton<IPasswordStore, NoPasswords>();
         services.AddSingleton<IDiskSpace, DiskSpace>();
         services.AddSingleton<IFileIdentity, NoFileIdentity>();
@@ -86,7 +98,8 @@ public static class LibraryServices
         services.AddSingleton<CoverCache>();
         services.AddSingleton<FileHasher>();
         services.AddSingleton<ArchiveReader>();
-        services.AddSingleton<SourceFiles>();
+        services.AddSingleton(sp => new SourceFiles(paths, sp.GetRequiredService<ArchiveReader>(), sp.GetRequiredService<IDiskSpace>(),
+            sp.GetRequiredService<IndexingOptions>(), FetchedBytes, sp.GetRequiredService<OneDriveFileReader>()));
         services.AddSingleton<OnlineOnlyReturns>();
         services.AddSingleton<StageServices>();
         services.AddSingleton<MarkStores>();
@@ -94,9 +107,12 @@ public static class LibraryServices
         services.AddSingleton<MetadataHints>();
         services.AddSingleton<FolderRules>();
 
-        // Indexing: scanning and hashing. No stage reads a book on the server yet, so the catalog of stages is empty and
-        // each book waits in the queue with its first stage.
-        services.AddSingleton<IStageCatalog>(_ => new StageCatalog([]));
+        // Indexing: the Windows app's stages that read a book, without OCR and AI, which the server doesn't run yet.
+        services.AddSingleton<IStage, ProbeStage>();
+        services.AddSingleton<IStage, TextStage>();
+        services.AddSingleton<IStage, CoversStage>();
+        services.AddSingleton<IStage, RuleHintsStage>();
+        services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });
         services.AddSingleton<IndexingFiles>();
         services.AddSingleton(sp => new IndexingService(
@@ -107,13 +123,6 @@ public static class LibraryServices
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
-}
-
-/// <summary>The server has no PDF engine yet: a PDF waits in the queue rather than being read.</summary>
-sealed class NoPdfEngine : IPdfEngine
-{
-    public Task<PdfResult<IPdfDocument>> OpenAsync(string path, string? password, CancellationToken ct) =>
-        Task.FromResult(new PdfResult<IPdfDocument>(null, ErrorKind.Internal, "PDFs aren't read on the server."));
 }
 
 /// <summary>A drive's files have no disk or file ID: moves are recognised by content, as on any disk without IDs.</summary>
@@ -130,14 +139,4 @@ sealed class NoCloudFiles : ICloudFiles
     public CloudFileState StateOf(string path) => CloudFileState.Unknown;
 
     public void ReturnToOnlineOnly(string path) => throw new IOException("There are no cloud files on the server.");
-}
-
-/// <summary>The server has no image codec yet; nothing that makes covers or thumbnails runs there.</summary>
-sealed class NoImageCodec : IImageCodec
-{
-    public byte[] EncodeJpeg(ReadOnlySpan<byte> bgra, int width, int height, int stride) => throw new NotSupportedException("Images aren't encoded on the server.");
-
-    public (int Width, int Height)? ReadSize(Stream image) => null;
-
-    public byte[]? Thumbnail(Stream image, int maxWidth) => null;
 }

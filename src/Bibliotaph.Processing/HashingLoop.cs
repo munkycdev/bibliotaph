@@ -249,9 +249,10 @@ internal sealed class HashingLoop(LibraryStore library, JobBoard queue, Indexing
         {
             await _returnSignal.WaitAsync(options.IdleRecheck, ct);
             var waitingForSpace = activity.Current.WaitingForDiskSpace;
+            // A stage indexing doesn't run (the web server's OCR, for now) never comes, so it holds no file.
             IReadOnlyCollection<Stage> holding = waitingForSpace
-                ? [.. Pipeline.FileStages.Where(s => lanes.Stages.Find(s) is not { } stage || !lanes.IsPaused(stage.Lane))]
-                : Pipeline.FileStages;
+                ? [.. Pipeline.FileStages.Where(s => lanes.Stages.Find(s) is { } stage && !lanes.IsPaused(stage.Lane))]
+                : [.. Pipeline.FileStages.Where(s => lanes.Stages.Find(s) is not null)];
             if (await files.Returns.ReturnDoneAsync(holding, ct) == 0 || !waitingForSpace) continue;
             _hashSignal.Set();
             await Task.Delay(options.SpaceSettle, clock, ct);

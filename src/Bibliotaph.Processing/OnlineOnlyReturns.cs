@@ -48,6 +48,8 @@ public sealed class OnlineOnlyReturns(LibraryStore library, JobBoard queue, Sett
     /// <returns>How many files went back.</returns>
     public async Task<int> ReturnDoneAsync(IReadOnlyCollection<Stage> holding, CancellationToken ct = default)
     {
+        // Copies of remote files (the web server's) go whatever the setting: nothing of the user's is kept on a server.
+        await sources.DropRemoteCopiesAsync(ids => queue.DoneReadingAsync(ids, holding, ct));
         if (!await IsOnAsync(ct)) return 0;
         var waiting = await library.ListToReturnAsync(ct);
         if (waiting.Count == 0) return 0;
