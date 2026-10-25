@@ -1,6 +1,6 @@
 // A static server with Range support, like Blob Storage or a drive's download link, for the spike's pages and books.
 // Usage: node tools/serve.mjs <wwwroot> <port> [booksFolder]
-// Books are served at /books/<name>; ?delay=<ms> adds latency per request, to feel like a slow connection.
+// Books are served at /books/<name>. Slow connections are simulated in the browser (tools/pdfbench.mjs), not here.
 import { createServer } from 'node:http';
 import { createReadStream, statSync, existsSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
@@ -15,8 +15,6 @@ export const counters = { requests: 0, bytes: 0 };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  const delay = Number(url.searchParams.get('delay') ?? 0);
-  if (delay) await new Promise(r => setTimeout(r, delay));
   if (url.pathname === '/__counters') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(counters));

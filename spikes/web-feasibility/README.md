@@ -111,7 +111,7 @@ insurance either way and needs testing against real books.
 it; the app has to cope when it does not, because unpersisted storage can be evicted.
 
 Raw numbers are in `results/`: `index-*.json` for the index (`opfs-uncached` is the run before the block cache),
-`pdf.json` without throttling, `pdf-50mbps-stock.json` and `pdf-50mbps-patched.json` at 50 Mbps, and
+`pdf.json` with 30 ms of latency and no bandwidth limit, `pdf-50mbps-stock.json` and `pdf-50mbps-patched.json` at 50 Mbps, and
 `hash-dotnet.json`.
 
 ## Still open

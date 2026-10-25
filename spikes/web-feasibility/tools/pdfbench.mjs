@@ -1,21 +1,22 @@
 // Drives bench/index.html in Chromium: SHA-256, PDF.js text and first render, then the OPFS book cache,
 // including a reopen with the book server unreachable.
-// Usage: node tools/pdfbench.mjs <base url> <book>[,<book>...] [delayMs]
+// Usage: node tools/pdfbench.mjs <base url> <book>[,<book>...]
+// Environment: MBPS and LATENCY (ms) throttle the connection; PATCHED=1 uses the patched PDF.js worker.
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 
-const [base = 'http://localhost:8081/', list = 'text-40.pdf', delay = '0'] = process.argv.slice(2);
+const [base = 'http://localhost:8081/', list = 'text-40.pdf'] = process.argv.slice(2);
 const books = list.split(',');
 const browser = await chromium.launch();
 const context = await browser.newContext();
 const page = await context.newPage();
 // A shared link like a home connection: CDP throttling covers every request the page makes.
-if (process.env.MBPS) {
+if (process.env.MBPS || process.env.LATENCY) {
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
   await cdp.send('Network.emulateNetworkConditions', {
     offline: false, latency: Number(process.env.LATENCY ?? 30),
-    downloadThroughput: Number(process.env.MBPS) * 125000, uploadThroughput: 10 * 125000,
+    downloadThroughput: process.env.MBPS ? Number(process.env.MBPS) * 125000 : -1, uploadThroughput: process.env.MBPS ? 10 * 125000 : -1,
   });
 }
 page.on('console', m => { if (m.type() === 'error') console.error('page:', m.text()); });
@@ -26,7 +27,7 @@ const counters = async (reset) => (await fetch(`${base}__counters${reset ? '?res
 const results = { storage: await run('storage'), books: {} };
 
 for (const book of books) {
-  const url = `${base}books/${book}${delay !== '0' ? `?delay=${delay}` : ''}`;
+  const url = `${base}books/${book}`;
   const r = results.books[book] = {};
   r.hashWasm = await run('hashWasm', url);
   r.hashSubtle = await run('hashSubtle', url);
