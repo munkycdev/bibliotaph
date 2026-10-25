@@ -13,6 +13,8 @@
     <ProjectReference Include="..\Bibliotaph.Api.Contracts\Bibliotaph.Api.Contracts.csproj" />
     <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
     <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Storage.OneDrive\Bibliotaph.Storage.OneDrive.csproj" />
     <ProjectReference Include="..\Bibliotaph.Web\Bibliotaph.Web.csproj" />
   </ItemGroup>
   <ItemGroup>

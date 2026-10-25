@@ -15,7 +15,7 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261025171406_InitialCreate";
+    public override string LastMigrationId => "20261025175319_StorageConnectionState";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -110,6 +110,10 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("account_id");
 
+                b.Property<string>("AccountKind")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("account_kind");
+
                 b.Property<DateTime>("Created")
                     .HasColumnType("TEXT")
                     .HasColumnName("created");
@@ -117,6 +121,15 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("DisplayName")
                     .HasColumnType("TEXT")
                     .HasColumnName("display_name");
+
+                b.Property<bool>("NeedsReconnect")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("needs_reconnect");
+
+                b.Property<string>("NotificationSecret")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("notification_secret");
 
                 b.Property<string>("ProtectedRefreshToken")
                     .IsRequired()
@@ -131,6 +144,14 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("Scopes")
                     .HasColumnType("TEXT")
                     .HasColumnName("scopes");
+
+                b.Property<DateTime?>("SubscriptionExpires")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("subscription_expires");
+
+                b.Property<string>("SubscriptionId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("subscription_id");
 
                 b.Property<DateTime>("Updated")
                     .HasColumnType("TEXT")

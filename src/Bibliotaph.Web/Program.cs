@@ -14,5 +14,6 @@ builder.Services.AddScoped(_ => new HttpClient(new ClientHeaderHandler { InnerHa
 builder.Services.AddScoped<ApiClient>();
 builder.Services.AddScoped<Session>();
 builder.Services.AddScoped<Theme>();
+builder.Services.AddScoped<LibraryActivity>();
 
 await builder.Build().RunAsync();

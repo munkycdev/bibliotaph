@@ -2,12 +2,17 @@
 @inject ApiClient Api
 @inject Session Session
 @inject NavigationManager Navigation
+@inject LibraryActivity Activity
 
 <PageHeading Title="Settings" />
 
 @if (Problem == "taken")
 {
     <div class="bt-message" role="status">That sign-in already belongs to another Bibliotaph account, so it wasn't linked to this one.</div>
+}
+else if (Problem == "storage")
+{
+    <div class="bt-message" role="status">Connecting OneDrive didn't finish. Try again, and allow Bibliotaph to read your files when Microsoft asks.</div>
 }
 
 @if (_me is not null)
@@ -42,8 +47,77 @@
         <h2 id="storage-heading">Storage</h2>
         <p class="bt-copy">Connect the storage where your books are, then add folders from it to your library. Bibliotaph reads them
             there and never changes them; books you import are saved to one folder of its own.</p>
-        <div class="bt-source">OneDrive<small>Connecting storage is the next part being built.</small></div>
+        @foreach (var account in _storage)
+        {
+            <div class="bt-source bt-sourcerow">
+                <Icon Name="Cloud" />
+                <div>@account.Name<small>@(account.NeedsReconnect
+                    ? "Needs connecting again: Microsoft no longer lets Bibliotaph read it. Its books stay in your library."
+                    : $"Connected {account.Added:d MMMM yyyy}")</small></div>
+                @if (account.NeedsReconnect)
+                {
+                    <ServerLink Href="@ConnectLink"><Icon Name="RotateCcw" />Connect again</ServerLink>
+                }
+                <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {account.Name}")" @onclick="() => Disconnect(account)"><Icon Name="X" /></button>
+            </div>
+        }
+        @if (_storage.Count == 0)
+        {
+            <p class="bt-sample">No storage connected yet.</p>
+        }
+        <div class="bt-actions">
+            <ServerLink Href="@ConnectLink" Class="@(_storage.Count == 0 ? "bt-button primary" : "bt-button")"><Icon Name="Plus" />Connect OneDrive</ServerLink>
+        </div>
+        <p class="bt-sample">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
     </section>
+
+    <section class="bt-section" id="library" aria-labelledby="library-heading">
+        <h2 id="library-heading">Library folders</h2>
+        <p class="bt-copy">Bibliotaph reads your folders. Your books stay exactly where you put them.</p>
+        @foreach (var folder in _folders)
+        {
+            <div class="bt-source bt-sourcerow">
+                <Icon Name="Folder" />
+                <div>@folder.Location<small>@folder.Detail</small></div>
+                <button class="bt-icon" title="Remove from library" aria-label="@($"Remove {folder.Location} from the library")" @onclick="() => Remove(folder)"><Icon Name="X" /></button>
+            </div>
+        }
+        @if (_folders.Count == 0 && _pending is null)
+        {
+            <p class="bt-sample">No folders yet.</p>
+        }
+        @if (_pending is not null)
+        {
+            <div class="bt-source bt-pending">
+                <div class="bt-sourcerow">
+                    <Icon Name="FolderPlus" />
+                    <div>@_pending.Location<small>@_pending.Detail</small></div>
+                </div>
+                <div class="bt-actions">
+                    <button class="bt-button primary" @onclick="ConfirmAdd"><Icon Name="Check" />Add to library</button>
+                    <button class="bt-button" @onclick="() => _pending = null">Cancel</button>
+                </div>
+            </div>
+        }
+        @if (_folderProblem is not null)
+        {
+            <div class="bt-message" role="alert">@_folderProblem</div>
+        }
+        <div class="bt-actions">
+            <button class="bt-button primary" disabled="@(_storage.Count == 0)" title="@(_storage.Count == 0 ? "Connect your storage first." : null)"
+                    @onclick="() => _picking = true"><Icon Name="FolderPlus" />Add a folder</button>
+            @if (_folders.Count > 0)
+            {
+                <button class="bt-button" @onclick="Rescan"><Icon Name="RotateCcw" />Look for changes</button>
+            }
+        </div>
+        <p class="bt-sample">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
+    </section>
+
+    @if (_picking)
+    {
+        <FolderPicker Storage="_storage" Picked="Picked" Cancelled="() => _picking = false" />
+    }
 
     @if (_me.IsAdmin)
     {
@@ -87,6 +161,13 @@
     CreatedInvite? _created;
     string? _note;
     bool _admin;
+    IReadOnlyList<StorageAccount> _storage = [];
+    IReadOnlyList<LibraryFolder> _folders = [];
+    PickedFolder? _pending;
+    string? _folderProblem;
+    bool _picking;
+
+    const string ConnectLink = "storage/connect/onedrive?returnUrl=%2Fsettings%23library";
 
     [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
 
@@ -98,6 +179,8 @@
     {
         _me = await Session.MeAsync();
         _providers = await Api.ProvidersAsync();
+        _storage = await Api.StorageAsync();
+        _folders = await Api.LibraryFoldersAsync();
         if (_me?.IsAdmin == true) _invites = await Api.InvitesAsync();
     }
 
@@ -107,6 +190,48 @@
         _note = null;
         _admin = false;
         _invites = await Api.InvitesAsync();
+    }
+
+    void Picked(PickedFolder folder)
+    {
+        _picking = false;
+        _folderProblem = null;
+        _pending = folder;
+    }
+
+    async Task ConfirmAdd()
+    {
+        if (_pending is null) return;
+        try
+        {
+            _folders = await Api.AddLibraryFolderAsync(new AddLibraryFolder(_pending.Storage.Id, _pending.Path));
+            Activity.Refresh();
+        }
+        catch (ApiProblemException problem)
+        {
+            _folderProblem = problem.Message;
+        }
+        _pending = null;
+    }
+
+    async Task Remove(LibraryFolder folder)
+    {
+        _folders = await Api.RemoveLibraryFolderAsync(folder.Id);
+        Activity.Refresh();
+    }
+
+    async Task Rescan()
+    {
+        await Api.RescanAsync();
+        Activity.Refresh();
+    }
+
+    async Task Disconnect(StorageAccount account)
+    {
+        await Api.DisconnectStorageAsync(account.Id);
+        _storage = await Api.StorageAsync();
+        _folders = await Api.LibraryFoldersAsync();
+        Activity.Refresh();
     }
 
     async Task SignOut()

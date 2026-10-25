@@ -3,6 +3,7 @@ using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -25,8 +26,11 @@ public static class ServerSetup
         services.AddSingleton<AccountService>();
         if (string.IsNullOrEmpty(options.ReplicaUrl)) services.AddSingleton<IDatabaseRestore, NoRestore>();
         else services.AddSingleton<IDatabaseRestore, LitestreamRestore>();
+        services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<UserDriveFactory>(), paths.Downloads));
         services.AddSingleton<UserLibraries>();
         services.AddHostedService<IdleLibraries>();
+        services.AddBibliotaphStorage(configuration);
 
         var keys = services.AddDataProtection().SetApplicationName("bibliotaph");
         if (options.KeyRingBlob is { Length: > 0 } blob && options.KeyRingKey is { Length: > 0 } key)
@@ -52,6 +56,13 @@ public static class ServerSetup
 
     public static WebApplication UseBibliotaphServer(this WebApplication app)
     {
+        // Anything left in the downloads folder is from before a crash: no book is kept beyond its reading. Here rather
+        // than at registration, which the invite command shares while the server runs beside it.
+        var downloads = app.Services.GetRequiredService<ServerPaths>().Downloads;
+#pragma warning disable RS0030 // The server's own scratch folder; books are never local files here.
+        if (Directory.Exists(downloads)) Directory.Delete(downloads, recursive: true);
+#pragma warning restore RS0030
+
         app.UseForwardedHeaders();
         if (!app.Environment.IsDevelopment()) app.UseHsts();
         app.UseExceptionHandler();
@@ -74,6 +85,7 @@ public static class ServerSetup
         app.MapAuth(AuthSetup.Configured(app.Configuration),
             developerSignIn: app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Auth:DeveloperSignIn"));
         app.MapApi();
+        app.MapStorage();
         // The address given to sign-in and storage providers; the page itself is static so it reads without the client.
         app.MapGet("/privacy", () => Results.Redirect("/privacy.html"));
 
