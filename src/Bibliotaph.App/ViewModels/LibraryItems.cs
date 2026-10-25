@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using Bibliotaph.App.Services;
@@ -53,7 +52,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// The badge on a book owned elsewhere: where it is, its online place first ("D&amp;D Beyond"), else the first
     /// place it is owned ("Print"), else "Elsewhere".
     /// </summary>
-    public string BadgeLabel => Entry.OnlineLabel ?? Entry.AlsoOwn?.Split(" · ")[0] ?? "Elsewhere";
+    public string BadgeLabel => CardText.Badge(Entry);
 
     /// <summary>The icon of the site <see cref="OnlineLink"/> is on, for the badge; null until it loads, or when icons are off or it has none.</summary>
     public ImageSource? SiteIcon
@@ -108,10 +107,10 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// names that image. An adventure inside a file says which file and pages; a file holding adventures says how many.
     /// A file in a pack on a card of its own says which pack.
     /// </summary>
-    public string Meta => Entry.MatchedMember ?? Entry.PartLine ?? PackLine ?? (Catalogued ?? Describe(Entry)) + PartsNote + TextNote;
+    public string Meta => CardText.Meta(Entry);
 
     /// <summary>"in Dungeon Maps", for a file in a pack on a card of its own; null for any other card.</summary>
-    public string? PackLine => IsPackFile ? $"in {Entry.PackTitle ?? "its pack"}" : null;
+    public string? PackLine => CardText.PackLine(Entry);
 
     /// <summary>
     /// A file in a pack on a card of its own, while the Library shows each file: it opens in its pack, and its details,
@@ -125,8 +124,6 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>The pack's title, for a pack's card or one of its files' own.</summary>
     public string PackName => Entry.PackTitle ?? Title;
 
-    string PartsNote => PartsLabel.Length > 0 ? $" · {PartsLabel}" : "";
-
     /// <summary>An adventure inside a file: its card opens the file at its first page.</summary>
     public bool IsPart => Entry.IsPart;
 
@@ -137,9 +134,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public bool IsFoundInBook => Entry.FoundInBook;
 
     /// <summary>"5 adventures", for a file with adventures marked in it; empty otherwise.</summary>
-    public string PartsLabel => Entry.Parts > 0 ? Adventures(Entry.Parts) : "";
+    public string PartsLabel => CardText.Parts(Entry);
 
-    public static string Adventures(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "adventure" : "adventures")}";
+    public static string Adventures(int count) => CardText.Adventures(count);
 
     /// <summary>
     /// What opens the card when it isn't a pack: an adventure inside a file opens that file at the adventure's first
@@ -149,33 +146,15 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         ? PartOpen.Open(DocumentId, Title, EntryId, Entry.ParentTitle, pages)
         : new ViewerRequest(DocumentId, Title) { Resume = true };
 
-    string TextNote => IsElsewhere ? "" : Entry.TextAccess switch
-    {
-        TextAccess.Locked => " · Locked: open it to unlock",
-        TextAccess.Protected => " · Can't be read here",
-        TextAccess.Forgotten => " · Text forgotten",
-        _ => Entry.Searchable ? "" : " · still being read",
-    };
-
     /// <summary>Why the file's text isn't read by itself, if it isn't: it's locked, protected (DRM), or forgotten.</summary>
     public TextAccess TextAccess => IsElsewhere ? TextAccess.Readable : Entry.TextAccess;
 
     /// <summary>"Locked" or "Protected", for the mark on the cover; empty otherwise.</summary>
-    public string TextMark => TextAccess switch
-    {
-        TextAccess.Locked => "Locked",
-        TextAccess.Protected => "Protected",
-        _ => "",
-    };
+    public string TextMark => CardText.TextMark(Entry);
 
     public bool HasTextMark => TextMark.Length > 0;
 
-    public string? TextMarkTip => TextAccess switch
-    {
-        TextAccess.Locked => "It needs a password. Open it to enter it; its text becomes searchable once it's unlocked.",
-        TextAccess.Protected => "Its protection is a scheme Bibliotaph can't open. Its details stay editable, and another app may open it.",
-        _ => null,
-    };
+    public string? TextMarkTip => CardText.TextMarkTip(Entry);
 
     /// <summary>DRM Bibliotaph can't open: the file can go to the default PDF app instead.</summary>
     public bool CanOpenElsewhere => TextAccess == TextAccess.Protected;
@@ -187,8 +166,6 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public bool CanForgetText => !IsElsewhere && !IsPack && !IsPackFile && TextAccess != TextAccess.Forgotten;
 
     public bool CanReadAgain => TextAccess == TextAccess.Forgotten && !IsPackFile;
-
-    string? Catalogued => Entry.System is null && Entry.Kind is null ? null : string.Join(" · ", new[] { Entry.System, Entry.Kind }.OfType<string>());
 
     public string SystemLabel => Entry.System ?? "";
 
@@ -204,13 +181,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// The publisher, or the folders when there isn't one, under the title in the list; for a pack a search found by an
     /// image, that image's name.
     /// </summary>
-    public string Byline => Entry.MatchedMember ?? Entry.PartLine ?? PackLine ?? Entry.Publisher ?? Entry.FolderHint ?? "";
+    public string Byline => CardText.Byline(Entry);
 
     /// <summary>
     /// Pages for a PDF, the format for an image, "120 images" for a pack ("6 files" with PDFs in it), "Print · Foundry
     /// VTT" for a book owned elsewhere.
     /// </summary>
-    public string SizeLabel => IsPack ? MembersLabel : IsElsewhere ? Entry.AlsoOwn ?? "Elsewhere" : PagesLabel.Length > 0 ? PagesLabel : FormatLabel;
+    public string SizeLabel => CardText.Size(Entry);
 
     /// <summary>Many files shown as one card: its cover is a mosaic of its first four, or the file chosen as its cover.</summary>
     public bool IsPack => Entry.IsPack;
@@ -237,20 +214,20 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string Folder => Entry.FolderHint ?? "";
 
-    public string FormatLabel => IsPack ? "PACK" : IsElsewhere ? "ELSEWHERE" : Entry.Format.ToUpperInvariant();
+    public string FormatLabel => CardText.Format(Entry);
 
     /// <summary>A model has read this book: its cover carries a spark.</summary>
     public bool IsAiRead => Entry.AiModel is not null;
 
-    public string? AiTip => Entry.AiModel is { } model ? $"Catalogued with AI ({model})" : null;
+    public string? AiTip => CardText.AiTip(Entry);
 
     /// <summary>"2 copies" when the book is in more than one file, for the detail list; empty otherwise.</summary>
-    public string CopiesLabel => Entry.Copies > 1 ? $"{Entry.Copies.ToString("N0", CultureInfo.CurrentCulture)} copies" : "";
+    public string CopiesLabel => CardText.Copies(Entry);
 
-    public string PagesLabel => Entry.PageCount is { } pages ? $"{pages.ToString("N0", CultureInfo.CurrentCulture)} pp." : "";
+    public string PagesLabel => CardText.Pages(Entry);
 
     /// <summary>The first letter of the title, for the placeholder cover.</summary>
-    public string Initial => Title.FirstOrDefault(char.IsLetterOrDigit) is var c and not '\0' ? char.ToUpper(c, CultureInfo.CurrentCulture).ToString() : "?";
+    public string Initial => CardText.Initial(Title);
 
     public bool HasCover => Cover is not null;
 
@@ -397,22 +374,17 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(BadgeLabel));
     }
 
-    public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";
+    public static string Images(int count) => CardText.Images(count);
 
-    public static string Files(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "file" : "files")}";
+    public static string Files(int count) => CardText.Files(count);
 
     /// <summary>A pack's size: "120 images" while every file in it is an image, "6 files" once PDFs are among them.</summary>
-    public static string Members(LibraryEntry pack) => pack.PdfMembers > 0 ? Files(pack.Members) : Images(pack.Members);
+    public static string Members(LibraryEntry pack) => CardText.Members(pack);
 
-    public static string Describe(LibraryEntry entry) =>
-        entry.IsPack ? entry.PdfMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
-        : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
-        : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
-        : entry.PageCount is { } pages ? $"{FormatName(entry.Format)} · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
-        : FormatName(entry.Format);
+    public static string Describe(LibraryEntry entry) => CardText.Describe(entry);
 
     /// <summary>What a book's file is called on its card: "PDF", or an e-book's format ("EPUB").</summary>
-    public static string FormatName(string format) => format.ToUpperInvariant();
+    public static string FormatName(string format) => CardText.FormatName(format);
 }
 
 /// <summary>One image's cover in a pack's mosaic or grid, loaded the first time it is asked for.</summary>
@@ -475,18 +447,9 @@ public sealed class PageHitViewModel(PageHit hit)
     public string Snippet => Hit.Snippet;
 
     /// <summary>"Printed p. 12 · PDF page 16", or just the PDF page when the file has no labels of its own.</summary>
-    public string Where
-    {
-        get
-        {
-            var pdfPage = (Hit.PdfPage + 1).ToString("N0", CultureInfo.CurrentCulture);
-            return string.IsNullOrWhiteSpace(Hit.Label) || Hit.Label == pdfPage
-                ? $"PDF page {pdfPage}"
-                : $"Printed p. {Hit.Label} · PDF page {pdfPage}";
-        }
-    }
+    public string Where => CardText.Where(Hit);
 
-    public string Source => Hit.FromOcr ? "Read from a scan" : "Text match";
+    public string Source => CardText.Source(Hit);
 }
 
 /// <summary>A book's best matching pages.</summary>
@@ -497,14 +460,7 @@ public sealed class DocumentHitsViewModel(LibraryItemViewModel item, IReadOnlyLi
     public IReadOnlyList<PageHitViewModel> Pages { get; } = pages;
 
     /// <summary>"3 more pages match", when more matched than are shown.</summary>
-    public string More
-    {
-        get
-        {
-            var more = matchingPages - Pages.Count;
-            return more <= 0 ? "" : $"{more.ToString("N0", CultureInfo.CurrentCulture)} more {(more == 1 ? "page matches" : "pages match")}";
-        }
-    }
+    public string More => CardText.MorePages(matchingPages, Pages.Count);
 
     public bool HasMore => More.Length > 0;
 }

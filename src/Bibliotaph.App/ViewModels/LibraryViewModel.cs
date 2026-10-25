@@ -583,12 +583,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     }
 
     /// <summary>"Searching by type arrives once books have metadata. (“type:adventure”)".</summary>
-    static string Describe(SearchQuery query, QueryIssue issue)
-    {
-        var start = Math.Clamp(issue.Start, 0, query.Text.Length);
-        var token = query.Text.Substring(start, Math.Clamp(issue.Length, 0, query.Text.Length - start)).Trim();
-        return token.Length == 0 ? issue.Message : $"{issue.Message} (“{token}”)";
-    }
+    static string Describe(SearchQuery query, QueryIssue issue) => CardText.Issue(query, issue);
 
     LibraryItemViewModel Item(LibraryEntry entry)
     {
@@ -851,16 +846,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// How much of the library a text search covers. Locked, protected and forgotten files aren't read by themselves,
     /// so they are counted apart from those still being read.
     /// </summary>
-    static string CoverageText(IndexProgress progress)
-    {
-        var culture = CultureInfo.CurrentCulture;
-        var text = $"Searching text in {progress.Searchable.ToString("N0", culture)} of {progress.Documents.ToString("N0", culture)} documents.";
-        var reading = progress.Documents - progress.Searchable - progress.Withheld;
-        if (reading > 0) text += progress.Withheld == 0 ? " The rest are still being read." : $" {reading.ToString("N0", culture)} still being read.";
-        if (progress.Withheld > 0)
-            text += $" {progress.Withheld.ToString("N0", culture)} {(progress.Withheld == 1 ? "isn't" : "aren't")} read: locked, protected, or with their text forgotten.";
-        return text;
-    }
+    static string CoverageText(IndexProgress progress) => CardText.Coverage(progress);
 
     /// <summary>A book owned elsewhere has no file to open.</summary>
     static bool CanOpenBook(LibraryItemViewModel? item) => item is { CanOpen: true };

@@ -41,7 +41,7 @@ else
                 <label class="bt-search">
                     <Icon Name="Search" Size="15" />
                     <span class="visually-hidden">Search</span>
-                    <input type="search" placeholder="Search your library" disabled title="Search arrives with the library in the browser." />
+                    <input type="search" placeholder="Search books, topics, passages…" value="@_searchText" @oninput="OnSearchInput" @onkeydown="OnSearchKey" />
                 </label>
                 <button class="bt-icon" title="@Theme.Label(_theme)" aria-label="@Theme.Label(_theme)" @onclick="CycleTheme"><Icon Name="SunMoon" /></button>
             </header>
@@ -59,6 +59,8 @@ else
         ("binders", "Binders", "NotebookTabs"),
         ("review", "Needs review", "Inbox"),
     ];
+
+    static readonly TimeSpan SearchPause = TimeSpan.FromMilliseconds(300);
 
     bool _loading = true;
     CurrentUser? _me;
@@ -83,6 +85,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        if (OnLibrary) _searchText = LibraryUrl.Parse(Navigation.Uri).Q ?? "";
         _me = await Session.MeAsync();
         if (_me is not null)
         {
@@ -95,7 +98,57 @@ else
 
     async Task CycleTheme() => _theme = await Theme.CycleAsync();
 
-    void OnLocationChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+    void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // Keeps the box in step when the Library clears the search, or Back goes to another.
+        if (OnLibrary && _searchDelay is null) _searchText = LibraryUrl.Parse(e.Location).Q ?? "";
+        StateHasChanged();
+    }
+
+    bool OnLibrary => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("library", StringComparison.Ordinal);
+
+    string _searchText = "";
+    CancellationTokenSource? _searchDelay;
+
+    /// <summary>As in the Windows app, a pause in typing searches; Enter searches at once and Esc clears the box.</summary>
+    async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _searchText = e.Value as string ?? "";
+        _searchDelay?.Cancel();
+        var delay = _searchDelay = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(SearchPause, delay.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        SubmitSearch();
+    }
+
+    void OnSearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") SubmitSearch();
+        else if (e.Key == "Escape")
+        {
+            _searchText = "";
+            SubmitSearch();
+        }
+    }
+
+    /// <summary>Shows the search in the Library, keeping its filters when it's already there.</summary>
+    void SubmitSearch()
+    {
+        _searchDelay?.Cancel();
+        _searchDelay = null;
+        var text = _searchText.Trim();
+        if (!OnLibrary && text.Length == 0) return;
+        var current = OnLibrary ? LibraryUrl.Parse(Navigation.Uri) : new LibraryQuery();
+        if ((current.Q ?? "") == text) return;
+        var next = text.Length == 0 ? current with { Q = null, Tab = null } : current with { Q = text };
+        Navigation.NavigateTo("library" + LibraryUrl.QueryString(next, forApi: false), replace: OnLibrary);
+    }
 
     void OnActivityChanged() => InvokeAsync(StateHasChanged);
 

@@ -89,6 +89,13 @@ public sealed class ApiClient(HttpClient http)
         await EnsureAsync(response, ct);
     }
 
+    public async Task<LibraryResults> LibraryAsync(LibraryQuery query, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/library{LibraryUrl.QueryString(query, forApi: true)}", ct);
+        await EnsureAsync(response, ct);
+        return (await response.Content.ReadFromJsonAsync<LibraryResults>(ct))!;
+    }
+
     /// <summary>A refused call becomes an <see cref="ApiProblemException"/> carrying the server's own words, when it gave any.</summary>
     static async Task EnsureAsync(HttpResponseMessage response, CancellationToken ct)
     {

@@ -1,7 +1,10 @@
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host.Tests;
 using Bibliotaph.Catalog;
+using Bibliotaph.Processing;
+using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Indexing;
 using Bibliotaph.Storage.OneDrive;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +54,45 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         // Downloaded to hash, then once more to read: never again for each stage.
         Assert.Equal(4, Fixture.Graph.Downloads);
         await WaitAsync(() => Task.FromResult(Directory.Exists(library.Paths.Extract) && Directory.EnumerateFiles(library.Paths.Extract).Any() ? null : ""));
+    }
+
+    [Fact]
+    public async Task The_library_page_shows_the_books_read_and_finds_their_pages()
+    {
+        Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
+        Fixture.Graph.Add("RPG/map.png", Png(1200, 800));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+
+        var all = await WaitAsync(async () =>
+        {
+            var results = await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct);
+            return results.Books.Count == 2 && results.Books.All(b => b.Cover is not null && !b.Meta.Contains("still being read", StringComparison.Ordinal))
+                ? results : null;
+        });
+        Assert.Equal("2", all.CountText);
+        Assert.Equal("documents", all.CountLabel);
+        Assert.Contains(all.Books, b => b.Meta == "PNG image" && b.Size == "PNG");
+        foreach (var book in all.Books) Assert.True(File.Exists(library.Get<CoverCache>().PathFor(book.Cover!)));
+        Assert.Equal("RPG", all.Menus.Folders[1].Label);
+
+        var images = await LibraryApi.ResultsAsync(library, new LibraryQuery { Kind = "Images" }, Ct);
+        Assert.Equal("PNG image", Assert.Single(images.Books).Meta);
+        var none = await LibraryApi.ResultsAsync(library, new LibraryQuery { Kind = "Packs" }, Ct);
+        Assert.Equal("clear-filters", none.Empty?.Action);
+
+        var word = SyntheticPdfs.KnownPhrase.Split(' ')[0];
+        var pages = await LibraryApi.ResultsAsync(library, new LibraryQuery { Q = word, Tab = "pages" }, Ct);
+        var match = Assert.Single(pages.Matches);
+        Assert.Contains(LibraryChoices.HitStart, match.Pages[0].Snippet);
+        Assert.StartsWith("PDF page ", match.Pages[0].Where, StringComparison.Ordinal);
+        Assert.StartsWith("Inside documents · ", pages.PagesTab, StringComparison.Ordinal);
+        Assert.Contains($"for “{word}”", pages.CountLabel, StringComparison.Ordinal);
+        var nothing = await LibraryApi.ResultsAsync(library, new LibraryQuery { Q = "zzyzxnotaword" }, Ct);
+        Assert.Equal("clear-search", nothing.Empty?.Action);
     }
 
     [Fact]
