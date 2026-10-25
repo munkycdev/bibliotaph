@@ -94,6 +94,7 @@ public static class LibraryServices
         services.AddSingleton<PageRefStore>();
         services.AddSingleton<PagePlaces>();
         services.AddSingleton<SessionStore>();
+        services.AddSingleton<SessionsService>();
         services.AddSingleton<PinStore>();
         services.AddSingleton<PinsService>();
         services.AddSingleton(sp => new SmartViewStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));

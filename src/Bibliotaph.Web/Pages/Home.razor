@@ -40,6 +40,15 @@ else
         }
         else
         {
+            @if (shelves.Preparing is { } preparing)
+            {
+                @* The binder worked on last that's for a game. *@
+                <div class="bt-sectionline">
+                    <strong>Continue preparing</strong>
+                    <a class="bt-link bt-inline" href="binders">All binders<Icon Name="ArrowRight" Size="13" /></a>
+                </div>
+                <div class="bt-collectioncards" aria-label="Continue preparing"><BinderTile Card="preparing" /></div>
+            }
             @if (shelves.Opened.Count > 0)
             {
                 <div class="bt-sectionline">

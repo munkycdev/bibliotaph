@@ -1,0 +1,140 @@
+@* .bt-dialog: the dialog over the page for binders, as the Windows app's session dialog: a title and an optional date,
+   or kept at hand during games for a game system (New binder, Edit title and date); a section's name; or every binder
+   to pick from, narrowed as you type. Esc, Cancel or a click outside closes it. *@
+@implements IDisposable
+@inject BinderDialogs Dialogs
+
+@if (Dialogs.Current is { } dialog)
+{
+    <div class="bt-backdrop fixed bt-dialogback" @onclick="Cancel"></div>
+    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@dialog.Heading" @onkeydown="KeyDown">
+        <div class="bt-drawer-head bt-dialoghead">
+            <div>
+                <span class="bt-eyebrow bt-eyebrow-block">@dialog.Eyebrow</span>
+                <h2 class="bt-dialogtitle">@dialog.Heading</h2>
+            </div>
+            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Cancel"><Icon Name="X" /></button>
+        </div>
+        @if (dialog.Kind == BinderDialogKind.Pick)
+        {
+            <input class="bt-input bt-dialogfilter" aria-label="Find a binder" title="Type part of a binder's title" @bind="_filter" @bind:event="oninput"
+                   @onkeydown="FilterKeyDown" @ref="_first" />
+            <div class="bt-choices-list" aria-label="Binders">
+                @foreach (var choice in Shown)
+                {
+                    <button class="bt-choicerow" aria-label="@choice.Title" @onclick="() => Dialogs.Close(choice)"><Icon Name="NotebookTabs" Size="14" /><span>@choice.Title</span></button>
+                }
+            </div>
+            @if (Shown.Count == 0)
+            {
+                <div class="bt-small bt-nomatch">No binder has that in its title.</div>
+            }
+            <div class="bt-boxactions end bt-dialogactions">
+                <button class="bt-button" @onclick="Cancel">Cancel</button>
+            </div>
+        }
+        else
+        {
+            var section = dialog.Kind == BinderDialogKind.Section;
+            <label class="bt-field">@(section ? "Name" : "Title")<input aria-label="@(section ? "Name" : "Title")" @bind="_title" @bind:event="oninput" @onkeydown="EnterKeyDown" @ref="_first" /></label>
+            @if (!section)
+            {
+                @if (!_atHand)
+                {
+                    <label class="bt-field">Date played (optional)<input type="date" aria-label="Date played" title="Upcoming binders list by it." @bind="_date" @onkeydown="EnterKeyDown" /></label>
+                }
+                <label class="bt-check" title="For rules and references you look up mid-game. At hand in any binder opens its pages in a window of their own.">
+                    <input type="checkbox" @bind="_atHand" />Keep at hand during games
+                </label>
+                @if (_atHand)
+                {
+                    <label class="bt-field">For game system
+                        <select aria-label="For game system" title="Binders for the systems of the books you're running are offered first" @bind="_system">
+                            @foreach (var system in Systems(dialog)) { <option value="@system.Value">@system.Label</option> }
+                        </select>
+                    </label>
+                }
+            }
+            <div class="bt-boxactions end bt-dialogactions">
+                <button class="bt-button" @onclick="Cancel">Cancel</button>
+                <button class="bt-button primary" disabled="@(_title.Trim().Length == 0)" @onclick="Save">@dialog.ActionText</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    BinderDialogRequest? _shown;
+    string _title = "";
+    DateOnly? _date;
+    bool _atHand;
+    string _system = "";
+    string _filter = "";
+    ElementReference _first;
+    bool _focus;
+
+    protected override void OnInitialized() => Dialogs.Changed += OnChanged;
+
+    public void Dispose() => Dialogs.Changed -= OnChanged;
+
+    void OnChanged()
+    {
+        if (Dialogs.Current is { } dialog && !ReferenceEquals(dialog, _shown))
+        {
+            _title = dialog.Start.Title;
+            _date = dialog.Start.Date;
+            _atHand = dialog.Start.KeepAtHand;
+            _system = dialog.Start.GameSystem ?? "";
+            _filter = "";
+            _focus = true;
+        }
+        _shown = Dialogs.Current;
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focus || Dialogs.Current is null) return;
+        _focus = false;
+        await _first.FocusAsync();
+    }
+
+    /// <summary>The library's game systems, and the binder's own when no book is for it any more.</summary>
+    static IReadOnlyList<FilterChoice> Systems(BinderDialogRequest dialog) =>
+        dialog.Start.GameSystem is { } own && dialog.Systems.All(s => s.Value != own) ? [.. dialog.Systems, new FilterChoice(own, own)] : dialog.Systems;
+
+    IReadOnlyList<BinderChoice> Shown
+    {
+        get
+        {
+            var choices = Dialogs.Current?.Choices ?? [];
+            var words = _filter.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return words.Length == 0 ? choices : [.. choices.Where(c => words.All(w => c.Title.Contains(w, StringComparison.CurrentCultureIgnoreCase)))];
+        }
+    }
+
+    void Save()
+    {
+        if (_title.Trim() is not { Length: > 0 } title) return;
+        // A binder kept at hand has no date: it's for every game, so it never lists as upcoming.
+        Dialogs.Close(new BinderEdit(title, _atHand ? null : _date, _atHand, _atHand && _system.Length > 0 ? _system : null));
+    }
+
+    void Cancel() => Dialogs.Close(null);
+
+    void KeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Cancel();
+    }
+
+    void EnterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Save();
+    }
+
+    /// <summary>Enter in the filter box picks the first binder it leaves.</summary>
+    void FilterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Shown.Count > 0) Dialogs.Close(Shown[0]);
+    }
+}

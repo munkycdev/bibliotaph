@@ -106,7 +106,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         var added = await Run(add, "Adding to a session failed");
         if (added is null) return;
         var name = Directory.Find(packId)?.Title ?? "the binder";
-        await FinishAsync(added.Count == 0 ? "That couldn't be added." : $"Added {what} to {name}.",
+        await FinishAsync(added.Count == 0 ? BinderText.NotAdded : BinderText.Added(what, name),
             added.Count == 0 ? null : async () => await sessions.RemoveItemsAsync(added));
     }
 
@@ -147,7 +147,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     public async Task AddSectionAsync(long packId, string name)
     {
         if (await Run(() => sessions.AddSectionAsync(packId, name), "Adding the section failed") is { } section)
-            await FinishAsync($"Added {section.Name}. Items you add now go at its end.", null);
+            await FinishAsync(BinderText.SectionAdded(section.Name), null);
     }
 
     public void RenameSection(long sectionId, string name) =>
@@ -160,20 +160,20 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     public async Task DeleteSectionAsync(long sectionId, string name)
     {
         if (await Run(async () => { await sessions.DeleteSectionAsync(sectionId); return true; }, "Deleting the section failed"))
-            await FinishAsync($"Deleted the {name} heading. Its items moved up to the section above.", null);
+            await FinishAsync(BinderText.SectionDeleted(name), null);
     }
 
     /// <summary>Takes items out of a pack, with Undo.</summary>
     public async Task RemoveAsync(IReadOnlyList<long> itemIds, string what, string pack)
     {
         var removed = await Run(() => sessions.RemoveItemsAsync(itemIds), "Removing from the session failed");
-        if (removed is { Count: > 0 }) await FinishAsync($"Removed {what} from {pack}.", () => sessions.RestoreItemsAsync(removed));
+        if (removed is { Count: > 0 }) await FinishAsync(BinderText.Removed(what, pack), () => sessions.RestoreItemsAsync(removed));
     }
 
     /// <summary>Duplicate: a copy of the pack, without its date, which then opens.</summary>
     public async Task<SessionPackInfo?> DuplicateAsync(SessionPackInfo pack)
     {
-        var copy = await Run(() => sessions.DuplicateAsync(pack.Id, $"{pack.Title} (copy)"), "Duplicating the session failed");
+        var copy = await Run(() => sessions.DuplicateAsync(pack.Id, BinderText.CopyTitle(pack.Title)), "Duplicating the session failed");
         if (copy is not null) await FinishAsync(null, null);
         return copy;
     }
@@ -188,7 +188,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
 
     /// <summary>The note after a delete, on the page shown after it, with Undo bringing the pack back.</summary>
     public void ShowDeleted(SessionPackSnapshot deleted) =>
-        Undo.Offer($"Deleted {deleted.Title}. Its books are still in your library.", Undoing(async () => await sessions.RestoreAsync(deleted)));
+        Undo.Offer(BinderText.Deleted(deleted.Title), Undoing(async () => await sessions.RestoreAsync(deleted)));
 
     /// <summary>Esc or Cancel closes the dialog; the note goes when the page is left.</summary>
     public void Close()
@@ -236,7 +236,7 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
         catch (Exception ex)
         {
             log.LogError(ex, "{Failure}", failure);
-            Undo.Say("That didn't work. The log has the details.");
+            Undo.Say(BinderText.Failed);
             return default;
         }
     }

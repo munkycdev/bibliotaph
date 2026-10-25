@@ -150,11 +150,10 @@ its own, pinned in the sidebar, and it runs again each time, so new books show u
 order or layout and it says so, with **Update saved search** to keep the change and **Save as new** to keep both. Its
 buttons are **Rename**, **Pin** or **Unpin**, and the bin, which deletes it without touching a book, with **Undo**.
 **Saved searches** in the toolbar lists them all, pinned or not, each with its pin, rename and delete. A saved search
-made in the Windows app opens here too; one saved in a binder looks through your whole library until binders come to
-the web, and says so.
+made in the Windows app opens here too, including one saved in a binder.
 
-The sidebar's **Pinned** group, also on Home under **Pinned**, holds your pinned collections, saved searches, books
-and Favorites. Drag one to move it, or use Alt+Up and Alt+Down; right-click one for **Move up**, **Move down**,
+The sidebar's **Pinned** group, also on Home under **Pinned**, holds your pinned collections, binders, saved searches,
+books and Favorites. Drag one to move it, or use Alt+Up and Alt+Down; right-click one for **Move up**, **Move down**,
 **Unpin**, and for a saved search **Rename…** and **Delete**. A book's details have a pin button too. A pinned book
 whose file can't be opened right now is dimmed.
 
@@ -182,7 +181,30 @@ touch stay as they are. **Review changes** says what will happen before anything
 replaces values you set yourself; **Apply** saves it all at once, and the note's **Undo** puts every field back. The
 books stay ticked, so another change can follow.
 
-The reader and binders are the next steps.
+### Binders
+
+**Binders** in the sidebar shows your binders as cards, each with its date, how many items it holds and its first
+books' covers, in groups as in the Windows app: **Upcoming**, **At hand**, **No date yet**, and **Show earlier
+binders** for those whose date has passed. Home's **Continue preparing** shows the binder you worked on last.
+**New binder** asks for a title and, if you like, the date it's played, or **Keep at hand during games** for rules and
+references, for one game system or any. The binder opens at once.
+
+A binder's page has its date above its title, and the pencil (**Edit title and date**), **Duplicate** and the bin,
+which deletes the binder but never its books, with **Undo**. **Binder sequence** lists its items in order, numbered,
+each with its cover, its label, which book and pages it is, and your note:
+
+- Click the label or **Add a note** to type; Enter or leaving the box saves it. A blank label shows the book's title.
+- Drag an item by its grip, use its arrows or press **Alt+Up** and **Alt+Down** to move it. Dropped on another item it
+  takes that item's place; dropped on a section's heading it goes first under it.
+- Right-click an item for **Move up**, **Move down**, **Move to** each section and **Remove from binder**; its **×**
+  or the **Delete** key removes it too, with **Undo**.
+- **Add section** offers Adventure, Maps, Encounters and Rules, or **Another name…**. A section's pencil renames it and
+  its bin deletes the heading, moving its items up to the section above.
+- An item whose file can't be reached is dimmed and says why.
+
+**Binder notes**, on the right, are saved as you type. **Show these books in the Library** shows the binder's books
+there, with **In** and the binder's name on a chip; **Find resources** opens the Library. Binders are the same ones
+the Windows app shows. Adding books and pages to a binder from the web, and opening its items in a reader, come next.
 
 ## Your theme
 

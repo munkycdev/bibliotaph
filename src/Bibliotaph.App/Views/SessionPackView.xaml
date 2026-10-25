@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:p="clr-namespace:Bibliotaph.Processing;assembly=Bibliotaph.Processing"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SessionPackViewModel}">
@@ -161,7 +162,7 @@
         <StackPanel>
           <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />
           <TextBlock x:Name="SessionTitle" Text="{Binding Title}" Style="{StaticResource Text.H1}" TextWrapping="Wrap" />
-          <TextBlock Text="Your next session, gathered in one place." Style="{StaticResource Text.Subtitle}" />
+          <TextBlock Text="{x:Static p:BinderText.Subtitle}" Style="{StaticResource Text.Subtitle}" />
         </StackPanel>
       </DockPanel>
 
@@ -212,13 +213,13 @@
         <!-- .bt-sectionline and the session sequence. -->
         <StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBlock Text="Binder sequence" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
-            <TextBlock Text="Books and pages, ready at hand" Style="{StaticResource Text.Small}" Margin="12,0,0,0" VerticalAlignment="Bottom" />
+            <TextBlock Text="{x:Static p:BinderText.Sequence}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+            <TextBlock Text="{x:Static p:BinderText.SequenceNote}" Style="{StaticResource Text.Small}" Margin="12,0,0,0" VerticalAlignment="Bottom" />
           </StackPanel>
           <ItemsControl x:Name="SessionItems" ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Binder sequence"
                         KeyboardNavigation.TabNavigation="Continue" Visibility="{Binding HasItems, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <StackPanel Visibility="{Binding IsLoaded, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <c:EmptyState Title="An empty notebook." Message="Add a book or page from your library to get started: right-click a book, or use Add page in the reader."
+            <c:EmptyState Title="{x:Static p:BinderText.EmptyTitle}" Message="{x:Static p:BinderText.EmptyBinderMessage}"
                           ActionText="Find resources" ActionIcon="{StaticResource Icon.LibraryBig}" Command="{Binding FindResourcesCommand}"
                           Visibility="{Binding HasItems, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
           </StackPanel>
@@ -226,7 +227,7 @@
 
         <!-- Session notes, saved as you type. -->
         <StackPanel Grid.Column="2">
-          <TextBlock Text="Binder notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
+          <TextBlock Text="{x:Static p:BinderText.Notes}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
           <TextBox x:Name="SessionNotes" Style="{StaticResource Bt.TextBox}" Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
                    TextWrapping="Wrap" MinHeight="260" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Binder notes"
                    ToolTip="Saved as you type" />

@@ -1,0 +1,378 @@
+@page "/binders/{Id:long}"
+@implements IDisposable
+@inject ApiClient Api
+@inject BinderActions Actions
+@inject BinderDialogs Dialogs
+@inject NavigationManager Navigation
+
+@* The Windows app's binder page: its date as the eyebrow, its title and actions; the sequence of sections and items,
+   each item's label and note edited in place; and the binder's notes, saved as they're typed. *@
+@if (_page is not { } binder)
+{
+    <PageTitle>Binder · Bibliotaph</PageTitle>
+    @if (_missing)
+    {
+        <EmptyState Title="That binder isn't here." Message="It may have been deleted. Your other binders are on the Binders page." ActionText="All binders"
+                    ActionHref="binders" />
+    }
+    else
+    {
+        <div class="bt-loading">Opening the binder…</div>
+    }
+}
+else
+{
+    <PageTitle>@binder.Title · Bibliotaph</PageTitle>
+    <div class="bt-heading">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">@binder.Eyebrow</span>
+            <h1 tabindex="-1">@binder.Title</h1>
+            <div class="bt-subtitle">@Subtitle</div>
+        </div>
+        <div class="bt-headingactions">
+            <button class="bt-icon" title="Edit title and date" aria-label="Edit title and date" @onclick="EditAsync"><Icon Name="Pencil" /></button>
+            <button class="bt-icon" title="Duplicate" aria-label="Duplicate" @onclick="DuplicateAsync"><Icon Name="Copy" /></button>
+            <button class="bt-icon" title="Delete (the books stay)" aria-label="Delete binder" @onclick="DeleteAsync"><Icon Name="Trash2" /></button>
+        </div>
+    </div>
+
+    <div class="bt-toolbar bt-bindertoolbar">
+        <span class="bt-small bt-bindercountline"><Icon Name="NotebookTabs" Size="14" />@binder.Count</span>
+        <span class="bt-toolbarspace"></span>
+        @if (HasItems)
+        {
+            <a class="bt-link" href="@($"library?binder={binder.Id}")">Show these books in the Library</a>
+        }
+        <div class="bt-menuanchor">
+            <button class="bt-button" aria-haspopup="menu" aria-expanded="@_sectionMenu" @onclick="() => _sectionMenu = !_sectionMenu"><Icon Name="Plus" />Add section</button>
+            @if (_sectionMenu)
+            {
+                <div class="bt-backdrop fixed bt-menuback" @onclick="() => _sectionMenu = false"></div>
+                <div class="bt-menu" role="menu" aria-label="Add section">
+                    @foreach (var name in binder.SuggestedSections)
+                    {
+                        <button class="bt-menuitem" role="menuitem" @onclick="() => AddSectionAsync(name)">@name</button>
+                    }
+                    <button class="bt-menuitem" role="menuitem" @onclick="() => AddSectionAsync(null)">Another name…</button>
+                </div>
+            }
+        </div>
+        <a class="bt-button" href="library"><Icon Name="Search" />Find resources</a>
+    </div>
+
+    @if (_note is not null)
+    {
+        <div class="bt-librarynote bt-pagenote">
+            <DoneNote Result="_note" UndoName="Undo" Dismissed="() => _note = null" Undone="LoadAsync" />
+        </div>
+    }
+
+    <div class="bt-binderpage">
+        <section class="bt-bindersequence">
+            <div class="bt-binderline"><strong>@Sequence</strong><span class="bt-small">@SequenceNote</span></div>
+            @if (HasItems || binder.Rows.Count > 0)
+            {
+                <div role="list" aria-label="Binder sequence">
+                    @foreach (var row in binder.Rows)
+                    {
+                        @if (row.Section is { } section)
+                        {
+                            <div class="bt-bindersection @(_dropOn == (section.Id, true) ? "drop" : "")" role="listitem" aria-label="Section @section.Name" @key="(section.Id, true)"
+                                 @ondragover="() => _dropOn = (section.Id, true)" @ondragover:preventDefault="true" @ondrop="() => DropOnHeadingAsync(section)">
+                                <span class="bt-eyebrow">@section.Name</span>
+                                <button class="bt-icon" title="Rename" aria-label="Rename @section.Name" @onclick="() => RenameSectionAsync(section)"><Icon Name="Pencil" Size="14" /></button>
+                                <button class="bt-icon" title="Delete this heading; its items stay" aria-label="Delete the @section.Name heading"
+                                        @onclick="() => DeleteSectionAsync(section)"><Icon Name="Trash2" Size="14" /></button>
+                            </div>
+                        }
+                        else if (row.Item is { } item)
+                        {
+                            @Item(item)
+                        }
+                    }
+                </div>
+            }
+            @if (!HasItems)
+            {
+                <EmptyState Title="@EmptyTitle" Message="@EmptyMessage" ActionText="Find resources" ActionIcon="LibraryBig" ActionHref="library" />
+            }
+        </section>
+        <section class="bt-bindernotes">
+            <label class="bt-binderline" for="binder-notes"><strong>@Notes</strong></label>
+            <textarea id="binder-notes" class="bt-notebox" title="Saved as you type" aria-label="Binder notes" value="@_notes" @oninput="NotesChanged"
+                      @onblur="SaveNotesAsync"></textarea>
+        </section>
+    </div>
+}
+
+@code {
+    // The Windows page's words, as its BinderText has them; the web doesn't reference it.
+    const string Subtitle = "Your next session, gathered in one place.";
+    const string Sequence = "Binder sequence";
+    const string SequenceNote = "Books and pages, ready at hand";
+    const string Notes = "Binder notes";
+    const string EmptyTitle = "An empty notebook.";
+    const string EmptyMessage = "Add a book or page from your library to get started: right-click a book, or use Add page in the reader.";
+
+    [Parameter] public long Id { get; set; }
+
+    BinderPage? _page;
+    ActionResult? _note;
+    bool _missing;
+    bool _sectionMenu;
+    long? _itemMenu;
+    BinderItem? _dragging;
+    (long Id, bool Heading)? _dropOn;
+    string _notes = "";
+    long _shownId;
+    CancellationTokenSource? _notesSave;
+
+    bool HasItems => _page?.Rows.Any(r => r.Item is not null) == true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_shownId == Id && _page is not null) return;
+        await SaveNotesAsync();
+        _shownId = Id;
+        _page = null;
+        _missing = false;
+        // After Duplicate, or a binder made elsewhere: the note the last page left.
+        _note = Actions.Pending;
+        Actions.Pending = null;
+        try
+        {
+            // Opening it makes it the binder Add to binder adds to, as on Windows.
+            Show(await Api.OpenBinderAsync(Id));
+        }
+        catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            _missing = true;
+        }
+    }
+
+    void Show(BinderPage page)
+    {
+        _page = page;
+        // Notes still being typed aren't replaced by what the server had before they were saved.
+        if (_notesSave is null) _notes = page.Notes;
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            Show(await Api.BinderAsync(Id));
+        }
+        catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            _page = null;
+            _missing = true;
+        }
+    }
+
+    /// <summary>A change, then the page read again; the note says what it did, or why it failed.</summary>
+    async Task RunAsync(Func<Task<ActionResult>> change)
+    {
+        try
+        {
+            var result = await change();
+            _note = result.Message.Length > 0 ? result : null;
+        }
+        catch (ApiProblemException e)
+        {
+            _note = new ActionResult(e.Message);
+        }
+        await LoadAsync();
+    }
+
+    Task RunAsync(Func<Task> change) => RunAsync(async () =>
+    {
+        await change();
+        return new ActionResult("");
+    });
+
+    async Task EditAsync()
+    {
+        if (_page is not { } binder) return;
+        var start = new BinderEdit(binder.Title, binder.Date, binder.KeepAtHand, binder.GameSystem);
+        if (await Dialogs.NameAsync("Edit binder", "Save", binder.Systems, start) is not { } edit) return;
+        await RunAsync(() => Api.EditBinderAsync(Id, edit));
+    }
+
+    async Task DuplicateAsync()
+    {
+        try
+        {
+            Navigation.NavigateTo($"binders/{(await Api.DuplicateBinderAsync(Id)).Id}");
+        }
+        catch (ApiProblemException e)
+        {
+            _note = new ActionResult(e.Message);
+        }
+    }
+
+    /// <summary>The books stay; the Binders page says so, with Undo.</summary>
+    async Task DeleteAsync()
+    {
+        try
+        {
+            _notesSave?.Cancel();
+            _notesSave = null;
+            Actions.Pending = await Api.DeleteBinderAsync(Id);
+            Navigation.NavigateTo("binders");
+        }
+        catch (ApiProblemException e)
+        {
+            _note = new ActionResult(e.Message);
+        }
+    }
+
+    async Task AddSectionAsync(string? name)
+    {
+        _sectionMenu = false;
+        name ??= await Dialogs.NameSectionAsync("Add section", "Add");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        await RunAsync(() => Api.AddSectionAsync(Id, name));
+    }
+
+    async Task RenameSectionAsync(BinderSection section)
+    {
+        if (await Dialogs.NameSectionAsync("Rename section", "Save", section.Name) is not { Length: > 0 } name || name == section.Name) return;
+        await RunAsync(() => Api.RenameSectionAsync(Id, section.Id, name));
+    }
+
+    Task DeleteSectionAsync(BinderSection section) => RunAsync(() => Api.DeleteSectionAsync(Id, section.Id));
+
+    Task MoveAsync(BinderItem item, BinderItemMove move)
+    {
+        _itemMenu = null;
+        return RunAsync(() => (Task)Api.MoveBinderItemAsync(item.Id, move));
+    }
+
+    Task RemoveAsync(BinderItem item)
+    {
+        _itemMenu = null;
+        return RunAsync(() => Api.RemoveBinderItemAsync(item.Id));
+    }
+
+    /// <summary>A label or note is saved once the box is left or Enter is pressed, as on Windows.</summary>
+    Task SaveItemAsync(BinderItem item, string? label, string? note) => RunAsync(() => Api.SetBinderItemAsync(item.Id, label ?? item.Label, note ?? item.Note));
+
+    static string Text(ChangeEventArgs e) => e.Value as string ?? "";
+
+    Task ItemKeyAsync(BinderItem item, KeyboardEventArgs e) => e switch
+    {
+        { AltKey: true, Key: "ArrowUp" } => MoveAsync(item, new BinderItemMove(By: -1)),
+        { AltKey: true, Key: "ArrowDown" } => MoveAsync(item, new BinderItemMove(By: 1)),
+        { Key: "Delete" } => RemoveAsync(item),
+        _ => Task.CompletedTask,
+    };
+
+    Task DropOnItemAsync(BinderItem target) => DropAsync(new BinderItemMove(Onto: target.Id));
+
+    Task DropOnHeadingAsync(BinderSection section) => DropAsync(new BinderItemMove(SectionId: section.Id, First: true));
+
+    async Task DropAsync(BinderItemMove move)
+    {
+        var dragged = _dragging;
+        EndDrag();
+        if (dragged is null || move.Onto == dragged.Id) return;
+        await MoveAsync(dragged, move);
+    }
+
+    void EndDrag()
+    {
+        _dragging = null;
+        _dropOn = null;
+    }
+
+    void NotesChanged(ChangeEventArgs e)
+    {
+        _notes = e.Value as string ?? "";
+        _notesSave?.Cancel();
+        var save = _notesSave = new CancellationTokenSource();
+        _ = SaveNotesLaterAsync(save);
+    }
+
+    async Task SaveNotesLaterAsync(CancellationTokenSource save)
+    {
+        try
+        {
+            await Task.Delay(700, save.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        await SaveNotesAsync();
+    }
+
+    async Task SaveNotesAsync()
+    {
+        if (_notesSave is null || _shownId == 0) return;
+        _notesSave.Cancel();
+        _notesSave = null;
+        try
+        {
+            await Api.SetBinderNotesAsync(_shownId, _notes);
+        }
+        catch (ApiProblemException e)
+        {
+            _note = new ActionResult(e.Message);
+        }
+    }
+
+    public void Dispose() => _ = SaveNotesAsync();
+
+    RenderFragment Item(BinderItem item) => __builder =>
+    {
+        <div class="bt-binderitem @(item.Dimmed ? "dimmed" : "") @(_dropOn == (item.Id, false) ? "drop" : "")" role="listitem" tabindex="0" aria-label="@item.Heading"
+             @key="(item.Id, false)" @onkeydown="e => ItemKeyAsync(item, e)"
+             @ondragover="() => _dropOn = (item.Id, false)" @ondragover:preventDefault="true" @ondrop="() => DropOnItemAsync(item)"
+             @oncontextmenu="() => _itemMenu = item.Id" @oncontextmenu:preventDefault="true">
+            <span class="bt-bindergrip" title="Drag to reorder (or Alt+Up and Alt+Down)" draggable="true" @ondragstart="() => _dragging = item" @ondragend="EndDrag">
+                <Icon Name="GripVertical" Size="14" />
+            </span>
+            <span class="bt-bindernumber">@item.Number</span>
+            <div class="bt-binderthumb">@if (item.Cover is { } cover) { <BookCover Book="cover" Marks="false" /> }</div>
+            <div class="bt-binderwhat">
+                <input class="bt-inlinebox bt-binderlabel" value="@item.Label" placeholder="@item.BookTitle" aria-label="Label"
+                       title="Your name for this item. Blank shows the book's title." @onchange="e => SaveItemAsync(item, Text(e), null)"
+                       @onkeydown:stopPropagation="true" />
+                <div class="bt-small bt-binderwhere">@item.Where</div>
+                <input class="bt-inlinebox bt-bindernote" value="@item.Note" placeholder="Add a note" aria-label="Note"
+                       @onchange="e => SaveItemAsync(item, null, Text(e))" @onkeydown:stopPropagation="true" />
+                @if (item.Reason is { } reason)
+                {
+                    <div class="bt-binderreason @(item.Changed ? "changed" : "")"><Icon Name="TriangleAlert" Size="13" />@reason</div>
+                }
+            </div>
+            <div class="bt-binderactions">
+                <button class="bt-icon" title="Move up (Alt+Up)" aria-label="Move @item.Heading up" @onclick="() => MoveAsync(item, new BinderItemMove(By: -1))">
+                    <Icon Name="ArrowUp" Size="14" />
+                </button>
+                <button class="bt-icon" title="Move down (Alt+Down)" aria-label="Move @item.Heading down" @onclick="() => MoveAsync(item, new BinderItemMove(By: 1))">
+                    <Icon Name="ArrowDown" Size="14" />
+                </button>
+                @* Its menu, on a right-click, the menu key or a long press: Move up and down, Move to each section, Remove. *@
+                <div class="bt-menuanchor">
+                    @if (_itemMenu == item.Id)
+                    {
+                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _itemMenu = null" @oncontextmenu="() => _itemMenu = null"
+                             @oncontextmenu:preventDefault="true"></div>
+                        <div class="bt-menu" role="menu" aria-label="@item.Heading">
+                            <button class="bt-menuitem" role="menuitem" @onclick="() => MoveAsync(item, new BinderItemMove(By: -1))">Move up<span class="bt-gesture">Alt+Up</span></button>
+                            <button class="bt-menuitem" role="menuitem" @onclick="() => MoveAsync(item, new BinderItemMove(By: 1))">Move down<span class="bt-gesture">Alt+Down</span></button>
+                            @foreach (var move in item.Moves)
+                            {
+                                <button class="bt-menuitem" role="menuitem" @onclick="() => MoveAsync(item, new BinderItemMove(SectionId: move.SectionId))">@move.Label</button>
+                            }
+                            <button class="bt-menuitem" role="menuitem" @onclick="() => RemoveAsync(item)">Remove from binder<span class="bt-gesture">Delete</span></button>
+                        </div>
+                    }
+                </div>
+                <button class="bt-icon" title="Remove from binder (Delete)" aria-label="Remove @item.Heading" @onclick="() => RemoveAsync(item)"><Icon Name="X" Size="14" /></button>
+            </div>
+        </div>
+    };
+}

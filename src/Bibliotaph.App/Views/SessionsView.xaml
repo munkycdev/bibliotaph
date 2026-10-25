@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:p="clr-namespace:Bibliotaph.Processing;assembly=Bibliotaph.Processing"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SessionsViewModel}">
@@ -37,7 +38,7 @@
                 c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding NewSessionCommand}" />
         <StackPanel>
           <TextBlock Text="Binders" Style="{StaticResource Text.H1}" />
-          <TextBlock Text="Your next session, gathered in one place." Style="{StaticResource Text.Subtitle}" />
+          <TextBlock Text="{x:Static p:BinderText.Subtitle}" Style="{StaticResource Text.Subtitle}" />
         </StackPanel>
       </DockPanel>
       <Border Style="{StaticResource Bt.Rule}" Margin="0,0,42,0" />
@@ -72,8 +73,8 @@
                       AutomationProperties.Name="Earlier binders" Visibility="{Binding ShowEarlier, Converter={StaticResource Bt.VisibleWhenTrue}}" />
       </StackPanel>
 
-      <c:EmptyState Title="An empty notebook."
-                    Message="A binder gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one."
+      <c:EmptyState Title="{x:Static p:BinderText.EmptyTitle}"
+                    Message="{x:Static p:BinderText.EmptyMessage}"
                     ActionText="New binder" ActionIcon="{StaticResource Icon.Plus}" Command="{Binding NewSessionCommand}"
                     Visibility="{Binding ShowEmpty, Converter={StaticResource Bt.VisibleWhenTrue}}" />
     </StackPanel>

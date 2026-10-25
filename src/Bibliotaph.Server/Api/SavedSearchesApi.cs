@@ -92,16 +92,15 @@ public static class SavedSearchesApi
         {
             var collections = await CollectionsApi.AllAsync(library, ct);
             if (CollectionOf(scope) is { } collection && collections.ContainsKey(collection)) query = query with { Collection = collection };
-            else note = scope.StartsWith("session:", StringComparison.Ordinal) && await BinderExistsAsync(library, scope, ct)
-                ? "This search was saved in a binder, and binders aren't on the web yet, so it looks through your whole library."
-                : SavedSearchText.ScopeGone;
+            else if (await BinderOfAsync(library, scope, ct) is { } binder) query = query with { Binder = binder };
+            else note = SavedSearchText.ScopeGone;
             if (query.Collection is null) query = query with { AddedHere = false };
         }
         return new SavedSearch(view.Id, view.Name, SavedSearchText.Subtitle, SavedSearchText.Changed, SavedSearchText.SecondName(view.Name), query, definition.Layout == LibraryLayout.List, note, (await PinnedAsync(library, ct)).Contains(view.Id));
     }
 
-    static async Task<bool> BinderExistsAsync(UserLibrary library, string scope, CancellationToken ct) =>
-        (await library.Get<SessionStore>().ListAsync(ct)).Any(p => ScopeKeys.Session(p.Id) == scope);
+    static async Task<long?> BinderOfAsync(UserLibrary library, string scope, CancellationToken ct) =>
+        (await library.Get<SessionStore>().ListAsync(ct)).FirstOrDefault(p => ScopeKeys.Session(p.Id) == scope)?.Id;
 
     static long? CollectionOf(string scope) =>
         scope.StartsWith("collection:", StringComparison.Ordinal)
@@ -110,7 +109,8 @@ public static class SavedSearchesApi
     /// <summary>What the web's Library shows, as the Windows Library's CurrentView keeps it.</summary>
     internal static SmartViewDefinition ToDefinition(LibraryQuery q, bool list) => new(
         Query: q.Q?.Trim() ?? "",
-        Scope: q.Collection is { } collection ? ScopeKeys.Collection(collection) : q.Favorites ? ScopeKeys.Favorites : null,
+        Scope: q.Collection is { } collection ? ScopeKeys.Collection(collection) : q.Binder is { } binder ? ScopeKeys.Session(binder)
+            : q.Favorites ? ScopeKeys.Favorites : null,
         OnlyAddedHere: q.Collection is not null && q.AddedHere,
         Kind: Parse<KindFilter>(q.Kind) ?? KindFilter.All,
         Folder: q.Folder,

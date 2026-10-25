@@ -56,7 +56,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public long Id => Item.Id;
 
     /// <summary>"01".</summary>
-    public string Number { get; } = number.ToString("00", CultureInfo.CurrentCulture);
+    public string Number { get; } = BinderText.Number(number);
 
     public string BookTitle { get; } = bookTitle;
 
@@ -99,7 +99,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public bool HasMoveTargets => MoveTargets.Count > 0;
 
     /// <summary>The label, or the book's title when there is none.</summary>
-    public string Heading => string.IsNullOrWhiteSpace(Label) ? BookTitle : Label.Trim();
+    public string Heading => BinderText.Heading(Label, BookTitle);
 
     /// <summary>The name being typed in a binder's list, before Enter saves it.</summary>
     [ObservableProperty]
@@ -109,7 +109,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public partial string Draft { get; set; } = "";
 
     /// <summary>"The Drowned Abbey · p. 42–44", "… · Whole book", "… · Page on D&amp;D Beyond".</summary>
-    public string Where => Item.Link is not null ? $"{BookTitle} · Page on {OnlinePlace ?? "the web"}" : $"{BookTitle} · {Pages(Item.Range)}";
+    public string Where => BinderText.Where(BookTitle, Item, OnlinePlace);
 
     /// <summary>For the reader's counter and the item's own line: "p. 42–44", "Whole book".</summary>
     public static string Pages(PageRange? range) => DetailsText.Pages(range);
@@ -127,7 +127,7 @@ public sealed partial class SessionItemRow(SessionItemInfo item, int number, str
     public bool IsChanged => Target.State == SessionItemState.Changed;
 
     /// <summary>Why it can't open, or what opening it will do differently; null for an ordinary item.</summary>
-    public string? Reason => OpensOnline ? $"Opens on {OnlinePlace ?? "the web"} in the online reader." : Target.Reason;
+    public string? Reason => BinderText.Reason(Target, OpensOnline, OnlinePlace);
 
     public bool HasReason => Reason is not null;
 
@@ -150,44 +150,24 @@ public static class SessionPackRows
     /// <summary>The pack's rows in order: items before any section, then each section's heading and items, numbered throughout.</summary>
     public static async Task<IReadOnlyList<object>> BuildAsync(SessionsService sessions, LibraryQueries queries, CoverImages covers, SessionPackContents contents)
     {
-        var (targets, cards, documents) = await Task.Run(async () =>
-        {
-            var targets = await sessions.ResolveAsync(contents.Items);
-            var cards = (await queries.ListAsync(new LibraryFilter([.. contents.Items.Select(i => i.EntryId).Distinct()]))).ToDictionary(e => e.EntryId);
-            // Items whose book has no card of its own (an image in a pack) show their file's name and cover.
-            var documents = await queries.GetDocumentCardsAsync([.. contents.Items.Where(i => !cards.ContainsKey(i.EntryId))
-                .Select(i => targets[i.Id].DocumentId ?? i.Range?.DocumentId).OfType<long>()]);
-            return (targets, cards, documents);
-        });
+        var built = await Task.Run(() => BinderRows.BuildAsync(sessions, queries, contents));
         var rows = new List<object>();
-        var moves = new List<(long Id, string Label)> { (SessionStore.NoSection, "Before the first section") };
-        moves.AddRange(contents.Sections.Select(s => (s.Id, s.Name)));
-        var number = 0;
-        void AddItems(long? sectionId)
+        foreach (var line in built)
         {
-            foreach (var item in contents.Items.Where(i => i.SectionId == sectionId))
+            if (line.Section is { } section)
             {
-                var target = targets[item.Id];
-                var card = cards.GetValueOrDefault(item.EntryId)
-                    ?? ((target.DocumentId ?? item.Range?.DocumentId) is { } d && documents.TryGetValue(d, out var doc) ? doc with { EntryId = item.EntryId } : null);
-                // A page added online, or a whole book owned only online, opens in the online reader.
-                var online = item.Link ?? (target.State == SessionItemState.NoFile ? card?.OnlineLink : null);
-                var row = new SessionItemRow(item, ++number, card?.Title ?? "A book no longer in your library",
-                    card is null ? null : new LibraryItemViewModel(card, covers), target)
-                {
-                    OnlineLink = online,
-                    BookLink = card?.OnlineLink ?? online,
-                    OnlinePlace = card?.OnlineLabel ?? (online is null ? null : OnlineReaders.SiteOf(online)),
-                };
-                row.MoveTargets = [.. moves.Where(m => m.Id != (item.SectionId ?? SessionStore.NoSection)).Select(m => new SectionMove(row, m.Id, $"Move to {m.Label}"))];
-                rows.Add(row);
+                rows.Add(new SessionSectionRow(section));
+                continue;
             }
-        }
-        AddItems(null);
-        foreach (var section in contents.Sections)
-        {
-            rows.Add(new SessionSectionRow(section));
-            AddItems(section.Id);
+            var item = line.Item!;
+            var row = new SessionItemRow(item.Item, item.Number, item.BookTitle, item.Card is null ? null : new LibraryItemViewModel(item.Card, covers), item.Target)
+            {
+                OnlineLink = item.OnlineLink,
+                BookLink = item.BookLink,
+                OnlinePlace = item.OnlinePlace,
+            };
+            row.MoveTargets = [.. BinderRows.MoveTargets(contents, item.Item).Select(m => new SectionMove(row, m.SectionId, m.Label))];
+            rows.Add(row);
         }
         return rows;
     }

@@ -44,7 +44,7 @@ public sealed class SessionDirectory : ISessionChoices
     public SessionPackInfo? Current => All.Count > 0 ? All[0] : null;
 
     /// <summary>The binder worked on last that's for a game rather than kept at hand: Home's Continue preparing.</summary>
-    public SessionPackInfo? Preparing => All.FirstOrDefault(p => !p.KeepAtHand);
+    public SessionPackInfo? Preparing => BinderGroups.Preparing(All);
 
     /// <summary>A menu's Add to session items, as of the last reload.</summary>
     public IReadOnlyList<SessionMenuChoice> MenuChoices { get; private set; } = [];
@@ -97,17 +97,16 @@ public sealed class SessionDirectory : ISessionChoices
     public SessionPackInfo? Find(long packId) => All.FirstOrDefault(p => p.Id == packId);
 
     /// <summary>"Saturday, 17 October 2026", or null for a pack without a date.</summary>
-    public static string? DateLabel(DateOnly? date) => date?.ToString("D", CultureInfo.CurrentCulture);
+    public static string? DateLabel(DateOnly? date) => BinderText.DateLabel(date);
 
     /// <summary>A game system's name, or its key when no book in the library is for it any more.</summary>
     public string SystemLabel(string key) => Systems.FirstOrDefault(s => s.Value == key)?.Label ?? key;
 
     /// <summary>"At hand · D&amp;D 5e", or "At hand · any system": what a binder kept at hand shows where others show their date.</summary>
-    public string AtHandLabel(SessionPackInfo pack) => $"At hand · {(pack.GameSystem is { } system ? SystemLabel(system) : "any system")}";
+    public string AtHandLabel(SessionPackInfo pack) => BinderText.AtHandLabel(pack.GameSystem is { } system ? SystemLabel(system) : null);
 
     /// <summary>"3 items", "No items yet".</summary>
-    public static string CountLabel(int items) =>
-        items == 0 ? "No items yet" : items == 1 ? "1 item" : $"{items.ToString("N0", CultureInfo.CurrentCulture)} items";
+    public static string CountLabel(int items) => BinderText.CountLabel(items);
 
     /// <summary>The cards for these packs: each with its date, item count and the covers of its first two books.</summary>
     public async Task<IReadOnlyList<SessionCardViewModel>> CardsAsync(IReadOnlyList<SessionPackInfo> packs)
@@ -121,6 +120,5 @@ public sealed class SessionDirectory : ISessionChoices
 
     /// <summary>The Library limited to a pack's books.</summary>
     public static LibraryScope ScopeFor(SessionPackInfo pack) => new(ScopeKeys.Session(pack.Id), pack.Title,
-        "The books in this binder, whole or for some of their pages.", "Nothing in this binder yet.",
-        "Add books from the Library, or pages from the reader.");
+        BinderText.ScopeSubtitle, BinderText.ScopeEmptyTitle, BinderText.ScopeEmptyMessage);
 }

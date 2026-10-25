@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bibliotaph.Catalog;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -70,7 +71,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         };
     }
 
-    static readonly Choice<string?> AnySystem = new(null, "Any game system");
+    static readonly Choice<string?> AnySystem = new(null, BinderText.AnySystem);
 
     /// <summary>Asks for a section's name.</summary>
     public static SessionDialogViewModel NamingSection(string heading, string actionText, string name = "") =>
@@ -143,7 +144,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     public partial string DateText { get; set; } = "";
 
-    public string? DateProblem => ShowsDate && DateText.Trim().Length > 0 && ParseDate() is null ? "That isn't a date Bibliotaph can read, such as 17/10/2026." : null;
+    public string? DateProblem => ShowsDate && DateText.Trim().Length > 0 && ParseDate() is null ? BinderText.DateProblem : null;
 
     DateOnly? ParseDate() =>
         DateOnly.TryParse(DateText.Trim(), CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out var date) ? date
@@ -200,7 +201,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
         if (value is null || _sections is null) return;
         var sections = await _sections(value.Value);
         if (Pack != value || sections.Count == 0) return;
-        SectionChoices = [EndOfPack, new(SessionStore.NoSection, "Before the first section"), .. sections.Select(s => new Choice<long?>(s.Id, s.Name))];
+        SectionChoices = [EndOfPack, new(SessionStore.NoSection, BinderText.BeforeFirstSection), .. sections.Select(s => new Choice<long?>(s.Id, s.Name))];
         Section = EndOfPack;
     }
 

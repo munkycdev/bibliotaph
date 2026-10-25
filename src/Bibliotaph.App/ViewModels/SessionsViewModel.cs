@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -54,7 +55,7 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
     [NotifyPropertyChangedFor(nameof(EarlierLabel))]
     public partial bool ShowEarlier { get; set; }
 
-    public string EarlierLabel => $"{(ShowEarlier ? "Hide" : "Show")} earlier binders ({Earlier.Count})";
+    public string EarlierLabel => BinderText.EarlierLabel(ShowEarlier, Earlier.Count);
 
     int _version;
 
@@ -92,11 +93,11 @@ public sealed partial class SessionsViewModel(SessionActions actions, SessionPag
             var all = Actions.Directory.All;
             var cards = (await Actions.Directory.CardsAsync(all)).ToDictionary(c => c.Id);
             if (version != _version) return;
-            var dated = all.Where(p => !p.KeepAtHand).ToList();
-            Fill(Upcoming, dated.Where(p => p.Date >= today).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
-            Fill(AtHand, all.Where(p => p.KeepAtHand).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
-            Fill(Undated, dated.Where(p => p.Date is null).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
-            Fill(Earlier, dated.Where(p => p.Date < today).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase), cards);
+            var groups = BinderGroups.Of(all, today);
+            Fill(Upcoming, groups.Upcoming, cards);
+            Fill(AtHand, groups.AtHand, cards);
+            Fill(Undated, groups.Undated, cards);
+            Fill(Earlier, groups.Earlier, cards);
             IsLoaded = true;
             Version++;
             OnPropertyChanged(nameof(HasSessions));
