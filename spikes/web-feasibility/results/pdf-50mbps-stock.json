@@ -1,0 +1,112 @@
+{
+  "storage": {
+    "persisted": false,
+    "persist": false,
+    "quota": 3221225472,
+    "usage": 0
+  },
+  "books": {
+    "illustrated-120.pdf": {
+      "hashWasm": {
+        "bytes": 46910431,
+        "ms": 8033,
+        "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+      },
+      "hashSubtle": {
+        "bytes": 46910431,
+        "fetchMs": 7848,
+        "ms": 7911,
+        "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+      },
+      "direct": {
+        "openMs": 7713,
+        "firstRenderMs": 64,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 12,
+        "allPagesMs": 348,
+        "network": {
+          "requests": 46,
+          "bytes": 93820862
+        }
+      },
+      "cachedCold": {
+        "openMs": 7889,
+        "firstRenderMs": 28,
+        "afterFirstPage": {
+          "fromCache": 0,
+          "fromNetwork": 45,
+          "networkRequests": 45,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": 0,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 5,
+        "allPagesMs": 291,
+        "counters": {
+          "fromCache": 0,
+          "fromNetwork": 45,
+          "networkRequests": 45
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448,
+        "network": {
+          "requests": 46,
+          "bytes": 46910432
+        }
+      },
+      "cachedOffline": {
+        "openMs": 422,
+        "firstRenderMs": 53,
+        "afterFirstPage": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": null,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 9,
+        "allPagesMs": 322,
+        "counters": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448,
+        "network": {
+          "requests": 0,
+          "bytes": 0
+        }
+      },
+      "cachedOfflineWarm": {
+        "openMs": 102,
+        "firstRenderMs": 30,
+        "afterFirstPage": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0,
+          "chunksHeld": 45,
+          "chunkCount": 45
+        },
+        "backgroundMs": null,
+        "pages": 120,
+        "chars": 297385,
+        "firstPageMs": 4,
+        "allPagesMs": 225,
+        "counters": {
+          "fromCache": 45,
+          "fromNetwork": 0,
+          "networkRequests": 0
+        },
+        "complete": true,
+        "bytesOnDisk": 46910448
+      }
+    }
+  }
+}

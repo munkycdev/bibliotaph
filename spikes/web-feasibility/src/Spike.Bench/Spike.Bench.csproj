@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+  </ItemGroup>
+
+</Project>

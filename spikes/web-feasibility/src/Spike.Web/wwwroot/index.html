@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bibliotaph web spike</title>
+    <base href="/" />
+    <link rel="preload" id="webassembly" />
+    <script type="importmap"></script>
+</head>
+<body>
+    <div id="app">Loading…</div>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script type="module">
+        import * as spike from './spike.js';
+        window.spike = spike;
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- SQLite is native code: it has to be linked into dotnet.native.wasm, which needs the wasm-tools workload. -->
+    <WasmBuildNative>true</WasmBuildNative>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0-rc.2.26504.105" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeFileReference Include="Native\opfsvfs.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Brings the real Bibliotaph.Core and Bibliotaph.Index, unchanged: the question is whether they run in a browser as they are. -->
+    <ProjectReference Include="..\Spike.Bench\Spike.Bench.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bibliotaph web spike: PDF bench</title>
+</head>
+<body>
+  <canvas id="page"></canvas>
+  <script type="module">
+    import * as pdfjs from '/node_modules/pdfjs-dist/build/pdf.min.mjs';
+    import { createSHA256 } from '/node_modules/hash-wasm/dist/index.esm.js';
+    import { BookCache, ChunkSize, clearAll } from '/cache.js';
+
+    pdfjs.GlobalWorkerOptions.workerSrc = new URLSearchParams(location.search).has('patched')
+      ? '/pdf.worker.patched.mjs' : '/node_modules/pdfjs-dist/build/pdf.worker.min.mjs';
+    // One worker for every book, as the app would keep it: starting PDF.js's worker is part of the first open only.
+    const worker = new pdfjs.PDFWorker();
+    const now = () => performance.now();
+    const ms = t => Math.round(now() - t);
+
+    async function readText(doc) {
+      let chars = 0, firstPageMs = 0;
+      const t = now();
+      for (let n = 1; n <= doc.numPages; n++) {
+        const page = await doc.getPage(n);
+        const content = await page.getTextContent();
+        for (const item of content.items) chars += item.str?.length ?? 0;
+        page.cleanup();
+        if (n === 1) firstPageMs = ms(t);
+      }
+      return { pages: doc.numPages, chars, firstPageMs, allPagesMs: ms(t) };
+    }
+
+    async function render(doc, n = 1) {
+      const t = now();
+      const page = await doc.getPage(n);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.getElementById('page');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvas, viewport }).promise;
+      return ms(t);
+    }
+
+    // PDF.js reading the file straight from the server with its own range requests: the no-cache baseline.
+    async function direct(url) {
+      const t = now();
+      const task = pdfjs.getDocument({ worker, url, rangeChunkSize: ChunkSize, disableAutoFetch: true, disableStream: true });
+      const doc = await task.promise;
+      const openMs = ms(t);
+      const renderMs = await render(doc);
+      const text = await readText(doc);
+      await task.destroy();
+      return { openMs, firstRenderMs: renderMs, ...text };
+    }
+
+    // PDF.js reading through the OPFS chunk cache.
+    async function cached(key, url, { background = false } = {}) {
+      const t = now();
+      const cache = await BookCache.open(key, url);
+      const transport = new pdfjs.PDFDataRangeTransport(cache.size, null);
+      transport.requestDataRange = (begin, end) =>
+        cache.read(begin, end).then(bytes => transport.onDataRange(begin, bytes), e => console.error(e));
+      const task = pdfjs.getDocument({ worker, range: transport, rangeChunkSize: ChunkSize, disableAutoFetch: true });
+      const doc = await task.promise;
+      const openMs = ms(t);
+      const firstRenderMs = await render(doc);
+      const afterFirstPage = { ...cache.counters, chunksHeld: cache.have.size, chunkCount: cache.chunkCount };
+      let backgroundMs = null;
+      if (background) { const b = now(); await cache.completeInBackground(); backgroundMs = ms(b); }
+      const text = await readText(doc);
+      await task.destroy();
+      return { openMs, firstRenderMs, afterFirstPage, backgroundMs, ...text, counters: cache.counters, complete: cache.complete, bytesOnDisk: await cache.bytesOnDisk() };
+    }
+
+    async function hashWasm(url) {
+      const t = now();
+      const hasher = await createSHA256();
+      hasher.init();
+      const reader = (await fetch(url)).body.getReader();
+      let bytes = 0;
+      for (;;) { const { done, value } = await reader.read(); if (done) break; hasher.update(value); bytes += value.length; }
+      return { bytes, ms: ms(t), sha256: hasher.digest('hex') };
+    }
+
+    async function hashSubtle(url) {
+      const t = now();
+      const buffer = await (await fetch(url)).arrayBuffer();
+      const fetched = ms(t);
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', buffer));
+      return { bytes: buffer.byteLength, fetchMs: fetched, ms: ms(t), sha256: [...digest].map(b => b.toString(16).padStart(2, '0')).join('') };
+    }
+
+    async function storage() {
+      const estimate = await navigator.storage.estimate();
+      return { persisted: await navigator.storage.persisted(), persist: await navigator.storage.persist(), quota: estimate.quota, usage: estimate.usage };
+    }
+
+    window.bench = { direct, cached, hashWasm, hashSubtle, storage, clearAll };
+    window.benchReady = true;
+  </script>
+</body>
+</html>

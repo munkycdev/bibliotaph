@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Throwaway code for the web feasibility spike; see README.md. Override with -p:BibTfm=net10.0 on an older SDK. -->
+    <BibTfm Condition="'$(BibTfm)' == ''">net11.0</BibTfm>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>

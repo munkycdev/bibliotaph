@@ -1,0 +1,14 @@
+{
+ "text-300.pdf": {
+  "bytes": 488367,
+  "ms": 111,
+  "hashMs": 1,
+  "sha256": "f7a3d1e46ca4c649b14b5a0e6b8ee9236560b4857fc366964ce8dac0732d0e9e"
+ },
+ "illustrated-120.pdf": {
+  "bytes": 46910431,
+  "ms": 1424,
+  "hashMs": 67,
+  "sha256": "1c110d64bc63f926b10af3ae1e7420e4b401e12d746dd6c4d23807555f34853d"
+ }
+}
