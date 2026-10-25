@@ -11,7 +11,7 @@ namespace Bibliotaph.Processing;
 /// or empty though it held files) keeps its files; one that comes back is scanned and watched again.
 /// <paramref name="changed"/> is called when something a progress display would show has moved.
 /// </summary>
-internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library, IFileIdentity identity, FolderWatchers watchers, HashingLoop hashing,
+internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library, ISourceLister lister, IFileIdentity identity, FolderWatchers watchers, HashingLoop hashing,
     LaneRunner lanes, IndexingActivityState activity, IndexingOptions options, ILogger log, TimeProvider clock, Action changed) : IDisposable
 {
     readonly Signal _signal = new();
@@ -157,7 +157,7 @@ internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library
     async Task<IReadOnlyList<long>> ScanRootAsync(SourceRoot root, IReadOnlyList<SourceRoot> all, CancellationToken ct)
     {
         var others = all.Where(r => r.Id != root.Id).Select(r => r.Path).ToList();
-        var result = await Task.Run(() => SourceScanner.Scan(root.Path, others, ct), ct);
+        var result = await SourceScanner.ScanAsync(lister, root.Path, others, ct);
         var now = clock.GetUtcNow().UtcDateTime;
         // A folder whose own listing fails is as good as unreachable.
         if (result is null || result.Summary.Inaccessible.Contains("."))

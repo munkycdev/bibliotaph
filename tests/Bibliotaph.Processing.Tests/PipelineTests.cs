@@ -157,7 +157,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
                 chapters,
             ]),
-            new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns), _packs, _parts, _folderCollections,
+            new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns, new FileSystemSourceLister()), _packs, _parts, _folderCollections,
             new IndexingOptions
             {
                 WatchFolders = _watchFolders, RescanDelay = TimeSpan.FromMilliseconds(200), IdleRecheck = TimeSpan.FromSeconds(1),
