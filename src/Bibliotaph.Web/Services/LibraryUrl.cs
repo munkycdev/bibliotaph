@@ -6,7 +6,8 @@ namespace Bibliotaph.Web.Services;
 /// <summary>
 /// A <see cref="LibraryQuery"/> as a query string, for the API and for the Library page's own address, so a search or
 /// a filter can be bookmarked and Back goes to the one before. The order and the pack view are the browser's to
-/// remember, so the page's address leaves them out.
+/// remember, so the page's address leaves them out, except a saved search's order and layout once they are changed,
+/// since those are the search's own.
 /// </summary>
 public static class LibraryUrl
 {
@@ -42,12 +43,40 @@ public static class LibraryUrl
         Add("picked", q.Picked);
         Add("collection", q.Collection?.ToString(CultureInfo.InvariantCulture));
         Add("addedHere", q.Collection is not null && q.AddedHere ? "true" : null);
+        Add("favorites", q.Favorites && q.Collection is null ? "true" : null);
         return parts.Count == 0 ? "" : "?" + string.Join('&', parts);
     }
 
     /// <summary>The book whose details Home asked the Library to open: library?book=12.</summary>
     public static long? Book(string uri) =>
         long.TryParse(Values(uri).GetValueOrDefault("book"), NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
+
+    /// <summary>The saved search shown: library?view=3.</summary>
+    public static long? View(string uri) =>
+        long.TryParse(Values(uri).GetValueOrDefault("view"), NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
+
+    /// <summary>The saved search's search, filters or order were changed, so the address holds them rather than the search.</summary>
+    public static bool Edited(string uri) => Values(uri).GetValueOrDefault("edited") == "true";
+
+    /// <summary>A changed saved search's layout: true for the list, false for covers, null when the address doesn't say.</summary>
+    public static bool? List(string uri) => Values(uri).GetValueOrDefault("layout") switch { "list" => true, "covers" => false, _ => null };
+
+    /// <summary>What the sidebar's pin menu asked the page to do once it opens, such as rename.</summary>
+    public static string? Do(string uri) => Values(uri).GetValueOrDefault("do");
+
+    /// <summary>A saved search whose search, filters, order or layout were changed, at <paramref name="address"/>.</summary>
+    public static string ChangedView(string address, long view, string sort, bool list) =>
+        $"{address}{(address.Contains('?', StringComparison.Ordinal) ? '&' : '?')}view={view.ToString(CultureInfo.InvariantCulture)}&edited=true"
+        + $"&sort={Uri.EscapeDataString(sort)}&layout={(list ? "list" : "covers")}";
+
+    /// <summary>The address without what was asked of the page once: the book to open and what to do.</summary>
+    public static string Settled(string uri)
+    {
+        var values = Values(uri);
+        values.Remove("book");
+        values.Remove("do");
+        return string.Join('&', values.OrderBy(v => v.Key, StringComparer.Ordinal).Select(v => $"{v.Key}={v.Value}"));
+    }
 
     static Dictionary<string, string> Values(string uri)
     {
@@ -90,6 +119,8 @@ public static class LibraryUrl
             Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = Text("addedHere") == "true",
+            Favorites = Text("favorites") == "true",
+            Sort = Text("sort"),
         };
     }
 }

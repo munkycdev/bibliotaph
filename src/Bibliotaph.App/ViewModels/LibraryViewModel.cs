@@ -15,34 +15,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
-public enum LibraryLayout
-{
-    Grid,
-    List,
-}
-
-public enum ResultsTab
-{
-    Documents,
-    Pages,
-}
-
-/// <summary>Where the Library shows the adventures marked inside files.</summary>
-public enum AdventureCards
-{
-    /// <summary>
-    /// Inside their books: their files' cards and details list them, and a search shows those it finds on their file's
-    /// cover, in place of the file.
-    /// </summary>
-    InBooks,
-
-    /// <summary>Cards of their own beside their files, whether browsing or searching.</summary>
-    Cards,
-
-    /// <summary>Not shown at all: only their files show, and their pages are found under the files.</summary>
-    Hidden,
-}
-
 /// <summary>
 /// The Library: every book in a cover grid or detail list, with format and folder filters and a sort; and, while
 /// the top bar has a search, its results in two tabs (Documents: titles and file details; Inside documents: page
@@ -207,7 +179,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     public string Heading => SmartViews.ActiveView?.Name ?? (IsSearching ? "Search results" : Scope?.Name ?? "Your library");
 
-    public string Subtitle => SmartViews.ActiveView is not null ? "A saved search: its search, filters and order, run again each time." : IsSearching
+    public string Subtitle => SmartViews.ActiveView is not null ? SavedSearchText.Subtitle : IsSearching
         ? Scope is { } scope ? $"In {scope.Name}, across titles, file details and the pages within." : "Across titles, file details and the pages within."
         : Scope?.Subtitle ?? "Good stories begin with something you already own.";
 
@@ -1313,7 +1285,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         {
             var scope = ResolveScope(view.Scope);
             SmartViews.ViewNote = view.Scope is not null && scope is null
-                ? "The collection or binder this search was saved in is gone, so it looks through your whole library." : null;
+                ? SavedSearchText.ScopeGone : null;
             ShowScope(scope);
             OnlyAddedHere = scope?.CollectionId is not null && view.OnlyAddedHere;
             if (Search.Text != view.Query.Trim())

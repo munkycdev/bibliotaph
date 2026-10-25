@@ -4,8 +4,9 @@ namespace Bibliotaph.Web.Services;
 public sealed record CollectionChoice(long? Id, string Name, string Path, int Depth);
 
 /// <summary>
-/// The dialog over a page for collections, as the Windows app's: naming one (New collection, Rename), or picking one
-/// from all of them (Add to another collection, Move to). A page awaits the answer; the shell draws the dialog.
+/// The dialog over a page for collections and saved searches, as the Windows app's: naming one (New collection, Save
+/// search, Rename), or picking a collection from all of them (Add to another collection, Move to). A page awaits the
+/// answer; the shell draws the dialog.
 /// </summary>
 public sealed class CollectionDialogs
 {
@@ -19,6 +20,12 @@ public sealed class CollectionDialogs
     /// <summary>A name and an optional description, filled in for Rename; null when cancelled.</summary>
     public async Task<(string Name, string? Description)?> NameAsync(string heading, string actionText, string name = "", string? description = null) =>
         await OpenAsync(new CollectionDialogRequest("COLLECTION", heading, actionText, true, [], name, description ?? "")) as (string, string?)?;
+
+    /// <summary>A saved search's name, filled in for Rename and Save as new; null when cancelled.</summary>
+    public async Task<string?> NameSearchAsync(string heading, string actionText, string name = "") =>
+        await OpenAsync(new CollectionDialogRequest("SAVED SEARCH", heading, actionText, true, [], name, "", Describe: false,
+            Intro: "It keeps this search, these filters and this order, and runs them again each time, so new books show up in it.")) is ValueTuple<string, string?> named
+            ? named.Item1 : null;
 
     /// <summary>Which collection, from <paramref name="choices"/> in tree order; null when cancelled.</summary>
     public async Task<CollectionChoice?> PickAsync(string heading, IReadOnlyList<CollectionChoice> choices) =>
@@ -45,5 +52,6 @@ public sealed class CollectionDialogs
     }
 }
 
+/// <summary>A dialog to show. <see cref="Describe"/> asks for a description too; <see cref="Intro"/> says what is being named.</summary>
 public sealed record CollectionDialogRequest(string Eyebrow, string Heading, string ActionText, bool Naming, IReadOnlyList<CollectionChoice> Choices,
-    string Name, string Description);
+    string Name, string Description, bool Describe = true, string? Intro = null);

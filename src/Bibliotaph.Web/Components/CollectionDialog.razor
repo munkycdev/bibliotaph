@@ -1,5 +1,6 @@
-@* .bt-dialog: the collection dialog over the page, as the Windows app's: a name and description for New collection and
-   Rename, or every collection to pick from, narrowed as you type. Esc, Cancel or a click outside closes it. *@
+@* .bt-dialog: the dialog over the page, as the Windows app's collection and saved search dialogs: a name (and for a
+   collection a description) for New collection, Save search and Rename, or every collection to pick from, narrowed as
+   you type. Esc, Cancel or a click outside closes it. *@
 @implements IDisposable
 @inject CollectionDialogs Dialogs
 
@@ -16,8 +17,15 @@
         </div>
         @if (dialog.Naming)
         {
+            @if (dialog.Intro is { } intro)
+            {
+                <div class="bt-small bt-dialogintro">@intro</div>
+            }
             <label class="bt-field">Name<input aria-label="Name" @bind="_name" @bind:event="oninput" @onkeydown="NameKeyDown" @ref="_first" /></label>
-            <label class="bt-field">Description (optional)<input aria-label="Description" @bind="_description" @bind:event="oninput" @onkeydown="NameKeyDown" /></label>
+            @if (dialog.Describe)
+            {
+                <label class="bt-field">Description (optional)<input aria-label="Description" @bind="_description" @bind:event="oninput" @onkeydown="NameKeyDown" /></label>
+            }
             <div class="bt-boxactions end bt-dialogactions">
                 <button class="bt-button" @onclick="Cancel">Cancel</button>
                 <button class="bt-button primary" disabled="@(_name.Trim().Length == 0)" @onclick="Save">@dialog.ActionText</button>

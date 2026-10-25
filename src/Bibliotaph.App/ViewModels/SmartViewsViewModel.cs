@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Index;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -135,7 +137,7 @@ public sealed partial class SmartViewsViewModel : ObservableObject
         var created = await RunView(() => _views.CreateAsync(name, current));
         if (created is null) return;
         ShowView(created, current);
-        ViewUndo.Say($"Saved {created.Name}. It's pinned in the sidebar.");
+        ViewUndo.Say(SavedSearchText.Saved(created.Name));
     });
 
     /// <summary>Update saved search: it now keeps the search and filters as they are.</summary>
@@ -147,7 +149,7 @@ public sealed partial class SmartViewsViewModel : ObservableObject
         if (!await RunView(() => _views.UpdateAsync(view.Id, current))) return;
         var previous = _viewSaved;
         ShowView(_views.Find(view.Id) ?? view, current);
-        ViewUndo.Offer($"Updated {view.Name}.", previous is null ? null : async () =>
+        ViewUndo.Offer(SavedSearchText.Updated(view.Name), previous is null ? null : async () =>
         {
             await _views.UpdateAsync(view.Id, previous);
             if (ActiveView?.Id == view.Id) ShowView(_views.Find(view.Id) ?? view, previous);
@@ -156,13 +158,13 @@ public sealed partial class SmartViewsViewModel : ObservableObject
 
     /// <summary>Save as new: a second saved search from the changed search and filters, leaving the first as it was.</summary>
     [RelayCommand]
-    void SaveViewAsNew() => AskName("Save as a new search", "Save", ActiveView is { } view ? $"{view.Name} (2)" : "", async name =>
+    void SaveViewAsNew() => AskName("Save as a new search", "Save", ActiveView is { } view ? SavedSearchText.SecondName(view.Name) : "", async name =>
     {
         var current = _page.CurrentView();
         var created = await RunView(() => _views.CreateAsync(name, current));
         if (created is null) return;
         ShowView(created, current);
-        ViewUndo.Say($"Saved {created.Name}. It's pinned in the sidebar.");
+        ViewUndo.Say(SavedSearchText.Saved(created.Name));
     });
 
     [RelayCommand]
@@ -184,7 +186,7 @@ public sealed partial class SmartViewsViewModel : ObservableObject
         if (deleted is null) return;
         var saved = _viewSaved;
         ShowView(null, null);
-        ViewUndo.Offer($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () =>
+        ViewUndo.Offer(SavedSearchText.Deleted(deleted.View.Name), async () =>
         {
             var back = await _views.RestoreAsync(deleted);
             ShowView(back, saved ?? SmartViewDefinition.Parse(back.Definition));
@@ -211,7 +213,7 @@ public sealed partial class SmartViewsViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogError(ex, "Changing a saved search failed");
-            ViewUndo.Say("That didn't work. The log has the details.");
+            ViewUndo.Say(SavedSearchText.Failed);
             return default;
         }
     }
@@ -288,6 +290,6 @@ public sealed partial class SmartViewsViewModel : ObservableObject
         }
         var deleted = await RunView(() => _views.DeleteAsync(row.View.Id));
         if (deleted is null) return;
-        ViewUndo.Offer($"Deleted the saved search {deleted.View.Name}. Your books are untouched.", async () => await _views.RestoreAsync(deleted));
+        ViewUndo.Offer(SavedSearchText.Deleted(deleted.View.Name), async () => await _views.RestoreAsync(deleted));
     }
 }

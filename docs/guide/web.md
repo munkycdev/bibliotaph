@@ -133,11 +133,30 @@ shows your whole library, keeping the search and filters). The search box and fi
 inside it show as cards above its books, and **Only books added here** leaves out the books that are only in those.
 Its buttons are **New collection** (one inside it), **Rename**, **Move to…** (into another collection, or to the top)
 and the bin, which deletes it: its books stay in your library, the collections inside it move up a level, and
-**Undo** on Collections brings it back.
+**Undo** on Collections brings it back. **Pin** puts it in the sidebar and on Home.
 
 A book's details list its collections under **Collections**: a chip opens one, and its **×** takes the book out.
 **Add to collection** offers the collections used last, **Add to a new collection…**, and **Add to another
 collection…**, which lists them all and narrows as you type. Each change says what it did, with **Undo**.
+
+### Favorites, saved searches and pins
+
+**Favorites** in the sidebar shows the books you marked with a heart, with **In Favorites** on a chip above them (its
+**×** shows your whole library). It starts pinned; its **Pin** button takes it out of the sidebar or puts it back.
+
+**Save search** in the Library's toolbar, while you search, filter or look inside a collection or Favorites, keeps
+what's shown: the search, the filters, where it looks, the order and covers or list. Name it and it opens as a page of
+its own, pinned in the sidebar, and it runs again each time, so new books show up in it. Change its search, filters,
+order or layout and it says so, with **Update saved search** to keep the change and **Save as new** to keep both. Its
+buttons are **Rename**, **Pin** or **Unpin**, and the bin, which deletes it without touching a book, with **Undo**.
+**Saved searches** in the toolbar lists them all, pinned or not, each with its pin, rename and delete. A saved search
+made in the Windows app opens here too; one saved in a binder looks through your whole library until binders come to
+the web, and says so.
+
+The sidebar's **Pinned** group, also on Home under **Pinned**, holds your pinned collections, saved searches, books
+and Favorites. Drag one to move it, or use Alt+Up and Alt+Down; right-click one for **Move up**, **Move down**,
+**Unpin**, and for a saved search **Rename…** and **Delete**. A book's details have a pin button too. A pinned book
+whose file can't be opened right now is dimmed.
 
 The reader and binders are the next steps.
 

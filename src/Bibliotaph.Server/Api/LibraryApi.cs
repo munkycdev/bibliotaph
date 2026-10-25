@@ -86,7 +86,7 @@ public static class LibraryApi
             Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Adventures = Text("adventures"),
             Collections = Text("collections"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
-            AddedHere = On("addedHere"),
+            AddedHere = On("addedHere"), Favorites = On("favorites"),
         };
     }
 
@@ -130,11 +130,12 @@ public static class LibraryApi
                         "add-folder", "Add a folder")
                     : filtered ? new("Nothing here. Yet.", "No books match these filters.", "clear-filters", "Clear filters")
                     : query.Collection is not null ? new(CollectionText.EmptyTitle, CollectionText.EmptyMessage, "clear-scope", "Show your library")
+                    : query.Favorites ? new(SavedSearchText.FavoritesEmptyTitle, SavedSearchText.FavoritesEmptyMessage, "clear-scope", "Show your library")
                     : new("Indexing your library.", $"{(await StorageApi.StatusAsync(library, ct)).Text}. Books appear here as they are read.",
                         "manage-folders", "Manage folders");
             }
             return new LibraryResults([.. documents.Select(Card)], [], N(documents.Count), documents.Count == 1 ? "document" : "documents",
-                "Documents", "Inside documents", issue, null, empty, menus);
+                "Documents", "Inside documents", issue, null, empty, menus, Scope(query));
         }
 
         var documentsTab = $"Documents · {N(documents.Count)}";
@@ -146,7 +147,7 @@ public static class LibraryApi
 
         if (!query.IsPagesTab)
             return new LibraryResults([.. documents.Select(Card)], [], N(documents.Count), $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}",
-                documentsTab, pagesTab, issue, null, documents.Count > 0 ? null : NoResults(), menus);
+                documentsTab, pagesTab, issue, null, documents.Count > 0 ? null : NoResults(), menus, Scope(query));
 
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
         var coverage = progress.Searchable < progress.Documents ? CardText.Coverage(progress) : null;
@@ -159,8 +160,13 @@ public static class LibraryApi
             ? new EmptyLibrary("Inside documents looks for words.", "Add a word to search the pages, or see the matching books on the Documents tab.",
                 "show-documents", "Show documents")
             : matches.Count > 0 ? null : NoResults();
-        return new LibraryResults([], matches, N(pages.MatchingPages), label, documentsTab, pagesTab, issue, coverage, emptyPages, menus);
+        return new LibraryResults([], matches, N(pages.MatchingPages), label, documentsTab, pagesTab, issue, coverage, emptyPages, menus, Scope(query));
     }
+
+    /// <summary>Favorites as the page names it; a collection's words come with its own page.</summary>
+    static ScopeText? Scope(LibraryQuery query) => query.Favorites && query.Collection is null
+        ? new ScopeText(SavedSearchText.FavoritesName, SavedSearchText.FavoritesSubtitle, $"In {SavedSearchText.FavoritesName}")
+        : null;
 
     static LibraryFilter Filter(LibraryQuery query, IReadOnlyCollection<EntryId> scope)
     {
@@ -173,7 +179,8 @@ public static class LibraryApi
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
             PackFiles: query.EachFile, Picked: Picked(query.Picked),
-            Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection) : null);
+            Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection)
+                : query.Favorites ? ScopeKeys.Favorites : null);
     }
 
     static bool IsFiltering(LibraryQuery q) =>
@@ -183,7 +190,7 @@ public static class LibraryApi
         || Picked(q.Picked) is not null;
 
     /// <summary>The type-ahead filters' picks in a query, or null with none or with JSON that can't be read.</summary>
-    static PickedValues? Picked(string? json)
+    internal static PickedValues? Picked(string? json)
     {
         if (string.IsNullOrEmpty(json)) return null;
         try

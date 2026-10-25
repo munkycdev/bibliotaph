@@ -26,6 +26,9 @@ public static class PickedText
         return Write(fields);
     }
 
+    /// <summary>The same picks as one form, whatever order the fields were written in: null for none.</summary>
+    public static string? Canonical(string? json) => Write(Read(json));
+
     static SortedDictionary<string, List<string>> Read(string? json)
     {
         if (string.IsNullOrEmpty(json)) return new(StringComparer.Ordinal);
