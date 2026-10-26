@@ -1259,8 +1259,10 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         {
             if (request.System == AskPrompt.RewriteSystemMessage) return "Follow-up: what do the bog goblins eat?";
             if (request.System != AskPrompt.SystemMessage) return "{}";
-            // Cites the page the goblins are on, by the marker it was sent with, quoting it.
-            var page = Regex.Match(request.User, @"\[Page ([^\]]+)\]\n(?:Heading: .*\n)?[^\n]*bog goblins wait").Groups[1].Value;
+            // Cites the page the goblins are on, by the marker it was sent with, quoting it: the last marker before the
+            // words, which lines of any ending may come between.
+            var at = request.User.IndexOf("bog goblins wait", request.User.IndexOf("[Page ", StringComparison.Ordinal), StringComparison.Ordinal);
+            var page = Regex.Matches(request.User, @"\[Page ([^\]]+)\]").Last(m => m.Index < at).Groups[1].Value;
             var answer = $"They wait \"in the reeds\" by the drowned road [p. {page}].";
             request.Progress?.Report(new ModelProgress(ModelStep.Writing, answer[..12]));
             Thread.Sleep(400);
