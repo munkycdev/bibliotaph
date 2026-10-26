@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased
+## 1.3 · 19 October 2026
+
+New in 1.3.877 (26 October 2026):
 
 - **Review buttons under the value they keep.** On a suggestion card, **Accept**, **Accept all** and **Edit** sit
   under the suggestion, and the button that keeps the book's value, now **Keep current** in place of **Reject**, sits
@@ -46,19 +48,13 @@
 - **Choose which file is the current version.** A New version? card names both files with their pages, and asks
   which one the book opens, each button naming its file, such as **Handbook_v2.pdf is current**. See
   [Needs review](docs/guide/cataloging.md#needs-review).
-
-## 1.3 · 19 October 2026
-
-New in 1.3.815 (26 October 2026):
-
-- **Connect a Windows PC to your web library.** Settings > Web library in the Windows app opens bibliotaph.online in
-  your browser, where you check the code the app shows and approve the PC; it gets a key of its own, kept in Windows
-  Credential Manager. Settings › Windows PCs on the web lists connected PCs and disconnects them. See
+- **Connect a Windows PC to your web library.** Settings > Devices in the Windows app opens bibliotaph.online in your
+  browser, where you check the code the app shows and approve the PC; it gets a key of its own, kept in Windows
+  Credential Manager. Settings › Devices on the web lists connected PCs and disconnects them. See
   [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
 - **Your work syncs between the Windows app and the web.** A connected PC and bibliotaph.online merge your corrections,
-  hearts, notes, collections, binders, saved searches, pins and Needs review answers both ways, as two PCs do through
-  a sync folder: a change goes up a few seconds after you make it and comes down within a minute or so. Settings > Web
-  library says when it last merged. The app still works offline and catches up when it's back.
+  hearts, notes, collections, binders, saved searches, pins and Needs review answers both ways: a change goes up a few
+  seconds after you make it and comes down within a minute or so. Settings > Devices says when it last merged. The app still works offline and catches up when it's back.
 - **The AI reads each book once, for all your devices.** With a PC connected to your web library, what the AI found
   in a book is shared by the file's contents: the web library gets the PC's suggestions for the same file, ready in
   Needs review without an AI key of its own, and a book the AI has already read on one device isn't sent to the AI on
