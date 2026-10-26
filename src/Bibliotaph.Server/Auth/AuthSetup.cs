@@ -76,6 +76,22 @@ public static class AuthSetup
             ], SessionScheme, ClaimTypes.Name, ClaimTypes.Role));
 
     /// <summary>
+    /// Ends a session whose account was closed, as in another browser: the request goes on signed out, so the API
+    /// answers 401 and the page shows the sign-in.
+    /// </summary>
+    public static IApplicationBuilder UseClosedAccountGuard(this IApplicationBuilder app) =>
+        app.Use(async (context, next) =>
+        {
+            if (context.User.UserId() is { } id
+                && !await context.RequestServices.GetRequiredService<AccountService>().IsOpenAsync(id, context.RequestAborted))
+            {
+                await context.SignOutAsync(SessionScheme);
+                context.User = new ClaimsPrincipal(new ClaimsIdentity());
+            }
+            await next(context);
+        });
+
+    /// <summary>
     /// Refuses a state-changing call that lacks the <see cref="ApiHeaders.Client"/> header. The session cookie is
     /// SameSite=Lax, which already stops most cross-site requests; the header covers the rest, since another site can't
     /// send it without a CORS preflight, and the server allows no cross-origin calls.

@@ -71,6 +71,9 @@
 - **E-books in the web reader.** EPUB and Kindle books open in the browser as in the Windows reader, in the same pages
   search found, with Find, zoom, links and fixed-layout books; the server never sees the book. See
   [Reading a book](docs/guide/web.md#reading-a-book).
+- **Close your account on the web.** Settings › Account › Close account… deletes your account, library, covers, storage
+  connections and the books kept in that browser, and its backups within 30 days. Nothing in your storage is touched.
+  See [Signing in and out](docs/guide/web.md#signing-in-and-out).
 
 ## 1.3 · 19 October 2026
 

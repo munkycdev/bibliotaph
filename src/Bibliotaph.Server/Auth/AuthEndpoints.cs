@@ -75,10 +75,13 @@ public static class AuthEndpoints
         auth.MapPost("/signout", async (HttpContext context, IOptions<ServerOptions> options) =>
         {
             await context.SignOutAsync(AuthSetup.SessionScheme);
-            var home = PublicOrigin(options.Value, context.Request) + "/";
-            return new SignedOut(auth0 is null ? "/" : Auth0SignIn.LogoutUrl(auth0, home));
+            return AfterSignOut(auth0, options.Value, context.Request);
         });
     }
+
+    /// <summary>Where the page goes once the session has ended: Auth0's logout, which ends its session too, then home.</summary>
+    internal static SignedOut AfterSignOut(Auth0Client? auth0, ServerOptions options, HttpRequest request) =>
+        new(auth0 is null ? "/" : Auth0SignIn.LogoutUrl(auth0, PublicOrigin(options, request) + "/"));
 
     /// <summary>This site's address as people reach it, which behind the container's ingress isn't the request's own.</summary>
     internal static string PublicOrigin(ServerOptions options, HttpRequest? request) =>

@@ -12,6 +12,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<Login> Logins => Set<Login>();
     public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<StorageConnection> StorageConnections => Set<StorageConnection>();
+    public DbSet<ClosedAccount> ClosedAccounts => Set<ClosedAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +43,13 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             e.HasIndex(c => new { c.UserId, c.Provider, c.AccountId }).IsUnique();
         });
 
+        modelBuilder.Entity<ClosedAccount>(e =>
+        {
+            e.ToTable("closed_accounts");
+            e.HasKey(c => c.UserId);
+            e.Property(c => c.UserId).HasMaxLength(32);
+        });
+
         // Column names in snake_case, as catalog.db's.
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
             foreach (var property in entity.GetProperties()) property.SetColumnName(SnakeCase(property.Name));
@@ -62,6 +70,19 @@ public sealed class User
     public bool IsAdmin { get; set; }
     public DateTime Created { get; set; }
     public DateTime LastSignIn { get; set; }
+}
+
+/// <summary>
+/// An account that was closed: only its ID and when, so its files are deleted until none is left, even across a
+/// restart or a storage failure, and never the files of an account that is still open.
+/// </summary>
+public sealed class ClosedAccount
+{
+    public required string UserId { get; set; }
+    public DateTime Closed { get; set; }
+
+    /// <summary>When nothing of it was left anywhere.</summary>
+    public DateTime? Purged { get; set; }
 }
 
 /// <summary>One way into an account. A user can link several: a Microsoft and a Google sign-in, say.</summary>

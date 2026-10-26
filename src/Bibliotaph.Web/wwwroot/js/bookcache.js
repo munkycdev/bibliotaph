@@ -296,6 +296,12 @@ export async function clear() {
   for (const book of await books()) if (!book.keep) await remove(book.key);
 }
 
+/** Every book this browser keeps, offline or not, and the limit: for an account being closed. */
+export async function forgetAll() {
+  try { await (await navigator.storage.getDirectory()).removeEntry('books', { recursive: true }); } catch { /* none kept */ }
+  try { localStorage.removeItem(LimitKey); } catch { /* nothing set */ }
+}
+
 /** How much the browser lets Bibliotaph keep, and whether it has promised not to clear it. */
 export async function space() {
   try {

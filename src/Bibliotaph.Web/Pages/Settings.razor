@@ -3,6 +3,7 @@
 @inject Session Session
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
+@inject IJSRuntime JS
 
 <PageHeading Title="Settings" />
 
@@ -38,6 +39,32 @@ else if (Problem == "storage")
                 <ServerLink Href="@($"auth/signin/{provider.Id}?returnUrl=%2Fsettings")" Title="Sign in another way, such as with Google or Microsoft, to use either for this account">
                     <Icon Name="Plus" />Link another sign-in
                 </ServerLink>
+            </div>
+        }
+        @if (_closing)
+        {
+            <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="close-heading" aria-describedby="close-detail">
+                <div class="bt-sourcerow">
+                    <Icon Name="Trash2" />
+                    <div id="close-heading">Close your account?<small id="close-detail">Bibliotaph deletes your account, your library
+                        (its catalog, index and covers), everything you've done in it, such as notes, collections, binders and
+                        corrections, your storage connections and the books kept in this browser, straight away, and from backups
+                        within 30 days. Nothing in your storage is touched. This can't be undone.</small></div>
+                </div>
+                @if (_closeProblem is not null)
+                {
+                    <div class="bt-message" role="alert">@_closeProblem</div>
+                }
+                <div class="bt-actions">
+                    <button class="bt-button primary" disabled="@_closingNow" @onclick="CloseAccount"><Icon Name="Trash2" />Close account</button>
+                    <button class="bt-button" disabled="@_closingNow" @onclick="() => _closing = false">Cancel</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="bt-actions">
+                <button class="bt-button" @onclick="() => { _closing = true; _closeProblem = null; }"><Icon Name="Trash2" />Close account…</button>
             </div>
         }
     </section>
@@ -167,6 +194,8 @@ else if (Problem == "storage")
     PickedFolder? _pending;
     string? _folderProblem;
     bool _picking;
+    bool _closing, _closingNow;
+    string? _closeProblem;
 
     const string ConnectLink = "storage/connect/onedrive?returnUrl=%2Fsettings%23library";
 
@@ -231,6 +260,32 @@ else if (Problem == "storage")
         _storage = await Api.StorageAsync();
         _folders = await Api.LibraryFoldersAsync();
         Activity.Refresh();
+    }
+
+    async Task CloseAccount()
+    {
+        _closingNow = true;
+        string next;
+        try
+        {
+            next = await Session.CloseAccountAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _closeProblem = "Your account couldn't be closed just now. Try again in a moment.";
+            _closingNow = false;
+            return;
+        }
+        try
+        {
+            await using var cache = await JS.InvokeAsync<IJSObjectReference>("import", "./js/bookcache.js");
+            await cache.InvokeVoidAsync("forgetAll");
+        }
+        catch (JSException)
+        {
+            // This browser kept no books.
+        }
+        Navigation.NavigateTo(next, forceLoad: true);
     }
 
     async Task SignOut()

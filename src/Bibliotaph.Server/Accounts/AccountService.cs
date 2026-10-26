@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +37,11 @@ public sealed record SignInOutcome(SignInResult Result, User? User);
 public sealed class AccountService(AccountsDatabase database, TimeProvider clock)
 {
     public static readonly TimeSpan InviteLifetime = TimeSpan.FromDays(14);
+
+    /// <summary>How long an account found open is taken to be open, so every request doesn't look it up.</summary>
+    static readonly TimeSpan OpenFor = TimeSpan.FromMinutes(1);
+
+    readonly ConcurrentDictionary<string, DateTimeOffset> _open = new();
 
     DateTime Now => clock.GetUtcNow().UtcDateTime;
 
@@ -101,6 +107,49 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
     {
         await using var db = database.CreateContext();
         return await db.Logins.Where(l => l.UserId == userId).OrderBy(l => l.Added).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Whether the account exists. A session outlives an account closed in another browser, so each request asks; the
+    /// answer is kept for a minute, and closing an account forgets it at once.
+    /// </summary>
+    public async Task<bool> IsOpenAsync(string userId, CancellationToken ct = default)
+    {
+        if (_open.TryGetValue(userId, out var until) && until > clock.GetUtcNow()) return true;
+        await using var db = database.CreateContext();
+        if (!await db.Users.AnyAsync(u => u.Id == userId, ct)) return false;
+        _open[userId] = clock.GetUtcNow() + OpenFor;
+        return true;
+    }
+
+    /// <summary>
+    /// Closes an account: the account, its sign-ins and its storage connections go, and it is recorded as closed so
+    /// its files are deleted. Returns false when there was no such account.
+    /// </summary>
+    public async Task<bool> CloseAsync(string userId, CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        if (await db.Users.FindAsync([userId], ct) is not { } user) return false;
+        db.Users.Remove(user);
+        if (await db.ClosedAccounts.FindAsync([userId], ct) is null) db.ClosedAccounts.Add(new ClosedAccount { UserId = userId, Closed = Now });
+        await db.SaveChangesAsync(ct);
+        _open.TryRemove(userId, out _);
+        return true;
+    }
+
+    /// <summary>Closed accounts some of whose files may be left.</summary>
+    public async Task<IReadOnlyList<ClosedAccount>> UnpurgedAsync(CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        return await db.ClosedAccounts.AsNoTracking().Where(c => c.Purged == null).ToListAsync(ct);
+    }
+
+    public async Task MarkPurgedAsync(string userId, CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        if (await db.ClosedAccounts.FindAsync([userId], ct) is not { } closed) return;
+        closed.Purged = Now;
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>Makes an invitation and returns its code, which is never stored and can't be shown again.</summary>
