@@ -224,7 +224,9 @@ bar once. Then choose **Open D&D Beyond** (or another service) to open your libr
 asks, and click **Send to Bibliotaph** on that page. Bibliotaph opens in a new tab, reads the page as it shows, fetches
 the new books' covers from the service's page, and shows the preview in **Online libraries**. If your browser blocks
 the new tab, allow pop-ups from the service; if the service's site won't let the page reach Bibliotaph, the bookmark
-says so. You can always save the page with your browser's **Save as** instead, choosing **Webpage, complete**, then
+says so. The **Send to Bibliotaph** extension for Chrome and Edge does the same from a button in the browser's toolbar,
+and can fetch covers the services keep on other sites, which the bookmark sometimes can't; once it is in your browser,
+Settings says so in place of the bookmark. You can always save the page with your browser's **Save as** instead, choosing **Webpage, complete**, then
 choose **Import a saved page…** beside the service and pick the page you saved. Bibliotaph on the web never visits the
 service itself and never sees your password; the Windows app does the same with a browser of its own.
 

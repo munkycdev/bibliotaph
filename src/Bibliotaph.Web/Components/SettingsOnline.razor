@@ -6,21 +6,32 @@
 @inject ApiClient Api
 @inject LibraryActivity Activity
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <section class="bt-section" aria-labelledby="online-heading">
     <h2 id="online-heading">Online libraries</h2>
     <p class="bt-copy">Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its
         service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never visits the services
         itself.</p>
-    <div class="bt-settingrow bt-onlineservice">
-        <div>Send to Bibliotaph<small>Drag this to your browser's bookmarks bar. Then open your library on a service below, signed in, and click
-            the bookmark there: the page comes here with its covers, ready to import. Nothing is imported until you choose.</small></div>
-        <div class="bt-onlineactions">
-            @* Clicked here it would only send this page, so it is only for dragging. *@
-            <a class="bt-button bt-bookmarklet" href="@_bookmarklet" draggable="true" title="Drag to your bookmarks bar"
-               @onclick:preventDefault="true"><Icon Name="Inbox" />Send to Bibliotaph</a>
+    @if (_extension is { } version)
+    {
+        <div class="bt-settingrow bt-onlineservice">
+            <div>Send to Bibliotaph<small>@($"The Send to Bibliotaph extension ({version}) is in this browser. Open your library on a service below, signed in, and click its button in the toolbar: the page comes here with its covers, ready to import. Nothing is imported until you choose.")</small></div>
         </div>
-    </div>
+    }
+    else
+    {
+        <div class="bt-settingrow bt-onlineservice">
+            <div>Send to Bibliotaph<small>Drag this to your browser's bookmarks bar. Then open your library on a service below, signed in, and click
+                the bookmark there: the page comes here with its covers, ready to import. Nothing is imported until you choose. The Send to
+                Bibliotaph extension for Chrome and Edge does the same from a toolbar button, and brings covers some sites keep from the bookmark.</small></div>
+            <div class="bt-onlineactions">
+                @* Clicked here it would only send this page, so it is only for dragging. *@
+                <a class="bt-button bt-bookmarklet" href="@_bookmarklet" draggable="true" title="Drag to your bookmarks bar"
+                   @onclick:preventDefault="true"><Icon Name="Inbox" />Send to Bibliotaph</a>
+            </div>
+        </div>
+    }
     @foreach (var service in _services)
     {
         <div class="bt-settingrow bt-onlineservice">
@@ -115,11 +126,20 @@
     };
 
     string _bookmarklet = "";
+    string? _extension;
 
     protected override async Task OnInitializedAsync()
     {
         _bookmarklet = SendToBibliotaph.Bookmarklet(new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority));
         _services = await Api.OnlineServicesAsync();
+        try
+        {
+            _extension = await JS.InvokeAsync<string?>("bibliotaphExtension");
+        }
+        catch (JSException)
+        {
+            // Without the page's own script, the bookmark is offered as if there were no extension.
+        }
         // A page Send to Bibliotaph brought: its preview, as if it had just been imported here.
         var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
         if (query["page"] is { Length: > 0 } token)
