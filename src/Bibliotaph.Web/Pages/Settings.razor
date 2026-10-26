@@ -72,15 +72,20 @@ else if (Problem == "storage")
 
     <section class="bt-section" id="storage" aria-labelledby="storage-heading">
         <h2 id="storage-heading">Storage</h2>
-        <p class="bt-copy">Connect the storage where your books are, then add folders from it to your library. Bibliotaph reads them
-            there and never changes them; books you import are saved to one folder of its own.</p>
+        <p class="bt-copy">Connect the storage where your books are, then add folders from it to your library. Bibliotaph only reads
+            them there: it never changes, moves or deletes anything in your storage.</p>
         @foreach (var account in _storage)
         {
             <div class="bt-source bt-sourcerow">
                 <Icon Name="Cloud" />
                 <div>@account.Name<small>@(account.NeedsReconnect
                     ? $"Needs connecting again: {StorageOwner(account)} no longer lets Bibliotaph read it. Its books stay in your library."
-                    : $"Connected {account.Added:d MMMM yyyy}")</small></div>
+                    : $"Connected {account.Added:d MMMM yyyy}")</small>
+                    @if (account.Access is { Count: > 0 } access)
+                    {
+                        <small title="@($"As {StorageOwner(account)} names it: {account.Scopes}")">Allowed to @Sentence(access).</small>
+                    }
+                </div>
                 @if (account.NeedsReconnect)
                 {
                     <ServerLink Href="@ConnectLink(account.Provider)"><Icon Name="RotateCcw" />Connect again</ServerLink>
@@ -292,6 +297,10 @@ else if (Problem == "storage")
     StorageProviderInfo? FailedProvider => _storageProviders.FirstOrDefault(p => p.Id == ProblemProvider);
 
     string StorageOwner(StorageAccount account) => _storageProviders.FirstOrDefault(p => p.Id == account.Provider)?.Owner ?? "Your storage provider";
+
+    /// <summary>"read your files, see your name and keep access".</summary>
+    static string Sentence(IReadOnlyList<string> parts) =>
+        parts.Count > 1 ? $"{string.Join(", ", parts.Take(parts.Count - 1))} and {parts[^1]}" : string.Join("", parts);
 
 
 

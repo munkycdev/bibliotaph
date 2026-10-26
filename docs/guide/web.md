@@ -49,8 +49,9 @@ storage is touched. It can't be undone. Your own account isn't deleted here: use
 Bibliotaph reads your books where they are, so first it needs your storage. In **Settings** › **Storage**, choose
 **Connect OneDrive**, **Connect Dropbox** or **Connect Google Drive** and sign in with the account that holds your books
 (it doesn't have to be the one you sign in to Bibliotaph with). Microsoft, Dropbox or Google asks you to let Bibliotaph
-read your files and keep access while you're away; Bibliotaph can't change, move or delete any of them. On OneDrive it
-can also write to a folder of its own, which is where books you import will go. A Dropbox that's part of a team shows
+read your files and keep access while you're away; Bibliotaph asks for nothing that writes, so it can't change, move or
+delete any of them. Each account in the list says what it was allowed, such as "Allowed to read your files and keep
+access while you're signed out"; point at that line to see the same in the provider's own words. A Dropbox that's part of a team shows
 the team's folders as well as your own. Google may warn that it hasn't verified Bibliotaph yet: choose **Advanced**,
 then go on to bibliotaph.online.
 

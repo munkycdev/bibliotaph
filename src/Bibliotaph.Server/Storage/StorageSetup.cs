@@ -75,11 +75,19 @@ public static class StorageSetup
         var ct = context.HttpContext.RequestAborted;
         var identity = await provider.IdentifyAsync(services.GetRequiredService<UserDriveFactory>().Http(provider), context.AccessToken, ct);
         var connection = await services.GetRequiredService<StorageConnections>().SaveAsync(userId, provider.Id, identity.AccountId,
-            identity.DisplayName, identity.AccountKind, context.RefreshToken, string.Join(' ', provider.Scopes), ct);
+            identity.DisplayName, identity.AccountKind, context.RefreshToken, GrantedScopes(context) ?? string.Join(' ', provider.Scopes), ct);
         services.GetRequiredService<DriveTokens>().Forget(connection.Id);
         await services.GetRequiredService<UserLibraries>().DrivesChangedAsync(userId);
         services.GetRequiredService<DriveNotifications>().Subscribe(connection.Id);
     }
+
+    /// <summary>What the user actually allowed, which the token response names and may be less than was asked for.</summary>
+    static string? GrantedScopes(OAuthCreatingTicketContext context) =>
+        context.TokenResponse.Response?.RootElement is { ValueKind: System.Text.Json.JsonValueKind.Object } response
+            && response.TryGetProperty("scope", out var scope) && scope.ValueKind == System.Text.Json.JsonValueKind.String
+            && scope.GetString() is { Length: > 0 } granted
+            ? granted
+            : null;
 
     public static void MapStorage(this IEndpointRouteBuilder app)
     {

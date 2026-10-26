@@ -22,6 +22,13 @@ public sealed class DropboxProvider : StorageProvider
     /// <summary>Who the account is, and read its files and folders. Nothing that writes.</summary>
     public override IReadOnlyList<string> Scopes { get; } = ["account_info.read", "files.metadata.read", "files.content.read"];
 
+    protected override IReadOnlyDictionary<string, string> ScopeText { get; } = new Dictionary<string, string>
+    {
+        ["account_info.read"] = "see your name",
+        ["files.metadata.read"] = "see your file and folder names",
+        ["files.content.read"] = "read your files",
+    };
+
     /// <summary>Dropbox hands out a refresh token only when asked for offline access.</summary>
     public override IReadOnlyDictionary<string, string> AuthorizationParameters { get; } = new Dictionary<string, string> { ["token_access_type"] = "offline" };
 
