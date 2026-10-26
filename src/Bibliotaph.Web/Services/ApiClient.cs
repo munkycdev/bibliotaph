@@ -88,6 +88,9 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<StorageAccount>> StorageAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<StorageAccount>>("api/storage", ct) ?? [];
 
+    public async Task<IReadOnlyList<StorageProviderInfo>> StorageProvidersAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<StorageProviderInfo>>("api/storage/providers", ct) ?? [];
+
     public async Task DisconnectStorageAsync(string id, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/storage/{Uri.EscapeDataString(id)}", ct);

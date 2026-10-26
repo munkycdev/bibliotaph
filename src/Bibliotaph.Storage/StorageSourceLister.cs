@@ -1,37 +1,32 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 
-namespace Bibliotaph.Storage.OneDrive;
-
-/// <summary>The OneDrives one library can reach, by drive ID: those its owner has connected.</summary>
-public interface IDriveClients
-{
-    /// <returns>The drive's client, or null when it isn't connected (any more).</returns>
-    OneDriveClient? Find(string driveId);
-}
+namespace Bibliotaph.Storage;
 
 /// <summary>
-/// Lists a library folder on a OneDrive by walking it, one Graph call a folder. Nothing is downloaded: names, sizes and
-/// times come from the listing. Every file is read the same way, so none counts as online-only.
+/// Lists a library folder in connected storage by walking it, one call a folder. Nothing is downloaded: names, sizes
+/// and times come from the listing. Every file is read the same way, so none counts as online-only.
 /// </summary>
-public sealed class OneDriveSourceLister(IDriveClients drives) : ISourceLister
+public sealed class StorageSourceLister(IStorageDrives drives) : ISourceLister
 {
     public async Task<SourceListing?> ListAsync(string root, IReadOnlyCollection<string> otherRoots, CancellationToken ct)
     {
-        if (!DrivePath.TryParse(root, out var driveId, out var top) || drives.Find(driveId) is not { } client) return null;
+        if (drives.Locate(root) is not { } found) return null;
+        var (drive, location) = found;
+        var top = location.Path;
 
-        // Library folders inside this one on the same drive are listed as their own.
+        // Library folders inside this one in the same account are listed as their own.
         var nested = otherRoots
-            .Select(r => DrivePath.TryParse(r, out var d, out var p) && d == driveId ? p : null)
+            .Select(r => StoragePath.TryParse(r, out var other) && (other.Provider, other.Account) == (location.Provider, location.Account) ? other.Path : null)
             .Where(p => p is not null && p.Length > top.Length && IsUnder(p, top))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        IReadOnlyList<DriveEntry>? first;
+        IReadOnlyList<StorageEntry>? first;
         try
         {
-            first = await client.ChildrenAsync(driveId, top, ct);
+            first = await drive.ChildrenAsync(top, ct);
         }
-        catch (Exception ex) when (ex is OneDriveException or HttpRequestException)
+        catch (Exception ex) when (ex is StorageException or HttpRequestException)
         {
             return null;
         }
@@ -39,7 +34,7 @@ public sealed class OneDriveSourceLister(IDriveClients drives) : ISourceLister
 
         var files = new List<ScannedFile>();
         var inaccessible = new List<string>();
-        var pending = new Queue<(string Relative, IReadOnlyList<DriveEntry>? Entries)>();
+        var pending = new Queue<(string Relative, IReadOnlyList<StorageEntry>? Entries)>();
         pending.Enqueue(("", first));
         while (pending.TryDequeue(out var folder))
         {
@@ -49,9 +44,9 @@ public sealed class OneDriveSourceLister(IDriveClients drives) : ISourceLister
             {
                 try
                 {
-                    entries = await client.ChildrenAsync(driveId, Join(top, folder.Relative), ct);
+                    entries = await drive.ChildrenAsync(Join(top, folder.Relative), ct);
                 }
-                catch (Exception ex) when (ex is OneDriveException or HttpRequestException)
+                catch (Exception ex) when (ex is StorageException or HttpRequestException)
                 {
                     // Half a listing would read as files gone missing: the whole folder is unreachable this time.
                     return null;

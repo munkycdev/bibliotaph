@@ -1,7 +1,7 @@
 using System.Text;
 using Bibliotaph.Catalog;
 using Bibliotaph.Server.Storage;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -31,26 +31,31 @@ public sealed class OneDriveTests : IDisposable
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Theory]
-    [InlineData("drive1", "", "/onedrive/drive1")]
-    [InlineData("drive1", "RPG/Adventures", "/onedrive/drive1/RPG/Adventures")]
-    public void A_drive_path_reads_back_as_its_drive_and_folder(string drive, string inner, string expected)
+    [InlineData("onedrive", "drive1", "", "/onedrive/drive1")]
+    [InlineData("onedrive", "drive1", "RPG/Adventures", "/onedrive/drive1/RPG/Adventures")]
+    [InlineData("dropbox", "dbid:AAH4f99", "RPG", "/dropbox/dbid:AAH4f99/RPG")]
+    public void A_storage_path_reads_back_as_its_provider_account_and_folder(string provider, string account, string inner, string expected)
     {
-        var path = DrivePath.Of(drive, inner);
+        var path = StoragePath.Of(provider, account, inner);
 
         Assert.Equal(expected, path);
-        Assert.True(DrivePath.TryParse(path, out var parsedDrive, out var parsedInner));
-        Assert.Equal((drive, inner), (parsedDrive, parsedInner));
+        Assert.True(StoragePath.TryParse(path, out var parsed));
+        Assert.Equal(new StorageLocation(provider, account, inner), parsed);
     }
 
     [Fact]
-    public void A_drive_path_joined_with_backslashes_reads_the_same()
+    public void A_storage_path_joined_with_backslashes_reads_the_same()
     {
-        Assert.True(DrivePath.TryParse(@"/onedrive/drive1/RPG\Adventures\one.pdf", out var drive, out var inner));
-        Assert.Equal(("drive1", "RPG/Adventures/one.pdf"), (drive, inner));
+        Assert.True(StoragePath.TryParse(@"/onedrive/drive1/RPG\Adventures\one.pdf", out var parsed));
+        Assert.Equal(new StorageLocation("onedrive", "drive1", "RPG/Adventures/one.pdf"), parsed);
     }
 
-    [Fact]
-    public void A_local_path_isnt_a_drive_path() => Assert.False(DrivePath.TryParse("/data/books", out _, out _));
+    [Theory]
+    [InlineData("/data/books")]
+    [InlineData("/onedrive")]
+    [InlineData("/onedrive/")]
+    [InlineData(@"C:\Books")]
+    public void A_local_path_isnt_a_storage_path(string path) => Assert.False(StoragePath.TryParse(path, out _));
 
     [Fact]
     public async Task Listing_walks_every_folder_but_leaves_nested_library_folders_to_themselves()
@@ -58,9 +63,9 @@ public sealed class OneDriveTests : IDisposable
         var (userId, _) = await _fixture.UserWithDriveAsync();
         var drives = _fixture.Drives.For(userId);
         await drives.ReloadAsync(Ct);
-        var lister = new OneDriveSourceLister(drives);
+        var lister = new StorageSourceLister(drives);
 
-        var listing = await lister.ListAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), [DrivePath.Of(FakeGraph.DriveId, "RPG/Maps")], Ct);
+        var listing = await lister.ListAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), [StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG/Maps")], Ct);
 
         Assert.Equal(["Adventures/one.pdf", "Adventures/two.pdf", "notes.txt"], listing!.Files.Select(f => f.RelativePath).Order());
         Assert.All(listing.Files, f => Assert.False(f.OnlineOnly));
@@ -73,10 +78,10 @@ public sealed class OneDriveTests : IDisposable
         var (userId, _) = await _fixture.UserWithDriveAsync();
         var drives = _fixture.Drives.For(userId);
         await drives.ReloadAsync(Ct);
-        var lister = new OneDriveSourceLister(drives);
+        var lister = new StorageSourceLister(drives);
 
-        Assert.Null(await lister.ListAsync(DrivePath.Of(FakeGraph.DriveId, "Gone"), [], Ct));
-        Assert.Null(await lister.ListAsync(DrivePath.Of("another-drive", "RPG"), [], Ct));
+        Assert.Null(await lister.ListAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "Gone"), [], Ct));
+        Assert.Null(await lister.ListAsync(StoragePath.Of("onedrive", "another-drive", "RPG"), [], Ct));
     }
 
     [Fact]
@@ -86,9 +91,9 @@ public sealed class OneDriveTests : IDisposable
         var drives = _fixture.Drives.For(userId);
         await drives.ReloadAsync(Ct);
         var temporary = Path.Combine(_folder.Path, "downloads");
-        var reader = new OneDriveFileReader(drives, temporary, new Bibliotaph.Processing.SourceFileReader());
+        var reader = new StorageFileReader(drives, temporary, new Bibliotaph.Processing.SourceFileReader());
 
-        using (var stream = reader.OpenRead(DrivePath.Of(FakeGraph.DriveId, "RPG/Adventures/one.pdf")))
+        using (var stream = reader.OpenRead(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG/Adventures/one.pdf")))
         {
             Assert.True(stream.CanSeek);
             Assert.Equal("%PDF-1.7 one", new StreamReader(stream).ReadToEnd());
@@ -96,7 +101,7 @@ public sealed class OneDriveTests : IDisposable
         }
 
         Assert.Empty(Directory.GetFiles(temporary));
-        Assert.Throws<FileNotFoundException>(() => reader.OpenRead(DrivePath.Of(FakeGraph.DriveId, "RPG/missing.pdf")));
+        Assert.Throws<FileNotFoundException>(() => reader.OpenRead(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG/missing.pdf")));
         Assert.Empty(Directory.GetFiles(temporary));
     }
 
@@ -105,7 +110,7 @@ public sealed class OneDriveTests : IDisposable
     {
         var (userId, _) = await _fixture.UserWithDriveAsync();
         await using var lease = await _fixture.Libraries.OpenAsync(userId, Ct);
-        var root = await lease.Library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await lease.Library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         lease.Library.Indexing.RequestScan(root.Id);
 
         var counts = await WaitAsync(lease.Library, c => c.Files == 3 && c.Unhashed == 0);
@@ -119,12 +124,12 @@ public sealed class OneDriveTests : IDisposable
     {
         var (userId, _) = await _fixture.UserWithDriveAsync();
         await using var lease = await _fixture.Libraries.OpenAsync(userId, Ct);
-        var root = await lease.Library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await lease.Library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         lease.Library.Indexing.RequestScan(root.Id);
         await WaitAsync(lease.Library, c => c.Files == 3 && c.Unhashed == 0);
 
         _fixture.Graph.Add("RPG/Adventures/four.pdf", Encoding.ASCII.GetBytes("%PDF-1.7 four"));
-        await _fixture.Libraries.DriveChangedAsync(userId, FakeGraph.DriveId, Ct);
+        await _fixture.Libraries.DriveChangedAsync(userId, "onedrive", FakeGraph.DriveId, Ct);
 
         await WaitAsync(lease.Library, c => c.Files == 4 && c.Unhashed == 0);
     }
@@ -135,7 +140,7 @@ public sealed class OneDriveTests : IDisposable
         var (userId, drive) = await _fixture.UserWithDriveAsync();
         _fixture.Graph.RefuseRefresh = true;
 
-        await Assert.ThrowsAsync<OneDriveException>(() => _fixture.Tokens.AccessTokenAsync(drive.Id, Ct));
+        await Assert.ThrowsAsync<StorageException>(() => _fixture.Tokens.AccessTokenAsync(drive.Id, Ct));
 
         Assert.True(Assert.Single(await _fixture.Connections.ListAsync(userId, Ct)).NeedsReconnect);
     }

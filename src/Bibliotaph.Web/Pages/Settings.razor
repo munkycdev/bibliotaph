@@ -13,7 +13,8 @@
 }
 else if (Problem == "storage")
 {
-    <div class="bt-message" role="status">Connecting OneDrive didn't finish. Try again, and allow Bibliotaph to read your files when Microsoft asks.</div>
+    <div class="bt-message" role="status">Connecting @(FailedProvider?.Name ?? "your storage") didn't finish. Try again, and allow Bibliotaph to read
+        your files when @(FailedProvider?.Owner ?? "your storage provider") asks.</div>
 }
 
 @if (_me is not null)
@@ -78,11 +79,11 @@ else if (Problem == "storage")
             <div class="bt-source bt-sourcerow">
                 <Icon Name="Cloud" />
                 <div>@account.Name<small>@(account.NeedsReconnect
-                    ? "Needs connecting again: Microsoft no longer lets Bibliotaph read it. Its books stay in your library."
+                    ? $"Needs connecting again: {StorageOwner(account)} no longer lets Bibliotaph read it. Its books stay in your library."
                     : $"Connected {account.Added:d MMMM yyyy}")</small></div>
                 @if (account.NeedsReconnect)
                 {
-                    <ServerLink Href="@ConnectLink"><Icon Name="RotateCcw" />Connect again</ServerLink>
+                    <ServerLink Href="@ConnectLink(account.Provider)"><Icon Name="RotateCcw" />Connect again</ServerLink>
                 }
                 <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {account.Name}")" @onclick="() => Disconnect(account)"><Icon Name="X" /></button>
             </div>
@@ -92,8 +93,15 @@ else if (Problem == "storage")
             <p class="bt-sample">No storage connected yet.</p>
         }
         <div class="bt-actions">
-            <ServerLink Href="@ConnectLink" Class="@(_storage.Count == 0 ? "bt-button primary" : "bt-button")"><Icon Name="Plus" />Connect OneDrive</ServerLink>
+            @foreach (var kind in _storageProviders)
+            {
+                <ServerLink Href="@ConnectLink(kind.Id)" Class="@(_storage.Count == 0 && kind == _storageProviders[0] ? "bt-button primary" : "bt-button")"><Icon Name="Plus" />Connect @kind.Name</ServerLink>
+            }
         </div>
+        @if (_storageProviders.Count == 0)
+        {
+            <p class="bt-sample">This server can't connect storage yet.</p>
+        }
         <p class="bt-sample">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
     </section>
 
@@ -261,6 +269,7 @@ else if (Problem == "storage")
     string? _note;
     bool _admin;
     IReadOnlyList<StorageAccount> _storage = [];
+    IReadOnlyList<StorageProviderInfo> _storageProviders = [];
     IReadOnlyList<LibraryFolder> _folders = [];
     IReadOnlyList<ConnectedDevice> _devices = [];
     PickedFolder? _pending;
@@ -273,9 +282,16 @@ else if (Problem == "storage")
     bool _deletingNow;
     string? _accountNote;
 
-    const string ConnectLink = "storage/connect/onedrive?returnUrl=%2Fsettings%23library";
+    static string ConnectLink(string provider) => $"storage/connect/{Uri.EscapeDataString(provider)}?returnUrl=%2Fsettings%23library";
 
     [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
+
+    /// <summary>The storage whose connecting didn't finish, as its callback reports it.</summary>
+    [SupplyParameterFromQuery(Name = "provider")] public string? ProblemProvider { get; set; }
+
+    StorageProviderInfo? FailedProvider => _storageProviders.FirstOrDefault(p => p.Id == ProblemProvider);
+
+    string StorageOwner(StorageAccount account) => _storageProviders.FirstOrDefault(p => p.Id == account.Provider)?.Owner ?? "Your storage provider";
 
 
 
@@ -284,6 +300,7 @@ else if (Problem == "storage")
         _me = await Session.MeAsync();
         _providers = await Api.ProvidersAsync();
         _storage = await Api.StorageAsync();
+        _storageProviders = await Api.StorageProvidersAsync();
         _folders = await Api.LibraryFoldersAsync();
         _devices = await Api.DevicesAsync();
         if (_me?.IsAdmin == true)

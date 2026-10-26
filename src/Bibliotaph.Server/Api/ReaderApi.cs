@@ -11,7 +11,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Api;
@@ -266,12 +266,13 @@ public static partial class ReaderApi
             return new ReaderLink(null, new ReaderProblem("This book isn't in your library any more.", "It may have been removed since the page opened."));
         foreach (var path in new[] { source.FullPath }.Concat(source.AllPaths).Distinct())
         {
-            if (!DrivePath.TryParse(path, out var driveId, out var inDrive) || library.Drives.Find(driveId) is not { } client) continue;
+            if (library.Drives.Locate(path) is not { } found) continue;
+            var (drive, at) = found;
             try
             {
-                if (await client.DownloadLinkAsync(driveId, inDrive, ct) is { } url) return new ReaderLink(url);
+                if (await drive.ReadLinkAsync(at.Path, ct) is { } url) return new ReaderLink(url);
             }
-            catch (OneDriveException)
+            catch (StorageException)
             {
                 // Another copy may still be there.
             }

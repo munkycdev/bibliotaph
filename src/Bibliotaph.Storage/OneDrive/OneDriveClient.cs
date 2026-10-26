@@ -9,20 +9,8 @@ namespace Bibliotaph.Storage.OneDrive;
 /// <summary>A OneDrive: its ID, whether it's personal or a work or school one, and whose it is.</summary>
 public sealed record DriveSummary(string Id, string DriveType, string? OwnerName);
 
-/// <summary>A file or folder in a drive. <see cref="Size"/> is a folder's total for a folder.</summary>
-public sealed record DriveEntry(string Id, string Name, bool IsFolder, long Size, DateTime ModifiedUtc);
-
 /// <summary>A Graph change notification subscription on a drive, which must be renewed before it expires.</summary>
 public sealed record DriveSubscription(string Id, DateTimeOffset Expires);
-
-/// <summary>
-/// Graph answered with an error Bibliotaph can't work around, such as a folder that's gone or access withdrawn. An
-/// IOException, so indexing treats a book it couldn't download like a file it couldn't open.
-/// </summary>
-public sealed class OneDriveException(HttpStatusCode status, string message) : IOException(message)
-{
-    public HttpStatusCode Status { get; } = status;
-}
 
 /// <summary>
 /// The few Microsoft Graph calls Bibliotaph makes on a OneDrive, as one signed-in account: what the drive is, a
@@ -33,7 +21,7 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
 {
     public const string GraphRoot = "https://graph.microsoft.com/v1.0";
     const int Attempts = 5;
-    const string EntryFields = "id,name,size,lastModifiedDateTime,folder,file";
+    const string EntryFields = "name,size,lastModifiedDateTime,folder,file";
 
     // Graph allows a driveItem subscription about 29 days; renewing a day early leaves room for a missed renewal.
     public static readonly TimeSpan SubscriptionLifetime = TimeSpan.FromMinutes(42_300);
@@ -53,9 +41,9 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
 
     /// <summary>A folder's contents, every page of them. Paths in a drive are slash-separated, empty for its top.</summary>
     /// <returns>Null when the folder doesn't exist (or is a file).</returns>
-    public async Task<IReadOnlyList<DriveEntry>?> ChildrenAsync(string driveId, string pathInDrive, CancellationToken ct = default)
+    public async Task<IReadOnlyList<StorageEntry>?> ChildrenAsync(string driveId, string pathInDrive, CancellationToken ct = default)
     {
-        var entries = new List<DriveEntry>();
+        var entries = new List<StorageEntry>();
         string? next = $"{ItemUrl(driveId, pathInDrive)}{(pathInDrive.Length == 0 ? "/children" : ":/children")}?$select={EntryFields}&$top=999";
         while (next is not null)
         {
@@ -65,13 +53,6 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
             next = json.RootElement.TryGetProperty("@odata.nextLink", out var link) ? link.GetString() : null;
         }
         return entries;
-    }
-
-    /// <summary>One file or folder, or null when there's nothing at that path.</summary>
-    public async Task<DriveEntry?> ItemAsync(string driveId, string pathInDrive, CancellationToken ct = default)
-    {
-        using var json = await GetJsonAsync($"{ItemUrl(driveId, pathInDrive)}?$select={EntryFields}", ct, notFoundIsNull: true);
-        return json is null ? null : Entry(json.RootElement);
     }
 
     /// <summary>
@@ -133,7 +114,7 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
             }, HttpCompletionOption.ResponseContentRead, ct);
             return expires;
         }
-        catch (OneDriveException ex) when (ex.Status == HttpStatusCode.NotFound)
+        catch (StorageException ex) when (ex.Status == HttpStatusCode.NotFound)
         {
             return null;
         }
@@ -146,7 +127,7 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
             using var _ = await SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, $"{GraphRoot}/subscriptions/{Uri.EscapeDataString(subscriptionId)}"),
                 HttpCompletionOption.ResponseContentRead, ct);
         }
-        catch (OneDriveException ex) when (ex.Status == HttpStatusCode.NotFound)
+        catch (StorageException ex) when (ex.Status == HttpStatusCode.NotFound)
         {
         }
     }
@@ -160,8 +141,7 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
         return $"{drive}:/{escaped}";
     }
 
-    static DriveEntry Entry(JsonElement item) => new(
-        item.GetProperty("id").GetString()!,
+    static StorageEntry Entry(JsonElement item) => new(
         item.GetProperty("name").GetString()!,
         item.TryGetProperty("folder", out _),
         item.TryGetProperty("size", out var size) ? size.GetInt64() : 0,
@@ -174,7 +154,7 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
             using var response = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), HttpCompletionOption.ResponseContentRead, ct);
             return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         }
-        catch (OneDriveException ex) when (notFoundIsNull && ex.Status == HttpStatusCode.NotFound)
+        catch (StorageException ex) when (notFoundIsNull && ex.Status == HttpStatusCode.NotFound)
         {
             return null;
         }
@@ -198,9 +178,21 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
                 await Task.Delay(wait, _clock, ct);
                 continue;
             }
-            throw new OneDriveException(status, $"OneDrive answered {(int)status}: {Truncate(detail)}");
+            throw new StorageException(status, $"OneDrive answered {(int)status}: {Truncate(detail)}");
         }
     }
 
     static string Truncate(string text) => text.Length <= 300 ? text : text[..300];
+}
+
+/// <summary>One OneDrive, as a library reads it.</summary>
+public sealed class OneDriveDrive(OneDriveClient client, string driveId) : IStorageDrive
+{
+    public string ProviderName => "OneDrive";
+
+    public Task<IReadOnlyList<StorageEntry>?> ChildrenAsync(string path, CancellationToken ct = default) => client.ChildrenAsync(driveId, path, ct);
+
+    public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default) => client.OpenReadAsync(driveId, path, ct);
+
+    public Task<string?> ReadLinkAsync(string path, CancellationToken ct = default) => client.DownloadLinkAsync(driveId, path, ct);
 }

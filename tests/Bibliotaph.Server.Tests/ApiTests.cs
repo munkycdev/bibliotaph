@@ -199,7 +199,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/harbor.png", Png());
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
@@ -244,7 +244,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/harbor.png", Png());
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
@@ -320,7 +320,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/harbor.png", Png());
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
@@ -354,7 +354,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/harbor.png", Png());
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
@@ -422,7 +422,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/harbor.png", Png());
         _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
         var client = Client(user);
@@ -485,7 +485,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/harbor.png", Png());
         _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
         var client = Client(user);
@@ -554,7 +554,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/harbor.png", Png());
         _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
         var client = Client(user);
@@ -639,7 +639,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/harbor.png", Png());
         _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
         var client = Client(user);
@@ -687,7 +687,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/IMG_0042.png", Png());
         _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
         var client = Client(user);
@@ -776,7 +776,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/IMG_0042.png", Png());
         _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
         var client = Client(user);
@@ -834,7 +834,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Maps/IMG_0042.png", Png());
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
@@ -948,7 +948,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/Adventures/one.pdf", [1, 2, 3]);
         _graph.Add("RPG/Maps/map.png", [4, 5]);
         _graph.Add("RPG/notes.txt", [6]);
@@ -976,7 +976,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
 
@@ -1034,6 +1034,35 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(HttpStatusCode.NotFound, direct.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, unguarded.StatusCode);
         Assert.Equal("https://tenant.example.auth0.com/v2/logout?client_id=abc&returnTo=https%3A%2F%2Fbibliotaph.online%2F", signedOut!.Next);
+    }
+
+    [Fact]
+    public async Task Storage_is_offered_once_its_app_is_set_up_and_connecting_asks_for_that_providers_own_access()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var unconfigured = await Client(await AddUserAsync(admin: false)).GetFromJsonAsync<List<StorageProviderInfo>>("/api/storage/providers", ct);
+        using var factory = _factory.WithWebHostBuilder(host =>
+        {
+            host.UseSetting("Storage:OneDrive:ClientId", "client");
+            host.UseSetting("Storage:OneDrive:ClientSecret", "secret");
+        });
+        var user = await AddUserAsync(admin: false);
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add(TestSession.Header, $"{user.Id};{user.Name};{user.IsAdmin}");
+
+        var providers = await client.GetFromJsonAsync<List<StorageProviderInfo>>("/api/storage/providers", ct);
+        using var connect = await client.GetAsync("/storage/connect/onedrive?returnUrl=%2Fsettings", ct);
+        using var unknown = await client.GetAsync("/storage/connect/elsewhere", ct);
+
+        Assert.Empty(unconfigured!);
+        Assert.Equal([new StorageProviderInfo("onedrive", "OneDrive", "Microsoft")], providers);
+        Assert.Equal(HttpStatusCode.Redirect, connect.StatusCode);
+        var authorize = connect.Headers.Location!.ToString();
+        Assert.StartsWith("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?", authorize, StringComparison.Ordinal);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(authorize).Query);
+        Assert.Equal("offline_access Files.Read Files.ReadWrite.AppFolder", query["scope"].ToString());
+        Assert.EndsWith("/storage/callback/onedrive", query["redirect_uri"].ToString(), StringComparison.Ordinal);
+        Assert.Equal("/settings?problem=storage", unknown.Headers.Location!.ToString());
     }
 
     [Fact]
@@ -1138,7 +1167,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
@@ -1200,7 +1229,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
         // The first chapter's marsh, quoted from its own page; nothing for the others.
         _models.Answer = request =>
@@ -1253,7 +1282,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
         _models.Answer = request =>
         {
@@ -1326,7 +1355,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
         var connections = _factory.Services.GetRequiredService<StorageConnections>();
-        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
         _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
         _models.Answer = request =>
         {

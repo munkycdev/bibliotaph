@@ -8,7 +8,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Indexing;
 using Bibliotaph.Server.Libraries;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
 
@@ -38,7 +38,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
 
         var queries = library.Get<IndexQueries>();
@@ -65,7 +65,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
 
         var queries = library.Get<IndexQueries>();
@@ -92,7 +92,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
 
         var search = library.Get<LibraryQueries>();
@@ -108,7 +108,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
 
         var all = await WaitAsync(async () =>
@@ -176,7 +176,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
         var card = (await WaitAsync(async () =>
         {
@@ -237,7 +237,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
         var card = await WaitAsync(async () =>
             (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books is [{ Cover: not null } only] ? only : null);
@@ -276,7 +276,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
         var card = await WaitAsync(async () =>
             (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books is [{ Cover: not null } only] ? only : null);
@@ -322,7 +322,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
         var card = await WaitAsync(async () =>
             (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books is [{ Cover: not null } only] ? only : null);
@@ -371,7 +371,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var (userId, _) = await Fixture.UserWithDriveAsync();
         await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
         var library = lease.Library;
-        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        var root = await library.Get<SourceRootStore>().AddAsync(StoragePath.Of("onedrive", FakeGraph.DriveId, "RPG"), Ct);
         library.Indexing.RequestScan(root.Id);
         var books = await WaitAsync(async () =>
         {

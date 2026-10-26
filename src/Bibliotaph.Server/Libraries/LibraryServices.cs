@@ -5,7 +5,7 @@ using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Storage;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,13 +62,13 @@ public static class LibraryServices
             bookAtATime: true));
         services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), host.Clock));
 
-        // The user's drives, read through Graph; a book is downloaded only while it's being read.
+        // The user's connected storage, read through each provider's API; a book is downloaded only while it's being read.
         services.AddSingleton(_ => host.Drives.For(userId));
-        services.AddSingleton<IDriveClients>(sp => sp.GetRequiredService<UserDrives>());
-        services.AddSingleton<ISourceLister, OneDriveSourceLister>();
-        services.AddSingleton(sp => new OneDriveFileReader(sp.GetRequiredService<IDriveClients>(), host.TemporaryFolder, new SourceFileReader()));
-        services.AddSingleton<ISourceFileReader>(sp => sp.GetRequiredService<OneDriveFileReader>());
-        services.AddSingleton<DriveChangeFeed>();
+        services.AddSingleton<IStorageDrives>(sp => sp.GetRequiredService<UserDrives>());
+        services.AddSingleton<ISourceLister, StorageSourceLister>();
+        services.AddSingleton(sp => new StorageFileReader(sp.GetRequiredService<IStorageDrives>(), host.TemporaryFolder, new SourceFileReader()));
+        services.AddSingleton<ISourceFileReader>(sp => sp.GetRequiredService<StorageFileReader>());
+        services.AddSingleton<StorageChangeFeed>();
         services.AddSingleton(host.Pdf);
         services.AddSingleton(host.Images);
         services.AddSingleton<IPasswordStore, NoPasswords>();
@@ -111,7 +111,7 @@ public static class LibraryServices
         services.AddSingleton<FileHasher>();
         services.AddSingleton<ArchiveReader>();
         services.AddSingleton(sp => new SourceFiles(paths, sp.GetRequiredService<ArchiveReader>(), sp.GetRequiredService<IDiskSpace>(),
-            sp.GetRequiredService<IndexingOptions>(), FetchedBytes, sp.GetRequiredService<OneDriveFileReader>()));
+            sp.GetRequiredService<IndexingOptions>(), FetchedBytes, sp.GetRequiredService<StorageFileReader>()));
         services.AddSingleton<OnlineOnlyReturns>();
         services.AddSingleton<StageServices>();
         services.AddSingleton<MarkStores>();
@@ -186,7 +186,7 @@ public static class LibraryServices
             sp.GetRequiredService<SourceRootStore>(), sp.GetRequiredService<LibraryStore>(), sp.GetRequiredService<JobBoard>(),
             sp.GetRequiredService<IStageCatalog>(), sp.GetRequiredService<IndexingFiles>(), sp.GetRequiredService<PackService>(),
             sp.GetRequiredService<PartsService>(), sp.GetRequiredService<FolderCollections>(), sp.GetRequiredService<IndexingOptions>(),
-            sp.GetRequiredService<ILogger<IndexingService>>(), host.Clock, sp.GetRequiredService<DriveChangeFeed>()));
+            sp.GetRequiredService<ILogger<IndexingService>>(), host.Clock, sp.GetRequiredService<StorageChangeFeed>()));
         services.AddSingleton<IJobControl>(sp => sp.GetRequiredService<IndexingService>());
         services.AddSingleton<IIndexingStatus>(sp => sp.GetRequiredService<IndexingService>());
 

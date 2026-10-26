@@ -181,7 +181,7 @@ sealed class LibraryFixture : IAsyncDisposable
         var accounts = new AccountService(Accounts, TimeProvider.System);
         var (code, _) = await accounts.CreateInviteAsync(null, null, admin: false);
         var user = (await accounts.SignInAsync(new ExternalIdentity("google", Guid.NewGuid().ToString(), name, null), code, null)).User!;
-        var drive = await Connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null);
+        var drive = await Connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null);
         return (user.Id, drive);
     }
 
