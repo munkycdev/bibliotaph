@@ -618,6 +618,8 @@ step (finding files, reading them, making them searchable, reading scans and cat
 got and the time left, what each part is working on now, and how many files need attention, with a link to them. The
 server does the work, so it carries on with the page closed. **Pause indexing**, **Pause reading scans** and **Pause
 AI** each stop one step until you resume it, even after you sign out; pausing the AI stops its requests on your key.
+The library comes first: while you're using it, reading books in the background steps aside, and carries on when you
+pause.
 
 ## Vocabulary
 
