@@ -114,6 +114,7 @@ public static class LibraryServices
         services.AddSingleton(sp => new BackupService(new AppPaths(Path.Combine(host.TemporaryFolder, "backups-" + Guid.NewGuid().ToString("N"))),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<IndexDatabase>(),
             sp.GetRequiredService<SettingsStore>(), host.Clock, sp.GetRequiredService<ILogger<BackupService>>()));
+        services.AddSingleton<HeldRestore>();
         services.AddSingleton<CoverCache>();
         services.AddSingleton(sp => new CoverMirror(userId, sp.GetRequiredService<CoverCache>(), host.Covers, sp.GetRequiredService<ILogger<CoverMirror>>()));
         // The reader draws its thumbnails in the browser, so this folder stays empty; Forget its text clears it all the same.

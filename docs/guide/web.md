@@ -625,8 +625,22 @@ words, and **Delete tag** takes its suggestions away; books where you kept it ke
 **Settings** › **Backup** › **Download a backup** saves a backup of your catalog (folders, corrections, collections,
 binders and notes, but not your books) as the Windows app's **Back up now…** does, named for the day, such as
 "Bibliotaph backup 2026-10-26.zip". The Windows app restores it from its own **Settings** › **Backup**, asking where
-each folder is on that PC. AI keys are never in a backup. The web can't restore a backup itself: to bring the Windows
-app's work here, connect the PC under **Windows PCs**.
+each folder is on that PC. AI keys and PDF passwords are never in a backup.
+
+Bibliotaph also makes a backup each week while you use it, once your library has books in it, and keeps the last four
+in its own storage, as the Windows app keeps its automatic backups. **Settings** › **Backup** lists them with when each
+was made: **Download** saves one, and **Restore…** reads it.
+
+**Choose a backup…** under **Restore** reads a backup from your computer instead, one downloaded here or made by the
+Windows app. Nothing changes yet: Bibliotaph shows when the backup was made, by which version, how many books,
+collections and notes it holds, and each of its library folders, saying whether it is in your storage. A Windows PC's
+folders aren't, so they stay offline here. **Restore…** asks once more, then keeps a backup of your catalog as it is
+now (listed as *Made before a restore*, so a restore can be undone by restoring that one) and puts the backup's catalog
+in its place. Anything you did since the backup was made is replaced. Your books are then read again for search in the
+background. **Cancel** forgets the backup read.
+
+To keep the Windows app's work and this library up to date with each other, connect the PC under **Windows PCs**
+instead: that merges your work both ways, where a restore replaces it.
 
 **Export CSV** saves a row per book (title, system, type, levels, publisher, tags, collections and where its file is)
 for a spreadsheet, and **Export JSON** everything in your catalog, for other programs, as in the Windows app.

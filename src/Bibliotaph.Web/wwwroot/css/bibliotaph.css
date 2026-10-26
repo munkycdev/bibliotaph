@@ -1132,3 +1132,9 @@ a.bt-menuitem{text-decoration:none}
 /* Send to Bibliotaph: a link to drag to the bookmarks bar, shown as a button; the receiving page's status beneath its heading. */
 .bt-bookmarklet{cursor:grab}
 .bt-receive{max-width:640px}
+.bt-keptbackups,.bt-restorefolders{list-style:none;margin:8px 0 0;padding:0}
+.bt-keptbackups .bt-actions{margin:0;flex-wrap:nowrap}
+.bt-restore{margin-top:12px;padding:12px;border:1px solid var(--bt-line);border-radius:6px;background:var(--bt-panel)}
+.bt-restore .bt-copy{margin-top:0}
+.bt-restorefolders .bt-settingrow{padding:8px 0}
+.bt-restorefolders .bt-offline{color:var(--bt-accent);max-width:50%;text-align:right}
