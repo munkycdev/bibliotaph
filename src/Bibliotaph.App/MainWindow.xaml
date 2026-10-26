@@ -57,12 +57,21 @@
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <!-- .bt-brand; folded, the unfold button takes its place, so folding adds no height to a short window. -->
+        <!-- .bt-brand; folded, the monogram alone, so the sidebar still says whose it is. -->
         <Grid Margin="0,0,0,26">
           <Button Command="{Binding NavigateCommand}" CommandParameter="{x:Static services:Route.Home}"
-                  AutomationProperties.Name="Bibliotaph home" Cursor="Hand" HorizontalAlignment="Left"
-                  FocusVisualStyle="{StaticResource Bt.FocusVisual}"
-                  Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+                  AutomationProperties.Name="Bibliotaph home" Cursor="Hand"
+                  FocusVisualStyle="{StaticResource Bt.FocusVisual}">
+            <Button.Style>
+              <Style TargetType="Button">
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsSidebarCollapsed}" Value="True">
+                    <Setter Property="HorizontalAlignment" Value="Center" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Button.Style>
             <Button.Template>
               <ControlTemplate TargetType="Button">
                 <StackPanel Orientation="Horizontal" Background="Transparent" Margin="4,0">
@@ -71,14 +80,12 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,3" />
                   </Border>
                   <TextBlock Text="Bibliotaph" FontFamily="{StaticResource Font.Display}" FontSize="23" Margin="10,0,0,0"
-                             VerticalAlignment="Center" Foreground="{DynamicResource Bt.Text}" />
+                             VerticalAlignment="Center" Foreground="{DynamicResource Bt.Text}"
+                             Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
                 </StackPanel>
               </ControlTemplate>
             </Button.Template>
           </Button>
-          <Button x:Name="ToggleSidebar" Style="{StaticResource Bt.IconButton}" HorizontalAlignment="Center" Command="{Binding ToggleSidebarCommand}"
-                  ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}" c:Ui.Icon="{StaticResource Icon.PanelLeft}"
-                  Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </Grid>
 
         <!-- The main navigation stays put; the Pinned group below it scrolls on its own (Pinned Views plan, choice 10). -->
@@ -256,7 +263,7 @@
               </StackPanel>
             </DockPanel>
           </Button>
-          <!-- Open, the fold button sits beside Settings; folded, it moves up to where the brand was. -->
+          <!-- Open, the fold button sits beside Settings; folded, it sits under Settings, at the foot of the sidebar either way. -->
           <DockPanel>
             <Button x:Name="FoldSidebar" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" Margin="4,0,0,0"
                     Command="{Binding ToggleSidebarCommand}" ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}"
@@ -266,6 +273,9 @@
                     Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     CommandParameter="{Binding Route}" />
           </DockPanel>
+          <Button x:Name="ToggleSidebar" Style="{StaticResource Bt.IconButton}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                  Command="{Binding ToggleSidebarCommand}" ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}"
+                  c:Ui.Icon="{StaticResource Icon.PanelLeft}" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         </StackPanel>
       </Grid>
     </Border>

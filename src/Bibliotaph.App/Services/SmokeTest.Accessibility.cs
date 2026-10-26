@@ -451,7 +451,11 @@ static partial class SmokeTest
             ?? throw new InvalidOperationException("The collapsed sidebar has no Home button.");
         if (home.ToolTip as string != "Home") throw new InvalidOperationException("The collapsed sidebar's Home button has no tooltip naming it.");
         if (Descendants<TextBlock>(main.Sidebar).Any(t => t.Text == "PINNED" && t.IsVisible)) throw new InvalidOperationException("The collapsed sidebar still says PINNED.");
-        Click(main.FindName("ToggleSidebar") as Button, "Expand the sidebar");
+        if (!Descendants<TextBlock>(main.Sidebar).Any(t => t.Text == "b." && t.IsVisible)) throw new InvalidOperationException("The collapsed sidebar lost its monogram.");
+        var expand = main.FindName("ToggleSidebar") as Button ?? throw new InvalidOperationException("The collapsed sidebar has no Expand button.");
+        if (expand.TranslatePoint(new Point(), main.Sidebar).Y < home.TranslatePoint(new Point(), main.Sidebar).Y)
+            throw new InvalidOperationException("The collapsed sidebar's Expand button isn't at its foot.");
+        Click(expand, "Expand the sidebar");
         await WaitUntilAsync(window, () => !shell.IsSidebarCollapsed && Math.Abs(main.Sidebar.ActualWidth - wide) < 1, () => "The sidebar didn't expand again.");
     }
 
