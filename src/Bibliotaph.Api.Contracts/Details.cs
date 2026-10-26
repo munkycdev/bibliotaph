@@ -35,11 +35,14 @@ public sealed record DetailValue(string Text, string Value, string Normalized, b
 
 public sealed record DetailFact(string Label, string Value);
 
-/// <summary>Where a file is: the drive and its folders, and what stops it being read ("No longer here"), if anything.</summary>
-public sealed record DetailLocation(string Path, string State);
+/// <summary>
+/// Where a file is: the storage service it's kept in ("OneDrive"), the account and its folders, and what stops it being
+/// read ("No longer here"), if anything.
+/// </summary>
+public sealed record DetailLocation(string Path, string State, string? Service = null);
 
 /// <summary>One of a book's files when it has more than one: "Current copy", its pages and when it was added, and where it is.</summary>
-public sealed record DetailCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent);
+public sealed record DetailCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent, string? Service = null);
 
 /// <summary>An adventure marked in a file: its own card, and its pages there, the first and last as the file numbers them.</summary>
 public sealed record DetailPart(long EntryId, string Title, string Pages, string From, string To);

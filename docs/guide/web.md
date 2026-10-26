@@ -156,8 +156,8 @@ are in the page's address, so you can bookmark them.
 Click a card, a list row or a matching book's title to open its details over the page, as in the Windows app: its cover
 and what it is, then **Details**, each field with where its value came from (**Sources**, **Suggested** or **Sources
 disagree** opens the evidence and the other suggestions; **More fields** shows the empty ones), the adventures marked in
-a file or the file an adventure is in, a pack's files, **About the file**, **Where it is** in your storage, its copies
-when it has more than one, and how far reading it has got. **Esc**, the **×** or a click outside closes them.
+a file or the file an adventure is in, a pack's files, **About the file**, **Where it is** in your storage (the service first, such as OneDrive or
+Dropbox, then the account and its folders), its copies when it has more than one, each with its service too, and how far reading it has got. **Esc**, the **×** or a click outside closes them.
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
 in the Library, and a right-click has the same menu as in the Library.

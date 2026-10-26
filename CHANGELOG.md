@@ -171,6 +171,8 @@
 - **The sidebar folds on the web, and the search guide is there.** The button beside Settings, or Ctrl+B, folds the
   sidebar to its icons as in the Windows app. The search box's guide lists the fields to search by and, after a field's
   colon, its values in your library with their counts; the Windows app and the web now list them from the same code.
+- **The details say which storage service a file is in.** Where it is, and each copy, start with the service, such as
+  OneDrive, Dropbox or Box, with a cloud mark, before the account and folders.
 - **Online libraries on the web.** Settings › Online libraries imports the books you own on D&D Beyond, Demiplane,
   Humble Bundle and DriveThruRPG from a library page saved with Save as, with the Windows app's preview, Import with
   Undo, covers from the pictures saved beside the page, and the books no longer listed. See
