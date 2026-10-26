@@ -52,7 +52,7 @@
     string SignInUrl(SignInProvider provider)
     {
         var returnUrl = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
-        if (Invite is not null) returnUrl = "/";
+        if (Invite is not null) returnUrl = "/home";
         var url = $"auth/signin/{Uri.EscapeDataString(provider.Id)}?returnUrl={Uri.EscapeDataString(returnUrl)}";
         return Invite is null ? url : $"{url}&invite={Uri.EscapeDataString(Invite)}";
     }

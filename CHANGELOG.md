@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **The front page, signed in too.** bibliotaph.online shows the front page to everyone, with **Open your library** in
+  place of **Sign in**, and the web app's Home moved to bibliotaph.online/home. **b. Bibliotaph** at the top of the
+  app's sidebar goes to the front page. See [The site](docs/guide/web.md#the-site).
 - **A new home page for bibliotaph.online.** It shows what Bibliotaph does, with examples of search, the catalog,
   binders and online libraries, the Windows app and the web side by side, and answers to common questions. See
   [The site](docs/guide/web.md#the-site).

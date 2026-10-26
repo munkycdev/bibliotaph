@@ -690,14 +690,15 @@ where, and how to have it deleted.
 
 ## The site
 
-Signed out, [bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is: what it does, with the app's
+[bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is, signed in or not: what it does, with the app's
 screenshot and small examples of search, the catalog, binders and online libraries; the Windows app and the web side by
 side; and answers to common questions. **Sign in** is at the top, and **Get the Windows app** downloads the latest release. Its
 footer links the rest of the site: [Features](https://bibliotaph.online/features), [About](https://bibliotaph.online/about),
 the [Change log](https://bibliotaph.online/changelog), [Contact us](https://bibliotaph.online/contact),
 [Terms](https://bibliotaph.online/terms), [Privacy](https://bibliotaph.online/privacy) and
-[Licences](https://bibliotaph.online/licences), which has Bibliotaph's licence and every component's. Signed in, the same
-address opens your library, and the site's pages offer **Open your library** in place of **Sign in**.
+[Licences](https://bibliotaph.online/licences), which has Bibliotaph's licence and every component's. Signed in, the site's
+pages offer **Open your library** in place of **Sign in**, which goes to your Home at bibliotaph.online/home, and
+**b. Bibliotaph** at the top of the app's sidebar comes back to this page.
 
 The same links are under every page of the app too, except the readers, with the version that's running and a tagline,
 a different one each time the page loads. They open in a new tab, so whatever you had open stays as it was.
