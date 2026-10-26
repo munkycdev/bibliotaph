@@ -272,4 +272,12 @@ public class PageReferencesTests
         Assert.Equal(40, PageReferences.ListedPages([("Monster Index", 10, 0)], 120).Count);
         Assert.Empty(PageReferences.ListedPages([("Index", 130, 0)], 120));
     }
+
+    [Theory]
+    [InlineData(34, 33, null, "Go to page 34")]
+    [InlineData(34, 35, null, "Go to page 34 (PDF page 36)")]
+    [InlineData(34, 35, "34", "Go to page 34")]
+    [InlineData(34, 35, "xii", "Go to page 34 (PDF page 36)")]
+    public void A_links_tip_names_the_pdf_page_when_the_reader_counts_another(int printed, int pageIndex, string? label, string tip) =>
+        Assert.Equal(tip, PageReferences.Tip(printed, pageIndex, label));
 }

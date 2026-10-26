@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
@@ -64,6 +65,13 @@ public static partial class ReaderApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             return Results.Ok(await MarkAsync(lease.Library, documentId, edit, ct));
+        });
+
+        // Asked for when the reader first needs it, since a book without page labels reads every page's text for it.
+        document.MapGet("/printed-pages", async (long documentId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await PrintedPagesAsync(lease.Library, documentId, ct);
         });
 
         document.MapGet("/bookmark", async (long documentId, int page, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -146,6 +154,21 @@ public static partial class ReaderApi
         var drawn = await library.Get<CoverPages>().UseAsync(documentId, page, ct);
         return new ReaderCoverUsed(page, !drawn ? "The cover will change when the file is next read."
             : page == 0 ? "The first page is the cover again." : "This page is the cover now.");
+    }
+
+    /// <summary>
+    /// Where the book's printed page numbers are, as the Windows reader finds them: its page labels, or failing those
+    /// the numbers printed at the top or foot of its pages; and the pages under an index or contents bookmark.
+    /// </summary>
+    internal static async Task<ReaderPrintedPages> PrintedPagesAsync(UserLibrary library, long documentId, CancellationToken ct)
+    {
+        var index = library.Get<IndexQueries>();
+        var pageCount = await index.GetPageCountAsync(documentId, ct) ?? 0;
+        var printed = PrintedPages.FromLabels(await index.GetPageLabelsAsync(documentId, ct), pageCount);
+        if (!printed.IsKnown) printed = PrintedPages.FromFolios((await index.GetPageTextsAsync(documentId, ct)).Select(t => (t.PdfPage, t.Text)), pageCount);
+        var outline = await index.GetOutlineAsync(documentId, ct);
+        var listed = PageReferences.ListedPages([.. outline.Select(o => (o.Title, o.PdfPage, o.Depth))], pageCount);
+        return new ReaderPrintedPages(printed.ToTable(), printed.Source == PrintedPagesSource.Labels, [.. listed.Order()]);
     }
 
     internal static async Task<EditResult> MarkAsync(UserLibrary library, long documentId, PartEdit edit, CancellationToken ct)

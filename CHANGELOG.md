@@ -81,6 +81,9 @@
   adventure and the contents' Index as its own adventure… give pages a card of their own; Use this page as the cover
   and Use this image as the pack's cover change a card's cover, as in the Windows reader. See
   [Reading a book](docs/guide/web.md#reading-a-book).
+- **Index pages link to their pages on the web.** The page numbers on an index or contents page that has no links of
+  its own become links in the web reader, found by the same rules as in the Windows reader. See
+  [Reading a book](docs/guide/web.md#reading-a-book).
 
 ## 1.3 · 19 October 2026
 
