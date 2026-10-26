@@ -395,7 +395,8 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// <summary>
 /// Classify: sends a bounded excerpt of the book to the configured model and stores the values whose evidence checks
 /// out as AI suggestions. Runs in its own lane, one book at a time, only while AI is ready; waits for the book's OCR;
-/// skips books in a folder the user keeps from AI, and books this model and prompt have already read. When the
+/// skips books in a folder the user keeps from AI, books this model and prompt have already read, and books another of
+/// the user's devices read with this prompt (<see cref="SharedResults"/>). When the
 /// endpoint can't be used, the lane waits with a notice instead of failing books. A book the server fails on while
 /// it still answers others fails like an unusable answer, so it can't hold up the books behind it.
 /// </summary>
@@ -406,7 +407,8 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// </remarks>
 public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
-    AiReadingFeed feed, PartsService parts, PartProposalService proposals, TimeProvider? clock = null, ILogger<ClassifyStage>? log = null) : IGatedStage
+    AiReadingFeed feed, PartsService parts, PartProposalService proposals, TimeProvider? clock = null, ILogger<ClassifyStage>? log = null,
+    SharedResults? shared = null) : IGatedStage
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<ClassifyStage>.Instance;
@@ -438,7 +440,10 @@ public sealed class ClassifyStage(
         var kept = state.Setup.SkippedRoots;
         if (kept.Count > 0 && (await library.GetRootIdsAsync(job.DocumentId, ct)).Any(kept.Contains))
             return new StageOutcome.Done(StageStatus.Skipped, [], "Its library folder isn't sent to AI.");
-        var read = await runs.HasRunAsync(job.ContentHash, classifier.Model, ClassifierPrompt.Version, ct);
+        // Read here by this model, or on another of the user's devices with this prompt: the AI reads a book once.
+        var read = await runs.HasRunAsync(job.ContentHash, classifier.Model, ClassifierPrompt.Version, ct)
+            || await runs.HasSharedRunAsync(job.ContentHash, ClassifierPrompt.Version, ct)
+            || (shared is not null && await shared.TryApplyAsync(job.DocumentId, job.ContentHash, ct));
         var unread = await UnreadPartsAsync(job.DocumentId, classifier.Model, ct);
         if (read && unread.Count == 0) return StageOutcome.Complete();
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
@@ -515,7 +520,11 @@ public sealed class ClassifyStage(
             input.Examples?.Count ?? 0, result.CutOff ? ", answer cut off and only what it finished read" : "", result.Accepted.Count, result.Dropped.Count,
             string.Join("; ", result.Dropped.GroupBy(d => d.Reason).Select(g => $"{g.Count().ToString(CultureInfo.InvariantCulture)} × {g.Key}")));
         if (part is { } partId) await results.StoreOnAsync(partId, job.ContentHash, input, result, started, CancellationToken.None);
-        else await results.StoreAsync(job.DocumentId, job.ContentHash, input, result, started, CancellationToken.None);
+        else
+        {
+            await results.StoreAsync(job.DocumentId, job.ContentHash, input, result, started, CancellationToken.None);
+            shared?.Nudge();
+        }
         return null;
     }
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The AI reads each book once, for all your devices.** With a PC connected to your web library, what the AI found
+  in a book is shared by the file's contents: the web library gets the PC's suggestions for the same file, ready in
+  Needs review without an AI key of its own, and a book the AI has already read on one device isn't sent to the AI on
+  another. Whole-book scans are shared the same way. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
 - **Weekly backups and Restore, on the web.** Bibliotaph on the web makes a backup each week and keeps the last four,
   and Settings › Backup lists them to download or restore. Restore also reads a backup you choose, made on the web or
   by the Windows app, shows what it holds before anything changes, and keeps your current catalog first. See

@@ -324,4 +324,22 @@ CREATE TABLE job (
 CREATE INDEX job_ready ON job (status, priority DESC, id) WHERE status = 'pending';
 CREATE INDEX job_document ON job (document_id);
 
-PRAGMA user_version = 20;
+-- What the user's other devices worked out about files, by content hash, as taken from the web library: kept until a
+-- file with that content is in this library, so it isn't sent to the AI again. content is the result's JSON.
+CREATE TABLE shared_result (
+    content_hash    TEXT    NOT NULL,
+    kind            TEXT    NOT NULL,              -- classification
+    prompt_version  INTEGER NOT NULL,
+    result_id       TEXT    NOT NULL,              -- the run's id on the device that made it
+    finished_utc    TEXT    NOT NULL,
+    content         TEXT    NOT NULL,
+    PRIMARY KEY (content_hash, kind)
+);
+
+-- How far sharing results with the web library has got: the last result taken, and the end of the last run sent.
+CREATE TABLE shared_state (
+    key             TEXT    PRIMARY KEY,
+    value           TEXT    NOT NULL
+);
+
+PRAGMA user_version = 21;
