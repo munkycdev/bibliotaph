@@ -5,36 +5,45 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:core="clr-namespace:Bibliotaph.Core;assembly=Bibliotaph.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:OnlineLibrariesViewModel}">
   <!--
-    Settings > Online libraries (O2): the services, a library page's preview grouped by what importing does, and the
-    books missing, then the downloads folder, the browser's sign-ins and how books owned online show and open. Settings
-    gives it its width and the page title, so it starts with its own heading as the other sections do.
+    Settings > Online libraries (O2): the services in two groups, read on their own site or bought from them as files,
+    a library page's preview grouped by what importing does, and the books missing, then the downloads folder, the
+    browser's sign-ins and how books owned online show and open. Settings gives it its width and the page title, so it
+    starts with its own heading as the other sections do.
   -->
+  <UserControl.Resources>
+    <!-- One service: its name and what importing from it does, with the button that opens it. -->
+    <DataTemplate x:Key="OnlineServiceRow" DataType="{x:Type vm:OnlineServiceViewModel}">
+      <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,10">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Margin="16,0,0,0">
+            <Button x:Name="OpenService" Style="{StaticResource Bt.Button.Primary}" Content="{Binding OpenLabel}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
+                    Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
+          </StackPanel>
+          <StackPanel>
+            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
   <StackPanel>
     <TextBlock Text="Online libraries" Style="{StaticResource Text.H2}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
-               Text="Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never browses on its own." />
+               Text="Bring in the books you own outside your folders: books you read on a service's own site, such as D&amp;D Beyond and Demiplane, and PDFs you bought from stores, such as Humble Bundle and DriveThruRPG. Bibliotaph never holds your passwords and never browses on its own." />
 
-    <ItemsControl x:Name="OnlineServices" ItemsSource="{Binding Services}" Focusable="False" AutomationProperties.Name="Online services">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate DataType="{x:Type vm:OnlineServiceViewModel}">
-          <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,10">
-            <DockPanel>
-              <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Margin="16,0,0,0">
-                <Button x:Name="OpenService" Style="{StaticResource Bt.Button.Primary}" Content="{Binding OpenLabel}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
-                        Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
-              </StackPanel>
-              <StackPanel>
-                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
-              </StackPanel>
-            </DockPanel>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <TextBlock Text="{x:Static core:OnlineLibraryGroups.ReadOnline}" FontSize="15" FontWeight="SemiBold" Margin="0,8,0,0" />
+    <TextBlock Text="{x:Static core:OnlineLibraryGroups.ReadOnlineNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+    <ItemsControl x:Name="OnlineServices" ItemsSource="{Binding ReadOnlineServices}" ItemTemplate="{StaticResource OnlineServiceRow}" Focusable="False"
+                  AutomationProperties.Name="{x:Static core:OnlineLibraryGroups.ReadOnline}" />
+    <TextBlock Text="{x:Static core:OnlineLibraryGroups.Stores}" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,0" />
+    <TextBlock Text="{x:Static core:OnlineLibraryGroups.StoresNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+    <ItemsControl x:Name="StoreServices" ItemsSource="{Binding StoreServices}" ItemTemplate="{StaticResource OnlineServiceRow}" Focusable="False"
+                  AutomationProperties.Name="{x:Static core:OnlineLibraryGroups.Stores}" />
 
     <TextBlock x:Name="OnlineProblem" Text="{Binding Problem}" FontSize="12" Foreground="{DynamicResource Bt.Text}" Margin="0,12,0,0" TextWrapping="Wrap"
                Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />

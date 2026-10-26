@@ -34,6 +34,12 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     /// <summary>The services, in the order the readers are listed.</summary>
     public IReadOnlyList<OnlineServiceViewModel> Services => field ??= [.. imports.Readers.Select(r => new OnlineServiceViewModel(r, this))];
 
+    /// <summary>The services whose books are read on their own site, under their heading.</summary>
+    public IReadOnlyList<OnlineServiceViewModel> ReadOnlineServices => [.. Services.Where(s => s.ReadOnline)];
+
+    /// <summary>The stores whose books are bought as files, under their heading.</summary>
+    public IReadOnlyList<OnlineServiceViewModel> StoreServices => [.. Services.Where(s => !s.ReadOnline)];
+
     /// <summary>The preview, grouped by what importing does, new books first.</summary>
     public ObservableCollection<OnlineGroupViewModel> Groups { get; } = [];
 
@@ -330,6 +336,9 @@ public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, 
     public string Name => Reader.Name;
 
     public string OpenLabel => $"Open {Name}";
+
+    /// <summary>Its books are read on its own site, rather than bought from it as files.</summary>
+    public bool ReadOnline => Reader.LinkField == MetadataFields.AlsoOwn;
 
     public string Explanation => Reader.LinkField == MetadataFields.AlsoOwn
         ? $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page. "

@@ -8,6 +8,10 @@
 - **Add to binder in the reader.** **Add page** is now **Add to binder**, in the Windows app and on the web. Its menu
   names your binders, the one you worked on last first, so you choose where the page goes; **New binder…** and
   **Add pages…** are there too. See [Binders](docs/guide/binders.md#add-books-and-pages).
+- **Online libraries says how books come in.** **Settings > Online libraries** explains how to bring in books from
+  outside, in the Windows app and on the web, and groups the services as **Books you read online** (D&D Beyond,
+  Demiplane) and **PDFs you bought from stores** (Humble Bundle, DriveThruRPG). On the web the **Send to Bibliotaph**
+  bookmark is always there, even with the extension installed. See [Online libraries](docs/guide/online-libraries.md).
 - **A folded sidebar keeps its logo.** Folded, the sidebar shows the **b.** monogram at the top, and the button that
   unfolds it stays at the bottom under **Settings**, in the Windows app and on the web. See
   [Getting started](docs/guide/getting-started.md).

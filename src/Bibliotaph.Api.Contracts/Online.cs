@@ -1,7 +1,10 @@
 namespace Bibliotaph.Api.Contracts;
 
-/// <summary>A service a library page can be imported from, with what Settings says about it.</summary>
-public sealed record OnlineService(string Key, string Name, string LibraryPage, string Explanation);
+/// <summary>
+/// A service a library page can be imported from, with what Settings says about it. <paramref name="ReadOnline"/>: its
+/// books are read on its own site, rather than bought from it as files.
+/// </summary>
+public sealed record OnlineService(string Key, string Name, string LibraryPage, string Explanation, bool ReadOnline = false);
 
 /// <summary>
 /// What importing a library page will do, as Settings › Online libraries previews it: its groups of books by
