@@ -679,7 +679,9 @@ where, and how to have it deleted.
 
 ## The site
 
-Signed out, [bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is, with **Sign in** at the top. Its
+Signed out, [bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is: what it does, with the app's
+screenshot and small examples of search, the catalog, binders and online libraries; the Windows app and the web side by
+side; and answers to common questions. **Sign in** is at the top, and **Get the Windows app** downloads the latest release. Its
 footer links the rest of the site: [Features](https://bibliotaph.online/features), [About](https://bibliotaph.online/about),
 the [Change log](https://bibliotaph.online/changelog), [Contact us](https://bibliotaph.online/contact),
 [Terms](https://bibliotaph.online/terms), [Privacy](https://bibliotaph.online/privacy) and
