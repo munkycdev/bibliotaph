@@ -79,9 +79,11 @@ public static class ServerSetup
             var headers = context.Response.Headers;
             headers["X-Content-Type-Options"] = "nosniff";
             headers["Referrer-Policy"] = "same-origin";
+            // The reader reads a book's byte ranges straight from OneDrive's download links (personal and business).
             headers["Content-Security-Policy"] =
                 "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; " +
-                "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+                "font-src 'self'; connect-src 'self' https://*.sharepoint.com https://*.1drv.com https://*.microsoftpersonalcontent.com; " +
+                "worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
             await next(context);
         });
 

@@ -17,6 +17,7 @@ are not relicensed under the GPL.
 | Libre Caslon Display | `src/Bibliotaph.App/Fonts/` | SIL Open Font License 1.1 | `src/Bibliotaph.App/Fonts/OFL-LibreCaslonDisplay.txt` |
 | Lucide icons (SVG sources and the XAML geometry generated from them) | `tools/IconGen/lucide/`, `src/Bibliotaph.App/Icons/Icons.xaml` | ISC; icons derived from Feather are MIT | `tools/IconGen/lucide/LICENSE`, `src/Bibliotaph.App/Icons/LICENSE-lucide.txt` |
 | DM Sans, Libre Caslon Display and Lucide, embedded | `docs/bibliotaph-ui-mockups.html` | As above | As above; the embedded Lucide bundle keeps its own licence header |
+| PDF.js (Mozilla), with its viewer, fonts, character maps and colour profiles; its worker carries a one-line change, made by `tools/PdfJs/vendor.mjs` | `src/Bibliotaph.Web/wwwroot/lib/pdfjs/` | Apache-2.0; its standard fonts and colour profiles keep their own permissive licences | `src/Bibliotaph.Web/wwwroot/lib/pdfjs/LICENSE` |
 
 The fonts are unmodified and are not sold on their own. The app icon (`src/Bibliotaph.App/Assets/`) is artwork
 drawn from Libre Caslon Display glyph outlines by `tools/AppIcon/make_icon.py`; the OFL does not restrict artwork

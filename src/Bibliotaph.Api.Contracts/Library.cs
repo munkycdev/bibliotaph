@@ -83,9 +83,9 @@ public sealed record BookCard(
 
 /// <summary>
 /// A page that matched. <see cref="Snippet"/> has its hits between <see cref="LibraryChoices.HitStart"/> and <see
-/// cref="LibraryChoices.HitEnd"/>.
+/// cref="LibraryChoices.HitEnd"/>. <see cref="DocumentId"/> is the file it is in, which for a pack is one of its files.
 /// </summary>
-public sealed record PageMatch(int PdfPage, string Where, string Snippet, string Source);
+public sealed record PageMatch(int PdfPage, string Where, string Snippet, string Source, long DocumentId = 0);
 
 /// <summary>A book's best matching pages, and "3 more pages match" when more matched than are shown.</summary>
 public sealed record BookMatches(BookCard Book, IReadOnlyList<PageMatch> Pages, string More);

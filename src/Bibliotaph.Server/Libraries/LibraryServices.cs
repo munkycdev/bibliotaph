@@ -53,6 +53,7 @@ public static class LibraryServices
         services.AddSingleton<IndexWriter>();
         services.AddSingleton<IndexQueries>();
         services.AddSingleton<UserTagQueries>();
+        services.AddSingleton<ChapterQueries>();
         services.AddSingleton<LibraryQueries>();
         services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), host.Clock,
             bookAtATime: true));
@@ -118,6 +119,7 @@ public static class LibraryServices
         services.AddSingleton<MetadataService>();
         services.AddSingleton<CorrectionService>();
         services.AddSingleton<FavoritesService>();
+        services.AddSingleton<ReadingService>();
         services.AddSingleton<NotesService>();
         services.AddSingleton(new HeldActions(host.Clock));
         services.AddSingleton(new PendingCovers(host.Clock));

@@ -75,6 +75,21 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
     }
 
     /// <summary>
+    /// A short-lived link that reads the file without a Graph token, for a browser to fetch byte ranges from directly,
+    /// or null when there's nothing at that path. The whole item is asked for, since a business drive leaves the link
+    /// out of a $select.
+    /// </summary>
+    public async Task<string?> DownloadLinkAsync(string driveId, string pathInDrive, CancellationToken ct = default)
+    {
+        using var json = await GetJsonAsync(ItemUrl(driveId, pathInDrive), ct, notFoundIsNull: true);
+        if (json is null) return null;
+        var item = json.RootElement;
+        return item.TryGetProperty("@microsoft.graph.downloadUrl", out var link) || item.TryGetProperty("@content.downloadUrl", out link)
+            ? link.GetString()
+            : null;
+    }
+
+    /// <summary>
     /// A file's bytes, streamed. Graph answers with a redirect to a short-lived download link, which carries its own
     /// authorisation; HttpClient doesn't send the Graph token on to it.
     /// </summary>

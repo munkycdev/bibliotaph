@@ -1,0 +1,733 @@
+@page "/read/{EntryId:long}"
+@* The reader, as the Windows app's ViewerView: the book's title over a toolbar, its pages in a scrolling column with the
+   contents beside them and the thumbnails under them, and where the page in view is in the book underneath. The pages
+   are read straight from the user's storage; the server never passes a book's bytes on. *@
+@implements IAsyncDisposable
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject Pins Pins
+@inject Breadcrumb Breadcrumb
+
+<PageTitle>@(_book?.Title ?? "Reader") · Bibliotaph</PageTitle>
+
+@if (_book is not { } book)
+{
+    @if (_loadProblem is { } problem)
+    {
+        <EmptyState Title="@problem.Title" Message="@problem.Message" ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
+    }
+    else
+    {
+        <div class="bt-loading">Opening…</div>
+    }
+}
+else
+{
+    var problem = book.Problem ?? _problem;
+    <div class="bt-reader @(Popout == true ? "popout" : "")">
+        <div class="bt-reader-head">
+            <div class="bt-reader-titles">
+                <h1 class="bt-reader-title" title="@book.Title">@book.Title</h1>
+                @if (book.Subtitle.Length > 0) { <div class="bt-small bt-reader-subtitle" title="@book.Subtitle">@book.Subtitle</div> }
+            </div>
+        </div>
+
+        @if (problem is not null)
+        {
+            <EmptyState Title="@problem.Title" Message="@problem.Message" ActionText="@_problemAction" Action="RetryAsync" />
+        }
+        else
+        {
+            <div class="bt-reader-toolbar" role="toolbar" aria-label="Reader">
+                <div class="bt-toolgroup">
+                    @if (book.Outline.Count > 0)
+                    {
+                        <button class="bt-icon @(_showOutline ? "on" : "")" title="Show or hide the contents" aria-label="Contents" aria-pressed="@_showOutline"
+                                @onclick="() => _showOutline = !_showOutline"><Icon Name="List" Size="15" /></button>
+                        <span class="bt-tooldivider"></span>
+                    }
+                    @{ var stripAction = _showStrip ? "Hide page thumbnails" : "Show page thumbnails"; }
+                    <button class="bt-icon @(_showStrip ? "on" : "")" title="@stripAction" aria-label="Page thumbnails" aria-pressed="@_showStrip"
+                            @onclick="ToggleStripAsync"><Icon Name="PanelBottom" Size="15" /></button>
+                    <span class="bt-tooldivider"></span>
+                    <button class="bt-icon" title="Previous page" aria-label="Previous page" disabled="@(_page <= 0)" @onclick="() => GoToAsync(_page - 1)"><Icon Name="ChevronLeft" Size="15" /></button>
+                    <label class="bt-pagelabel">Page
+                        <input class="bt-page-input" aria-label="Page" title="A printed page number, or the page's place in the book" value="@_pageEntry"
+                               @oninput="e => _pageEntry = e.Value?.ToString() ?? string.Empty" @onkeydown="PageKeyAsync" @onfocus="PageFocusAsync" @onblur="PageBlur" @ref="_pageBox" />
+                    </label>
+                    <span class="bt-small">of @book.PageCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)</span>
+                    @if (book.Part is { } part)
+                    {
+                        <span class="bt-small bt-partposition">@part.Position(_page)</span>
+                    }
+                    <button class="bt-icon" title="Next page" aria-label="Next page" disabled="@(_page >= book.PageCount - 1)" @onclick="() => GoToAsync(_page + 1)"><Icon Name="ChevronRight" Size="15" /></button>
+                    @if (_linkBack is { } back)
+                    {
+                        <button class="bt-link bt-iconlink" title="Go back to the page where you followed the link" @onclick="BackFromLinkAsync">
+                            <Icon Name="Undo2" Size="14" />Back to page @ReaderPageNumbers.Display(back, book.Labels)
+                        </button>
+                    }
+                    <span class="bt-tooldivider"></span>
+                </div>
+                <div class="bt-toolgroup">
+                    <button class="bt-icon" title="Zoom out (Ctrl+minus)" aria-label="Zoom out" @onclick="() => ZoomAsync(false)"><Icon Name="Minus" Size="15" /></button>
+                    <select class="bt-select bt-zoom" aria-label="Zoom" title="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" value="@_scale" @onchange="ScaleChosenAsync">
+                        @foreach (var (value, label) in ZoomChoices)
+                        {
+                            <option value="@value">@label</option>
+                        }
+                        @if (!ZoomChoices.Any(c => c.Value == _scale) && double.TryParse(_scale, System.Globalization.CultureInfo.InvariantCulture, out var shown))
+                        {
+                            <option value="@_scale">@shown.ToString("P0", System.Globalization.CultureInfo.CurrentCulture)</option>
+                        }
+                    </select>
+                    <button class="bt-icon" title="Zoom in (Ctrl+plus)" aria-label="Zoom in" @onclick="() => ZoomAsync(true)"><Icon Name="Plus" Size="15" /></button>
+                    <span class="bt-tooldivider"></span>
+                    @{
+                        var favoriteAction = _favorite ? "Remove from favorites" : "Add to favorites";
+                        var pinned = Pins.IsPinned(PinKinds.Book, book.EntryId);
+                        var pinAction = pinned ? "Unpin from the sidebar" : "Pin to the sidebar";
+                    }
+                    <button class="bt-icon bt-heart @(_favorite ? "on" : "")" title="@favoriteAction" aria-label="@favoriteAction" aria-pressed="@_favorite"
+                            @onclick="ToggleFavoriteAsync"><Icon Name="Heart" Size="15" /></button>
+                    <button class="bt-icon bt-pinbutton @(pinned ? "on" : "")" title="@pinAction" aria-label="@pinAction" aria-pressed="@pinned"
+                            @onclick="() => Pins.ToggleAsync(PinKinds.Book, book.EntryId)"><Icon Name="Pin" Size="15" /></button>
+                    <span class="bt-tooldivider"></span>
+                    @if (Popout == true)
+                    {
+                        <button class="bt-icon" title="Return to the main window" aria-label="Return to main window" @onclick="ReturnToMainAsync"><Icon Name="SquareArrowDownLeft" Size="15" /></button>
+                    }
+                    else
+                    {
+                        <button class="bt-icon" title="Pop out into a window of its own" aria-label="Pop out" @onclick="PopOutAsync"><Icon Name="SquareArrowOutUpRight" Size="15" /></button>
+                    }
+                </div>
+                <div class="bt-toolgroup">
+                    <input class="bt-findbox" type="search" placeholder="Find in this book (Ctrl+F)" aria-label="Find in this book" value="@_findText"
+                           @oninput="e => _findText = e.Value?.ToString() ?? string.Empty" @onkeydown="FindKeyAsync" />
+                    <button class="bt-icon" title="Previous match (Shift+F3)" aria-label="Previous match" @onclick="() => StepAsync(false)"><Icon Name="ChevronLeft" Size="15" /></button>
+                    <button class="bt-icon" title="Next match (F3)" aria-label="Next match" @onclick="() => StepAsync(true)"><Icon Name="ChevronRight" Size="15" /></button>
+                    @if (book.Part is not null)
+                    {
+                        <label class="bt-check small" title="Find in the whole file, not only this adventure's pages">
+                            <input type="checkbox" checked="@_wholeFile" @onchange="WholeFileChangedAsync" />Whole file
+                        </label>
+                    }
+                    @if (_findStatus.Length > 0) { <span class="bt-small bt-findstatus" role="status">@_findStatus</span> }
+                </div>
+            </div>
+            <div class="bt-reader-stage">
+                @if (_showOutline && book.Outline.Count > 0)
+                {
+                    <nav class="bt-contents" aria-label="Contents">
+                        <span class="bt-eyebrow">CONTENTS</span>
+                        <ul>
+                            @foreach (var line in book.Outline)
+                            {
+                                <li class="depth@(line.Depth) @(line.InPart ? "inpart" : "")">
+                                    <button title="@line.Title" @onclick="() => GoToAsync(line.Page)">
+                                        <span class="bt-contentstitle">@line.Title</span><span class="bt-small">@line.PageText</span>
+                                    </button>
+                                    @if (line.Found is { } found) { <div class="bt-small bt-contentsfound" title="Found by the AI reading this chapter">@found</div> }
+                                </li>
+                            }
+                        </ul>
+                    </nav>
+                }
+                <div class="bt-pagescolumn">
+                    <div class="bt-pages" @ref="_stage" tabindex="0" aria-label="Pages"><div class="pdfViewer"></div></div>
+                    @if (!_opened) { <div class="bt-small bt-opening">Opening…</div> }
+                    @if (_notice is { } notice) { <div class="bt-notice" role="status">@notice</div> }
+                </div>
+                <div class="bt-strip" @ref="_strip" aria-label="Page thumbnails"></div>
+            </div>
+            <div class="bt-reader-foot">
+                <span>@PositionText</span>
+                @if (!_canCopy) { <span>This PDF doesn't allow copying its text.</span> }
+            </div>
+        }
+    </div>
+}
+
+@if (_password is { } asking)
+{
+    <div class="bt-backdrop fixed bt-dialogback"></div>
+    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Password needed" @onkeydown="PasswordKeyAsync">
+        <div class="bt-drawer-head bt-dialoghead">
+            <h2 class="bt-dialogtitle">“@_book?.Title” needs a password</h2>
+        </div>
+        <div class="bt-small bt-dialogintro">
+            @(asking.Retry ? "That password didn't open it. Check it and try again." : "Bibliotaph uses it only to open the book here. It's never stored.")
+        </div>
+        <label class="bt-field">Password<input type="password" aria-label="Password" @bind="_passwordText" @bind:event="oninput" @ref="_passwordBox" /></label>
+        <div class="bt-boxactions end bt-dialogactions">
+            <button class="bt-button" @onclick="() => AnswerPassword(null)">Cancel</button>
+            <button class="bt-button primary" @onclick="() => AnswerPassword(_passwordText)">Open</button>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Find stops counting here, as the server's and the Windows reader's do.</summary>
+    const int MaxMatches = 2000;
+
+    static readonly double[] ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+
+    static readonly (string Value, string Label)[] ZoomChoices =
+    [
+        ("page-width", "Fit width"),
+        ("page-fit", "Fit page"),
+        .. ZoomSteps.Select(z => (z.ToString(System.Globalization.CultureInfo.InvariantCulture), z.ToString("P0", System.Globalization.CultureInfo.CurrentCulture))),
+    ];
+
+    [Parameter] public long EntryId { get; set; }
+    [SupplyParameterFromQuery] public long? Doc { get; set; }
+    [SupplyParameterFromQuery] public int? Page { get; set; }
+    [SupplyParameterFromQuery] public string? Q { get; set; }
+    [SupplyParameterFromQuery] public bool? Keep { get; set; }
+    [SupplyParameterFromQuery] public bool? Popout { get; set; }
+
+    ReaderBook? _book;
+    ReaderProblem? _loadProblem;
+    ReaderProblem? _problem;
+    string? _problemAction;
+    string? _opening;
+
+    ElementReference _stage, _strip, _pageBox, _passwordBox;
+    IJSObjectReference? _module, _reader;
+    DotNetObjectReference<Reader>? _self;
+    bool _opened, _canCopy = true, _favorite, _showOutline, _showStrip;
+    int _page;
+    string _pageEntry = "";
+    bool _editingPage;
+    string _scale = "page-width";
+    int? _linkBack;
+    string? _notice;
+    CancellationTokenSource? _noticeTimer;
+    Timer? _placeTimer;
+    int? _placeToKeep;
+
+    string _findText = "", _found = "", _findStatus = "";
+    bool _wholeFile;
+    List<(int Page, int Nth)> _hits = [];
+    int _hitIndex = -1;
+
+    (bool Retry, TaskCompletionSource<string?> Answer)? _password;
+    string _passwordText = "";
+    bool _focusPassword;
+
+    string PositionText
+    {
+        get
+        {
+            if (_book is not { PageCount: > 0 } book) return "";
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            var pdf = $"PDF page {(_page + 1).ToString("N0", culture)} of {book.PageCount.ToString("N0", culture)}";
+            return _page < book.Labels.Count && book.Labels[_page] is { Length: > 0 } label && label.Trim() != (_page + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                ? $"Printed p. {label.Trim()} · {pdf}"
+                : pdf;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var opening = $"{EntryId}|{Doc}|{Page}|{Q}|{Keep}";
+        if (opening == _opening) return;
+        _opening = opening;
+        await CloseAsync();
+        _book = null;
+        _loadProblem = null;
+        _problem = null;
+        try
+        {
+            _book = await Api.ReaderAsync(EntryId, Doc, Page, Q, Keep == true);
+        }
+        catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            _loadProblem = new ReaderProblem("This book isn't in your library any more.", "It may have been removed, or its file taken out of your library.");
+            return;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _loadProblem = new ReaderProblem("This book could not be opened.", e.Message);
+            return;
+        }
+        Breadcrumb.Show(_book.Title);
+        _favorite = _book.Favorite;
+        _page = _book.StartPage;
+        _pageEntry = ReaderPageNumbers.Display(_page, _book.Labels);
+        _scale = "page-width";
+        _linkBack = null;
+        _opened = false;
+        _canCopy = true;
+        ClearFindState();
+        if (_book.Notice is { } notice) ShowNotice(notice);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) Pins.Changed += OnPinsChanged;
+        if (_focusPassword)
+        {
+            _focusPassword = false;
+            await _passwordBox.FocusAsync();
+        }
+        if (_book is { Problem: null } book && _problem is null && _reader is null && !_starting)
+        {
+            _starting = true;
+            try
+            {
+                await StartAsync(book);
+            }
+            finally
+            {
+                _starting = false;
+            }
+        }
+    }
+
+    bool _starting;
+
+    async Task StartAsync(ReaderBook book)
+    {
+        IJSObjectReference reader;
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/reader.js");
+            _self ??= DotNetObjectReference.Create(this);
+            var options = new { key = book.ContentHash, size = book.Size, start = book.StartPage, labels = book.Labels, marks = book.Marks };
+            reader = await _module.InvokeAsync<IJSObjectReference>("open", _stage, _strip, options, _self);
+        }
+        catch (JSException e)
+        {
+            await Failed("other", e.Message);
+            return;
+        }
+        if (_book != book)
+        {
+            await DisposeReaderAsync(reader);
+            return;
+        }
+        _reader = reader;
+        _showStrip = await ModuleAsync<bool>("stripShown");
+        if (_showStrip) await CallAsync("showStrip", true);
+        if (book.Marks.Count > 0) await CallAsync("markTerms", book.Marks, book.StartPage);
+    }
+
+    /// <summary>The pages, told to do something; nothing while they aren't open.</summary>
+    async Task CallAsync(string name, params object?[] args)
+    {
+        if (_reader is not { } reader) return;
+        try
+        {
+            await reader.InvokeVoidAsync(name, args);
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException)
+        {
+            // The pages went as the call was made; there's nothing left to tell.
+        }
+    }
+
+    async Task<T?> ModuleAsync<T>(string name, params object?[] args)
+    {
+        if (_module is not { } module) return default;
+        try
+        {
+            return await module.InvokeAsync<T>(name, args);
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException)
+        {
+            return default;
+        }
+    }
+
+    static async Task DisposeReaderAsync(IJSObjectReference reader)
+    {
+        try
+        {
+            await reader.InvokeVoidAsync("dispose");
+            await reader.DisposeAsync();
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException)
+        {
+            // The page is going anyway.
+        }
+    }
+
+    [JSInvokable]
+    public void Opened(bool canCopy)
+    {
+        _opened = true;
+        _canCopy = canCopy;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void PageChanged(int index)
+    {
+        if (_book is null || index == _page) return;
+        _page = index;
+        if (!_editingPage) _pageEntry = ReaderPageNumbers.Display(index, _book.Labels);
+        KeepPlace(index);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void ScaleChanged(string value)
+    {
+        _scale = value;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void LinkFollowed(int fromPage)
+    {
+        if (_book is null || fromPage < 0 || fromPage >= _book.PageCount) return;
+        _linkBack = fromPage;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void Notice(string text)
+    {
+        ShowNotice(text);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task FindKey(bool back) => StepAsync(!back);
+
+    /// <summary>The link to the file now; asked for again when the last one has expired.</summary>
+    [JSInvokable]
+    public async Task<string?> Link()
+    {
+        if (_book is null) return null;
+        try
+        {
+            var link = await Api.ReaderLinkAsync(_book.DocumentId);
+            if (link.Problem is { } problem) _linkProblem = problem;
+            return link.Url;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    ReaderProblem? _linkProblem;
+
+    [JSInvokable]
+    public async Task Failed(string kind, string message)
+    {
+        if (kind == "read" && _opened)
+        {
+            // Pages already showing stay; only the rest can't be read just now.
+            ShowNotice("Bibliotaph couldn't read more of this file just now. Check your connection, then try again.");
+            StateHasChanged();
+            return;
+        }
+        (_problem, _problemAction) = kind switch
+        {
+            "password" => (new ReaderProblem("This PDF needs a password.", "Enter its password to read it."), "Enter password"),
+            "link" => (_linkProblem ?? new ReaderProblem("The file couldn't be reached.", "Check your connection, then try again."), "Try again"),
+            "invalid" => (new ReaderProblem("This book could not be opened.", "The file isn't a PDF Bibliotaph can read. It may be damaged."), "Try again"),
+            _ => (new ReaderProblem("This book could not be opened.", message.Length > 0 ? message : "Try again in a moment."), "Try again"),
+        };
+        await CloseAsync();
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task<string?> AskPassword(bool retry)
+    {
+        var answer = new TaskCompletionSource<string?>();
+        _password = (retry, answer);
+        _passwordText = "";
+        _focusPassword = true;
+        StateHasChanged();
+        return answer.Task;
+    }
+
+    void AnswerPassword(string? password)
+    {
+        if (_password is not { } asking) return;
+        _password = null;
+        asking.Answer.TrySetResult(string.IsNullOrEmpty(password) ? null : password);
+    }
+
+    async Task PasswordKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") AnswerPassword(_passwordText);
+        else if (e.Key == "Escape") AnswerPassword(null);
+        await Task.CompletedTask;
+    }
+
+    async Task RetryAsync()
+    {
+        _problem = null;
+        _linkProblem = null;
+        _opened = false;
+        await CloseAsync();
+    }
+
+    async Task GoToAsync(int index)
+    {
+        if (_book is null) return;
+        await CallAsync("goTo", Math.Clamp(index, 0, Math.Max(0, _book.PageCount - 1)));
+    }
+
+    async Task PageKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter" || _book is null) return;
+        if (ReaderPageNumbers.Find(_pageEntry, _book.Labels, _book.PageCount) is { } index)
+        {
+            await GoToAsync(index);
+            _pageEntry = ReaderPageNumbers.Display(index, _book.Labels);
+        }
+        else
+        {
+            _pageEntry = ReaderPageNumbers.Display(_page, _book.Labels);
+        }
+    }
+
+    async Task PageFocusAsync()
+    {
+        _editingPage = true;
+        await ModuleAsync<object>("selectAll", _pageBox);
+    }
+
+    void PageBlur()
+    {
+        _editingPage = false;
+        if (_book is not null) _pageEntry = ReaderPageNumbers.Display(_page, _book.Labels);
+    }
+
+    async Task BackFromLinkAsync()
+    {
+        if (_linkBack is not { } page) return;
+        _linkBack = null;
+        await GoToAsync(page);
+    }
+
+    async Task ZoomAsync(bool up)
+    {
+        await CallAsync("zoom", up);
+    }
+
+    async Task ScaleChosenAsync(ChangeEventArgs e)
+    {
+        if (e.Value?.ToString() is { Length: > 0 } value) await CallAsync("setScale", value);
+    }
+
+    async Task ToggleStripAsync()
+    {
+        _showStrip = !_showStrip;
+        await ModuleAsync<object>("keepStrip", _showStrip);
+        await CallAsync("showStrip", _showStrip);
+    }
+
+    async Task ToggleFavoriteAsync()
+    {
+        if (_book is null) return;
+        _favorite = !_favorite;
+        try
+        {
+            await Api.SetFavoriteAsync(_book.EntryId, _favorite);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _favorite = !_favorite;
+            ShowNotice(e.Message);
+        }
+    }
+
+    /// <summary>The book moves to a window of its own, at the page in view, as the Windows reader's Pop out.</summary>
+    async Task PopOutAsync()
+    {
+        if (_book is null) return;
+        var url = Navigation.ToAbsoluteUri(ReaderUrl.For(_book.EntryId, _book.DocumentId, _page, keep: _book.KeepsPlace, popout: true)).ToString();
+        if (await ModuleAsync<bool>("popOut", url)) await ModuleAsync<object>("leave");
+        else ShowNotice("The browser didn't open a new window. Allow pop-ups for Bibliotaph, then try again.");
+    }
+
+    async Task ReturnToMainAsync()
+    {
+        if (_book is null) return;
+        var url = ReaderUrl.For(_book.EntryId, _book.DocumentId, _page, keep: _book.KeepsPlace);
+        if (!await ModuleAsync<bool>("returnToMain", Navigation.ToAbsoluteUri(url).ToString())) Navigation.NavigateTo(url, forceLoad: true);
+    }
+
+    // Find, as the Windows reader's: Enter finds, Enter again (or F3) goes to the next match, round from the last to the
+    // first; Shift+Enter and Shift+F3 go back; Esc clears. Reading an adventure, it looks in the adventure's pages.
+
+    async Task FindKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await FindAsync(!e.ShiftKey);
+        else if (e.Key == "Escape") await ClearFindAsync();
+    }
+
+    async Task FindAsync(bool forward)
+    {
+        var text = _findText.Trim();
+        if (text.Length == 0 || _book is null)
+        {
+            await ClearFindAsync();
+            return;
+        }
+        if (text == _found && _hits.Count > 0)
+        {
+            await StepAsync(forward);
+            return;
+        }
+        _findStatus = "Searching…";
+        StateHasChanged();
+        var part = _wholeFile ? null : _book.Part;
+        ReaderFind found;
+        try
+        {
+            found = await Api.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _findStatus = "Find didn't finish";
+            return;
+        }
+        _found = text;
+        _hits = [.. found.Pages.SelectMany(p => Enumerable.Range(0, p.Count).Select(n => (p.Page, n)))];
+        if (_hits.Count == 0)
+        {
+            _hitIndex = -1;
+            _findStatus = part is null ? "No matches" : "No matches in this adventure";
+            await CallAsync("clearFind");
+            return;
+        }
+        // The first match from the page in view onwards, wrapping round to the start.
+        var next = _hits.FindIndex(h => h.Page >= _page);
+        await ShowMatchAsync(next < 0 ? 0 : next);
+    }
+
+    async Task StepAsync(bool forward)
+    {
+        if (_hits.Count == 0)
+        {
+            if (_findText.Trim().Length > 0) await FindAsync(forward);
+            return;
+        }
+        await ShowMatchAsync(forward ? (_hitIndex + 1) % _hits.Count : (_hitIndex - 1 + _hits.Count) % _hits.Count);
+    }
+
+    async Task ShowMatchAsync(int index)
+    {
+        _hitIndex = index;
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        _findStatus = $"{(index + 1).ToString("N0", culture)} of {_hits.Count.ToString("N0", culture)}{(_hits.Count >= MaxMatches ? "+" : "")}";
+        var (page, nth) = _hits[index];
+        await CallAsync("showMatch", _found, page, nth);
+        StateHasChanged();
+    }
+
+    async Task ClearFindAsync()
+    {
+        _findText = "";
+        ClearFindState();
+        await CallAsync("clearFind");
+    }
+
+    void ClearFindState()
+    {
+        _found = "";
+        _findStatus = "";
+        _hits = [];
+        _hitIndex = -1;
+    }
+
+    async Task WholeFileChangedAsync(ChangeEventArgs e)
+    {
+        _wholeFile = e.Value is true;
+        _found = "";
+        _hits = [];
+        if (_findText.Trim().Length > 0) await FindAsync(true);
+    }
+
+    /// <summary>An ordinary read keeps the page it's left at, a moment after the reader stops on it.</summary>
+    void KeepPlace(int index)
+    {
+        if (_book is not { KeepsPlace: true } book) return;
+        _placeToKeep = index;
+        _placeTimer ??= new Timer(_ => _ = InvokeAsync(SavePlaceAsync));
+        _placeTimer.Change(TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan);
+    }
+
+    async Task SavePlaceAsync()
+    {
+        if (_book is null || _placeToKeep is not { } page) return;
+        _placeToKeep = null;
+        try
+        {
+            await Api.SavePositionAsync(_book.DocumentId, page);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // The place kept is the one before; reading goes on.
+        }
+    }
+
+    void ShowNotice(string text)
+    {
+        _notice = text;
+        _noticeTimer?.Cancel();
+        var timer = _noticeTimer = new CancellationTokenSource();
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), timer.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            _notice = null;
+            StateHasChanged();
+        });
+    }
+
+    async Task CloseAsync()
+    {
+        if (_placeToKeep is not null) await SavePlaceAsync();
+        if (_password is { } asking)
+        {
+            _password = null;
+            asking.Answer.TrySetResult(null);
+        }
+        if (_reader is { } reader)
+        {
+            _reader = null;
+            await DisposeReaderAsync(reader);
+        }
+    }
+
+    void OnPinsChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Pins.Changed -= OnPinsChanged;
+        Breadcrumb.Show(null);
+        _noticeTimer?.Cancel();
+        if (_placeTimer is not null) await _placeTimer.DisposeAsync();
+        await CloseAsync();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The page is going anyway.
+            }
+        }
+        _self?.Dispose();
+    }
+}

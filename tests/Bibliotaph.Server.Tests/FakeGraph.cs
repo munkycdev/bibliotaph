@@ -116,6 +116,7 @@ sealed class FakeGraph : HttpMessageHandler
         ["size"] = _files[path].Bytes.Length,
         ["lastModifiedDateTime"] = _files[path].Modified.ToString("o"),
         ["file"] = new { mimeType = "application/octet-stream" },
+        ["@microsoft.graph.downloadUrl"] = $"https://public.files.1drv.com/download/{Uri.EscapeDataString(path)}",
     };
 
     static Task<HttpResponseMessage> Json(object value) => Task.FromResult(JsonResponse(value));

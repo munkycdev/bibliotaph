@@ -127,6 +127,68 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task A_book_opens_in_the_reader_at_its_place_with_a_link_to_its_file_in_the_drive()
+    {
+        var bytes = await File.ReadAllBytesAsync(pdfs.KnownText, Ct);
+        Fixture.Graph.Add("RPG/known.pdf", bytes);
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+        var card = (await WaitAsync(async () =>
+        {
+            var results = await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct);
+            return results.Books is [{ Cover: not null } only] ? only : null;
+        }));
+        var entry = new EntryId(card.EntryId);
+
+        var opened = (await ReaderApi.OpenAsync(library, entry, null, null, null, false, Ct))!;
+        Assert.Equal((card.DocumentId, "pdf", 3, 0, (long)bytes.Length), (opened.DocumentId, opened.Format, opened.PageCount, opened.StartPage, opened.Size));
+        Assert.StartsWith("PDF · 3 pages", opened.Subtitle, StringComparison.Ordinal);
+        Assert.Equal(64, opened.ContentHash.Length);
+        Assert.True(opened.KeepsPlace);
+        Assert.Null(opened.Problem);
+        Assert.Null(opened.Notice);
+        Assert.NotEmpty(opened.Outline);
+        Assert.All(opened.Outline, o => Assert.InRange(o.Page, 0, 2));
+        // Home's Recently opened shows it, as an open in the Windows app records it.
+        Assert.Equal([card.EntryId], (await LibraryApi.HomeAsync(library, Ct)).Opened.Select(b => b.EntryId));
+
+        // The browser reads the file through a link of the drive's own; the server never passes the bytes on.
+        var downloads = Fixture.Graph.Downloads;
+        var link = await ReaderApi.LinkAsync(library, opened.DocumentId, Ct);
+        Assert.Equal("https://public.files.1drv.com/download/RPG%2Fknown.pdf", link.Url);
+        Assert.Equal(downloads, Fixture.Graph.Downloads);
+
+        // Find ignores case and how the text breaks, and keeps to the pages given.
+        var texts = (await library.Get<IndexQueries>().GetPageTextsAsync(opened.DocumentId, Ct)).Select(t => (t.PdfPage, t.Text)).ToList();
+        var shouted = SyntheticPdfs.KnownPhrase.ToUpperInvariant().Replace(" ", "  ", StringComparison.Ordinal);
+        Assert.Equal([new ReaderFindPage(SyntheticPdfs.KnownPhrasePage, 1)], ReaderApi.Find(texts, shouted, null, null));
+        Assert.Empty(ReaderApi.Find(texts, SyntheticPdfs.KnownPhrase, SyntheticPdfs.KnownPhrasePage + 1, null));
+        Assert.Empty(ReaderApi.Find(texts, "   ", null, null));
+
+        // An ordinary open goes back to where the book was left; a search hit opens at its page and keeps nothing.
+        await library.Get<ReadingService>().SavePositionAsync(opened.DocumentId, 2, Ct);
+        var again = (await ReaderApi.OpenAsync(library, entry, null, null, null, false, Ct))!;
+        Assert.Equal(2, again.StartPage);
+        Assert.Equal($"Back at page {ReaderPageNumbers.Display(2, again.Labels)}, where you left off.", again.Notice);
+        var word = SyntheticPdfs.KnownPhrase.Split(' ')[0];
+        var hit = (await ReaderApi.OpenAsync(library, entry, opened.DocumentId, SyntheticPdfs.KnownPhrasePage, word, false, Ct))!;
+        Assert.Equal((SyntheticPdfs.KnownPhrasePage, false, null), (hit.StartPage, hit.KeepsPlace, hit.Notice));
+        Assert.Equal([word], hit.Marks);
+        // Popped out, the reader goes on keeping its place.
+        Assert.True((await ReaderApi.OpenAsync(library, entry, opened.DocumentId, 1, null, true, Ct))!.KeepsPlace);
+
+        // A file that has gone from the drive says so, in place of the pages.
+        Fixture.Graph.Remove("RPG/known.pdf");
+        var gone = await ReaderApi.LinkAsync(library, opened.DocumentId, Ct);
+        Assert.Null(gone.Url);
+        Assert.Equal("The file couldn't be found.", gone.Problem?.Title);
+        Assert.Null(await ReaderApi.OpenAsync(library, new EntryId(long.MaxValue), null, null, null, false, Ct));
+    }
+
+    [Fact]
     public async Task A_chosen_cover_is_back_on_disk_before_the_library_opens_and_forgotten_once_removed()
     {
         var (userId, _) = await Fixture.UserWithDriveAsync();
