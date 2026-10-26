@@ -334,6 +334,52 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Check_a_download_judges_what_the_browser_sends_without_the_file()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        var bytes = await File.ReadAllBytesAsync(_pdfs.WatermarkedForAna, ct);
+        _graph.Add("RPG/known.pdf", bytes);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books
+            .SingleOrDefault(b => b.HasText), ct);
+        // As the browser makes them from the pages it reads: here, the library's own, so the file sent is a copy.
+        var fingerprints = await WaitAsync(async () =>
+        {
+            await using var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct);
+            var stored = await lease.Library.Get<Bibliotaph.Index.IndexQueries>().GetFingerprintsAsync(book.DocumentId, ct);
+            return stored.Count(f => f is not null) >= 3 ? stored : null;
+        }, ct);
+        async Task<CheckResult> CheckAsync(CheckFile file)
+        {
+            using var response = await client.PostAsJsonAsync("/api/library/check", file, ct);
+            return (await response.Content.ReadFromJsonAsync<CheckResult>(ct))!;
+        }
+        var other = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData([1, 2, 3]));
+
+        var same = await CheckAsync(new CheckFile("known.pdf", "Bundle/known.pdf", "known.pdf",
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)), null, null));
+        var copy = await CheckAsync(new CheckFile("watermarked.pdf", "Bundle/watermarked.pdf", "watermarked.pdf", other, null,
+            new CheckPages(fingerprints, fingerprints.Count(f => f is not null))));
+        var locked = await CheckAsync(new CheckFile("locked.pdf", "Bundle/locked.pdf", "locked.pdf", other, null, new CheckPages([], 0, "password")));
+        var nested = await CheckAsync(new CheckFile("inner.zip", "Bundle/outer.zip/inner.zip", "outer.zip/inner.zip", null, ArchiveProblems.Nested, null));
+
+        Assert.True(same.Owned);
+        Assert.Equal("Already owned", same.Label);
+        Assert.Equal(book.EntryId, same.MatchEntryId);
+        Assert.Equal("Another copy", copy.Label);
+        Assert.False(copy.Owned);
+        Assert.StartsWith("Another copy of ", copy.Detail, StringComparison.Ordinal);
+        Assert.Equal(("New", "It needs a password, so it was judged by its name."), (locked.Label, locked.Detail));
+        Assert.Equal(("Couldn't be read", ArchiveProblems.Nested), (nested.Label, nested.Detail));
+        Assert.True(nested.Order > copy.Order && copy.Order > locked.Order);
+    }
+
+    [Fact]
     public async Task Collections_are_made_filled_and_changed_as_the_windows_app_changes_them()
     {
         var ct = TestContext.Current.CancellationToken;
