@@ -20,8 +20,15 @@ public static class SettingKeys
     /// <summary>The indexing lanes paused in Settings › Processing on the web, by name, separated by commas.</summary>
     public const string ServerPausedLanes = "server.paused-lanes";
 
+    /// <summary>
+    /// The PDF passwords a reader on the web chose to remember, by content hash, sealed with the server's own keys as
+    /// its AI keys are.
+    /// </summary>
+    public const string ServerPdfPasswords = "server.pdf-passwords";
+
     /// <summary>Settings left out of backups and the JSON export, as they're only any use where they were made.</summary>
-    public static IReadOnlySet<string> Private { get; } = new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes };
+    public static IReadOnlySet<string> Private { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes, ServerPdfPasswords };
 
     /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
     public const string ReviewAll = "review.all";

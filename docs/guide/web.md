@@ -20,7 +20,7 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Online libraries**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Backup**,
+sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Online libraries**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Passwords**, **Backup**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
@@ -396,7 +396,8 @@ The **×** on a pack, adventures, folder rule or collection card gives its "don'
 **Files needing attention** lists the files that couldn't be read, grouped by reason. **Try again** gives a file, or
 every file on a card, another go, and **Try all again** does it for all of them apart from locked and protected
 files. A card for a fault in Bibliotaph has **Copy details**, which copies the version and the error, without file
-names, to paste into a bug report. Opening a locked file to unlock it comes with the reader.
+names, to paste into a bug report. A locked file has **Open to unlock**, which opens it in the reader to ask for its
+password, and a file with protection Bibliotaph can't open has **Download the file**, to open it in an app that can.
 
 ## Reading a book
 
@@ -444,7 +445,12 @@ OneDrive, and through the server from Dropbox, Google Drive, Box and WebDAV, whi
   window of its own, and **Return to main window** brings it back. **Open in new window** beside **Open** in a book's
   details, and beside a matching page, opens it in one straight away.
 
-A PDF with a password asks for it each time it opens; the password isn't kept. A book owned elsewhere has nothing to
+A PDF with a password asks for it as it opens, as the Windows reader does. **Make its text searchable**, ticked to
+start with, lets Bibliotaph read the book for search with it; untick it to only read the book. **Remember it in your
+web library** keeps the password, encrypted with the server's own keys and never shown, so the book opens without
+asking next time, on any browser; a remembered password that no longer opens the book is forgotten and you're asked
+again. **Settings › Passwords** lists the books with a remembered password, never the passwords, with **Forget** for
+one and **Forget all**. Text already read stays searchable after a password is forgotten. A book owned elsewhere has nothing to
 open, and a file inside a ZIP opens in the Windows app for now.
 
 A picture opens on its own, fitted to the window; the zoom menu, **Ctrl+Plus**, **Ctrl+Minus** and **Ctrl** with the

@@ -198,7 +198,8 @@ public static class ReviewApi
 
     /// <summary>
     /// Files needing attention, as the Windows app's second tab lists them: failed and blocked stages, files that
-    /// couldn't be read, and files in ZIPs that aren't read. Opening a locked file to unlock it waits for the reader.
+    /// couldn't be read, and files in ZIPs that aren't read. A locked file opens in the reader to be unlocked, and one
+    /// with DRM is downloaded to open in another app.
     /// </summary>
     static async Task<ReviewFiles> FilesAsync(UserLibrary library, CancellationToken ct)
     {
@@ -207,8 +208,21 @@ public static class ReviewApi
             .Select(item => ReviewText.Row(item, stages))
             .Concat(library.Indexing.Unreadable.Select(u => ReviewText.Unreadable(Path.GetFileName(u.Path), u.Reason)))
             .Concat((await library.Get<LibraryStore>().GetProblemsAsync(ct)).Select(p => ReviewText.Problem(Path.GetFileName(p.FullPath), p.Problem, p.FullPath)));
-        var cards = ReviewText.Group(rows).Select(g => new AttentionCard(ReviewText.GroupHeading(g), g[0].Detail, g.Any(r => r.CanRetry),
-            g[0].IsBug ? ReviewText.BugDetails(Version, g) : null, [.. g.Select(r => new AttentionFile(r.DocumentId, r.Title, r.CanRetry))])).ToList();
+        var entries = library.Get<EntryStore>();
+        var cards = new List<AttentionCard>();
+        foreach (var g in ReviewText.Group(rows))
+        {
+            var files = new List<AttentionFile>(g.Count);
+            foreach (var r in g)
+            {
+                // Only a locked or protected file opens from here, so only those need their card found.
+                var card = r is { DocumentId: { } id } && (r.CanUnlock || r.CanOpenElsewhere) ? await entries.GetCardAsync(id, ct) : null;
+                files.Add(new AttentionFile(r.DocumentId, r.Title, r.CanRetry, r.CanUnlock && card is not null, r.CanOpenElsewhere && card is not null,
+                    card?.Value));
+            }
+            cards.Add(new AttentionCard(ReviewText.GroupHeading(g), g[0].Detail, g.Any(r => r.CanRetry),
+                g[0].IsBug ? ReviewText.BugDetails(Version, g) : null, files));
+        }
         return new ReviewFiles(cards, cards.Any(c => c.CanRetry));
     }
 

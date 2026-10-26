@@ -173,3 +173,15 @@ public static class ReaderPageNumbers
     public static string Display(int index, IReadOnlyList<string?> labels) =>
         index < labels.Count && labels[index] is { Length: > 0 } label ? label.Trim() : (index + 1).ToString(CultureInfo.CurrentCulture);
 }
+
+/// <summary>The password the reader chose to remember for a PDF, which the browser tries before asking; null when none is.</summary>
+public sealed record ReaderPassword(string? Password);
+
+/// <summary>
+/// A password that opened a PDF in the reader, with the dialog's ticks: Make its text searchable lets indexing read
+/// the book with it, and Remember it keeps it, sealed, for the next time the book opens.
+/// </summary>
+public sealed record ReaderPasswordUse(string Password, bool Remember, bool Searchable);
+
+/// <summary>A book with a remembered password, in Settings › Passwords: its content hash and title, never the password.</summary>
+public sealed record RememberedPassword(string ContentHash, string Title);
