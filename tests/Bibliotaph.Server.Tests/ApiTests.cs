@@ -2066,12 +2066,12 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
             JsonSerializer.Serialize(new SharedClassification("qwen3-8b", ClassifierPrompt.SchemaVersion, [0], finished.AddMinutes(-1),
                 [new SharedClaim("levels", "3", null, "characters of 3rd level", [0], false)]), JsonSerializerOptions.Web));
         var sent = await pc.WriteResultsAsync([reading], ct);
-        var applied = await WaitAsync(async () =>
-        {
-            await using var lease = await libraries.OpenAsync(user.Id, ct);
-            return await lease.Library.Get<ClassificationStore>().HasSharedRunAsync(hash, ClassifierPrompt.Version, ct) ? "applied" : null;
-        }, ct);
-        var details = (await web.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!;
+        // The run is recorded a moment before its suggestions are projected, so wait for what the user sees.
+        var levels = await WaitAsync(async () => (await web.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!
+            .Fields.SingleOrDefault(f => f.Key == "levels" && f.Suggested), ct);
+        bool recorded;
+        await using (var lease = await libraries.OpenAsync(user.Id, ct))
+            recorded = await lease.Library.Get<ClassificationStore>().HasSharedRunAsync(hash, ClassifierPrompt.Version, ct);
 
         // Sent again, or older, it isn't kept; the PC isn't given its own back; only a PC's key reaches the results.
         var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
@@ -2083,9 +2083,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var session = await web.GetAsync("/api/results", ct);
 
         Assert.True(sent);
-        Assert.Equal("applied", applied);
-        var levels = details.Fields.Single(f => f.Key == "levels");
-        Assert.True(levels.Suggested);
+        Assert.True(recorded);
         Assert.Contains("3", levels.Display, StringComparison.Ordinal);
         Assert.Equal(0, kept.Kept);
         Assert.Empty(page.Results);
