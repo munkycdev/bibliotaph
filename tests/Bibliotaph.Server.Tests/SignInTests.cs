@@ -27,6 +27,7 @@ public sealed class SignInTests
     [Theory]
     [InlineData("auth0", "google-oauth2|1234", "Google")]
     [InlineData("auth0", "windowslive|abc", "Microsoft")]
+    [InlineData("auth0", "oauth2|discord|5678", "Discord")]
     [InlineData("auth0", "apple|001", "Apple")]
     [InlineData("auth0", "auth0|65f0", "Email")]
     [InlineData("auth0", "github|9", "Github")]
