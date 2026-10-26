@@ -1,6 +1,7 @@
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host.Tests;
 using Bibliotaph.Catalog;
@@ -142,6 +143,11 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var home = await LibraryApi.HomeAsync(library, Ct);
         Assert.Equal(2, home.Added.Count);
         Assert.Empty(home.Opened);
+
+        // The search box's field guide lists the formats in the library, with how many books have each.
+        var formats = await SearchGuideValues.LoadAsync(library.Get<LibraryQueries>(), library.Get<LibraryStore>(), SearchFields.Find("format")!, Ct);
+        Assert.Equal(2, formats.Count);
+        Assert.All(formats, f => Assert.Equal(1, f.Count));
 
         // A book's details: its fields with their sources, what is known of its file, where it is, and its processing.
         var pdf = all.Books.Single(b => b.Format == "PDF");

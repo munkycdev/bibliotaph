@@ -2,6 +2,7 @@ using System.Globalization;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
+using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -209,15 +210,7 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
     {
         try
         {
-            var values = await Task.Run(async () =>
-            {
-                var filter = new LibraryFilter(await library.GetVisibleEntryIdsAsync());
-                if (field.Kind == SearchFieldKind.Format)
-                    return SearchGuide.FormatValues((await queries.GetFormatCountsAsync(filter)).Select(Value));
-                // A field with no vocabulary of its own, such as creatures found in chapters, lists what its facets hold.
-                var counts = await queries.GetFacetCountsAsync(field.Metadata?.Vocabulary ?? SearchPlan.FacetFields(field.Field)?[0] ?? field.Name, filter);
-                return (IReadOnlyList<GuideValue>)[.. counts.Select(Value)];
-            });
+            var values = await Task.Run(() => SearchGuideValues.LoadAsync(queries, library, field));
             _values[field.Field] = values;
             // Typing may have moved on while the values loaded.
             if (IsOpen && _at is { Mode: GuideMode.Values } at && at.Field == field) ShowValues(at, field, values);
@@ -226,7 +219,5 @@ public sealed partial class SearchGuideViewModel(LibraryQueries queries, Library
         {
             log.LogError(ex, "Loading the values of {Field} for the search guide failed", field.Name);
         }
-
-        static GuideValue Value(FacetCount count) => new(count.Value, count.Label, count.Count);
     }
 }

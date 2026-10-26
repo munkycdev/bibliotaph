@@ -168,6 +168,9 @@
 - **Box on the web.** Settings › Storage connects a Box account, read-only, once the server's Box app is set up. Its
   books open in the reader through the server, and changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
+- **The sidebar folds on the web, and the search guide is there.** The button beside Settings, or Ctrl+B, folds the
+  sidebar to its icons as in the Windows app. The search box's guide lists the fields to search by and, after a field's
+  colon, its values in your library with their counts; the Windows app and the web now list them from the same code.
 
 ## 1.3 · 19 October 2026
 
