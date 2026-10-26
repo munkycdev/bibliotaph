@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core.Sync;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Processing;
@@ -45,10 +47,14 @@ public enum WebConnectOutcome
 /// <summary>
 /// This PC's connection to the user's library at bibliotaph.online. Connecting works as a TV signs in: the app asks,
 /// opens the approval page in the browser, where the user is signed in, and asks again until the user answers. The
-/// PC then has a key of its own, kept in Credential Manager, which the web can disconnect at any time.
+/// PC then has a key of its own, kept in Credential Manager, which the web can disconnect at any time. While connected,
+/// it is also library sync's way to the web library: this PC's sync file goes up, and the web library's comes down.
 /// </summary>
-public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log)
+public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel
 {
+    /// <summary>The other devices' files as last fetched, by device, so an unchanged one isn't fetched again.</summary>
+    readonly ConcurrentDictionary<string, (long Version, SyncFileContent Content)> _peers = new(StringComparer.Ordinal);
+
     public static readonly Uri DefaultAddress = new("https://bibliotaph.online/");
 
     /// <summary>How often the app asks whether the user has answered.</summary>
@@ -154,6 +160,109 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         key.Forget();
     }
 
+    public bool IsOn => HasKey;
+
+    // The web library is asked every minute instead; it can't call the PC.
+    event EventHandler? ISyncChannel.Changed
+    {
+        add { }
+        remove { }
+    }
+
+    async Task<string> UnreachableAsync(CancellationToken ct) =>
+        $"{(await AddressAsync(ct)).Host} can't be reached just now. Bibliotaph tries again in a few minutes.";
+
+    const string DisconnectedProblem = "This PC was disconnected from your web library. Connect it again in Settings > Web library.";
+
+    /// <summary>The other devices' files the web library keeps, or why they can't be listed.</summary>
+    async Task<(IReadOnlyList<SyncFileInfo>? Files, string? Problem)> ListAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, "api/sync", null, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                key.Forget();
+                return (null, DisconnectedProblem);
+            }
+            if (response.IsSuccessStatusCode) return (await response.Content.ReadFromJsonAsync<List<SyncFileInfo>>(ct) ?? [], null);
+            log.LogWarning("Listing the web library's sync files got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library to sync");
+        }
+        return (null, await UnreachableAsync(ct));
+    }
+
+    public async Task<SyncChannelRead> ReadPeersAsync(CancellationToken ct)
+    {
+        var (files, problem) = await ListAsync(ct);
+        if (files is null) return new SyncChannelRead([], problem);
+        var peers = new List<SyncFileContent>();
+        foreach (var file in files)
+        {
+            if (_peers.TryGetValue(file.Device, out var known) && known.Version == file.Version)
+            {
+                peers.Add(known.Content);
+                continue;
+            }
+            try
+            {
+                using var response = await SendAsync(HttpMethod.Get, $"api/sync/{Uri.EscapeDataString(file.Device)}", null, withKey: true, ct);
+                // Written again or gone since it was listed: the next pass has it.
+                if (!response.IsSuccessStatusCode) continue;
+                await using var stream = await response.Content.ReadAsStreamAsync(ct);
+                var content = await SyncFile.ReadAsync(stream, ct);
+                _peers[file.Device] = (file.Version, content);
+                peers.Add(content);
+            }
+            catch (InvalidDataException ex)
+            {
+                problem ??= $"{file.Machine}'s sync file from the web library can't be read. {ex.Message}";
+            }
+            catch (Exception ex) when (Unreachable(ex, ct))
+            {
+                log.LogInformation(ex, "Fetching a sync file from the web library failed");
+                problem ??= await UnreachableAsync(ct);
+            }
+        }
+        foreach (var gone in _peers.Keys.Except(files.Select(f => f.Device)).ToList()) _peers.TryRemove(gone, out _);
+        return new SyncChannelRead(peers, problem);
+    }
+
+    public async Task<string?> WriteOwnAsync(Func<Stream, CancellationToken, Task> write, CancellationToken ct)
+    {
+        using var buffer = new MemoryStream();
+        await write(buffer, ct);
+        buffer.Position = 0;
+        try
+        {
+            using var content = new StreamContent(buffer);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            using var response = await SendAsync(HttpMethod.Put, "api/sync/mine", content, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                key.Forget();
+                return DisconnectedProblem;
+            }
+            if (response.IsSuccessStatusCode) return null;
+            log.LogWarning("Sending this PC's sync file to the web library got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Sending this PC's sync file to the web library failed");
+        }
+        return await UnreachableAsync(ct);
+    }
+
+    public async Task<bool> HasChangesAsync(CancellationToken ct)
+    {
+        var (files, _) = await ListAsync(ct);
+        return files is not null
+            && (files.Count != _peers.Count || files.Any(f => !_peers.TryGetValue(f.Device, out var known) || known.Version != f.Version));
+    }
+
     /// <summary>No answer, or none in time; the caller cancelling is not one of these.</summary>
     static bool Unreachable(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
@@ -163,7 +272,7 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         using var request = new HttpRequestMessage(method, new Uri(await AddressAsync(ct), path));
         request.Headers.Add(ApiHeaders.Client, "windows");
         if (withKey && key.Find() is { } secret) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
-        if (body is not null) request.Content = JsonContent.Create(body, body.GetType());
+        request.Content = body switch { null => null, HttpContent content => content, _ => JsonContent.Create(body, body.GetType()) };
         return await http.SendAsync(request, ct);
     }
 }

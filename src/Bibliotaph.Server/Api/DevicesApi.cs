@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
+using Bibliotaph.Server.Libraries;
 using Microsoft.Extensions.Options;
 
 namespace Bibliotaph.Server.Api;
@@ -37,9 +38,10 @@ public static class DevicesApi
                 : Results.Unauthorized()).RequireAuthorization(AuthSetup.DevicePolicy);
 
         // Disconnecting in the app removes the PC here too, so it doesn't linger in the web's list.
-        devices.MapDelete("/me", async (ClaimsPrincipal principal, DeviceService service, CancellationToken ct) =>
+        devices.MapDelete("/me", async (ClaimsPrincipal principal, DeviceService service, UserLibraries libraries, CancellationToken ct) =>
         {
             await service.RemoveAsync(principal.UserId()!, principal.DeviceId()!, ct);
+            await ForgetSyncFileAsync(libraries, principal.UserId()!, principal.DeviceId()!, ct);
             return Results.NoContent();
         }).RequireAuthorization(AuthSetup.DevicePolicy);
 
@@ -57,9 +59,17 @@ public static class DevicesApi
             (await service.ListAsync(principal.UserId()!, ct)).Select(d =>
                 new ConnectedDevice(d.Id, d.Name, Utc(d.Created), d.LastUsed is { } used ? Utc(used) : null)));
 
-        signedIn.MapDelete("/{id}", async (string id, ClaimsPrincipal principal, DeviceService service, CancellationToken ct) =>
-            await service.RemoveAsync(principal.UserId()!, id, ct) ? Results.NoContent() : Results.NotFound());
+        signedIn.MapDelete("/{id}", async (string id, ClaimsPrincipal principal, DeviceService service, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!await service.RemoveAsync(principal.UserId()!, id, ct)) return Results.NotFound();
+            await ForgetSyncFileAsync(libraries, principal.UserId()!, id, ct);
+            return Results.NoContent();
+        });
     }
+
+    /// <summary>A disconnected PC's sync file goes: what it shared is in the web library by now, and kept there.</summary>
+    static async Task ForgetSyncFileAsync(UserLibraries libraries, string userId, string deviceId, CancellationToken ct) =>
+        await (await libraries.SyncFilesAsync(userId, ct)).DeleteAsync(deviceId, ct);
 
     static IResult Gone() =>
         Results.Problem("That request has expired or was already answered. Ask again from the PC.", statusCode: StatusCodes.Status404NotFound);

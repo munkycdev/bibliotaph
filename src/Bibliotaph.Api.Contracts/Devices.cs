@@ -32,3 +32,9 @@ public sealed record ConnectedDevice(string Id, string Name, DateTimeOffset Conn
 
 /// <summary>What a connected PC learns about itself: whose library it's connected to.</summary>
 public sealed record DeviceIdentity(string DeviceId, string Name, string UserName);
+
+/// <summary>
+/// A device's sync file kept by the web library, as a connected PC lists them: <see cref="Device"/> is its key, and
+/// <see cref="Version"/> changes each time the file is written, so an unchanged file isn't fetched again.
+/// </summary>
+public sealed record SyncFileInfo(string Device, string Machine, long Version);

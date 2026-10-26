@@ -321,7 +321,7 @@ public partial class App : Application
             sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
         builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<LibrarySync>>()));
+            sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()]));
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
         builder.Services.AddSingleton<ForgetText>();
 

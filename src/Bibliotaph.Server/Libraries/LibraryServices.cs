@@ -32,7 +32,7 @@ public static class LibraryServices
     /// </summary>
     const long FetchedBytes = 1L * 1024 * 1024 * 1024;
 
-    public static ServiceProvider Build(string userId, AppPaths paths, string backups, LibraryHost host)
+    public static ServiceProvider Build(string userId, AppPaths paths, string backups, LibraryHost host, SyncFiles syncFiles)
     {
         var services = new ServiceCollection();
         services.AddSingleton(host.Logs);
@@ -118,6 +118,15 @@ public static class LibraryServices
         services.AddSingleton<MetadataProjector>();
         services.AddSingleton<MetadataHints>();
         services.AddSingleton<FolderRules>();
+
+        // Library sync, with the web library as one more device: its PCs' files are in sync.db, not a folder.
+        services.AddSingleton(syncFiles);
+        services.AddSingleton<ServerSyncChannel>();
+        services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
+        services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
+            sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySync>>(),
+            SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()]));
 
         // What the details change: the Windows inspector's services.
         services.AddSingleton(sp => new ChapterScanStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));

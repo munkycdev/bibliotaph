@@ -92,6 +92,7 @@ public sealed class LibraryLease : IAsyncDisposable
 public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, LibraryHost host) : IAsyncDisposable
 {
     readonly ConcurrentDictionary<string, Slot> _slots = new();
+    readonly ConcurrentDictionary<string, Lazy<Task<SyncFiles>>> _syncFiles = new();
     readonly ILogger _log = host.Logs.CreateLogger<UserLibraries>();
     readonly TimeProvider clock = host.Clock;
 
@@ -211,7 +212,9 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         try
         {
             var library = await slot.Opening.Value;
-            // Indexing first, so it can still record the job it was on; then the writer, as the Windows app stops them.
+            // Sync first, so the web library's own file has everything done here; then indexing, so it can still
+            // record the job it was on; then the writer, as the Windows app stops them.
+            await library.Get<LibrarySync>().StopAsync(CancellationToken.None);
             await library.Get<LibraryVectors>().StopAsync(CancellationToken.None);
             await library.Indexing.StopAsync(CancellationToken.None);
             await library.Writer.StopAsync(CancellationToken.None);
@@ -245,7 +248,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         await restore.RestoreAsync($"users/{userId}/catalog.db", appPaths.CatalogDatabase, CancellationToken.None);
         await restore.RestoreAsync($"users/{userId}/index.db", appPaths.IndexDatabase, CancellationToken.None);
 
-        var services = LibraryServices.Build(userId, appPaths, paths.UserBackups(userId), host);
+        var services = LibraryServices.Build(userId, appPaths, paths.UserBackups(userId), host, await SyncFilesAsync(userId));
         try
         {
             var library = new UserLibrary(userId, appPaths, services);
@@ -269,6 +272,8 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.
             await library.Indexing.StartAsync(CancellationToken.None);
             await library.Get<LibraryVectors>().StartAsync(CancellationToken.None);
+            await library.Get<ServerSyncChannel>().LoadAsync();
+            await library.Get<LibrarySync>().StartAsync(CancellationToken.None);
             return library;
         }
         catch
@@ -306,10 +311,41 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             }
             if (TryBeginClose(slot, _ => true, out var done)) await CloseAsync(userId, slot, done);
         }
+        _syncFiles.TryRemove(userId, out _);
 #pragma warning disable RS0030 // The server's own copies of a closed account's library; books are never local files here.
         foreach (var folder in new[] { paths.UserRoot(userId), paths.UserBackups(userId) })
             if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
 #pragma warning restore RS0030
+    }
+
+    /// <summary>
+    /// The sync files of a user's devices and web library, restored from the replica on first use. Apart from the
+    /// library, so a PC asking every minute whether anything changed doesn't keep the library open.
+    /// </summary>
+    public async Task<SyncFiles> SyncFilesAsync(string userId, CancellationToken ct = default)
+    {
+        UserIds.Require(userId);
+        var opening = _syncFiles.GetOrAdd(userId, id => new Lazy<Task<SyncFiles>>(() => OpenSyncFilesAsync(id)));
+        try
+        {
+            return await opening.Value.WaitAsync(ct);
+        }
+        catch when (opening.Value.IsFaulted)
+        {
+            _syncFiles.TryRemove(new KeyValuePair<string, Lazy<Task<SyncFiles>>>(userId, opening));
+            throw;
+        }
+    }
+
+    async Task<SyncFiles> OpenSyncFilesAsync(string userId)
+    {
+        var root = paths.UserRoot(userId);
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "sync.db");
+        await restore.RestoreAsync($"users/{userId}/sync.db", path, CancellationToken.None);
+        var files = new SyncFiles(path);
+        await files.InitializeAsync();
+        return files;
     }
 
     /// <summary>The books fetched from drives to be read: none outlives the library being open.</summary>

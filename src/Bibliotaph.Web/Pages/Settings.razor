@@ -147,7 +147,8 @@ else if (Problem == "storage")
     <section class="bt-section" id="devices" aria-labelledby="devices-heading">
         <h2 id="devices-heading">Windows PCs</h2>
         <p class="bt-copy">The Windows app can use this library too: in its Settings, choose Connect under Web library, then approve
-            the PC in your browser.</p>
+            the PC in your browser. Your corrections, hearts, notes, collections, binders, saved searches and pins are then merged
+            both ways, as between two PCs.</p>
         @foreach (var device in _devices)
         {
             <div class="bt-source bt-sourcerow">
@@ -160,7 +161,7 @@ else if (Problem == "storage")
         {
             <p class="bt-sample">No PCs connected yet.</p>
         }
-        <p class="bt-sample">Disconnecting a PC stops it reaching this library. The PC keeps its own books and work.</p>
+        <p class="bt-sample">Disconnecting a PC stops it reaching this library. What it shared stays here, and the PC keeps its own books and work.</p>
     </section>
 
     @if (_picking)
