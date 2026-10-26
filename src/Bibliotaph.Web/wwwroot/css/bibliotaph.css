@@ -46,7 +46,10 @@ small{display:block;color:var(--bt-muted);font-size:11px;font-weight:400}
 .folded .bt-navlabel,.folded .bt-nav .bt-count,.folded .bt-sidegroup>.bt-eyebrow,.folded .bt-nav-hint,.folded .bt-sync>span:last-child{display:none}
 .folded .bt-nav{justify-content:center;padding-left:0;padding-right:0}
 .folded .bt-sync{justify-content:center}
-.bt-unfold{align-self:center;margin-bottom:26px}
+.folded .bt-brandname{display:none}
+.folded .bt-brand{justify-content:center;padding-left:0;padding-right:0}
+.folded .bt-settingsrow{flex-direction:column;align-items:stretch}
+.folded .bt-fold{align-self:center}
 .bt-status-dot{width:6px;height:6px;background:#76916b;border-radius:50%}
 .bt-sample{font-size:10px;letter-spacing:.6px;color:var(--bt-muted);padding:16px 8px 0}
 .bt-workarea{min-width:0}
@@ -214,9 +217,11 @@ mark{background:var(--bt-soft);color:var(--bt-text);padding:1px 2px}
 .bt-packhero h2{font-size:26px}}
 @media(max-width:620px){.bt-shell{grid-template-columns:1fr;min-height:0}
 .bt-shell.folded{grid-template-columns:1fr}
-.bt-fold,.bt-unfold{display:none}
+.bt-fold{display:none}
 .folded .bt-navlabel{display:inline}
-.folded .bt-brand{display:flex}
+.folded .bt-brandname{display:inline}
+.folded .bt-brand{justify-content:flex-start}
+.folded .bt-settingsrow{flex-direction:row}
 .bt-sidebar{padding:15px 16px 9px;border-right:0;border-bottom:1px solid var(--bt-line)}
 .bt-brand{font-size:26px;padding:0 3px 14px}
 .bt-workspace,.bt-sidegroup{display:none}

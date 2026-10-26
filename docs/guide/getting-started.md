@@ -90,7 +90,8 @@ The sidebar on the left has the main pages:
 | **Settings** | At the bottom: processing, folders, online libraries, appearance, Needs review, vocabulary, AI, passwords and backups. |
 
 The **Collapse the sidebar** button beside Settings, or **Ctrl+B**, folds the sidebar down to its icons for more room;
-point at an icon for its name. The same button, now at the top (**Expand the sidebar**), opens it again. Bibliotaph
+point at an icon for its name. The monogram stays at the top, and the same button, now under Settings (**Expand the
+sidebar**), opens it again. Bibliotaph
 remembers which way you left it.
 
 The search box at the top is always there. **Ctrl+K** jumps to it from anywhere.

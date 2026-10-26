@@ -31,15 +31,8 @@ else
 {
     <div class="bt-shell @(_folded ? "folded" : "")">
         <aside class="bt-sidebar">
-            @* Folded, the unfold button takes the brand's place, as in the Windows app. *@
-            @if (_folded)
-            {
-                <button class="bt-icon bt-unfold" title="@FoldLabel" aria-label="@FoldLabel" @onclick="ToggleSidebarAsync"><Icon Name="PanelLeft" /></button>
-            }
-            else
-            {
-                <a class="bt-brand" href="" aria-label="Bibliotaph home"><span class="bt-monogram">b.</span><span>Bibliotaph</span></a>
-            }
+            @* Folded, the monogram alone, as in the Windows app. *@
+            <a class="bt-brand" href="" aria-label="Bibliotaph home"><span class="bt-monogram">b.</span><span class="bt-brandname">Bibliotaph</span></a>
             <nav class="bt-navigation" aria-label="Main navigation">
                 @foreach (var item in Items)
                 {
@@ -95,12 +88,10 @@ else
                 </div>
             </div>
             <div class="bt-sidebottom">
+                @* The fold button stays at the foot: beside Settings when open, under it when folded. *@
                 <div class="bt-settingsrow">
                     <NavLink class="bt-nav" href="settings" title="@(_folded ? "Settings" : null)"><Icon Name="Settings2" /><span class="bt-navlabel">Settings</span></NavLink>
-                    @if (!_folded)
-                    {
-                        <button class="bt-icon bt-fold" title="@FoldLabel" aria-label="@FoldLabel" @onclick="ToggleSidebarAsync"><Icon Name="PanelLeft" /></button>
-                    }
+                    <button class="bt-icon bt-fold" title="@FoldLabel" aria-label="@FoldLabel" @onclick="ToggleSidebarAsync"><Icon Name="PanelLeft" /></button>
                 </div>
                 @* As in the Windows app: one or two lines of what the library is doing, the whole text on hover. *@
                 <div class="bt-sync" role="status" title="@Activity.Current?.Text"><span class="bt-status-dot @(Activity.Current?.Busy == true ? "busy" : "")"></span><span>@(Activity.Current?.Text ?? "Opening your library")</span></div>
