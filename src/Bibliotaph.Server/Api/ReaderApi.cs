@@ -74,8 +74,9 @@ public static partial class ReaderApi
             return Unreadable(entry, favorite, new ReaderProblem("Nothing to open here.", "This book is owned elsewhere, so Bibliotaph has no file of it to show."));
 
         // A pack opens at the file asked for, or its first; any other card at the file asked for, or its own.
+        var pack = entry.IsPack ? await queries.GetPackImagesAsync(entryId, ct) : [];
         var documentId = asked is { } id && id > 0 ? id
-            : entry.IsPack ? (await queries.GetPackImagesAsync(entryId, ct)).Select(i => i.DocumentId).FirstOrDefault()
+            : entry.IsPack ? pack.Select(i => i.DocumentId).FirstOrDefault()
             : entry.DocumentId;
         if (documentId == 0 || await library.Get<LibraryStore>().GetSourceAsync(documentId, ct) is not { } source) return null;
 
@@ -87,9 +88,11 @@ public static partial class ReaderApi
         var part = entry is { IsPart: true, Pages: { } pages } && entry.DocumentId == documentId ? new ReaderPart(pages.First, pages.Last) : null;
         var title = part is not null ? $"{entry.Title} · in {entry.ParentTitle ?? "its file"}" : entry.Title;
         var format = source.Format;
-        var kind = format == SourceFormats.Pdf
-            ? $"PDF · {pageCount.ToString("N0", CultureInfo.CurrentCulture)} {(pageCount == 1 ? "page" : "pages")}"
-            : format.ToUpperInvariant();
+        var readerKind = SourceFormats.IsImage(format) ? ReaderKinds.Image : SourceFormats.IsEbook(format) ? ReaderKinds.Ebook : ReaderKinds.Pdf;
+        // As the Windows reader's line: "PDF · 320 pages", "EPUB · 87 pages", "JPG image", and the pack it's in.
+        var kind = readerKind == ReaderKinds.Image
+            ? $"{CardText.FormatName(format)} image"
+            : $"{CardText.FormatName(format)} · {pageCount.ToString("N0", CultureInfo.CurrentCulture)} {(pageCount == 1 ? "page" : "pages")}";
         if (entry.IsPack) kind = $"{kind} in {entry.PackTitle ?? entry.Title}";
         var subtitle = string.Join(" · ", new[] { kind, source.FolderHint }.Where(s => !string.IsNullOrEmpty(s)));
 
@@ -103,12 +106,16 @@ public static partial class ReaderApi
 
         var problem = source.InArchive
             ? new ReaderProblem("This file is inside a ZIP.", "Bibliotaph on the web can't open a file inside a ZIP yet. The Windows app can.")
+            : readerKind == ReaderKinds.Ebook
+            ? new ReaderProblem("E-books don't open on the web yet.", "Bibliotaph on the web opens PDFs and pictures for now. The Windows app can open this one.")
             : null;
         return new ReaderBook(entryId.Value, documentId, title, subtitle, format, source.ContentHash, size, labels, pageCount, start, part, marks,
             favorite, problem, notice)
         {
             Outline = await OutlineAsync(library, documentId, pageCount, labels, part, ct),
             KeepsPlace = ordinary || keep,
+            Kind = readerKind,
+            Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsImage(p.Format)))],
         };
     }
 
