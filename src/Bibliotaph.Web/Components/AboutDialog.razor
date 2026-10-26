@@ -1,0 +1,52 @@
+@* .bt-dialog: the Windows app's About popup: the version, the GPL's notice, and links to the licence, third-party
+   notices, source code, problem reports and the privacy policy. The GPL asks for these notices in the UI. *@
+@using System.Reflection
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Closed"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-labelledby="about-heading" @onkeydown="KeyDownAsync">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <h2 class="bt-dialogtitle" id="about-heading">Bibliotaph</h2>
+            <div class="bt-small bt-dialogintro">Version @Version on the web<br />Copyright © 2026 munkycdev</div>
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Closed" @ref="_close"><Icon Name="X" /></button>
+    </div>
+    <p class="bt-copy">Bibliotaph is free software: you can share and change it under the GNU General Public License, version 3 or
+        any later version. It comes with no warranty.</p>
+    <div class="bt-actions">
+        <a class="bt-button" href="@($"{SourceUrl}/blob/main/LICENSE")" target="_blank" rel="noopener">Licence</a>
+        <a class="bt-button" href="@($"{SourceUrl}/blob/main/THIRD-PARTY-NOTICES.md")" target="_blank" rel="noopener">Third-party notices</a>
+        <a class="bt-button" href="@SourceUrl" target="_blank" rel="noopener">Source code</a>
+        <a class="bt-button" href="@($"{SourceUrl}/issues")" target="_blank" rel="noopener">Report a problem</a>
+        <a class="bt-button" href="privacy" target="_blank">Privacy policy</a>
+    </div>
+</div>
+
+@code {
+    const string SourceUrl = "https://github.com/munkycdev/bibliotaph";
+
+    ElementReference _close;
+
+    [Parameter, EditorRequired] public EventCallback Closed { get; set; }
+
+    /// <summary>"1.3.0 (4578ab9)": the build's version, and its commit when it was built from git.</summary>
+    static string Version { get; } = VersionOf(typeof(AboutDialog).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0");
+
+    static string VersionOf(string informational)
+    {
+        var plus = informational.IndexOf('+', StringComparison.Ordinal);
+        if (plus < 0) return informational;
+        var commit = informational[(plus + 1)..];
+        return commit.Length == 0 ? informational[..plus] : $"{informational[..plus]} ({commit[..Math.Min(7, commit.Length)]})";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _close.FocusAsync();
+    }
+
+    async Task KeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Closed.InvokeAsync();
+    }
+}

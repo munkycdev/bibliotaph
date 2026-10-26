@@ -17,6 +17,15 @@ account ID, and never sees your password.
 
 Without an invitation, signing in with an account Bibliotaph doesn't know shows **Bibliotaph is invite-only for now.**
 
+## Settings
+
+**Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
+sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **AI**, **Appearance**, **Needs review**,
+**Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
+invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
+**About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
+the privacy policy.
+
 ## Signing in and out
 
 Sign in at [bibliotaph.online](https://bibliotaph.online) with **Continue** and the same account each time. You stay
@@ -283,8 +292,9 @@ you type, and **Add to a new binder…**, which makes one first. While searching
 clarification.*, has the same two tabs.
 
 **Metadata suggestions** lists new terms first, then a card for each field of each book that needs a second look:
-sources that disagree, a title that looks like a file's name, or, with **All suggestions** chosen in the Windows app's
-settings, every value nobody has confirmed. A card shows what the book has now, the suggestion and where it came
+sources that disagree, a title that looks like a file's name, or, with **All suggestions** chosen in **Settings** ›
+**Needs review**, every value nobody has confirmed. **When unsure**, the default, keeps to the first two; changing it
+counts every book's cards again, and the sidebar's count follows. A card shows what the book has now, the suggestion and where it came
 from, with:
 
 - **Accept**, which makes the suggestion the book's value, and **Accept all**, which accepts every card that suggests
@@ -499,8 +509,9 @@ away, and the PC keeps its own books and work. What it already shared stays in y
 
 ## Your theme
 
-The button at the top right cycles between your device's theme, light and dark, as in the Windows app. The browser
-remembers your choice.
+**Settings** › **Appearance** chooses **Use system**, which follows your device, **Light** or **Dark**, as in the Windows
+app. The button at the top right cycles through the same three. The browser remembers your choice, so another browser
+or computer keeps its own.
 
 ## Privacy
 

@@ -1,0 +1,103 @@
+@* Settings › Account: who is signed in, with which sign-ins, linking another, signing out and closing the account. *@
+@inject ApiClient Api
+@inject Session Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<section class="bt-section" aria-labelledby="account-heading">
+    <h2 id="account-heading">Account</h2>
+    <p class="bt-copy">How you sign in to Bibliotaph. It's separate from your storage: the account you sign in with doesn't have
+        to be the one that holds your books.</p>
+    @if (Problem == "taken")
+    {
+        <div class="bt-message" role="status">That sign-in already belongs to another Bibliotaph account, so it wasn't linked to this one.</div>
+    }
+    <div class="bt-settingrow">
+        <div>@Me.Name<small>@(Me.Email ?? "No email address from your sign-in")</small></div>
+        <button class="bt-button" @onclick="SignOut"><Icon Name="ArrowUpRight" />Sign out</button>
+    </div>
+    <table class="bt-table">
+        <thead><tr><th>SIGN-IN</th><th>ACCOUNT</th><th>ADDED</th></tr></thead>
+        <tbody>
+            @foreach (var signIn in Me.SignIns)
+            {
+                <tr><td>@signIn.Provider</td><td>@(signIn.Email ?? "")</td><td>@signIn.Added.ToString("d MMM yyyy")</td></tr>
+            }
+        </tbody>
+    </table>
+    @if (_providers.FirstOrDefault(p => p.Id != "developer") is { } provider)
+    {
+        <div class="bt-actions">
+            <ServerLink Href="@($"auth/signin/{provider.Id}?returnUrl=%2Fsettings%23account")" Title="Sign in another way, such as with Google or Microsoft, to use either for this account">
+                <Icon Name="Plus" />Link another sign-in
+            </ServerLink>
+        </div>
+    }
+    @if (_closing)
+    {
+        <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="close-heading" aria-describedby="close-detail">
+            <div class="bt-sourcerow">
+                <Icon Name="Trash2" />
+                <div id="close-heading">Close your account?<small id="close-detail">Bibliotaph deletes your account, your library
+                    (its catalog, index and covers), everything you've done in it, such as notes, collections, binders and
+                    corrections, your storage connections and the books kept in this browser, straight away, and from backups
+                    within 30 days. Nothing in your storage is touched. This can't be undone.</small></div>
+            </div>
+            @if (_closeProblem is not null)
+            {
+                <div class="bt-message" role="alert">@_closeProblem</div>
+            }
+            <div class="bt-actions">
+                <button class="bt-button primary" disabled="@_closingNow" @onclick="CloseAccount"><Icon Name="Trash2" />Close account</button>
+                <button class="bt-button" disabled="@_closingNow" @onclick="() => _closing = false">Cancel</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="bt-actions">
+            <button class="bt-button" @onclick="() => { _closing = true; _closeProblem = null; }"><Icon Name="Trash2" />Close account…</button>
+        </div>
+    }
+</section>
+
+@code {
+    IReadOnlyList<SignInProvider> _providers = [];
+    bool _closing, _closingNow;
+    string? _closeProblem;
+
+    [Parameter, EditorRequired] public CurrentUser Me { get; set; } = null!;
+
+    /// <summary>"taken" when a sign-in being linked already belongs to another account.</summary>
+    [Parameter] public string? Problem { get; set; }
+
+    protected override async Task OnInitializedAsync() => _providers = await Api.ProvidersAsync();
+
+    async Task CloseAccount()
+    {
+        _closingNow = true;
+        string next;
+        try
+        {
+            next = await Session.CloseAccountAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _closeProblem = "Your account couldn't be closed just now. Try again in a moment.";
+            _closingNow = false;
+            return;
+        }
+        try
+        {
+            await using var cache = await JS.InvokeAsync<IJSObjectReference>("import", "./js/bookcache.js");
+            await cache.InvokeVoidAsync("forgetAll");
+        }
+        catch (JSException)
+        {
+            // This browser kept no books.
+        }
+        Navigation.NavigateTo(next, forceLoad: true);
+    }
+
+    async Task SignOut() => Navigation.NavigateTo(await Session.SignOutAsync(), forceLoad: true);
+}

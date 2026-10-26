@@ -1,0 +1,38 @@
+@* Settings › Appearance, as the Windows app's: light, dark, or this device's choice. It's kept in this browser, as the
+   Windows app keeps it on each PC, and the top bar's button changes the same setting. *@
+@implements IDisposable
+@inject Theme Theme
+
+<section class="bt-section" aria-labelledby="appearance-heading">
+    <h2 id="appearance-heading">Appearance</h2>
+    <p class="bt-copy">A quiet place to read.</p>
+    <div class="bt-settingrow">
+        <div>Light or dark<small>Use system follows this device. It's kept in this browser.</small></div>
+        <div class="bt-segments" role="group" aria-label="Light or dark">
+            @foreach (var (mode, label) in Choices)
+            {
+                <button class="@(_mode == mode ? "on" : "")" aria-pressed="@(_mode == mode)" @onclick="() => Theme.SetAsync(mode)">@label</button>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    static readonly (string Mode, string Label)[] Choices = [("system", "Use system"), ("light", "Light"), ("dark", "Dark")];
+
+    string _mode = "system";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Theme.Changed += OnChanged;
+        _mode = await Theme.CurrentAsync();
+    }
+
+    void OnChanged(string mode)
+    {
+        _mode = mode;
+        StateHasChanged();
+    }
+
+    public void Dispose() => Theme.Changed -= OnChanged;
+}

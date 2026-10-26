@@ -940,3 +940,20 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-aitestdropped{margin-top:16px}
 .bt-aitestactions{justify-content:space-between;margin-top:20px}
 .bt-devicecode{font-family:ui-monospace,Consolas,monospace;letter-spacing:1px;color:var(--bt-text)}
+
+/* Settings, as the Windows app's: the section list stays beside the chosen section, which is at most 640 wide. */
+.bt-settings{display:grid;grid-template-columns:170px minmax(0,640px);gap:32px;align-items:start}
+.bt-settingslist{position:sticky;top:16px;display:flex;flex-direction:column}
+.bt-settingsentry{display:block;width:100%;padding:9px 10px;margin:1px 0;border-radius:6px;font-size:12px;text-align:left;color:var(--bt-muted);text-decoration:none;cursor:pointer}
+.bt-settingsentry:hover,.bt-settingsentry.active{background:var(--bt-soft);color:var(--bt-text)}
+.bt-settingsrule{border-top:1px solid var(--bt-line);margin:12px 10px}
+.bt-settingsbody>.bt-section:first-child{margin-top:0}
+.bt-settingsbody .bt-section>h2{font-size:30px}
+.bt-settingsbody .bt-copy{margin-top:12px;margin-bottom:8px}
+.bt-note{font-size:11px;line-height:1.6;color:var(--bt-muted);margin-top:10px}
+.bt-linkbox>span{flex:1;min-width:0}
+@media(max-width:850px){.bt-settings{grid-template-columns:140px minmax(0,1fr);gap:22px}}
+@media(max-width:620px){.bt-settings{grid-template-columns:1fr;gap:18px}
+.bt-settingslist{position:static;flex-direction:row;flex-wrap:wrap;gap:3px}
+.bt-settingsentry{width:auto;padding:7px 9px;font-size:11px}
+.bt-settingsrule{display:none}}

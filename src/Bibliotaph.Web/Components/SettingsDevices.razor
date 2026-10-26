@@ -1,0 +1,35 @@
+@* Settings › Windows PCs, the web's side of the Windows app's Web library: the PCs connected to this library, and
+   disconnecting one. *@
+@inject ApiClient Api
+
+<section class="bt-section" aria-labelledby="devices-heading">
+    <h2 id="devices-heading">Windows PCs</h2>
+    <p class="bt-copy">The Windows app can use this library too: in its Settings, choose Connect under Web library, then approve
+        the PC in your browser. Your corrections, hearts, notes, collections, binders, saved searches and pins are then merged
+        both ways, as between two PCs.</p>
+    @foreach (var device in _devices ?? [])
+    {
+        <div class="bt-source bt-sourcerow">
+            <Icon Name="Monitor" />
+            <div>@device.Name<small>Connected @device.Connected.ToString("d MMMM yyyy")@(device.LastUsed is { } used ? $" · last used {used:d MMMM yyyy}" : "")</small></div>
+            <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {device.Name}")" @onclick="() => Disconnect(device)"><Icon Name="X" /></button>
+        </div>
+    }
+    @if (_devices is { Count: 0 })
+    {
+        <p class="bt-note">No PCs connected yet.</p>
+    }
+    <p class="bt-note">Disconnecting a PC stops it reaching this library. What it shared stays here, and the PC keeps its own books and work.</p>
+</section>
+
+@code {
+    IReadOnlyList<ConnectedDevice>? _devices;
+
+    protected override async Task OnInitializedAsync() => _devices = await Api.DevicesAsync();
+
+    async Task Disconnect(ConnectedDevice device)
+    {
+        await Api.DisconnectDeviceAsync(device.Id);
+        _devices = await Api.DevicesAsync();
+    }
+}

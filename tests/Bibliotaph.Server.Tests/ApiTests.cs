@@ -1067,6 +1067,22 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Needs_review_takes_every_suggestion_once_settings_says_so_and_only_the_unsure_ones_by_default()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Client(await AddUserAsync(admin: false));
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        var before = await client.GetFromJsonAsync<ReviewMode>("/api/review/mode", ct);
+        using var set = await client.PutAsJsonAsync("/api/review/mode", new ReviewMode(true), ct);
+        var after = await client.GetFromJsonAsync<ReviewMode>("/api/review/mode", ct);
+
+        Assert.False(before!.All);
+        Assert.True((await set.Content.ReadFromJsonAsync<ReviewMode>(ct))!.All);
+        Assert.True(after!.All);
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;

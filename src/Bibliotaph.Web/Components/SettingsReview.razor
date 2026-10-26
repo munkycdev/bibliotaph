@@ -1,0 +1,52 @@
+@* Settings › Needs review, as the Windows app's: whether only what Bibliotaph is unsure of waits for a second look, or
+   every suggestion. Changing it counts every book's cards again, which the sidebar's count then shows. *@
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="review-heading">
+    <h2 id="review-heading">Needs review</h2>
+    <p class="bt-copy">Suggestions are used either way; this is what waits for a second look.</p>
+    <div class="bt-settingrow">
+        <div>What waits for review<small>When unsure: only what sources disagree about, and missing titles.</small>
+            @if (_note is not null)
+            {
+                <small role="status">@_note</small>
+            }
+        </div>
+        @if (_all is { } all)
+        {
+            <div class="bt-segments" role="group" aria-label="What waits for review">
+                <button class="@(all ? "" : "on")" aria-pressed="@(!all)" disabled="@_counting" @onclick="() => SetAsync(false)">When unsure</button>
+                <button class="@(all ? "on" : "")" aria-pressed="@all" disabled="@_counting" @onclick="() => SetAsync(true)">All suggestions</button>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    bool? _all;
+    bool _counting;
+    string? _note;
+
+    protected override async Task OnInitializedAsync() => _all = (await Api.ReviewModeAsync()).All;
+
+    async Task SetAsync(bool all)
+    {
+        if (_all == all) return;
+        _all = all;
+        _counting = true;
+        _note = "Counting what needs review…";
+        try
+        {
+            _all = (await Api.SetReviewModeAsync(all)).All;
+            _note = null;
+            Activity.Refresh();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _all = !all;
+            _note = "That couldn't be changed just now. Try again in a moment.";
+        }
+        _counting = false;
+    }
+}

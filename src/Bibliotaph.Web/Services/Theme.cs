@@ -22,19 +22,24 @@ public sealed class Theme(IJSRuntime js)
         }
     }
 
+    /// <summary>Raised with the new mode, so the top bar's button and Settings › Appearance agree.</summary>
+    public event Action<string>? Changed;
+
     /// <summary>Moves to the next mode and returns it.</summary>
-    public async Task<string> CycleAsync()
+    public async Task<string> CycleAsync() => await SetAsync(Modes[(Array.IndexOf(Modes, await CurrentAsync()) + 1) % Modes.Length]);
+
+    public async Task<string> SetAsync(string mode)
     {
-        var next = Modes[(Array.IndexOf(Modes, await CurrentAsync()) + 1) % Modes.Length];
         try
         {
-            await js.InvokeVoidAsync("bibliotaphTheme.set", next);
+            await js.InvokeVoidAsync("bibliotaphTheme.set", mode);
         }
         catch (JSException)
         {
             // theme.js didn't load; the page keeps the device's colours.
         }
-        return next;
+        Changed?.Invoke(mode);
+        return mode;
     }
 
     public static string Label(string mode) => mode switch
