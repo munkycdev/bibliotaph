@@ -1,0 +1,156 @@
+@* A book's right-click menu, as the Windows app's: open it, its details, favorite, pin, Cataloged wrong…, add it to a
+   collection or a binder, and take a book owned elsewhere out of the library. Add to collection and Add to binder open
+   their lists in the same menu, read as they open. *@
+@inject ApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject Pins Pins
+@inject CollectionActions Collections
+@inject BinderActions Binders
+
+<div class="bt-backdrop fixed bt-menuback" @onclick="Closed" @oncontextmenu="Closed" @oncontextmenu:preventDefault="true"></div>
+<div class="bt-menu bt-cardmenu" role="menu" aria-label="@Book.Title" @onkeydown="OnKey">
+    @if (_collections is { } collections)
+    {
+        <button class="bt-menuitem bt-menuback-item" role="menuitem" @onclick="() => _collections = null"><Icon Name="ChevronLeft" Size="14" />Add to collection</button>
+        @foreach (var item in collections)
+        {
+            <button class="bt-menuitem" role="menuitem" title="@item.Path" @onclick="() => AddToCollectionAsync(item)">@item.Label</button>
+        }
+    }
+    else if (_binders is { } binders)
+    {
+        <button class="bt-menuitem bt-menuback-item" role="menuitem" @onclick="() => _binders = null"><Icon Name="ChevronLeft" Size="14" />Add to binder</button>
+        @foreach (var choice in binders.Choices)
+        {
+            <button class="bt-menuitem" role="menuitem" @onclick="() => AddToBinderAsync(binders, choice)">@choice.Label</button>
+        }
+    }
+    else
+    {
+        @if (!Book.Elsewhere)
+        {
+            <button class="bt-menuitem" role="menuitem" @onclick="Open">Open</button>
+            <button class="bt-menuitem" role="menuitem" @onclick="OpenInNewWindowAsync">Open in new window<span class="bt-gesture">Shift+Enter</span></button>
+        }
+        <button class="bt-menuitem" role="menuitem" @onclick="() => Run(Details)">Details<span class="bt-gesture">Enter</span></button>
+        <button class="bt-menuitem" role="menuitem" @onclick="FavoriteAsync">@(Book.Favorite ? "Remove from favorites" : "Add to favorites")</button>
+        <button class="bt-menuitem" role="menuitem" title="Pinned books show in the sidebar and on Home" @onclick="PinAsync">@(Pins.IsPinned(PinKinds.Book, Book.EntryId) ? "Unpin" : "Pin")</button>
+        <button class="bt-menuitem" role="menuitem" title="Correct its details: the values Bibliotaph guessed are marked" @onclick="() => Run(Correct)">Cataloged wrong…</button>
+        <button class="bt-menuitem" role="menuitem" @onclick="OpenCollectionsAsync">Add to collection<Icon Name="ChevronRight" Size="14" /></button>
+        <button class="bt-menuitem" role="menuitem" @onclick="OpenBindersAsync">Add to binder<Icon Name="ChevronRight" Size="14" /></button>
+        @if (Book.Elsewhere)
+        {
+            <button class="bt-menuitem" role="menuitem" title="Takes the book you added out of your library. Undo brings it back." @onclick="RemoveAsync">Remove from library</button>
+        }
+    }
+</div>
+
+@code {
+    IReadOnlyList<CollectionMenuItem>? _collections;
+    BinderMenu? _binders;
+
+    [Parameter, EditorRequired] public BookCard Book { get; set; } = default!;
+
+    [Parameter] public EventCallback Closed { get; set; }
+
+    [Parameter] public EventCallback Details { get; set; }
+
+    /// <summary>Cataloged wrong…: the details, with every guess marked.</summary>
+    [Parameter] public EventCallback Correct { get; set; }
+
+    /// <summary>The library changed (a favorite, a book taken out), so the page lists it again.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    /// <summary>What was done, with its Undo, or why it failed.</summary>
+    [Parameter] public EventCallback<ActionResult> Done { get; set; }
+
+    async Task Run(EventCallback action)
+    {
+        await Closed.InvokeAsync();
+        await action.InvokeAsync();
+    }
+
+    void Open() => Navigation.NavigateTo(ReaderUrl.For(Book));
+
+    async Task OpenInNewWindowAsync()
+    {
+        await Closed.InvokeAsync();
+        try
+        {
+            await JS.InvokeVoidAsync("open", ReaderUrl.For(Book), "_blank", "noopener");
+        }
+        catch (JSException)
+        {
+            await Done.InvokeAsync(new ActionResult("The browser didn't open a new tab. Allow pop-ups for Bibliotaph, then try again."));
+        }
+    }
+
+    async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Closed.InvokeAsync();
+    }
+
+    async Task FavoriteAsync()
+    {
+        await Closed.InvokeAsync();
+        await Attempt(async () =>
+        {
+            await Api.SetFavoriteAsync(Book.EntryId, !Book.Favorite);
+            await Changed.InvokeAsync();
+        });
+    }
+
+    async Task PinAsync()
+    {
+        await Closed.InvokeAsync();
+        await Pins.ToggleAsync(PinKinds.Book, Book.EntryId);
+    }
+
+    async Task OpenCollectionsAsync() => await Attempt(async () => _collections = (await Api.CollectionsAsync()).Menu);
+
+    async Task OpenBindersAsync() => await Attempt(async () => _binders = await Api.BinderMenuAsync());
+
+    async Task AddToCollectionAsync(CollectionMenuItem item)
+    {
+        await Closed.InvokeAsync();
+        if (await Collections.AddAsync([Book.EntryId], Book.Title, item) is { } result) await Done.InvokeAsync(result);
+        else if (Collections.Pending is { } problem)
+        {
+            Collections.Pending = null;
+            await Done.InvokeAsync(problem);
+        }
+    }
+
+    async Task AddToBinderAsync(BinderMenu menu, BinderMenuChoice choice)
+    {
+        await Closed.InvokeAsync();
+        await Attempt(async () =>
+        {
+            if (await Binders.AddAsync(menu, choice, Book.Title, new BinderAdd([Book.EntryId])) is { } result) await Done.InvokeAsync(result);
+        });
+    }
+
+    async Task RemoveAsync()
+    {
+        await Closed.InvokeAsync();
+        await Attempt(async () =>
+        {
+            var result = await Api.RemoveElsewhereAsync(Book.EntryId);
+            await Changed.InvokeAsync();
+            await Done.InvokeAsync(result);
+        });
+    }
+
+    async Task Attempt(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            await Done.InvokeAsync(new ActionResult(e is ApiProblemException problem ? problem.Message : "That couldn't be done just now. Try again in a moment."));
+        }
+    }
+}

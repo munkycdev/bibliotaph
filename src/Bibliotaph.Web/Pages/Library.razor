@@ -43,6 +43,7 @@
         }
         else if (_query.Collection is null && _query.Binder is null && _viewId is null)
         {
+            <div class="bt-headbuttons">
             <a class="bt-button" href="settings#library"><Icon Name="FolderPlus" />Add folder</a>
             @* Add, as on Windows: what joins the library other than a folder. *@
             <div class="bt-menuanchor">
@@ -55,6 +56,7 @@
                                 @onclick="OpenAddElsewhere">Add a book I own elsewhere…</button>
                     </div>
                 }
+            </div>
             </div>
         }
     </Actions>
@@ -400,7 +402,8 @@ else if (_list)
     <div class="bt-booklist" aria-label="Books">
         @foreach (var book in _results.Books.Take(_shown))
         {
-            <button class="bt-listrow @(_selecting ? "selecting" : "")" @key="book.Id" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)"
+            <div class="bt-listitem" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_selecting)">
+            <button class="bt-listrow @(_selecting ? "selecting" : "")" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)"
                     @onclick="e => CardClickAsync(book, e)" @ondblclick="() => OpenBook(book)">
                 @if (_selecting) { <Tick On="IsTicked(book)" /> }
                 <div class="bt-thumb"><BookCover Book="book" Marks="false" /></div>
@@ -422,6 +425,8 @@ else if (_list)
                 <div class="bt-heart @(book.Favorite ? "on" : "")">@if (book.Favorite) { <span role="img" aria-label="Favorite"><Icon Name="Heart" Size="14" /></span> }</div>
                 <div class="bt-chevron"><Icon Name="ChevronRight" Size="15" /></div>
             </button>
+            @if (_cardMenu == book) { <BookMenu Book="book" Closed="() => _cardMenu = null" Details="() => ShowDetails(book)" Correct="() => CorrectBook(book)" Changed="ReloadAsync" Done="ShowDone" /> }
+            </div>
         }
     </div>
 }
@@ -430,7 +435,7 @@ else
     <div class="bt-books" aria-label="Books">
         @foreach (var book in _results.Books.Take(_shown))
         {
-            <div class="bt-book" @key="book.Id" title="@book.Title">
+            <div class="bt-book" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_selecting)">
                 <button class="bt-bookbutton @(_selecting ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" @onclick="e => CardClickAsync(book, e)"
                         @ondblclick="() => OpenBook(book)">
                 <div class="bt-coverarea">
@@ -441,6 +446,7 @@ else
                 <div class="bt-booktitle">@book.Title</div>
                 <div class="bt-bookmeta">@book.Meta</div>
                 </button>
+                @if (_cardMenu == book) { <BookMenu Book="book" Closed="() => _cardMenu = null" Details="() => ShowDetails(book)" Correct="() => CorrectBook(book)" Changed="ReloadAsync" Done="ShowDone" /> }
             </div>
         }
     </div>
@@ -494,6 +500,7 @@ else
 
     /// <summary>The details first opened start Cataloged wrong…, for Needs review's Fix it.</summary>
     bool _correct;
+    BookCard? _cardMenu;
 
     bool _addMenu;
     bool _addingElsewhere;
@@ -793,6 +800,25 @@ else
     {
         _details = book.EntryId;
         _detailsCard = book;
+        _correct = false;
+    }
+
+    /// <summary>A card's right-click menu, as on Windows; Select mode keeps the browser's own.</summary>
+    void OpenCardMenu(BookCard book)
+    {
+        if (!_selecting) _cardMenu = book;
+    }
+
+    /// <summary>Cataloged wrong… from a card's menu: its details, with every guess marked.</summary>
+    async Task CorrectBook(BookCard book)
+    {
+        // Details already open start Cataloged wrong… only as they open, so they open afresh.
+        _details = null;
+        _drawer = null;
+        StateHasChanged();
+        await Task.Yield();
+        ShowDetails(book);
+        _correct = true;
     }
 
     /// <summary>A matching page's Add: that page to the binder worked on last, as on Windows.</summary>

@@ -10,9 +10,10 @@
 {
     <div class="bt-loading">Opening your library…</div>
 }
-else if (_summary.Folders == 0)
+else if (!HasLibrary)
 {
-    @* First run, as the Windows app's Home: what Bibliotaph does, and that the files stay put. *@
+    @* First run, as the Windows app's Home: what Bibliotaph does, and that the files stay put. A library that came
+       from a connected PC, or holds only books owned elsewhere, is past its first run without a folder here. *@
     <div class="bt-welcome">
         <span class="bt-eyebrow bt-eyebrow-block">WELCOME TO BIBLIOTAPH</span>
         <h1 tabindex="-1">Good stories begin with something you already own.</h1>
@@ -89,10 +90,12 @@ else
     bool _wasBusy;
     DateTime _loaded;
 
+    bool HasLibrary => _summary is { Folders: > 0 } or { Books: > 0 };
+
     protected override async Task OnInitializedAsync()
     {
         _summary = await Api.LibrarySummaryAsync();
-        if (_summary.Folders > 0) await LoadAsync();
+        if (HasLibrary) await LoadAsync();
         Activity.Changed += OnActivityChanged;
         Pins.Changed += OnPinsChanged;
     }
@@ -111,7 +114,7 @@ else
         var busy = Activity.Current?.Busy == true;
         var finished = _wasBusy && !busy;
         _wasBusy = busy;
-        if (_summary is not { Folders: > 0 } || !finished && !(busy && DateTime.UtcNow - _loaded > TimeSpan.FromSeconds(15))) return;
+        if (!HasLibrary || !finished && !(busy && DateTime.UtcNow - _loaded > TimeSpan.FromSeconds(15))) return;
         InvokeAsync(async () =>
         {
             await LoadAsync();
