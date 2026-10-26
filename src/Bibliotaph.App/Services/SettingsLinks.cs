@@ -8,13 +8,13 @@ public enum SettingsSection
     Library,
     /// <summary>Importing from online services, and how books owned online show and open.</summary>
     OnlineLibraries,
-    /// <summary>Connecting this PC to the user's library at bibliotaph.online.</summary>
-    WebLibrary,
-    Processing,
-    Appearance,
-    Review,
-    Vocabulary,
+    /// <summary>Connecting this PC to the user's library at bibliotaph.online, which keeps every device in step.</summary>
+    Devices,
     Ai,
+    Processing,
+    Vocabulary,
+    /// <summary>Light or dark, where Bibliotaph opens, and what waits in Needs review.</summary>
+    Preferences,
     Passwords,
     Backup,
     StartOver,

@@ -85,7 +85,7 @@
 
     <!-- .bt-reader-head; Back is the shell's. -->
     <DockPanel Margin="0,0,0,16">
-      <!-- Add page (slice 3c): the page in view to the current session; the arrow has Add pages… and the other sessions. -->
+      <!-- The reader's own actions; Add to binder's menu names the binders, then Add pages…. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding ShowEmptyState, Converter={StaticResource Bt.CollapsedWhenTrue}}">
         <!-- A file whose first page is blank or a title sheet can show a better page on its card. -->
@@ -107,15 +107,11 @@
         <Button x:Name="AddNote" Content="Note" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Click="AddNote_Click"
                 ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
                 Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <Button x:Name="AddPage" Style="{StaticResource Bt.Button.Primary}" Content="Add page" c:Ui.Icon="{StaticResource Icon.Plus}"
-                Command="{Binding AddPageCommand}" ToolTip="Add the page in view to the current binder"
-                AutomationProperties.Name="Add page to binder" />
-        <Button x:Name="AddPageMenu" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Margin="2,0,0,0"
-                ToolTip="Add pages, or add to another binder" AutomationProperties.Name="More ways to add to a binder" Click="AddPageMenu_Click">
+        <Button x:Name="AddToBinder" Style="{StaticResource Bt.Button.Primary}" Content="Add to binder" c:Ui.Icon="{StaticResource Icon.Plus}"
+                IsEnabled="{Binding CanAddToBinder}" Click="AddToBinder_Click" ToolTip="Add the page in view to a binder"
+                AutomationProperties.Name="Add to binder">
           <Button.ContextMenu>
-            <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{Binding AddPageToSessionCommand}">
-              <MenuItem x:Name="AddPagesItem" Header="Add pages…" Click="AddPages_Click" />
-            </ContextMenu>
+            <ContextMenu Style="{StaticResource Bt.Menu}" />
           </Button.ContextMenu>
         </Button>
       </StackPanel>

@@ -42,10 +42,10 @@ public sealed class SignInTests
 
     [Theory]
     [InlineData("/settings", "/settings")]
-    [InlineData("//evil.example", "/")]
-    [InlineData("/\\evil.example", "/")]
-    [InlineData("https://evil.example", "/")]
-    [InlineData(null, "/")]
+    [InlineData("//evil.example", "/home")]
+    [InlineData("/\\evil.example", "/home")]
+    [InlineData("https://evil.example", "/home")]
+    [InlineData(null, "/home")]
     public void After_sign_in_only_a_path_on_this_site_is_followed(string? asked, string expected) =>
         Assert.Equal(expected, AuthEndpoints.LocalOrHome(asked));
 }

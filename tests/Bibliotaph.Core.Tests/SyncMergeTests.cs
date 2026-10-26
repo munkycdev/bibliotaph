@@ -183,26 +183,4 @@ public class SyncMergeTests
         await Assert.ThrowsAsync<InvalidDataException>(() => SyncFile.ReadAsync(other, TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<InvalidDataException>(() => SyncFile.ReadAsync(broken, TestContext.Current.CancellationToken));
     }
-
-    [Fact]
-    public async Task The_smoke_tests_other_PC_file_is_a_sync_file()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "tests", "fixtures", "smoke", "smoke-sync.json"))) folder = folder.Parent;
-        Assert.NotNull(folder);
-        await using var stream = File.OpenRead(Path.Combine(folder.FullName, "tests", "fixtures", "smoke", "smoke-sync.json"));
-
-        var read = await SyncFile.ReadAsync(stream, TestContext.Current.CancellationToken);
-
-        Assert.Equal("SMOKE-PC-2", read.Machine);
-        var collection = Assert.Single(read.Records);
-        Assert.StartsWith(SyncKeys.Collection, collection.Key, StringComparison.Ordinal);
-        Assert.Equal("Made on the other PC", SyncJson.Read<string>(collection.Fields[SyncFields.Name].Value!));
-    }
-
-    [Theory]
-    [InlineData("DESKTOP-2", "DESKTOP-2.json")]
-    [InlineData("Dale's PC: upstairs", "Dale's PC_ upstairs.json")]
-    [InlineData("  ", "PC.json")]
-    public void Each_PC_writes_a_file_named_for_it(string machine, string expected) => Assert.Equal(expected, SyncFile.FileName(machine));
 }

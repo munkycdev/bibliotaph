@@ -81,8 +81,10 @@ usable while its card waits. It has two lists:
 
 - A field where the sources disagree, or a book with no useful title. **Accept**, **Reject**, or type your own value.
 - A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it.
-- **New version?** A file that looks like a newer version of a book you have: **Make it current**,
-  **Keep as another copy** or **Separate book**.
+- **New version?** A file that looks like another version of a book you have. The card names both files with their
+  pages, and you choose which one the book opens: **This file is current** or **The book's file is current**, either
+  way one card for both files. **Separate book** keeps them apart. You can change it later with **Make current** under
+  the book's copies in its details.
 - **Image pack?** "Make these 12 images one card?": **Make a pack** or **Keep separate**.
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
@@ -113,8 +115,8 @@ protected ones **Open in another app**, and **Try again** and **Try all again** 
 Bibliotaph hit a bug, **Copy details** copies the version and the error, without file names, to paste into a bug
 report.
 
-Every decision has **Undo**. **Settings > Needs review** chooses what waits for a look: **When unsure** (only what
-sources disagree about, and missing titles) or **All suggestions**.
+Every decision has **Undo**. **What waits for review** in **Settings > Preferences** chooses what waits for a look:
+**When unsure** (only what sources disagree about, and missing titles) or **All suggestions**.
 
 ## Copies and versions
 

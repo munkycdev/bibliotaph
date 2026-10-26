@@ -136,7 +136,7 @@ public static class LibraryServices
         services.AddSingleton<ServerSyncChannel>();
         services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
-        services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
+        services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySync>>(),
             SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()]));
         // What the AI worked out about files, shared with the user's PCs by content through sync.db.

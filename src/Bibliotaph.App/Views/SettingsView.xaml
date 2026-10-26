@@ -70,11 +70,11 @@
     <DataTemplate DataType="{x:Type vm:AiSettingsViewModel}"><views:AiSettingsView /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:BackupSectionViewModel}"><views:BackupSectionView /></DataTemplate>
 
-    <DataTemplate DataType="{x:Type vm:AppearanceSectionViewModel}">
+    <DataTemplate DataType="{x:Type vm:PreferencesSectionViewModel}">
       <StackPanel>
-        <TextBlock Text="Appearance" Style="{StaticResource Text.H2}" />
-        <TextBlock Text="A quiet place to read." Style="{StaticResource Text.Copy}" Margin="0,12,0,8" />
-        <!-- .bt-settingrow -->
+        <TextBlock Text="Preferences" Style="{StaticResource Text.H2}" />
+        <TextBlock Text="A quiet place to read, opening where you like." Style="{StaticResource Text.Copy}" Margin="0,12,0,8" />
+        <!-- .bt-settingrow: light or dark. -->
         <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
           <DockPanel>
             <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
@@ -93,14 +93,22 @@
             </StackPanel>
           </DockPanel>
         </Border>
-      </StackPanel>
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type vm:ReviewSectionViewModel}">
-      <StackPanel>
-        <TextBlock Text="Needs review" Style="{StaticResource Text.H2}" />
-        <TextBlock Text="Suggestions are used either way; this is what waits for a second look." Style="{StaticResource Text.Copy}"
-                   Margin="0,12,0,8" />
+        <!-- Start on: Home or the Library when Bibliotaph opens. -->
+        <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+          <DockPanel>
+            <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle" AutomationProperties.Name="Start on">
+                <RadioButton x:Name="StartOnHome" Style="{StaticResource Bt.Segment}" GroupName="StartOn" Content="Home" IsChecked="{Binding StartOnHome}" />
+                <RadioButton x:Name="StartOnLibrary" Style="{StaticResource Bt.Segment}" GroupName="StartOn" Content="Library" IsChecked="{Binding StartOnLibrary}" />
+              </StackPanel>
+            </Border>
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock Text="Start on" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="What Bibliotaph shows when it opens." Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+            </StackPanel>
+          </DockPanel>
+        </Border>
+        <!-- What waits in Needs review. -->
         <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
           <DockPanel>
             <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
@@ -111,7 +119,7 @@
             </Border>
             <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
               <TextBlock Text="What waits for review" Style="{StaticResource Text.Row}" />
-              <TextBlock Text="When unsure: only what sources disagree about, and missing titles." Style="{StaticResource Text.Small}"
+              <TextBlock Text="Suggestions are used either way. When unsure: only what sources disagree about, and missing titles." Style="{StaticResource Text.Small}"
                          Margin="0,4,0,0" TextWrapping="Wrap" />
               <TextBlock Text="{Binding ReviewNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
                          Visibility="{Binding ReviewNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
@@ -150,11 +158,11 @@
       </StackPanel>
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type vm:WebLibrarySectionViewModel}">
+    <DataTemplate DataType="{x:Type vm:DevicesSectionViewModel}">
       <StackPanel>
         <TextBlock Text="Web library" Style="{StaticResource Text.H2}" />
         <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
-                   Text="Use your library at bibliotaph.online with this PC. Connect opens the website in your browser, where you sign in and approve this PC. Then your corrections, hearts, notes, collections, binders, saved searches and pins are merged both ways, as with a second PC; your books and their files stay where they are. The PC's key is kept in Windows Credential Manager, and you can disconnect it here or in Settings on the web." />
+                   Text="Use your library at bibliotaph.online with this PC. Connect opens the website in your browser, where you sign in and approve this PC. Then your corrections, hearts, notes, collections, binders, saved searches and pins are merged both ways, with the web and with every other PC connected to it; your books and their files stay where they are. The PC's key is kept in Windows Credential Manager, and you can disconnect it here or in Settings on the web." />
         <StackPanel Margin="0,12,0,12" Visibility="{Binding IsWaiting, Converter={StaticResource Bt.CollapsedWhenTrue}}">
           <TextBlock x:Name="WebLibraryStatus" Text="{Binding StatusLine}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
           <TextBlock x:Name="WebLibrarySync" Text="{Binding SyncLine}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"

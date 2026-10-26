@@ -1,0 +1,8 @@
+@page "/"
+@inject NavigationManager Navigation
+@* The front page is the site's, not the app's: the server answers /, so a link to it from inside the app loads it from
+   there rather than finding nothing here. *@
+
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("/", forceLoad: true, replace: true);
+}

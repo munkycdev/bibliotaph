@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-@* As the Windows app's Settings: a list of sections beside the one chosen. The address's #storage names the section,
+@* As the Windows app's Settings: a list of sections beside the one chosen. The address's #library names the section,
    so links can open one and Back returns to the last. *@
 <PageHeading Title="Make yourself at home." TabTitle="Settings" />
 
@@ -25,21 +25,26 @@
             <CascadingValue Name="ChooseSettingsSection" Value="_choose" IsFixed="true">
             @switch (_selected)
             {
-                case "storage": <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" /> break;
-                case "library": <SettingsLibrary /> break;
+                case "library":
+                    <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" Changed="() => _storageChanges++" />
+                    <SettingsLibrary @key="_storageChanges" />
+                    break;
                 case "online": <SettingsOnline /> break;
-                case "devices": <SettingsDevices /> break;
+                case "devices":
+                    <SettingsDevices />
+                    <BrowserBooks />
+                    break;
+                case "ai": <AiSection /> break;
                 case "processing": <SettingsProcessing /> break;
                 case "vocabulary": <SettingsVocabulary /> break;
-                case "ai": <AiSection /> break;
+                case "preferences": <SettingsPreferences /> break;
                 case "passwords": <SettingsPasswords /> break;
                 case "backup": <SettingsBackup /> break;
-                case "browser": <BrowserBooks /> break;
-                case "appearance": <SettingsAppearance /> break;
-                case "review": <SettingsReview /> break;
                 case "account": <SettingsAccount Me="_me" Problem="@Problem" /> break;
-                case "invitations": <SettingsInvitations /> break;
-                case "accounts": <SettingsAccounts /> break;
+                case "members":
+                    <SettingsInvitations />
+                    <SettingsAccounts />
+                    break;
             }
             </CascadingValue>
         </div>
@@ -58,7 +63,8 @@
 
 @code {
     CurrentUser? _me;
-    string _selected = "storage";
+    string _selected = "library";
+    int _storageChanges;
     Func<string, Task> _choose = null!;
     bool _about;
     bool _shortcuts;
@@ -69,31 +75,38 @@
     [SupplyParameterFromQuery(Name = "provider")] public string? ProblemProvider { get; set; }
 
     /// <summary>
-    /// In the Windows app's order where the two have the same section: storage before the library folders it holds,
-    /// what's kept on this device after the library's own, and the account last, with what only admins see after it.
+    /// In the Windows app's order: where the books are first, then what reads them and how, then this person's own
+    /// choices and secrets, the account last, with what only admins see after it.
     /// </summary>
     IEnumerable<(string Id, string Label)> Sections
     {
         get
         {
-            yield return ("storage", "Storage");
             yield return ("library", "Library");
             yield return ("online", "Online libraries");
-            yield return ("devices", "Windows PCs");
-            yield return ("processing", "Processing");
-            yield return ("appearance", "Appearance");
-            yield return ("review", "Needs review");
-            yield return ("vocabulary", "Vocabulary");
+            yield return ("devices", "Devices");
             yield return ("ai", "AI");
+            yield return ("processing", "Processing");
+            yield return ("vocabulary", "Vocabulary");
+            yield return ("preferences", "Preferences");
             yield return ("passwords", "Passwords");
             yield return ("backup", "Backup");
-            yield return ("browser", "Books in this browser");
             yield return ("account", "Account");
             if (_me?.IsAdmin != true) yield break;
-            yield return ("invitations", "Invitations");
-            yield return ("accounts", "Accounts");
+            yield return ("members", "Members");
         }
     }
+
+    /// <summary>Sections since folded into another, so a bookmark or an older link still opens where it meant.</summary>
+    static readonly Dictionary<string, string> Moved = new()
+    {
+        ["storage"] = "library",
+        ["browser"] = "devices",
+        ["appearance"] = "preferences",
+        ["review"] = "preferences",
+        ["invitations"] = "members",
+        ["accounts"] = "members",
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -103,12 +116,13 @@
         _selected = Chosen(Navigation.Uri);
     }
 
-    /// <summary>The section the address names, or the one a problem belongs to, or Storage, where a library starts.</summary>
+    /// <summary>The section the address names, or the one a problem belongs to, or Library, where a library starts.</summary>
     string Chosen(string uri)
     {
         var named = new Uri(uri).Fragment.TrimStart('#');
+        if (Moved.TryGetValue(named, out var now)) named = now;
         if (Sections.Any(s => s.Id == named)) return named;
-        return Problem == "taken" ? "account" : "storage";
+        return Problem == "taken" ? "account" : "library";
     }
 
     /// <summary>

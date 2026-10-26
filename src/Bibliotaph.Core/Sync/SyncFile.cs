@@ -29,10 +29,9 @@ public static class SyncJson
 public sealed record SyncFileContent(string Machine, Guid MachineId, string? App, DateTime WrittenUtc, IReadOnlyList<SyncRecord> Records);
 
 /// <summary>
-/// The library sync file: <c>&lt;folder&gt;\Bibliotaph sync\&lt;PC name&gt;.json</c>, one per PC, so no two PCs ever
-/// write the same file and the cloud sync app never sees a conflict. It holds the PC's user work keyed by content hash
-/// and sync id, each field with when it changed, and the tombstones of what was deleted. Never file locations,
-/// online-only marks, window places or caches: those belong to one PC.
+/// The library sync file, one per device, so no two devices ever write the same file. It holds the device's user work
+/// keyed by content hash and sync id, each field with when it changed, and the tombstones of what was deleted. Never
+/// file locations, online-only marks, window places or caches: those belong to one device.
 /// </summary>
 public static class SyncFile
 {
@@ -41,19 +40,9 @@ public static class SyncFile
     /// <summary>The file's own version, which goes up when its shape changes. A newer one is refused rather than half read.</summary>
     public const int FormatVersion = 1;
 
-    /// <summary>The folder Bibliotaph keeps the PCs' files in, inside the folder the user picked.</summary>
-    public const string FolderName = "Bibliotaph sync";
-
     const string About = "Bibliotaph's library sync file: this PC's user work (metadata decisions, hearts, notes, collections, binders, saved searches, pins), "
         + "by content hash for books and by sync id for what the user made, each field with when it last changed. Each PC writes only its own file "
         + "and reads the others', newest change per field winning. The databases themselves are never put here.";
-
-    /// <summary>The file a PC called <paramref name="machine"/> writes, with any character Windows doesn't allow in a name replaced.</summary>
-    public static string FileName(string machine)
-    {
-        var name = string.Concat(machine.Trim().Select(c => char.IsControl(c) || c is '<' or '>' or ':' or '"' or '/' or '\\' or '|' or '?' or '*' ? '_' : c));
-        return (name.Length == 0 ? "PC" : name) + ".json";
-    }
 
     public static async Task WriteAsync(Stream stream, string machine, Guid machineId, string app, DateTime writtenUtc, IEnumerable<SyncRecord> records,
         CancellationToken ct = default)

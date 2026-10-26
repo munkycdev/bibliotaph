@@ -32,7 +32,7 @@ else
     <div class="bt-shell @(_folded ? "folded" : "")">
         <aside class="bt-sidebar">
             @* Folded, the monogram alone, as in the Windows app. *@
-            <a class="bt-brand" href="" aria-label="Bibliotaph home"><span class="bt-monogram">b.</span><span class="bt-brandname">Bibliotaph</span></a>
+            <a class="bt-brand" href="/" aria-label="Bibliotaph front page"><span class="bt-monogram">b.</span><span class="bt-brandname">Bibliotaph</span></a>
             <nav class="bt-navigation" aria-label="Main navigation">
                 @foreach (var item in Items)
                 {
@@ -190,7 +190,7 @@ else
 
     static readonly (string Href, string Label, string Icon)[] Items =
     [
-        ("", "Home", "House"),
+        ("home", "Home", "House"),
         ("library", "Library", "LibraryBig"),
         ("collections", "Collections", "Folders"),
         ("binders", "Binders", "NotebookTabs"),
@@ -227,9 +227,8 @@ else
         get
         {
             var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
-            if (path.Length == 0) return "";
             if (path.StartsWith("library", StringComparison.Ordinal) && LibraryUrl.Parse(Navigation.Uri).Collection is not null) return "collections";
-            return Items.FirstOrDefault(i => i.Href != "" && path.StartsWith(i.Href, StringComparison.Ordinal)).Href;
+            return Items.FirstOrDefault(i => path.StartsWith(i.Href, StringComparison.Ordinal)).Href;
         }
     }
 
@@ -387,12 +386,12 @@ else
     }
 
     /// <summary>
-    /// The Library rather than Home when Settings › Library says so, as the Windows app opens on one or the other. Only
+    /// The Library rather than Home when Settings › Preferences says so, as the Windows app opens on one or the other. Only
     /// when Bibliotaph itself opens at Home: choosing Home later stays on Home.
     /// </summary>
     async Task StartWhereChosenAsync()
     {
-        if (Navigation.ToBaseRelativePath(Navigation.Uri).Length != 0) return;
+        if (Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0] != "home") return;
         try
         {
             if ((await Api.StartPageAsync()).Library) Navigation.NavigateTo("library", replace: true);

@@ -1,6 +1,7 @@
 @* The reader, as the Windows app's ViewerView: the book's title over a toolbar, its pages in a scrolling column with the
    contents beside them and the thumbnails under them, and where the page in view is in the book underneath. The pages
    are read straight from the user's storage; the server never passes a book's bytes on. *@
+@using Bibliotaph.Core.Reading
 @implements IAsyncDisposable
 @inject ApiClient Api
 @inject IJSRuntime JS
@@ -51,19 +52,18 @@ else
                                 @onclick="MarkAdventure"><Icon Name="BookOpen" />Mark as adventure</button>
                         <button class="bt-button" title="Add a note on the page in view" aria-label="Add a note on this page" @onclick="AddNoteAsync"><Icon Name="Pencil" />Note</button>
                     }
-                    <button class="bt-button primary" title="Add the page in view to the current binder" aria-label="Add page to binder" @onclick="() => AddPageAsync(null, null)"><Icon Name="Plus" />Add page</button>
                     <div class="bt-menuanchor">
-                        <button class="bt-icon bt-addpagemenu" title="Add pages, or add to another binder" aria-label="More ways to add to a binder" aria-haspopup="menu"
-                                aria-expanded="@(_addMenu is not null)" @onclick="ToggleAddMenuAsync"><Icon Name="ChevronDown" /></button>
+                        <button class="bt-button primary" title="@AddToBinderMenu.Tooltip" aria-haspopup="menu" aria-expanded="@(_addMenu is not null)"
+                                @onclick="ToggleAddMenuAsync"><Icon Name="Plus" />@AddToBinderMenu.Label<Icon Name="ChevronDown" Size="14" /></button>
                         @if (_addMenu is { } menu)
                         {
                             <div class="bt-backdrop fixed bt-menuback" @onclick="() => _addMenu = null"></div>
-                            <div class="bt-menu" role="menu" aria-label="Add to binder">
-                                <button class="bt-menuitem" role="menuitem" @onclick="AddPagesAsync">Add pages…</button>
-                                @foreach (var choice in menu.Choices)
+                            <div class="bt-menu" role="menu" aria-label="Add the page in view to">
+                                @foreach (var item in AddToBinderMenu.For([.. menu.All.Select(b => (b.Id, b.Title))]))
                                 {
-                                    <button class="bt-menuitem" role="menuitem" @onclick="() => AddPageAsync(menu, choice)">@choice.Label</button>
+                                    <button class="bt-menuitem" role="menuitem" title="@item.Label" @onclick="() => AddPageAsync(menu, Choice(item))">@item.Label</button>
                                 }
+                                <button class="bt-menuitem" role="menuitem" @onclick="AddPagesAsync">@AddToBinderMenu.Pages</button>
                             </div>
                         }
                     </div>
@@ -1180,9 +1180,16 @@ else
         }
     }
 
+    static BinderMenuChoice Choice(AddToBinderMenu.Item item) => new(item.Kind switch
+    {
+        AddToBinderMenu.Kind.Binder => BinderMenuKind.Binder,
+        AddToBinderMenu.Kind.Another => BinderMenuKind.Choose,
+        _ => BinderMenuKind.New,
+    }, item.Id, item.Label);
+
     /// <summary>
-    /// Add page: the page in view, or the whole picture, to the binder worked on last, or to the one the menu names;
-    /// before there is a binder, it asks for one first.
+    /// Add to binder: the page in view, or the whole picture, to the binder the menu names, or one picked or made from
+    /// it; with no menu (a picture's Add pages…), to the binder worked on last, or a new one before there is any.
     /// </summary>
     async Task AddPageAsync(BinderMenu? menu, BinderMenuChoice? choice)
     {

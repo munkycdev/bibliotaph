@@ -79,8 +79,9 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
   another machine or a hosted service is your choice and is covered by its own terms; see
   [AI](docs/guide/ai.md#what-it-sends-and-where).
 
-Library sync only writes a file to a folder you pick. If that folder is in OneDrive, OneDrive uploads it, not
-Bibliotaph.
+Connecting the app to [your web library](docs/guide/web.md#connecting-a-windows-pc) in Settings > Devices is your
+choice too: then your work, what the AI found in your books and the text read from scanned pages are shared with your
+library at bibliotaph.online, never the books themselves.
 
 ## What it does
 
@@ -123,8 +124,8 @@ can hold pages of books you read online, too. At the table, step through it with
 a rules binder at hand.
 [Binders](docs/guide/binders.md)
 
-**Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and sync with a second PC
-through OneDrive or a similar folder. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md)
+**Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and the same work on every
+PC through your web library. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md)
 
 ## The guide
 

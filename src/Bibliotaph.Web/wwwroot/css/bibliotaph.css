@@ -904,7 +904,6 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-askbutton{color:var(--bt-muted)}
 .bt-readlibrary .bt-sample{max-width:640px;line-height:1.5}
 .bt-askbutton.active{color:var(--bt-accent);background:var(--bt-soft)}
-.bt-reader-actions .bt-addpagemenu{margin-left:-6px}
 .bt-notepagefields .bt-select{width:100%}
 .bt-readerbars{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(560px,calc(100% - 36px));z-index:3;pointer-events:none}
 .bt-readerbars .bt-itembanner{pointer-events:auto;display:flex;align-items:center;gap:12px;background:var(--bt-side);border:1px solid var(--bt-warm);border-radius:6px;padding:10px 14px;margin:0 0 8px;font-size:11px;color:var(--bt-text)}

@@ -103,11 +103,18 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     void OpenFilesNeedingAttention() => links.OpenFilesNeedingAttention();
 }
 
-/// <summary>Settings > Appearance: light, dark, or as Windows is.</summary>
-public sealed class AppearanceSectionViewModel(ThemeService theme) : SettingsSectionViewModel
+/// <summary>
+/// Settings > Preferences: light, dark or as Windows is; whether Bibliotaph opens on Home or the Library; and whether
+/// every unconfirmed suggestion waits in Needs review, or only those worth a second look.
+/// </summary>
+public sealed partial class PreferencesSectionViewModel(ThemeService theme, SettingsStore settings, ReviewService review,
+    ILogger<PreferencesSectionViewModel> log) : SettingsSectionViewModel
 {
-    public override SettingsSection Section => SettingsSection.Appearance;
-    public override string Label => "Appearance";
+    bool _loading;
+    bool _reviewAll;
+
+    public override SettingsSection Section => SettingsSection.Preferences;
+    public override string Label => "Preferences";
 
     public bool UseSystem
     {
@@ -130,33 +137,16 @@ public sealed class AppearanceSectionViewModel(ThemeService theme) : SettingsSec
     /// <summary>While a Windows contrast theme is on, the system's colours show whatever is chosen here.</summary>
     public bool IsHighContrast => theme.IsHighContrast;
 
-    /// <summary>The top bar's toggle changes the preference too, so the choice follows it while it shows.</summary>
-    public override Task LoadAsync()
+    /// <summary>Start on: the Library rather than Home when Bibliotaph opens.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartOnHome))]
+    public partial bool StartOnLibrary { get; set; }
+
+    public bool StartOnHome
     {
-        theme.Changed -= OnThemeChanged;
-        theme.Changed += OnThemeChanged;
-        OnThemeChanged(this, EventArgs.Empty);
-        return Task.CompletedTask;
+        get => !StartOnLibrary;
+        set { if (value) StartOnLibrary = false; }
     }
-
-    public override void Unload() => theme.Changed -= OnThemeChanged;
-
-    void OnThemeChanged(object? sender, EventArgs e)
-    {
-        OnPropertyChanged(nameof(UseSystem));
-        OnPropertyChanged(nameof(UseLight));
-        OnPropertyChanged(nameof(UseDark));
-        OnPropertyChanged(nameof(IsHighContrast));
-    }
-}
-
-/// <summary>Settings > Needs review: whether every unconfirmed suggestion waits there, or only those worth a second look.</summary>
-public sealed partial class ReviewSectionViewModel(ReviewService review) : SettingsSectionViewModel
-{
-    bool _reviewAll;
-
-    public override SettingsSection Section => SettingsSection.Review;
-    public override string Label => "Needs review";
 
     /// <summary>Needs review gets only what sources disagree about, and missing titles (the default).</summary>
     public bool ReviewWhenUnsure
@@ -176,6 +166,49 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
     [ObservableProperty]
     public partial string ReviewNote { get; set; } = "";
 
+    /// <summary>The top bar's toggle changes the theme too, so the choice follows it while the section shows.</summary>
+    public override async Task LoadAsync()
+    {
+        theme.Changed -= OnThemeChanged;
+        theme.Changed += OnThemeChanged;
+        OnThemeChanged(this, EventArgs.Empty);
+        _loading = true;
+        try
+        {
+            StartOnLibrary = await settings.GetAsync(SettingKeys.StartPage) == nameof(Route.Library);
+        }
+        finally
+        {
+            _loading = false;
+        }
+        _reviewAll = await review.GetReviewAllAsync();
+        OnPropertyChanged(nameof(ReviewWhenUnsure));
+        OnPropertyChanged(nameof(ReviewEverything));
+    }
+
+    public override void Unload() => theme.Changed -= OnThemeChanged;
+
+    void OnThemeChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(UseSystem));
+        OnPropertyChanged(nameof(UseLight));
+        OnPropertyChanged(nameof(UseDark));
+        OnPropertyChanged(nameof(IsHighContrast));
+    }
+
+    async partial void OnStartOnLibraryChanged(bool value)
+    {
+        if (_loading) return;
+        try
+        {
+            await settings.SetAsync(SettingKeys.StartPage, value ? nameof(Route.Library) : nameof(Route.Home));
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving the start page failed");
+        }
+    }
+
     async Task SetReviewAllAsync(bool reviewAll)
     {
         if (_reviewAll == reviewAll) return;
@@ -185,13 +218,6 @@ public sealed partial class ReviewSectionViewModel(ReviewService review) : Setti
         ReviewNote = "Counting what needs review…";
         await review.SetReviewAllAsync(reviewAll);
         ReviewNote = "";
-    }
-
-    public override async Task LoadAsync()
-    {
-        _reviewAll = await review.GetReviewAllAsync();
-        OnPropertyChanged(nameof(ReviewWhenUnsure));
-        OnPropertyChanged(nameof(ReviewEverything));
     }
 }
 
